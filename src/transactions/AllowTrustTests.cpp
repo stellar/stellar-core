@@ -27,7 +27,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     const int64_t trustLineLimit = INT64_MAX;
     const int64_t trustLineStartingBalance = 20000;
 
-    auto const minBalance4 = app->getLedgerManager().getMinBalance(4);
+    auto const minBalance4 = app->getLedgerManager().getLastMinBalance(4);
 
     // set up world
     auto root = TestAccount::createRoot(*app);

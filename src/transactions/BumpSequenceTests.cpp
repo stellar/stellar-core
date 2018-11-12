@@ -32,8 +32,8 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
     auto root = TestAccount::createRoot(*app);
     auto& lm = app->getLedgerManager();
 
-    auto a = root.create("A", lm.getMinBalance(0) + 1000);
-    auto b = root.create("B", lm.getMinBalance(0) + 1000);
+    auto a = root.create("A", lm.getLastMinBalance(0) + 1000);
+    auto b = root.create("B", lm.getLastMinBalance(0) + 1000);
 
     SECTION("test success")
     {

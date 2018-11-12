@@ -15,6 +15,8 @@
 
 namespace stellar
 {
+class AbstractLedgerState;
+class ConstLedgerStateEntry;
 class TransactionFrame;
 class LedgerDelta;
 class OperationFrame;
@@ -85,6 +87,12 @@ SecretKey getRoot(Hash const& networkID);
 SecretKey getAccount(const char* n);
 
 Signer makeSigner(SecretKey key, int weight);
+
+// shorthand to load an existing account
+ConstLedgerStateEntry loadAccount(AbstractLedgerState& ls, PublicKey const& k,
+                                  bool mustExist = true);
+
+bool doesAccountExist(Application& app, PublicKey const& k);
 
 // shorthand to load an existing account
 AccountFrame::pointer loadAccount(PublicKey const& k, Application& app,

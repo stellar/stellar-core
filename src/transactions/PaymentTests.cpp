@@ -4,6 +4,10 @@
 
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
+#include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -16,6 +20,7 @@
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -43,15 +48,15 @@ TEST_CASE("payment", "[tx][payment]")
 
     Asset xlm;
 
-    int64_t txfee = app->getLedgerManager().getTxFee();
+    int64_t txfee = app->getLedgerManager().getLastTxFee();
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
-        app->getLedgerManager().getMinBalance(2) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(2) + 10 * txfee;
 
     // minimum balance necessary to hold 2 trust lines and an offer
     const int64_t minBalance3 =
-        app->getLedgerManager().getMinBalance(3) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(3) + 10 * txfee;
 
     const int64_t paymentAmount = minBalance2;
 
@@ -74,21 +79,26 @@ TEST_CASE("payment", "[tx][payment]")
     Asset idr = makeAsset(gateway, "IDR");
     Asset usd = makeAsset(gateway2, "USD");
 
-    AccountFrame::pointer a1Account, rootAccount;
-    rootAccount = loadAccount(root, *app);
-    a1Account = loadAccount(a1, *app);
-    REQUIRE(rootAccount->getMasterWeight() == 1);
-    REQUIRE(rootAccount->getHighThreshold() == 0);
-    REQUIRE(rootAccount->getLowThreshold() == 0);
-    REQUIRE(rootAccount->getMediumThreshold() == 0);
-    REQUIRE(a1Account->getBalance() == paymentAmount);
-    REQUIRE(a1Account->getMasterWeight() == 1);
-    REQUIRE(a1Account->getHighThreshold() == 0);
-    REQUIRE(a1Account->getLowThreshold() == 0);
-    REQUIRE(a1Account->getMediumThreshold() == 0);
-    // root did 2 transactions at this point
-    REQUIRE(rootAccount->getBalance() == (1000000000000000000 - paymentAmount -
-                                          gatewayPayment * 2 - txfee * 3));
+    AccountEntry rootAcc, a1Acc;
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        auto rootAccount = txtest::loadAccount(ls, root);
+        rootAcc = rootAccount.current().data.account();
+        auto a1Account = txtest::loadAccount(ls, a1);
+        a1Acc = a1Account.current().data.account();
+        REQUIRE(rootAcc.thresholds[THRESHOLD_MASTER_WEIGHT] == 1);
+        REQUIRE(rootAcc.thresholds[THRESHOLD_HIGH] == 0);
+        REQUIRE(rootAcc.thresholds[THRESHOLD_LOW] == 0);
+        REQUIRE(rootAcc.thresholds[THRESHOLD_MED] == 0);
+        REQUIRE(a1Acc.balance == paymentAmount);
+        REQUIRE(a1Acc.thresholds[THRESHOLD_MASTER_WEIGHT] == 1);
+        REQUIRE(a1Acc.thresholds[THRESHOLD_HIGH] == 0);
+        REQUIRE(a1Acc.thresholds[THRESHOLD_LOW] == 0);
+        REQUIRE(a1Acc.thresholds[THRESHOLD_MED] == 0);
+        // root did 2 transactions at this point
+        REQUIRE(rootAcc.balance == (1000000000000000000 - paymentAmount -
+                                    gatewayPayment * 2 - txfee * 3));
+    }
 
     closeLedgerOn(*app, 2, 1, 1, 2016);
 
@@ -97,13 +107,13 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("Success")
         {
             for_all_versions(*app, [&] {
-                auto b1 =
-                    root.create("B", app->getLedgerManager().getMinBalance(0));
+                auto b1 = root.create(
+                    "B", app->getLedgerManager().getLastMinBalance(0));
                 SECTION("Account already exists")
                 {
                     REQUIRE_THROWS_AS(
-                        root.create("B",
-                                    app->getLedgerManager().getMinBalance(0)),
+                        root.create(
+                            "B", app->getLedgerManager().getLastMinBalance(0)),
                         ex_CREATE_ACCOUNT_ALREADY_EXIST);
                 }
             });
@@ -119,16 +129,16 @@ TEST_CASE("payment", "[tx][payment]")
         {
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
-                    root.create("B",
-                                app->getLedgerManager().getMinBalance(0) - 1),
+                    root.create(
+                        "B", app->getLedgerManager().getLastMinBalance(0) - 1),
                     ex_CREATE_ACCOUNT_LOW_RESERVE);
             });
         }
 
         SECTION("with native selling liabilities")
         {
-            auto const minBal0 = app->getLedgerManager().getMinBalance(0);
-            auto const minBal3 = app->getLedgerManager().getMinBalance(3);
+            auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
+            auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
 
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
@@ -150,8 +160,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("with native buying liabilities")
         {
-            auto const minBal0 = app->getLedgerManager().getMinBalance(0);
-            auto const minBal3 = app->getLedgerManager().getMinBalance(3);
+            auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
+            auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
 
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
@@ -170,7 +180,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         auto paymentAmountMerge = 1000000;
         auto amount =
-            app->getLedgerManager().getMinBalance(0) + paymentAmountMerge;
+            app->getLedgerManager().getLastMinBalance(0) + paymentAmountMerge;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
@@ -182,11 +192,10 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             applyCheck(txFrame, *app);
 
-            REQUIRE(!loadAccount(a1, *app, false));
-            REQUIRE(loadAccount(b1, *app));
+            REQUIRE(!a1.exists());
+            REQUIRE(b1.exists());
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-            REQUIRE(!loadAccount(a1, *app, false));
             REQUIRE((a1Balance + b1Balance - txFrame->getFee()) ==
                     b1.getBalance());
         });
@@ -196,7 +205,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         auto paymentAmountMerge = 1000000;
         auto amount =
-            app->getLedgerManager().getMinBalance(0) + paymentAmountMerge;
+            app->getLedgerManager().getLastMinBalance(0) + paymentAmountMerge;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
@@ -210,11 +219,10 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             applyCheck(txFrame, *app);
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(!loadAccount(b1, *app, false));
+            REQUIRE(a1.exists());
+            REQUIRE(!b1.exists());
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-            REQUIRE(!loadAccount(b1, *app, false));
             REQUIRE((a1Balance + b1Balance - txFrame->getFee()) ==
                     a1.getBalance());
         });
@@ -222,7 +230,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("merge then send")
     {
-        auto b1 = root.create("B", app->getLedgerManager().getMinBalance(0));
+        auto b1 =
+            root.create("B", app->getLedgerManager().getLastMinBalance(0));
 
         int64 a1Balance = a1.getBalance();
         int64 b1Balance = b1.getBalance();
@@ -234,8 +243,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, *app, [&] {
             applyCheck(txFrame, *app);
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
+            REQUIRE(a1.exists());
+            REQUIRE(b1.exists());
             REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
             REQUIRE(b1Balance == b1.getBalance());
@@ -245,8 +254,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, *app, [&] {
             applyCheck(txFrame, *app);
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
+            REQUIRE(a1.exists());
+            REQUIRE(b1.exists());
             REQUIRE(txFrame->getResultCode() == txFAILED);
 
             REQUIRE(b1Balance == b1.getBalance());
@@ -259,46 +268,57 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             root.pay(a1, morePayment);
 
-            AccountFrame::pointer a1Account2, rootAccount2;
-            rootAccount2 = loadAccount(root, *app);
-            a1Account2 = loadAccount(a1, *app);
-            REQUIRE(a1Account2->getBalance() ==
-                    a1Account->getBalance() + morePayment);
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto rootAccount2 = stellar::loadAccount(ls, root);
+                auto rootAcc2 = rootAccount2.current().data.account();
+                auto a1Account2 = stellar::loadAccount(ls, a1);
+                auto a1Acc2 = a1Account2.current().data.account();
+                REQUIRE(a1Acc2.balance == a1Acc.balance + morePayment);
 
-            // root did 2 transactions at this point
-            REQUIRE(rootAccount2->getBalance() ==
-                    (rootAccount->getBalance() - morePayment - txfee));
+                // root did 2 transactions at this point
+                REQUIRE(rootAcc2.balance ==
+                        (rootAcc.balance - morePayment - txfee));
+            }
         });
     }
 
     SECTION("send XLM to a new account (no destination)")
     {
         for_all_versions(*app, [&] {
-            REQUIRE_THROWS_AS(root.pay(getAccount("B").getPublicKey(),
-                                       app->getLedgerManager()
-                                               .getCurrentLedgerHeader()
-                                               .baseReserve *
-                                           2),
-                              ex_PAYMENT_NO_DESTINATION);
+            REQUIRE_THROWS_AS(
+                root.pay(getAccount("B").getPublicKey(),
+                         app->getLedgerManager().getLastMinBalance(0)),
+                ex_PAYMENT_NO_DESTINATION);
 
-            AccountFrame::pointer rootAccount2;
-            rootAccount2 = loadAccount(root, *app);
-            REQUIRE(rootAccount2->getBalance() ==
-                    (rootAccount->getBalance() - txfee));
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto rootAccount2 = stellar::loadAccount(ls, root);
+                auto rootAcc2 = rootAccount2.current().data.account();
+                REQUIRE(rootAcc2.balance == (rootAcc.balance - txfee));
+            }
         });
     }
 
     SECTION("rescue account (was below reserve)")
     {
         for_all_versions(*app, [&] {
-            int64 orgReserve = app->getLedgerManager().getMinBalance(0);
+            auto getMinBalance = [&] {
+                LedgerState ls(app->getLedgerStateRoot());
+                return stellar::getMinBalance(ls.loadHeader(), 0);
+            };
+
+            int64 orgReserve = getMinBalance();
 
             auto b1 = root.create("B", orgReserve + 1000);
 
             // raise the reserve
             uint32 addReserve = 100000;
-            app->getLedgerManager().getCurrentLedgerHeader().baseReserve +=
-                addReserve;
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                ls.loadHeader().current().baseReserve += addReserve;
+                ls.commit();
+            }
 
             // verify that the account can't do anything
             auto tx = b1.tx({payment(root, 1)});
@@ -306,7 +326,7 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
             // top up the account to unblock it
-            int64 topUp = app->getLedgerManager().getMinBalance(0) - orgReserve;
+            int64 topUp = getMinBalance() - orgReserve;
             root.pay(b1, topUp);
 
             // payment goes through
@@ -317,7 +337,7 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("two payments, first breaking second")
     {
         int64 startingBalance = paymentAmount + 5 +
-                                app->getLedgerManager().getMinBalance(0) +
+                                app->getLedgerManager().getLastMinBalance(0) +
                                 txfee * 2;
         auto b1 = root.create("B", startingBalance);
         auto tx1 = b1.tx({payment(root, paymentAmount)});
@@ -331,7 +351,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             int64 expectedrootBalance = rootBalance + paymentAmount;
             int64 expectedb1Balance =
-                app->getLedgerManager().getMinBalance(0) + 5;
+                app->getLedgerManager().getLastMinBalance(0) + 5;
             REQUIRE(expectedb1Balance == b1.getBalance());
             REQUIRE(expectedrootBalance == root.getBalance());
         });
@@ -347,7 +367,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             int64 expectedrootBalance = rootBalance + paymentAmount;
             int64 expectedb1Balance =
-                app->getLedgerManager().getMinBalance(0) + 5;
+                app->getLedgerManager().getLastMinBalance(0) + 5;
             REQUIRE(expectedb1Balance == b1.getBalance());
             REQUIRE(expectedrootBalance == root.getBalance());
         });
@@ -371,8 +391,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(!loadAccount(sourceAccount, *app, false));
-            REQUIRE(loadAccount(createSourceAccount, *app));
+            REQUIRE(!doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, createSourceAccount));
             REQUIRE(createSourceAccount.getBalance() == amount - tx->getFee());
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
@@ -409,8 +429,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_from(8, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(!loadAccount(createSourceAccount, *app, false));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(!doesAccountExist(*app, createSourceAccount));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
 
@@ -458,9 +478,9 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(7, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(!loadAccount(createSourceAccount, *app, false));
-            REQUIRE(loadAccount(payAccount, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(!doesAccountExist(*app, createSourceAccount));
+            REQUIRE(doesAccountExist(*app, payAccount));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(payAccount.getBalance() == amount);
 
@@ -469,9 +489,9 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions(8, 9, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(!loadAccount(createSourceAccount, *app, false));
-            REQUIRE(loadAccount(payAccount, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(!doesAccountExist(*app, createSourceAccount));
+            REQUIRE(doesAccountExist(*app, payAccount));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(payAccount.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
@@ -529,8 +549,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(payAndMergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount - createAmount - tx->getFee());
@@ -580,8 +600,8 @@ TEST_CASE("payment", "[tx][payment]")
             // as the account gets re-created we have to disable seqnum
             // verification
             REQUIRE(applyCheck(tx, *app, false));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(payAndMergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount - createAmount - tx->getFee());
@@ -652,8 +672,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(payAndMergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() ==
                     amount - pay1Amount - pay2Amount - tx->getFee());
             REQUIRE(payAndMergeDestination.getBalance() ==
@@ -705,8 +725,8 @@ TEST_CASE("payment", "[tx][payment]")
             // as the account gets re-created we have to disable seqnum
             // verification
             REQUIRE(applyCheck(tx, *app, false));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(payAndMergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
             REQUIRE(payAndMergeDestination.getBalance() ==
                     amount + amount + pay2Amount - tx->getFee() - createAmount);
@@ -779,9 +799,9 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(secondSourceAccount, *app));
-            REQUIRE(loadAccount(payAndMergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, secondSourceAccount));
+            REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() ==
                     amount - pay1Amount - pay2Amount - tx->getFee());
             REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
@@ -836,9 +856,9 @@ TEST_CASE("payment", "[tx][payment]")
             // as the account gets re-created we have to disable seqnum
             // verification
             REQUIRE(applyCheck(tx, *app, false));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(secondSourceAccount, *app));
-            REQUIRE(loadAccount(payAndMergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, secondSourceAccount));
+            REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
             REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
             REQUIRE(payAndMergeDestination.getBalance() ==
@@ -918,10 +938,10 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_all_versions(*app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(createSource, *app));
-            REQUIRE(loadAccount(createDestination, *app));
-            REQUIRE(loadAccount(payDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, createSource));
+            REQUIRE(doesAccountExist(*app, createDestination));
+            REQUIRE(doesAccountExist(*app, payDestination));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(createSource.getBalance() == amount + amount -
                                                      create1Amount -
@@ -994,8 +1014,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(4, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(!loadAccount(sourceAccount, *app, false));
-            REQUIRE(loadAccount(mergeDestination, *app));
+            REQUIRE(!doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(mergeDestination.getBalance() ==
                     amount + amount + amount - tx->getFee() - tx->getFee());
             REQUIRE(mergeDestination.loadSequenceNumber() ==
@@ -1042,8 +1062,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions(5, 7, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(mergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
@@ -1086,8 +1106,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_from(8, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(mergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
@@ -1143,8 +1163,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(4, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
-            REQUIRE(!loadAccount(sourceAccount, *app, false));
-            REQUIRE(loadAccount(mergeDestination, *app));
+            REQUIRE(!doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(mergeDestination.getBalance() ==
                     amount + amount + amount - tx->getFee() - tx->getFee());
             REQUIRE(mergeDestination.loadSequenceNumber() ==
@@ -1233,8 +1253,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions(5, 7, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(mergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
@@ -1319,8 +1339,8 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_from(8, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
-            REQUIRE(loadAccount(sourceAccount, *app));
-            REQUIRE(loadAccount(mergeDestination, *app));
+            REQUIRE(doesAccountExist(*app, sourceAccount));
+            REQUIRE(doesAccountExist(*app, mergeDestination));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(mergeDestination.getBalance() == amount);
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
@@ -1412,9 +1432,7 @@ TEST_CASE("payment", "[tx][payment]")
             a1.changeTrust(idr, 1000);
             gateway.pay(a1, idr, 100);
 
-            TrustFrame::pointer line;
-            line = loadTrustLine(a1, idr, *app);
-            REQUIRE(line->getBalance() == 100);
+            REQUIRE(a1.loadTrustLine(idr).balance == 100);
 
             // create b1 account
             auto b1 = root.create("B", paymentAmount);
@@ -1427,16 +1445,13 @@ TEST_CASE("payment", "[tx][payment]")
                     // first, send 40 from a1 to b1
                     a1.pay(b1, idr, 40);
 
-                    line = loadTrustLine(a1, idr, *app);
-                    REQUIRE(line->getBalance() == 60);
-                    line = loadTrustLine(b1, idr, *app);
-                    REQUIRE(line->getBalance() == 40);
+                    REQUIRE(a1.loadTrustLine(idr).balance == 60);
+                    REQUIRE(b1.loadTrustLine(idr).balance == 40);
 
                     // then, send back to the gateway
                     // the gateway does not have a trust line as it's the issuer
                     b1.pay(gateway, idr, 40);
-                    line = loadTrustLine(b1, idr, *app);
-                    REQUIRE(line->getBalance() == 0);
+                    REQUIRE(b1.loadTrustLine(idr).balance == 0);
                 });
             }
             SECTION("missing issuer")
@@ -1463,19 +1478,15 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             a1.changeTrust(idr, INT64_MAX);
             gateway.pay(a1, idr, INT64_MAX);
-            TrustFrame::pointer line;
-            line = loadTrustLine(a1, idr, *app);
-            REQUIRE(line->getBalance() == INT64_MAX);
+            REQUIRE(a1.loadTrustLine(idr).balance == INT64_MAX);
 
             // send it all back
             a1.pay(gateway, idr, INT64_MAX);
-            line = loadTrustLine(a1, idr, *app);
-            REQUIRE(line->getBalance() == 0);
+            REQUIRE(a1.loadTrustLine(idr).balance == 0);
 
-            std::vector<TrustFrame::pointer> gwLines;
-            TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
-                                  app->getDatabase());
-            REQUIRE(gwLines.size() == 0);
+            // Since a1 has a trustline, and there is only 1 trustline, we know
+            // that gateway has no trustlines.
+            REQUIRE(app->getLedgerStateRoot().countObjects(TRUSTLINE) == 1);
         });
     }
     SECTION("authorize flag")
@@ -1524,8 +1535,7 @@ TEST_CASE("payment", "[tx][payment]")
                 {
                     sendToSelf.pay(sendToSelf, INT64_MAX);
                 }
-                auto account = loadAccount(sendToSelf, *app);
-                REQUIRE(account->getBalance() == minBalance2 - txfee);
+                REQUIRE(sendToSelf.getBalance() == minBalance2 - txfee);
             }
 
             auto fakeCur = makeAsset(gateway, "fake");
@@ -1561,11 +1571,14 @@ TEST_CASE("payment", "[tx][payment]")
             };
 
             // in ledger versions 1 and 2 each of these payment succeeds
-            if (app->getLedgerManager().getCurrentLedgerVersion() < 3)
             {
-                payNoTrust = payOk;
-                payLineFull = payOk;
-                payNoIssuer = payOk;
+                LedgerState ls(app->getLedgerStateRoot());
+                if (ls.loadHeader().current().ledgerVersion < 3)
+                {
+                    payNoTrust = payOk;
+                    payLineFull = payOk;
+                    payNoIssuer = payOk;
+                }
             }
 
             auto withoutTrustLine = std::vector<Data>{
@@ -1584,10 +1597,12 @@ TEST_CASE("payment", "[tx][payment]")
                     {
                         data.payWithoutTrustline(data.asset, 1);
 
-                        auto account = loadAccount(sendToSelf, *app);
-                        REQUIRE(account->getBalance() == minBalance2 - txfee);
-                        REQUIRE(!loadTrustLine(sendToSelf, data.asset, *app,
-                                               false));
+                        LedgerState ls(app->getLedgerStateRoot());
+                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        auto const& ae = account.current().data.account();
+                        REQUIRE(ae.balance == minBalance2 - txfee);
+                        REQUIRE(!stellar::loadTrustLine(ls, sendToSelf,
+                                                        data.asset));
                     }
                 }
             }
@@ -1619,12 +1634,15 @@ TEST_CASE("payment", "[tx][payment]")
                         {
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
-                        auto account = loadAccount(sendToSelf, *app);
-                        REQUIRE(account->getBalance() ==
-                                minBalance2 - 4 * txfee);
-                        auto trustline =
-                            loadTrustLine(sendToSelf, data.asset, *app, true);
-                        REQUIRE(trustline->getBalance() == 0);
+
+                        LedgerState ls(app->getLedgerStateRoot());
+                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        auto const& ae = account.current().data.account();
+                        REQUIRE(ae.balance == minBalance2 - 4 * txfee);
+                        auto trust =
+                            stellar::loadTrustLine(ls, sendToSelf, data.asset);
+                        REQUIRE(trust);
+                        REQUIRE(trust.getBalance() == 0);
                     }
 
                     SECTION("with trustline and half balance")
@@ -1643,12 +1661,15 @@ TEST_CASE("payment", "[tx][payment]")
                         {
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
-                        auto account = loadAccount(sendToSelf, *app);
-                        REQUIRE(account->getBalance() ==
-                                minBalance2 - 4 * txfee);
-                        auto trustline =
-                            loadTrustLine(sendToSelf, data.asset, *app, true);
-                        REQUIRE(trustline->getBalance() == 500);
+
+                        LedgerState ls(app->getLedgerStateRoot());
+                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        auto const& ae = account.current().data.account();
+                        REQUIRE(ae.balance == minBalance2 - 4 * txfee);
+                        auto trust =
+                            stellar::loadTrustLine(ls, sendToSelf, data.asset);
+                        REQUIRE(trust);
+                        REQUIRE(trust.getBalance() == 500);
                     }
 
                     SECTION("with trustline and full balance")
@@ -1667,12 +1688,15 @@ TEST_CASE("payment", "[tx][payment]")
                         {
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
-                        auto account = loadAccount(sendToSelf, *app);
-                        REQUIRE(account->getBalance() ==
-                                minBalance2 - 4 * txfee);
-                        auto trustline =
-                            loadTrustLine(sendToSelf, data.asset, *app, true);
-                        REQUIRE(trustline->getBalance() == 1000);
+
+                        LedgerState ls(app->getLedgerStateRoot());
+                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        auto const& ae = account.current().data.account();
+                        REQUIRE(ae.balance == minBalance2 - 4 * txfee);
+                        auto trust =
+                            stellar::loadTrustLine(ls, sendToSelf, data.asset);
+                        REQUIRE(trust);
+                        REQUIRE(trust.getBalance() == 1000);
                     }
                 }
             }
@@ -1685,7 +1709,8 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount);
+                "pay-from",
+                app->getLedgerManager().getLastMinBalance(0) + amount);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1696,7 +1721,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 1);
+                app->getLedgerManager().getLastMinBalance(0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1707,8 +1732,8 @@ TEST_CASE("payment", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + txfee - 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1722,7 +1747,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee);
+                app->getLedgerManager().getLastMinBalance(0) + amount + txfee);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1735,8 +1760,8 @@ TEST_CASE("payment", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + txfee + 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1749,8 +1774,8 @@ TEST_CASE("payment", "[tx][payment]")
                 "two stroops")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
-                                2 * txfee - 2);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1763,8 +1788,8 @@ TEST_CASE("payment", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
-                                2 * txfee - 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee - 1);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
@@ -1772,8 +1797,8 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
@@ -1834,12 +1859,13 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         // set up world
         auto root = TestAccount::createRoot(*app);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto txfee = app->getLedgerManager().getLastTxFee();
 
         SECTION("account has only base reserve + amount")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount);
+                "pay-from",
+                app->getLedgerManager().getLastMinBalance(0) + amount);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1850,7 +1876,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 1);
+                app->getLedgerManager().getLastMinBalance(0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1861,8 +1887,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + txfee - 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1876,7 +1902,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee);
+                app->getLedgerManager().getLastMinBalance(0) + amount + txfee);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1889,8 +1915,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + txfee + 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1903,8 +1929,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "two stroops")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
-                                2 * txfee - 2);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1917,8 +1943,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
-                                2 * txfee - 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee - 1);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
@@ -1926,8 +1952,8 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
@@ -1944,12 +1970,13 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         // set up world
         auto root = TestAccount::createRoot(*app);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto txfee = app->getLedgerManager().getLastTxFee();
 
         SECTION("account has only base reserve + amount")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount);
+                "pay-from",
+                app->getLedgerManager().getLastMinBalance(0) + amount);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1960,7 +1987,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 1);
+                app->getLedgerManager().getLastMinBalance(0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1971,8 +1998,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + txfee - 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1986,7 +2013,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee);
+                app->getLedgerManager().getLastMinBalance(0) + amount + txfee);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1999,8 +2026,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + txfee + 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -2013,8 +2040,8 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "two stroops")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
-                                2 * txfee - 2);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -2027,41 +2054,17 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
-                                2 * txfee - 1);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee - 1);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees")
         {
             auto payFrom = root.create(
-                "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+                "pay-from", app->getLedgerManager().getLastMinBalance(0) +
+                                amount + 2 * txfee);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
-    }
-}
-
-TEST_CASE("single create account SQL", "[singlesql][paymentsql][!hide]")
-{
-    Config::TestDbMode mode = Config::TESTDB_ON_DISK_SQLITE;
-#ifdef USE_POSTGRES
-    if (!force_sqlite)
-        mode = Config::TESTDB_POSTGRESQL;
-#endif
-
-    VirtualClock clock;
-    Application::pointer app =
-        createTestApplication(clock, getTestConfig(0, mode));
-    app->start();
-
-    auto root = TestAccount::createRoot(*app);
-    int64_t txfee = app->getLedgerManager().getTxFee();
-    const int64_t paymentAmount =
-        app->getLedgerManager().getMinBalance(1) + txfee * 10;
-
-    {
-        auto ctx = app->getDatabase().captureAndLogSQL("createAccount");
-        auto a1 = root.create("A", paymentAmount);
     }
 }
