@@ -988,12 +988,6 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
 }
 
 void
-LedgerManagerImpl::checkDbState()
-{
-    // TODO(jonjove): Delete this
-}
-
-void
 LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 {
     auto ledgerHash = sha256(xdr::xdr_to_opaque(header));
