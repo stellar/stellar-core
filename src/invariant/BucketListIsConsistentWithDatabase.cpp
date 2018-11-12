@@ -6,13 +6,10 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
 #include "crypto/Hex.h"
-#include "database/Database.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
 #include "ledger/LedgerRange.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
@@ -20,17 +17,55 @@
 namespace stellar
 {
 
+static std::string
+checkAgainstDatabase(AbstractLedgerState& ls, LedgerEntry const& entry)
+{
+    auto fromDb = ls.loadWithoutRecord(LedgerEntryKey(entry));
+    if (!fromDb)
+    {
+        std::string s{
+            "Inconsistent state between objects (not found in database): "};
+        s += xdr::xdr_to_string(entry, "live");
+        return s;
+    }
+
+    if (fromDb.current() == entry)
+    {
+        return {};
+    }
+    else
+    {
+        std::string s{"Inconsistent state between objects: "};
+        s += xdr::xdr_to_string(fromDb.current(), "db");
+        s += xdr::xdr_to_string(entry, "live");
+        return s;
+    }
+}
+
+static std::string
+checkAgainstDatabase(AbstractLedgerState& ls, LedgerKey const& key)
+{
+    auto fromDb = ls.loadWithoutRecord(key);
+    if (!fromDb)
+    {
+        return {};
+    }
+
+    std::string s = "Entry with type DEADENTRY found in database ";
+    s += xdr::xdr_to_string(fromDb.current(), "db");
+    return s;
+}
+
 std::shared_ptr<Invariant>
 BucketListIsConsistentWithDatabase::registerInvariant(Application& app)
 {
     return app.getInvariantManager()
-        .registerInvariant<BucketListIsConsistentWithDatabase>(
-            app.getDatabase());
+        .registerInvariant<BucketListIsConsistentWithDatabase>(app);
 }
 
 BucketListIsConsistentWithDatabase::BucketListIsConsistentWithDatabase(
-    Database& db)
-    : Invariant(true), mDb{db}
+    Application& app)
+    : Invariant(true), mApp(app)
 {
 }
 
@@ -46,104 +81,104 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
     uint32_t newestLedger)
 {
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
-    bool hasPreviousEntry = false;
-    BucketEntry previousEntry;
-    for (BucketInputIterator iter(bucket); iter; ++iter)
     {
-        auto const& e = *iter;
-        if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
-        {
-            std::string s = "Bucket has out of order entries: ";
-            s += xdr::xdr_to_string(previousEntry, "previous");
-            s += xdr::xdr_to_string(e, "current");
-            return s;
-        }
-        previousEntry = e;
-        hasPreviousEntry = true;
+        LedgerState ls(mApp.getLedgerStateRoot());
 
-        if (e.type() == LIVEENTRY)
+        bool hasPreviousEntry = false;
+        BucketEntry previousEntry;
+        for (BucketInputIterator iter(bucket); iter; ++iter)
         {
-            if (e.liveEntry().lastModifiedLedgerSeq < oldestLedger)
+            auto const& e = *iter;
+            if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
             {
-                auto s = fmt::format("lastModifiedLedgerSeq beneath lower"
-                                     " bound for this bucket ({} < {}): ",
-                                     e.liveEntry().lastModifiedLedgerSeq,
-                                     oldestLedger);
-                s += xdr::xdr_to_string(e.liveEntry(), "live");
+                std::string s = "Bucket has out of order entries: ";
+                s += xdr::xdr_to_string(previousEntry, "previous");
+                s += xdr::xdr_to_string(e, "current");
                 return s;
             }
-            if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
-            {
-                auto s = fmt::format("lastModifiedLedgerSeq above upper"
-                                     " bound for this bucket ({} > {}): ",
-                                     e.liveEntry().lastModifiedLedgerSeq,
-                                     newestLedger);
-                s += xdr::xdr_to_string(e.liveEntry(), "live");
-                return s;
-            }
+            previousEntry = e;
+            hasPreviousEntry = true;
 
-            switch (e.liveEntry().data.type())
+            if (e.type() == LIVEENTRY)
             {
-            case ACCOUNT:
-                ++nAccounts;
-                break;
-            case TRUSTLINE:
-                ++nTrustLines;
-                break;
-            case OFFER:
-                ++nOffers;
-                break;
-            case DATA:
-                ++nData;
-                break;
-            default:
-                abort();
+                if (e.liveEntry().lastModifiedLedgerSeq < oldestLedger)
+                {
+                    auto s = fmt::format("lastModifiedLedgerSeq beneath lower"
+                                         " bound for this bucket ({} < {}): ",
+                                         e.liveEntry().lastModifiedLedgerSeq,
+                                         oldestLedger);
+                    s += xdr::xdr_to_string(e.liveEntry(), "live");
+                    return s;
+                }
+                if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
+                {
+                    auto s = fmt::format("lastModifiedLedgerSeq above upper"
+                                         " bound for this bucket ({} > {}): ",
+                                         e.liveEntry().lastModifiedLedgerSeq,
+                                         newestLedger);
+                    s += xdr::xdr_to_string(e.liveEntry(), "live");
+                    return s;
+                }
+
+                switch (e.liveEntry().data.type())
+                {
+                case ACCOUNT:
+                    ++nAccounts;
+                    break;
+                case TRUSTLINE:
+                    ++nTrustLines;
+                    break;
+                case OFFER:
+                    ++nOffers;
+                    break;
+                case DATA:
+                    ++nData;
+                    break;
+                default:
+                    abort();
+                }
+                auto s = checkAgainstDatabase(ls, e.liveEntry());
+                if (!s.empty())
+                {
+                    return s;
+                }
             }
-            auto s = EntryFrame::checkAgainstDatabase(e.liveEntry(), mDb);
-            if (!s.empty())
+            else if (e.type() == DEADENTRY)
             {
-                return s;
-            }
-        }
-        else if (e.type() == DEADENTRY)
-        {
-            if (EntryFrame::exists(mDb, e.deadEntry()))
-            {
-                auto fromDb = EntryFrame::storeLoad(e.deadEntry(), mDb);
-                std::string s = "Entry with type DEADENTRY found in database ";
-                s += xdr::xdr_to_string(fromDb->mEntry, "db");
-                return s;
+                auto s = checkAgainstDatabase(ls, e.deadEntry());
+                if (!s.empty())
+                {
+                    return s;
+                }
             }
         }
     }
 
-    auto& sess = mDb.getSession();
+    LedgerRange range{oldestLedger, newestLedger};
     std::string countFormat = "Incorrect {} count: Bucket = {} Database = {}";
-    uint64_t nAccountsInDb =
-        AccountFrame::countObjects(sess, {oldestLedger, newestLedger});
+    auto& lsRoot = mApp.getLedgerStateRoot();
+    uint64_t nAccountsInDb = lsRoot.countObjects(ACCOUNT, range);
     if (nAccountsInDb != nAccounts)
     {
         return fmt::format(countFormat, "Account", nAccounts, nAccountsInDb);
     }
-    uint64_t nTrustLinesInDb =
-        TrustFrame::countObjects(sess, {oldestLedger, newestLedger});
+    uint64_t nTrustLinesInDb = lsRoot.countObjects(TRUSTLINE, range);
     if (nTrustLinesInDb != nTrustLines)
     {
         return fmt::format(countFormat, "TrustLine", nTrustLines,
                            nTrustLinesInDb);
     }
-    uint64_t nOffersInDb =
-        OfferFrame::countObjects(sess, {oldestLedger, newestLedger});
+    uint64_t nOffersInDb = lsRoot.countObjects(OFFER, range);
     if (nOffersInDb != nOffers)
     {
         return fmt::format(countFormat, "Offer", nOffers, nOffersInDb);
     }
-    uint64_t nDataInDb =
-        DataFrame::countObjects(sess, {oldestLedger, newestLedger});
+    uint64_t nDataInDb = lsRoot.countObjects(DATA, range);
     if (nDataInDb != nData)
     {
         return fmt::format(countFormat, "Data", nData, nDataInDb);
     }
+
     return {};
 }
 }

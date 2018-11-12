@@ -5,12 +5,19 @@
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
 {
+
+static bool
+signerCompare(Signer const& s1, Signer const& s2)
+{
+    return s1.key < s2.key;
+}
 
 LedgerEntryIsValid::LedgerEntryIsValid() : Invariant(false)
 {
@@ -54,6 +61,34 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
     if (!msg.empty())
     {
         return msg;
+    }
+    return {};
+}
+
+std::string
+LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
+                                          OperationResult const& result,
+                                          LedgerStateDelta const& lsDelta)
+{
+    uint32_t currLedgerSeq = lsDelta.header.current.ledgerSeq;
+    if (currLedgerSeq > INT32_MAX)
+    {
+        return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",
+                           currLedgerSeq, INT32_MAX);
+    }
+
+    for (auto const& entryDelta : lsDelta.entry)
+    {
+        if (!entryDelta.second.current)
+            continue;
+
+        auto s = checkIsValid(*entryDelta.second.current, currLedgerSeq);
+        if (!s.empty())
+        {
+            s += ": ";
+            s += xdr::xdr_to_string(*entryDelta.second.current);
+            return s;
+        }
     }
     return {};
 }
@@ -127,7 +162,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
     }
     if (std::adjacent_find(ae.signers.begin(), ae.signers.end(),
                            [](Signer const& s1, Signer const& s2) {
-                               return !AccountFrame::signerCompare(s1, s2);
+                               return !signerCompare(s1, s2);
                            }) != ae.signers.end())
     {
         return "Account signers are not strictly increasing";

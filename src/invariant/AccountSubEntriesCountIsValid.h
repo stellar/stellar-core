@@ -14,6 +14,18 @@ namespace stellar
 
 class Application;
 class Database;
+struct LedgerStateDelta;
+
+struct SubEntriesChange
+{
+    int32_t numSubEntries;
+    int32_t calculatedSubEntries;
+    int32_t signers;
+
+    SubEntriesChange() : numSubEntries(0), calculatedSubEntries(0), signers(0)
+    {
+    }
+};
 
 // This Invariant is used to validate that the numSubEntries field of an
 // account is in sync with the number of subentries in the database.
@@ -31,19 +43,12 @@ class AccountSubEntriesCountIsValid : public Invariant
                           OperationResult const& result,
                           LedgerDelta const& delta) override;
 
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerStateDelta const& lsDelta) override;
+
   private:
-    struct SubEntriesChange
-    {
-        int32_t numSubEntries;
-        int32_t calculatedSubEntries;
-        int32_t signers;
-
-        SubEntriesChange()
-            : numSubEntries(0), calculatedSubEntries(0), signers(0)
-        {
-        }
-    };
-
     int32_t calculateDelta(LedgerEntry const* current,
                            LedgerEntry const* previous) const;
 

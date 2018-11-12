@@ -13,6 +13,7 @@ namespace stellar
 class Application;
 class LedgerDelta;
 class LedgerManager;
+struct LedgerStateDelta;
 
 // This Invariant is used to validate that LedgerEntries meet a number of simple
 // requirements, such as bounds checking for a variety of fields. The Invariant
@@ -31,6 +32,10 @@ class LedgerEntryIsValid : public Invariant
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerDelta const& delta) override;
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerStateDelta const& lsDelta) override;
 
   private:
     template <typename IterType>

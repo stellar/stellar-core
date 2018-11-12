@@ -10,6 +10,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -118,6 +119,33 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
             R"(Invariant "{}" does not hold on operation: {}{}{})",
             invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
         onInvariantFailure(invariant, message, delta.getHeader().ledgerSeq);
+    }
+}
+
+void
+InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
+                                            OperationResult const& opres,
+                                            LedgerStateDelta const& lsDelta)
+{
+    if (lsDelta.header.current.ledgerVersion < 8)
+    {
+        return;
+    }
+
+    for (auto invariant : mEnabled)
+    {
+        auto result =
+            invariant->checkOnOperationApply(operation, opres, lsDelta);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            R"(Invariant "{}" does not hold on operation: {}{}{})",
+            invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
+        onInvariantFailure(invariant, message,
+                           lsDelta.header.current.ledgerSeq);
     }
 }
 

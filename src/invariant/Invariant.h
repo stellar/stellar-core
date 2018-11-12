@@ -12,6 +12,7 @@ namespace stellar
 
 class Bucket;
 class LedgerDelta;
+struct LedgerStateDelta;
 struct Operation;
 struct OperationResult;
 
@@ -50,6 +51,14 @@ class Invariant
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerDelta const& delta)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerStateDelta const& lsDelta)
     {
         return std::string{};
     }

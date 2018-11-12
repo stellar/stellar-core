@@ -13,6 +13,7 @@ namespace stellar
 
 class Application;
 class LedgerManager;
+struct LedgerStateDelta;
 
 // This Invariant has two purposes: to ensure that liabilities remain in sync
 // with the offer book, and to ensure that the balance of accounts and
@@ -34,6 +35,10 @@ class LiabilitiesMatchOffers : public Invariant
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
                           LedgerDelta const& delta) override;
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerStateDelta const& lsDelta) override;
 
   private:
     template <typename IterType>
