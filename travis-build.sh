@@ -20,8 +20,8 @@ fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir bin
-ln -s `which gcc-5` bin/gcc
-ln -s `which g++-5` bin/g++
+ln -s `which gcc-6` bin/gcc
+ln -s `which g++-6` bin/g++
 ln -s `which clang-5.0` bin/clang
 ln -s `which clang++-5.0` bin/clang++
 ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
