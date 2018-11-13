@@ -30,6 +30,7 @@ namespace stellar
  * merged in sorted order, and all elements are hashed while being added.
  */
 
+class Application;
 class BucketManager;
 class BucketList;
 class Database;
@@ -66,7 +67,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // the entry is live, creates or updates the corresponding entry in the
     // database; if the entry is dead (a tombstone), deletes the corresponding
     // entry in the database.
-    void apply(Database& db) const;
+    void apply(Application& app) const;
 
     // Create a fresh bucket from a given vector of live LedgerEntries and
     // dead LedgerEntryKeys. The bucket will be sorted, hashed, and adopted
@@ -88,8 +89,4 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
               std::vector<std::shared_ptr<Bucket>>(),
           bool keepDeadEntries = true);
 };
-
-void checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
-                           BucketManager& bucketManager, Database& db,
-                           BucketList& bl);
 }

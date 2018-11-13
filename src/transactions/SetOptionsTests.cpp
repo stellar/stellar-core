@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -13,6 +15,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
@@ -37,7 +40,8 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    auto a1 = root.create("A", app->getLedgerManager().getMinBalance(0) + 1000);
+    auto a1 =
+        root.create("A", app->getLedgerManager().getLastMinBalance(0) + 1000);
 
     SECTION("Signers")
     {
@@ -56,8 +60,8 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("add signer with native selling liabilities")
         {
-            auto const minBal2 = app->getLedgerManager().getMinBalance(2);
-            auto txfee = app->getLedgerManager().getTxFee();
+            auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+            auto txfee = app->getLedgerManager().getLastTxFee();
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
             TestMarket market(*app);
@@ -79,8 +83,8 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("add signer with native buying liabilities")
         {
-            auto const minBal2 = app->getLedgerManager().getMinBalance(2);
-            auto txfee = app->getLedgerManager().getTxFee();
+            auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+            auto txfee = app->getLedgerManager().getLastTxFee();
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
             TestMarket market(*app);
@@ -126,7 +130,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("invalid signer weight")
         {
-            root.pay(a1, app->getLedgerManager().getMinBalance(2));
+            root.pay(a1, app->getLedgerManager().getLastMinBalance(2));
 
             auto sk1_over = makeSigner(s1, 256);
             for_versions_to(9, *app,
@@ -139,32 +143,37 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("non-account signers")
         {
+            auto countSubEntriesAndSigners = [&](uint32_t expected) {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto a1Account = stellar::loadAccount(ls, a1);
+                auto const& ae = a1Account.current().data.account();
+                REQUIRE(ae.numSubEntries == expected);
+                REQUIRE(ae.signers.size() == expected);
+            };
+            auto checkFirstSigner = [&](Signer const& sk) {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto a1Account = stellar::loadAccount(ls, a1);
+                auto const& ae = a1Account.current().data.account();
+                REQUIRE(ae.signers.size() >= 1);
+                REQUIRE(ae.signers[0].key == sk.key);
+                REQUIRE(ae.signers[0].weight == sk.weight);
+            };
 
             for_versions_to(2, *app, [&] {
                 // add some funds
-                root.pay(a1, app->getLedgerManager().getMinBalance(2));
+                root.pay(a1, app->getLedgerManager().getLastMinBalance(2));
 
                 a1.setOptions(th | setSigner(sk1));
 
-                AccountFrame::pointer a1Account;
-
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 1);
-                REQUIRE(a1Account->getAccount().signers.size() == 1);
-                {
-                    Signer& a_sk1 = a1Account->getAccount().signers[0];
-                    REQUIRE(a_sk1.key == sk1.key);
-                    REQUIRE(a_sk1.weight == sk1.weight);
-                }
+                countSubEntriesAndSigners(1);
+                checkFirstSigner(sk1);
 
                 // add signer 2
                 auto s2 = getAccount("S2");
                 auto sk2 = makeSigner(s2, 100);
                 a1.setOptions(setSigner(sk2));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 2);
-                REQUIRE(a1Account->getAccount().signers.size() == 2);
+                countSubEntriesAndSigners(2);
 
                 // add signer 3 - non account, will fail for old ledger
                 SignerKey s3;
@@ -173,9 +182,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                 REQUIRE_THROWS_AS(a1.setOptions(setSigner(sk3)),
                                   ex_SET_OPTIONS_BAD_SIGNER);
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 2);
-                REQUIRE(a1Account->getAccount().signers.size() == 2);
+                countSubEntriesAndSigners(2);
 
                 // update signer 2
                 sk2.weight = 11;
@@ -189,12 +196,8 @@ TEST_CASE("set options", "[tx][setoptions]")
                 sk1.weight = 0;
                 a1.setOptions(setSigner(sk1));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 1);
-                REQUIRE(a1Account->getAccount().signers.size() == 1);
-                Signer& a_sk2 = a1Account->getAccount().signers[0];
-                REQUIRE(a_sk2.key == sk2.key);
-                REQUIRE(a_sk2.weight == sk2.weight);
+                countSubEntriesAndSigners(1);
+                checkFirstSigner(sk2);
 
                 // remove signer 3 - non account, not added, because of old
                 // ledger
@@ -202,43 +205,29 @@ TEST_CASE("set options", "[tx][setoptions]")
                 REQUIRE_THROWS_AS(a1.setOptions(setSigner(sk3)),
                                   ex_SET_OPTIONS_BAD_SIGNER);
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 1);
-                REQUIRE(a1Account->getAccount().signers.size() == 1);
+                countSubEntriesAndSigners(1);
 
                 // remove signer 2
                 sk2.weight = 0;
                 a1.setOptions(setSigner(sk2));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 0);
-                REQUIRE(a1Account->getAccount().signers.size() == 0);
+                countSubEntriesAndSigners(0);
             });
 
             for_versions_from(3, *app, [&] {
                 // add some funds
-                root.pay(a1, app->getLedgerManager().getMinBalance(2));
+                root.pay(a1, app->getLedgerManager().getLastMinBalance(2));
                 a1.setOptions(th | setSigner(sk1));
 
-                AccountFrame::pointer a1Account;
-
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 1);
-                REQUIRE(a1Account->getAccount().signers.size() == 1);
-                {
-                    Signer& a_sk1 = a1Account->getAccount().signers[0];
-                    REQUIRE(a_sk1.key == sk1.key);
-                    REQUIRE(a_sk1.weight == sk1.weight);
-                }
+                countSubEntriesAndSigners(1);
+                checkFirstSigner(sk1);
 
                 // add signer 2
                 auto s2 = getAccount("S2");
                 auto sk2 = makeSigner(s2, 100);
                 a1.setOptions(setSigner(sk2));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 2);
-                REQUIRE(a1Account->getAccount().signers.size() == 2);
+                countSubEntriesAndSigners(2);
 
                 // add signer 3 - non account
                 SignerKey s3;
@@ -246,9 +235,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                 Signer sk3(s3, 100);
                 a1.setOptions(setSigner(sk3));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 3);
-                REQUIRE(a1Account->getAccount().signers.size() == 3);
+                countSubEntriesAndSigners(3);
 
                 // update signer 2
                 sk2.weight = 11;
@@ -262,28 +249,20 @@ TEST_CASE("set options", "[tx][setoptions]")
                 sk1.weight = 0;
                 a1.setOptions(setSigner(sk1));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 2);
-                REQUIRE(a1Account->getAccount().signers.size() == 2);
-                Signer& a_sk2 = a1Account->getAccount().signers[0];
-                REQUIRE(a_sk2.key == sk2.key);
-                REQUIRE(a_sk2.weight == sk2.weight);
+                countSubEntriesAndSigners(2);
+                checkFirstSigner(sk2);
 
                 // remove signer 3 - non account
                 sk3.weight = 0;
                 a1.setOptions(setSigner(sk3));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 1);
-                REQUIRE(a1Account->getAccount().signers.size() == 1);
+                countSubEntriesAndSigners(1);
 
                 // remove signer 2
                 sk2.weight = 0;
                 a1.setOptions(setSigner(sk2));
 
-                a1Account = loadAccount(a1, *app);
-                REQUIRE(a1Account->getAccount().numSubEntries == 0);
-                REQUIRE(a1Account->getAccount().signers.size() == 0);
+                countSubEntriesAndSigners(0);
             });
         }
     }

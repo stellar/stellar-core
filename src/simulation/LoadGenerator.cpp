@@ -4,26 +4,20 @@
 
 #include "simulation/LoadGenerator.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
 #include "util/types.h"
 
 #include "database/Database.h"
-
-#include "transactions/AllowTrustOpFrame.h"
-#include "transactions/ChangeTrustOpFrame.h"
-#include "transactions/CreateAccountOpFrame.h"
-#include "transactions/ManageOfferOpFrame.h"
-#include "transactions/PathPaymentOpFrame.h"
-#include "transactions/PaymentOpFrame.h"
-#include "transactions/TransactionFrame.h"
 
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -64,8 +58,7 @@ LoadGenerator::createRootAccount()
     {
         auto rootTestAccount = TestAccount::createRoot(mApp);
         mRoot = make_shared<TestAccount>(rootTestAccount);
-        auto res = loadAccount(mRoot, mApp.getDatabase());
-        if (!res)
+        if (!loadAccount(mRoot, mApp))
         {
             CLOG(ERROR, "LoadGen") << "Could not retrieve root account!";
         }
@@ -198,8 +191,6 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
                             uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
                             bool autoRate)
 {
-    soci::transaction sqltx(mApp.getDatabase().getSession());
-    mApp.getDatabase().setCurrentTransactionReadOnly();
     createRootAccount();
 
     // Finish if no more txs need to be created.
@@ -225,7 +216,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
 
-    uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
+    uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
 
     for (uint32_t i = 0; i < txPerStep; ++i)
     {
@@ -452,7 +443,7 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
 void
 LoadGenerator::updateMinBalance()
 {
-    auto b = mApp.getLedgerManager().getMinBalance(0);
+    auto b = mApp.getLedgerManager().getLastMinBalance(0);
     if (b > mMinBalance)
     {
         mMinBalance = b;
@@ -480,25 +471,24 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
 }
 
 bool
-LoadGenerator::loadAccount(TestAccount& account, Database& database)
+LoadGenerator::loadAccount(TestAccount& account, Application& app)
 {
-    AccountFrame::pointer ret;
-    ret = AccountFrame::loadAccount(account.getPublicKey(), database);
-    if (!ret)
+    LedgerState ls(app.getLedgerStateRoot());
+    auto entry = stellar::loadAccount(ls, account.getPublicKey());
+    if (!entry)
     {
         return false;
     }
-    account.setSequenceNumber(ret->getSeqNum());
-
+    account.setSequenceNumber(entry.current().data.account().seqNum);
     return true;
 }
 
 bool
-LoadGenerator::loadAccount(TestAccountPtr acc, Database& database)
+LoadGenerator::loadAccount(TestAccountPtr acc, Application& app)
 {
     if (acc)
     {
-        return loadAccount(*acc, database);
+        return loadAccount(*acc, app);
     }
     return false;
 }
@@ -537,7 +527,7 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
         auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
         newAccountPtr = make_shared<TestAccount>(account);
 
-        if (!loadAccount(newAccountPtr, mApp.getDatabase()))
+        if (!loadAccount(newAccountPtr, mApp))
         {
             std::runtime_error(
                 fmt::format("Account {0} must exist in the DB.", accountId));
@@ -577,7 +567,7 @@ LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
     // incremented on the next call to execute.
     if (status == Herder::TX_STATUS_ERROR && code == txBAD_SEQ)
     {
-        if (!loadAccount(sourceAccount, mApp.getDatabase()))
+        if (!loadAccount(sourceAccount, mApp))
         {
             CLOG(ERROR, "LoadGen")
                 << "Unable to reload account " << sourceAccount->getAccountId();
@@ -586,14 +576,14 @@ LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
 }
 
 std::vector<LoadGenerator::TestAccountPtr>
-LoadGenerator::checkAccountSynced(Database& database)
+LoadGenerator::checkAccountSynced(Application& app)
 {
     std::vector<TestAccountPtr> result;
     for (auto const& acc : mAccounts)
     {
         TestAccountPtr account = acc.second;
         auto currentSeqNum = account->getLastSequenceNumber();
-        auto reloadRes = loadAccount(account, database);
+        auto reloadRes = loadAccount(account, app);
         // reload the account
         if (!reloadRes || currentSeqNum != account->getLastSequenceNumber())
         {
@@ -615,7 +605,7 @@ LoadGenerator::waitTillComplete()
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
     vector<TestAccountPtr> inconsistencies;
-    inconsistencies = checkAccountSynced(mApp.getDatabase());
+    inconsistencies = checkAccountSynced(mApp);
 
     if (inconsistencies.empty())
     {

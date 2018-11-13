@@ -7,16 +7,13 @@
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "catchup/CatchupManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerManager.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "util/format.h"
 #include <medida/meter.h>
@@ -91,21 +88,14 @@ ApplyBucketsWork::onStart()
                                           mApplyState.currentLedger, mLevel)
                                     : BucketList::oldestLedgerInCurr(
                                           mApplyState.currentLedger, mLevel);
-        AccountFrame::deleteAccountsModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                            oldestLedger);
-        TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                            oldestLedger);
-        OfferFrame::deleteOffersModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                        oldestLedger);
-        DataFrame::deleteDataModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                     oldestLedger);
+        auto& lsRoot = mApp.getLedgerStateRoot();
+        lsRoot.deleteObjectsModifiedOnOrAfterLedger(oldestLedger);
     }
 
     if (mApplying || applySnap)
     {
         mSnapBucket = getBucket(i.snap);
-        mSnapApplicator =
-            std::make_unique<BucketApplicator>(mApp.getDatabase(), mSnapBucket);
+        mSnapApplicator = std::make_unique<BucketApplicator>(mApp, mSnapBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
@@ -114,8 +104,7 @@ ApplyBucketsWork::onStart()
     if (mApplying || applyCurr)
     {
         mCurrBucket = getBucket(i.curr);
-        mCurrApplicator =
-            std::make_unique<BucketApplicator>(mApp.getDatabase(), mCurrBucket);
+        mCurrApplicator = std::make_unique<BucketApplicator>(mApp, mCurrBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;

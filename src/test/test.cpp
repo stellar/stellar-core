@@ -6,6 +6,8 @@
 
 #include "util/asio.h"
 
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateHeader.h"
 #include "main/Config.h"
 #include "main/StellarCoreVersion.h"
 #include "test.h"
@@ -235,7 +237,12 @@ void
 for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
-    auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
+    uint32_t previousVersion = 0;
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        previousVersion = ls.loadHeader().current().ledgerVersion;
+    }
+
     for (auto v : versions)
     {
         if (!gTestAllVersions &&
@@ -246,11 +253,20 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         }
         SECTION("protocol version " + std::to_string(v))
         {
-            testutil::setCurrentLedgerVersion(app.getLedgerManager(), v);
+            {
+                LedgerState ls(app.getLedgerStateRoot());
+                ls.loadHeader().current().ledgerVersion = v;
+                ls.commit();
+            }
             f();
         }
     }
-    testutil::setCurrentLedgerVersion(app.getLedgerManager(), previousVersion);
+
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        ls.loadHeader().current().ledgerVersion = previousVersion;
+        ls.commit();
+    }
 }
 
 void

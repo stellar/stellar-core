@@ -17,8 +17,8 @@ addons:
     - bison
     - clang-5.0
     - flex
-    - gcc-5
-    - g++-5
+    - gcc-6
+    - g++-6
     - libpq-dev
     - libpq5
     - libstdc++6

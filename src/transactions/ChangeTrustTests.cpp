@@ -2,6 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
+#include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -11,6 +15,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 
 using namespace stellar;
@@ -22,13 +27,12 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
-    Database& db = app->getDatabase();
 
     app->start();
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    auto const minBalance2 = app->getLedgerManager().getMinBalance(2);
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
     auto gateway = root.create("gw", minBalance2);
     Asset idr = makeAsset(gateway, "IDR");
 
@@ -61,7 +65,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             // delete the trust line
             root.changeTrust(idr, 0);
-            REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idr, db)));
+            REQUIRE(!root.hasTrustLine(idr));
         });
     }
     SECTION("issuer does not exist")
@@ -84,19 +88,27 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
                 REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
                                   ex_CHANGE_TRUST_NO_ISSUER);
-                REQUIRE(!loadAccount(gateway, *app, false));
+                {
+                    LedgerState ls(app->getLedgerStateRoot());
+                    REQUIRE(!stellar::loadAccount(ls, gateway));
+                }
             });
         }
     }
     SECTION("trusting self")
     {
-        auto loadTrustLine = [&]() {
-            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr, db);
-        };
         auto validateTrustLineIsConst = [&]() {
-            auto trustLine = loadTrustLine();
+            LedgerState ls(app->getLedgerStateRoot());
+            auto trustLine =
+                stellar::loadTrustLine(ls, gateway.getPublicKey(), idr);
             REQUIRE(trustLine);
-            REQUIRE(trustLine->getBalance() == INT64_MAX);
+            REQUIRE(trustLine.getBalance() == INT64_MAX);
+        };
+
+        auto loadAccount = [&](PublicKey const& k) {
+            LedgerState ls(app->getLedgerStateRoot());
+            auto le = stellar::loadAccount(ls, k).current();
+            return le.data.account();
         };
 
         validateTrustLineIsConst();
@@ -111,13 +123,13 @@ TEST_CASE("change trust", "[tx][changetrust]")
             gateway.changeTrust(idr, INT64_MAX);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway, *app);
+            auto gatewayAccountBefore = loadAccount(gateway);
             gateway.pay(gateway, idr, 50);
             validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, *app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
-                     app->getLedgerManager().getTxFee()));
+            auto gatewayAccountAfter = loadAccount(gateway);
+            REQUIRE(gatewayAccountAfter.balance ==
+                    (gatewayAccountBefore.balance -
+                     app->getLedgerManager().getLastTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
@@ -139,13 +151,13 @@ TEST_CASE("change trust", "[tx][changetrust]")
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway, *app);
+            auto gatewayAccountBefore = loadAccount(gateway);
             gateway.pay(gateway, idr, 50);
             validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, *app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
-                     app->getLedgerManager().getTxFee()));
+            auto gatewayAccountAfter = loadAccount(gateway);
+            REQUIRE(gatewayAccountAfter.balance ==
+                    (gatewayAccountBefore.balance -
+                     app->getLedgerManager().getLastTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
@@ -175,8 +187,8 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     SECTION("create trust line with native selling liabilities")
     {
-        auto const minBal2 = app->getLedgerManager().getMinBalance(2);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+        auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
         auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
@@ -197,8 +209,8 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     SECTION("create trust line with native buying liabilities")
     {
-        auto const minBal2 = app->getLedgerManager().getMinBalance(2);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+        auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
         auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
@@ -214,7 +226,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
     SECTION("cannot reduce limit below buying liabilities or delete")
     {
         for_versions_from(10, *app, [&] {
-            auto txfee = app->getLedgerManager().getTxFee();
+            auto txfee = app->getLedgerManager().getLastTxFee();
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBalance2 + 10 * txfee);
             TestMarket market(*app);

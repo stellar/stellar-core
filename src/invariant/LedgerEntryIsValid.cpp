@@ -4,13 +4,19 @@
 
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
 {
+
+static bool
+signerCompare(Signer const& s1, Signer const& s2)
+{
+    return s1.key < s2.key;
+}
 
 LedgerEntryIsValid::LedgerEntryIsValid() : Invariant(false)
 {
@@ -31,29 +37,28 @@ LedgerEntryIsValid::getName() const
 std::string
 LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
                                           OperationResult const& result,
-                                          LedgerDelta const& delta)
+                                          LedgerStateDelta const& lsDelta)
 {
-    uint32_t currLedgerSeq = delta.getHeader().ledgerSeq;
+    uint32_t currLedgerSeq = lsDelta.header.current.ledgerSeq;
     if (currLedgerSeq > INT32_MAX)
     {
         return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",
                            currLedgerSeq, INT32_MAX);
     }
 
-    auto ver = delta.getHeader().ledgerVersion;
-
-    std::string msg =
-        check(delta.added().begin(), delta.added().end(), currLedgerSeq, ver);
-    if (!msg.empty())
+    auto ver = lsDelta.header.current.ledgerVersion;
+    for (auto const& entryDelta : lsDelta.entry)
     {
-        return msg;
-    }
+        if (!entryDelta.second.current)
+            continue;
 
-    msg = check(delta.modified().begin(), delta.modified().end(), currLedgerSeq,
-                ver);
-    if (!msg.empty())
-    {
-        return msg;
+        auto s = checkIsValid(*entryDelta.second.current, currLedgerSeq, ver);
+        if (!s.empty())
+        {
+            s += ": ";
+            s += xdr::xdr_to_string(*entryDelta.second.current);
+            return s;
+        }
     }
     return {};
 }
@@ -127,7 +132,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
     }
     if (std::adjacent_find(ae.signers.begin(), ae.signers.end(),
                            [](Signer const& s1, Signer const& s2) {
-                               return !AccountFrame::signerCompare(s1, s2);
+                               return !signerCompare(s1, s2);
                            }) != ae.signers.end())
     {
         return "Account signers are not strictly increasing";

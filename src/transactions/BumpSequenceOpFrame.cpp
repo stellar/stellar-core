@@ -35,16 +35,19 @@ BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
-                             LedgerManager& ledgerManager)
+BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    SequenceNumber current = mSourceAccount->getSeqNum();
+    LedgerState lsInner(ls);
+    auto header = lsInner.loadHeader();
+    auto sourceAccountEntry = loadSourceAccount(lsInner, header);
+    auto& sourceAccount = sourceAccountEntry.current().data.account();
+    SequenceNumber current = sourceAccount.seqNum;
 
     // Apply the bump (bump succeeds silently if bumpTo <= current)
     if (mBumpSequenceOp.bumpTo > current)
     {
-        mSourceAccount->setSeqNum(mBumpSequenceOp.bumpTo);
-        mSourceAccount->storeChange(delta, ledgerManager.getDatabase());
+        sourceAccount.seqNum = mBumpSequenceOp.bumpTo;
+        lsInner.commit();
     }
 
     // Return successful results
@@ -56,7 +59,7 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-BumpSequenceOpFrame::doCheckValid(Application& app)
+BumpSequenceOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {

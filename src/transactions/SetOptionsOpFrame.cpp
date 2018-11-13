@@ -5,9 +5,13 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
 
 namespace stellar
@@ -39,25 +43,26 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
-                           LedgerManager& ledgerManager)
+SetOptionsOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    Database& db = ledgerManager.getDatabase();
-    AccountEntry& account = mSourceAccount->getAccount();
-
+    auto header = ls.loadHeader();
+    auto sourceAccount = loadSourceAccount(ls, header);
+    auto& account = sourceAccount.current().data.account();
     if (mSetOptions.inflationDest)
     {
-        AccountFrame::pointer inflationAccount;
         AccountID inflationID = *mSetOptions.inflationDest;
-        inflationAccount = AccountFrame::loadAccount(delta, inflationID, db);
-        if (!inflationAccount)
+        if (!(inflationID == getSourceID()))
         {
-            app.getMetrics()
-                .NewMeter({"op-set-options", "failure", "invalid-inflation"},
-                          "operation")
-                .Mark();
-            innerResult().code(SET_OPTIONS_INVALID_INFLATION);
-            return false;
+            if (!stellar::loadAccountWithoutRecord(ls, inflationID))
+            {
+                app.getMetrics()
+                    .NewMeter(
+                        {"op-set-options", "failure", "invalid-inflation"},
+                        "operation")
+                    .Mark();
+                innerResult().code(SET_OPTIONS_INVALID_INFLATION);
+                return false;
+            }
         }
         account.inflationDest.activate() = inflationID;
     }
@@ -65,7 +70,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
     if (mSetOptions.clearFlags)
     {
         if ((*mSetOptions.clearFlags & allAccountAuthFlags) &&
-            mSourceAccount->isImmutableAuth())
+            isImmutableAuth(sourceAccount))
         {
             app.getMetrics()
                 .NewMeter({"op-set-options", "failure", "cant-change"},
@@ -80,7 +85,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
     if (mSetOptions.setFlags)
     {
         if ((*mSetOptions.setFlags & allAccountAuthFlags) &&
-            mSourceAccount->isImmutableAuth())
+            isImmutableAuth(sourceAccount))
         {
             app.getMetrics()
                 .NewMeter({"op-set-options", "failure", "cant-change"},
@@ -147,7 +152,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                     innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
                     return false;
                 }
-                if (!mSourceAccount->addNumEntries(1, ledgerManager))
+                if (!addNumEntries(header, sourceAccount, 1))
                 {
                     app.getMetrics()
                         .NewMeter({"op-set-options", "failure", "low-reserve"},
@@ -168,7 +173,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                 if (oldSigner.key == mSetOptions.signer->key)
                 {
                     it = signers.erase(it);
-                    mSourceAccount->addNumEntries(-1, ledgerManager);
+                    addNumEntries(header, sourceAccount, -1);
                 }
                 else
                 {
@@ -176,19 +181,18 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                 }
             }
         }
-        mSourceAccount->setUpdateSigners();
+        normalizeSigners(sourceAccount);
     }
 
     app.getMetrics()
         .NewMeter({"op-set-options", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(SET_OPTIONS_SUCCESS);
-    mSourceAccount->storeChange(delta, db);
     return true;
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(Application& app)
+SetOptionsOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mSetOptions.setFlags)
     {
@@ -283,8 +287,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                       KeyUtils::convertKey<SignerKey>(getSourceID());
         auto isPublicKey =
             KeyUtils::canConvert<PublicKey>(mSetOptions.signer->key);
-        if (isSelf || (!isPublicKey &&
-                       app.getLedgerManager().getCurrentLedgerVersion() < 3))
+        if (isSelf || (!isPublicKey && ledgerVersion < 3))
         {
             app.getMetrics()
                 .NewMeter({"op-set-options", "invalid", "bad-signer"},
@@ -293,8 +296,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
             innerResult().code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
-        if (mSetOptions.signer->weight > UINT8_MAX &&
-            app.getLedgerManager().getCurrentLedgerVersion() > 9)
+        if (mSetOptions.signer->weight > UINT8_MAX && ledgerVersion > 9)
         {
             app.getMetrics()
                 .NewMeter({"op-set-options", "invalid", "bad-signer"},

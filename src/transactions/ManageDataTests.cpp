@@ -34,7 +34,8 @@ TEST_CASE("manage data", "[tx][managedata]")
     // set up world
     auto root = TestAccount::createRoot(*app);
 
-    const int64_t minBalance = app->getLedgerManager().getMinBalance(3) - 100;
+    const int64_t minBalance =
+        app->getLedgerManager().getLastMinBalance(3) - 100;
 
     auto gateway = root.create("gw", minBalance);
 
@@ -120,8 +121,8 @@ TEST_CASE("manage data", "[tx][managedata]")
 
     SECTION("create data with native selling liabilities")
     {
-        auto const minBal2 = app->getLedgerManager().getMinBalance(2);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+        auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
         auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);
@@ -143,8 +144,8 @@ TEST_CASE("manage data", "[tx][managedata]")
 
     SECTION("create data with native buying liabilities")
     {
-        auto const minBal2 = app->getLedgerManager().getMinBalance(2);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto const minBal2 = app->getLedgerManager().getLastMinBalance(2);
+        auto txfee = app->getLedgerManager().getLastTxFee();
         auto const native = makeNativeAsset();
         auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
         TestMarket market(*app);

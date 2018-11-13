@@ -4,7 +4,6 @@
 
 #include "LedgerTestUtils.h"
 #include "crypto/SecretKey.h"
-#include "ledger/AccountFrame.h"
 #include "util/types.h"
 #include <cctype>
 #include <string>
@@ -78,7 +77,9 @@ makeValid(AccountEntry& a)
         *a.inflationDest = PubKeyUtils::random();
     }
 
-    std::sort(a.signers.begin(), a.signers.end(), &AccountFrame::signerCompare);
+    std::sort(
+        a.signers.begin(), a.signers.end(),
+        [](Signer const& lhs, Signer const& rhs) { return lhs.key < rhs.key; });
     a.signers.erase(
         std::unique(a.signers.begin(), a.signers.end(), signerEqual),
         a.signers.end());

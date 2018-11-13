@@ -11,6 +11,9 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -18,6 +21,7 @@
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
@@ -238,8 +242,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 void
 HerderImpl::rebroadcast()
 {
-    for (auto const& e :
-         getSCP().getLatestMessagesSend(mLedgerManager.getLedgerNum()))
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+    for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
     {
         broadcast(e);
     }
@@ -320,9 +324,6 @@ HerderImpl::TxMap::recalculate()
 Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
-    soci::transaction sqltx(mApp.getDatabase().getSession());
-    mApp.getDatabase().setCurrentTransactionReadOnly();
-
     auto const& acc = tx->getSourceID();
     auto const& txID = tx->getFullHash();
 
@@ -347,15 +348,19 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         }
     }
 
-    if (!tx->checkValid(mApp, highSeq))
     {
-        return TX_STATUS_ERROR;
-    }
+        LedgerState ls(mApp.getLedgerStateRoot());
+        if (!tx->checkValid(mApp, ls, highSeq))
+        {
+            return TX_STATUS_ERROR;
+        }
 
-    if (tx->getSourceAccount().getAvailableBalance(mLedgerManager) < totFee)
-    {
-        tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return TX_STATUS_ERROR;
+        auto sourceAccount = stellar::loadAccount(ls, tx->getSourceID());
+        if (getAvailableBalance(ls.loadHeader(), sourceAccount) < totFee)
+        {
+            tx->getResult().result.code(txINSUFFICIENT_BALANCE);
+            return TX_STATUS_ERROR;
+        }
     }
 
     if (Logging::logTrace("Herder"))
@@ -738,7 +743,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     proposedSet->trimInvalid(mApp, removed);
     removeReceivedTxs(removed);
 
-    proposedSet->surgePricingFilter(mLedgerManager);
+    proposedSet->surgePricingFilter(mApp);
 
     if (!proposedSet->checkValid(mApp))
     {

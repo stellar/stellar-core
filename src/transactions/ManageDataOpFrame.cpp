@@ -5,11 +5,13 @@
 #include "util/asio.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -27,26 +29,22 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
-                           LedgerManager& ledgerManager)
+ManageDataOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() == 3)
+    auto header = ls.loadHeader();
+    if (header.current().ledgerVersion == 3)
     {
         throw std::runtime_error(
             "MANAGE_DATA not supported on ledger version 3");
     }
 
-    Database& db = ledgerManager.getDatabase();
-
-    auto dataFrame =
-        DataFrame::loadData(mSourceAccount->getID(), mManageData.dataName, db);
-
+    auto data = stellar::loadData(ls, getSourceID(), mManageData.dataName);
     if (mManageData.dataValue)
     {
-        if (!dataFrame)
+        if (!data)
         { // create a new data entry
-
-            if (!mSourceAccount->addNumEntries(1, ledgerManager))
+            auto sourceAccount = loadSourceAccount(ls, header);
+            if (!addNumEntries(header, sourceAccount, 1))
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-data", "invalid", "low reserve"},
@@ -56,25 +54,22 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
 
-            dataFrame = std::make_shared<DataFrame>();
-            dataFrame->getData().accountID = mSourceAccount->getID();
-            dataFrame->getData().dataName = mManageData.dataName;
-            dataFrame->getData().dataValue = *mManageData.dataValue;
-
-            dataFrame->storeAdd(delta, db);
-            mSourceAccount->storeChange(delta, db);
+            LedgerEntry newData;
+            newData.data.type(DATA);
+            auto& dataEntry = newData.data.data();
+            dataEntry.accountID = getSourceID();
+            dataEntry.dataName = mManageData.dataName;
+            dataEntry.dataValue = *mManageData.dataValue;
+            ls.create(newData);
         }
         else
         { // modify an existing entry
-            delta.recordEntry(*dataFrame);
-            dataFrame->getData().dataValue = *mManageData.dataValue;
-            dataFrame->storeChange(delta, db);
+            data.current().data.data().dataValue = *mManageData.dataValue;
         }
     }
     else
     { // delete an existing piece of data
-
-        if (!dataFrame)
+        if (!data)
         {
             app.getMetrics()
                 .NewMeter({"op-manage-data", "invalid", "not-found"},
@@ -83,10 +78,9 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
             return false;
         }
-        delta.recordEntry(*dataFrame);
-        mSourceAccount->addNumEntries(-1, ledgerManager);
-        mSourceAccount->storeChange(delta, db);
-        dataFrame->storeDelete(delta, db);
+        data.erase();
+        auto sourceAccount = loadSourceAccount(ls, header);
+        addNumEntries(header, sourceAccount, -1);
     }
 
     innerResult().code(MANAGE_DATA_SUCCESS);
@@ -98,9 +92,9 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-ManageDataOpFrame::doCheckValid(Application& app)
+ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() < 2)
+    if (ledgerVersion < 2)
     {
         app.getMetrics()
             .NewMeter(

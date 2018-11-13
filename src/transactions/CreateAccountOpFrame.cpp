@@ -6,9 +6,10 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include <algorithm>
@@ -31,18 +32,12 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
-                              LedgerManager& ledgerManager)
+CreateAccountOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
-    AccountFrame::pointer destAccount;
-
-    Database& db = ledgerManager.getDatabase();
-
-    destAccount =
-        AccountFrame::loadAccount(delta, mCreateAccount.destination, db);
-    if (!destAccount)
+    if (!stellar::loadAccount(ls, mCreateAccount.destination))
     {
-        if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
+        auto header = ls.loadHeader();
+        if (mCreateAccount.startingBalance < getMinBalance(header, 0))
         { // not over the minBalance to make an account
             app.getMetrics()
                 .NewMeter({"op-create-account", "failure", "low-reserve"},
@@ -53,7 +48,16 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
         else
         {
-            if (mSourceAccount->getAvailableBalance(ledgerManager) <
+            bool doesAccountExist = true;
+            if (header.current().ledgerVersion < 8)
+            {
+                LedgerKey key(ACCOUNT);
+                key.account().accountID = getSourceID();
+                doesAccountExist = (bool)ls.loadWithoutRecord(key);
+            }
+
+            auto sourceAccount = loadSourceAccount(ls, header);
+            if (getAvailableBalance(header, sourceAccount) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
                 app.getMetrics()
@@ -64,18 +68,24 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
 
-            auto ok = mSourceAccount->addBalance(
-                -mCreateAccount.startingBalance, ledgerManager);
+            if (!doesAccountExist)
+            {
+                throw std::runtime_error(
+                    "modifying account that does not exist");
+            }
+
+            auto ok = addBalance(header, sourceAccount,
+                                 -mCreateAccount.startingBalance);
             assert(ok);
 
-            mSourceAccount->storeChange(delta, db);
-
-            destAccount = make_shared<AccountFrame>(mCreateAccount.destination);
-            auto& acc = destAccount->getAccount();
-            acc.seqNum = delta.getHeaderFrame().getStartingSequenceNumber();
-            acc.balance = mCreateAccount.startingBalance;
-
-            destAccount->storeAdd(delta, db);
+            LedgerEntry newAccountEntry;
+            newAccountEntry.data.type(ACCOUNT);
+            auto& newAccount = newAccountEntry.data.account();
+            newAccount.thresholds[0] = 1;
+            newAccount.accountID = mCreateAccount.destination;
+            newAccount.seqNum = getStartingSequenceNumber(header);
+            newAccount.balance = mCreateAccount.startingBalance;
+            ls.create(newAccountEntry);
 
             app.getMetrics()
                 .NewMeter({"op-create-account", "success", "apply"},
@@ -97,7 +107,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-CreateAccountOpFrame::doCheckValid(Application& app)
+CreateAccountOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mCreateAccount.startingBalance <= 0)
     {

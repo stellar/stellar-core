@@ -5,24 +5,246 @@
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/OfferFrame.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "transactions/OfferExchange.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
 {
 
+static int64_t
+getMinBalance(LedgerHeader const& header, uint32_t ownerCount)
+{
+    if (header.ledgerVersion <= 8)
+        return (2 + ownerCount) * header.baseReserve;
+    else
+        return (2 + ownerCount) * int64_t(header.baseReserve);
+}
+
+static int64_t
+getOfferBuyingLiabilities(LedgerEntry const& le)
+{
+    auto const& oe = le.data.offer();
+    auto res = exchangeV10WithoutPriceErrorThresholds(
+        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX, false);
+    return res.numSheepSend;
+}
+
+static int64_t
+getOfferSellingLiabilities(LedgerEntry const& le)
+{
+    auto const& oe = le.data.offer();
+    auto res = exchangeV10WithoutPriceErrorThresholds(
+        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX, false);
+    return res.numWheatReceived;
+}
+
+static int64_t
+getBuyingLiabilities(LedgerEntry const& le)
+{
+    if (le.data.type() == ACCOUNT)
+    {
+        auto const& acc = le.data.account();
+        return (acc.ext.v() == 0) ? 0 : acc.ext.v1().liabilities.buying;
+    }
+    else if (le.data.type() == TRUSTLINE)
+    {
+        auto const& tl = le.data.trustLine();
+        return (tl.ext.v() == 0) ? 0 : tl.ext.v1().liabilities.buying;
+    }
+    throw std::runtime_error("Unknown LedgerEntry type");
+}
+
+int64_t
+getSellingLiabilities(LedgerEntry const& le)
+{
+    if (le.data.type() == ACCOUNT)
+    {
+        auto const& acc = le.data.account();
+        return (acc.ext.v() == 0) ? 0 : acc.ext.v1().liabilities.selling;
+    }
+    else if (le.data.type() == TRUSTLINE)
+    {
+        auto const& tl = le.data.trustLine();
+        return (tl.ext.v() == 0) ? 0 : tl.ext.v1().liabilities.selling;
+    }
+    throw std::runtime_error("Unknown LedgerEntry type");
+}
+
+static std::string
+checkAuthorized(std::shared_ptr<LedgerEntry const> const& current)
+{
+    if (!current)
+    {
+        return "";
+    }
+
+    if (current->data.type() == TRUSTLINE)
+    {
+        auto const& trust = current->data.trustLine();
+        if (!(trust.flags & AUTHORIZED_FLAG))
+        {
+            if (getSellingLiabilities(*current) > 0 ||
+                getBuyingLiabilities(*current) > 0)
+            {
+                return fmt::format("Unauthorized trust line has liabilities {}",
+                                   xdr::xdr_to_string(trust));
+            }
+        }
+    }
+    return "";
+}
+
+static void
+addOrSubtractLiabilities(
+    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
+    std::shared_ptr<LedgerEntry const> const& entry, bool isAdd)
+{
+    if (!entry)
+    {
+        return;
+    }
+
+    int64_t sign = isAdd ? 1 : -1;
+
+    if (entry->data.type() == ACCOUNT)
+    {
+        auto const& account = entry->data.account();
+        Asset native(ASSET_TYPE_NATIVE);
+        deltaLiabilities[account.accountID][native].selling -=
+            sign * getSellingLiabilities(*entry);
+        deltaLiabilities[account.accountID][native].buying -=
+            sign * getBuyingLiabilities(*entry);
+    }
+    else if (entry->data.type() == TRUSTLINE)
+    {
+        auto const& trust = entry->data.trustLine();
+        deltaLiabilities[trust.accountID][trust.asset].selling -=
+            sign * getSellingLiabilities(*entry);
+        deltaLiabilities[trust.accountID][trust.asset].buying -=
+            sign * getBuyingLiabilities(*entry);
+    }
+    else if (entry->data.type() == OFFER)
+    {
+        auto const& offer = entry->data.offer();
+        if (offer.selling.type() == ASSET_TYPE_NATIVE ||
+            !(getIssuer(offer.selling) == offer.sellerID))
+        {
+            deltaLiabilities[offer.sellerID][offer.selling].selling +=
+                sign * getOfferSellingLiabilities(*entry);
+        }
+        if (offer.buying.type() == ASSET_TYPE_NATIVE ||
+            !(getIssuer(offer.buying) == offer.sellerID))
+        {
+            deltaLiabilities[offer.sellerID][offer.buying].buying +=
+                sign * getOfferBuyingLiabilities(*entry);
+        }
+    }
+}
+
+static void
+accumulateLiabilities(
+    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
+    std::shared_ptr<LedgerEntry const> const& current,
+    std::shared_ptr<LedgerEntry const> const& previous)
+{
+    addOrSubtractLiabilities(deltaLiabilities, current, true);
+    addOrSubtractLiabilities(deltaLiabilities, previous, false);
+}
+
+static bool
+shouldCheckAccount(std::shared_ptr<LedgerEntry const> const& current,
+                   std::shared_ptr<LedgerEntry const> const& previous,
+                   uint32_t ledgerVersion)
+{
+    if (!previous)
+    {
+        return true;
+    }
+
+    auto const& currAcc = current->data.account();
+    auto const& prevAcc = previous->data.account();
+
+    bool didBalanceDecrease = currAcc.balance < prevAcc.balance;
+    if (ledgerVersion >= 10)
+    {
+        bool sellingLiabilitiesInc =
+            getSellingLiabilities(*current) > getSellingLiabilities(*current);
+        bool buyingLiabilitiesInc =
+            getBuyingLiabilities(*current) > getBuyingLiabilities(*current);
+        bool didLiabilitiesIncrease =
+            sellingLiabilitiesInc || buyingLiabilitiesInc;
+        return didBalanceDecrease || didLiabilitiesIncrease;
+    }
+    else
+    {
+        return didBalanceDecrease;
+    }
+}
+
+static std::string
+checkBalanceAndLimit(LedgerHeader const& header,
+                     std::shared_ptr<LedgerEntry const> const& current,
+                     std::shared_ptr<LedgerEntry const> const& previous,
+                     uint32_t ledgerVersion)
+{
+    if (!current)
+    {
+        return {};
+    }
+
+    if (current->data.type() == ACCOUNT)
+    {
+        if (shouldCheckAccount(current, previous, ledgerVersion))
+        {
+            auto const& account = current->data.account();
+            Liabilities liabilities;
+            if (ledgerVersion >= 10)
+            {
+                liabilities.selling = getSellingLiabilities(*current);
+                liabilities.buying = getBuyingLiabilities(*current);
+            }
+            int64_t minBalance = getMinBalance(header, account.numSubEntries);
+            if ((account.balance < minBalance + liabilities.selling) ||
+                (INT64_MAX - account.balance < liabilities.buying))
+            {
+                return fmt::format(
+                    "Balance not compatible with liabilities for account {}",
+                    xdr::xdr_to_string(account));
+            }
+        }
+    }
+    else if (current->data.type() == TRUSTLINE)
+    {
+        auto const& trust = current->data.trustLine();
+        Liabilities liabilities;
+        if (ledgerVersion >= 10)
+        {
+            liabilities.selling = getSellingLiabilities(*current);
+            liabilities.buying = getBuyingLiabilities(*current);
+        }
+        if ((trust.balance < liabilities.selling) ||
+            (trust.limit - trust.balance < liabilities.buying))
+        {
+            return fmt::format(
+                "Balance not compatible with liabilities for trustline {}",
+                xdr::xdr_to_string(trust));
+        }
+    }
+    return {};
+}
+
 std::shared_ptr<Invariant>
 LiabilitiesMatchOffers::registerInvariant(Application& app)
 {
-    return app.getInvariantManager().registerInvariant<LiabilitiesMatchOffers>(
-        app.getLedgerManager());
+    return app.getInvariantManager()
+        .registerInvariant<LiabilitiesMatchOffers>();
 }
 
-LiabilitiesMatchOffers::LiabilitiesMatchOffers(LedgerManager& lm)
-    : Invariant(false), mLedgerManager(lm)
+LiabilitiesMatchOffers::LiabilitiesMatchOffers() : Invariant(false)
 {
 }
 
@@ -38,36 +260,22 @@ LiabilitiesMatchOffers::getName() const
 std::string
 LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                                               OperationResult const& result,
-                                              LedgerDelta const& delta)
+                                              LedgerStateDelta const& lsDelta)
 {
-    if (delta.getHeader().ledgerVersion >= 10)
+    auto ledgerVersion = lsDelta.header.current.ledgerVersion;
+    if (ledgerVersion >= 10)
     {
         std::map<AccountID, std::map<Asset, Liabilities>> deltaLiabilities;
-        for (auto iter = delta.added().begin(); iter != delta.added().end();
-             ++iter)
+        for (auto const& entryDelta : lsDelta.entry)
         {
-            auto checkAuthStr = checkAuthorized(iter);
+            auto checkAuthStr =
+                stellar::checkAuthorized(entryDelta.second.current);
             if (!checkAuthStr.empty())
             {
                 return checkAuthStr;
             }
-            addCurrentLiabilities(deltaLiabilities, iter);
-        }
-        for (auto iter = delta.modified().begin();
-             iter != delta.modified().end(); ++iter)
-        {
-            auto checkAuthStr = checkAuthorized(iter);
-            if (!checkAuthStr.empty())
-            {
-                return checkAuthStr;
-            }
-            addCurrentLiabilities(deltaLiabilities, iter);
-            subtractPreviousLiabilities(deltaLiabilities, iter);
-        }
-        for (auto iter = delta.deleted().begin(); iter != delta.deleted().end();
-             ++iter)
-        {
-            subtractPreviousLiabilities(deltaLiabilities, iter);
+            accumulateLiabilities(deltaLiabilities, entryDelta.second.current,
+                                  entryDelta.second.previous);
         }
 
         for (auto const& accLiabilities : deltaLiabilities)
@@ -98,214 +306,14 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
         }
     }
 
-    auto ledgerVersion = mLedgerManager.getCurrentLedgerVersion();
-    for (auto iter = delta.added().begin(); iter != delta.added().end(); ++iter)
+    for (auto const& entryDelta : lsDelta.entry)
     {
-        auto msg = checkBalanceAndLimit(iter, ledgerVersion);
+        auto msg = stellar::checkBalanceAndLimit(
+            lsDelta.header.current, entryDelta.second.current,
+            entryDelta.second.previous, ledgerVersion);
         if (!msg.empty())
         {
             return msg;
-        }
-    }
-    for (auto iter = delta.modified().begin(); iter != delta.modified().end();
-         ++iter)
-    {
-        auto msg = checkBalanceAndLimit(iter, ledgerVersion);
-        if (!msg.empty())
-        {
-            return msg;
-        }
-    }
-    return {};
-}
-
-template <typename IterType>
-void
-LiabilitiesMatchOffers::addCurrentLiabilities(
-    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-    IterType const& iter) const
-{
-    auto const& current = iter->current->mEntry;
-    if (current.data.type() == ACCOUNT)
-    {
-        auto const& account = current.data.account();
-        Asset native(ASSET_TYPE_NATIVE);
-        deltaLiabilities[account.accountID][native].selling -=
-            getSellingLiabilities(account, mLedgerManager);
-        deltaLiabilities[account.accountID][native].buying -=
-            getBuyingLiabilities(account, mLedgerManager);
-    }
-    else if (current.data.type() == TRUSTLINE)
-    {
-        auto const& trust = current.data.trustLine();
-        deltaLiabilities[trust.accountID][trust.asset].selling -=
-            getSellingLiabilities(trust, mLedgerManager);
-        deltaLiabilities[trust.accountID][trust.asset].buying -=
-            getBuyingLiabilities(trust, mLedgerManager);
-    }
-    else if (current.data.type() == OFFER)
-    {
-        auto const& offer = current.data.offer();
-        if (offer.selling.type() == ASSET_TYPE_NATIVE ||
-            !(getIssuer(offer.selling) == offer.sellerID))
-        {
-            deltaLiabilities[offer.sellerID][offer.selling].selling +=
-                getSellingLiabilities(offer);
-        }
-        if (offer.buying.type() == ASSET_TYPE_NATIVE ||
-            !(getIssuer(offer.buying) == offer.sellerID))
-        {
-            deltaLiabilities[offer.sellerID][offer.buying].buying +=
-                getBuyingLiabilities(offer);
-        }
-    }
-}
-
-template <typename IterType>
-void
-LiabilitiesMatchOffers::subtractPreviousLiabilities(
-    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-    IterType const& iter) const
-{
-    auto const& previous = iter->previous->mEntry;
-    if (previous.data.type() == ACCOUNT)
-    {
-        auto const& account = previous.data.account();
-        Asset native(ASSET_TYPE_NATIVE);
-        deltaLiabilities[account.accountID][native].selling +=
-            getSellingLiabilities(account, mLedgerManager);
-        deltaLiabilities[account.accountID][native].buying +=
-            getBuyingLiabilities(account, mLedgerManager);
-    }
-    else if (previous.data.type() == TRUSTLINE)
-    {
-        auto const& trust = previous.data.trustLine();
-        deltaLiabilities[trust.accountID][trust.asset].selling +=
-            getSellingLiabilities(trust, mLedgerManager);
-        deltaLiabilities[trust.accountID][trust.asset].buying +=
-            getBuyingLiabilities(trust, mLedgerManager);
-    }
-    else if (previous.data.type() == OFFER)
-    {
-        auto const& offer = previous.data.offer();
-        if (offer.selling.type() == ASSET_TYPE_NATIVE ||
-            !(getIssuer(offer.selling) == offer.sellerID))
-        {
-            deltaLiabilities[offer.sellerID][offer.selling].selling -=
-                getSellingLiabilities(offer);
-        }
-        if (offer.buying.type() == ASSET_TYPE_NATIVE ||
-            !(getIssuer(offer.buying) == offer.sellerID))
-        {
-            deltaLiabilities[offer.sellerID][offer.buying].buying -=
-                getBuyingLiabilities(offer);
-        }
-    }
-}
-
-bool
-LiabilitiesMatchOffers::shouldCheckAccount(
-    LedgerDelta::AddedLedgerEntry const& ale, uint32_t ledgerVersion) const
-{
-    return true;
-}
-
-bool
-LiabilitiesMatchOffers::shouldCheckAccount(
-    LedgerDelta::ModifiedLedgerEntry const& mle, uint32_t ledgerVersion) const
-{
-    auto const& current = mle.current->mEntry;
-    auto const& previous = mle.previous->mEntry;
-    assert(previous.data.type() == ACCOUNT);
-
-    auto const& currAcc = current.data.account();
-    auto const& prevAcc = previous.data.account();
-
-    bool didBalanceDecrease = currAcc.balance < prevAcc.balance;
-    if (ledgerVersion >= 10)
-    {
-        bool sellingLiabilitiesInc =
-            getSellingLiabilities(currAcc, mLedgerManager) >
-            getSellingLiabilities(prevAcc, mLedgerManager);
-        bool buyingLiabilitiesInc =
-            getBuyingLiabilities(currAcc, mLedgerManager) >
-            getBuyingLiabilities(prevAcc, mLedgerManager);
-        bool didLiabilitiesIncrease =
-            sellingLiabilitiesInc || buyingLiabilitiesInc;
-        return didBalanceDecrease || didLiabilitiesIncrease;
-    }
-    else
-    {
-        return didBalanceDecrease;
-    }
-}
-
-template <typename IterType>
-std::string
-LiabilitiesMatchOffers::checkAuthorized(IterType const& iter) const
-{
-    auto const& current = iter->current->mEntry;
-    if (current.data.type() == TRUSTLINE)
-    {
-        auto const& trust = current.data.trustLine();
-        if (!(trust.flags & AUTHORIZED_FLAG))
-        {
-            if (getSellingLiabilities(trust, mLedgerManager) > 0 ||
-                getBuyingLiabilities(trust, mLedgerManager) > 0)
-            {
-                return fmt::format("Unauthorized trust line has liabilities {}",
-                                   xdr::xdr_to_string(trust));
-            }
-        }
-    }
-    return "";
-}
-
-template <typename IterType>
-std::string
-LiabilitiesMatchOffers::checkBalanceAndLimit(IterType const& iter,
-                                             uint32_t ledgerVersion) const
-{
-    auto const& current = iter->current->mEntry;
-    if (current.data.type() == ACCOUNT)
-    {
-        if (shouldCheckAccount(*iter, ledgerVersion))
-        {
-            auto const& account = current.data.account();
-            Liabilities liabilities;
-            if (ledgerVersion >= 10)
-            {
-                liabilities.selling =
-                    getSellingLiabilities(account, mLedgerManager);
-                liabilities.buying =
-                    getBuyingLiabilities(account, mLedgerManager);
-            }
-            int64_t minBalance =
-                mLedgerManager.getMinBalance(account.numSubEntries);
-            if ((account.balance < minBalance + liabilities.selling) ||
-                (INT64_MAX - account.balance < liabilities.buying))
-            {
-                return fmt::format(
-                    "Balance not compatible with liabilities for account {}",
-                    xdr::xdr_to_string(account));
-            }
-        }
-    }
-    else if (current.data.type() == TRUSTLINE)
-    {
-        auto const& trust = current.data.trustLine();
-        Liabilities liabilities;
-        if (ledgerVersion >= 10)
-        {
-            liabilities.selling = getSellingLiabilities(trust, mLedgerManager);
-            liabilities.buying = getBuyingLiabilities(trust, mLedgerManager);
-        }
-        if ((trust.balance < liabilities.selling) ||
-            (trust.limit - trust.balance < liabilities.buying))
-        {
-            return fmt::format(
-                "Balance not compatible with liabilities for trustline {}",
-                xdr::xdr_to_string(trust));
         }
     }
     return {};

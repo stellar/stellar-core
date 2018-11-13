@@ -17,11 +17,8 @@
 #include "herder/HerderPersistence.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerHeaderFrame.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerState.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
@@ -82,7 +79,6 @@ Database::Database(Application& app)
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
-    , mEntryCache(4096)
     , mExcludedQueryTime(0)
     , mExcludedTotalTime(0)
     , mLastIdleQueryTime(0)
@@ -119,7 +115,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
 
     case 3:
-        DataFrame::dropAll(*this);
+        mApp.getLedgerStateRoot().dropData();
         break;
 
     case 4:
@@ -306,13 +302,13 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
-    AccountFrame::dropAll(*this);
-    OfferFrame::dropAll(*this);
-    TrustFrame::dropAll(*this);
+    mApp.getLedgerStateRoot().dropAccounts();
+    mApp.getLedgerStateRoot().dropOffers();
+    mApp.getLedgerStateRoot().dropTrustLines();
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
-    LedgerHeaderFrame::dropAll(*this);
+    LedgerHeaderUtils::dropAll(*this);
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
     BucketManager::dropAll(mApp);
@@ -356,12 +352,6 @@ Database::getPool()
     }
     assert(mPool);
     return *mPool;
-}
-
-cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
-Database::getEntryCache()
-{
-    return mEntryCache;
 }
 
 class SQLLogContext : NonCopyable

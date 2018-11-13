@@ -7,6 +7,8 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "lib/util/format.h"
@@ -15,6 +17,7 @@
 #include "main/Maintainer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 
@@ -69,7 +72,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     addRoute("bans", &CommandHandler::bans);
     addRoute("catchup", &CommandHandler::catchup);
-    addRoute("checkdb", &CommandHandler::checkdb);
     addRoute("connect", &CommandHandler::connect);
     addRoute("dropcursor", &CommandHandler::dropcursor);
     addRoute("droppeer", &CommandHandler::dropPeer);
@@ -153,13 +155,16 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         {
             key = getAccount(accName->second.c_str());
         }
-        auto acc = loadAccount(key.getPublicKey(), mApp, false);
+
+        LedgerState ls(mApp.getLedgerStateRoot());
+        auto acc = stellar::loadAccount(ls, key.getPublicKey());
         if (acc)
         {
+            auto const& ae = acc.current().data.account();
             root["name"] = accName->second;
-            root["id"] = KeyUtils::toStrKey(acc->getID());
-            root["balance"] = (Json::Int64)acc->getBalance();
-            root["seqnum"] = (Json::UInt64)acc->getSeqNum();
+            root["id"] = KeyUtils::toStrKey(ae.accountID);
+            root["balance"] = (Json::Int64)ae.balance;
+            root["seqnum"] = (Json::UInt64)ae.seqNum;
         }
     }
     retStr = root.toStyledString();
@@ -249,8 +254,6 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "</p><p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
         "triggers the instance to catch up to ledger NNN from history; "
         "mode is either 'minimal' (the default, if omitted) or 'complete'."
-        "</p><p><h1> /checkdb</h1>"
-        "triggers the instance to perform an integrity check of the database."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> "
@@ -580,13 +583,6 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
                   count == std::numeric_limits<uint32_t>::max()
                       ? "CATCHUP_COMPLETE"
                       : (count != 0 ? "CATCHUP_RECENT" : "CATCHUP_MINIMAL")));
-}
-
-void
-CommandHandler::checkdb(std::string const& params, std::string& retStr)
-{
-    mApp.checkDB();
-    retStr = "CheckDB started.";
 }
 
 void

@@ -7,6 +7,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -113,31 +114,34 @@ static auto validSignerGenerator = autocheck::map(
     autocheck::generator<Signer>());
 
 static void
-updateAccountSubEntries(Application& app, LedgerEntry& le,
-                        EntryFrame::pointer ef, int32_t deltaNumSubEntries,
+updateAccountSubEntries(Application& app, LedgerEntry& leCurr,
+                        LedgerEntry lePrev, int32_t deltaNumSubEntries,
                         UpdateList const& updatesBase)
 {
     if (deltaNumSubEntries != 0)
     {
-        soci::transaction sqlTx(app.getDatabase().getSession());
         auto updates = updatesBase;
-        updates.push_back(std::make_tuple(EntryFrame::FromXDR(le), ef));
-        REQUIRE(!store(app, updates));
+        auto currPtr = std::make_shared<LedgerEntry>(leCurr);
+        auto prevPtr = std::make_shared<LedgerEntry>(lePrev);
+        updates.push_back(std::make_tuple(currPtr, prevPtr));
+        LedgerState ls(app.getLedgerStateRoot());
+        REQUIRE(!store(app, updates, &ls));
     }
     {
-        soci::transaction sqlTx(app.getDatabase().getSession());
+        leCurr.data.account().numSubEntries += deltaNumSubEntries;
         auto updates = updatesBase;
-        le.data.account().numSubEntries += deltaNumSubEntries;
-        updates.push_back(std::make_tuple(EntryFrame::FromXDR(le), ef));
+        auto currPtr = std::make_shared<LedgerEntry>(leCurr);
+        auto prevPtr = std::make_shared<LedgerEntry>(lePrev);
+        updates.push_back(std::make_tuple(currPtr, prevPtr));
         REQUIRE(store(app, updates));
-        sqlTx.commit();
     }
 }
 
 static void
 addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
-                           std::vector<EntryFrame::pointer>& subentries)
+                           std::vector<LedgerEntry>& subentries)
 {
+    auto lePrev = le;
     auto& acc = le.data.account();
 
     bool addSigner = false;
@@ -147,26 +151,27 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
         addSigner = (letGen(5) == ACCOUNT);
     }
 
-    auto ef = EntryFrame::FromXDR(le);
     ++le.lastModifiedLedgerSeq;
     if (addSigner)
     {
         acc.signers.push_back(validSignerGenerator());
-        updateAccountSubEntries(app, le, ef, 1, {});
+        updateAccountSubEntries(app, le, lePrev, 1, {});
     }
     else
     {
-        auto sef = EntryFrame::FromXDR(generateRandomSubEntry(le));
-        subentries.push_back(sef);
-        updateAccountSubEntries(app, le, ef, 1, makeUpdateList(sef, nullptr));
+        auto se = generateRandomSubEntry(le);
+        subentries.push_back(se);
+        updateAccountSubEntries(app, le, lePrev, 1,
+                                makeUpdateList({se}, nullptr));
     }
 }
 
 static void
 modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
-                                std::vector<EntryFrame::pointer>& subentries,
+                                std::vector<LedgerEntry>& subentries,
                                 std::default_random_engine& gen)
 {
+    auto lePrev = le;
     auto& acc = le.data.account();
     REQUIRE(le.data.account().numSubEntries > 0);
 
@@ -177,33 +182,33 @@ modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
         modifySigner = subentries.empty() || (letGen(5) == ACCOUNT);
     }
 
-    auto ef = EntryFrame::FromXDR(le);
     ++le.lastModifiedLedgerSeq;
     if (modifySigner)
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
         acc.signers.at(dist(gen)) = validSignerGenerator();
-        updateAccountSubEntries(app, le, ef, 0, {});
+        updateAccountSubEntries(app, le, lePrev, 0, {});
     }
     else
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
         auto index = dist(gen);
-        auto sef = subentries.at(index);
-        auto sef2 = EntryFrame::FromXDR(
-            generateRandomModifiedSubEntry(le, sef->mEntry));
-        subentries.at(index) = sef2;
-        updateAccountSubEntries(app, le, ef, 0, makeUpdateList(sef2, sef));
+        auto se = subentries.at(index);
+        auto se2 = generateRandomModifiedSubEntry(le, se);
+        subentries.at(index) = se2;
+        updateAccountSubEntries(app, le, lePrev, 0,
+                                makeUpdateList({se2}, {se}));
     }
 }
 
 static void
 deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
-                                std::vector<EntryFrame::pointer>& subentries,
+                                std::vector<LedgerEntry>& subentries,
                                 std::default_random_engine& gen)
 {
+    auto lePrev = le;
     auto& acc = le.data.account();
     REQUIRE(le.data.account().numSubEntries > 0);
 
@@ -214,23 +219,23 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
         deleteSigner = subentries.empty() || (letGen(5) == ACCOUNT);
     }
 
-    auto ef = EntryFrame::FromXDR(le);
     ++le.lastModifiedLedgerSeq;
     if (deleteSigner)
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
         acc.signers.erase(acc.signers.begin() + dist(gen));
-        updateAccountSubEntries(app, le, ef, -1, {});
+        updateAccountSubEntries(app, le, lePrev, -1, {});
     }
     else
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
         auto index = dist(gen);
-        auto sef = subentries.at(index);
+        auto se = subentries.at(index);
         subentries.erase(subentries.begin() + index);
-        updateAccountSubEntries(app, le, ef, -1, makeUpdateList(nullptr, sef));
+        updateAccountSubEntries(app, le, lePrev, -1,
+                                makeUpdateList(nullptr, {se}));
     }
 }
 
@@ -245,12 +250,8 @@ TEST_CASE("Create account with no subentries",
     for (uint32_t i = 0; i < 100; ++i)
     {
         auto le = generateRandomAccountWithNoSubEntries(2);
-        {
-            soci::transaction sqlTx(app->getDatabase().getSession());
-            auto ef = EntryFrame::FromXDR(le);
-            REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
-            REQUIRE(store(*app, makeUpdateList(nullptr, ef)));
-        }
+        REQUIRE(store(*app, makeUpdateList({le}, nullptr)));
+        REQUIRE(store(*app, makeUpdateList(nullptr, {le})));
     }
 }
 
@@ -268,12 +269,9 @@ TEST_CASE("Create account then add signers and subentries",
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto le = generateRandomAccountWithNoSubEntries(2);
-        {
-            auto ef = EntryFrame::FromXDR(le);
-            REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
-        }
+        REQUIRE(store(*app, makeUpdateList({le}, nullptr)));
 
-        std::vector<EntryFrame::pointer> subentries;
+        std::vector<LedgerEntry> subentries;
         for (uint32_t j = 0; j < 50; ++j)
         {
             auto change = changesDist(gen);
@@ -291,18 +289,17 @@ TEST_CASE("Create account then add signers and subentries",
             }
         }
 
-        auto ef = EntryFrame::FromXDR(le);
         if (le.data.account().numSubEntries != le.data.account().signers.size())
         {
-            soci::transaction sqlTx(app->getDatabase().getSession());
-            REQUIRE(!store(*app, makeUpdateList(nullptr, ef)));
+            LedgerState ls(app->getLedgerStateRoot());
+            REQUIRE(!store(*app, makeUpdateList(nullptr, {le}), &ls));
         }
         {
-            soci::transaction sqlTx(app->getDatabase().getSession());
-            UpdateList apply(makeUpdateList(nullptr, ef));
-            for (auto const& sef : subentries)
+            UpdateList apply(makeUpdateList(nullptr, {le}));
+            for (auto const& se : subentries)
             {
-                apply.push_back(std::make_tuple(nullptr, sef));
+                auto sePtr = std::make_shared<LedgerEntry>(se);
+                apply.push_back(std::make_tuple(nullptr, sePtr));
             }
             REQUIRE(store(*app, apply));
         }

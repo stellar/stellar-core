@@ -64,8 +64,8 @@ class LoadGenerator
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
-    bool loadAccount(TestAccount& account, Database& database);
-    bool loadAccount(TestAccountPtr account, Database& database);
+    bool loadAccount(TestAccount& account, Application& app);
+    bool loadAccount(TestAccountPtr account, Application& app);
 
     std::pair<TestAccountPtr, TestAccountPtr>
     pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
@@ -80,7 +80,7 @@ class LoadGenerator
                                 TransactionResultCode code);
     TxInfo creationTransaction(uint64_t startAccount, uint64_t numItems,
                                uint32_t ledgerNum);
-    std::vector<TestAccountPtr> checkAccountSynced(Database& database);
+    std::vector<TestAccountPtr> checkAccountSynced(Application& app);
     void logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
                      uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
                      uint32_t txRate);

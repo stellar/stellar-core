@@ -4,7 +4,7 @@
 
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/format.h"
@@ -13,77 +13,9 @@
 namespace stellar
 {
 
-AccountSubEntriesCountIsValid::AccountSubEntriesCountIsValid()
-    : Invariant(false)
-{
-}
-
-std::shared_ptr<Invariant>
-AccountSubEntriesCountIsValid::registerInvariant(Application& app)
-{
-    return app.getInvariantManager()
-        .registerInvariant<AccountSubEntriesCountIsValid>();
-}
-
-std::string
-AccountSubEntriesCountIsValid::getName() const
-{
-    return "AccountSubEntriesCountIsValid";
-}
-
-std::string
-AccountSubEntriesCountIsValid::checkOnOperationApply(
-    Operation const& operation, OperationResult const& result,
-    LedgerDelta const& delta)
-{
-    std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
-    countChangedSubEntries(subEntriesChange, delta.added().begin(),
-                           delta.added().end());
-    countChangedSubEntries(subEntriesChange, delta.modified().begin(),
-                           delta.modified().end());
-    countChangedSubEntries(subEntriesChange, delta.deleted().begin(),
-                           delta.deleted().end());
-
-    for (auto const& kv : subEntriesChange)
-    {
-        auto const& change = kv.second;
-        if (change.numSubEntries != change.calculatedSubEntries)
-        {
-            return fmt::format(
-                "Change in Account {} numSubEntries ({}) does not"
-                " match change in number of subentries ({})",
-                KeyUtils::toStrKey(kv.first), change.numSubEntries,
-                change.calculatedSubEntries);
-        }
-    }
-
-    for (auto const& del : delta.deleted())
-    {
-        auto const& previous = del.previous->mEntry;
-        if (previous.data.type() == ACCOUNT)
-        {
-            auto const& account = previous.data.account();
-            auto const& change = subEntriesChange[account.accountID];
-            int32_t numSigners =
-                account.numSubEntries + change.numSubEntries - change.signers;
-            if (numSigners != static_cast<int32_t>(account.signers.size()))
-            {
-                int32_t otherSubEntries =
-                    static_cast<int32_t>(account.numSubEntries) -
-                    static_cast<int32_t>(account.signers.size());
-                return fmt::format(
-                    "Deleted Account {} has {} subentries other than"
-                    " signers",
-                    KeyUtils::toStrKey(account.accountID), otherSubEntries);
-            }
-        }
-    }
-    return {};
-}
-
-int32_t
-AccountSubEntriesCountIsValid::calculateDelta(LedgerEntry const* current,
-                                              LedgerEntry const* previous) const
+static int32_t
+calculateDelta(std::shared_ptr<LedgerEntry const> const& current,
+               std::shared_ptr<LedgerEntry const> const& previous)
 {
     int32_t delta = 0;
     if (current)
@@ -97,10 +29,11 @@ AccountSubEntriesCountIsValid::calculateDelta(LedgerEntry const* current,
     return delta;
 }
 
-void
-AccountSubEntriesCountIsValid::updateChangedSubEntriesCount(
+static void
+updateChangedSubEntriesCount(
     std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerEntry const* current, LedgerEntry const* previous) const
+    std::shared_ptr<LedgerEntry const> const& current,
+    std::shared_ptr<LedgerEntry const> const& previous)
 {
     auto valid = current ? current : previous;
     assert(valid);
@@ -146,42 +79,75 @@ AccountSubEntriesCountIsValid::updateChangedSubEntriesCount(
     }
 }
 
-void
-AccountSubEntriesCountIsValid::countChangedSubEntries(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerDelta::AddedIterator iter,
-    LedgerDelta::AddedIterator const& end) const
+AccountSubEntriesCountIsValid::AccountSubEntriesCountIsValid()
+    : Invariant(false)
 {
-    for (; iter != end; ++iter)
-    {
-        updateChangedSubEntriesCount(subEntriesChange, &iter->current->mEntry,
-                                     nullptr);
-    }
 }
 
-void
-AccountSubEntriesCountIsValid::countChangedSubEntries(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerDelta::ModifiedIterator iter,
-    LedgerDelta::ModifiedIterator const& end) const
+std::shared_ptr<Invariant>
+AccountSubEntriesCountIsValid::registerInvariant(Application& app)
 {
-    for (; iter != end; ++iter)
-    {
-        updateChangedSubEntriesCount(subEntriesChange, &iter->current->mEntry,
-                                     &iter->previous->mEntry);
-    }
+    return app.getInvariantManager()
+        .registerInvariant<AccountSubEntriesCountIsValid>();
 }
 
-void
-AccountSubEntriesCountIsValid::countChangedSubEntries(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerDelta::DeletedIterator iter,
-    LedgerDelta::DeletedIterator const& end) const
+std::string
+AccountSubEntriesCountIsValid::getName() const
 {
-    for (; iter != end; ++iter)
+    return "AccountSubEntriesCountIsValid";
+}
+
+std::string
+AccountSubEntriesCountIsValid::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerStateDelta const& lsDelta)
+{
+    std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
+    for (auto const& entryDelta : lsDelta.entry)
     {
-        updateChangedSubEntriesCount(subEntriesChange, nullptr,
-                                     &iter->previous->mEntry);
+        stellar::updateChangedSubEntriesCount(subEntriesChange,
+                                              entryDelta.second.current,
+                                              entryDelta.second.previous);
     }
+
+    for (auto const& kv : subEntriesChange)
+    {
+        auto const& change = kv.second;
+        if (change.numSubEntries != change.calculatedSubEntries)
+        {
+            return fmt::format(
+                "Change in Account {} numSubEntries ({}) does not"
+                " match change in number of subentries ({})",
+                KeyUtils::toStrKey(kv.first), change.numSubEntries,
+                change.calculatedSubEntries);
+        }
+    }
+
+    for (auto const& entryDelta : lsDelta.entry)
+    {
+        if (entryDelta.second.current)
+            continue;
+        assert(entryDelta.second.previous);
+
+        auto const& previous = *entryDelta.second.previous;
+        if (previous.data.type() == ACCOUNT)
+        {
+            auto const& account = previous.data.account();
+            auto const& change = subEntriesChange[account.accountID];
+            int32_t numSigners =
+                account.numSubEntries + change.numSubEntries - change.signers;
+            if (numSigners != static_cast<int32_t>(account.signers.size()))
+            {
+                int32_t otherSubEntries =
+                    static_cast<int32_t>(account.numSubEntries) -
+                    static_cast<int32_t>(account.signers.size());
+                return fmt::format(
+                    "Deleted Account {} has {} subentries other than"
+                    " signers",
+                    KeyUtils::toStrKey(account.accountID), otherSubEntries);
+            }
+        }
+    }
+    return {};
 }
 }

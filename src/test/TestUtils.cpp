@@ -12,12 +12,6 @@ namespace testutil
 {
 
 void
-setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
-{
-    lm.getCurrentLedgerHeader().ledgerVersion = currentLedgerVersion;
-}
-
-void
 crankSome(VirtualClock& clock)
 {
     auto start = clock.now();

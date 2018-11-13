@@ -2,6 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
@@ -9,6 +12,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 #include <deque>
@@ -89,22 +93,22 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     // set up world
     auto root = TestAccount::createRoot(*app);
     auto xlm = makeNativeAsset();
-    auto txfee = app->getLedgerManager().getTxFee();
+    auto txfee = app->getLedgerManager().getLastTxFee();
 
-    auto const minBalanceNoTx = app->getLedgerManager().getMinBalance(0);
+    auto const minBalanceNoTx = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance =
-        app->getLedgerManager().getMinBalance(0) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(0) + 10 * txfee;
 
     auto const minBalance1 =
-        app->getLedgerManager().getMinBalance(1) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(1) + 10 * txfee;
     auto const minBalance2 =
-        app->getLedgerManager().getMinBalance(2) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(2) + 10 * txfee;
     auto const minBalance3 =
-        app->getLedgerManager().getMinBalance(3) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(3) + 10 * txfee;
     auto const minBalance4 =
-        app->getLedgerManager().getMinBalance(4) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(4) + 10 * txfee;
     auto const minBalance5 =
-        app->getLedgerManager().getMinBalance(5) + 10 * txfee;
+        app->getLedgerManager().getLastMinBalance(5) + 10 * txfee;
 
     auto const paymentAmount = minBalance3;
     auto const morePayment = paymentAmount / 2;
@@ -3763,8 +3767,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         auto paymentToReceive = 240000000;
         auto offerSize = paymentToReceive / 2;
-        auto initialBalance =
-            app->getLedgerManager().getMinBalance(10) + txfee * 10 + 1000000000;
+        auto initialBalance = app->getLedgerManager().getLastMinBalance(10) +
+                              txfee * 10 + 1000000000;
         auto mm = root.create("mm", initialBalance);
         auto source = root.create("source", initialBalance);
         auto destination = root.create("destination", initialBalance);
@@ -3877,7 +3881,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                  // as in the
             // offer because of Price{2, 1} that is
             // used in one case
-            auto txFee = app->getLedgerManager().getTxFee();
+            auto txFee = app->getLedgerManager().getLastTxFee();
 
             auto assets = std::deque<Asset>{xlm, usd, idr};
             int pathSize = (int)assets.size();
@@ -3907,8 +3911,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 }
                 else
                 {
-                    REQUIRE(loadTrustLine(account, assets[assetIndex], *app)
-                                ->getBalance() == initialBalance + difference);
+                    REQUIRE(account.loadTrustLine(assets[assetIndex]).balance ==
+                            initialBalance + difference);
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,
@@ -3921,11 +3925,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                          feeCount);
                 }
             };
-            auto validateOffer = [offerAmount](const TestAccount& account,
-                                               uint64_t offerId,
-                                               int64_t difference) {
-                auto offer = account.loadOffer(offerId);
-                REQUIRE(offer.amount == offerAmount + difference);
+            auto validateOffer = [&](const TestAccount& account,
+                                     uint64_t offerId, int64_t difference) {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto offer =
+                    stellar::loadOffer(ls, account.getPublicKey(), offerId);
+                auto const& oe = offer.current().data.offer();
+                REQUIRE(oe.amount == offerAmount + difference);
             };
 
             auto source = setupAccount("S");
@@ -4047,13 +4053,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment rounding")
     {
-        auto source = root.create(
-            "source", app->getLedgerManager().getMinBalance(1) + 10 * txfee);
-        auto mm = root.create("mm", app->getLedgerManager().getMinBalance(4) +
-                                        10 * txfee);
-        auto destination =
-            root.create("destination",
-                        app->getLedgerManager().getMinBalance(1) + 10 * txfee);
+        auto source =
+            root.create("source", app->getLedgerManager().getLastMinBalance(1) +
+                                      10 * txfee);
+        auto mm = root.create(
+            "mm", app->getLedgerManager().getLastMinBalance(4) + 10 * txfee);
+        auto destination = root.create(
+            "destination",
+            app->getLedgerManager().getLastMinBalance(1) + 10 * txfee);
 
         SECTION("exchangeV10 recalculate sheepValue: 1 offer")
         {

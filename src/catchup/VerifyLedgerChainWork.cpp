@@ -5,10 +5,10 @@
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
 #include "historywork/Progress.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/XDRStream.h"
+#include "util/types.h"
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 
@@ -18,8 +18,7 @@ namespace stellar
 static HistoryManager::LedgerVerificationStatus
 verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
 {
-    LedgerHeaderFrame lFrame(hhe.header);
-    Hash calculated = lFrame.getHash();
+    Hash calculated = sha256(xdr::xdr_to_opaque(hhe.header));
     if (calculated != hhe.hash)
     {
         CLOG(ERROR, "History")

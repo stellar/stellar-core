@@ -4,6 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "transactions/OperationFrame.h"
 
 namespace stellar
@@ -24,9 +27,8 @@ class BumpSequenceOpFrame : public OperationFrame
     BumpSequenceOpFrame(Operation const& op, OperationResult& res,
                         TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
-                 LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    bool doApply(Application& app, AbstractLedgerState& ls) override;
+    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static BumpSequenceResultCode
     getInnerCode(OperationResult const& res)

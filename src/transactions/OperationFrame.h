@@ -4,7 +4,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/AccountFrame.h"
 #include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
@@ -17,9 +16,11 @@ class MetricsRegistry;
 
 namespace stellar
 {
+class AbstractLedgerState;
 class Application;
 class LedgerManager;
-class LedgerDelta;
+class LedgerStateEntry;
+class LedgerStateHeader;
 
 class SignatureChecker;
 class TransactionFrame;
@@ -36,17 +37,19 @@ class OperationFrame
   protected:
     Operation const& mOperation;
     TransactionFrame& mParentTx;
-    AccountFrame::pointer mSourceAccount;
     OperationResult& mResult;
 
-    virtual bool doCheckValid(Application& app) = 0;
-    virtual bool doApply(Application& app, LedgerDelta& delta,
-                         LedgerManager& ledgerManager) = 0;
+    virtual bool doCheckValid(Application& app, uint32_t ledgerVersion) = 0;
+    virtual bool doApply(Application& app, AbstractLedgerState& ls) = 0;
+
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
 
     // returns true if the operation is supported given a protocol version
     virtual bool isVersionSupported(uint32_t protocolVersion) const;
+
+    LedgerStateEntry loadSourceAccount(AbstractLedgerState& ls,
+                                       LedgerStateHeader const& header);
 
   public:
     static std::shared_ptr<OperationFrame>
@@ -59,28 +62,9 @@ class OperationFrame
     virtual ~OperationFrame() = default;
 
     bool checkSignature(SignatureChecker& signatureChecker, Application& app,
-                        LedgerDelta* delta);
-    AccountFrame&
-    getSourceAccount() const
-    {
-        assert(mSourceAccount);
-        return *mSourceAccount;
-    }
-
-    // overrides internal sourceAccount used by this operation
-    // normally set automatically by checkValid
-    void
-    setSourceAccountPtr(AccountFrame::pointer sa)
-    {
-        mSourceAccount = sa;
-    }
+                        AbstractLedgerState& ls, bool forApply);
 
     AccountID const& getSourceID() const;
-
-    // load account if needed
-    // returns true on success
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
-                     Database& db);
 
     OperationResult&
     getResult() const
@@ -90,10 +74,10 @@ class OperationFrame
     OperationResultCode getResultCode() const;
 
     bool checkValid(SignatureChecker& signatureChecker, Application& app,
-                    LedgerDelta* delta = nullptr);
+                    AbstractLedgerState& lsOuter, bool forApply);
 
-    bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
-               Application& app);
+    bool apply(SignatureChecker& signatureChecker, Application& app,
+               AbstractLedgerState& ls);
 
     Operation const&
     getOperation() const
