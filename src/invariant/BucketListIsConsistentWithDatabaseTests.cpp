@@ -232,8 +232,8 @@ struct SelectBucketListGenerator : public BucketListGenerator
                 auto iter = filteredKeys.begin();
                 std::advance(iter, dist(*mGen));
 
-                mSelected =
-                    std::make_shared<LedgerEntry>(ls.load(*iter).current());
+                mSelected = std::make_shared<LedgerEntry>(
+                    ls.loadWithoutRecord(*iter).current());
             }
         }
         return BucketListGenerator::generateLiveEntries(ls);
@@ -502,8 +502,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
         uint32_t const mTargetLedger;
         bool mModifiedRoot;
 
-        TestRootBucketListGenerator()
-            : BucketListGenerator()
+        TestRootBucketListGenerator(
+            std::shared_ptr<std::default_random_engine> const& gen)
+            : BucketListGenerator(gen)
             , mTargetLedger(
                   std::uniform_int_distribution<uint32_t>(2, 100)(*mGen))
             , mModifiedRoot(false)
@@ -519,7 +520,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
                 auto& app = mAppGenerate;
                 auto skey = SecretKey::fromSeed(app->getNetworkID());
                 auto root = skey.getPublicKey();
-                return {stellar::loadAccountWithoutRecord(ls, root).current()};
+                auto le = stellar::loadAccountWithoutRecord(ls, root).current();
+                le.lastModifiedLedgerSeq = mLedgerSeq;
+                return {le};
             }
             else
             {
@@ -534,10 +537,14 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
         }
     };
 
-    TestRootBucketListGenerator blg;
-    blg.generateLedgers(100);
-    REQUIRE(blg.mModifiedRoot);
-    REQUIRE_NOTHROW(blg.applyBuckets());
+    auto gen = std::make_shared<std::default_random_engine>();
+    for (size_t j = 0; j < 5; ++j)
+    {
+        TestRootBucketListGenerator blg(gen);
+        blg.generateLedgers(100);
+        REQUIRE(blg.mModifiedRoot);
+        REQUIRE_NOTHROW(blg.applyBuckets());
+    }
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase added entries",
