@@ -213,7 +213,7 @@ am__objects_1 = bucket/Bucket.$(OBJEXT) \
 	main/NtpSynchronizationChecker.$(OBJEXT) \
 	main/PersistentState.$(OBJEXT) main/dumpxdr.$(OBJEXT) \
 	main/fuzz.$(OBJEXT) main/main.$(OBJEXT) \
-	main/ManagedObject.$(OBJEXT) main/Whitelist.$(OBJEXT) \
+	main/ManagedDataCache.$(OBJEXT) main/Whitelist.$(OBJEXT) \
 	overlay/BanManagerImpl.$(OBJEXT) overlay/FloodTests.$(OBJEXT) \
 	overlay/Floodgate.$(OBJEXT) overlay/ItemFetcher.$(OBJEXT) \
 	overlay/ItemFetcherTests.$(OBJEXT) \
@@ -601,7 +601,7 @@ SRC_H_FILES = bucket/Bucket.h bucket/BucketApplicator.h \
 	main/CommandHandler.h main/Config.h main/ExternalQueue.h \
 	main/Maintainer.h main/NtpSynchronizationChecker.h \
 	main/PersistentState.h main/StellarCoreVersion.h \
-	main/dumpxdr.h main/fuzz.h main/ManagedObject.h main/Whitelist.h \
+	main/dumpxdr.h main/fuzz.h main/ManagedDataCache.h main/Whitelist.h \
 	overlay/BanManager.h \
 	overlay/BanManagerImpl.h overlay/Floodgate.h \
 	overlay/ItemFetcher.h overlay/LoadManager.h \
@@ -710,7 +710,7 @@ SRC_CXX_FILES = bucket/Bucket.cpp bucket/BucketApplicator.cpp \
 	main/ExternalQueueTests.cpp main/LruCacheTests.cpp \
 	main/Maintainer.cpp main/NtpSynchronizationChecker.cpp \
 	main/PersistentState.cpp main/dumpxdr.cpp main/fuzz.cpp \
-	main/main.cpp main/ManagedObject.cpp main/Whitelist.cpp \
+	main/main.cpp main/ManagedDataCache.cpp main/Whitelist.cpp \
 	overlay/BanManagerImpl.cpp \
 	overlay/FloodTests.cpp overlay/Floodgate.cpp \
 	overlay/ItemFetcher.cpp overlay/ItemFetcherTests.cpp \

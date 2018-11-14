@@ -306,13 +306,13 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
     auto balanceAfter =
-        (applying && !whitelisted && 
-			(app.getLedgerManager().getCurrentLedgerVersion() > 8))
+        (applying && (app.getLedgerManager().getCurrentLedgerVersion() > 8))
             ? mSigningAccount->getAccount().balance
             : mSigningAccount->getAccount().balance - mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
-    if (balanceAfter <
+	// whitelisted txs are not charged
+    if (!whitelisted && balanceAfter <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         app.getMetrics()
@@ -345,7 +345,8 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
     auto whitelisted =
         whitelist->isWhitelisted(mEnvelope.signatures, getContentsHash());
 
-    if (fee > 0 && !whitelisted)
+	// whitelisted txs are not charged a fee
+    if (!whitelisted && fee > 0)
     {
         fee = std::min(mSigningAccount->getAccount().balance, fee);
         mSigningAccount->addBalance(-fee);

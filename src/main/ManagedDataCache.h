@@ -3,8 +3,12 @@
 
 namespace stellar
 {
-
-class ManagedObject
+// This class caches data stored on an account (manipulated via
+//   the MANAGE_DATA op).
+// The update() method should be called whenever a cache
+//   instance is referenced.
+// See WhiteList::instance() for an example.
+class ManagedDataCache
 {
   public:
     void update(Application& app);

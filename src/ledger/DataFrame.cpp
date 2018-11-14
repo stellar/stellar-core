@@ -151,7 +151,7 @@ DataFrame::loadAllData(Database& db)
 }
 
 std::vector<DataFrame::pointer>
-DataFrame::loadAllData(Database& db, AccountID const& accountID)
+DataFrame::loadAccountData(Database& db, AccountID const& accountID)
 {
     std::string actIDStrKey = KeyUtils::toStrKey(accountID);
 

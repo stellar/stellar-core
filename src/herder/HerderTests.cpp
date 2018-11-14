@@ -470,7 +470,7 @@ TEST_CASE("whitelist", "[herder]")
         }
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
-        auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
+        auto dfs = DataFrame::loadAccountData(app->getDatabase(), whitelist.getPublicKey());
 
         int wlCount = 0;
 
@@ -520,7 +520,7 @@ TEST_CASE("whitelist", "[herder]")
         }
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
-        auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
+        auto dfs = DataFrame::loadAccountData(app->getDatabase(), whitelist.getPublicKey());
 
         int wlCount = 0;
 
@@ -570,7 +570,7 @@ TEST_CASE("whitelist", "[herder]")
         }
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
-        auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
+        auto dfs = DataFrame::loadAccountData(app->getDatabase(), whitelist.getPublicKey());
 
         int wlCount = 0;
         // adding non-whitelisted tx to the set
@@ -626,7 +626,7 @@ TEST_CASE("whitelist", "[herder]")
         }
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
-        auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
+        auto dfs = DataFrame::loadAccountData(app->getDatabase(), whitelist.getPublicKey());
 
         int wlCount = 0;
         int wlAmount = 0;
@@ -694,7 +694,7 @@ TEST_CASE("whitelist", "[herder]")
         }
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
-        auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
+        auto dfs = DataFrame::loadAccountData(app->getDatabase(), whitelist.getPublicKey());
 
         int wlCount = 0;
         int wlAmount = 0;

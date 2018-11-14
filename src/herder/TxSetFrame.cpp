@@ -149,6 +149,7 @@ struct SurgeSorter
         if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();
 
+		// disregard fees when sorting whitelisted txs 
         if (mWhitelisted)
             return tx1->getSourceID() < tx2->getSourceID();
 
@@ -200,6 +201,7 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm, Application& app)
         std::sort(whitelisted.begin(), whitelisted.end(),
                   SurgeSorter(accountFeeMap, true));
 
+		// remove the over-capacity txs
         if (whitelisted.size() > (max - reserveCapacity))
             for (auto iter = whitelisted.begin() + (max - reserveCapacity);
                  iter != whitelisted.end(); iter++)
@@ -208,7 +210,9 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm, Application& app)
             }
 
         // calculate available unwhitelisted capacity
-        size_t extraWhitelistCapacity = whitelisted.size() > (max - reserveCapacity) ? 0 : (max - reserveCapacity) - whitelisted.size();
+        size_t extraWhitelistCapacity = whitelisted.size() > (max - reserveCapacity)
+			? 0
+			: (max - reserveCapacity) - whitelisted.size();
         size_t totalCapacity = reserveCapacity + extraWhitelistCapacity;
 
         // exit early, if the count of unwhitelisted is within the

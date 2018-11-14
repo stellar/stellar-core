@@ -1,11 +1,11 @@
 #include "main/Application.h"
-#include "main/ManagedObject.h"
+#include "main/ManagedDataCache.h"
 #include "ledger/LedgerManager.h"
 
 namespace stellar
 {
 
-class Whitelist : public ManagedObject
+class Whitelist : public ManagedDataCache
 {
   public:
     static Whitelist* instance(Application& app);
@@ -29,10 +29,10 @@ class Whitelist : public ManagedObject
     }
     static Whitelist* mINSTANCE;
 
-    std::unordered_map<uint32_t, std::vector<string64>> hash;
+    std::unordered_map<uint32_t, std::vector<string64>> whitelist;
 
 	// default to a 5% reserve
-	double reserve = 0.05;
+	double mReserve = 0.05;
 	int lcl;
 };
 } // namespace stellar

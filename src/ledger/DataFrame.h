@@ -83,7 +83,7 @@ class DataFrame : public EntryFrame
     loadAllData(Database& db);
 
     static std::vector<DataFrame::pointer>
-	loadAllData(Database& db, AccountID const& accountID);
+	loadAccountData(Database& db, AccountID const& accountID);
 
     static void dropAll(Database& db);
 
