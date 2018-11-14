@@ -1026,17 +1026,22 @@ LedgerState::Impl::maybeUpdateLastModified() const
     throwIfSealed();
     throwIfChild();
 
-    auto entries = mEntry;
-    if (mShouldUpdateLastModified)
+    // Note: We do a deep copy here since a shallow copy would not be exception
+    // safe.
+    EntryMap entries;
+    for (auto const& kv : mEntry)
     {
-        for (auto& kv : entries)
+        auto const& key = kv.first;
+        std::shared_ptr<LedgerEntry> entry;
+        if (kv.second)
         {
-            auto& entry = kv.second;
-            if (entry)
+            entry = std::make_shared<LedgerEntry>(*kv.second);
+            if (mShouldUpdateLastModified)
             {
                 entry->lastModifiedLedgerSeq = mHeader->ledgerSeq;
             }
         }
+        entries.emplace(key, entry);
     }
     return entries;
 }
