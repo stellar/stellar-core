@@ -937,8 +937,13 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     // Remove liabilities associated with the offer being crossed.
     releaseLiabilities(ls, header, sellingWheatOffer);
 
-    // Load necessary accounts and trustlines.
-    auto accountB = stellar::loadAccount(ls, accountBID);
+    // Load necessary accounts and trustlines. Note that any LedgerEntry loaded
+    // here was also loaded during releaseLiabilities.
+    LedgerStateEntry accountB;
+    if (wheat.type() == ASSET_TYPE_NATIVE || sheep.type() == ASSET_TYPE_NATIVE)
+    {
+        accountB = stellar::loadAccount(ls, accountBID);
+    }
     auto sheepLineAccountB = loadTrustLineIfNotNative(ls, accountBID, sheep);
     auto wheatLineAccountB = loadTrustLineIfNotNative(ls, accountBID, wheat);
 
