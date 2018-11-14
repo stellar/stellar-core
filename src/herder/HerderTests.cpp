@@ -319,6 +319,7 @@ TEST_CASE("whitelist", "[herder]")
 
     app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
         cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+        app->getLedgerManager().getCurrentLedgerHeader().baseReserve = 0;
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -328,11 +329,57 @@ TEST_CASE("whitelist", "[herder]")
     auto accountC = root.create("accountC", 5000000000);
     auto whitelist = root.create("whitelist", 5000000000);
     auto accountWL = root.create("accountWL1", 5000000000);
+    auto accountWLBase = root.create("accountWLBase", 5000000000);
     auto accountWL2 = root.create("accountWL2", 5000000000);
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
+
+
+    SECTION("base reserve"){
+        DataValue value;
+        value.resize(4);
+        SignatureHint hint = SignatureUtils::getHint(accountWLBase.getPublicKey().ed25519());
+        for (int n = 0; n < 4; n++)
+        {
+            value[n] = (unsigned char)hint[n];
+        }
+
+        whitelist.manageData(KeyUtils::toStrKey(accountWLBase.getPublicKey()), &value);
+
+        // Checking account balance
+        auto balance = accountWLBase.getBalance();
+
+
+        auto base = root.create("0base", 0);
+        auto base1 = root.create("base1", 500);
+
+        txSet->add(base1.tx({payment(destAccount, 400)}));
+
+
+        auto tx = accountWLBase.tx({payment(base, 5000000000)});
+
+        tx->getEnvelope().tx.fee = 0;
+        txSet->add(tx);
+
+        // Sort for hash
+        txSet->sortForHash();
+
+        // Apply the surge filter
+        txSet->surgePricingFilter(lm, *app);
+
+
+        REQUIRE(txSet->mTransactions.size() == 2);
+        REQUIRE(txSet->checkValid(*app));
+
+        closeLedgerOn(*app, 2, 4, 11, 2018, txSet->mTransactions);
+        REQUIRE(accountWLBase.getBalance()  == 0);
+        REQUIRE(base.getBalance()  == balance);
+        REQUIRE(base1.getBalance()  == 0);
+
+
+    }
 
     SECTION("whitelist"){
         DataValue value;
@@ -455,6 +502,121 @@ TEST_CASE("whitelist", "[herder]")
         REQUIRE(txSet->checkValid(*app));
 
     }
+
+    SECTION("whitelist with 0 fee")
+    {
+
+        DataValue value;
+        value.resize(4);
+        SignatureHint hint = SignatureUtils::getHint(accountWL.getPublicKey().ed25519());
+        app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize = 20;
+
+
+        for (int n = 0; n < 4; n++)
+        {
+            value[n] = (unsigned char)hint[n];
+        }
+
+        whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
+
+
+        int wlCount = 0;
+        // adding non-whitelisted tx to the set
+        for (int n = 0; n < 2; n++)
+        {
+            txSet->add(accountC.tx({payment(destAccount, n + 10)}));
+        }
+
+        // adding whitelisted tx to the set
+        for (int n = 0; n < 19; n++)
+        {
+            auto tx = accountWL.tx({payment(destAccount, n + 10)});
+            tx->getEnvelope().tx.fee = 0;
+            txSet->add(tx);
+        }
+
+        // Sort for hash
+        txSet->sortForHash();
+
+        // Apply the surge filter
+        txSet->surgePricingFilter(lm, *app);
+
+
+
+        // validating the tx
+        for (auto& tx3 : txSet->mTransactions)
+        {
+            if(tx3->getSourceID() == accountWL.getPublicKey())
+                wlCount++;
+            else
+                REQUIRE(tx3->getSourceID() == accountC.getPublicKey()) ;
+        }
+
+
+        REQUIRE(txSet->mTransactions.size() == 20);
+        REQUIRE(wlCount == 19);
+        REQUIRE(txSet->checkValid(*app));
+
+    }
+
+
+    SECTION("non whitelist with 0 fee")
+        {
+
+            DataValue value;
+            value.resize(4);
+            SignatureHint hint = SignatureUtils::getHint(accountWL.getPublicKey().ed25519());
+            app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize = 20;
+
+
+            for (int n = 0; n < 4; n++)
+            {
+                value[n] = (unsigned char)hint[n];
+            }
+
+            whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
+
+
+            int wlCount = 0;
+            // adding non-whitelisted tx to the set
+            for (int n = 0; n < 2; n++)
+            {
+                auto tx = accountC.tx({payment(destAccount, n + 10)});
+                tx->getEnvelope().tx.fee = 0;
+                txSet->add(tx);
+            }
+
+            // adding whitelisted tx to the set
+            for (int n = 0; n < 19; n++)
+            {
+                auto tx = accountWL.tx({payment(destAccount, n + 10)});
+                tx->getEnvelope().tx.fee = 0;
+                txSet->add(tx);
+            }
+
+            // Sort for hash
+            txSet->sortForHash();
+
+            // Apply the surge filter
+            txSet->surgePricingFilter(lm, *app);
+
+
+
+            // validating the tx
+            for (auto& tx3 : txSet->mTransactions)
+            {
+                if(tx3->getSourceID() == accountWL.getPublicKey())
+                    wlCount++;
+                else
+                    REQUIRE(tx3->getSourceID() == accountC.getPublicKey()) ;
+            }
+
+
+            REQUIRE(txSet->mTransactions.size() == 20);
+            REQUIRE(wlCount == 19);
+            REQUIRE(!txSet->checkValid(*app));
+
+        }
 
 
     SECTION("whitelist different set size")
