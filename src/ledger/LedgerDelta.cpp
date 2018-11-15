@@ -452,7 +452,7 @@ ValueType const* LedgerDelta::Iterator<IterType, ValueType>::operator->() const
 
 template <typename IterType, typename ValueType>
 LedgerDelta::Iterator<IterType, ValueType>&
-    LedgerDelta::Iterator<IterType, ValueType>::operator++()
+LedgerDelta::Iterator<IterType, ValueType>::operator++()
 {
     ++mIter;
     mValue.reset();

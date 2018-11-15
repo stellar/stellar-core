@@ -300,10 +300,10 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
             res = mParams.mBaseReserve && (newReserve == *mParams.mBaseReserve);
         }
         /*
-		The following line is commented-out to allow an upgrade to change the
-		base reserve to zero.
-		*/
-        //res = res && (newReserve != 0);
+                The following line is commented-out to allow an upgrade to
+           change the base reserve to zero.
+                */
+        // res = res && (newReserve != 0);
     }
     break;
     default:

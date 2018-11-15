@@ -161,7 +161,7 @@ DataFrame::loadAccountData(Database& db, AccountID const& accountID)
     auto prep = db.getPreparedStatement(sql);
     auto& st = prep.statement();
 
-	st.exchange(use(actIDStrKey));
+    st.exchange(use(actIDStrKey));
 
     auto timer = db.getSelectTimer("data");
     loadData(prep, [&retData](LedgerEntry const& of) {
