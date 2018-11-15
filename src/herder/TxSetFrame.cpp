@@ -149,7 +149,8 @@ struct SurgeSorter
         if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();
 
-        // disregard fees when sorting whitelisted txs
+        // whitelisted txs are not charged fees, so disregard them when
+		// sorting whitelisted txs
         if (mWhitelisted)
             return tx1->getSourceID() < tx2->getSourceID();
 
@@ -164,6 +165,23 @@ struct SurgeSorter
 void
 TxSetFrame::surgePricingFilter(LedgerManager const& lm, Application& app)
 {
+    /*
+	Sorting in a whitelisted world:
+	1) txs are partitioned into whitelisted and non-whitelisted lists.
+	2) whitelisted txs are sorted in a deterministic order to ensure all
+		nodes settle on the same set.
+	3) whitelisted txs are trimmed if necessary, to make room for
+		non-whitelisted txs.
+	4) non-whitelisted txs are sorted, including the fee ratio as a
+		determinant.
+	5) non-whitelisted txs are trimmed to fit in the space alloted.
+
+	If there are fewer non-whitelisted txs than space reserved, extra
+		whitelisted txs are included to fill the set.
+	Similarly, if there are fewer whitelisted txs than space allows, extra
+		non-whitelisted txs are included to fill the set.
+	*/
+
     size_t max = lm.getMaxTxSetSize();
     if (mTransactions.size() > max)
     { // surge pricing in effect!

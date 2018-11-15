@@ -102,7 +102,7 @@ Whitelist::isWhitelistSig(DecoratedSignature const& sig, Hash const& txHash)
     auto it = whitelist.find(hintInt);
 
 	// Iterate through the public keys with the same hint as the signature.
-	// Expected vector size is 1.
+	// Expected vector size is 1, due to randomness in creating keys.
     if (it != whitelist.end())
     {
         for (auto key : it->second)

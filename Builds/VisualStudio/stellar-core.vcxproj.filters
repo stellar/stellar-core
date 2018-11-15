@@ -858,7 +858,7 @@
     <ClCompile Include="..\..\src\main\Whitelist.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\ManagedObject.cpp">
+    <ClCompile Include="..\..\src\main\ManagedDataCache.cpp">
       <Filter>main</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1482,7 +1482,7 @@
     <ClInclude Include="..\..\src\main\Whitelist.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\ManagedObject.h">
+    <ClInclude Include="..\..\src\main\ManagedDataCache.h">
       <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
