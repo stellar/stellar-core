@@ -15,6 +15,8 @@ namespace stellar
 class BitsetEnumerator
 {
   public:
+    virtual ~BitsetEnumerator() = default;
+
     virtual void reset() = 0;
     virtual void operator++() = 0;
     virtual std::bitset<64> operator*() const = 0;
