@@ -663,13 +663,14 @@ LedgerState::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
 
     // Have to load accounts that could be winners after accounting for the
     // change in their vote totals
-    int64_t maxIncrease =
+    auto maxIncreaseIter =
         std::max_element(deltaVotes.cbegin(), deltaVotes.cend(),
                          [](auto const& lhs, auto const& rhs) {
                              return lhs.second < rhs.second;
-                         })
-            ->second;
-    maxIncrease = std::max(int64_t(0), maxIncrease);
+                         });
+    int64_t maxIncrease = (maxIncreaseIter != deltaVotes.cend())
+                              ? std::max<int64_t>(0, maxIncreaseIter->second)
+                              : 0;
     int64_t newMinVotes =
         (minVotes > maxIncrease) ? (minVotes - maxIncrease) : 0;
 
@@ -1025,17 +1026,22 @@ LedgerState::Impl::maybeUpdateLastModified() const
     throwIfSealed();
     throwIfChild();
 
-    auto entries = mEntry;
-    if (mShouldUpdateLastModified)
+    // Note: We do a deep copy here since a shallow copy would not be exception
+    // safe.
+    EntryMap entries;
+    for (auto const& kv : mEntry)
     {
-        for (auto& kv : entries)
+        auto const& key = kv.first;
+        std::shared_ptr<LedgerEntry> entry;
+        if (kv.second)
         {
-            auto& entry = kv.second;
-            if (entry)
+            entry = std::make_shared<LedgerEntry>(*kv.second);
+            if (mShouldUpdateLastModified)
             {
                 entry->lastModifiedLedgerSeq = mHeader->ledgerSeq;
             }
         }
+        entries.emplace(key, entry);
     }
     return entries;
 }
