@@ -11,11 +11,6 @@
 #include "util/XDRStream.h"
 #include <string>
 
-namespace medida
-{
-class MetricsRegistry;
-}
-
 namespace stellar
 {
 

@@ -15,7 +15,6 @@
 namespace medida
 {
 class Meter;
-class Timer;
 class Counter;
 }
 

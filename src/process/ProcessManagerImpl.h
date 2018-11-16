@@ -10,11 +10,6 @@
 #include <mutex>
 #include <vector>
 
-namespace medida
-{
-class Counter;
-}
-
 namespace stellar
 {
 

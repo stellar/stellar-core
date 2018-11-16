@@ -5,8 +5,6 @@
 #include "overlay/LoopbackPeer.h"
 #include "crypto/Random.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
