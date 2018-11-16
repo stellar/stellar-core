@@ -215,17 +215,6 @@ TEST_CASE("standalone", "[herder]")
     }
 }
 
-// see if we flood at the right times
-//  invalid tx
-//  normal tx
-//  tx with bad seq num
-//  account can't pay for all the tx
-//  account has just enough for all the tx
-//  tx from account not in the DB
-TEST_CASE("recvTx", "[herder]")
-{
-}
-
 TEST_CASE("txset", "[herder]")
 {
     Config cfg(getTestConfig());
