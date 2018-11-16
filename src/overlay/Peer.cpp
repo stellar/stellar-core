@@ -131,40 +131,6 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "send", "scp-message"}, "message"))
     , mSendGetSCPStateMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-state"}, "message"))
-    , mDropInConnectHandlerMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "connect-handler"}, "drop"))
-    , mDropInRecvMessageDecodeMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-message-decode"}, "drop"))
-    , mDropInRecvMessageSeqMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-message-seq"}, "drop"))
-    , mDropInRecvMessageMacMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-message-mac"}, "drop"))
-    , mDropInRecvMessageUnauthMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-message-unauth"}, "drop"))
-    , mDropInRecvHelloUnexpectedMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-unexpected"}, "drop"))
-    , mDropInRecvHelloVersionMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-version"}, "drop"))
-    , mDropInRecvHelloSelfMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-self"}, "drop"))
-    , mDropInRecvHelloPeerIDMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-peerid"}, "drop"))
-    , mDropInRecvHelloCertMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-cert"}, "drop"))
-    , mDropInRecvHelloBanMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-ban"}, "drop"))
-    , mDropInRecvHelloNetMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-net"}, "drop"))
-    , mDropInRecvHelloAddressMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-address"}, "drop"))
-    , mDropInRecvAuthUnexpectedMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
-    , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-auth-reject"}, "drop"))
-    , mDropInRecvAuthInvalidPeerMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-auth-invalid-peer"}, "drop"))
-    , mDropInRecvErrorMeter(
-          app.getMetrics().NewMeter({"overlay", "drop", "recv-error"}, "drop"))
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -298,7 +264,6 @@ Peer::connectHandler(asio::error_code const& error)
     {
         CLOG(WARNING, "Overlay")
             << " connectHandler error: " << error.message();
-        mDropInConnectHandlerMeter.Mark();
         drop();
     }
     else
@@ -542,7 +507,6 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
-        mDropInRecvMessageDecodeMeter.Mark();
         drop();
         return;
     }
@@ -579,7 +543,6 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         if (msg.v0().sequence != mRecvMacSeq)
         {
             CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
-            mDropInRecvMessageSeqMeter.Mark();
             ++mRecvMacSeq;
             drop(ERR_AUTH, "unexpected auth sequence");
             return;
@@ -590,7 +553,6 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
                 xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
-            mDropInRecvMessageMacMeter.Mark();
             ++mRecvMacSeq;
             drop(ERR_AUTH, "unexpected MAC");
             return;
@@ -621,7 +583,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
         CLOG(WARNING, "Overlay")
             << "recv: " << stellarMsg.type() << " before completed handshake";
-        mDropInRecvMessageUnauthMeter.Mark();
         drop();
         return;
     }
@@ -864,7 +825,6 @@ Peer::recvError(StellarMessage const& msg)
     }
     CLOG(WARNING, "Overlay")
         << "Received error (" << codeStr << "): " << msg.error().msg;
-    mDropInRecvErrorMeter.Mark();
     drop();
 }
 
@@ -874,7 +834,6 @@ Peer::noteHandshakeSuccessInPeerRecord()
     if (getAddress().isEmpty())
     {
         CLOG(ERROR, "Overlay") << "unable to handshake with " << toString();
-        mDropInRecvAuthInvalidPeerMeter.Mark();
         drop();
         return;
     }
@@ -901,7 +860,6 @@ Peer::recvHello(Hello const& elo)
     if (mState >= GOT_HELLO)
     {
         CLOG(ERROR, "Overlay") << "received unexpected HELLO";
-        mDropInRecvHelloUnexpectedMeter.Mark();
         drop();
         return;
     }
@@ -910,7 +868,6 @@ Peer::recvHello(Hello const& elo)
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
-        mDropInRecvHelloCertMeter.Mark();
         drop();
         return;
     }
@@ -918,7 +875,6 @@ Peer::recvHello(Hello const& elo)
     if (mApp.getBanManager().isBanned(elo.peerID))
     {
         CLOG(ERROR, "Overlay") << "Node is banned";
-        mDropInRecvHelloBanMeter.Mark();
         drop();
         return;
     }
@@ -958,7 +914,6 @@ Peer::recvHello(Hello const& elo)
             << mRemoteOverlayVersion << "] expected: ["
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << ","
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
-        mDropInRecvHelloVersionMeter.Mark();
         drop(ERR_CONF, "wrong protocol version");
         return;
     }
@@ -966,7 +921,6 @@ Peer::recvHello(Hello const& elo)
     if (elo.peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
         CLOG(WARNING, "Overlay") << "connecting to self";
-        mDropInRecvHelloSelfMeter.Mark();
         drop(ERR_CONF, "connecting to self");
         return;
     }
@@ -978,7 +932,6 @@ Peer::recvHello(Hello const& elo)
         CLOG(DEBUG, "Overlay")
             << "NetworkID = " << hexAbbrev(elo.networkID)
             << " expected: " << hexAbbrev(mApp.getNetworkID());
-        mDropInRecvHelloNetMeter.Mark();
         drop(ERR_CONF, "wrong network passphrase");
         return;
     }
@@ -994,7 +947,6 @@ Peer::recvHello(Hello const& elo)
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
                 << mApp.getConfig().toShortString(mPeerID);
-            mDropInRecvHelloPeerIDMeter.Mark();
             drop(ERR_CONF, "connecting already-connected peer");
             return;
         }
@@ -1011,7 +963,6 @@ Peer::recvHello(Hello const& elo)
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
                 << mApp.getConfig().toShortString(mPeerID);
-            mDropInRecvHelloPeerIDMeter.Mark();
             drop(ERR_CONF, "connecting already-connected peer");
             return;
         }
@@ -1021,7 +972,6 @@ Peer::recvHello(Hello const& elo)
     if (mAddress.isEmpty())
     {
         CLOG(WARNING, "Overlay") << "bad address in recvHello";
-        mDropInRecvHelloAddressMeter.Mark();
         drop(ERR_CONF, "bad address");
         return;
     }
@@ -1038,7 +988,6 @@ Peer::recvAuth(StellarMessage const& msg)
     if (mState != GOT_HELLO)
     {
         CLOG(INFO, "Overlay") << "Unexpected AUTH message before HELLO";
-        mDropInRecvAuthUnexpectedMeter.Mark();
         drop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
@@ -1046,7 +995,6 @@ Peer::recvAuth(StellarMessage const& msg)
     if (isAuthenticated())
     {
         CLOG(INFO, "Overlay") << "Unexpected AUTH message";
-        mDropInRecvAuthUnexpectedMeter.Mark();
         drop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
@@ -1064,7 +1012,6 @@ Peer::recvAuth(StellarMessage const& msg)
     if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
-        mDropInRecvAuthRejectMeter.Mark();
         drop(ERR_LOAD, "peer rejected");
         return;
     }

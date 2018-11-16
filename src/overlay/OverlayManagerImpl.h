@@ -45,7 +45,6 @@ class OverlayManagerImpl : public OverlayManager
     LoadManager mLoad;
     bool mShuttingDown;
 
-    medida::Meter& mMessagesReceived;
     medida::Meter& mMessagesBroadcast;
     medida::Meter& mConnectionsAttempted;
     medida::Meter& mConnectionsEstablished;

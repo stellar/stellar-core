@@ -23,7 +23,6 @@ class DownloadBucketsWork : public Work
     std::vector<std::string> mHashes;
     TmpDir const& mDownloadDir;
 
-    medida::Meter& mDownloadBucketStart;
     medida::Meter& mDownloadBucketSuccess;
     medida::Meter& mDownloadBucketFailure;
 

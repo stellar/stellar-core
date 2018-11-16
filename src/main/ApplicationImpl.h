@@ -165,8 +165,6 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     medida::Counter& mAppStateCurrent;
-    medida::Timer& mAppStateChanges;
-    VirtualClock::time_point mLastStateChange;
     VirtualClock::time_point mStartedOn;
 
     Hash mNetworkID;

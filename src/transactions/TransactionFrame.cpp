@@ -241,7 +241,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app,
     if (mOperations.size() == 0)
     {
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "missing-operation"},
+            .NewMeter({"transaction", "failure", "missing-operation"},
                       "transaction")
             .Mark();
         getResult().result.code(txMISSING_OPERATION);
@@ -255,7 +255,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app,
         if (mEnvelope.tx.timeBounds->minTime > closeTime)
         {
             app.getMetrics()
-                .NewMeter({"transaction", "invalid", "too-early"},
+                .NewMeter({"transaction", "failure", "too-early"},
                           "transaction")
                 .Mark();
             getResult().result.code(txTOO_EARLY);
@@ -265,7 +265,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app,
             (mEnvelope.tx.timeBounds->maxTime < closeTime))
         {
             app.getMetrics()
-                .NewMeter({"transaction", "invalid", "too-late"}, "transaction")
+                .NewMeter({"transaction", "failure", "too-late"}, "transaction")
                 .Mark();
             getResult().result.code(txTOO_LATE);
             return false;
@@ -275,7 +275,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app,
     if (mEnvelope.tx.fee < getMinFee(header))
     {
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "insufficient-fee"},
+            .NewMeter({"transaction", "failure", "insufficient-fee"},
                       "transaction")
             .Mark();
         getResult().result.code(txINSUFFICIENT_FEE);
@@ -285,7 +285,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app,
     if (!loadSourceAccount(ls, header))
     {
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "no-account"}, "transaction")
+            .NewMeter({"transaction", "failure", "no-account"}, "transaction")
             .Mark();
         getResult().result.code(txNO_ACCOUNT);
         return false;
@@ -336,7 +336,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
     if (!allOpsValid)
     {
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "invalid-op"}, "transaction")
+            .NewMeter({"transaction", "failure", "invalid-op"}, "transaction")
             .Mark();
         markResultFailed();
         return false;
@@ -346,7 +346,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
     {
         getResult().result.code(txBAD_AUTH_EXTRA);
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+            .NewMeter({"transaction", "failure", "bad-auth-extra"},
                       "transaction")
             .Mark();
         return false;
@@ -382,7 +382,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         if (current == INT64_MAX || current + 1 != mEnvelope.tx.seqNum)
         {
             app.getMetrics()
-                .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
+                .NewMeter({"transaction", "failure", "bad-seq"}, "transaction")
                 .Mark();
             getResult().result.code(txBAD_SEQ);
             return res;
@@ -396,7 +396,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
             sourceAccount.current().data.account().thresholds[THRESHOLD_LOW]))
     {
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "bad-auth"}, "transaction")
+            .NewMeter({"transaction", "failure", "bad-auth"}, "transaction")
             .Mark();
         getResult().result.code(txBAD_AUTH);
         return res;
@@ -415,7 +415,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     if (getAvailableBalance(header, sourceAccount) < feeToPay)
     {
         app.getMetrics()
-            .NewMeter({"transaction", "invalid", "insufficient-balance"},
+            .NewMeter({"transaction", "failure", "insufficient-balance"},
                       "transaction")
             .Mark();
         getResult().result.code(txINSUFFICIENT_BALANCE);
@@ -538,7 +538,7 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerState& lsOuter,
                 // checkValid on all operations as the resulting object
                 // is only used by applications
                 app.getMetrics()
-                    .NewMeter({"transaction", "invalid", "invalid-op"},
+                    .NewMeter({"transaction", "failure", "invalid-op"},
                               "transaction")
                     .Mark();
                 markResultFailed();
@@ -551,7 +551,7 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerState& lsOuter,
             res = false;
             getResult().result.code(txBAD_AUTH_EXTRA);
             app.getMetrics()
-                .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+                .NewMeter({"transaction", "failure", "bad-auth-extra"},
                           "transaction")
                 .Mark();
         }

@@ -62,22 +62,12 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mManualCatchup(manualCatchup)
     , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
-    , mVerifyLedgerSuccessOld(app.getMetrics().NewMeter(
-          {"history", "verify-ledger", "success-old"}, "event"))
     , mVerifyLedgerSuccess(app.getMetrics().NewMeter(
           {"history", "verify-ledger", "success"}, "event"))
-    , mVerifyLedgerFailureLedgerVersion(app.getMetrics().NewMeter(
-          {"history", "verify-ledger", "failure-ledger-version"}, "event"))
-    , mVerifyLedgerFailureOvershot(app.getMetrics().NewMeter(
-          {"history", "verify-ledger", "failure-overshot"}, "event"))
-    , mVerifyLedgerFailureLink(app.getMetrics().NewMeter(
-          {"history", "verify-ledger", "failure-link"}, "event"))
     , mVerifyLedgerChainSuccess(app.getMetrics().NewMeter(
           {"history", "verify-ledger-chain", "success"}, "event"))
     , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
           {"history", "verify-ledger-chain", "failure"}, "event"))
-    , mVerifyLedgerChainFailureEnd(app.getMetrics().NewMeter(
-          {"history", "verify-ledger-chain", "failure-end"}, "event"))
 {
 }
 
@@ -137,7 +127,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     {
         if (curr.header.ledgerVersion > Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
-            mVerifyLedgerFailureLedgerVersion.Mark();
             return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }
 
@@ -157,7 +146,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         if (curr.header.ledgerSeq < expectedSeq)
         {
             // Harmless prehistory
-            mVerifyLedgerSuccessOld.Mark();
             continue;
         }
         else if (curr.header.ledgerSeq > expectedSeq)
@@ -165,13 +153,11 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             CLOG(ERROR, "History")
                 << "History chain overshot expected ledger seq " << expectedSeq
                 << ", got " << curr.header.ledgerSeq << " instead";
-            mVerifyLedgerFailureOvershot.Mark();
             return HistoryManager::VERIFY_STATUS_ERR_OVERSHOT;
         }
         auto linkResult = verifyLedgerHistoryLink(prev.hash, curr);
         if (linkResult != HistoryManager::VERIFY_STATUS_OK)
         {
-            mVerifyLedgerFailureLink.Mark();
             return linkResult;
         }
         mVerifyLedgerSuccess.Mark();
@@ -192,7 +178,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // Any other ledger here means that file is corrupted.
         CLOG(ERROR, "History") << "History chain did not end with "
                                << mCurrCheckpoint << " or " << mRange.last();
-        mVerifyLedgerChainFailureEnd.Mark();
         return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 

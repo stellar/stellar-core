@@ -40,8 +40,7 @@ class BucketManagerImpl : public BucketManager
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
-    medida::Meter& mBucketObjectInsert;
-    medida::Meter& mBucketByteInsert;
+    medida::Meter& mBucketObjectInsertBatch;
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;

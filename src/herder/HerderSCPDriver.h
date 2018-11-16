@@ -51,8 +51,6 @@ class HerderSCPDriver : public SCPDriver
 
     Herder::State getState() const;
 
-    void syncMetrics();
-
     ConsensusData*
     trackingSCP() const
     {
@@ -154,20 +152,8 @@ class HerderSCPDriver : public SCPDriver
         medida::Meter& mValueValid;
         medida::Meter& mValueInvalid;
 
-        medida::Meter& mValueExternalize;
-
         // listeners
-        medida::Meter& mQuorumHeard;
-        medida::Meter& mNominatingValue;
-        medida::Meter& mUpdatedCandidate;
-        medida::Meter& mStartBallotProtocol;
-        medida::Meter& mAcceptedBallotPrepared;
-        medida::Meter& mConfirmedBallotPrepared;
-        medida::Meter& mAcceptedCommit;
-
-        // State transition metrics
-        medida::Counter& mHerderStateCurrent;
-        medida::Timer& mHerderStateChanges;
+        medida::Meter& mCombinedCandidates;
 
         // Timers for nomination and ballot protocols
         medida::Timer& mNominateToPrepare;
@@ -205,9 +191,6 @@ class HerderSCPDriver : public SCPDriver
     // when losing track of consensus, records where we left off so that we
     // ignore older ledgers (as we potentially receive old messages)
     std::unique_ptr<ConsensusData> mLastTrackingSCP;
-
-    // Mark changes to mTrackingSCP in metrics.
-    VirtualClock::time_point mLastStateChange;
 
     void stateChanged();
 

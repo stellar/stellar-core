@@ -49,15 +49,10 @@ Herder::create(Application& app)
 
 HerderImpl::SCPMetrics::SCPMetrics(Application& app)
     : mLostSync(app.getMetrics().NewMeter({"scp", "sync", "lost"}, "sync"))
-    , mBallotExpire(
-          app.getMetrics().NewMeter({"scp", "ballot", "expire"}, "ballot"))
     , mEnvelopeEmit(
           app.getMetrics().NewMeter({"scp", "envelope", "emit"}, "envelope"))
     , mEnvelopeReceive(
           app.getMetrics().NewMeter({"scp", "envelope", "receive"}, "envelope"))
-
-    , mKnownSlotsSize(
-          app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
     , mCumulativeStatements(app.getMetrics().NewCounter(
           {"scp", "memory", "cumulative-statements"}))
 
@@ -108,7 +103,8 @@ HerderImpl::getSCP()
 void
 HerderImpl::syncMetrics()
 {
-    mHerderSCPDriver.syncMetrics();
+    mSCPMetrics.mCumulativeStatements.set_count(
+        getSCP().getCumulativeStatemtCount());
 }
 
 std::string
@@ -130,14 +126,6 @@ HerderImpl::bootstrap()
     mHerderSCPDriver.bootstrap();
 
     ledgerClosed();
-}
-
-void
-HerderImpl::updateSCPCounters()
-{
-    mSCPMetrics.mKnownSlotsSize.set_count(getSCP().getKnownSlotsCount());
-    mSCPMetrics.mCumulativeStatements.set_count(
-        getSCP().getCumulativeStatemtCount());
 }
 
 static uint64_t
@@ -173,7 +161,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
     // record metrics
     getHerderSCPDriver().recordSCPExecutionMetrics(slotIndex);
-    updateSCPCounters();
 
     // called both here and at the end (this one is in case of an exception)
     trackingHeartBeat();
@@ -541,7 +528,6 @@ HerderImpl::ledgerClosed()
 {
     mTriggerTimer.cancel();
 
-    updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
@@ -721,7 +707,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                               << mApp.getStateHuman();
         return;
     }
-    updateSCPCounters();
 
     // our first choice for this round's set is all the tx we have collected
     // during last ledger close

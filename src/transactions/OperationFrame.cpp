@@ -135,7 +135,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
                                       neededThreshold))
         {
             app.getMetrics()
-                .NewMeter({"operation", "invalid", "bad-auth"}, "operation")
+                .NewMeter({"operation", "failure", "bad-auth"}, "operation")
                 .Mark();
             mResult.code(opBAD_AUTH);
             return false;
@@ -146,7 +146,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
         if (forApply || !mOperation.sourceAccount)
         {
             app.getMetrics()
-                .NewMeter({"operation", "invalid", "no-account"}, "operation")
+                .NewMeter({"operation", "failure", "no-account"}, "operation")
                 .Mark();
             mResult.code(opNO_ACCOUNT);
             return false;
@@ -156,7 +156,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
                                                *mOperation.sourceAccount))
         {
             app.getMetrics()
-                .NewMeter({"operation", "invalid", "bad-auth"}, "operation")
+                .NewMeter({"operation", "failure", "bad-auth"}, "operation")
                 .Mark();
             mResult.code(opBAD_AUTH);
             return false;
@@ -193,7 +193,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     if (!isVersionSupported(ledgerVersion))
     {
         app.getMetrics()
-            .NewMeter({"operation", "invalid", "not-supported"}, "operation")
+            .NewMeter({"operation", "failure", "not-supported"}, "operation")
             .Mark();
         mResult.code(opNOT_SUPPORTED);
         return false;
@@ -213,7 +213,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         if (!loadSourceAccount(ls, ls.loadHeader()))
         {
             app.getMetrics()
-                .NewMeter({"operation", "invalid", "no-account"}, "operation")
+                .NewMeter({"operation", "failure", "no-account"}, "operation")
                 .Mark();
             mResult.code(opNO_ACCOUNT);
             return false;

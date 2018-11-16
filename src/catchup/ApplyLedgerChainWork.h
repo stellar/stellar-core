@@ -52,14 +52,8 @@ class ApplyLedgerChainWork : public Work
     TransactionHistoryEntry mTxHistoryEntry;
     LedgerHeaderHistoryEntry& mLastApplied;
 
-    medida::Meter& mApplyLedgerStart;
-    medida::Meter& mApplyLedgerSkip;
     medida::Meter& mApplyLedgerSuccess;
-    medida::Meter& mApplyLedgerFailureInvalidHash;
-    medida::Meter& mApplyLedgerFailurePastCurrent;
-    medida::Meter& mApplyLedgerFailureInvalidLCLHash;
-    medida::Meter& mApplyLedgerFailureInvalidTxSetHash;
-    medida::Meter& mApplyLedgerFailureInvalidResultHash;
+    medida::Meter& mApplyLedgerFailure;
 
     TxSetFramePtr getCurrentTxSet();
     void openCurrentInputFiles();
