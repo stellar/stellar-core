@@ -14,6 +14,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
+#include "main/Whitelist.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
@@ -250,7 +251,10 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (mEnvelope.tx.fee < getMinFee(lm))
+	auto whitelisted =
+        Whitelist::instance(app)->isWhitelisted(mEnvelope.signatures, getContentsHash());
+
+    if (!whitelisted && mEnvelope.tx.fee < getMinFee(lm))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "insufficient-fee"},
@@ -307,7 +311,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
             : mSigningAccount->getAccount().balance - mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
-    if (balanceAfter <
+	// whitelisted txs are not charged
+    if (!whitelisted && balanceAfter <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         app.getMetrics()
@@ -323,7 +328,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 
 void
 TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
-                                   LedgerManager& ledgerManager)
+                                   LedgerManager& ledgerManager,
+                                   Whitelist* whitelist)
 {
     resetSigningAccount();
     resetResults();
@@ -336,8 +342,11 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
 
     Database& db = ledgerManager.getDatabase();
     int64_t& fee = getResult().feeCharged;
+    auto whitelisted =
+        whitelist->isWhitelisted(mEnvelope.signatures, getContentsHash());
 
-    if (fee > 0)
+	// whitelisted txs are not charged a fee
+    if (!whitelisted && fee > 0)
     {
         fee = std::min(mSigningAccount->getAccount().balance, fee);
         mSigningAccount->addBalance(-fee);
@@ -423,7 +432,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
     resetResults();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
-        mEnvelope.signatures};
+        mEnvelope.signatures, app};
     bool res = commonValid(signatureChecker, app, nullptr, current);
     if (res)
     {
@@ -492,7 +501,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
     resetSigningAccount();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
-        mEnvelope.signatures};
+        mEnvelope.signatures, app};
     if (!commonValid(signatureChecker, app, &delta, 0))
     {
         return false;
@@ -847,4 +856,4 @@ TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq,
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "txfeehistory", "ledgerseq");
 }
-}
+} // namespace stellar

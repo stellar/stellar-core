@@ -147,6 +147,9 @@ class Config : public std::enable_shared_from_this<Config>
     int HTTP_MAX_CLIENT;      // maximum number of http clients, i.e backlog
     std::string NETWORK_PASSPHRASE; // identifier for the network
 
+	// whitelist
+    std::string WHITELIST;
+
     // overlay config
     unsigned short PEER_PORT;
     unsigned short TARGET_PEER_CONNECTIONS;

@@ -855,6 +855,12 @@
     <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\Whitelist.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\ManagedDataCache.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1471,6 +1477,13 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="Whitelist.h" />
+    <ClInclude Include="..\..\src\main\Whitelist.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\ManagedDataCache.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

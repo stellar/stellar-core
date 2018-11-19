@@ -414,11 +414,13 @@ exit /b 0
     <ClCompile Include="..\..\src\main\fuzz.cpp" />
     <ClCompile Include="..\..\src\main\LruCacheTests.cpp" />
     <ClCompile Include="..\..\src\main\Maintainer.cpp" />
+    <ClCompile Include="..\..\src\main\ManagedDataCache.cpp" />
     <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp" />
     <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp" />
+    <ClCompile Include="..\..\src\main\Whitelist.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\FloodTests.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp" />
@@ -603,8 +605,10 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
     <ClInclude Include="..\..\src\main\Maintainer.h" />
+    <ClInclude Include="..\..\src\main\ManagedDataCache.h" />
     <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h" />
     <ClInclude Include="..\..\src\main\StellarCoreVersion.h" />
+    <ClInclude Include="..\..\src\main\Whitelist.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\LoadManager.h" />
@@ -726,6 +730,7 @@ exit /b 0
     <ClInclude Include="src\generated\xdr\Stellar-SCP.h" />
     <ClInclude Include="src\generated\xdr\Stellar-transaction.h" />
     <ClInclude Include="src\generated\xdr\Stellar-types.h" />
+    <ClInclude Include="Whitelist.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

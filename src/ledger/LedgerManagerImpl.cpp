@@ -24,6 +24,7 @@
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/Whitelist.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/format.h"
@@ -903,23 +904,23 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
     int index = 0;
     try
     {
-        soci::transaction sqlTx(mApp.getDatabase().getSession());
-        for (auto tx : txs)
-        {
-            LedgerDelta thisTxDelta(delta);
-            tx->processFeeSeqNum(thisTxDelta, *this);
-            tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
-            thisTxDelta.commit();
-        }
-        sqlTx.commit();
-    }
-    catch (std::exception& e)
-    {
-        CLOG(FATAL, "Ledger")
-            << "processFeesSeqNums error @ " << index << " : " << e.what();
-        throw;
-    }
-}
+		soci::transaction sqlTx(mApp.getDatabase().getSession());
+		for (auto tx : txs)
+		{
+			LedgerDelta thisTxDelta(delta);
+			tx->processFeeSeqNum(thisTxDelta, *this, Whitelist::instance(mApp));
+			tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
+			thisTxDelta.commit();
+		}
+		sqlTx.commit();
+	}
+	catch (std::exception& e)
+	{
+		CLOG(FATAL, "Ledger") << "processFeesSeqNums error @ " << index << " : "
+							  << e.what();
+		throw;
+	}
+} // namespace stellar
 
 void
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,

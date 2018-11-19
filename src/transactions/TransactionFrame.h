@@ -30,6 +30,7 @@ class SecretKey;
 class SignatureChecker;
 class XDROutputFileStream;
 class SHA256;
+class Whitelist;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
@@ -143,7 +144,8 @@ class TransactionFrame
     bool checkValid(Application& app, SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager,
+                          Whitelist* whitelist);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
