@@ -292,11 +292,12 @@ BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
     std::weak_ptr<BasicWork> weak = shared_from_this();
     auto callback = [weak, innerCallback]() {
         auto self = weak.lock();
-        if (self)
+        if (!self)
         {
-            self->wakeUp();
+            return;
         }
 
+        self->wakeUp();
         if (innerCallback && self->getState() != State::WORK_DESTRUCTING)
         {
             innerCallback();
