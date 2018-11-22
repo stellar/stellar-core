@@ -79,6 +79,20 @@ TransactionFrame::clearCached()
     mFullHash = zero;
 }
 
+bool
+TransactionFrame::isWhitelisted(Application& app)
+{
+    auto lastLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    if (mCheckedLedger < lastLedger)
+    {
+        mIsWhitelisted = app.getWhitelist().isWhitelisted(getEnvelope().signatures,
+                                                          getContentsHash());
+        mCheckedLedger = lastLedger;
+    }
+
+    return mIsWhitelisted;
+}
+
 TransactionResultPair
 TransactionFrame::getResultPair() const
 {
@@ -188,7 +202,7 @@ TransactionFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
 }
 
 void
-TransactionFrame::resetResults()
+TransactionFrame::resetResults(Application& app)
 {
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
@@ -207,7 +221,7 @@ TransactionFrame::resetResults()
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    getResult().feeCharged = getFee();
+    getResult().feeCharged = isWhitelisted(app) ? 0 : getFee();
 }
 
 bool
@@ -251,8 +265,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-	auto whitelisted =
-        Whitelist::instance(app)->isWhitelisted(mEnvelope.signatures, getContentsHash());
+    auto whitelisted = isWhitelisted(app);
 
     if (!whitelisted && mEnvelope.tx.fee < getMinFee(lm))
     {
@@ -329,10 +342,10 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 void
 TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
                                    LedgerManager& ledgerManager,
-                                   Whitelist* whitelist)
+                                   Application& app)
 {
     resetSigningAccount();
-    resetResults();
+    resetResults(app);
 
     if (!loadAccount(ledgerManager.getCurrentLedgerVersion(), &delta,
                      ledgerManager.getDatabase()))
@@ -342,8 +355,7 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
 
     Database& db = ledgerManager.getDatabase();
     int64_t& fee = getResult().feeCharged;
-    auto whitelisted =
-        whitelist->isWhitelisted(mEnvelope.signatures, getContentsHash());
+    auto whitelisted = isWhitelisted(app);
 
 	// whitelisted txs are not charged a fee
     if (!whitelisted && fee > 0)
@@ -429,7 +441,7 @@ bool
 TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
     resetSigningAccount();
-    resetResults();
+    resetResults(app);
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
         mEnvelope.signatures, app};

@@ -41,6 +41,7 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class Whitelist;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -203,6 +204,8 @@ class Application
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
+
+    virtual Whitelist& getWhitelist() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

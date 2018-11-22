@@ -19,7 +19,7 @@
 
 #if defined(__MACH__) && defined(__APPLE__)
 
-#include <libkern/OSAtomic.h>
+#include <atomic>
 
 #include "asio/detail/push_options.hpp"
 
@@ -41,13 +41,13 @@ public:
   // Constructor for a full fenced block.
   explicit macos_fenced_block(full_t)
   {
-    OSMemoryBarrier();
+    std::atomic_thread_fence(std::memory_order_seq_cst);
   }
 
   // Destructor.
   ~macos_fenced_block()
   {
-    OSMemoryBarrier();
+    std::atomic_thread_fence(std::memory_order_seq_cst);
   }
 };
 

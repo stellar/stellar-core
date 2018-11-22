@@ -908,7 +908,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 		for (auto tx : txs)
 		{
 			LedgerDelta thisTxDelta(delta);
-			tx->processFeeSeqNum(thisTxDelta, *this, Whitelist::instance(mApp));
+			tx->processFeeSeqNum(thisTxDelta, *this, mApp);
 			tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
 			thisTxDelta.commit();
 		}

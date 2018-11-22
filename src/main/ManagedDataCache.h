@@ -1,3 +1,5 @@
+#pragma once
+
 #include "main/Application.h"
 #include "ledger/DataFrame.h"
 
@@ -11,10 +13,21 @@ namespace stellar
 class ManagedDataCache
 {
   public:
-    void update(Application& app);
-    virtual std::string getAccount(Application& app) = 0;
+    ManagedDataCache(Application& app) : mApp(app)
+    {
+        lcl = 0;
+    }
+
+    std::shared_ptr<AccountID> accountID();
+
+    void update();
+    virtual std::string getAccount() = 0;
     virtual void fulfill(std::vector<DataFrame::pointer> dfs) = 0;
+
   protected:
-    int lcl = 0;
+    Application& mApp;
+
+  private:
+    uint32_t lcl = 0;
 };
 }

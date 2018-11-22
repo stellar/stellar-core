@@ -7,22 +7,10 @@
 
 namespace stellar
 {
-
-Whitelist* Whitelist::mINSTANCE;
-
-
-Whitelist *Whitelist::instance(Application& app)
-{
-    if(!mINSTANCE){
-        mINSTANCE = new Whitelist;
-    }
-    mINSTANCE->update(app);
-    return mINSTANCE;
-}
-
 std::string
-Whitelist::getAccount(Application& app){
-    return app.getConfig().WHITELIST;
+Whitelist::getAccount()
+{
+    return mApp.getConfig().WHITELIST;
 }
 
 void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
