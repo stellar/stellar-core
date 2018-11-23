@@ -84,7 +84,9 @@ class DataFrame : public EntryFrame
 
     static void dropAll(Database& db);
 
-  private:
+  EntryFrame::Accumulator createAccumulator(Database& db);
+
+private:
     static const char* kSQLCreateStatement1;
 };
 }

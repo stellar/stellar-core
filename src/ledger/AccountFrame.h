@@ -164,6 +164,8 @@ class AccountFrame : public EntryFrame
 
     static void dropAll(Database& db);
 
+  EntryFrame::Accumulator* createAccumulator(Database& db);
+
   private:
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;

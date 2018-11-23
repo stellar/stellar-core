@@ -26,30 +26,36 @@ void
 BucketApplicator::advance()
 {
     soci::transaction sqlTx(mDb.getSession());
-    while (mBucketIter)
-    {
-        LedgerHeader lh;
-        LedgerDelta delta(lh, mDb, false);
 
-        auto const& entry = *mBucketIter;
-        if (entry.type() == LIVEENTRY)
+    {
+      EntryFrame::AccumulatorGroup accums(mDb);
+
+      while (mBucketIter)
         {
-            EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-            ep->storeAddOrChange(delta, mDb);
+          LedgerHeader lh;
+          LedgerDelta delta(lh, mDb, false);
+
+          auto const& entry = *mBucketIter;
+          if (entry.type() == LIVEENTRY)
+            {
+              EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
+              ep->storeAddOrChange(delta, mDb, accums);
+            }
+          else
+            {
+              EntryFrame::storeDelete(delta, mDb, entry.deadEntry(), accums);
+            }
+          ++mBucketIter;
+          // No-op, just to avoid needless rollback.
+          delta.commit();
+          if ((++mSize & 0xff) == 0xff)
+            {
+              break;
+            }
         }
-        else
-        {
-            EntryFrame::storeDelete(delta, mDb, entry.deadEntry());
-        }
-        ++mBucketIter;
-        // No-op, just to avoid needless rollback.
-        delta.commit();
-        if ((++mSize & 0xff) == 0xff)
-        {
-            break;
-        }
+      sqlTx.commit();
     }
-    sqlTx.commit();
+
     mDb.clearPreparedStatementCache();
 
     if (!mBucketIter || (mSize & 0xfff) == 0xfff)

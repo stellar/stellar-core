@@ -871,4 +871,111 @@ AccountFrame::dropAll(Database& db)
     db.getSession() << kSQLCreateStatement3;
     db.getSession() << kSQLCreateStatement4;
 }
+
+class accountsAccumulator : public EntryFrame::Accumulator {
+public:
+  accountsAccumulator(Database&db) : mDb(db) { }
+  ~accountsAccumulator() {
+    vector<string> insertUpdateAccountids;
+    vector<int64> balances;
+    vector<SequenceNumber> seqnums;
+    vector<uint32> numsubentrieses;
+    vector<string> inflationdests;
+    vector<soci::indicator> inflationdestInds;
+    vector<string> homedomains;
+    vector<string> thresholdses;
+    vector<uint32> flagses;
+    vector<uint32> lastmodifieds;
+    vector<int64> buyingliabilitieses;
+    vector<soci::indicator> buyingliabilitiesInds;
+    vector<int64> sellingliabilitieses;
+    vector<soci::indicator> sellingliabilitiesInds;
+
+    vector<string> deleteAccountIds;
+    for (auto& it: mItems) {
+      if (it.second) {
+        deleteAccountIds.push_back(it.first);
+      } else {
+        insertUpdateAccountIds.push_back(it.first);
+        balances.push_back(it.second->balance);
+        seqnums.push_back(it.second->seqnum);
+        numsubentrieses.push_back(it.second->numsubentries);
+        inflationdests.push_back(it.second->inflationdest);
+        inflationdestInds.push_back(it.second->inflationdestInd);
+        homedomains.push_back(it.second->homedomain);
+        thresholdses.push_back(it.second->thresholds);
+        flagses.push_back(it.second->flags);
+        lastmodifieds.push_back(it.second->lastmodified);
+        buyingliabilitieses.push_back(it.second->buyingliabilities);
+        buyingliabilitiesInds.push_back(it.second->buyingliabilitiesInd);
+        sellingliabilitieses.push_back(it.second->sellingliabilities);
+        sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
+      }
+    }
+
+    if (insertUpdateAccountIds.size() > 0) {
+      soci::statement st = session.prepare
+        << "INSERT INTO accounts "
+        << "(accountid, balance, seqnum, numsubentries, "
+        << "inflationdest, homedomain, thresholds, flags, "
+        << "lastmodified, buyingliabilities, sellingliabilities) "
+        << "VALUES (:id, :bal, :seq, :numsub, :infl, :home, :thresh, "
+        << ":flags, :lastmod, :buying, :selling) "
+        << "ON CONFLICT (accountid) DO UPDATE "
+        << "SET balance = :bal, seqnum = :seq, numsubentries = :numsub, "
+        << "inflationdest = :infl, homedomain = :home, thresholds = :thresh ",
+        << "flags = :flags, lastmodified = :lastmod, "
+        << "buyingliabilities = :buying, sellingliabilities = :selling";
+      st.exchange(use(insertUpdateAccountIds, "id"));
+      st.exchange(use(balances, "bal"));
+      st.exchange(use(seqnums, "seq"));
+      st.exchange(use(numsubentrieses, "numsub"));
+      st.exchange(use(inflationdests, inflationdestInds, "infl"));
+      st.exchange(use(homedomains, "home"));
+      st.exchange(use(thresholdses, "thresh"));
+      st.exchange(use(flagses, "flags"));
+      st.exchange(use(lastmodifieds, "lastmod"));
+      st.exchange(use(buyingliabilitieses, buyingliabilitiesInd, "buying"));
+      st.exchange(use(sellingliabilitieses, sellingliabilitiesInd, "selling"));
+      st.define_and_bind();
+      st.execute(true); // xxx timer
+    }
+
+    if (deleteAccountIds.size() > 0) {
+      session << "DELETE FROM accounts WHERE accountid = :id", use(accountids, "id");
+    }
+
+    for (auto& it: mItems) {
+      if (it.second) {
+        delete it.second;
+      }
+    }
+  }
+
+private:
+  Database& mDb;
+  struct valType {
+    int64 balance;
+    SequenceNumber seqnum;
+    uint32 numsubentries;
+    string inflationdest;
+    soci::indicator inflationdestInd;
+    string homedomain;
+    string thresholds;
+    uint32 flags;
+    uint32 lastmodified;
+    int64 buyingliabilities;
+    soci::indicator buyingliabilitiesInd;
+    int64 sellingliabilities;
+    soci::indicator sellingliabilitiesInd;
+  };
+  map<string, unique_ptr<valType>> mItems;
+}
+
+EntryFrame::Accumulator*
+createAccumulator(Database& db) {
+  return new accountsAccumulator(db);
+}
+
+
 }
