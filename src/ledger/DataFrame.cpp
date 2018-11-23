@@ -296,4 +296,68 @@ DataFrame::dropAll(Database& db)
     db.getSession() << "DROP TABLE IF EXISTS accountdata;";
     db.getSession() << kSQLCreateStatement1;
 }
+
+class accountdataAccumulator : public EntryFrame::Accumulator {
+public:
+  accountdataAccumulator(Database&db) : mDb(db) {}
+  ~accountdataAccumulator() {
+    vector<string> insertUpdateAccountids;
+    vector<string> insertUpdateDataNames;
+    vector<string> datavalues;
+    vector<uint32> lastmodifieds;
+
+    vector<string> deleteAccountids;
+    vector<string> deleteDataNames;
+
+    for (auto& it: mItems) {
+      if (!it.second) {
+        deleteAccountids.push_back(it.first.accountid);
+        deleteDataNames.push_back(it.first.dataname);
+        continue;
+      }
+      insertUpdateAccountids.push_back(it.first.accountid);
+      insertUpdateDataNames.push_back(it.first.dataname);
+      datavalues.push_back(it.second->datavalue);
+      lastmodifieds.push_back(it.second->lastmodified);
+    }
+
+    if (!insertUpdateAccountids.empty()) {
+      soci::statement st = session.prepare
+        << "INSERT INTO accountdata "
+        << "(accountid, dataname, datavalue, lastmodified) "
+        << "VALUES (:id, :dn, :dv, :lm) "
+        << "ON CONFLICT (accountid, dataname) DO UPDATE "
+        << "SET datavalue = :dv, lastmodified = :lm";
+      st.exchange(use(insertUpdateAccountids, "id"));
+      st.exchange(use(insertUpdateDataNames, "dn"));
+      st.exchange(use(datavalues, "dv"));
+      st.exchange(use(lastmodifieds, "lm"));
+      st.define_and_bind();
+      st.execute(true); // xxx timer
+    }
+
+    if (!deleteAccountids.empty()) {
+      session << "DELETE FROM accountdata WHERE accountid = :id AND dataname = :dn",
+        use(deleteAccountids, "id"), use(deleteDataNames, "dn");
+    }
+  }
+
+private:
+  Database& mDb;
+  struct keyType {
+    string accountid;
+    string dataname;
+  }
+  struct valType {
+    string datavalue;
+    uint32 lastmodified;
+  };
+  map<keyType, unique_ptr<valType>> mItems;
+};
+
+unique_ptr<EntryFrame::Accumulator>
+DataFrame::createAccumulator(Database& db) {
+  return new accountdataAccumulator(db);
+}
+
 }

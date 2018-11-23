@@ -84,7 +84,7 @@ class DataFrame : public EntryFrame
 
     static void dropAll(Database& db);
 
-  EntryFrame::Accumulator createAccumulator(Database& db);
+  unique_ptr<EntryFrame::Accumulator> createAccumulator(Database& db);
 
 private:
     static const char* kSQLCreateStatement1;

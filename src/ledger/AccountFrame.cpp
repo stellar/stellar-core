@@ -893,27 +893,27 @@ public:
 
     vector<string> deleteAccountIds;
     for (auto& it: mItems) {
-      if (it.second) {
+      if (!it.second) {
         deleteAccountIds.push_back(it.first);
-      } else {
-        insertUpdateAccountIds.push_back(it.first);
-        balances.push_back(it.second->balance);
-        seqnums.push_back(it.second->seqnum);
-        numsubentrieses.push_back(it.second->numsubentries);
-        inflationdests.push_back(it.second->inflationdest);
-        inflationdestInds.push_back(it.second->inflationdestInd);
-        homedomains.push_back(it.second->homedomain);
-        thresholdses.push_back(it.second->thresholds);
-        flagses.push_back(it.second->flags);
-        lastmodifieds.push_back(it.second->lastmodified);
-        buyingliabilitieses.push_back(it.second->buyingliabilities);
-        buyingliabilitiesInds.push_back(it.second->buyingliabilitiesInd);
-        sellingliabilitieses.push_back(it.second->sellingliabilities);
-        sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
+        continue;
       }
+      insertUpdateAccountIds.push_back(it.first);
+      balances.push_back(it.second->balance);
+      seqnums.push_back(it.second->seqnum);
+      numsubentrieses.push_back(it.second->numsubentries);
+      inflationdests.push_back(it.second->inflationdest);
+      inflationdestInds.push_back(it.second->inflationdestInd);
+      homedomains.push_back(it.second->homedomain);
+      thresholdses.push_back(it.second->thresholds);
+      flagses.push_back(it.second->flags);
+      lastmodifieds.push_back(it.second->lastmodified);
+      buyingliabilitieses.push_back(it.second->buyingliabilities);
+      buyingliabilitiesInds.push_back(it.second->buyingliabilitiesInd);
+      sellingliabilitieses.push_back(it.second->sellingliabilities);
+      sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
     }
 
-    if (insertUpdateAccountIds.size() > 0) {
+    if (!insertUpdateAccountIds.empty()) {
       soci::statement st = session.prepare
         << "INSERT INTO accounts "
         << "(accountid, balance, seqnum, numsubentries, "
@@ -941,14 +941,8 @@ public:
       st.execute(true); // xxx timer
     }
 
-    if (deleteAccountIds.size() > 0) {
+    if (!deleteAccountIds.empty()) {
       session << "DELETE FROM accounts WHERE accountid = :id", use(accountids, "id");
-    }
-
-    for (auto& it: mItems) {
-      if (it.second) {
-        delete it.second;
-      }
     }
   }
 
@@ -972,8 +966,8 @@ private:
   map<string, unique_ptr<valType>> mItems;
 }
 
-EntryFrame::Accumulator*
-createAccumulator(Database& db) {
+unique_ptr<EntryFrame::Accumulator>
+AccountFrame::createAccumulator(Database& db) {
   return new accountsAccumulator(db);
 }
 
