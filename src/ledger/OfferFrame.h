@@ -122,7 +122,7 @@ class OfferFrame : public EntryFrame
                             LedgerDelta& delta, Database& db,
                             LedgerManager& ledgerManager);
 
-  EntryFrame::Accumulator createAccumulator(Database& db);
+  unique_ptr<EntryFrame::Accumulator> createAccumulator(Database& db);
 
 private:
     void acquireOrReleaseLiabilities(bool isAcquire,

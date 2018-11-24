@@ -744,4 +744,36 @@ OfferFrame::acquireOrReleaseLiabilities(bool isAcquire,
         trust->storeChange(delta, db);
     }
 }
+
+class offersAccumulator : public EntryFrame::Accumulator {
+public:
+  offersAccumulator(Database&db) : mDb(db) {}
+  ~offersAccumulator() {
+  }
+
+private:
+  Database& mDb;
+  struct valType {
+    xxx offerid;
+    xxx sellingassettype;
+    xxx sellingassetcode;
+    xxx sellingissuer;
+    xxx buyingassettype;
+    xxx buyingassetcode;
+    xxx buyingissuer;
+    xxx amount;
+    xxx pricen;
+    xxx priced;
+    xxx price;
+    xxx flags;
+    xxx lastmodified;
+  };
+  map<uint64, valType> mItems;
+};
+
+unique_ptr<EntryFrame::Accumulator>
+OfferFrame::createAccumulator(Database&db) {
+  return new offersAccumulator(db);
+}
+
 }
