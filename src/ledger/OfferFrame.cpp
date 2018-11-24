@@ -749,24 +749,103 @@ class offersAccumulator : public EntryFrame::Accumulator {
 public:
   offersAccumulator(Database&db) : mDb(db) {}
   ~offersAccumulator() {
+    vector<uint64> insertUpdateOfferIDs;
+    vector<unsigned int> sellingassettypes;
+    vector<string> sellingassetcodes;
+    vector<soci::indicator> sellingassetcodeInds;
+    vector<string> sellingissuers;
+    vector<unsigned int> buyingassettypes;
+    vector<string> buyingassetcodes;
+    vector<soci::indicator> buyingassetcodeInds;
+    vector<string> buyingissuers;
+    vector<int64> amounts;
+    vector<int32> pricens;
+    vector<int32> priceds;
+    vector<double> prices;
+    vector<uint32> flagses;
+    vector<uint32> lastmodifieds;
+
+    vector<uint64> deleteOfferIDs;
+
+    for (auto& it: mItems) {
+      if (!it.second) {
+        deleteOfferIDs.push_back(it.first);
+        continue;
+      }
+      insertUpdateOfferIDs.push_back(it.first);
+      sellingassettypes.push_back(it.second->sellingassettype);
+      sellingassetcodes.push_back(it.second->sellingassetcode);
+      sellingassetcodeInds.push_back(it.second->sellingassetcodeInd);
+      sellingissuers.push_back(it.second->sellingissuer);
+      buyingassettypes.push_back(it.second->buyingassettype);
+      buyingassetcodes.push_back(it.second->buyingassetcode);
+      buyingassetcodeInds.push_back(it.second->buyingassetcodeInd);
+      buyingissuers.push_back(it.second->buyingissuer);
+      amounts.push_back(it.second->amount);
+      pricens.push_back(it.second->pricen);
+      priceds.push_back(it.second->priced);
+      prices.push_back(it.second->price);
+      flagses.push_back(it.second->flags);
+      lastmodifieds.push_back(it.second->lastmodified);
+    }
+
+    if (!insertUpdateOfferIDs.empty()) {
+      soci::statement st = session.prepare
+        << "INSERT INTO offers "
+        << "(offerid, sellerid, "
+        << "sellingassettype, sellingassetcode, sellingissuer, "
+        << "buyingassettype, buyingassetcode, buyingissuer, "
+        << "amount, pricen, priced, price, flags, lastmodified) "
+        << "VALUES (:oid, :sid, :sat, :sac, :si, :bat, :bac, :bi, "
+        << ":a, :pn, :pd, :p, :flags, :lastmod) "
+        << "ON CONFLICT (offerid) DO UPDATE "
+        << "SET sellerid = :sid, "
+        << "sellingassettype = :sat, sellingassetcode = :sac, sellingissuer = :si, "
+        << "buyingassettype = :bat, buyingassetcode = :bac, buyingissuer = :bi, "
+        << "amount = :a, pricen = :pn, priced = :pd, price = :p, "
+        << "flags = :flags, lastmodified = :lastmod";
+      st.exchange(use(insertUpdateOfferIDs, "oid"));
+      st.exchange(use(sellerIDs, "sid"));
+      st.exchange(sellingassettypes, "sat");
+      st.exchange(sellingassetcodes, sellingassetcodeInds, "sac");
+      st.exchange(sellingissuers, "si");
+      st.exchange(buyingassettypes, "bat");
+      st.exchange(buyingassetcodes, buyingassetcodeInds, "bac");
+      st.exchange(buyingissuers, "bi");
+      st.exchange(amounts, "a");
+      st.exchange(pricens, "pn");
+      st.exchange(priceds, "pd");
+      st.exchange(prices, "p");
+      st.exchange(flagses, "flags");
+      st.exchange(lastmodifieds, "lastmod");
+      st.define_and_bind();
+      st.execute(true); // xxx timer
+    }
+
+    if (!deleteOfferIDs.empty()) {
+      session << "DELETE FROM offers WHERE offerid = :oid",
+        use(deleteOfferIDs, "oid");
+    }
   }
 
 private:
   Database& mDb;
   struct valType {
-    xxx offerid;
-    xxx sellingassettype;
-    xxx sellingassetcode;
-    xxx sellingissuer;
-    xxx buyingassettype;
-    xxx buyingassetcode;
-    xxx buyingissuer;
-    xxx amount;
-    xxx pricen;
-    xxx priced;
-    xxx price;
-    xxx flags;
-    xxx lastmodified;
+    string sellerid;
+    unsigned int sellingassettype;
+    string sellingassetcode;
+    soci::indicator sellingassetcodeInd;
+    string sellingissuer;
+    unsigned int buyingassettype;
+    string buyingassetcode;
+    soci::indicator buyingassetcodeInd;
+    string buyingissuer;
+    int64 amount;
+    int32 pricen;
+    int32 priced;
+    double price;
+    uint32 flags;
+    uint32 lastmodified;
   };
   map<uint64, valType> mItems;
 };

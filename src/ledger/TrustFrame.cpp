@@ -675,4 +675,100 @@ TrustFrame::dropAll(Database& db)
     db.getSession() << "DROP TABLE IF EXISTS trustlines;";
     db.getSession() << kSQLCreateStatement1;
 }
+
+class trustlinesAccumulator : public EntryFrame::Accumulator {
+public:
+  trustlinesAccumulator(Database&db): mDb(db) {}
+  ~trustlinesAccumulator() {
+    vector<string> insertUpdateAccountIDs;
+    vector<string> insertUpdateIssuers;
+    vector<string> insertUpdateAssetCodes;
+    vector<int64> balances;
+    vector<int64> limits;
+    vector<uint32> flagses;
+    vector<uint32> lastmodifieds;
+    vector<int64> buyingliabilitieses;
+    vector<soci::indicator> buyingliabilitiesInds;
+    vector<int64> sellingliabilitieses;
+    vector<soci::indicator> sellingliabilitiesInds;
+
+    vector<string> deleteAccountIDs;
+    vector<string> deleteIssuers;
+    vector<string> deleteAssetCodes;
+
+    for (auto& it: mItems) {
+      if (!it.second) {
+        deleteAccountIDs.push_back(it.first.accountid);
+        deleteIssuers.push_back(it.first.issuer);
+        deleteAssetCodes.push_back(it.first.assetcode);
+        continue;
+      }
+      insertUpdateAccountIDs.push_back(it.first.accountid);
+      insertUpdateIssuers.push_back(it.first.issuer);
+      insertUpdateAssetCodes.push_back(it.first.assetcode);
+      balances.push_back(it.second->balance);
+      limits.push_back(it.second->limit);
+      flagses.push_back(it.second->flags);
+      lastmodifieds.push_back(it.second->lastmodified);
+      buyingliabilitieses.push_back(it.second->buyingliabilities);
+      buyingliabilitiesInds.push_back(it.second->buyingliabilitiesInd);
+      sellingliabilitieses.push_back(it.second->sellingliabilities);
+      sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
+    }
+
+    if (!insertUpdateAccountIDs.empty()) {
+      soci::statement st = session.prepare
+        << "INSERT INTO trustlines "
+        << "(accountid, issuer, assetcode, assettype, balance, tlimit, flags, "
+        << "lastmodified, buyingliabilities, sellingliabilities) "
+        << "VALUES (:id, :iss, :acode, :atype, :bal, :lim, :flags, :lastmod, "
+        << ":bl, :sl) "
+        << "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE "
+        << "SET assettype = :atype, balance = :bal, tlimit = :lim, flags = :flags, "
+        << "lastmodified = :lastmod, buyingliabilities = :bl, sellingliabilities = :sl";
+      st.exchange(use(insertUpdateAccountIDs, "id"));
+      st.exchange(use(insertUpdateIssuers, "iss"));
+      st.exchange(use(insertUpdateAssetCodes, "acode"));
+      st.exchange(use(assetTypes, "atype"));
+      st.exchange(use(balances, "bal"));
+      st.exchange(use(limits, "lim"));
+      st.exchange(use(flagses, "flags"));
+      st.exchange(use(lastmodifieds, "lastmod"));
+      st.exchange(use(buyingliabilitieses, buyingliabilitiesInds, "bl"));
+      st.exchange(use(sellingliabilitieses, sellingliabilitiesInds, "sl"));
+      st.define_and_bind();
+      st.execute(true); // xxx timer
+    }
+
+    if (!deleteAccountIDs.empty()) {
+      session << "DELETE FROM trustlines WHERE accountid = :id AND issuer = :iss AND assetcode = :acode",
+        use(deleteAccountIDs, "id"), use(deleteIssuers, "iss"), use(deleteAssetCodes, "acode");
+    }
+  }
+
+private:
+  Database&mDb;
+  struct keyType {
+    string accountid;
+    string issuer;
+    string assetcode;
+  };
+  struct valType {
+    int64 balance;
+    int64 limit;
+    uint32 flags;
+    uint32 lastmodified;
+    int64 buyingliabilities;
+    soci::indicator buyingliabilitiesInd;
+    int64 sellingliabilities;
+    soci::indicator sellingliabilitiesInd;
+  };
+  map<keyType, unique_ptr<valType>> mItems;
+};
+
+unique_ptr<EntryFrame::Accumulator>
+TrustFrame::createAccumulator(Database& db) {
+  return new trustlinesAccumulator(db);
+}
+
 }
