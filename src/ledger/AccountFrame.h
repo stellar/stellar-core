@@ -37,7 +37,7 @@ class AccountFrame : public EntryFrame
 
     static std::vector<Signer> loadSigners(Database& db,
                                            std::string const& actIDStrKey);
-    void applySigners(Database& db, bool insert);
+    void applySigners(Database& db);
 
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
@@ -122,13 +122,15 @@ class AccountFrame : public EntryFrame
     }
 
     // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
+    void storeDelete(LedgerDelta& delta, Database& db,
+                     EntryFrame::AccumulatorGroup* accums = 0) const override;
+    void storeAddOrChange(LedgerDelta& delta, Database& db,
+                          AccumulatorGroup* accums = 0) override;
 
     // Static helper that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,
-                            LedgerKey const& key);
+                            LedgerKey const& key,
+                            EntryFrame::AccumulatorGroup* accums = 0);
     static bool exists(Database& db, LedgerKey const& key);
     static uint64_t countObjects(soci::session& sess);
     static uint64_t countObjects(soci::session& sess,
@@ -164,7 +166,8 @@ class AccountFrame : public EntryFrame
 
     static void dropAll(Database& db);
 
-  unique_ptr<EntryFrame::Accumulator> createAccumulator(Database& db);
+    static std::unique_ptr<EntryFrame::Accumulator>
+    createAccumulator(Database& db);
 
   private:
     static const char* kSQLCreateStatement1;

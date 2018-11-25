@@ -8,6 +8,8 @@
 #include "ledger/LedgerDelta.h"
 #include "util/Logging.h"
 
+#include <chrono>
+
 namespace stellar
 {
 
@@ -22,38 +24,61 @@ BucketApplicator::operator bool() const
     return (bool)mBucketIter;
 }
 
+typedef std::chrono::duration<double, std::ratio<1>> second_t;
+
+static int adv_calls = 0;
+static int adv_iters = 0;
+static second_t adv_cum_time(0);
+
 void
 BucketApplicator::advance()
 {
+    typedef std::chrono::high_resolution_clock clock_t;
+    std::chrono::time_point<clock_t> beg = clock_t::now();
+
     soci::transaction sqlTx(mDb.getSession());
 
     {
-      EntryFrame::AccumulatorGroup accums(mDb);
+        EntryFrame::AccumulatorGroup accums(mDb);
 
-      while (mBucketIter)
+        while (mBucketIter)
         {
-          LedgerHeader lh;
-          LedgerDelta delta(lh, mDb, false);
+            LedgerHeader lh;
+            LedgerDelta delta(lh, mDb, false);
 
-          auto const& entry = *mBucketIter;
-          if (entry.type() == LIVEENTRY)
+            auto const& entry = *mBucketIter;
+            if (entry.type() == LIVEENTRY)
             {
-              EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-              ep->storeAddOrChange(delta, mDb, accums);
+                EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
+                ep->storeAddOrChange(delta, mDb, &accums);
             }
-          else
+            else
             {
-              EntryFrame::storeDelete(delta, mDb, entry.deadEntry(), accums);
+                EntryFrame::storeDelete(delta, mDb, entry.deadEntry(), &accums);
             }
-          ++mBucketIter;
-          // No-op, just to avoid needless rollback.
-          delta.commit();
-          if ((++mSize & 0xff) == 0xff)
+            ++mBucketIter;
+            // No-op, just to avoid needless rollback.
+            delta.commit();
+            if ((++mSize & 0xff) == 0xff)
             {
-              break;
+                break;
             }
+            ++adv_iters;
         }
-      sqlTx.commit();
+    }
+    sqlTx.commit();
+
+    std::chrono::time_point<clock_t> end = clock_t::now();
+
+    ++adv_calls;
+    adv_cum_time += end - beg;
+
+    if (adv_calls % 100 == 0)
+    {
+        CLOG(INFO, "Bucket")
+            << "* BucketApplicator::advance: " << adv_calls << " calls, "
+            << adv_iters << "/" << adv_cum_time.count() << " = "
+            << adv_iters / adv_cum_time.count();
     }
 
     mDb.clearPreparedStatementCache();

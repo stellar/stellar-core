@@ -33,8 +33,6 @@ class OfferFrame : public EntryFrame
 
     OfferEntry& mOffer;
 
-    void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
-
   public:
     typedef std::shared_ptr<OfferFrame> pointer;
 
@@ -78,13 +76,15 @@ class OfferFrame : public EntryFrame
     }
 
     // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
+    void storeDelete(LedgerDelta& delta, Database& db,
+                     EntryFrame::AccumulatorGroup* accums = 0) const override;
+    void storeAddOrChange(LedgerDelta& delta, Database& db,
+                          AccumulatorGroup* accums = 0) override;
 
     // Static helpers that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,
-                            LedgerKey const& key);
+                            LedgerKey const& key,
+                            EntryFrame::AccumulatorGroup* accums = 0);
     static bool exists(Database& db, LedgerKey const& key);
     static uint64_t countObjects(soci::session& sess);
     static uint64_t countObjects(soci::session& sess,
@@ -122,9 +122,10 @@ class OfferFrame : public EntryFrame
                             LedgerDelta& delta, Database& db,
                             LedgerManager& ledgerManager);
 
-  unique_ptr<EntryFrame::Accumulator> createAccumulator(Database& db);
+    static std::unique_ptr<EntryFrame::Accumulator>
+    createAccumulator(Database& db);
 
-private:
+  private:
     void acquireOrReleaseLiabilities(bool isAcquire,
                                      AccountFrame::pointer const& account,
                                      TrustFrame::pointer const& buyingTrust,

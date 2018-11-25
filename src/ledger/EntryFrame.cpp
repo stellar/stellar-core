@@ -194,19 +194,6 @@ EntryFrame::getKey() const
     return mKey;
 }
 
-void
-EntryFrame::storeAddOrChange(LedgerDelta& delta, Database& db)
-{
-    if (exists(db, getKey()))
-    {
-        storeChange(delta, db);
-    }
-    else
-    {
-        storeAdd(delta, db);
-    }
-}
-
 bool
 EntryFrame::exists(Database& db, LedgerKey const& key)
 {
@@ -225,22 +212,40 @@ EntryFrame::exists(Database& db, LedgerKey const& key)
     }
 }
 
+EntryFrame::Accumulator::~Accumulator()
+{
+}
+
 void
-EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
+EntryFrame::storeAdd(LedgerDelta& delta, Database& db, AccumulatorGroup* accums)
+{
+    storeAddOrChange(delta, db, accums);
+}
+
+void
+EntryFrame::storeChange(LedgerDelta& delta, Database& db,
+                        AccumulatorGroup* accums)
+{
+    storeAddOrChange(delta, db, accums);
+}
+
+void
+EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key,
+                        AccumulatorGroup* accums)
 {
     switch (key.type())
     {
     case ACCOUNT:
-        AccountFrame::storeDelete(delta, db, key);
+        AccountFrame::storeDelete(delta, db, key, accums);
         break;
     case TRUSTLINE:
-        TrustFrame::storeDelete(delta, db, key);
+        TrustFrame::storeDelete(delta, db, key, accums);
         break;
     case OFFER:
-        OfferFrame::storeDelete(delta, db, key);
+        OfferFrame::storeDelete(delta, db, key, accums);
         break;
     case DATA:
-        DataFrame::storeDelete(delta, db, key);
+        DataFrame::storeDelete(delta, db, key, accums);
         break;
     }
 }
@@ -277,5 +282,13 @@ LedgerEntryKey(LedgerEntry const& e)
         break;
     }
     return k;
+}
+
+EntryFrame::AccumulatorGroup::AccumulatorGroup(Database& db)
+    : accounts(AccountFrame::createAccumulator(db))
+    , accountdata(DataFrame::createAccumulator(db))
+    , offers(OfferFrame::createAccumulator(db))
+    , trustlines(TrustFrame::createAccumulator(db))
+{
 }
 }

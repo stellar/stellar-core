@@ -14,7 +14,8 @@
 #define HAVE_TERMIOS 1
 #endif
 #if HAVE_TERMIOS
-extern "C" {
+extern "C"
+{
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>

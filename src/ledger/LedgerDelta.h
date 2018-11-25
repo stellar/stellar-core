@@ -41,6 +41,39 @@ class LedgerDelta
 
     bool mUpdateLastModified;
 
+  public:
+    class EntryModder
+    {
+      public:
+        EntryModder(LedgerDelta& delta, const EntryFrame& entry)
+            : mDelta(delta), mEntry(entry.copy())
+        {
+        }
+        ~EntryModder();
+
+      private:
+        LedgerDelta& mDelta;
+        EntryFrame::pointer mEntry;
+    };
+
+    class EntryDeleter
+    {
+      public:
+        EntryDeleter(LedgerDelta& delta, const LedgerKey& key)
+            : mDelta(delta), mKey(key)
+        {
+        }
+        ~EntryDeleter()
+        {
+            mDelta.deleteEntry(mKey);
+        }
+
+      private:
+        LedgerDelta& mDelta;
+        const LedgerKey& mKey;
+    };
+
+  protected:
     void checkState();
     void addEntry(EntryFrame::pointer entry);
     void deleteEntry(EntryFrame::pointer entry);

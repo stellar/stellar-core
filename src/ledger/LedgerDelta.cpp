@@ -451,7 +451,7 @@ ValueType const* LedgerDelta::Iterator<IterType, ValueType>::operator->() const
 
 template <typename IterType, typename ValueType>
 LedgerDelta::Iterator<IterType, ValueType>&
-    LedgerDelta::Iterator<IterType, ValueType>::operator++()
+LedgerDelta::Iterator<IterType, ValueType>::operator++()
 {
     ++mIter;
     mValue.reset();
@@ -547,5 +547,53 @@ LedgerDelta::deleted() const
 {
     return {LedgerDelta::DeletedIterator(*this, mDelete.cbegin()),
             LedgerDelta::DeletedIterator(*this, mDelete.cend())};
+}
+
+// xxx noexcept
+LedgerDelta::EntryModder::~EntryModder()
+{
+    mDelta.checkState();
+    auto k = mEntry->getKey();
+    auto new_it = mDelta.mNew.find(k);
+    auto mod_it = mDelta.mMod.find(k);
+    auto del_it = mDelta.mDelete.find(k);
+    if (new_it != mDelta.mNew.end())
+    {
+        // There was already a "new" record for this entry.
+        // Treat this as an update.
+
+        if (del_it != mDelta.mDelete.end())
+        {
+            throw std::runtime_error("invalid LedgerDelta entry mod (del+mod)");
+        }
+
+        // collapse
+
+        if (mod_it != mDelta.mMod.end())
+        {
+            mDelta.mMod.erase(mod_it);
+        }
+
+        new_it->second = mEntry;
+        return;
+    }
+    if (mod_it != mDelta.mMod.end())
+    {
+        if (del_it != mDelta.mDelete.end())
+        {
+            throw std::runtime_error("invalid LedgerDelta entry mod (del+mod)");
+        }
+        mDelta.mMod[k] = mEntry;
+        return;
+    }
+    if (del_it != mDelta.mDelete.end())
+    {
+        // delete + new = update
+        mDelta.mDelete.erase(del_it);
+        mDelta.mMod[k] = mEntry;
+        return;
+    }
+    // new
+    mDelta.mNew[k] = mEntry;
 }
 }

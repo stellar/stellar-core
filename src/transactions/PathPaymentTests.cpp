@@ -3872,9 +3872,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // offer required to pass
             // - needs 8x of payment
             // for anti-arbitrage case
-            auto initialBalance =
-                2 * offerAmount; // we need twice as much money
-                                 // as in the
+            auto initialBalance = 2 * offerAmount; // we need twice as much
+                                                   // money as in the
             // offer because of Price{2, 1} that is
             // used in one case
             auto txFee = app->getLedgerManager().getTxFee();

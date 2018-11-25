@@ -520,19 +520,205 @@ AccountFrame::deleteAccountsModifiedOnOrAfterLedger(Database& db,
     }
 }
 
-void
-AccountFrame::storeDelete(LedgerDelta& delta, Database& db) const
+class accountsAccumulator : public EntryFrame::Accumulator
 {
-    storeDelete(delta, db, getKey());
+  public:
+    accountsAccumulator(Database& db) : mDb(db)
+    {
+    }
+    ~accountsAccumulator()
+    {
+        // cout << "xxx entering ~accountsAccumulator" << endl;
+
+        vector<string> insertUpdateAccountIDs;
+        vector<int64> balances;
+        vector<SequenceNumber> seqnums;
+        vector<uint32> numsubentrieses;
+        vector<string> inflationdests;
+        vector<soci::indicator> inflationdestInds;
+        vector<string> homedomains;
+        vector<string> thresholdses;
+        vector<uint32> flagses;
+        vector<uint32> lastmodifieds;
+        vector<int64> buyingliabilitieses;
+        vector<soci::indicator> buyingliabilitiesInds;
+        vector<int64> sellingliabilitieses;
+        vector<soci::indicator> sellingliabilitiesInds;
+
+        vector<string> signerReplaceAccountIDs;
+        vector<string> signerAccountIDs;
+        vector<string> signerPublicKeys;
+        vector<int> signerWeights;
+
+        vector<string> deleteAccountIds;
+
+        // cout << "xxx populating vectors" << endl;
+
+        for (auto& it : mItems)
+        {
+            if (!it.second)
+            {
+                deleteAccountIds.push_back(it.first);
+                continue;
+            }
+            insertUpdateAccountIDs.push_back(it.first);
+            balances.push_back(it.second->balance);
+            seqnums.push_back(it.second->seqnum);
+            numsubentrieses.push_back(it.second->numsubentries);
+            inflationdests.push_back(it.second->inflationdest);
+            inflationdestInds.push_back(it.second->inflationdestInd);
+            homedomains.push_back(it.second->homedomain);
+            thresholdses.push_back(it.second->thresholds);
+            flagses.push_back(it.second->flags);
+            lastmodifieds.push_back(it.second->lastmodified);
+            buyingliabilitieses.push_back(it.second->buyingliabilities);
+            buyingliabilitiesInds.push_back(it.second->buyingliabilitiesInd);
+            sellingliabilitieses.push_back(it.second->sellingliabilities);
+            sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
+
+            if (it.second->signers)
+            {
+                signerReplaceAccountIDs.push_back(it.first);
+                for (auto& s : *(it.second->signers))
+                {
+                    signerAccountIDs.push_back(it.first);
+                    signerPublicKeys.push_back(KeyUtils::toStrKey(s.key));
+                    signerWeights.push_back(s.weight);
+                }
+            }
+        }
+
+        // cout << "xxx getting session" << endl;
+
+        soci::session& session = mDb.getSession();
+
+        if (!insertUpdateAccountIDs.empty())
+        {
+            // cout << "xxx preparing statement" << endl;
+
+            soci::statement st =
+                session.prepare
+                << "INSERT INTO accounts "
+                << "(accountid, balance, seqnum, numsubentries, "
+                << "inflationdest, homedomain, thresholds, flags, "
+                << "lastmodified, buyingliabilities, sellingliabilities) "
+                << "VALUES (:id, :bal, :seq, :numsub, :infl, :home, :thresh, "
+                << ":flags, :lastmod, :buying, :selling) "
+                << "ON CONFLICT (accountid) DO UPDATE "
+                << "SET balance = :bal, seqnum = :seq, numsubentries = "
+                   ":numsub, "
+                << "inflationdest = :infl, homedomain = :home, thresholds = "
+                   ":thresh, "
+                << "flags = :flags, lastmodified = :lastmod, "
+                << "buyingliabilities = :buying, sellingliabilities = :selling";
+
+            // cout << "xxx statement prepared, now exchanging" << endl;
+
+            st.exchange(use(insertUpdateAccountIDs, "id"));
+            st.exchange(use(balances, "bal"));
+            st.exchange(use(seqnums, "seq"));
+            st.exchange(use(numsubentrieses, "numsub"));
+            st.exchange(use(inflationdests, inflationdestInds, "infl"));
+            st.exchange(use(homedomains, "home"));
+            st.exchange(use(thresholdses, "thresh"));
+            st.exchange(use(flagses, "flags"));
+            st.exchange(use(lastmodifieds, "lastmod"));
+            st.exchange(
+                use(buyingliabilitieses, buyingliabilitiesInds, "buying"));
+            st.exchange(
+                use(sellingliabilitieses, sellingliabilitiesInds, "selling"));
+
+            // cout << "xxx exchanging done, now binding" << endl;
+
+            st.define_and_bind();
+
+            // cout << "xxx executing insert/update on accounts" << endl;
+
+            st.execute(true); // xxx timer
+        }
+
+        if (!signerReplaceAccountIDs.empty())
+        {
+            // cout << "xxx executing delete/insert on signers" << endl;
+
+            session << "DELETE FROM signers WHERE accountid = :id",
+                use(signerReplaceAccountIDs, "id");
+            session << "INSERT INTO signers (accountid, publickey, weight) "
+                       "VALUES (:id, :key, :weight)",
+                use(signerAccountIDs, "id"), use(signerPublicKeys, "key"),
+                use(signerWeights, "weight");
+        }
+
+        if (!deleteAccountIds.empty())
+        {
+            // cout << "xxx executing delete on accounts+signers" << endl;
+
+            session << "DELETE FROM accounts WHERE accountid = :id",
+                use(deleteAccountIds, "id");
+            session << "DELETE FROM signers WHERE accountid = :id",
+                use(deleteAccountIds, "id");
+        }
+
+        // cout << "xxx leaving ~accountsAccumulator" << endl;
+    }
+
+  protected:
+    friend AccountFrame;
+
+    Database& mDb;
+    struct valType
+    {
+        int64 balance;
+        SequenceNumber seqnum;
+        uint32 numsubentries;
+        string inflationdest;
+        soci::indicator inflationdestInd;
+        string homedomain;
+        string thresholds;
+        uint32 flags;
+        uint32 lastmodified;
+        int64 buyingliabilities;
+        soci::indicator buyingliabilitiesInd;
+        int64 sellingliabilities;
+        soci::indicator sellingliabilitiesInd;
+        unique_ptr<xdr::xvector<Signer, 20>> signers;
+    };
+    map<string, unique_ptr<valType>> mItems;
+};
+
+unique_ptr<EntryFrame::Accumulator>
+AccountFrame::createAccumulator(Database& db)
+{
+    return unique_ptr<EntryFrame::Accumulator>(new accountsAccumulator(db));
 }
 
 void
 AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
-                          LedgerKey const& key)
+                          EntryFrame::AccumulatorGroup* accums) const
 {
+    storeDelete(delta, db, getKey(), accums);
+}
+
+void
+AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
+                          LedgerKey const& key,
+                          EntryFrame::AccumulatorGroup* accums)
+{
+    LedgerDelta::EntryDeleter entryDeleter(delta, key);
+
     flushCachedEntry(key, db);
 
     std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
+
+    if (accums)
+    {
+        accountsAccumulator* accountsAccum =
+            dynamic_cast<accountsAccumulator*>(accums->accountsAccum());
+        accountsAccum->mItems[actIDStrKey] =
+            unique_ptr<accountsAccumulator::valType>();
+        return;
+    }
+
     {
         auto timer = db.getDeleteTimer("account");
         auto prep = db.getPreparedStatement(
@@ -551,39 +737,19 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
         st.define_and_bind();
         st.execute(true);
     }
-    delta.deleteEntry(key);
 }
 
 void
-AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
+AccountFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
+                               EntryFrame::AccumulatorGroup* accums)
 {
+    LedgerDelta::EntryModder(delta, *this);
+
     touch(delta);
 
     flushCachedEntry(db);
 
     std::string actIDStrKey = KeyUtils::toStrKey(mAccountEntry.accountID);
-    std::string sql;
-
-    if (insert)
-    {
-        sql = std::string(
-            "INSERT INTO accounts ( accountid, balance, seqnum, "
-            "numsubentries, inflationdest, homedomain, thresholds, flags, "
-            "lastmodified, buyingliabilities, sellingliabilities ) "
-            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10 "
-            ")");
-    }
-    else
-    {
-        sql = std::string(
-            "UPDATE accounts SET balance = :v1, seqnum = :v2, "
-            "numsubentries = :v3, "
-            "inflationdest = :v4, homedomain = :v5, thresholds = :v6, "
-            "flags = :v7, lastmodified = :v8, buyingliabilities = :v9, "
-            "sellingliabilities = :v10 WHERE accountid = :id");
-    }
-
-    auto prep = db.getPreparedStatement(sql);
 
     soci::indicator inflation_ind = soci::i_null;
     string inflationDestStrKey;
@@ -594,6 +760,8 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
         inflation_ind = soci::i_ok;
     }
 
+    string thresholds(decoder::encode_b64(mAccountEntry.thresholds));
+
     Liabilities liabilities;
     soci::indicator liabilitiesInd = soci::i_null;
     if (mAccountEntry.ext.v() == 1)
@@ -602,26 +770,68 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
         liabilitiesInd = soci::i_ok;
     }
 
-    string thresholds(decoder::encode_b64(mAccountEntry.thresholds));
+    if (accums)
+    {
+        auto val = make_unique<accountsAccumulator::valType>();
+        val->balance = mAccountEntry.balance;
+        val->seqnum = mAccountEntry.seqNum;
+        val->numsubentries = mAccountEntry.numSubEntries;
+        val->inflationdest = inflationDestStrKey;
+        val->inflationdestInd = inflation_ind;
+        val->homedomain = mAccountEntry.homeDomain;
+        val->thresholds = thresholds;
+        val->flags = mAccountEntry.flags;
+        val->lastmodified = getLastModified();
+        val->buyingliabilities = liabilities.buying;
+        val->buyingliabilitiesInd = liabilitiesInd;
+        val->sellingliabilities = liabilities.selling;
+        val->sellingliabilitiesInd = liabilitiesInd;
+        if (mUpdateSigners)
+        {
+            val->signers = make_unique<xdr::xvector<Signer, 20>>();
+            for (auto& s : mAccountEntry.signers)
+            {
+                val->signers->push_back(s);
+            }
+        }
+
+        accountsAccumulator* accountsAccum =
+            dynamic_cast<accountsAccumulator*>(accums->accountsAccum());
+        accountsAccum->mItems[actIDStrKey] = move(val);
+        return;
+    }
+
+    string sql =
+        "INSERT INTO accounts (accountid, balance, seqnum, "
+        "numsubentries, inflationdest, homedomain, thresholds, flags, "
+        "lastmodified, buyingliabilities, sellingliabilities ) "
+        "VALUES (:id, :bal, :seq, :numsub, :infl, :home, :thresh, :flags, "
+        ":lastmod, :bl, :sl) "
+        "ON CONFLICT (accountid) DO UPDATE "
+        "SET balance = :bal, seqnum = :seq, "
+        "numsubentries = :numsub, inflationdest = :infl, homedomain = :home, "
+        "thresholds = :thresh, flags = :flags, "
+        "lastmodified = :lastmod, buyingliabilities = :bl, sellingliabilities "
+        "= :sl";
+    auto prep = db.getPreparedStatement(sql);
 
     {
         soci::statement& st = prep.statement();
         st.exchange(use(actIDStrKey, "id"));
-        st.exchange(use(mAccountEntry.balance, "v1"));
-        st.exchange(use(mAccountEntry.seqNum, "v2"));
-        st.exchange(use(mAccountEntry.numSubEntries, "v3"));
-        st.exchange(use(inflationDestStrKey, inflation_ind, "v4"));
+        st.exchange(use(mAccountEntry.balance, "bal"));
+        st.exchange(use(mAccountEntry.seqNum, "seq"));
+        st.exchange(use(mAccountEntry.numSubEntries, "numsub"));
+        st.exchange(use(inflationDestStrKey, inflation_ind, "infl"));
         string homeDomain(mAccountEntry.homeDomain);
-        st.exchange(use(homeDomain, "v5"));
-        st.exchange(use(thresholds, "v6"));
-        st.exchange(use(mAccountEntry.flags, "v7"));
-        st.exchange(use(getLastModified(), "v8"));
-        st.exchange(use(liabilities.buying, liabilitiesInd, "v9"));
-        st.exchange(use(liabilities.selling, liabilitiesInd, "v10"));
+        st.exchange(use(homeDomain, "home"));
+        st.exchange(use(thresholds, "thresh"));
+        st.exchange(use(mAccountEntry.flags, "flags"));
+        st.exchange(use(getLastModified(), "lastmod"));
+        st.exchange(use(liabilities.buying, liabilitiesInd, "bl"));
+        st.exchange(use(liabilities.selling, liabilitiesInd, "sl"));
         st.define_and_bind();
         {
-            auto timer = insert ? db.getInsertTimer("account")
-                                : db.getUpdateTimer("account");
+            auto timer = db.getInsertTimer("account"); // xxx update timer?
             st.execute(true);
         }
 
@@ -629,35 +839,23 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
         {
             throw std::runtime_error("Could not update data in SQL");
         }
-        if (insert)
-        {
-            delta.addEntry(*this);
-        }
-        else
-        {
-            delta.modEntry(*this);
-        }
     }
 
     if (mUpdateSigners)
     {
-        applySigners(db, insert);
+        applySigners(db);
     }
 }
 
 void
-AccountFrame::applySigners(Database& db, bool insert)
+AccountFrame::applySigners(Database& db)
 {
     std::string actIDStrKey = KeyUtils::toStrKey(mAccountEntry.accountID);
 
     // generates a diff with the signers stored in the database
 
-    // first, load the signers stored in the database for this account
-    std::vector<Signer> signers;
-    if (!insert)
-    {
-        signers = loadSigners(db, actIDStrKey);
-    }
+    // first, load the signers stored in the database for this account (if any)
+    std::vector<Signer> signers = loadSigners(db, actIDStrKey);
 
     auto it_new = mAccountEntry.signers.begin();
     auto it_old = signers.begin();
@@ -765,18 +963,6 @@ AccountFrame::applySigners(Database& db, bool insert)
 }
 
 void
-AccountFrame::storeChange(LedgerDelta& delta, Database& db)
-{
-    storeUpdate(delta, db, false);
-}
-
-void
-AccountFrame::storeAdd(LedgerDelta& delta, Database& db)
-{
-    storeUpdate(delta, db, true);
-}
-
-void
 AccountFrame::processForInflation(
     std::function<bool(AccountFrame::InflationVotes const&)> inflationProcessor,
     int maxWinners, Database& db)
@@ -871,105 +1057,4 @@ AccountFrame::dropAll(Database& db)
     db.getSession() << kSQLCreateStatement3;
     db.getSession() << kSQLCreateStatement4;
 }
-
-class accountsAccumulator : public EntryFrame::Accumulator {
-public:
-  accountsAccumulator(Database&db) : mDb(db) { }
-  ~accountsAccumulator() {
-    vector<string> insertUpdateAccountids;
-    vector<int64> balances;
-    vector<SequenceNumber> seqnums;
-    vector<uint32> numsubentrieses;
-    vector<string> inflationdests;
-    vector<soci::indicator> inflationdestInds;
-    vector<string> homedomains;
-    vector<string> thresholdses;
-    vector<uint32> flagses;
-    vector<uint32> lastmodifieds;
-    vector<int64> buyingliabilitieses;
-    vector<soci::indicator> buyingliabilitiesInds;
-    vector<int64> sellingliabilitieses;
-    vector<soci::indicator> sellingliabilitiesInds;
-
-    vector<string> deleteAccountIds;
-    for (auto& it: mItems) {
-      if (!it.second) {
-        deleteAccountIds.push_back(it.first);
-        continue;
-      }
-      insertUpdateAccountIds.push_back(it.first);
-      balances.push_back(it.second->balance);
-      seqnums.push_back(it.second->seqnum);
-      numsubentrieses.push_back(it.second->numsubentries);
-      inflationdests.push_back(it.second->inflationdest);
-      inflationdestInds.push_back(it.second->inflationdestInd);
-      homedomains.push_back(it.second->homedomain);
-      thresholdses.push_back(it.second->thresholds);
-      flagses.push_back(it.second->flags);
-      lastmodifieds.push_back(it.second->lastmodified);
-      buyingliabilitieses.push_back(it.second->buyingliabilities);
-      buyingliabilitiesInds.push_back(it.second->buyingliabilitiesInd);
-      sellingliabilitieses.push_back(it.second->sellingliabilities);
-      sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
-    }
-
-    if (!insertUpdateAccountIds.empty()) {
-      soci::statement st = session.prepare
-        << "INSERT INTO accounts "
-        << "(accountid, balance, seqnum, numsubentries, "
-        << "inflationdest, homedomain, thresholds, flags, "
-        << "lastmodified, buyingliabilities, sellingliabilities) "
-        << "VALUES (:id, :bal, :seq, :numsub, :infl, :home, :thresh, "
-        << ":flags, :lastmod, :buying, :selling) "
-        << "ON CONFLICT (accountid) DO UPDATE "
-        << "SET balance = :bal, seqnum = :seq, numsubentries = :numsub, "
-        << "inflationdest = :infl, homedomain = :home, thresholds = :thresh ",
-        << "flags = :flags, lastmodified = :lastmod, "
-        << "buyingliabilities = :buying, sellingliabilities = :selling";
-      st.exchange(use(insertUpdateAccountIds, "id"));
-      st.exchange(use(balances, "bal"));
-      st.exchange(use(seqnums, "seq"));
-      st.exchange(use(numsubentrieses, "numsub"));
-      st.exchange(use(inflationdests, inflationdestInds, "infl"));
-      st.exchange(use(homedomains, "home"));
-      st.exchange(use(thresholdses, "thresh"));
-      st.exchange(use(flagses, "flags"));
-      st.exchange(use(lastmodifieds, "lastmod"));
-      st.exchange(use(buyingliabilitieses, buyingliabilitiesInd, "buying"));
-      st.exchange(use(sellingliabilitieses, sellingliabilitiesInd, "selling"));
-      st.define_and_bind();
-      st.execute(true); // xxx timer
-    }
-
-    if (!deleteAccountIds.empty()) {
-      session << "DELETE FROM accounts WHERE accountid = :id", use(accountids, "id");
-    }
-  }
-
-private:
-  Database& mDb;
-  struct valType {
-    int64 balance;
-    SequenceNumber seqnum;
-    uint32 numsubentries;
-    string inflationdest;
-    soci::indicator inflationdestInd;
-    string homedomain;
-    string thresholds;
-    uint32 flags;
-    uint32 lastmodified;
-    int64 buyingliabilities;
-    soci::indicator buyingliabilitiesInd;
-    int64 sellingliabilities;
-    soci::indicator sellingliabilitiesInd;
-  };
-  map<string, unique_ptr<valType>> mItems;
-}
-
-unique_ptr<EntryFrame::Accumulator>
-AccountFrame::createAccumulator(Database& db) {
-  return new accountsAccumulator(db);
-}
-
-
 }

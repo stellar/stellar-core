@@ -207,17 +207,133 @@ DataFrame::deleteDataModifiedOnOrAfterLedger(Database& db,
     }
 }
 
-void
-DataFrame::storeDelete(LedgerDelta& delta, Database& db) const
+class accountdataAccumulator : public EntryFrame::Accumulator
 {
-    storeDelete(delta, db, getKey());
+  public:
+    accountdataAccumulator(Database& db) : mDb(db)
+    {
+    }
+    ~accountdataAccumulator()
+    {
+        // cout << "xxx entering ~accountdataAccumulator" << endl;
+
+        vector<string> insertUpdateAccountids;
+        vector<string> insertUpdateDataNames;
+        vector<string> datavalues;
+        vector<uint32> lastmodifieds;
+
+        vector<string> deleteAccountids;
+        vector<string> deleteDataNames;
+
+        for (auto& it : mItems)
+        {
+            if (!it.second)
+            {
+                deleteAccountids.push_back(it.first.accountid);
+                deleteDataNames.push_back(it.first.dataname);
+                continue;
+            }
+            insertUpdateAccountids.push_back(it.first.accountid);
+            insertUpdateDataNames.push_back(it.first.dataname);
+            datavalues.push_back(it.second->datavalue);
+            lastmodifieds.push_back(it.second->lastmodified);
+        }
+
+        soci::session& session = mDb.getSession();
+
+        if (!insertUpdateAccountids.empty())
+        {
+            soci::statement st =
+                session.prepare
+                << "INSERT INTO accountdata "
+                << "(accountid, dataname, datavalue, lastmodified) "
+                << "VALUES (:id, :dn, :dv, :lm) "
+                << "ON CONFLICT (accountid, dataname) DO UPDATE "
+                << "SET datavalue = :dv, lastmodified = :lm";
+            st.exchange(use(insertUpdateAccountids, "id"));
+            st.exchange(use(insertUpdateDataNames, "dn"));
+            st.exchange(use(datavalues, "dv"));
+            st.exchange(use(lastmodifieds, "lm"));
+            st.define_and_bind();
+            st.execute(true); // xxx timer
+        }
+
+        if (!deleteAccountids.empty())
+        {
+            session << "DELETE FROM accountdata WHERE accountid = :id AND "
+                       "dataname = :dn",
+                use(deleteAccountids, "id"), use(deleteDataNames, "dn");
+        }
+
+        // cout << "xxx leaving ~accountdataAccumulator" << endl;
+    }
+
+  protected:
+    friend DataFrame;
+
+    Database& mDb;
+    struct keyType
+    {
+        string accountid;
+        string dataname;
+
+        bool
+        operator<(const keyType& other) const
+        {
+            if (accountid < other.accountid)
+            {
+                return true;
+            }
+            if (accountid > other.accountid)
+            {
+                return false;
+            }
+            return dataname < other.dataname;
+        }
+    };
+    struct valType
+    {
+        string datavalue;
+        uint32 lastmodified;
+    };
+    map<keyType, unique_ptr<valType>> mItems;
+};
+
+unique_ptr<EntryFrame::Accumulator>
+DataFrame::createAccumulator(Database& db)
+{
+    return unique_ptr<EntryFrame::Accumulator>(new accountdataAccumulator(db));
 }
 
 void
-DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
+DataFrame::storeDelete(LedgerDelta& delta, Database& db,
+                       EntryFrame::AccumulatorGroup* accums) const
 {
+    storeDelete(delta, db, getKey(), accums);
+}
+
+void
+DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key,
+                       EntryFrame::AccumulatorGroup* accums)
+{
+    LedgerDelta::EntryDeleter entryDeleter(delta, key);
+
     std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = key.data().dataName;
+
+    if (accums)
+    {
+        accountdataAccumulator::keyType k;
+        k.accountid = actIDStrKey;
+        k.dataname = dataName;
+
+        accountdataAccumulator* accountdataAccum =
+            dynamic_cast<accountdataAccumulator*>(accums->accountdataAccum());
+        accountdataAccum->mItems[k] =
+            unique_ptr<accountdataAccumulator::valType>();
+        return;
+    }
+
     auto timer = db.getDeleteTimer("data");
     auto prep = db.getPreparedStatement(
         "DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
@@ -226,48 +342,46 @@ DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
     st.exchange(use(dataName));
     st.define_and_bind();
     st.execute(true);
-    delta.deleteEntry(key);
 }
 
 void
-DataFrame::storeChange(LedgerDelta& delta, Database& db)
+DataFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
+                            EntryFrame::AccumulatorGroup* accums)
 {
-    storeUpdateHelper(delta, db, false);
-}
+    LedgerDelta::EntryModder entryModder(delta, *this);
 
-void
-DataFrame::storeAdd(LedgerDelta& delta, Database& db)
-{
-    storeUpdateHelper(delta, db, true);
-}
-
-void
-DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
-{
     touch(delta);
 
     std::string actIDStrKey = KeyUtils::toStrKey(mData.accountID);
     std::string dataName = mData.dataName;
     std::string dataValue = decoder::encode_b64(mData.dataValue);
 
-    string sql;
+    if (accums)
+    {
+        accountdataAccumulator::keyType k;
+        k.accountid = actIDStrKey;
+        k.dataname = dataName;
 
-    if (insert)
-    {
-        sql = "INSERT INTO accountdata "
-              "(accountid,dataname,datavalue,lastmodified)"
-              " VALUES (:aid,:dn,:dv,:lm)";
+        auto val = make_unique<accountdataAccumulator::valType>();
+        val->datavalue = dataValue;
+        val->lastmodified = getLastModified();
+
+        accountdataAccumulator* accountdataAccum =
+            dynamic_cast<accountdataAccumulator*>(accums->accountdataAccum());
+        accountdataAccum->mItems[k] = move(val);
+        return;
     }
-    else
-    {
-        sql = "UPDATE accountdata SET datavalue=:dv,lastmodified=:lm "
-              " WHERE accountid=:aid AND dataname=:dn";
-    }
+
+    string sql = ("INSERT INTO accountdata "
+                  "(accountid, dataname, datavalue, lastmodified) "
+                  "VALUES (:id, :dn, :dv, :lm) "
+                  "ON CONFLICT (accountid, dataname) DO UPDATE "
+                  "SET datavalue = :dv, lastmodified = :lm");
 
     auto prep = db.getPreparedStatement(sql);
     auto& st = prep.statement();
 
-    st.exchange(use(actIDStrKey, "aid"));
+    st.exchange(use(actIDStrKey, "id"));
     st.exchange(use(dataName, "dn"));
     st.exchange(use(dataValue, "dv"));
     st.exchange(use(getLastModified(), "lm"));
@@ -279,15 +393,6 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
     {
         throw std::runtime_error("could not update SQL");
     }
-
-    if (insert)
-    {
-        delta.addEntry(*this);
-    }
-    else
-    {
-        delta.modEntry(*this);
-    }
 }
 
 void
@@ -296,68 +401,4 @@ DataFrame::dropAll(Database& db)
     db.getSession() << "DROP TABLE IF EXISTS accountdata;";
     db.getSession() << kSQLCreateStatement1;
 }
-
-class accountdataAccumulator : public EntryFrame::Accumulator {
-public:
-  accountdataAccumulator(Database&db) : mDb(db) {}
-  ~accountdataAccumulator() {
-    vector<string> insertUpdateAccountids;
-    vector<string> insertUpdateDataNames;
-    vector<string> datavalues;
-    vector<uint32> lastmodifieds;
-
-    vector<string> deleteAccountids;
-    vector<string> deleteDataNames;
-
-    for (auto& it: mItems) {
-      if (!it.second) {
-        deleteAccountids.push_back(it.first.accountid);
-        deleteDataNames.push_back(it.first.dataname);
-        continue;
-      }
-      insertUpdateAccountids.push_back(it.first.accountid);
-      insertUpdateDataNames.push_back(it.first.dataname);
-      datavalues.push_back(it.second->datavalue);
-      lastmodifieds.push_back(it.second->lastmodified);
-    }
-
-    if (!insertUpdateAccountids.empty()) {
-      soci::statement st = session.prepare
-        << "INSERT INTO accountdata "
-        << "(accountid, dataname, datavalue, lastmodified) "
-        << "VALUES (:id, :dn, :dv, :lm) "
-        << "ON CONFLICT (accountid, dataname) DO UPDATE "
-        << "SET datavalue = :dv, lastmodified = :lm";
-      st.exchange(use(insertUpdateAccountids, "id"));
-      st.exchange(use(insertUpdateDataNames, "dn"));
-      st.exchange(use(datavalues, "dv"));
-      st.exchange(use(lastmodifieds, "lm"));
-      st.define_and_bind();
-      st.execute(true); // xxx timer
-    }
-
-    if (!deleteAccountids.empty()) {
-      session << "DELETE FROM accountdata WHERE accountid = :id AND dataname = :dn",
-        use(deleteAccountids, "id"), use(deleteDataNames, "dn");
-    }
-  }
-
-private:
-  Database& mDb;
-  struct keyType {
-    string accountid;
-    string dataname;
-  }
-  struct valType {
-    string datavalue;
-    uint32 lastmodified;
-  };
-  map<keyType, unique_ptr<valType>> mItems;
-};
-
-unique_ptr<EntryFrame::Accumulator>
-DataFrame::createAccumulator(Database& db) {
-  return new accountdataAccumulator(db);
-}
-
 }

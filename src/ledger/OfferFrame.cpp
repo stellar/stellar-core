@@ -481,22 +481,168 @@ OfferFrame::deleteOffersModifiedOnOrAfterLedger(Database& db,
     }
 }
 
-void
-OfferFrame::storeDelete(LedgerDelta& delta, Database& db) const
+class offersAccumulator : public EntryFrame::Accumulator
 {
-    storeDelete(delta, db, getKey());
+  public:
+    offersAccumulator(Database& db) : mDb(db)
+    {
+    }
+    ~offersAccumulator()
+    {
+        // cout << "xxx entering ~offersAccumulator" << endl;
+
+        vector<uint64> insertUpdateOfferIDs;
+        vector<string> sellerIDs;
+        vector<unsigned int> sellingassettypes;
+        vector<string> sellingassetcodes;
+        vector<soci::indicator> sellingassetcodeInds;
+        vector<string> sellingissuers;
+        vector<unsigned int> buyingassettypes;
+        vector<string> buyingassetcodes;
+        vector<soci::indicator> buyingassetcodeInds;
+        vector<string> buyingissuers;
+        vector<int64> amounts;
+        vector<int32> pricens;
+        vector<int32> priceds;
+        vector<double> prices;
+        vector<uint32> flagses;
+        vector<uint32> lastmodifieds;
+
+        vector<uint64> deleteOfferIDs;
+
+        for (auto& it : mItems)
+        {
+            if (!it.second)
+            {
+                deleteOfferIDs.push_back(it.first);
+                continue;
+            }
+            insertUpdateOfferIDs.push_back(it.first);
+            sellingassettypes.push_back(it.second->sellingassettype);
+            sellingassetcodes.push_back(it.second->sellingassetcode);
+            sellingassetcodeInds.push_back(it.second->sellingassetcodeInd);
+            sellingissuers.push_back(it.second->sellingissuer);
+            buyingassettypes.push_back(it.second->buyingassettype);
+            buyingassetcodes.push_back(it.second->buyingassetcode);
+            buyingassetcodeInds.push_back(it.second->buyingassetcodeInd);
+            buyingissuers.push_back(it.second->buyingissuer);
+            amounts.push_back(it.second->amount);
+            pricens.push_back(it.second->pricen);
+            priceds.push_back(it.second->priced);
+            prices.push_back(it.second->price);
+            flagses.push_back(it.second->flags);
+            lastmodifieds.push_back(it.second->lastmodified);
+        }
+
+        soci::session& session = mDb.getSession();
+
+        if (!insertUpdateOfferIDs.empty())
+        {
+            soci::statement st =
+                session.prepare
+                << "INSERT INTO offers "
+                << "(offerid, sellerid, "
+                << "sellingassettype, sellingassetcode, sellingissuer, "
+                << "buyingassettype, buyingassetcode, buyingissuer, "
+                << "amount, pricen, priced, price, flags, lastmodified) "
+                << "VALUES (:oid, :sid, :sat, :sac, :si, :bat, :bac, :bi, "
+                << ":a, :pn, :pd, :p, :flags, :lastmod) "
+                << "ON CONFLICT (offerid) DO UPDATE "
+                << "SET sellerid = :sid, "
+                << "sellingassettype = :sat, sellingassetcode = :sac, "
+                   "sellingissuer = :si, "
+                << "buyingassettype = :bat, buyingassetcode = :bac, "
+                   "buyingissuer = :bi, "
+                << "amount = :a, pricen = :pn, priced = :pd, price = :p, "
+                << "flags = :flags, lastmodified = :lastmod";
+            st.exchange(use(insertUpdateOfferIDs, "oid"));
+            st.exchange(use(sellerIDs, "sid"));
+            st.exchange(use(sellingassettypes, "sat"));
+            st.exchange(use(sellingassetcodes, sellingassetcodeInds, "sac"));
+            st.exchange(use(sellingissuers, "si"));
+            st.exchange(use(buyingassettypes, "bat"));
+            st.exchange(use(buyingassetcodes, buyingassetcodeInds, "bac"));
+            st.exchange(use(buyingissuers, "bi"));
+            st.exchange(use(amounts, "a"));
+            st.exchange(use(pricens, "pn"));
+            st.exchange(use(priceds, "pd"));
+            st.exchange(use(prices, "p"));
+            st.exchange(use(flagses, "flags"));
+            st.exchange(use(lastmodifieds, "lastmod"));
+            st.define_and_bind();
+            st.execute(true); // xxx timer
+        }
+
+        if (!deleteOfferIDs.empty())
+        {
+            session << "DELETE FROM offers WHERE offerid = :oid",
+                use(deleteOfferIDs, "oid");
+        }
+
+        // cout << "xxx leaving ~offersAccumulator" << endl;
+    }
+
+  protected:
+    friend OfferFrame;
+
+    Database& mDb;
+    struct valType
+    {
+        string sellerid;
+        unsigned int sellingassettype;
+        string sellingassetcode;
+        soci::indicator sellingassetcodeInd;
+        string sellingissuer;
+        soci::indicator sellingissuerInd;
+        unsigned int buyingassettype;
+        string buyingassetcode;
+        soci::indicator buyingassetcodeInd;
+        string buyingissuer;
+        soci::indicator buyingissuerInd;
+        int64 amount;
+        int32 pricen;
+        int32 priced;
+        double price;
+        uint32 flags;
+        uint32 lastmodified;
+    };
+    map<uint64, unique_ptr<valType>> mItems;
+};
+
+unique_ptr<EntryFrame::Accumulator>
+OfferFrame::createAccumulator(Database& db)
+{
+    return unique_ptr<EntryFrame::Accumulator>(new offersAccumulator(db));
 }
 
 void
-OfferFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
+OfferFrame::storeDelete(LedgerDelta& delta, Database& db,
+                        EntryFrame::AccumulatorGroup* accums) const
 {
+    storeDelete(delta, db, getKey(), accums);
+}
+
+void
+OfferFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key,
+                        EntryFrame::AccumulatorGroup* accums)
+{
+    LedgerDelta::EntryDeleter entryDeleter(delta, key);
+
+    if (accums)
+    {
+        offersAccumulator* offersAccum =
+            dynamic_cast<offersAccumulator*>(accums->offersAccum());
+        offersAccum->mItems[key.offer().offerID] =
+            unique_ptr<offersAccumulator::valType>();
+        return;
+    }
+
     auto timer = db.getDeleteTimer("offer");
     auto prep = db.getPreparedStatement("DELETE FROM offers WHERE offerid=:s");
     auto& st = prep.statement();
     st.exchange(use(key.offer().offerID));
     st.define_and_bind();
     st.execute(true);
-    delta.deleteEntry(key);
 }
 
 double
@@ -506,20 +652,11 @@ OfferFrame::computePrice() const
 }
 
 void
-OfferFrame::storeChange(LedgerDelta& delta, Database& db)
+OfferFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
+                             EntryFrame::AccumulatorGroup* accums)
 {
-    storeUpdateHelper(delta, db, false);
-}
+    LedgerDelta::EntryModder entryModder(delta, *this);
 
-void
-OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
-{
-    storeUpdateHelper(delta, db, true);
-}
-
-void
-OfferFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
-{
     touch(delta);
 
     std::string actIDStrKey = KeyUtils::toStrKey(mOffer.sellerID);
@@ -560,33 +697,54 @@ OfferFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
         buying_ind = soci::i_ok;
     }
 
-    string sql;
+    if (accums)
+    {
+        auto val = make_unique<offersAccumulator::valType>();
+        val->sellerid = actIDStrKey;
+        val->sellingassettype = sellingType;
+        val->sellingassetcode = sellingAssetCode;
+        val->sellingassetcodeInd = selling_ind;
+        val->sellingissuer = sellingIssuerStrKey;
+        val->sellingissuerInd = selling_ind;
+        val->buyingassettype = buyingType;
+        val->buyingassetcode = buyingAssetCode;
+        val->buyingassetcodeInd = buying_ind;
+        val->buyingissuer = buyingIssuerStrKey;
+        val->buyingissuerInd = buying_ind;
+        val->amount = mOffer.amount;
+        val->pricen = mOffer.price.n;
+        val->priced = mOffer.price.d;
+        val->price = computePrice();
+        val->flags = mOffer.flags;
+        val->lastmodified = getLastModified();
 
-    if (insert)
-    {
-        sql = "INSERT INTO offers (sellerid,offerid,"
-              "sellingassettype,sellingassetcode,sellingissuer,"
-              "buyingassettype,buyingassetcode,buyingissuer,"
-              "amount,pricen,priced,price,flags,lastmodified) VALUES "
-              "(:sid,:oid,:sat,:sac,:si,:bat,:bac,:bi,:a,:pn,:pd,:p,:f,:l)";
+        offersAccumulator* offersAccum =
+            dynamic_cast<offersAccumulator*>(accums->offersAccum());
+        offersAccum->mItems[mOffer.offerID] = move(val);
+        return;
     }
-    else
-    {
-        sql = "UPDATE offers SET sellingassettype=:sat "
-              ",sellingassetcode=:sac,sellingissuer=:si,"
-              "buyingassettype=:bat,buyingassetcode=:bac,buyingissuer=:bi,"
-              "amount=:a,pricen=:pn,priced=:pd,price=:p,flags=:f,"
-              "lastmodified=:l WHERE offerid=:oid";
-    }
+
+    string sql =
+        ("INSERT INTO offers (offerid, sellerid, "
+         "sellingassettype, sellingassetcode, sellingissuer, "
+         "buyingassettype, buyingassetcode, buyingissuer, "
+         "amount, pricen, priced, price, flags, lastmodified) "
+         "VALUES (:oid, :sid, :sat, :sac, :si, "
+         ":bat, :bac, :bi, :a, :pn, :pd, :p, :f, :l) "
+         "ON CONFLICT (offerid) DO UPDATE "
+         "SET sellerid = :sid, " // xxx storeUpdateHelper omitted this, omit
+                                 // here too?
+         "sellingassettype = :sat, "
+         "sellingassetcode = :sac, sellingissuer = :si, "
+         "buyingassettype = :bat, buyingassetcode = :bac, buyingissuer = :bi, "
+         "amount = :a, pricen = :pn, priced = :pd, price = :p, flags = :f, "
+         "lastmodified = :l");
 
     auto prep = db.getPreparedStatement(sql);
     auto& st = prep.statement();
 
-    if (insert)
-    {
-        st.exchange(use(actIDStrKey, "sid"));
-    }
     st.exchange(use(mOffer.offerID, "oid"));
+    st.exchange(use(actIDStrKey, "sid"));
     st.exchange(use(sellingType, "sat"));
     st.exchange(use(sellingAssetCode, selling_ind, "sac"));
     st.exchange(use(sellingIssuerStrKey, selling_ind, "si"));
@@ -602,22 +760,11 @@ OfferFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
     st.exchange(use(getLastModified(), "l"));
     st.define_and_bind();
 
-    auto timer =
-        insert ? db.getInsertTimer("offer") : db.getUpdateTimer("offer");
-    st.execute(true);
+    st.execute(true); // xxx timer
 
     if (st.get_affected_rows() != 1)
     {
         throw std::runtime_error("could not update SQL");
-    }
-
-    if (insert)
-    {
-        delta.addEntry(*this);
-    }
-    else
-    {
-        delta.modEntry(*this);
     }
 }
 
@@ -744,115 +891,4 @@ OfferFrame::acquireOrReleaseLiabilities(bool isAcquire,
         trust->storeChange(delta, db);
     }
 }
-
-class offersAccumulator : public EntryFrame::Accumulator {
-public:
-  offersAccumulator(Database&db) : mDb(db) {}
-  ~offersAccumulator() {
-    vector<uint64> insertUpdateOfferIDs;
-    vector<unsigned int> sellingassettypes;
-    vector<string> sellingassetcodes;
-    vector<soci::indicator> sellingassetcodeInds;
-    vector<string> sellingissuers;
-    vector<unsigned int> buyingassettypes;
-    vector<string> buyingassetcodes;
-    vector<soci::indicator> buyingassetcodeInds;
-    vector<string> buyingissuers;
-    vector<int64> amounts;
-    vector<int32> pricens;
-    vector<int32> priceds;
-    vector<double> prices;
-    vector<uint32> flagses;
-    vector<uint32> lastmodifieds;
-
-    vector<uint64> deleteOfferIDs;
-
-    for (auto& it: mItems) {
-      if (!it.second) {
-        deleteOfferIDs.push_back(it.first);
-        continue;
-      }
-      insertUpdateOfferIDs.push_back(it.first);
-      sellingassettypes.push_back(it.second->sellingassettype);
-      sellingassetcodes.push_back(it.second->sellingassetcode);
-      sellingassetcodeInds.push_back(it.second->sellingassetcodeInd);
-      sellingissuers.push_back(it.second->sellingissuer);
-      buyingassettypes.push_back(it.second->buyingassettype);
-      buyingassetcodes.push_back(it.second->buyingassetcode);
-      buyingassetcodeInds.push_back(it.second->buyingassetcodeInd);
-      buyingissuers.push_back(it.second->buyingissuer);
-      amounts.push_back(it.second->amount);
-      pricens.push_back(it.second->pricen);
-      priceds.push_back(it.second->priced);
-      prices.push_back(it.second->price);
-      flagses.push_back(it.second->flags);
-      lastmodifieds.push_back(it.second->lastmodified);
-    }
-
-    if (!insertUpdateOfferIDs.empty()) {
-      soci::statement st = session.prepare
-        << "INSERT INTO offers "
-        << "(offerid, sellerid, "
-        << "sellingassettype, sellingassetcode, sellingissuer, "
-        << "buyingassettype, buyingassetcode, buyingissuer, "
-        << "amount, pricen, priced, price, flags, lastmodified) "
-        << "VALUES (:oid, :sid, :sat, :sac, :si, :bat, :bac, :bi, "
-        << ":a, :pn, :pd, :p, :flags, :lastmod) "
-        << "ON CONFLICT (offerid) DO UPDATE "
-        << "SET sellerid = :sid, "
-        << "sellingassettype = :sat, sellingassetcode = :sac, sellingissuer = :si, "
-        << "buyingassettype = :bat, buyingassetcode = :bac, buyingissuer = :bi, "
-        << "amount = :a, pricen = :pn, priced = :pd, price = :p, "
-        << "flags = :flags, lastmodified = :lastmod";
-      st.exchange(use(insertUpdateOfferIDs, "oid"));
-      st.exchange(use(sellerIDs, "sid"));
-      st.exchange(sellingassettypes, "sat");
-      st.exchange(sellingassetcodes, sellingassetcodeInds, "sac");
-      st.exchange(sellingissuers, "si");
-      st.exchange(buyingassettypes, "bat");
-      st.exchange(buyingassetcodes, buyingassetcodeInds, "bac");
-      st.exchange(buyingissuers, "bi");
-      st.exchange(amounts, "a");
-      st.exchange(pricens, "pn");
-      st.exchange(priceds, "pd");
-      st.exchange(prices, "p");
-      st.exchange(flagses, "flags");
-      st.exchange(lastmodifieds, "lastmod");
-      st.define_and_bind();
-      st.execute(true); // xxx timer
-    }
-
-    if (!deleteOfferIDs.empty()) {
-      session << "DELETE FROM offers WHERE offerid = :oid",
-        use(deleteOfferIDs, "oid");
-    }
-  }
-
-private:
-  Database& mDb;
-  struct valType {
-    string sellerid;
-    unsigned int sellingassettype;
-    string sellingassetcode;
-    soci::indicator sellingassetcodeInd;
-    string sellingissuer;
-    unsigned int buyingassettype;
-    string buyingassetcode;
-    soci::indicator buyingassetcodeInd;
-    string buyingissuer;
-    int64 amount;
-    int32 pricen;
-    int32 priced;
-    double price;
-    uint32 flags;
-    uint32 lastmodified;
-  };
-  map<uint64, valType> mItems;
-};
-
-unique_ptr<EntryFrame::Accumulator>
-OfferFrame::createAccumulator(Database&db) {
-  return new offersAccumulator(db);
-}
-
 }
