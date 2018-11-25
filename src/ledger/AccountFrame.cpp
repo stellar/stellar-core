@@ -528,8 +528,6 @@ class accountsAccumulator : public EntryFrame::Accumulator
     }
     ~accountsAccumulator()
     {
-        // cout << "xxx entering ~accountsAccumulator" << endl;
-
         vector<string> insertUpdateAccountIDs;
         vector<int64> balances;
         vector<SequenceNumber> seqnums;
@@ -551,8 +549,6 @@ class accountsAccumulator : public EntryFrame::Accumulator
         vector<int> signerWeights;
 
         vector<string> deleteAccountIds;
-
-        // cout << "xxx populating vectors" << endl;
 
         for (auto& it : mItems)
         {
@@ -576,7 +572,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             sellingliabilitieses.push_back(it.second->sellingliabilities);
             sellingliabilitiesInds.push_back(it.second->sellingliabilitiesInd);
 
-            if (it.second->signers)
+            if (it.second->signers && !it.second->signers->empty())
             {
                 signerReplaceAccountIDs.push_back(it.first);
                 for (auto& s : *(it.second->signers))
@@ -588,14 +584,10 @@ class accountsAccumulator : public EntryFrame::Accumulator
             }
         }
 
-        // cout << "xxx getting session" << endl;
-
         soci::session& session = mDb.getSession();
 
         if (!insertUpdateAccountIDs.empty())
         {
-            // cout << "xxx preparing statement" << endl;
-
             soci::statement st =
                 session.prepare
                 << "INSERT INTO accounts "
@@ -612,8 +604,6 @@ class accountsAccumulator : public EntryFrame::Accumulator
                 << "flags = :flags, lastmodified = :lastmod, "
                 << "buyingliabilities = :buying, sellingliabilities = :selling";
 
-            // cout << "xxx statement prepared, now exchanging" << endl;
-
             st.exchange(use(insertUpdateAccountIDs, "id"));
             st.exchange(use(balances, "bal"));
             st.exchange(use(seqnums, "seq"));
@@ -628,38 +618,67 @@ class accountsAccumulator : public EntryFrame::Accumulator
             st.exchange(
                 use(sellingliabilitieses, sellingliabilitiesInds, "selling"));
 
-            // cout << "xxx exchanging done, now binding" << endl;
-
             st.define_and_bind();
 
-            // cout << "xxx executing insert/update on accounts" << endl;
-
-            st.execute(true); // xxx timer
+            try
+            {
+                st.execute(true); // xxx timer
+            }
+            catch (soci::soci_error& e)
+            {
+                cout << "xxx inserting into accounts: " << e.what() << endl;
+                throw;
+            }
         }
 
         if (!signerReplaceAccountIDs.empty())
         {
-            // cout << "xxx executing delete/insert on signers" << endl;
-
-            session << "DELETE FROM signers WHERE accountid = :id",
-                use(signerReplaceAccountIDs, "id");
-            session << "INSERT INTO signers (accountid, publickey, weight) "
-                       "VALUES (:id, :key, :weight)",
-                use(signerAccountIDs, "id"), use(signerPublicKeys, "key"),
-                use(signerWeights, "weight");
+            try
+            {
+                session << "DELETE FROM signers WHERE accountid = :id",
+                    use(signerReplaceAccountIDs, "id");
+            }
+            catch (const soci::soci_error& e)
+            {
+                cout << "xxx deleting/inserting from signers [1]: " << e.what()
+                     << endl;
+                throw;
+            }
+            try
+            {
+                session << "INSERT INTO signers (accountid, publickey, weight) "
+                           "VALUES (:id, :key, :weight)",
+                    use(signerAccountIDs, "id"), use(signerPublicKeys, "key"),
+                    use(signerWeights, "weight");
+            }
+            catch (const soci::soci_error& e)
+            {
+                cout << "xxx deleting/inserting from signers [2]: " << e.what()
+                     << endl;
+            }
         }
 
         if (!deleteAccountIds.empty())
         {
-            // cout << "xxx executing delete on accounts+signers" << endl;
-
-            session << "DELETE FROM accounts WHERE accountid = :id",
-                use(deleteAccountIds, "id");
-            session << "DELETE FROM signers WHERE accountid = :id",
-                use(deleteAccountIds, "id");
+            try
+            {
+                session << "DELETE FROM accounts WHERE accountid = :id",
+                    use(deleteAccountIds, "id");
+            }
+            catch (soci::soci_error& e)
+            {
+                cout << "xxx deleting from accounts: " << e.what() << endl;
+            }
+            try
+            {
+                session << "DELETE FROM signers WHERE accountid = :id",
+                    use(deleteAccountIds, "id");
+            }
+            catch (soci::soci_error& e)
+            {
+                cout << "xxx deleting from signers: " << e.what() << endl;
+            }
         }
-
-        // cout << "xxx leaving ~accountsAccumulator" << endl;
     }
 
   protected:

@@ -489,8 +489,6 @@ class offersAccumulator : public EntryFrame::Accumulator
     }
     ~offersAccumulator()
     {
-        // cout << "xxx entering ~offersAccumulator" << endl;
-
         vector<uint64> insertUpdateOfferIDs;
         vector<string> sellerIDs;
         vector<unsigned int> sellingassettypes;
@@ -518,6 +516,7 @@ class offersAccumulator : public EntryFrame::Accumulator
                 continue;
             }
             insertUpdateOfferIDs.push_back(it.first);
+            sellerIDs.push_back(it.second->sellerid);
             sellingassettypes.push_back(it.second->sellingassettype);
             sellingassetcodes.push_back(it.second->sellingassetcode);
             sellingassetcodeInds.push_back(it.second->sellingassetcodeInd);
@@ -570,16 +569,29 @@ class offersAccumulator : public EntryFrame::Accumulator
             st.exchange(use(flagses, "flags"));
             st.exchange(use(lastmodifieds, "lastmod"));
             st.define_and_bind();
-            st.execute(true); // xxx timer
+            try
+            {
+                st.execute(true); // xxx timer
+            }
+            catch (const soci::soci_error& e)
+            {
+                cout << "xxx inserting into offers: " << e.what() << endl;
+                throw;
+            }
         }
 
         if (!deleteOfferIDs.empty())
         {
-            session << "DELETE FROM offers WHERE offerid = :oid",
-                use(deleteOfferIDs, "oid");
+            try
+            {
+                session << "DELETE FROM offers WHERE offerid = :oid",
+                    use(deleteOfferIDs, "oid");
+            }
+            catch (const soci::soci_error& e)
+            {
+                cout << "xxx deleting from offers: " << e.what() << endl;
+            }
         }
-
-        // cout << "xxx leaving ~offersAccumulator" << endl;
     }
 
   protected:

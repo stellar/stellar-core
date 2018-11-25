@@ -342,8 +342,6 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
     }
     ~trustlinesAccumulator()
     {
-        // cout << "xxx entering ~trustlinesAccumulator" << endl;
-
         vector<string> insertUpdateAccountIDs;
         vector<string> insertUpdateIssuers;
         vector<string> insertUpdateAssetCodes;
@@ -414,18 +412,32 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
             st.exchange(
                 use(sellingliabilitieses, sellingliabilitiesInds, "sl"));
             st.define_and_bind();
-            st.execute(true); // xxx timer
+            try
+            {
+                st.execute(true); // xxx timer
+            }
+            catch (const soci::soci_error& e)
+            {
+                cout << "xxx inserting into trustlines: " << e.what() << endl;
+                throw;
+            };
         }
 
         if (!deleteAccountIDs.empty())
         {
-            session << "DELETE FROM trustlines WHERE accountid = :id AND "
-                       "issuer = :iss AND assetcode = :acode",
-                use(deleteAccountIDs, "id"), use(deleteIssuers, "iss"),
-                use(deleteAssetCodes, "acode");
+            try
+            {
+                session << "DELETE FROM trustlines WHERE accountid = :id AND "
+                           "issuer = :iss AND assetcode = :acode",
+                    use(deleteAccountIDs, "id"), use(deleteIssuers, "iss"),
+                    use(deleteAssetCodes, "acode");
+            }
+            catch (const soci::soci_error& e)
+            {
+                cout << "xxx deleting from trustlines: " << e.what() << endl;
+                throw;
+            }
         }
-
-        // cout << "xxx leaving ~trustlinesAccumulator" << endl;
     }
 
   protected:

@@ -215,8 +215,6 @@ class accountdataAccumulator : public EntryFrame::Accumulator
     }
     ~accountdataAccumulator()
     {
-        // cout << "xxx entering ~accountdataAccumulator" << endl;
-
         vector<string> insertUpdateAccountids;
         vector<string> insertUpdateDataNames;
         vector<string> datavalues;
@@ -255,17 +253,31 @@ class accountdataAccumulator : public EntryFrame::Accumulator
             st.exchange(use(datavalues, "dv"));
             st.exchange(use(lastmodifieds, "lm"));
             st.define_and_bind();
-            st.execute(true); // xxx timer
+            try
+            {
+                st.execute(true); // xxx timer
+            }
+            catch (soci::soci_error& e)
+            {
+                cout << "xxx inserting into accountdata: " << e.what() << endl;
+                throw;
+            }
         }
 
         if (!deleteAccountids.empty())
         {
-            session << "DELETE FROM accountdata WHERE accountid = :id AND "
-                       "dataname = :dn",
-                use(deleteAccountids, "id"), use(deleteDataNames, "dn");
+            try
+            {
+                session << "DELETE FROM accountdata WHERE accountid = :id AND "
+                           "dataname = :dn",
+                    use(deleteAccountids, "id"), use(deleteDataNames, "dn");
+            }
+            catch (soci::soci_error& e)
+            {
+                cout << "xxx deleting from accountdata: " << e.what() << endl;
+                throw;
+            }
         }
-
-        // cout << "xxx leaving ~accountdataAccumulator" << endl;
     }
 
   protected:
