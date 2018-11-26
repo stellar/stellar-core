@@ -238,6 +238,29 @@ class accountdataAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
+        if (pg) {
+          if (!insertUpdateAccountids.empty()) {
+            static const char q[] = "WITH r AS ("
+              "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS dn, unnest($3::text[]) AS dv, unnest($4::integer[]) AS lm) "
+              "INSERT INTO accountdata "
+              "(accountid, dataname, datavalue, lastmodified) "
+              "SELECT id, dn, dv, lm FROM r "
+              "ON CONFLICT (accountid, dataname) DO UPDATE "
+              "SET datavalue = r.dv, lastmodified = r.lm";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q, 4, 0, paramVals, 0, 0, 0); // xxx timer
+            // xxx check res
+          }
+          if (!deleteAccountids.empty()) {
+            static const char q[] = "DELETE FROM accountdata WHERE (accountid, dataname) IN (SELECT unnest($1::text[]), unnest($2::text[]))"; // xxx check this query
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q, 2, 0, paramVals, 0, 0, 0); // xxx timer
+            // xxx check res
+          }
+
+          return;
+        }
 
         if (!insertUpdateAccountids.empty())
         {

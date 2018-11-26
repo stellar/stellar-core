@@ -603,7 +603,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
               "flags = r.flags, lastmodified = r.lastmod, "
               "buyingliabilities = r.buying, sellingliabilities = r.selling";
             // xxx marshal args
-            PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0, 0, 0);
+            PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0, 0, 0); // xxx timer
             // xxx check res
           }
           if (!signerReplaceAccountIDs.empty()) {
@@ -617,7 +617,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
               "INSERT INTO signers (accountid, publickey, weight) "
               "SELECT id, pubkeys, weights FROM r";
             // xxx marshal args
-            res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0, 0);
+            res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0, 0); // xxx timer
             // xxx check res
           }
           if (!deleteAccountIds.empty()) {
@@ -627,7 +627,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             // xxx check res
 
             static const char q2[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
-            PGresult* res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // sic - uses same paramVals
+            PGresult* res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // sic - uses same paramVals xxx timer
             // xxx check res
           }
 
