@@ -585,6 +585,32 @@ class accountsAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
+        if (pg) {
+          if (!insertUpdateAccountIDs.empty()) {
+            static const char q[] = "WITH r AS ("
+              "SELECT unnest($1::text[]) AS id, unnest($2::bigint[]) AS bal, unnest($3::bigint[]) as seq, "
+              "unnest($4::integer[]) AS numsub, unnest($5::text[]) AS infl, unnest($6::text[]) AS home, unnest($7::text[]) AS thresh, "
+              "unnest($8::integer[]) AS flags, unnest($9::integer[]) AS lastmod, unnest($10::integer[]) AS bl, unnest($11::integer[]) AS sl) "
+              "INSERT INTO accounts "
+              "(accountid, balance, seqnum, numsubentries, "
+              "inflationdest, homedomain, thresholds, flags, "
+              "lastmodified, buyingliabilities, sellingliabilities) "
+              "SELECT id, bal, seq, numsub, infl, home, thresh, flags, lastmod, bl, sl FROM r "
+              "ON CONFLICT (accountid) DO UPDATE "
+              "SET balance = r.bal, seqnum = r.seq, numsubentries = r.numsub, "
+              "inflationdest = r.infl, homedomain = r.home, thresholds = r.thresh, "
+              "flags = r.flags, lastmodified = r.lastmod, "
+              "buyingliabilities = r.buying, sellingliabilities = r.selling";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0, 0, 0);
+            // xxx check res
+          }
+          if (!signerReplaceAccountIDs.empty()) {}
+          if (!deleteAccountIds.empty()) {}
+
+          return;
+        }
 
         if (!insertUpdateAccountIDs.empty())
         {
