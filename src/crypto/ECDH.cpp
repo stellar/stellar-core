@@ -8,6 +8,10 @@
 #include <functional>
 #include <sodium.h>
 
+#ifdef MSAN_ENABLED
+#include <sanitizer/msan_interface.h>
+#endif
+
 namespace stellar
 {
 
@@ -16,6 +20,9 @@ EcdhRandomSecret()
 {
     Curve25519Secret out;
     randombytes_buf(out.key.data(), out.key.size());
+#ifdef MSAN_ENABLED
+    __msan_unpoison(out.key.data(), out.key.size());
+#endif
     return out;
 }
 
@@ -44,7 +51,12 @@ EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
     {
         throw std::runtime_error("Could not derive shared key (mult)");
     }
-    std::vector<uint8_t> buf(q, q + crypto_scalarmult_BYTES);
+#ifdef MSAN_ENABLED
+    __msan_unpoison(q, crypto_scalarmult_BYTES);
+#endif
+    std::vector<uint8_t> buf(crypto_scalarmult_BYTES + publicA.key.size() +
+                             publicB.key.size());
+    buf.insert(buf.end(), q, q + crypto_scalarmult_BYTES);
     buf.insert(buf.end(), publicA.key.begin(), publicA.key.end());
     buf.insert(buf.end(), publicB.key.begin(), publicB.key.end());
     return hkdfExtract(buf);
