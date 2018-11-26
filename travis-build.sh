@@ -49,7 +49,7 @@ done
 
 committer_of(){
     local c=$(git cat-file -p "$1" 2> /dev/null \
-	| sed -ne '/^committer \([^<]*[^ <]\)  *<.*>.*/{s//\1/p; q;}')
+    | sed -ne '/^committer \([^<]*[^ <]\)  *<.*>.*/{s//\1/p; q;}')
     test -n "$c" -a Latobarita != "$c" && echo "$c"
 }
 committer=$(committer_of HEAD) \
@@ -59,11 +59,11 @@ committer=$(committer_of HEAD) \
 
 case $committer in
     "David Mazieres")
-        config_flags="--enable-asan --enable-ccache CXXFLAGS=-w"
-	;;
+        config_flags="--enable-asan --enable-extrachecks --enable-ccache CXXFLAGS=-w"
+    ;;
     *)
-	config_flags="--enable-asan --enable-ccache --enable-sdfprefs CXXFLAGS=-w"
-	;;
+    config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs CXXFLAGS=-w"
+    ;;
 esac
 
 echo "committer = $committer, config_flags = $config_flags"
