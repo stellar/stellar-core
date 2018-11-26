@@ -534,6 +534,35 @@ class offersAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
+        if (pg) {
+          if (!insertUpdateOfferIDs.empty()) {
+            static const char q[] = "WITH r AS ("
+              "SELECT ...) "
+              "INSERT INTO offers "
+              "(offerid, sellerid, "
+              "sellingassettype, sellingassetcode, sellingissuer, "
+              "buyingassettype, buyingassetcode, buyingissuer, "
+              "amount, pricen, priced, price, flags, lastmodified) "
+              "SELECT oid, sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r "
+              "ON CONFLICT (offerid) DO UPDATE "
+              "SET sellerid = r.sid, "
+              "sellingassettype = r.sat, sellingassetcode = r.sac, "
+              "sellingissuer = r.si, "
+              "buyingassettype = r.bat, buyingassetcode = r.bac, "
+              "buyingissuer = r.bi, "
+              "amount = r.a, pricen = r.pn, priced = r.pd, price = r.p, "
+              "flags = r.flags, lastmodified = r.lastmod";
+          }
+          if (!deleteOfferIDs.empty()) {
+            static const char q[] = "DELETE FROM offers WHERE offerid = ANY($1::text[])";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // xxx timer
+            // xxx check res
+          }
+
+          return;
+        }
 
         if (!insertUpdateOfferIDs.empty())
         {
