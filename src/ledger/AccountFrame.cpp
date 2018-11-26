@@ -606,8 +606,30 @@ class accountsAccumulator : public EntryFrame::Accumulator
             PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0, 0, 0);
             // xxx check res
           }
-          if (!signerReplaceAccountIDs.empty()) {}
-          if (!deleteAccountIds.empty()) {}
+          if (!signerReplaceAccountIDs.empty()) {
+            static const char q1[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q1, 1, 0, paramVals1, 0, 0, 0);
+            // xxx check res
+
+            static const char q2[] = "WITH r AS ("
+              "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS pubkeys, unnest($3::integer[]) AS weights) "
+              "INSERT INTO signers (accountid, publickey, weight) "
+              "SELECT id, pubkeys, weights FROM r";
+            // xxx marshal args
+            res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0, 0);
+            // xxx check res
+          }
+          if (!deleteAccountIds.empty()) {
+            static const char q1[] = "DELETE FROM accounts WHERE accountid = ANY($1::text[])";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q1, 1, 0, paramVals, 0, 0, 0);
+            // xxx check res
+
+            static const char q2[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
+            PGresult* res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // sic - uses same paramVals
+            // xxx check res
+          }
 
           return;
         }
