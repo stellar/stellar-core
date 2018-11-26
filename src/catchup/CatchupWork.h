@@ -37,6 +37,7 @@ class TmpDir;
 // CATCHUP_COMPLETE. If not, second is true and miminal catchup will be done
 // first.
 using CatchupRange = std::pair<LedgerRange, bool>;
+using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
 // CatchupWork does all the neccessary work to perform any type of catchup.
 // It accepts CatchupConfiguration structure to know from which ledger to which
@@ -68,6 +69,7 @@ class CatchupWork : public Work
     void doReset() override;
     BasicWork::State doWork() override;
     void onFailureRaise() override;
+    void onSuccess() override;
 
   public:
     enum class ProgressState
@@ -131,18 +133,17 @@ class CatchupWork : public Work
     std::shared_ptr<BasicWork> mGetHistoryArchiveStateWork;
     std::shared_ptr<BasicWork> mGetBucketStateWork;
 
-    std::shared_ptr<WorkSequence> mDownloadVerifyLedgersSeq;
-    std::shared_ptr<WorkSequence> mBucketVerifyApplySeq;
-    std::shared_ptr<WorkSequence> mTransactionsVerifyApplySeq;
-
-    bool mBucketsProcessing{false};
+    WorkSeqPtr mDownloadVerifyLedgersSeq;
+    WorkSeqPtr mBucketVerifyApplySeq;
+    WorkSeqPtr mTransactionsVerifyApplySeq;
+    WorkSeqPtr mCatchupSeq;
 
     bool hasAnyLedgersToCatchupTo() const;
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
-    BasicWork::State bucketProcessingState(CatchupRange catchupRange) const;
+    void assertBucketState();
 
-    void downloadVerifyLedgerChain(CatchupRange catchupRange);
-    void downloadApplyBuckets(CatchupRange catchupRange);
-    void downloadApplyTransactions(CatchupRange catchupRange);
+    WorkSeqPtr downloadVerifyLedgerChain(CatchupRange catchupRange);
+    WorkSeqPtr downloadApplyBuckets();
+    WorkSeqPtr downloadApplyTransactions(CatchupRange catchupRange);
 };
 }

@@ -45,12 +45,12 @@ void
 CatchupWork::doReset()
 {
     mBucketsAppliedEmitted = false;
-    mBucketsProcessing = false;
     mBuckets.clear();
     mDownloadVerifyLedgersSeq.reset();
     mBucketVerifyApplySeq.reset();
     mTransactionsVerifyApplySeq.reset();
     mGetHistoryArchiveStateWork.reset();
+    mCatchupSeq.reset();
     mGetBucketStateWork.reset();
     mLastClosedLedgerAtReset = mApp.getLedgerManager().getLastClosedLedgerNum();
     mRemoteState = {};
@@ -61,7 +61,7 @@ CatchupWork::doReset()
 std::string
 CatchupWork::getStatus() const
 {
-    auto childStatus = getRunningChildStatus({mTransactionsVerifyApplySeq,
+    auto childStatus = WorkUtils::getRunningChildStatus({mTransactionsVerifyApplySeq,
                                               mBucketVerifyApplySeq,
                                               mDownloadVerifyLedgersSeq});
     return childStatus.empty() ? BasicWork::getStatus() : childStatus;
@@ -155,60 +155,34 @@ CatchupWork::doWork()
         }
     }
 
-    // Step 4: Perform catchup in 3 phases
-    if (mTransactionsVerifyApplySeq)
+    if (mCatchupSeq)
     {
-        auto state = mTransactionsVerifyApplySeq->getState();
-        if (state == State::WORK_SUCCESS)
+        assert(mDownloadVerifyLedgersSeq);
+        assert(mTransactionsVerifyApplySeq);
+        if (mCatchupSeq->getState() == State::WORK_SUCCESS)
         {
-            mProgressHandler({}, ProgressState::APPLIED_TRANSACTIONS,
-                             mLastApplied);
-            mProgressHandler({}, ProgressState::FINISHED, mLastApplied);
-            mApp.getCatchupManager().historyCaughtup();
+            return State::WORK_SUCCESS;
         }
-        return state;
-    }
-
-    if (mBucketsProcessing)
-    {
-        if (bucketProcessingState(catchupRange) == State::WORK_SUCCESS)
+        else if (mBucketVerifyApplySeq)
         {
-            if (catchupRange.second && !mBucketsAppliedEmitted)
+            if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS && !mBucketsAppliedEmitted)
             {
                 mProgressHandler({}, ProgressState::APPLIED_BUCKETS,
                                  mFirstVerified);
                 mBucketsAppliedEmitted = true;
             }
         }
-        else
+        else if (mDownloadVerifyLedgersSeq->getState() == State::WORK_SUCCESS)
         {
-            return bucketProcessingState(catchupRange);
-        }
-
-        // Phase 3: Download and Apply transactions
-        downloadApplyTransactions(catchupRange);
-        return State::WORK_RUNNING;
-    }
-
-    if (mDownloadVerifyLedgersSeq)
-    {
-        auto state = mDownloadVerifyLedgersSeq->getState();
-
-        // Phase 2: Download, verify and apply buckets if needed
-        if (state == State::WORK_SUCCESS)
-        {
-            assert(!mBucketsProcessing);
-            if (catchupRange.second)
+            if (catchupRange.second && !mBucketsAppliedEmitted)
             {
-                downloadApplyBuckets(catchupRange);
+                assertBucketState();
             }
-
-            mBucketsProcessing = true;
-            return State::WORK_RUNNING;
         }
-        return state;
+        return mCatchupSeq->getState();
     }
 
+    // Step 4: Perform catchup in 3 phases
     auto toLedger = mCatchupConfiguration.toLedger() == 0
                         ? "CURRENT"
                         : std::to_string(mCatchupConfiguration.toLedger());
@@ -219,18 +193,30 @@ CatchupWork::doWork()
                           << "  toLedger: " << toLedger << "\n"
                           << "  count: " << mCatchupConfiguration.count();
 
+    std::vector<std::shared_ptr<BasicWork>> seq;
+
     // Phase 1: Download and verify ledger chain
-    downloadVerifyLedgerChain(catchupRange);
+    mDownloadVerifyLedgersSeq = downloadVerifyLedgerChain(catchupRange);
+    seq.push_back(mDownloadVerifyLedgersSeq);
+
+    if (catchupRange.second)
+    {
+        // Phase 2: Download, verify and apply buckets
+        mBucketVerifyApplySeq = downloadApplyBuckets();
+        seq.push_back(mBucketVerifyApplySeq);
+    }
+
+    // Phase 3: Download and apply ledger chain
+    mTransactionsVerifyApplySeq = downloadApplyTransactions(catchupRange);
+    seq.push_back(mTransactionsVerifyApplySeq);
+
+    mCatchupSeq = addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
     return State::WORK_RUNNING;
 }
 
-void
+WorkSeqPtr
 CatchupWork::downloadVerifyLedgerChain(CatchupRange catchupRange)
 {
-    assert(!mBucketsProcessing);
-    assert(!mDownloadVerifyLedgersSeq);
-    assert(!mTransactionsVerifyApplySeq);
-
     auto ledgerRange = catchupRange.first;
     auto checkpointRange =
         CheckpointRange{ledgerRange, mApp.getHistoryManager()};
@@ -248,62 +234,31 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange catchupRange)
         mLastVerified);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, verifyLedgers};
-    mDownloadVerifyLedgersSeq =
-        addWork<WorkSequence>("download-verify-ledgers-headers-seq", seq);
+    return std::make_shared<WorkSequence>(mApp, "download-verify-ledgers-seq",
+                                          seq);
 }
 
-void
-CatchupWork::downloadApplyBuckets(CatchupRange catchupRange)
+WorkSeqPtr
+CatchupWork::downloadApplyBuckets()
 {
-    assert(mDownloadVerifyLedgersSeq);
-    assert(mDownloadVerifyLedgersSeq->getState() == State::WORK_SUCCESS);
-
-    auto range = catchupRange.first;
-    CLOG(INFO, "History") << "Catchup downloading and verifying buckets";
+    CLOG(INFO, "History") << "Catchup queued up downloading, verifying and applying of buckets";
 
     std::vector<std::string> hashes =
         mApplyBucketsRemoteState.differingBuckets(mLocalState);
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
         mApp, mBuckets, hashes, *mDownloadDir);
 
-    // Consistency check: mRemoteState and mFirstVerified should
-    // point to the same ledger and the same BucketList.
-    assert(mApplyBucketsRemoteState.currentLedger ==
-           mFirstVerified.header.ledgerSeq);
-    assert(mApplyBucketsRemoteState.getBucketListHash() ==
-           mFirstVerified.header.bucketListHash);
-
-    // Consistency check: LCL should be in the _past_ from
-    // firstVerified, since we're about to clobber a bunch of DB
-    // state with new buckets held in firstVerified's state.
-    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mFirstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
-    {
-        throw std::runtime_error(
-            fmt::format("Catchup MINIMAL applying ledger earlier than local "
-                        "LCL: {:s} < {:s}",
-                        LedgerManager::ledgerAbbrev(mFirstVerified),
-                        LedgerManager::ledgerAbbrev(lcl)));
-    }
-
-    CLOG(INFO, "History") << "Catchup applying buckets for state "
-                          << LedgerManager::ledgerAbbrev(mFirstVerified);
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
         mApp, mBuckets, mApplyBucketsRemoteState);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
-    mBucketVerifyApplySeq = addWork<WorkSequence>(
-        "download-verify-apply-buckets", seq, RETRY_NEVER);
+    return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
+                                          seq, RETRY_NEVER);
 }
 
-void
+WorkSeqPtr
 CatchupWork::downloadApplyTransactions(CatchupRange catchupRange)
 {
-    assert(!mTransactionsVerifyApplySeq);
-    assert(mDownloadVerifyLedgersSeq);
-    assert(mDownloadVerifyLedgersSeq->getState() == State::WORK_SUCCESS);
-    assert(bucketProcessingState(catchupRange) == State::WORK_SUCCESS);
-
     auto range = catchupRange.first;
     auto checkpointRange = CheckpointRange{range, mApp.getHistoryManager()};
 
@@ -320,8 +275,7 @@ CatchupWork::downloadApplyTransactions(CatchupRange catchupRange)
         mApp, *mDownloadDir, range, mLastApplied);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getTxs, applyLedgers};
-    mTransactionsVerifyApplySeq =
-        addWork<WorkSequence>("download-apply-transactions", seq, RETRY_NEVER);
+    return std::make_shared<WorkSequence>(mApp, "download-apply-transactions", seq, RETRY_NEVER);
 }
 
 void
@@ -331,6 +285,15 @@ CatchupWork::onFailureRaise()
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{});
     Work::onFailureRaise();
+}
+
+void
+CatchupWork::onSuccess()
+{
+    mProgressHandler({}, ProgressState::APPLIED_TRANSACTIONS, mLastApplied);
+    mProgressHandler({}, ProgressState::FINISHED, mLastApplied);
+    mApp.getCatchupManager().historyCaughtup();
+    Work::onSuccess();
 }
 
 namespace
@@ -446,17 +409,27 @@ CatchupWork::makeCatchupRange(uint32_t lastClosedLedger,
             catchupStart.first};
 }
 
-BasicWork::State
-CatchupWork::bucketProcessingState(CatchupRange catchupRange) const
+void
+CatchupWork::assertBucketState()
 {
-    assert(mBucketsProcessing);
-    if (catchupRange.second)
+    // Consistency check: mRemoteState and mFirstVerified should
+    // point to the same ledger and the same BucketList.
+    assert(mApplyBucketsRemoteState.currentLedger ==
+           mFirstVerified.header.ledgerSeq);
+    assert(mApplyBucketsRemoteState.getBucketListHash() ==
+           mFirstVerified.header.bucketListHash);
+
+    // Consistency check: LCL should be in the _past_ from
+    // firstVerified, since we're about to clobber a bunch of DB
+    // state with new buckets held in firstVerified's state.
+    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (mFirstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
     {
-        if (mBucketVerifyApplySeq)
-        {
-            return mBucketVerifyApplySeq->getState();
-        }
+        throw std::runtime_error(
+                fmt::format("Catchup MINIMAL applying ledger earlier than local "
+                                    "LCL: {:s} < {:s}",
+                            LedgerManager::ledgerAbbrev(mFirstVerified),
+                            LedgerManager::ledgerAbbrev(lcl)));
     }
-    return State::WORK_SUCCESS;
 }
 }
