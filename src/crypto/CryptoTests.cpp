@@ -215,6 +215,20 @@ TEST_CASE("StrKey tests", "[crypto]")
 
     autocheck::generator<std::vector<uint8_t>> input;
 
+    auto randomB32 = []() {
+        char res;
+        char d = static_cast<char>(std::rand() % 32);
+        if (d < 6)
+        {
+            res = d + '2';
+        }
+        else
+        {
+            res = d - 6 + 'A';
+        }
+        return res;
+    };
+
     uint8_t version = 2;
 
     // check round trip
@@ -248,7 +262,7 @@ TEST_CASE("StrKey tests", "[crypto]")
     size_t n_corrupted = 0;
     size_t n_detected = 0;
 
-    for (int round = 0; round < 5; round++)
+    for (int round = 0; round < 100; round++)
     {
         const int expectedSize = 32;
         std::vector<uint8_t> in(input(expectedSize));
@@ -256,6 +270,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 
         for (size_t p = 0u; p < encoded.size(); p++)
         {
+            // perform a single corruption
             for (int st = 0; st < 4; st++)
             {
                 std::string corrupted(encoded);
@@ -263,47 +278,54 @@ TEST_CASE("StrKey tests", "[crypto]")
                 switch (st)
                 {
                 case 0:
-                    if (corrupted[p] == 'A' && p + 1 == encoded.size())
-                    {
-                        // trailing 'A' is equivalent to 0 (and can be dropped)
-                        continue;
-                    }
-                    else
-                    {
-                        corrupted.erase(pos);
-                        break;
-                    }
+                    // remove
+                    corrupted.erase(pos);
+                    break;
                 case 1:
-                    corrupted[p]++;
+                    // modify
+                    corrupted[p] = randomB32();
                     break;
                 case 2:
+                    // duplicate element
                     corrupted.insert(pos, corrupted[p]);
                     break;
-                default:
-                    if (p > 0 && corrupted[p] != corrupted[p - 1])
+                case 3:
+                    // swap consecutive elements
+                    if (p > 0)
                     {
                         std::swap(corrupted[p], corrupted[p - 1]);
                     }
-                    else
-                    {
-                        continue;
-                    }
+                    break;
+                default:
+                    abort();
                 }
                 uint8_t ver;
                 std::vector<uint8_t> dt;
                 if (corrupted != encoded)
                 {
-                    n_corrupted++;
+                    bool sameSize = (corrupted.size() == encoded.size());
+                    if (sameSize)
+                    {
+                        n_corrupted++;
+                    }
                     bool res = !strKey::fromStrKey(corrupted, ver, dt);
                     if (res)
                     {
-                        ++n_detected;
+                        if (sameSize)
+                        {
+                            ++n_detected;
+                        }
                     }
                     else
                     {
                         LOG(WARNING) << "Failed to detect strkey corruption";
                         LOG(WARNING) << " original: " << encoded;
                         LOG(WARNING) << "  corrupt: " << corrupted;
+                    }
+                    if (!sameSize)
+                    {
+                        // extra/missing data must be detected
+                        REQUIRE(res);
                     }
                 }
             }
@@ -313,15 +335,13 @@ TEST_CASE("StrKey tests", "[crypto]")
     // CCITT CRC16 theoretical maximum "uncorrelated error" detection rate
     // is 99.9984% (1 undetected failure in 2^16); but we're not running an
     // infinite (or even 2^16) sized set of inputs and our mutations are
-    // highly structured, so we give it some leeway. This is arbitrary but
-    // from watching the test above we seem to only get one undetected
-    // corruption pair in maybe 50 runs failing, each run being about 1000
-    // cases. To give us good odds of making it through integration tests
-    // we set the threshold quite wide here, to 98%. The test is very
+    // highly structured, so we give it some leeway.
+    // To give us good odds of making it through integration tests
+    // we set the threshold quite wide here, to 99.99%. The test is very
     // slighly nondeterministic but this should give it plenty of leeway.
 
     double detectionRate =
         (((double)n_detected) / ((double)n_corrupted)) * 100.0;
     LOG(INFO) << "CRC16 error-detection rate " << detectionRate;
-    REQUIRE(detectionRate > 98.0);
+    REQUIRE(detectionRate > 99.99);
 }

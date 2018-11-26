@@ -42,6 +42,13 @@ bool
 fromStrKey(std::string const& strKey, uint8_t& outVersion,
            std::vector<uint8_t>& decoded)
 {
+    // check that there is no trailing data
+    size_t s = strKey.size();
+    // base 32 data size is (s * 5)/8 => has to be a multiple of 8
+    if ((s & 0x07) != 0)
+    {
+        return false;
+    }
     decoder::decode_b32(strKey, decoded);
     if (decoded.size() < 3)
     {
