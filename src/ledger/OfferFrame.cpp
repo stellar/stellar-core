@@ -538,7 +538,12 @@ class offersAccumulator : public EntryFrame::Accumulator
         if (pg) {
           if (!insertUpdateOfferIDs.empty()) {
             static const char q[] = "WITH r AS ("
-              "SELECT ...) "
+              "SELECT unnest($1::bigint[]) AS oid, unnest($2::text[]) AS sid, "
+              "unnest($3::integer[]) AS sat, unnest($4::text[]) AS sac, "
+              "unnest($5::text[]) AS si, unnest($6::integer[]) AS bat, unnest($7::text[]) AS bac, "
+              "unnest($8::text[]) AS bi, unnest($9::bigint[]) AS amt, "
+              "unnest($10::integer[]) AS pn, unnest($11::integer[]) AS pd, unnest($12::numeric[]) AS p, "
+              "unnest($13::integer[]) AS flags, unnest($14::integer[]) AS lastmod) "
               "INSERT INTO offers "
               "(offerid, sellerid, "
               "sellingassettype, sellingassetcode, sellingissuer, "
@@ -553,6 +558,9 @@ class offersAccumulator : public EntryFrame::Accumulator
               "buyingissuer = r.bi, "
               "amount = r.a, pricen = r.pn, priced = r.pd, price = r.p, "
               "flags = r.flags, lastmodified = r.lastmod";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q2, 14, 0, paramVals, 0, 0, 0); // xxx timer
+            // xxx check res
           }
           if (!deleteOfferIDs.empty()) {
             static const char q[] = "DELETE FROM offers WHERE offerid = ANY($1::text[])";

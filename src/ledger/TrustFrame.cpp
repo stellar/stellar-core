@@ -383,6 +383,38 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
+        if (pg) {
+          if (!insertUpdateAccountIDs.empty()) {
+            static const char q[] = "WITH r AS ("
+              "SELECT unnest($1::text[]) AS is, unnest($2::text[]) AS iss, unnest($3::text[]) AS acode, "
+              "unnest($4::integer[]) AS atype, unnest($5::bigint[]) AS bal, unnest($6::bigint[]) AS lim, "
+              "unnest($7::integer[]) AS flags, unnest($8::integer[]) AS lastmod, "
+              "unnest($9::bigint[]) AS bl, unnest($10::bigint[]) AS sl) "
+              "INSERT INTO trustlines "
+              "(accountid, issuer, assetcode, assettype, balance, tlimit, flags, "
+              "lastmodified, buyingliabilities, sellingliabilities) "
+              "SELECT id, iss, acode, atype, bal, lim, flags, lastmod, bl, sl FROM r "
+              "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE "
+              "SET assettype = r.atype, balance = r.bal, tlimit = r.lim, "
+              "flags = r.flags, "
+              "lastmodified = r.lastmod, buyingliabilities = r.bl, "
+              "sellingliabilities = r.sl";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q, 10, 0, paramVals, 0, 0, 0); // xxx timer
+            // xxx check res
+          }
+          if (!deleteAccountIDs.empty()) {
+            static const char q[] = "DELETE FROM trustlines "
+              "WHERE (accountid, issuer, assetcode) IN "
+              "(SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[])";
+            // xxx marshal args
+            PGresult* res = PQexecParams(pg->conn_, q, 3, 0, paramVals, 0, 0, 0); // xxx timer
+            // xxx check res
+          }
+
+          return;
+        }
 
         if (!insertUpdateAccountIDs.empty())
         {
