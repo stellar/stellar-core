@@ -46,6 +46,14 @@ AX_FRESH_COMPILER
 # -pthread seems to be required by -std=c++14 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
+AC_MSG_CHECKING([whether defect report N4387 is resolved])
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[#include <tuple>
+std::tuple<int, int> f()
+{
+    return {1, 2};
+}
+]])], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no]); AC_MSG_ERROR([defect report N4387 is not resolved])], AC_MSG_FAILURE)
+
 AC_MSG_CHECKING([for c++14 compliant std::weak_ptr move-constructor])
 AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <memory>]], [[std::shared_ptr<int> shared = std::make_shared<int>(0);
 std::weak_ptr<int> weak1(shared);
