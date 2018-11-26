@@ -53,6 +53,29 @@ It then follows that:
 
 # List of releases
 
+## v10.0.0 (2018-09-05)
+
+* `Ledger` - protocol - new `bumpSeqOp`, implementing CAP0001
+
+* `Ledger` - protocol - updated signature verification, to be done at transaction
+apply step. implements CAP0002
+
+* `Ledger` - protocol - add liabilities to offers, implements CAP0003
+
+* `Ledger` - security - rounding error could allow dust trades to make large error.
+    * exploited: yes
+        * over the course of a few weeks preceding the upgrade to 10, some
+         bots performed dust trades.
+        * Impact is determined by the ratio between assets. For example with
+        P=1/20,000 a rounding error of 10E-7 (1 in absolute term), is equivalent
+        to a 20,000:1 error (effective P is 1.0 instead of 1/20,000)
+    * mitigation: CAP0004 implemented in protocol 10
+
+* `Ledger` - protocol - fast fail attempts to `changeTrustOp` on native.
+
+* `Ledger` - protocol - fast fail `setOptionsOp` when attempting to set weight
+of a signer to more than 255.
+
 ## v9.2.0 (2018-03-20)
 
 * `Herder` - protocol - properly compute next ledger start time (could lead to rounds starting too early).
