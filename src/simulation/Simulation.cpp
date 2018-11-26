@@ -281,9 +281,9 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     auto clock = p.mClock;
     auto app = p.mApp;
     size_t quantumClicks = 0;
+    bool doneWithQuantum = false;
     VirtualTimer quantumTimer(*app);
 
-    bool doneWithQuantum = false;
     if (mVirtualClockMode)
     {
         // in virtual mode we give at most a timeslice
@@ -344,12 +344,8 @@ Simulation::crankAllNodes(int nbTicks)
         {
             // in virtual mode we need to crank the main clock manually
             mainQuantumTimer.expires_from_now(quantum);
-            mainQuantumTimer.async_wait([&](asio::error_code ec) {
-                if (!ec)
-                {
-                    quantumClicks++;
-                }
-            });
+            mainQuantumTimer.async_wait([&]() { quantumClicks++; },
+                                        &VirtualTimer::onFailureNoop);
         }
 
         // now, run the clock on all nodes until their clock is caught up

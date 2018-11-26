@@ -91,12 +91,12 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
 
+    size_t eventsDispatched = 0;
+
     VirtualTimer timer1(app);
     VirtualTimer timer20(app);
     VirtualTimer timer21(app);
     VirtualTimer timer200(app);
-
-    size_t eventsDispatched = 0;
 
     timer1.expires_from_now(std::chrono::milliseconds(1));
     timer1.async_wait([&](asio::error_code const& e) {

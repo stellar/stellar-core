@@ -68,11 +68,12 @@ TEST_CASE("standalone", "[herder]")
         };
 
         auto waitForExternalize = [&]() {
-            VirtualTimer checkTimer(*app);
             bool stop = false;
             auto prev = app->getLedgerManager().getLastClosedLedgerNum();
+            VirtualTimer checkTimer(*app);
 
             auto check = [&](asio::error_code const& error) {
+                REQUIRE(!error);
                 REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >
                         prev);
                 stop = true;
@@ -88,6 +89,7 @@ TEST_CASE("standalone", "[herder]")
         };
 
         auto setup = [&](asio::error_code const& error) {
+            REQUIRE(!error);
             // create accounts
             auto txFrameA = root.tx({createAccount(a1, startingBalance)});
             auto txFrameB = root.tx({createAccount(b1, startingBalance)});
