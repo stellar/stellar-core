@@ -327,7 +327,8 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
 
         LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
         // check upgrades
-        for (size_t i = 0; i < b.upgrades.size(); i++)
+        for (size_t i = 0;
+             i < b.upgrades.size() && res != SCPDriver::kInvalidValue; i++)
         {
             LedgerUpgradeType thisUpgradeType;
             if (!mUpgrades.isValid(b.upgrades[i], thisUpgradeType, nomination,
@@ -338,7 +339,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
                     << i;
                 res = SCPDriver::kInvalidValue;
             }
-            if (i != 0 && (lastUpgradeType >= thisUpgradeType))
+            else if (i != 0 && (lastUpgradeType >= thisUpgradeType))
             {
                 CLOG(TRACE, "Herder")
                     << "HerderSCPDriver::validateValue out of "
