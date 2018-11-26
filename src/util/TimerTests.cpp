@@ -195,29 +195,42 @@ TEST_CASE("timer cancels", "[timer]")
 
     int timerFired = 0;
     int timerCancelled = 0;
-    std::vector<std::unique_ptr<VirtualTimer>> timers;
-    for (int i = 0; i < 10; i++)
     {
-        timers.push_back(std::make_unique<VirtualTimer>(*app));
-        timers.back()->expires_from_now(std::chrono::seconds(i));
-        timers.back()->async_wait([&](asio::error_code const& ec) {
-            if (ec)
-                ++timerCancelled;
-            else
-                ++timerFired;
-        });
-    }
-    timers[5]->async_wait([&](asio::error_code const& ec) {
-        if (!ec)
+        std::vector<std::unique_ptr<VirtualTimer>> timers;
+        for (int i = 0; i < 10; i++)
         {
-            timers[4]->cancel();
-            timers[5]->cancel();
-            timers[6]->cancel();
-            timers[7]->cancel();
+            timers.push_back(std::make_unique<VirtualTimer>(*app));
+            timers.back()->expires_from_now(std::chrono::seconds(i));
+            timers.back()->async_wait([&](asio::error_code const& ec) {
+                if (ec)
+                    ++timerCancelled;
+                else
+                    ++timerFired;
+            });
         }
-    });
-    while (clock.crank(false) > 0)
-        ;
+        timers[5]->async_wait([&](asio::error_code const& ec) {
+            if (!ec)
+            {
+                timers[4]->cancel();
+                timers[5]->cancel();
+                timers[6]->cancel();
+                timers[7]->cancel();
+            }
+        });
+        while (clock.crank(false) > 0)
+            ;
+        // timers 0, 1, 2, 3, 4, 5, 8, 9 fire normally
+        // timer 5b cancels 6, 7
+        REQUIRE(timerFired == 8);
+        REQUIRE(timerCancelled == 2);
+
+        // create another timer that gets cancelled when destructing
+        timers.push_back(std::make_unique<VirtualTimer>(*app));
+        timers.back()->expires_from_now(std::chrono::seconds(1));
+        timers.back()->async_wait(
+            [&](asio::error_code const& ec) { REQUIRE(ec); });
+    }
+    // timers that already triggered don't fire again
     REQUIRE(timerFired == 8);
     REQUIRE(timerCancelled == 2);
 }
