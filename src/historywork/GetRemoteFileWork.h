@@ -17,7 +17,7 @@ class GetRemoteFileWork : public RunCommandWork
     std::string const mLocal;
     std::shared_ptr<HistoryArchive> mArchive;
     std::shared_ptr<HistoryArchive> mCurrentArchive;
-    RunCommandInfo getCommand() override;
+    CommandInfo getCommand() override;
 
   public:
     // Passing `nullptr` for the archive argument will cause the work to

@@ -53,13 +53,11 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         // Terminal unsuccessful state. When this state is
         // returned, depending on the Work's retry strategy, either a retry will
         // be scheduled or work will cease execution.
-        WORK_FAILURE,
+        WORK_FAILURE
     };
 
     BasicWork(Application& app, std::string name, size_t maxRetries);
     virtual ~BasicWork();
-
-    size_t getMaxRetries() const;
 
     std::string const& getName() const;
     virtual std::string getStatus() const;
@@ -130,7 +128,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         // RETRYING state
         RETRYING,
         SUCCESS,
-        FAILURE,
+        FAILURE
     };
     using Transition = std::pair<InternalState, InternalState>;
 
@@ -147,6 +145,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     void assertValidTransition(Transition const& t) const;
     static std::string stateName(InternalState st);
     uint64_t getRetryETA() const;
+    size_t getMaxRetries() const;
 
     std::function<void()> mNotifyCallback;
     std::string const mName;

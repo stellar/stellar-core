@@ -61,10 +61,11 @@ CatchupWork::doReset()
 std::string
 CatchupWork::getStatus() const
 {
-    auto childStatus = WorkUtils::getRunningChildStatus({mTransactionsVerifyApplySeq,
-                                              mBucketVerifyApplySeq,
-                                              mDownloadVerifyLedgersSeq});
-    return childStatus.empty() ? BasicWork::getStatus() : childStatus;
+    if (mCatchupSeq)
+    {
+        return mCatchupSeq->getStatus();
+    }
+    return BasicWork::getStatus();
 }
 
 bool
@@ -165,7 +166,8 @@ CatchupWork::doWork()
         }
         else if (mBucketVerifyApplySeq)
         {
-            if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS && !mBucketsAppliedEmitted)
+            if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS &&
+                !mBucketsAppliedEmitted)
             {
                 mProgressHandler({}, ProgressState::APPLIED_BUCKETS,
                                  mFirstVerified);
@@ -241,7 +243,8 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange catchupRange)
 WorkSeqPtr
 CatchupWork::downloadApplyBuckets()
 {
-    CLOG(INFO, "History") << "Catchup queued up downloading, verifying and applying of buckets";
+    CLOG(INFO, "History")
+        << "Catchup queued up downloading, verifying and applying of buckets";
 
     std::vector<std::string> hashes =
         mApplyBucketsRemoteState.differingBuckets(mLocalState);
@@ -275,7 +278,8 @@ CatchupWork::downloadApplyTransactions(CatchupRange catchupRange)
         mApp, *mDownloadDir, range, mLastApplied);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getTxs, applyLedgers};
-    return std::make_shared<WorkSequence>(mApp, "download-apply-transactions", seq, RETRY_NEVER);
+    return std::make_shared<WorkSequence>(mApp, "download-apply-transactions",
+                                          seq, RETRY_NEVER);
 }
 
 void
@@ -426,10 +430,10 @@ CatchupWork::assertBucketState()
     if (mFirstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
     {
         throw std::runtime_error(
-                fmt::format("Catchup MINIMAL applying ledger earlier than local "
-                                    "LCL: {:s} < {:s}",
-                            LedgerManager::ledgerAbbrev(mFirstVerified),
-                            LedgerManager::ledgerAbbrev(lcl)));
+            fmt::format("Catchup MINIMAL applying ledger earlier than local "
+                        "LCL: {:s} < {:s}",
+                        LedgerManager::ledgerAbbrev(mFirstVerified),
+                        LedgerManager::ledgerAbbrev(lcl)));
     }
 }
 }

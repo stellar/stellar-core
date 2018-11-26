@@ -39,18 +39,7 @@ DownloadBucketsWork::doWork()
     else
     {
         mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-        if (allChildrenSuccessful())
-        {
-            return State::WORK_SUCCESS;
-        }
-        else if (anyChildRaiseFailure())
-        {
-            return State::WORK_FAILURE;
-        }
-        else if (!anyChildRunning())
-        {
-            return State::WORK_WAITING;
-        }
+        return WorkUtils::checkChildrenStatus(*this);
     }
     return State::WORK_RUNNING;
 }

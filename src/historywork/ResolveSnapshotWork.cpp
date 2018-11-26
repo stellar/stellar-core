@@ -46,7 +46,7 @@ ResolveSnapshotWork::onRun()
                 self->wakeUp();
             }
         };
-        mTimer->expires_from_now(mDelay);
+        mTimer->expires_from_now(std::chrono::seconds(1));
         mTimer->async_wait(handler);
         return State::WORK_WAITING;
     }

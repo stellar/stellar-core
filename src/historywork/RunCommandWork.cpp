@@ -24,8 +24,9 @@ RunCommandWork::onRun()
     }
     else
     {
-        std::string cmd, outfile;
-        std::tie(cmd, outfile) = getCommand();
+        CommandInfo commandInfo = getCommand();
+        auto cmd = commandInfo.mCommand;
+        auto outfile = commandInfo.mOutFile;
         if (!cmd.empty())
         {
             auto exit = mApp.getProcessManager().runProcess(cmd, outfile);

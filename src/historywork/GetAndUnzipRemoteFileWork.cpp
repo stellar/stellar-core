@@ -30,8 +30,15 @@ GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
 std::string
 GetAndUnzipRemoteFileWork::getStatus() const
 {
-    auto childStatus = getRunningChildStatus({mGunzipFileWork, mGetRemoteFileWork});
-    return childStatus.empty() ? BasicWork::getStatus() : childStatus;
+    if (mGunzipFileWork)
+    {
+        return mGunzipFileWork->getStatus();
+    }
+    else if (mGetRemoteFileWork)
+    {
+        return mGetRemoteFileWork->getStatus();
+    }
+    return BasicWork::getStatus();
 }
 
 void

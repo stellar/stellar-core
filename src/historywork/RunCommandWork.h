@@ -8,7 +8,11 @@
 
 namespace stellar
 {
-using RunCommandInfo = std::pair<std::string, std::string>;
+struct CommandInfo
+{
+    std::string mCommand;
+    std::string mOutFile;
+};
 
 /**
  * This class helps run various commands, that require
@@ -20,7 +24,7 @@ class RunCommandWork : public BasicWork
 {
     bool mDone{false};
     asio::error_code mEc;
-    virtual RunCommandInfo getCommand() = 0;
+    virtual CommandInfo getCommand() = 0;
 
   public:
     RunCommandWork(Application& app, std::string const& name,

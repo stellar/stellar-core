@@ -15,7 +15,7 @@ class MakeRemoteDirWork : public RunCommandWork
 {
     std::string const mDir;
     std::shared_ptr<HistoryArchive> mArchive;
-    RunCommandInfo getCommand() override;
+    CommandInfo getCommand() override;
 
   public:
     MakeRemoteDirWork(Application& app, std::string const& dir,

@@ -37,6 +37,7 @@ PutHistoryArchiveStateWork::doWork()
         {
             mState.save(mLocalFilename);
             spawnPublishWork();
+            return State::WORK_RUNNING;
         }
         catch (std::runtime_error& e)
         {
@@ -47,20 +48,8 @@ PutHistoryArchiveStateWork::doWork()
     }
     else
     {
-        if (allChildrenSuccessful())
-        {
-            return State::WORK_SUCCESS;
-        }
-        else if (anyChildRaiseFailure())
-        {
-            return State::WORK_FAILURE;
-        }
-        else if (!anyChildRunning())
-        {
-            return State::WORK_WAITING;
-        }
+        return WorkUtils::checkChildrenStatus(*this);
     }
-    return State::WORK_RUNNING;
 }
 
 void

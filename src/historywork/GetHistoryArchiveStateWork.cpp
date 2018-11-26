@@ -21,6 +21,7 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     , mState(state)
     , mSeq(seq)
     , mArchive(archive)
+    , mRetries(maxRetries)
     , mLocalFilename(
           archive ? HistoryArchiveState::localName(app, archive->getName())
                   : app.getHistoryManager().localFilename(
@@ -60,7 +61,7 @@ GetHistoryArchiveStateWork::doWork()
         auto name = mSeq == 0 ? HistoryArchiveState::wellKnownRemoteName()
                               : HistoryArchiveState::remoteName(mSeq);
         mGetRemoteFile = addWork<GetRemoteFileWork>(name, mLocalFilename,
-                                                    mArchive, getMaxRetries());
+                                                    mArchive, mRetries);
         mGetHistoryArchiveStateStart.Mark();
         return State::WORK_RUNNING;
     }

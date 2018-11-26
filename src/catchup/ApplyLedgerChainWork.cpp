@@ -50,8 +50,7 @@ ApplyLedgerChainWork::getStatus() const
     if (getState() == State::WORK_RUNNING)
     {
         std::string task = "applying checkpoint";
-        return fmtProgress(mApp, task, mRange.first(), mRange.last(),
-                                    mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
     }
     return BasicWork::getStatus();
 }
@@ -200,6 +199,10 @@ ApplyLedgerChainWork::getCurrentTxSet()
     auto& lm = mApp.getLedgerManager();
     auto seq = lm.getLastClosedLedgerNum() + 1;
 
+    // Check mTxHistoryEntry prior to loading next history entry.
+    // This order is important because it accounts for ledger "gaps"
+    // in the history archives (which are caused by ledgers with empty tx
+    // sets, as those are not uploaded).
     do
     {
         if (mTxHistoryEntry.ledgerSeq < seq)

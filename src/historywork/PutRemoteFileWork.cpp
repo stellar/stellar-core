@@ -20,11 +20,11 @@ PutRemoteFileWork::PutRemoteFileWork(Application& app, std::string const& local,
     assert(mArchive->hasPutCmd());
 }
 
-RunCommandInfo
+CommandInfo
 PutRemoteFileWork::getCommand()
 {
     auto cmdLine = mArchive->putFileCmd(mLocal, mRemote);
-    return RunCommandInfo(cmdLine, std::string());
+    return CommandInfo{cmdLine, std::string()};
 }
 
 void

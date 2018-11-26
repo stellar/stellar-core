@@ -107,7 +107,7 @@ VerifyLedgerChainWork::getStatus() const
     {
         std::string task = "verifying checkpoint";
         return fmtProgress(mApp, task, mRange.first(), mRange.last(),
-                                    mCurrCheckpoint);
+                           mCurrCheckpoint);
     }
     return BasicWork::getStatus();
 }

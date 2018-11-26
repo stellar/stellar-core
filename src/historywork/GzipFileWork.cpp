@@ -24,7 +24,7 @@ GzipFileWork::onReset()
     std::remove(filenameGz.c_str());
 }
 
-RunCommandInfo
+CommandInfo
 GzipFileWork::getCommand()
 {
     std::string cmdLine = "gzip ";
@@ -36,6 +36,6 @@ GzipFileWork::getCommand()
     }
     cmdLine += mFilenameNoGz;
 
-    return RunCommandInfo(cmdLine, outFile);
+    return CommandInfo{cmdLine, outFile};
 }
 }

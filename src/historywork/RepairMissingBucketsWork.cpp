@@ -59,24 +59,12 @@ RepairMissingBucketsWork::doWork()
             addWork<WorkSequence>("repair-bucket-" + hash, seq);
         }
         mChildrenStarted = true;
+        return State::WORK_RUNNING;
     }
     else
     {
-        if (allChildrenSuccessful())
-        {
-            return State::WORK_SUCCESS;
-        }
-        else if (anyChildRaiseFailure())
-        {
-            return State::WORK_FAILURE;
-        }
-        else if (!anyChildRunning())
-        {
-            return State::WORK_WAITING;
-        }
+        return WorkUtils::checkChildrenStatus(*this);
     }
-
-    return State::WORK_RUNNING;
 }
 
 void

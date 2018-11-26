@@ -25,7 +25,7 @@ Work::getStatus() const
     auto status = BasicWork::getStatus();
     if (hasChildren())
     {
-        auto complete = 0;
+        size_t complete = 0;
         for (auto const& c : mChildren)
         {
             if (c->isDone())
@@ -37,20 +37,6 @@ Work::getStatus() const
                               mChildren.size());
     }
     return status;
-}
-
-std::string
-Work::getRunningChildStatus(
-    std::initializer_list<std::shared_ptr<BasicWork>> children) const
-{
-    for (auto const& c : children)
-    {
-        if (c)
-        {
-            return c->getStatus();
-        }
-    }
-    return std::string();
 }
 
 void
@@ -233,7 +219,6 @@ WorkSequence::onRun()
     {
         w->startWork(wakeSelfUpCallback());
         mCurrentExecuting = w;
-        return State::WORK_RUNNING;
     }
     else
     {
@@ -242,15 +227,15 @@ WorkSequence::onRun()
         {
             mCurrentExecuting = nullptr;
             mNextInSequence++;
-            return State::WORK_RUNNING;
+            return this->onRun();
         }
-        else if (state == State::WORK_RUNNING)
+        else if (state != State::WORK_RUNNING)
         {
-            w->crankWork();
-            return State::WORK_RUNNING;
+            return state;
         }
-        return state;
     }
+    w->crankWork();
+    return State::WORK_RUNNING;
 }
 
 void
@@ -282,5 +267,27 @@ WorkSequence::shutdown()
     }
 
     BasicWork::shutdown();
+}
+
+namespace WorkUtils
+{
+BasicWork::State
+checkChildrenStatus(Work const& w)
+{
+    if (w.allChildrenSuccessful())
+    {
+        return BasicWork::State::WORK_SUCCESS;
+    }
+    else if (w.anyChildRaiseFailure())
+    {
+        return BasicWork::State::WORK_FAILURE;
+    }
+    else if (!w.anyChildRunning())
+    {
+        return BasicWork::State::WORK_WAITING;
+    }
+
+    return BasicWork::State::WORK_RUNNING;
+}
 }
 }

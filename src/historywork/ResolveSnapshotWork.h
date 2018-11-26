@@ -15,7 +15,6 @@ class ResolveSnapshotWork : public BasicWork
 {
     std::shared_ptr<StateSnapshot> mSnapshot;
     std::unique_ptr<VirtualTimer> mTimer;
-    std::chrono::seconds const mDelay{1};
     asio::error_code mEc{asio::error_code()};
 
   public:

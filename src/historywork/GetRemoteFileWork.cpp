@@ -22,7 +22,7 @@ GetRemoteFileWork::GetRemoteFileWork(Application& app,
 {
 }
 
-RunCommandInfo
+CommandInfo
 GetRemoteFileWork::getCommand()
 {
     mCurrentArchive = mArchive;
@@ -35,7 +35,7 @@ GetRemoteFileWork::getCommand()
     assert(mCurrentArchive->hasGetCmd());
     auto cmdLine = mCurrentArchive->getFileCmd(mRemote, mLocal);
 
-    return RunCommandInfo(cmdLine, std::string());
+    return CommandInfo{cmdLine, std::string()};
 }
 
 void

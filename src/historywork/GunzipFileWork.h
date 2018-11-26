@@ -13,7 +13,7 @@ class GunzipFileWork : public RunCommandWork
 {
     std::string const mFilenameGz;
     bool const mKeepExisting;
-    RunCommandInfo getCommand() override;
+    CommandInfo getCommand() override;
 
   public:
     GunzipFileWork(Application& app, std::string const& filenameGz,

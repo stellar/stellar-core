@@ -17,7 +17,7 @@ GunzipFileWork::GunzipFileWork(Application& app, std::string const& filenameGz,
     fs::checkGzipSuffix(mFilenameGz);
 }
 
-RunCommandInfo
+CommandInfo
 GunzipFileWork::getCommand()
 {
     std::string cmdLine, outFile;
@@ -28,7 +28,7 @@ GunzipFileWork::getCommand()
         outFile = mFilenameGz.substr(0, mFilenameGz.size() - 3);
     }
     cmdLine += mFilenameGz;
-    return RunCommandInfo(cmdLine, outFile);
+    return CommandInfo{cmdLine, outFile};
 }
 
 void

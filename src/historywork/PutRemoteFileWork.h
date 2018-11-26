@@ -16,7 +16,7 @@ class PutRemoteFileWork : public RunCommandWork
     std::string const mLocal;
     std::string const mRemote;
     std::shared_ptr<HistoryArchive> mArchive;
-    RunCommandInfo getCommand() override;
+    CommandInfo getCommand() override;
 
   public:
     PutRemoteFileWork(Application& app, std::string const& local,

@@ -120,17 +120,16 @@ TEST_CASE("BasicWork test", "[work]")
 
     SECTION("another work added midway")
     {
-        int crankCount = 0;
         auto w1 = wm.scheduleWork<TestBasicWork>("test-work1");
         auto w2 = wm.scheduleWork<TestBasicWork>("test-work2");
         std::shared_ptr<TestBasicWork> w3;
         while (!wm.allChildrenSuccessful())
         {
-            if (++crankCount == 2)
+            clock.crank();
+            if (!w3)
             {
                 w3 = wm.scheduleWork<TestBasicWork>("test-work3");
             };
-            clock.crank();
         }
         checkSuccess(*w1);
         checkSuccess(*w2);
@@ -190,19 +189,7 @@ class TestWork : public Work
     doWork() override
     {
         ++mRunningCount;
-        if (allChildrenSuccessful())
-        {
-            return State::WORK_SUCCESS;
-        }
-        else if (anyChildRaiseFailure())
-        {
-            return State::WORK_FAILURE;
-        }
-        else if (!anyChildRunning())
-        {
-            return State::WORK_WAITING;
-        }
-        return State::WORK_RUNNING;
+        return WorkUtils::checkChildrenStatus(*this);
     }
 
     template <typename T, typename... Args>
@@ -423,10 +410,10 @@ class TestRunCommandWork : public RunCommandWork
     }
     ~TestRunCommandWork() override = default;
 
-    RunCommandInfo
+    CommandInfo
     getCommand() override
     {
-        return RunCommandInfo(mCommand, std::string());
+        return CommandInfo{mCommand, std::string()};
     }
 };
 

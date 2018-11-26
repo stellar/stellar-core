@@ -15,7 +15,6 @@ namespace stellar
 {
 
 class Application;
-class WorkParent;
 
 /**
  * Work is an extension of BasicWork,
@@ -77,11 +76,6 @@ class Work : public BasicWork
         return child;
     }
 
-    // Helper method to determine which status to return (typically used in
-    // getStatus method)
-    std::string getRunningChildStatus(
-        std::initializer_list<std::shared_ptr<BasicWork>> children) const;
-
     State onRun() final;
     void onReset() final;
     void onFailureRaise() override;
@@ -128,4 +122,9 @@ class WorkSequence : public BasicWork
     State onRun() final;
     void onReset() final;
 };
+
+namespace WorkUtils
+{
+BasicWork::State checkChildrenStatus(Work const& w);
+}
 }

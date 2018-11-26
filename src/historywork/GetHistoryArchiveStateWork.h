@@ -24,6 +24,7 @@ class GetHistoryArchiveStateWork : public Work
     HistoryArchiveState& mState;
     uint32_t mSeq;
     std::shared_ptr<HistoryArchive> mArchive;
+    size_t mRetries;
     std::string mLocalFilename;
 
     medida::Meter& mGetHistoryArchiveStateStart;
