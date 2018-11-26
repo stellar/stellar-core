@@ -49,7 +49,6 @@ ApplyBucketsWork::onReset()
 {
     mLevel = BucketList::kNumLevels - 1;
     mApplying = false;
-    mLevelComplete = true;
     mSnapBucket.reset();
     mCurrBucket.reset();
     mSnapApplicator.reset();
@@ -60,7 +59,7 @@ BasicWork::State
 ApplyBucketsWork::onRun()
 {
     // Check if we're at the beginning of the new level
-    if (mLevelComplete)
+    if (isLevelComplete())
     {
         startLevel();
     }
@@ -99,7 +98,6 @@ ApplyBucketsWork::onRun()
     }
 
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-    mLevelComplete = true;
     if (mLevel != 0)
     {
         --mLevel;
@@ -130,13 +128,16 @@ ApplyBucketsWork::getBucket(std::string const& hash) const
     return b;
 }
 
+bool
+ApplyBucketsWork::isLevelComplete()
+{
+    return !(mApplying) || !(mSnapApplicator || mCurrApplicator);
+}
+
 void
 ApplyBucketsWork::startLevel()
 {
-    if (!mLevelComplete)
-    {
-        return;
-    }
+    assert(isLevelComplete());
 
     CLOG(DEBUG, "History") << "ApplyBuckets : starting level " << mLevel;
     auto& level = getBucketLevel(mLevel);
@@ -162,7 +163,6 @@ ApplyBucketsWork::startLevel()
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
-        mLevelComplete = false;
         mBucketApplyStart.Mark();
     }
     if (mApplying || applyCurr)
@@ -172,7 +172,6 @@ ApplyBucketsWork::startLevel()
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;
-        mLevelComplete = false;
         mBucketApplyStart.Mark();
     }
 }
