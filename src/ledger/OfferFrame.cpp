@@ -557,7 +557,8 @@ class offersAccumulator : public EntryFrame::Accumulator
               "buyingassettype, buyingassetcode, buyingissuer, "
               "amount, pricen, priced, price, "
               "flags, lastmodified) = "
-              "(SELECT sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r)";
+              "(SELECT sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r "
+              "WHERE oid = excluded.offerid)";
             string oidArray = marshalpgvec(insertUpdateOfferIDs);
             string sidArray = marshalpgvec(sellerIDs);
             string satArray = marshalpgvec(sellingassettypes);
@@ -590,15 +591,17 @@ class offersAccumulator : public EntryFrame::Accumulator
             };
             PGresult* res = PQexecParams(pg->conn_, q, 14, 0, paramVals, 0, 0, 0); // xxx timer
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              cout << "xxx inserting into offers (pg): " << PQresultErrorMessage(res) << endl;
               throw std::runtime_error(PQresultErrorMessage(res));
             }
           }
           if (!deleteOfferIDs.empty()) {
-            static const char q[] = "DELETE FROM offers WHERE offerid = ANY($1::text[])";
+            static const char q[] = "DELETE FROM offers WHERE offerid = ANY($1::bigint[])";
             string oidArray = marshalpgvec(deleteOfferIDs);
             const char* paramVals[] = {oidArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 1, 0, paramVals, 0, 0, 0); // xxx timer
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              cout << "xxx deleting from offers (pg): " << PQresultErrorMessage(res) << endl;
               throw std::runtime_error(PQresultErrorMessage(res));
             }
           }

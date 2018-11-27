@@ -401,7 +401,8 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
               "SET (assettype, balance, tlimit, "
               "flags, "
               "lastmodified, buyingliabilities, sellingliabilities) = "
-              "(SELECT atype, bal, lim, flags, lastmod, bl, sl FROM r)";
+              "(SELECT atype, bal, lim, flags, lastmod, bl, sl FROM r "
+              "WHERE id = excluded.accountid AND iss = excluded.issuer AND acode = excluded.assetcode)";
             string idArray = marshalpgvec(insertUpdateAccountIDs);
             string issArray = marshalpgvec(insertUpdateIssuers);
             string acodeArray = marshalpgvec(insertUpdateAssetCodes);
@@ -426,19 +427,21 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
             };
             PGresult* res = PQexecParams(pg->conn_, q, 10, 0, paramVals, 0, 0, 0); // xxx timer
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              cout << "xxx inserting into trustlines (pg): " << PQresultErrorMessage(res) << endl;
               throw std::runtime_error(PQresultErrorMessage(res));
             }
           }
           if (!deleteAccountIDs.empty()) {
             static const char q[] = "DELETE FROM trustlines "
               "WHERE (accountid, issuer, assetcode) IN "
-              "(SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[])";
+              "(SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]))";
             string idArray = marshalpgvec(deleteAccountIDs);
             string issArray = marshalpgvec(deleteIssuers);
             string acodeArray = marshalpgvec(deleteAssetCodes);
             const char* paramVals[] = {idArray.c_str(), issArray.c_str(), acodeArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 3, 0, paramVals, 0, 0, 0); // xxx timer
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              cout << "xxx deleting from trustlines (pg): " << PQresultErrorMessage(res) << endl;
               throw std::runtime_error(PQresultErrorMessage(res));
             }
           }

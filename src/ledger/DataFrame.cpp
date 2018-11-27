@@ -249,7 +249,8 @@ class accountdataAccumulator : public EntryFrame::Accumulator
               "(accountid, dataname, datavalue, lastmodified) "
               "SELECT id, dn, dv, lm FROM r "
               "ON CONFLICT (accountid, dataname) DO UPDATE "
-              "SET (datavalue, lastmodified) = (SELECT dv, lm FROM r)";
+              "SET (datavalue, lastmodified) = (SELECT dv, lm FROM r "
+              "WHERE id = excluded.accountid AND dn = excluded.dataname)";
             string idArray = marshalpgvec(insertUpdateAccountids);
             string dnArray = marshalpgvec(insertUpdateDataNames);
             string dvArray = marshalpgvec(datavalues);
@@ -257,6 +258,7 @@ class accountdataAccumulator : public EntryFrame::Accumulator
             const char* paramVals[] = {idArray.c_str(), dnArray.c_str(), dvArray.c_str(), lmArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 4, 0, paramVals, 0, 0, 0); // xxx timer
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              cout << "xxx inserting into accountdata (pg): " << PQresultErrorMessage(res) << endl;
               throw std::runtime_error(PQresultErrorMessage(res));
             }
           }
@@ -267,6 +269,7 @@ class accountdataAccumulator : public EntryFrame::Accumulator
             const char* paramVals[] = {idArray.c_str(), dnArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 2, 0, paramVals, 0, 0, 0); // xxx timer
             if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              cout << "xxx deleting from accountdata (pg): " << PQresultErrorMessage(res) << endl;
               throw std::runtime_error(PQresultErrorMessage(res));
             }
           }
