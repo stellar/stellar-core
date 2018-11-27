@@ -23,18 +23,10 @@ std::string
 Work::getStatus() const
 {
     auto status = BasicWork::getStatus();
-    if (hasChildren())
+    if (mTotalChildren)
     {
-        size_t complete = 0;
-        for (auto const& c : mChildren)
-        {
-            if (c->isDone())
-            {
-                ++complete;
-            }
-        }
-        status += fmt::format(" : {:d}/{:d} children completed", complete,
-                              mChildren.size());
+        status += fmt::format(" : {:d}/{:d} children completed", mDoneChildren,
+                              mTotalChildren);
     }
     return status;
 }
@@ -64,6 +56,8 @@ Work::onRun()
         auto state = doWork();
         if (state == State::WORK_SUCCESS)
         {
+            assert(allChildrenDone());
+            mDoneChildren += mChildren.size();
             clearChildren();
         }
         return state;
@@ -121,7 +115,7 @@ Work::addChild(std::shared_ptr<BasicWork> child)
 {
     bool resetIter = !hasChildren();
     mChildren.push_back(child);
-
+    mTotalChildren += 1;
     if (resetIter)
     {
         mNextChild = mChildren.begin();
@@ -187,6 +181,7 @@ Work::yieldNextRunningChild()
         else if ((*next)->isDone())
         {
             mNextChild = mChildren.erase(next);
+            mDoneChildren += 1;
         }
     }
 
