@@ -342,7 +342,7 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
     trustlinesAccumulator(Database& db) : mDb(db)
     {
     }
-  ~trustlinesAccumulator() noexcept(false)
+    ~trustlinesAccumulator() noexcept(false)
     {
         vector<string> insertUpdateAccountIDs;
         vector<string> insertUpdateIssuers;
@@ -385,68 +385,85 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
-        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
-        if (pg) {
-          if (!insertUpdateAccountIDs.empty()) {
-            static const char q[] = "WITH r AS ("
-              "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS iss, unnest($3::text[]) AS acode, "
-              "unnest($4::integer[]) AS atype, unnest($5::bigint[]) AS bal, unnest($6::bigint[]) AS lim, "
-              "unnest($7::integer[]) AS flags, unnest($8::integer[]) AS lastmod, "
-              "unnest($9::bigint[]) AS bl, unnest($10::bigint[]) AS sl) "
-              "INSERT INTO trustlines "
-              "(accountid, issuer, assetcode, assettype, balance, tlimit, flags, "
-              "lastmodified, buyingliabilities, sellingliabilities) "
-              "SELECT id, iss, acode, atype, bal, lim, flags, lastmod, bl, sl FROM r "
-              "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE "
-              "SET (assettype, balance, tlimit, "
-              "flags, "
-              "lastmodified, buyingliabilities, sellingliabilities) = "
-              "(SELECT atype, bal, lim, flags, lastmod, bl, sl FROM r "
-              "WHERE id = excluded.accountid AND iss = excluded.issuer AND acode = excluded.assetcode)";
-            string idArray = marshalpgvec(insertUpdateAccountIDs);
-            string issArray = marshalpgvec(insertUpdateIssuers);
-            string acodeArray = marshalpgvec(insertUpdateAssetCodes);
-            string atypeArray = marshalpgvec(assetTypes);
-            string balArray = marshalpgvec(balances);
-            string limArray = marshalpgvec(limits);
-            string flagsArray = marshalpgvec(flagses);
-            string lastmodArray = marshalpgvec(lastmodifieds);
-            string blArray = marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
-            string slArray = marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
-            const char* paramVals[] = {
-                                       idArray.c_str(),
-                                       issArray.c_str(),
-                                       acodeArray.c_str(),
-                                       atypeArray.c_str(),
-                                       balArray.c_str(),
-                                       limArray.c_str(),
-                                       flagsArray.c_str(),
-                                       lastmodArray.c_str(),
-                                       blArray.c_str(),
-                                       slArray.c_str(),
-            };
-            PGresult* res = PQexecParams(pg->conn_, q, 10, 0, paramVals, 0, 0, 0); // xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx inserting into trustlines (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(
+            session.get_backend());
+        if (pg)
+        {
+            if (!insertUpdateAccountIDs.empty())
+            {
+                static const char q[] =
+                    "WITH r AS ("
+                    "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS "
+                    "iss, unnest($3::text[]) AS acode, "
+                    "unnest($4::integer[]) AS atype, unnest($5::bigint[]) AS "
+                    "bal, unnest($6::bigint[]) AS lim, "
+                    "unnest($7::integer[]) AS flags, unnest($8::integer[]) AS "
+                    "lastmod, "
+                    "unnest($9::bigint[]) AS bl, unnest($10::bigint[]) AS sl) "
+                    "INSERT INTO trustlines "
+                    "(accountid, issuer, assetcode, assettype, balance, "
+                    "tlimit, flags, "
+                    "lastmodified, buyingliabilities, sellingliabilities) "
+                    "SELECT id, iss, acode, atype, bal, lim, flags, lastmod, "
+                    "bl, sl FROM r "
+                    "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE "
+                    "SET (assettype, balance, tlimit, "
+                    "flags, "
+                    "lastmodified, buyingliabilities, sellingliabilities) = "
+                    "(SELECT atype, bal, lim, flags, lastmod, bl, sl FROM r "
+                    "WHERE id = excluded.accountid AND iss = excluded.issuer "
+                    "AND acode = excluded.assetcode)";
+                string idArray = marshalpgvec(insertUpdateAccountIDs);
+                string issArray = marshalpgvec(insertUpdateIssuers);
+                string acodeArray = marshalpgvec(insertUpdateAssetCodes);
+                string atypeArray = marshalpgvec(assetTypes);
+                string balArray = marshalpgvec(balances);
+                string limArray = marshalpgvec(limits);
+                string flagsArray = marshalpgvec(flagses);
+                string lastmodArray = marshalpgvec(lastmodifieds);
+                string blArray =
+                    marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
+                string slArray =
+                    marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
+                const char* paramVals[] = {
+                    idArray.c_str(),    issArray.c_str(),
+                    acodeArray.c_str(), atypeArray.c_str(),
+                    balArray.c_str(),   limArray.c_str(),
+                    flagsArray.c_str(), lastmodArray.c_str(),
+                    blArray.c_str(),    slArray.c_str(),
+                };
+                PGresult* res = PQexecParams(pg->conn_, q, 10, 0, paramVals, 0,
+                                             0, 0); // xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx inserting into trustlines (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
             }
-          }
-          if (!deleteAccountIDs.empty()) {
-            static const char q[] = "DELETE FROM trustlines "
-              "WHERE (accountid, issuer, assetcode) IN "
-              "(SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]))";
-            string idArray = marshalpgvec(deleteAccountIDs);
-            string issArray = marshalpgvec(deleteIssuers);
-            string acodeArray = marshalpgvec(deleteAssetCodes);
-            const char* paramVals[] = {idArray.c_str(), issArray.c_str(), acodeArray.c_str()};
-            PGresult* res = PQexecParams(pg->conn_, q, 3, 0, paramVals, 0, 0, 0); // xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx deleting from trustlines (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
+            if (!deleteAccountIDs.empty())
+            {
+                static const char q[] =
+                    "DELETE FROM trustlines "
+                    "WHERE (accountid, issuer, assetcode) IN "
+                    "(SELECT unnest($1::text[]), unnest($2::text[]), "
+                    "unnest($3::text[]))";
+                string idArray = marshalpgvec(deleteAccountIDs);
+                string issArray = marshalpgvec(deleteIssuers);
+                string acodeArray = marshalpgvec(deleteAssetCodes);
+                const char* paramVals[] = {idArray.c_str(), issArray.c_str(),
+                                           acodeArray.c_str()};
+                PGresult* res = PQexecParams(pg->conn_, q, 3, 0, paramVals, 0,
+                                             0, 0); // xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx deleting from trustlines (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
             }
-          }
 
-          return;
+            return;
         }
 
         if (!insertUpdateAccountIDs.empty())

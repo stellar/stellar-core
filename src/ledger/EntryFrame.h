@@ -8,10 +8,10 @@
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 
-#include <soci.h>
 #include <libpq-fe.h>
-#include <string>
+#include <soci.h>
 #include <sstream>
+#include <string>
 
 /*
 Frame
@@ -78,7 +78,7 @@ class EntryFrame : public NonMovableOrCopyable
     class Accumulator
     {
       public:
-      virtual ~Accumulator() noexcept(false) = 0;
+        virtual ~Accumulator() noexcept(false) = 0;
     };
 
     class AccumulatorGroup
@@ -131,27 +131,35 @@ LedgerKey LedgerEntryKey(LedgerEntry const& e);
 
 template <typename T>
 std::string
-marshalpgvecitem(const T& item) {
-  std::stringstream ss;
-  ss << item;
-  return ss.str();
+marshalpgvecitem(const T& item)
+{
+    std::stringstream ss;
+    ss << item;
+    return ss.str();
 }
 
 template <typename T>
-std::string marshalpgvec(const std::vector<T>& v, const std::vector<soci::indicator>* ind = 0) {
-  std::string result = "{";
-  for (int i = 0; i < v.size(); i++) {
-    if (i > 0) {
-      result += ", ";
+std::string
+marshalpgvec(const std::vector<T>& v,
+             const std::vector<soci::indicator>* ind = 0)
+{
+    std::string result = "{";
+    for (int i = 0; i < v.size(); i++)
+    {
+        if (i > 0)
+        {
+            result += ", ";
+        }
+        if (ind && (*ind)[i] == soci::i_null)
+        {
+            result += "NULL";
+        }
+        else
+        {
+            result += marshalpgvecitem(v[i]);
+        }
     }
-    if (ind && (*ind)[i] == soci::i_null) {
-      result += "NULL";
-    } else {
-      result += marshalpgvecitem(v[i]);
-    }
-  }
-  result += "}";
-  return result;
+    result += "}";
+    return result;
 }
-
 }

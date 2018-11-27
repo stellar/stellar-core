@@ -587,100 +587,132 @@ class accountsAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
-        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
-        if (pg) {
-          if (!insertUpdateAccountIDs.empty()) {
-            static const char q[] = "WITH r AS ("
-              "SELECT unnest($1::text[]) AS id, unnest($2::bigint[]) AS bal, unnest($3::bigint[]) as seq, "
-              "unnest($4::integer[]) AS numsub, unnest($5::text[]) AS infl, unnest($6::text[]) AS home, unnest($7::text[]) AS thresh, "
-              "unnest($8::integer[]) AS flags, unnest($9::integer[]) AS lastmod, unnest($10::bigint[]) AS bl, unnest($11::bigint[]) AS sl) "
-              "INSERT INTO accounts "
-              "(accountid, balance, seqnum, numsubentries, "
-              "inflationdest, homedomain, thresholds, flags, "
-              "lastmodified, buyingliabilities, sellingliabilities) "
-              "SELECT id, bal, seq, numsub, infl, home, thresh, flags, lastmod, bl, sl FROM r "
-              "ON CONFLICT (accountid) DO UPDATE "
-              "SET (balance, seqnum, numsubentries, "
-              "inflationdest, homedomain, thresholds, "
-              "flags, lastmodified, "
-              "buyingliabilities, sellingliabilities) = "
-              "(SELECT bal, seq, numsub, infl, home, thresh, flags, lastmod, bl, sl FROM r "
-              "WHERE id = excluded.accountid)";
-            string idArray = marshalpgvec(insertUpdateAccountIDs);
-            string balArray = marshalpgvec(balances);
-            string seqArray = marshalpgvec(seqnums);
-            string numsubArray = marshalpgvec(numsubentrieses);
-            string inflArray = marshalpgvec(inflationdests, &inflationdestInds);
-            string homeArray = marshalpgvec(homedomains);
-            string threshArray = marshalpgvec(thresholdses);
-            string flagsArray = marshalpgvec(flagses);
-            string lastmodArray = marshalpgvec(lastmodifieds);
-            string blArray = marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
-            string slArray = marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
-            
-            const char* paramVals[] = {
-                                       idArray.c_str(),
-                                       balArray.c_str(),
-                                       seqArray.c_str(),
-                                       numsubArray.c_str(),
-                                       inflArray.c_str(),
-                                       homeArray.c_str(),
-                                       threshArray.c_str(),
-                                       flagsArray.c_str(),
-                                       lastmodArray.c_str(),
-                                       blArray.c_str(),
-                                       slArray.c_str(),
-            };
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(
+            session.get_backend());
+        if (pg)
+        {
+            if (!insertUpdateAccountIDs.empty())
+            {
+                static const char q[] =
+                    "WITH r AS ("
+                    "SELECT unnest($1::text[]) AS id, unnest($2::bigint[]) AS "
+                    "bal, unnest($3::bigint[]) as seq, "
+                    "unnest($4::integer[]) AS numsub, unnest($5::text[]) AS "
+                    "infl, unnest($6::text[]) AS home, unnest($7::text[]) AS "
+                    "thresh, "
+                    "unnest($8::integer[]) AS flags, unnest($9::integer[]) AS "
+                    "lastmod, unnest($10::bigint[]) AS bl, "
+                    "unnest($11::bigint[]) AS sl) "
+                    "INSERT INTO accounts "
+                    "(accountid, balance, seqnum, numsubentries, "
+                    "inflationdest, homedomain, thresholds, flags, "
+                    "lastmodified, buyingliabilities, sellingliabilities) "
+                    "SELECT id, bal, seq, numsub, infl, home, thresh, flags, "
+                    "lastmod, bl, sl FROM r "
+                    "ON CONFLICT (accountid) DO UPDATE "
+                    "SET (balance, seqnum, numsubentries, "
+                    "inflationdest, homedomain, thresholds, "
+                    "flags, lastmodified, "
+                    "buyingliabilities, sellingliabilities) = "
+                    "(SELECT bal, seq, numsub, infl, home, thresh, flags, "
+                    "lastmod, bl, sl FROM r "
+                    "WHERE id = excluded.accountid)";
+                string idArray = marshalpgvec(insertUpdateAccountIDs);
+                string balArray = marshalpgvec(balances);
+                string seqArray = marshalpgvec(seqnums);
+                string numsubArray = marshalpgvec(numsubentrieses);
+                string inflArray =
+                    marshalpgvec(inflationdests, &inflationdestInds);
+                string homeArray = marshalpgvec(homedomains);
+                string threshArray = marshalpgvec(thresholdses);
+                string flagsArray = marshalpgvec(flagses);
+                string lastmodArray = marshalpgvec(lastmodifieds);
+                string blArray =
+                    marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
+                string slArray =
+                    marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
 
-            PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0, 0, 0); // xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx inserting into accounts (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
+                const char* paramVals[] = {
+                    idArray.c_str(),      balArray.c_str(),
+                    seqArray.c_str(),     numsubArray.c_str(),
+                    inflArray.c_str(),    homeArray.c_str(),
+                    threshArray.c_str(),  flagsArray.c_str(),
+                    lastmodArray.c_str(), blArray.c_str(),
+                    slArray.c_str(),
+                };
+
+                PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0,
+                                             0, 0); // xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx inserting into accounts (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
             }
-          }
-          if (!signerReplaceAccountIDs.empty()) {
-            static const char q1[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
-            string idArray1 = marshalpgvec(signerReplaceAccountIDs);
-            const char* paramVals1[] = {idArray1.c_str()};
-            PGresult* res = PQexecParams(pg->conn_, q1, 1, 0, paramVals1, 0, 0, 0);
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx deleting/inserting from signers (pg) [1]: " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
+            if (!signerReplaceAccountIDs.empty())
+            {
+                static const char q1[] =
+                    "DELETE FROM signers WHERE accountid = ANY($1::text[])";
+                string idArray1 = marshalpgvec(signerReplaceAccountIDs);
+                const char* paramVals1[] = {idArray1.c_str()};
+                PGresult* res =
+                    PQexecParams(pg->conn_, q1, 1, 0, paramVals1, 0, 0, 0);
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx deleting/inserting from signers (pg) [1]: "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
+
+                static const char q2[] =
+                    "WITH r AS ("
+                    "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS "
+                    "pubkeys, unnest($3::integer[]) AS weights) "
+                    "INSERT INTO signers (accountid, publickey, weight) "
+                    "SELECT id, pubkeys, weights FROM r";
+                string idArray2 = marshalpgvec(signerAccountIDs);
+                string keyArray = marshalpgvec(signerPublicKeys);
+                string weightArray = marshalpgvec(signerWeights);
+                const char* paramVals2[] = {idArray2.c_str(), keyArray.c_str(),
+                                            weightArray.c_str()};
+                res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0,
+                                   0); // xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx deleting/inserting from signers (pg) [2]: "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
+            }
+            if (!deleteAccountIds.empty())
+            {
+                static const char q1[] =
+                    "DELETE FROM accounts WHERE accountid = ANY($1::text[])";
+                string idArray = marshalpgvec(deleteAccountIds);
+                const char* paramVals[] = {idArray.c_str()};
+                PGresult* res =
+                    PQexecParams(pg->conn_, q1, 1, 0, paramVals, 0, 0, 0);
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx deleting from accounts (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
+
+                static const char q2[] =
+                    "DELETE FROM signers WHERE accountid = ANY($1::text[])";
+                res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0,
+                                   0); // sic - uses same paramVals xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx deleting from signers (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
             }
 
-            static const char q2[] = "WITH r AS ("
-              "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS pubkeys, unnest($3::integer[]) AS weights) "
-              "INSERT INTO signers (accountid, publickey, weight) "
-              "SELECT id, pubkeys, weights FROM r";
-            string idArray2 = marshalpgvec(signerAccountIDs);
-            string keyArray = marshalpgvec(signerPublicKeys);
-            string weightArray = marshalpgvec(signerWeights);
-            const char* paramVals2[] = {idArray2.c_str(), keyArray.c_str(), weightArray.c_str()};
-            res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0, 0); // xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx deleting/inserting from signers (pg) [2]: " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
-            }
-          }
-          if (!deleteAccountIds.empty()) {
-            static const char q1[] = "DELETE FROM accounts WHERE accountid = ANY($1::text[])"; 
-            string idArray = marshalpgvec(deleteAccountIds);
-            const char* paramVals[] = {idArray.c_str()};
-            PGresult* res = PQexecParams(pg->conn_, q1, 1, 0, paramVals, 0, 0, 0);
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx deleting from accounts (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
-            }
-
-            static const char q2[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
-            res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // sic - uses same paramVals xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx deleting from signers (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
-            }
-          }
-
-          return;
+            return;
         }
 
         if (!insertUpdateAccountIDs.empty())

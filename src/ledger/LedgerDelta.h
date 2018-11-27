@@ -49,7 +49,7 @@ class LedgerDelta
             : mDelta(delta), mEntry(entry.copy())
         {
         }
-      ~EntryModder() noexcept(false);
+        ~EntryModder() noexcept(false);
 
       private:
         LedgerDelta& mDelta;

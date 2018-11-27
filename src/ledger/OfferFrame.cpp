@@ -489,7 +489,7 @@ class offersAccumulator : public EntryFrame::Accumulator
     offersAccumulator(Database& db) : mDb(db)
     {
     }
-  ~offersAccumulator() noexcept(false)
+    ~offersAccumulator() noexcept(false)
     {
         vector<uint64> insertUpdateOfferIDs;
         vector<string> sellerIDs;
@@ -536,77 +536,89 @@ class offersAccumulator : public EntryFrame::Accumulator
         }
 
         soci::session& session = mDb.getSession();
-        auto pg = dynamic_cast<soci::postgresql_session_backend*>(session.get_backend());
-        if (pg) {
-          if (!insertUpdateOfferIDs.empty()) {
-            static const char q[] = "WITH r AS ("
-              "SELECT unnest($1::bigint[]) AS oid, unnest($2::text[]) AS sid, "
-              "unnest($3::integer[]) AS sat, unnest($4::text[]) AS sac, "
-              "unnest($5::text[]) AS si, unnest($6::integer[]) AS bat, unnest($7::text[]) AS bac, "
-              "unnest($8::text[]) AS bi, unnest($9::bigint[]) AS amt, "
-              "unnest($10::integer[]) AS pn, unnest($11::integer[]) AS pd, unnest($12::numeric[]) AS p, "
-              "unnest($13::integer[]) AS flags, unnest($14::integer[]) AS lastmod) "
-              "INSERT INTO offers "
-              "(offerid, sellerid, "
-              "sellingassettype, sellingassetcode, sellingissuer, "
-              "buyingassettype, buyingassetcode, buyingissuer, "
-              "amount, pricen, priced, price, flags, lastmodified) "
-              "SELECT oid, sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r "
-              "ON CONFLICT (offerid) DO UPDATE "
-              "SET (sellerid, sellingassettype, sellingassetcode, sellingissuer, "
-              "buyingassettype, buyingassetcode, buyingissuer, "
-              "amount, pricen, priced, price, "
-              "flags, lastmodified) = "
-              "(SELECT sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r "
-              "WHERE oid = excluded.offerid)";
-            string oidArray = marshalpgvec(insertUpdateOfferIDs);
-            string sidArray = marshalpgvec(sellerIDs);
-            string satArray = marshalpgvec(sellingassettypes);
-            string sacArray = marshalpgvec(sellingassetcodes, &sellingassetcodeInds);
-            string siArray = marshalpgvec(sellingissuers);
-            string batArray = marshalpgvec(buyingassettypes);
-            string bacArray = marshalpgvec(buyingassetcodes, &buyingassetcodeInds);
-            string biArray = marshalpgvec(buyingissuers);
-            string amtArray = marshalpgvec(amounts);
-            string pnArray = marshalpgvec(pricens);
-            string pdArray = marshalpgvec(priceds);
-            string pArray = marshalpgvec(prices);
-            string flagsArray = marshalpgvec(flagses);
-            string lastmodArray = marshalpgvec(lastmodifieds);
-            const char* paramVals[] = {
-                                       oidArray.c_str(),
-                                       sidArray.c_str(),
-                                       satArray.c_str(),
-                                       sacArray.c_str(),
-                                       siArray.c_str(),
-                                       batArray.c_str(),
-                                       bacArray.c_str(),
-                                       biArray.c_str(),
-                                       amtArray.c_str(),
-                                       pnArray.c_str(),
-                                       pdArray.c_str(),
-                                       pArray.c_str(),
-                                       flagsArray.c_str(),
-                                       lastmodArray.c_str(),
-            };
-            PGresult* res = PQexecParams(pg->conn_, q, 14, 0, paramVals, 0, 0, 0); // xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx inserting into offers (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
+        auto pg = dynamic_cast<soci::postgresql_session_backend*>(
+            session.get_backend());
+        if (pg)
+        {
+            if (!insertUpdateOfferIDs.empty())
+            {
+                static const char q[] =
+                    "WITH r AS ("
+                    "SELECT unnest($1::bigint[]) AS oid, unnest($2::text[]) AS "
+                    "sid, "
+                    "unnest($3::integer[]) AS sat, unnest($4::text[]) AS sac, "
+                    "unnest($5::text[]) AS si, unnest($6::integer[]) AS bat, "
+                    "unnest($7::text[]) AS bac, "
+                    "unnest($8::text[]) AS bi, unnest($9::bigint[]) AS amt, "
+                    "unnest($10::integer[]) AS pn, unnest($11::integer[]) AS "
+                    "pd, unnest($12::numeric[]) AS p, "
+                    "unnest($13::integer[]) AS flags, unnest($14::integer[]) "
+                    "AS lastmod) "
+                    "INSERT INTO offers "
+                    "(offerid, sellerid, "
+                    "sellingassettype, sellingassetcode, sellingissuer, "
+                    "buyingassettype, buyingassetcode, buyingissuer, "
+                    "amount, pricen, priced, price, flags, lastmodified) "
+                    "SELECT oid, sid, sat, sac, si, bat, bac, bi, amt, pn, pd, "
+                    "p, flags, lastmod FROM r "
+                    "ON CONFLICT (offerid) DO UPDATE "
+                    "SET (sellerid, sellingassettype, sellingassetcode, "
+                    "sellingissuer, "
+                    "buyingassettype, buyingassetcode, buyingissuer, "
+                    "amount, pricen, priced, price, "
+                    "flags, lastmodified) = "
+                    "(SELECT sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, "
+                    "flags, lastmod FROM r "
+                    "WHERE oid = excluded.offerid)";
+                string oidArray = marshalpgvec(insertUpdateOfferIDs);
+                string sidArray = marshalpgvec(sellerIDs);
+                string satArray = marshalpgvec(sellingassettypes);
+                string sacArray =
+                    marshalpgvec(sellingassetcodes, &sellingassetcodeInds);
+                string siArray = marshalpgvec(sellingissuers);
+                string batArray = marshalpgvec(buyingassettypes);
+                string bacArray =
+                    marshalpgvec(buyingassetcodes, &buyingassetcodeInds);
+                string biArray = marshalpgvec(buyingissuers);
+                string amtArray = marshalpgvec(amounts);
+                string pnArray = marshalpgvec(pricens);
+                string pdArray = marshalpgvec(priceds);
+                string pArray = marshalpgvec(prices);
+                string flagsArray = marshalpgvec(flagses);
+                string lastmodArray = marshalpgvec(lastmodifieds);
+                const char* paramVals[] = {
+                    oidArray.c_str(),   sidArray.c_str(),     satArray.c_str(),
+                    sacArray.c_str(),   siArray.c_str(),      batArray.c_str(),
+                    bacArray.c_str(),   biArray.c_str(),      amtArray.c_str(),
+                    pnArray.c_str(),    pdArray.c_str(),      pArray.c_str(),
+                    flagsArray.c_str(), lastmodArray.c_str(),
+                };
+                PGresult* res = PQexecParams(pg->conn_, q, 14, 0, paramVals, 0,
+                                             0, 0); // xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx inserting into offers (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
             }
-          }
-          if (!deleteOfferIDs.empty()) {
-            static const char q[] = "DELETE FROM offers WHERE offerid = ANY($1::bigint[])";
-            string oidArray = marshalpgvec(deleteOfferIDs);
-            const char* paramVals[] = {oidArray.c_str()};
-            PGresult* res = PQexecParams(pg->conn_, q, 1, 0, paramVals, 0, 0, 0); // xxx timer
-            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-              cout << "xxx deleting from offers (pg): " << PQresultErrorMessage(res) << endl;
-              throw std::runtime_error(PQresultErrorMessage(res));
+            if (!deleteOfferIDs.empty())
+            {
+                static const char q[] =
+                    "DELETE FROM offers WHERE offerid = ANY($1::bigint[])";
+                string oidArray = marshalpgvec(deleteOfferIDs);
+                const char* paramVals[] = {oidArray.c_str()};
+                PGresult* res = PQexecParams(pg->conn_, q, 1, 0, paramVals, 0,
+                                             0, 0); // xxx timer
+                if (PQresultStatus(res) != PGRES_COMMAND_OK)
+                {
+                    cout << "xxx deleting from offers (pg): "
+                         << PQresultErrorMessage(res) << endl;
+                    throw std::runtime_error(PQresultErrorMessage(res));
+                }
             }
-          }
 
-          return;
+            return;
         }
 
         if (!insertUpdateOfferIDs.empty())
