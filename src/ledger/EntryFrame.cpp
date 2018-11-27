@@ -212,7 +212,7 @@ EntryFrame::exists(Database& db, LedgerKey const& key)
     }
 }
 
-EntryFrame::Accumulator::~Accumulator()
+EntryFrame::Accumulator::~Accumulator() noexcept(false)
 {
 }
 
@@ -291,4 +291,14 @@ EntryFrame::AccumulatorGroup::AccumulatorGroup(Database& db)
     , trustlines(TrustFrame::createAccumulator(db))
 {
 }
+
+template <>
+std::string
+marshalpgvecitem<std::string>(const std::string& item) {
+  static const std::string q("\"");
+  char *buf = new char[item.size()*2 + 1];
+  PQescapeString(buf, item.c_str(), item.size());
+  return q+std::string(buf)+q; // in an array literal, sql strings are double-quoted
+}
+
 }

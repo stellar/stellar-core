@@ -13,6 +13,8 @@
 #include "util/Decoder.h"
 #include "util/types.h"
 
+#include <soci-postgresql.h>
+
 using namespace std;
 using namespace soci;
 
@@ -213,7 +215,7 @@ class accountdataAccumulator : public EntryFrame::Accumulator
     accountdataAccumulator(Database& db) : mDb(db)
     {
     }
-    ~accountdataAccumulator()
+  ~accountdataAccumulator() noexcept(false)
     {
         vector<string> insertUpdateAccountids;
         vector<string> insertUpdateDataNames;
@@ -248,15 +250,25 @@ class accountdataAccumulator : public EntryFrame::Accumulator
               "SELECT id, dn, dv, lm FROM r "
               "ON CONFLICT (accountid, dataname) DO UPDATE "
               "SET datavalue = r.dv, lastmodified = r.lm";
-            // xxx marshal args
+            string idArray = marshalpgvec(insertUpdateAccountids);
+            string dnArray = marshalpgvec(insertUpdateDataNames);
+            string dvArray = marshalpgvec(datavalues);
+            string lmArray = marshalpgvec(lastmodifieds);
+            const char* paramVals[] = {idArray.c_str(), dnArray.c_str(), dvArray.c_str(), lmArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 4, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
           if (!deleteAccountids.empty()) {
             static const char q[] = "DELETE FROM accountdata WHERE (accountid, dataname) IN (SELECT unnest($1::text[]), unnest($2::text[]))"; // xxx check this query
-            // xxx marshal args
+            string idArray = marshalpgvec(deleteAccountids);
+            string dnArray = marshalpgvec(deleteDataNames);
+            const char* paramVals[] = {idArray.c_str(), dnArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 2, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
 
           return;

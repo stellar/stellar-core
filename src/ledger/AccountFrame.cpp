@@ -17,6 +17,8 @@
 #include "util/types.h"
 #include <algorithm>
 
+#include <soci-postgresql.h>
+
 using namespace soci;
 using namespace std;
 
@@ -526,7 +528,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
     accountsAccumulator(Database& db) : mDb(db)
     {
     }
-    ~accountsAccumulator()
+    ~accountsAccumulator() noexcept(false)
     {
         vector<string> insertUpdateAccountIDs;
         vector<int64> balances;
@@ -602,33 +604,74 @@ class accountsAccumulator : public EntryFrame::Accumulator
               "inflationdest = r.infl, homedomain = r.home, thresholds = r.thresh, "
               "flags = r.flags, lastmodified = r.lastmod, "
               "buyingliabilities = r.buying, sellingliabilities = r.selling";
-            // xxx marshal args
+
+            string idArray = marshalpgvec(insertUpdateAccountIDs);
+            string balArray = marshalpgvec(balances);
+            string seqArray = marshalpgvec(seqnums);
+            string numsubArray = marshalpgvec(numsubentrieses);
+            string inflArray = marshalpgvec(inflationdests, &inflationdestInds);
+            string homeArray = marshalpgvec(homedomains);
+            string threshArray = marshalpgvec(thresholdses);
+            string flagsArray = marshalpgvec(flagses);
+            string lastmodArray = marshalpgvec(lastmodifieds);
+            string blArray = marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
+            string slArray = marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
+            
+            const char* paramVals[] = {
+                                       idArray.c_str(),
+                                       balArray.c_str(),
+                                       seqArray.c_str(),
+                                       numsubArray.c_str(),
+                                       inflArray.c_str(),
+                                       homeArray.c_str(),
+                                       threshArray.c_str(),
+                                       flagsArray.c_str(),
+                                       lastmodArray.c_str(),
+                                       blArray.c_str(),
+                                       slArray.c_str(),
+            };
+
             PGresult* res = PQexecParams(pg->conn_, q, 11, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
           if (!signerReplaceAccountIDs.empty()) {
             static const char q1[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
-            // xxx marshal args
+            string idArray1 = marshalpgvec(signerReplaceAccountIDs);
+            const char* paramVals1[] = {idArray1.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q1, 1, 0, paramVals1, 0, 0, 0);
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
 
             static const char q2[] = "WITH r AS ("
               "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS pubkeys, unnest($3::integer[]) AS weights) "
               "INSERT INTO signers (accountid, publickey, weight) "
               "SELECT id, pubkeys, weights FROM r";
-            // xxx marshal args
+            string idArray2 = marshalpgvec(signerAccountIDs);
+            string keyArray = marshalpgvec(signerPublicKeys);
+            string weightArray = marshalpgvec(signerWeights);
+            const char* paramVals2[] = {idArray2.c_str(), keyArray.c_str(), weightArray.c_str()};
             res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0, 0); // xxx timer
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
           if (!deleteAccountIds.empty()) {
-            static const char q1[] = "DELETE FROM accounts WHERE accountid = ANY($1::text[])";
-            // xxx marshal args
+            static const char q1[] = "DELETE FROM accounts WHERE accountid = ANY($1::text[])"; 
+            string idArray = marshalpgvec(deleteAccountIds);
+            const char* paramVals[] = {idArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q1, 1, 0, paramVals, 0, 0, 0);
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
 
             static const char q2[] = "DELETE FROM signers WHERE accountid = ANY($1::text[])";
-            PGresult* res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // sic - uses same paramVals xxx timer
-            // xxx check res
+            res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // sic - uses same paramVals xxx timer
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
 
           return;
@@ -703,6 +746,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             {
                 cout << "xxx deleting/inserting from signers [2]: " << e.what()
                      << endl;
+                throw;
             }
         }
 
@@ -716,6 +760,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             catch (soci::soci_error& e)
             {
                 cout << "xxx deleting from accounts: " << e.what() << endl;
+                throw;
             }
             try
             {
@@ -725,6 +770,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             catch (soci::soci_error& e)
             {
                 cout << "xxx deleting from signers: " << e.what() << endl;
+                throw;
             }
         }
     }

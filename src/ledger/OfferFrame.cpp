@@ -14,6 +14,8 @@
 #include "transactions/OfferExchange.h"
 #include "util/types.h"
 
+#include <soci-postgresql.h>
+
 using namespace std;
 using namespace soci;
 
@@ -487,7 +489,7 @@ class offersAccumulator : public EntryFrame::Accumulator
     offersAccumulator(Database& db) : mDb(db)
     {
     }
-    ~offersAccumulator()
+  ~offersAccumulator() noexcept(false)
     {
         vector<uint64> insertUpdateOfferIDs;
         vector<string> sellerIDs;
@@ -558,15 +560,49 @@ class offersAccumulator : public EntryFrame::Accumulator
               "buyingissuer = r.bi, "
               "amount = r.a, pricen = r.pn, priced = r.pd, price = r.p, "
               "flags = r.flags, lastmodified = r.lastmod";
-            // xxx marshal args
-            PGresult* res = PQexecParams(pg->conn_, q2, 14, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            string oidArray = marshalpgvec(insertUpdateOfferIDs);
+            string sidArray = marshalpgvec(sellerIDs);
+            string satArray = marshalpgvec(sellingassettypes);
+            string sacArray = marshalpgvec(sellingassetcodes, &sellingassetcodeInds);
+            string siArray = marshalpgvec(sellingissuers);
+            string batArray = marshalpgvec(buyingassettypes);
+            string bacArray = marshalpgvec(buyingassetcodes, &buyingassetcodeInds);
+            string biArray = marshalpgvec(buyingissuers);
+            string amtArray = marshalpgvec(amounts);
+            string pnArray = marshalpgvec(pricens);
+            string pdArray = marshalpgvec(priceds);
+            string pArray = marshalpgvec(prices);
+            string flagsArray = marshalpgvec(flagses);
+            string lastmodArray = marshalpgvec(lastmodifieds);
+            const char* paramVals[] = {
+                                       oidArray.c_str(),
+                                       sidArray.c_str(),
+                                       satArray.c_str(),
+                                       sacArray.c_str(),
+                                       siArray.c_str(),
+                                       batArray.c_str(),
+                                       bacArray.c_str(),
+                                       biArray.c_str(),
+                                       amtArray.c_str(),
+                                       pnArray.c_str(),
+                                       pdArray.c_str(),
+                                       pArray.c_str(),
+                                       flagsArray.c_str(),
+                                       lastmodArray.c_str(),
+            };
+            PGresult* res = PQexecParams(pg->conn_, q, 14, 0, paramVals, 0, 0, 0); // xxx timer
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
           if (!deleteOfferIDs.empty()) {
             static const char q[] = "DELETE FROM offers WHERE offerid = ANY($1::text[])";
-            // xxx marshal args
-            PGresult* res = PQexecParams(pg->conn_, q2, 1, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            string oidArray = marshalpgvec(deleteOfferIDs);
+            const char* paramVals[] = {oidArray.c_str()};
+            PGresult* res = PQexecParams(pg->conn_, q, 1, 0, paramVals, 0, 0, 0); // xxx timer
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
 
           return;
@@ -627,6 +663,7 @@ class offersAccumulator : public EntryFrame::Accumulator
             catch (const soci::soci_error& e)
             {
                 cout << "xxx deleting from offers: " << e.what() << endl;
+                throw;
             }
         }
     }

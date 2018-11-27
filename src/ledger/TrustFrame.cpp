@@ -13,6 +13,8 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 
+#include <soci-postgresql.h>
+
 using namespace std;
 using namespace soci;
 
@@ -340,7 +342,7 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
     trustlinesAccumulator(Database& db) : mDb(db)
     {
     }
-    ~trustlinesAccumulator()
+  ~trustlinesAccumulator() noexcept(false)
     {
         vector<string> insertUpdateAccountIDs;
         vector<string> insertUpdateIssuers;
@@ -400,17 +402,45 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
               "flags = r.flags, "
               "lastmodified = r.lastmod, buyingliabilities = r.bl, "
               "sellingliabilities = r.sl";
-            // xxx marshal args
+            string idArray = marshalpgvec(insertUpdateAccountIDs);
+            string issArray = marshalpgvec(insertUpdateIssuers);
+            string acodeArray = marshalpgvec(insertUpdateAssetCodes);
+            string atypeArray = marshalpgvec(assetTypes);
+            string balArray = marshalpgvec(balances);
+            string limArray = marshalpgvec(limits);
+            string flagsArray = marshalpgvec(flagses);
+            string lastmodArray = marshalpgvec(lastmodifieds);
+            string blArray = marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
+            string slArray = marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
+            const char* paramVals[] = {
+                                       idArray.c_str(),
+                                       issArray.c_str(),
+                                       acodeArray.c_str(),
+                                       atypeArray.c_str(),
+                                       balArray.c_str(),
+                                       limArray.c_str(),
+                                       flagsArray.c_str(),
+                                       lastmodArray.c_str(),
+                                       blArray.c_str(),
+                                       slArray.c_str(),
+            };
             PGresult* res = PQexecParams(pg->conn_, q, 10, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
           if (!deleteAccountIDs.empty()) {
             static const char q[] = "DELETE FROM trustlines "
               "WHERE (accountid, issuer, assetcode) IN "
               "(SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[])";
-            // xxx marshal args
+            string idArray = marshalpgvec(deleteAccountIDs);
+            string issArray = marshalpgvec(deleteIssuers);
+            string acodeArray = marshalpgvec(deleteAssetCodes);
+            const char* paramVals[] = {idArray.c_str(), issArray.c_str(), acodeArray.c_str()};
             PGresult* res = PQexecParams(pg->conn_, q, 3, 0, paramVals, 0, 0, 0); // xxx timer
-            // xxx check res
+            if (PQresultStatus(res) != PGRES_COMMAND_OK) {
+              throw std::runtime_error(PQresultErrorMessage(res));
+            }
           }
 
           return;

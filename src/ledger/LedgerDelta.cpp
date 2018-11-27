@@ -549,8 +549,7 @@ LedgerDelta::deleted() const
             LedgerDelta::DeletedIterator(*this, mDelete.cend())};
 }
 
-// xxx noexcept
-LedgerDelta::EntryModder::~EntryModder()
+LedgerDelta::EntryModder::~EntryModder() noexcept(false)
 {
     mDelta.checkState();
     auto k = mEntry->getKey();
