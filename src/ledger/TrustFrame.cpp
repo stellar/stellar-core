@@ -389,7 +389,7 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
         if (pg) {
           if (!insertUpdateAccountIDs.empty()) {
             static const char q[] = "WITH r AS ("
-              "SELECT unnest($1::text[]) AS is, unnest($2::text[]) AS iss, unnest($3::text[]) AS acode, "
+              "SELECT unnest($1::text[]) AS id, unnest($2::text[]) AS iss, unnest($3::text[]) AS acode, "
               "unnest($4::integer[]) AS atype, unnest($5::bigint[]) AS bal, unnest($6::bigint[]) AS lim, "
               "unnest($7::integer[]) AS flags, unnest($8::integer[]) AS lastmod, "
               "unnest($9::bigint[]) AS bl, unnest($10::bigint[]) AS sl) "
