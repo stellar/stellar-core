@@ -53,8 +53,7 @@ std::bitset<64> ConstantEnumerator::operator*() const
     return mBits;
 }
 
-void
-ConstantEnumerator::operator++()
+void ConstantEnumerator::operator++()
 {
     mDone = true;
 }
@@ -110,8 +109,7 @@ uneg(uint64_t const& n)
     return (~n) + 1;
 }
 
-void
-PermutationEnumerator::operator++()
+void PermutationEnumerator::operator++()
 {
     // Next bit-permutation. See:
     // https://graphics.stanford.edu/~seander/bithacks.html#NextBitPermutation
@@ -145,8 +143,7 @@ std::bitset<64> PowersetEnumerator::operator*() const
     return std::bitset<64>(mCur);
 }
 
-void
-PowersetEnumerator::operator++()
+void PowersetEnumerator::operator++()
 {
     ++mCur;
 }
@@ -196,8 +193,7 @@ std::bitset<64> CartesianProductEnumerator::operator*() const
     return tmp;
 }
 
-void
-CartesianProductEnumerator::operator++()
+void CartesianProductEnumerator::operator++()
 {
     // Want to walk along the array looking for the first
     // element that wasn't done, but becomes done when we
@@ -303,8 +299,7 @@ SelectionEnumerator::operator bool() const
     return mProduct || *mIndexEnum;
 }
 
-void
-SelectionEnumerator::operator++()
+void SelectionEnumerator::operator++()
 {
     if (mProduct)
     {
