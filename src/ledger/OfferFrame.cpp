@@ -491,6 +491,8 @@ class offersAccumulator : public EntryFrame::Accumulator
     }
     ~offersAccumulator() noexcept(false)
     {
+        // convert the row-wise info in mItems into column-wise vectors.
+
         vector<uint64> insertUpdateOfferIDs;
         vector<string> sellerIDs;
         vector<unsigned int> sellingassettypes;
@@ -540,6 +542,9 @@ class offersAccumulator : public EntryFrame::Accumulator
             session.get_backend());
         if (pg)
         {
+            // Postgresql-specific bulk-change logic.
+            // (Soci's "use(vector<T>)" should do this but doesn't.)
+
             if (!insertUpdateOfferIDs.empty())
             {
                 static const char q[] =
@@ -570,22 +575,22 @@ class offersAccumulator : public EntryFrame::Accumulator
                     "(SELECT sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, "
                     "flags, lastmod FROM r "
                     "WHERE oid = excluded.offerid)";
-                string oidArray = marshalpgvec(insertUpdateOfferIDs);
-                string sidArray = marshalpgvec(sellerIDs);
-                string satArray = marshalpgvec(sellingassettypes);
+                string oidArray = marshalToPGArray(insertUpdateOfferIDs);
+                string sidArray = marshalToPGArray(sellerIDs);
+                string satArray = marshalToPGArray(sellingassettypes);
                 string sacArray =
-                    marshalpgvec(sellingassetcodes, &sellingassetcodeInds);
-                string siArray = marshalpgvec(sellingissuers);
-                string batArray = marshalpgvec(buyingassettypes);
+                    marshalToPGArray(sellingassetcodes, &sellingassetcodeInds);
+                string siArray = marshalToPGArray(sellingissuers);
+                string batArray = marshalToPGArray(buyingassettypes);
                 string bacArray =
-                    marshalpgvec(buyingassetcodes, &buyingassetcodeInds);
-                string biArray = marshalpgvec(buyingissuers);
-                string amtArray = marshalpgvec(amounts);
-                string pnArray = marshalpgvec(pricens);
-                string pdArray = marshalpgvec(priceds);
-                string pArray = marshalpgvec(prices);
-                string flagsArray = marshalpgvec(flagses);
-                string lastmodArray = marshalpgvec(lastmodifieds);
+                    marshalToPGArray(buyingassetcodes, &buyingassetcodeInds);
+                string biArray = marshalToPGArray(buyingissuers);
+                string amtArray = marshalToPGArray(amounts);
+                string pnArray = marshalToPGArray(pricens);
+                string pdArray = marshalToPGArray(priceds);
+                string pArray = marshalToPGArray(prices);
+                string flagsArray = marshalToPGArray(flagses);
+                string lastmodArray = marshalToPGArray(lastmodifieds);
                 const char* paramVals[] = {
                     oidArray.c_str(),   sidArray.c_str(),     satArray.c_str(),
                     sacArray.c_str(),   siArray.c_str(),      batArray.c_str(),
@@ -606,7 +611,7 @@ class offersAccumulator : public EntryFrame::Accumulator
             {
                 static const char q[] =
                     "DELETE FROM offers WHERE offerid = ANY($1::bigint[])";
-                string oidArray = marshalpgvec(deleteOfferIDs);
+                string oidArray = marshalToPGArray(deleteOfferIDs);
                 const char* paramVals[] = {oidArray.c_str()};
                 PGresult* res = PQexecParams(pg->conn_, q, 1, 0, paramVals, 0,
                                              0, 0); // xxx timer
@@ -620,6 +625,8 @@ class offersAccumulator : public EntryFrame::Accumulator
 
             return;
         }
+
+        // Non-Postgresql-specific branch.
 
         if (!insertUpdateOfferIDs.empty())
         {
@@ -725,6 +732,7 @@ void
 OfferFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key,
                         EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryDeleter deletes key from delta in its destructor.
     LedgerDelta::EntryDeleter entryDeleter(delta, key);
 
     if (accums)
@@ -754,6 +762,7 @@ void
 OfferFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
                              EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryModder updates delta appropriately in its destructor.
     LedgerDelta::EntryModder entryModder(delta, *this);
 
     touch(delta);

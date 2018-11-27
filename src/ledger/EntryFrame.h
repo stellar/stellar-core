@@ -75,12 +75,18 @@ class EntryFrame : public NonMovableOrCopyable
 
     virtual EntryFrame::pointer copy() const = 0;
 
+    // Accumulator is an abstract base class for table-specific subclasses
+    // that gather inserts, updates, and deletes in memory and
+    // apply them to the database in bulk (for efficiency)
+    // when going out of scope.
     class Accumulator
     {
       public:
         virtual ~Accumulator() noexcept(false) = 0;
     };
 
+    // AccumulatorGroup holds instances of Accumulator subclasses:
+    // one each for the accounts, accountdata, offers, and trustlines tables.
     class AccumulatorGroup
     {
       public:
@@ -111,9 +117,17 @@ class EntryFrame : public NonMovableOrCopyable
     };
 
     LedgerKey const& getKey() const;
+
+    // storeDelete deletes the entry from its table;
+    // or, if accums is non-null,
+    // stores a deletion record in the relevant accumulator.
     virtual void storeDelete(LedgerDelta& delta, Database& db,
                              AccumulatorGroup* accums = 0) const = 0;
-    // change/add may update the entry (last modified)
+
+    // storeAddOrChange inserts the entry to its table,
+    // or updates it if already present;
+    // or, if accums is non-null,
+    // stores an insert/update record in the relevant accumulator.
     virtual void storeAddOrChange(LedgerDelta& delta, Database& db,
                                   AccumulatorGroup* accums = 0) = 0;
 
@@ -129,18 +143,22 @@ class EntryFrame : public NonMovableOrCopyable
 // static helper for getting a LedgerKey from a LedgerEntry.
 LedgerKey LedgerEntryKey(LedgerEntry const& e);
 
+// marshalToPGArrayItem is a helper for marshalToPGArray (qv).
+// Note: a specialization of this template function
+// (with T=std::string) is in EntryFrame.cpp.
 template <typename T>
 std::string
-marshalpgvecitem(const T& item)
+marshalToPGArrayItem(const T& item)
 {
     std::stringstream ss;
     ss << item;
     return ss.str();
 }
 
+// marshalToPGArray produces a postgresql "array" literal from a vector of values.
 template <typename T>
 std::string
-marshalpgvec(const std::vector<T>& v,
+marshalToPGArray(const std::vector<T>& v,
              const std::vector<soci::indicator>* ind = 0)
 {
     std::string result = "{";
@@ -156,7 +174,7 @@ marshalpgvec(const std::vector<T>& v,
         }
         else
         {
-            result += marshalpgvecitem(v[i]);
+            result += marshalToPGArrayItem(v[i]);
         }
     }
     result += "}";

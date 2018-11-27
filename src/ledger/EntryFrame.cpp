@@ -294,7 +294,7 @@ EntryFrame::AccumulatorGroup::AccumulatorGroup(Database& db)
 
 template <>
 std::string
-marshalpgvecitem<std::string>(const std::string& item)
+marshalToPGArrayItem<std::string>(const std::string& item)
 {
     static const std::string q("\"");
     char* buf = new char[item.size() * 2 + 1];

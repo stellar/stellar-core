@@ -42,6 +42,7 @@ class LedgerDelta
     bool mUpdateLastModified;
 
   public:
+    // EntryModder updates delta from entry as appropriate when it goes out of scope.
     class EntryModder
     {
       public:
@@ -58,6 +59,7 @@ class LedgerDelta
 
     class EntryDeleter
     {
+      // EntryDeleter deletes key from delta when it goes out of scope.
       public:
         EntryDeleter(LedgerDelta& delta, const LedgerKey& key)
             : mDelta(delta), mKey(key)

@@ -530,6 +530,8 @@ class accountsAccumulator : public EntryFrame::Accumulator
     }
     ~accountsAccumulator() noexcept(false)
     {
+        // convert the row-wise info in mItems into column-wise vectors.
+
         vector<string> insertUpdateAccountIDs;
         vector<int64> balances;
         vector<SequenceNumber> seqnums;
@@ -591,6 +593,9 @@ class accountsAccumulator : public EntryFrame::Accumulator
             session.get_backend());
         if (pg)
         {
+            // Postgresql-specific bulk-change logic.
+            // (Soci's "use(vector<T>)" should do this but doesn't.)
+
             if (!insertUpdateAccountIDs.empty())
             {
                 static const char q[] =
@@ -617,20 +622,20 @@ class accountsAccumulator : public EntryFrame::Accumulator
                     "(SELECT bal, seq, numsub, infl, home, thresh, flags, "
                     "lastmod, bl, sl FROM r "
                     "WHERE id = excluded.accountid)";
-                string idArray = marshalpgvec(insertUpdateAccountIDs);
-                string balArray = marshalpgvec(balances);
-                string seqArray = marshalpgvec(seqnums);
-                string numsubArray = marshalpgvec(numsubentrieses);
+                string idArray = marshalToPGArray(insertUpdateAccountIDs);
+                string balArray = marshalToPGArray(balances);
+                string seqArray = marshalToPGArray(seqnums);
+                string numsubArray = marshalToPGArray(numsubentrieses);
                 string inflArray =
-                    marshalpgvec(inflationdests, &inflationdestInds);
-                string homeArray = marshalpgvec(homedomains);
-                string threshArray = marshalpgvec(thresholdses);
-                string flagsArray = marshalpgvec(flagses);
-                string lastmodArray = marshalpgvec(lastmodifieds);
+                    marshalToPGArray(inflationdests, &inflationdestInds);
+                string homeArray = marshalToPGArray(homedomains);
+                string threshArray = marshalToPGArray(thresholdses);
+                string flagsArray = marshalToPGArray(flagses);
+                string lastmodArray = marshalToPGArray(lastmodifieds);
                 string blArray =
-                    marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
+                    marshalToPGArray(buyingliabilitieses, &buyingliabilitiesInds);
                 string slArray =
-                    marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
+                    marshalToPGArray(sellingliabilitieses, &sellingliabilitiesInds);
 
                 const char* paramVals[] = {
                     idArray.c_str(),      balArray.c_str(),
@@ -654,7 +659,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             {
                 static const char q1[] =
                     "DELETE FROM signers WHERE accountid = ANY($1::text[])";
-                string idArray1 = marshalpgvec(signerReplaceAccountIDs);
+                string idArray1 = marshalToPGArray(signerReplaceAccountIDs);
                 const char* paramVals1[] = {idArray1.c_str()};
                 PGresult* res =
                     PQexecParams(pg->conn_, q1, 1, 0, paramVals1, 0, 0, 0);
@@ -671,9 +676,9 @@ class accountsAccumulator : public EntryFrame::Accumulator
                     "pubkeys, unnest($3::integer[]) AS weights) "
                     "INSERT INTO signers (accountid, publickey, weight) "
                     "SELECT id, pubkeys, weights FROM r";
-                string idArray2 = marshalpgvec(signerAccountIDs);
-                string keyArray = marshalpgvec(signerPublicKeys);
-                string weightArray = marshalpgvec(signerWeights);
+                string idArray2 = marshalToPGArray(signerAccountIDs);
+                string keyArray = marshalToPGArray(signerPublicKeys);
+                string weightArray = marshalToPGArray(signerWeights);
                 const char* paramVals2[] = {idArray2.c_str(), keyArray.c_str(),
                                             weightArray.c_str()};
                 res = PQexecParams(pg->conn_, q2, 3, 0, paramVals2, 0, 0,
@@ -689,7 +694,7 @@ class accountsAccumulator : public EntryFrame::Accumulator
             {
                 static const char q1[] =
                     "DELETE FROM accounts WHERE accountid = ANY($1::text[])";
-                string idArray = marshalpgvec(deleteAccountIds);
+                string idArray = marshalToPGArray(deleteAccountIds);
                 const char* paramVals[] = {idArray.c_str()};
                 PGresult* res =
                     PQexecParams(pg->conn_, q1, 1, 0, paramVals, 0, 0, 0);
@@ -714,6 +719,8 @@ class accountsAccumulator : public EntryFrame::Accumulator
 
             return;
         }
+
+        // Non-Postgresql-specific branch.
 
         if (!insertUpdateAccountIDs.empty())
         {
@@ -855,6 +862,7 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
                           LedgerKey const& key,
                           EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryDeleter deletes key from delta in its destructor.
     LedgerDelta::EntryDeleter entryDeleter(delta, key);
 
     flushCachedEntry(key, db);
@@ -894,6 +902,7 @@ void
 AccountFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
                                EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryModder updates delta appropriately in its destructor.
     LedgerDelta::EntryModder(delta, *this);
 
     touch(delta);

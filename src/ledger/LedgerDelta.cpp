@@ -552,10 +552,12 @@ LedgerDelta::deleted() const
 LedgerDelta::EntryModder::~EntryModder() noexcept(false)
 {
     mDelta.checkState();
+
     auto k = mEntry->getKey();
     auto new_it = mDelta.mNew.find(k);
     auto mod_it = mDelta.mMod.find(k);
     auto del_it = mDelta.mDelete.find(k);
+
     if (new_it != mDelta.mNew.end())
     {
         // There was already a "new" record for this entry.
@@ -566,18 +568,22 @@ LedgerDelta::EntryModder::~EntryModder() noexcept(false)
             throw std::runtime_error("invalid LedgerDelta entry mod (del+mod)");
         }
 
-        // collapse
-
         if (mod_it != mDelta.mMod.end())
         {
+            // There was a "new" record _and_ a "mod" record (which shouldn't happen),
+            // plus the current update. Revise the new record and delete the mod record.
             mDelta.mMod.erase(mod_it);
         }
 
         new_it->second = mEntry;
         return;
     }
+
     if (mod_it != mDelta.mMod.end())
     {
+        // There is no "new" record, but there is a "mod" record.
+        // Treat this as an update and combine.
+
         if (del_it != mDelta.mDelete.end())
         {
             throw std::runtime_error("invalid LedgerDelta entry mod (del+mod)");
@@ -585,6 +591,9 @@ LedgerDelta::EntryModder::~EntryModder() noexcept(false)
         mDelta.mMod[k] = mEntry;
         return;
     }
+
+    // There is no "new" or "mod" record. Treat this as new.
+
     if (del_it != mDelta.mDelete.end())
     {
         // delete + new = update
@@ -592,7 +601,7 @@ LedgerDelta::EntryModder::~EntryModder() noexcept(false)
         mDelta.mMod[k] = mEntry;
         return;
     }
-    // new
+
     mDelta.mNew[k] = mEntry;
 }
 }

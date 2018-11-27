@@ -217,6 +217,8 @@ class accountdataAccumulator : public EntryFrame::Accumulator
     }
     ~accountdataAccumulator() noexcept(false)
     {
+        // convert the row-wise info in mItems into column-wise vectors.
+
         vector<string> insertUpdateAccountids;
         vector<string> insertUpdateDataNames;
         vector<string> datavalues;
@@ -244,6 +246,9 @@ class accountdataAccumulator : public EntryFrame::Accumulator
             session.get_backend());
         if (pg)
         {
+            // Postgresql-specific bulk-change logic.
+            // (Soci's "use(vector<T>)" should do this but doesn't.)
+
             if (!insertUpdateAccountids.empty())
             {
                 static const char q[] =
@@ -257,10 +262,10 @@ class accountdataAccumulator : public EntryFrame::Accumulator
                     "ON CONFLICT (accountid, dataname) DO UPDATE "
                     "SET (datavalue, lastmodified) = (SELECT dv, lm FROM r "
                     "WHERE id = excluded.accountid AND dn = excluded.dataname)";
-                string idArray = marshalpgvec(insertUpdateAccountids);
-                string dnArray = marshalpgvec(insertUpdateDataNames);
-                string dvArray = marshalpgvec(datavalues);
-                string lmArray = marshalpgvec(lastmodifieds);
+                string idArray = marshalToPGArray(insertUpdateAccountids);
+                string dnArray = marshalToPGArray(insertUpdateDataNames);
+                string dvArray = marshalToPGArray(datavalues);
+                string lmArray = marshalToPGArray(lastmodifieds);
                 const char* paramVals[] = {idArray.c_str(), dnArray.c_str(),
                                            dvArray.c_str(), lmArray.c_str()};
                 PGresult* res = PQexecParams(pg->conn_, q, 4, 0, paramVals, 0,
@@ -280,8 +285,8 @@ class accountdataAccumulator : public EntryFrame::Accumulator
                                                                        // check
                                                                        // this
                                                                        // query
-                string idArray = marshalpgvec(deleteAccountids);
-                string dnArray = marshalpgvec(deleteDataNames);
+                string idArray = marshalToPGArray(deleteAccountids);
+                string dnArray = marshalToPGArray(deleteDataNames);
                 const char* paramVals[] = {idArray.c_str(), dnArray.c_str()};
                 PGresult* res = PQexecParams(pg->conn_, q, 2, 0, paramVals, 0,
                                              0, 0); // xxx timer
@@ -295,6 +300,8 @@ class accountdataAccumulator : public EntryFrame::Accumulator
 
             return;
         }
+
+        // Non-Postgresql-specific branch.
 
         if (!insertUpdateAccountids.empty())
         {
@@ -385,6 +392,7 @@ void
 DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key,
                        EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryDeleter deletes key from delta in its destructor.
     LedgerDelta::EntryDeleter entryDeleter(delta, key);
 
     std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
@@ -417,6 +425,7 @@ void
 DataFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
                             EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryModder updates delta appropriately in its destructor.
     LedgerDelta::EntryModder entryModder(delta, *this);
 
     touch(delta);

@@ -39,6 +39,8 @@ BucketApplicator::advance()
     soci::transaction sqlTx(mDb.getSession());
 
     {
+        // AccumulatorGroup gathers table-specific inserts, updates, and deletes in memory,
+        // applying them to the db in bulk when going out of scope.
         EntryFrame::AccumulatorGroup accums(mDb);
 
         while (mBucketIter)

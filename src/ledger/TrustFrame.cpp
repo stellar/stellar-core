@@ -344,6 +344,8 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
     }
     ~trustlinesAccumulator() noexcept(false)
     {
+        // convert the row-wise info in mItems into column-wise vectors.
+
         vector<string> insertUpdateAccountIDs;
         vector<string> insertUpdateIssuers;
         vector<string> insertUpdateAssetCodes;
@@ -389,6 +391,9 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
             session.get_backend());
         if (pg)
         {
+            // Postgresql-specific bulk-change logic.
+            // (Soci's "use(vector<T>)" should do this but doesn't.)
+
             if (!insertUpdateAccountIDs.empty())
             {
                 static const char q[] =
@@ -413,18 +418,18 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
                     "(SELECT atype, bal, lim, flags, lastmod, bl, sl FROM r "
                     "WHERE id = excluded.accountid AND iss = excluded.issuer "
                     "AND acode = excluded.assetcode)";
-                string idArray = marshalpgvec(insertUpdateAccountIDs);
-                string issArray = marshalpgvec(insertUpdateIssuers);
-                string acodeArray = marshalpgvec(insertUpdateAssetCodes);
-                string atypeArray = marshalpgvec(assetTypes);
-                string balArray = marshalpgvec(balances);
-                string limArray = marshalpgvec(limits);
-                string flagsArray = marshalpgvec(flagses);
-                string lastmodArray = marshalpgvec(lastmodifieds);
+                string idArray = marshalToPGArray(insertUpdateAccountIDs);
+                string issArray = marshalToPGArray(insertUpdateIssuers);
+                string acodeArray = marshalToPGArray(insertUpdateAssetCodes);
+                string atypeArray = marshalToPGArray(assetTypes);
+                string balArray = marshalToPGArray(balances);
+                string limArray = marshalToPGArray(limits);
+                string flagsArray = marshalToPGArray(flagses);
+                string lastmodArray = marshalToPGArray(lastmodifieds);
                 string blArray =
-                    marshalpgvec(buyingliabilitieses, &buyingliabilitiesInds);
+                    marshalToPGArray(buyingliabilitieses, &buyingliabilitiesInds);
                 string slArray =
-                    marshalpgvec(sellingliabilitieses, &sellingliabilitiesInds);
+                    marshalToPGArray(sellingliabilitieses, &sellingliabilitiesInds);
                 const char* paramVals[] = {
                     idArray.c_str(),    issArray.c_str(),
                     acodeArray.c_str(), atypeArray.c_str(),
@@ -448,9 +453,9 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
                     "WHERE (accountid, issuer, assetcode) IN "
                     "(SELECT unnest($1::text[]), unnest($2::text[]), "
                     "unnest($3::text[]))";
-                string idArray = marshalpgvec(deleteAccountIDs);
-                string issArray = marshalpgvec(deleteIssuers);
-                string acodeArray = marshalpgvec(deleteAssetCodes);
+                string idArray = marshalToPGArray(deleteAccountIDs);
+                string issArray = marshalToPGArray(deleteIssuers);
+                string acodeArray = marshalToPGArray(deleteAssetCodes);
                 const char* paramVals[] = {idArray.c_str(), issArray.c_str(),
                                            acodeArray.c_str()};
                 PGresult* res = PQexecParams(pg->conn_, q, 3, 0, paramVals, 0,
@@ -465,6 +470,8 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
 
             return;
         }
+
+        // Non-Postgresql-specific branch.
 
         if (!insertUpdateAccountIDs.empty())
         {
@@ -586,6 +593,7 @@ void
 TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key,
                         EntryFrame::AccumulatorGroup* accums)
 {
+    // EntryDeleter deletes key from delta in its destructor.
     LedgerDelta::EntryDeleter entryDeleter(delta, key);
 
     flushCachedEntry(key, db);
@@ -617,6 +625,7 @@ void
 TrustFrame::storeAddOrChange(LedgerDelta& delta, Database& db,
                              AccumulatorGroup* accums)
 {
+    // EntryModder updates delta appropriately in its destructor.
     LedgerDelta::EntryModder entryModder(delta, *this);
 
     auto key = getKey();
