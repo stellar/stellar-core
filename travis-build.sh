@@ -57,14 +57,7 @@ committer=$(committer_of HEAD) \
     || committer=$(committer_of HEAD^1) \
     || committer=Latobarita
 
-case $committer in
-    "David Mazieres")
-        config_flags="--enable-asan --enable-extrachecks --enable-ccache CXXFLAGS=-w"
-    ;;
-    *)
-    config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs CXXFLAGS=-w"
-    ;;
-esac
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs CXXFLAGS=-w"
 
 echo "committer = $committer, config_flags = $config_flags"
 
