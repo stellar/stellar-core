@@ -76,6 +76,16 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 }
 
 void
+LoopbackPeer::drop(ErrorCode err, std::string const& msg)
+{
+    if (mState != CLOSING)
+    {
+        mDropReason = msg;
+    }
+    Peer::drop(err, msg);
+}
+
+void
 LoopbackPeer::drop(bool)
 {
     if (mState == CLOSING)

@@ -58,11 +58,14 @@ class LoopbackPeer : public Peer
 
     void processInQueue();
 
+    std::string mDropReason;
+
   public:
     virtual ~LoopbackPeer()
     {
     }
     LoopbackPeer(Application& app, PeerRole role);
+    void drop(ErrorCode err, std::string const& msg) override;
     void drop(bool force = true) override;
 
     void deliverOne();
@@ -72,8 +75,6 @@ class LoopbackPeer : public Peer
     size_t getMessagesQueued() const;
 
     Stats const& getStats() const;
-    std::deque<xdr::msg_ptr>& getQueue();
-    std::shared_ptr<LoopbackPeer> const& getTarget() const;
 
     bool getCorked() const;
     void setCorked(bool c);
@@ -98,6 +99,12 @@ class LoopbackPeer : public Peer
 
     double getReorderProbability() const;
     void setReorderProbability(double d);
+
+    std::string
+    getDropReason() const
+    {
+        return mDropReason;
+    }
 
     using Peer::sendAuth;
 
