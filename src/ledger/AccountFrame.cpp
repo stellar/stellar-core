@@ -600,11 +600,11 @@ class accountsAccumulator : public EntryFrame::Accumulator
               "lastmodified, buyingliabilities, sellingliabilities) "
               "SELECT id, bal, seq, numsub, infl, home, thresh, flags, lastmod, bl, sl FROM r "
               "ON CONFLICT (accountid) DO UPDATE "
-              "SET balance = r.bal, seqnum = r.seq, numsubentries = r.numsub, "
-              "inflationdest = r.infl, homedomain = r.home, thresholds = r.thresh, "
-              "flags = r.flags, lastmodified = r.lastmod, "
-              "buyingliabilities = r.buying, sellingliabilities = r.selling";
-
+              "SET (balance, seqnum, numsubentries, "
+              "inflationdest, homedomain, thresholds, "
+              "flags, lastmodified, "
+              "buyingliabilities, sellingliabilities) = "
+              "(SELECT bal, seq, numsub, infl, home, thresh, flags, lastmod, bl, sl FROM r)";
             string idArray = marshalpgvec(insertUpdateAccountIDs);
             string balArray = marshalpgvec(balances);
             string seqArray = marshalpgvec(seqnums);

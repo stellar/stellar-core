@@ -249,7 +249,7 @@ class accountdataAccumulator : public EntryFrame::Accumulator
               "(accountid, dataname, datavalue, lastmodified) "
               "SELECT id, dn, dv, lm FROM r "
               "ON CONFLICT (accountid, dataname) DO UPDATE "
-              "SET datavalue = r.dv, lastmodified = r.lm";
+              "SET (datavalue, lastmodified) = (SELECT dv, lm FROM r)";
             string idArray = marshalpgvec(insertUpdateAccountids);
             string dnArray = marshalpgvec(insertUpdateDataNames);
             string dvArray = marshalpgvec(datavalues);

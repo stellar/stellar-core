@@ -398,10 +398,10 @@ class trustlinesAccumulator : public EntryFrame::Accumulator
               "lastmodified, buyingliabilities, sellingliabilities) "
               "SELECT id, iss, acode, atype, bal, lim, flags, lastmod, bl, sl FROM r "
               "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE "
-              "SET assettype = r.atype, balance = r.bal, tlimit = r.lim, "
-              "flags = r.flags, "
-              "lastmodified = r.lastmod, buyingliabilities = r.bl, "
-              "sellingliabilities = r.sl";
+              "SET (assettype, balance, tlimit, "
+              "flags, "
+              "lastmodified, buyingliabilities, sellingliabilities) = "
+              "(SELECT atype, bal, lim, flags, lastmod, bl, sl FROM r)";
             string idArray = marshalpgvec(insertUpdateAccountIDs);
             string issArray = marshalpgvec(insertUpdateIssuers);
             string acodeArray = marshalpgvec(insertUpdateAssetCodes);

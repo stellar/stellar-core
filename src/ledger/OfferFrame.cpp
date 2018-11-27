@@ -553,13 +553,11 @@ class offersAccumulator : public EntryFrame::Accumulator
               "amount, pricen, priced, price, flags, lastmodified) "
               "SELECT oid, sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r "
               "ON CONFLICT (offerid) DO UPDATE "
-              "SET sellerid = r.sid, "
-              "sellingassettype = r.sat, sellingassetcode = r.sac, "
-              "sellingissuer = r.si, "
-              "buyingassettype = r.bat, buyingassetcode = r.bac, "
-              "buyingissuer = r.bi, "
-              "amount = r.a, pricen = r.pn, priced = r.pd, price = r.p, "
-              "flags = r.flags, lastmodified = r.lastmod";
+              "SET (sellerid, sellingassettype, sellingassetcode, sellingissuer, "
+              "buyingassettype, buyingassetcode, buyingissuer, "
+              "amount, pricen, priced, price, "
+              "flags, lastmodified) = "
+              "(SELECT sid, sat, sac, si, bat, bac, bi, amt, pn, pd, p, flags, lastmod FROM r)";
             string oidArray = marshalpgvec(insertUpdateOfferIDs);
             string sidArray = marshalpgvec(sellerIDs);
             string satArray = marshalpgvec(sellingassettypes);
