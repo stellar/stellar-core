@@ -59,6 +59,11 @@ committer=$(committer_of HEAD) \
 
 config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs CXXFLAGS=-w"
 
+# disable leak detection: this requires the container to be run with
+# "--cap-add SYS_PTRACE" or "--privileged"
+# as the leak detector relies on ptrace
+export LSAN_OPTIONS=detect_leaks=0
+
 echo "committer = $committer, config_flags = $config_flags"
 
 ccache -s
@@ -76,3 +81,4 @@ make -j3
 ccache -s
 export ALL_VERSIONS=1
 env TEMP_POSTGRES=0 NUM_PARTITIONS=4 RUN_PARTITIONS="$RUN_PARTITIONS" make check
+
