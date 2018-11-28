@@ -307,7 +307,7 @@ TxSetFrame::checkOrTrim(
 
                 return false;
             }
-            totFee += tx->getFee();
+            totFee += tx->isWhitelisted(app) ? 0 : tx->getFee();
 
             lastTx = tx;
             lastSeq = tx->getSeqNum();
