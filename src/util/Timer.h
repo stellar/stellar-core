@@ -114,9 +114,9 @@ class VirtualClock
     size_t nRealTimerCancelEvents;
     time_point mNow;
 
-    bool mDelayExecution{false};
+    bool mDelayExecution{true};
+    std::recursive_mutex mDelayExecutionMutex;
     std::vector<std::function<void()>> mDelayedExecutionQueue;
-    std::mutex mDelayedExecutionQueueMutex;
 
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
