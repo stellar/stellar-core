@@ -31,6 +31,10 @@ bool
 InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
                           LedgerManager& ledgerManager)
 {
+    // Do nothing for this operation.  The operation will be modified in the future to
+    // distribute the fee pool and remove the inflation logic.
+    return true;
+
     LedgerDelta inflationDelta(delta);
 
     auto& lcl = inflationDelta.getHeader();
@@ -82,8 +86,8 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
     lcl.feePool = 0;
     lcl.inflationSeq++;
 
-    // now credit each account
-    innerResult().code(INFLATION_SUCCESS);
+    // now credit each account (landmine)
+    innerResult().code((assert(0), INFLATION_SUCCESS));
     auto& payouts = innerResult().payouts();
 
     int64 leftAfterDole = amountToDole;
