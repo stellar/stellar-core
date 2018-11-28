@@ -42,10 +42,19 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (!data)
         { // create a new data entry
             auto sourceAccount = loadSourceAccount(ltx, header);
-            if (!addNumEntries(header, sourceAccount, 1))
+            switch (addNumEntries(header, sourceAccount, 1))
             {
+            case AddSubentryResult::SUCCESS:
+                break;
+            case AddSubentryResult::LOW_RESERVE:
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
                 return false;
+            case AddSubentryResult::TOO_MANY_SUBENTRIES:
+                innerResult().code(MANAGE_DATA_TOO_MANY_SUBENTRIES);
+                return false;
+            default:
+                throw std::runtime_error(
+                    "Unexpected result from addNumEntries");
             }
 
             LedgerEntry newData;

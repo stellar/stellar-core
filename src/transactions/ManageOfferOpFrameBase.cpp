@@ -108,10 +108,18 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
         // we need to compute maxAmountOfSheepCanSell based on the
         // updated reserve to avoid selling too many and falling
         // below the reserve when we try to create the offer later on
-        if (!addNumEntries(header, sourceAccount, 1))
+        switch (addNumEntries(header, sourceAccount, 1))
         {
+        case AddSubentryResult::SUCCESS:
+            break;
+        case AddSubentryResult::LOW_RESERVE:
             setResultLowReserve();
             return false;
+        case AddSubentryResult::TOO_MANY_SUBENTRIES:
+            setResultTooManySubentries();
+            return false;
+        default:
+            throw std::runtime_error("Unexpected result from addNumEntries");
         }
     }
 
@@ -384,10 +392,19 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             // make sure we don't allow us to add offers when we don't have
             // the minbalance (should never happen at this stage in v9+)
             auto sourceAccount = loadSourceAccount(ltx, header);
-            if (!addNumEntries(header, sourceAccount, 1))
+            switch (addNumEntries(header, sourceAccount, 1))
             {
+            case AddSubentryResult::SUCCESS:
+                break;
+            case AddSubentryResult::LOW_RESERVE:
                 setResultLowReserve();
                 return false;
+            case AddSubentryResult::TOO_MANY_SUBENTRIES:
+                setResultTooManySubentries();
+                return false;
+            default:
+                throw std::runtime_error(
+                    "Unexpected result from addNumEntries");
             }
 
             newOffer.data.offer().offerID = generateID(header);

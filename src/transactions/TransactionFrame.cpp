@@ -489,7 +489,7 @@ TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
     if (it != std::end(acc.signers))
     {
         auto removed = stellar::addNumEntries(header, account, -1);
-        assert(removed);
+        assert(removed == AddSubentryResult::SUCCESS);
         acc.signers.erase(it);
         return true;
     }

@@ -106,10 +106,18 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
 
         auto sourceAccount = loadSourceAccount(ltx, header);
-        if (!addNumEntries(header, sourceAccount, 1))
+        switch (addNumEntries(header, sourceAccount, 1))
         {
+        case AddSubentryResult::SUCCESS:
+            break;
+        case AddSubentryResult::LOW_RESERVE:
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
             return false;
+        case AddSubentryResult::TOO_MANY_SUBENTRIES:
+            innerResult().code(CHANGE_TRUST_TOO_MANY_SUBENTRIES);
+            return false;
+        default:
+            throw std::runtime_error("Unexpected result from addNumEntries");
         }
 
         LedgerEntry trustLineEntry;

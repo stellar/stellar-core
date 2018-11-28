@@ -512,7 +512,9 @@ enum ManageSellOfferResultCode
     // update errors
     MANAGE_SELL_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
 
-    MANAGE_SELL_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
+    MANAGE_SELL_OFFER_LOW_RESERVE = -12, // not enough funds to create a new Offer
+    MANAGE_SELL_OFFER_TOO_MANY_SUBENTRIES
+        = -13 // max number of subentries already reached
 };
 
 enum ManageOfferEffect
@@ -568,7 +570,9 @@ enum ManageBuyOfferResultCode
     // update errors
     MANAGE_BUY_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
 
-    MANAGE_BUY_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
+    MANAGE_BUY_OFFER_LOW_RESERVE = -12, // not enough funds to create a new Offer
+    MANAGE_BUY_OFFER_TOO_MANY_SUBENTRIES
+        = -13 // max number of subentries already reached
 };
 
 union ManageBuyOfferResult switch (ManageBuyOfferResultCode code)
@@ -594,7 +598,9 @@ enum SetOptionsResultCode
     SET_OPTIONS_UNKNOWN_FLAG = -6,           // can't set an unknown flag
     SET_OPTIONS_THRESHOLD_OUT_OF_RANGE = -7, // bad value for weight/threshold
     SET_OPTIONS_BAD_SIGNER = -8,             // signer cannot be masterkey
-    SET_OPTIONS_INVALID_HOME_DOMAIN = -9     // malformed home domain
+    SET_OPTIONS_INVALID_HOME_DOMAIN = -9,    // malformed home domain
+    SET_OPTIONS_TOO_MANY_SUBENTRIES
+        = -10 // max number of subentries already reached
 };
 
 union SetOptionsResult switch (SetOptionsResultCode code)
@@ -618,7 +624,9 @@ enum ChangeTrustResultCode
                                      // cannot create with a limit of 0
     CHANGE_TRUST_LOW_RESERVE =
         -4, // not enough funds to create a new trust line,
-    CHANGE_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
+    CHANGE_TRUST_SELF_NOT_ALLOWED = -5, // trusting self is not allowed
+    CHANGE_TRUST_TOO_MANY_SUBENTRIES
+        = -6 // max number of subentries already reached
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
@@ -712,7 +720,9 @@ enum ManageDataResultCode
     MANAGE_DATA_NAME_NOT_FOUND =
         -2, // Trying to remove a Data Entry that isn't there
     MANAGE_DATA_LOW_RESERVE = -3, // not enough funds to create a new Data Entry
-    MANAGE_DATA_INVALID_NAME = -4 // Name not a valid string
+    MANAGE_DATA_INVALID_NAME = -4, // Name not a valid string
+    MANAGE_DATA_TOO_MANY_SUBENTRIES
+        = -5 // max number of subentries already reached
 };
 
 union ManageDataResult switch (ManageDataResultCode code)

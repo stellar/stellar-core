@@ -293,14 +293,20 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
 }
 
-bool
+AddSubentryResult
 addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
 {
     auto& acc = entry.current().data.account();
-    int newEntriesCount = acc.numSubEntries + count;
+    int newEntriesCount = unsignedToSigned(acc.numSubEntries) + count;
     if (newEntriesCount < 0)
     {
         throw std::runtime_error("invalid account state");
+    }
+    if (header.current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS &&
+        count > 0 && newEntriesCount > ACCOUNT_SUBENTRY_LIMIT)
+    {
+        return AddSubentryResult::TOO_MANY_SUBENTRIES;
     }
 
     int64_t effMinBalance = getMinBalance(header, newEntriesCount);
@@ -313,10 +319,10 @@ addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
     if (count > 0 && acc.balance < effMinBalance)
     {
         // balance too low
-        return false;
+        return AddSubentryResult::LOW_RESERVE;
     }
     acc.numSubEntries = newEntriesCount;
-    return true;
+    return AddSubentryResult::SUCCESS;
 }
 
 bool

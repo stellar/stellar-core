@@ -175,4 +175,11 @@ ManageBuyOfferOpFrame::setResultLowReserve()
 {
     mResult.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_LOW_RESERVE);
 }
+
+void
+ManageBuyOfferOpFrame::setResultTooManySubentries()
+{
+    mResult.tr().manageBuyOfferResult().code(
+        MANAGE_BUY_OFFER_TOO_MANY_SUBENTRIES);
+}
 }
