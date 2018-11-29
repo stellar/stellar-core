@@ -9,6 +9,7 @@ echo $TRAVIS_PULL_REQUEST
 NPROCS=$(getconf _NPROCESSORS_ONLN)
 
 echo "Found $NPROCS processors"
+date
 
 # Short-circuit transient 'auto-initialization' builds
 git fetch origin master
@@ -73,8 +74,9 @@ export LSAN_OPTIONS=detect_leaks=0
 echo "committer = $committer, config_flags = $config_flags"
 
 ccache -s
-./autogen.sh
-./configure $config_flags
+date
+time ./autogen.sh
+time ./configure $config_flags
 make format
 d=`git diff | wc -l`
 if [ $d -ne 0 ]
@@ -84,8 +86,16 @@ then
     exit 1
 fi
 
-make -j$(($NPROCS + 1))
+date
+time make -j$(($NPROCS + 1))
 ccache -s
 export ALL_VERSIONS=1
-env TEMP_POSTGRES=0 NUM_PARTITIONS=4 RUN_PARTITIONS="$RUN_PARTITIONS" make check
+export TEMP_POSTGRES=0
+export NUM_PARTITIONS=4
+export RUN_PARTITIONS
+time make check
+
+echo All done
+date
+exit 0
 
