@@ -6,6 +6,10 @@ set -ev
 
 echo $TRAVIS_PULL_REQUEST
 
+NPROCS=$(getconf _NPROCESSORS_ONLN)
+
+echo "Found $NPROCS processors"
+
 # Short-circuit transient 'auto-initialization' builds
 git fetch origin master
 MASTER=$(git describe --always FETCH_HEAD)
@@ -77,7 +81,8 @@ then
     git diff
     exit 1
 fi
-make -j3
+
+make -j$(($NPROCS + 1))
 ccache -s
 export ALL_VERSIONS=1
 env TEMP_POSTGRES=0 NUM_PARTITIONS=4 RUN_PARTITIONS="$RUN_PARTITIONS" make check
