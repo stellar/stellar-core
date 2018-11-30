@@ -215,8 +215,9 @@ catchupTo(Application::pointer app, uint32_t to, Json::Value& catchupInfo)
 int
 handleDeprecatedCommandLine(int argc, char* const* argv)
 {
-    std::cout << "Using DEPRECATED command-line syntax.\n";
-    std::cout << "Please refer to documentation for new syntax.\n\n";
+    std::cerr << "Using DEPRECATED command-line syntax." << std::endl;
+    std::cerr << "Please refer to documentation for new syntax." << std::endl
+              << std::endl;
 
     std::string cfgFile("stellar-core.cfg");
     std::string command;
