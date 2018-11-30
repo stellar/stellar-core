@@ -191,6 +191,76 @@ test(int argc, char* const* argv, el::Level ll,
     return r;
 }
 
+int
+runTest(CommandLineArgs const& args)
+{
+    el::Level logLevel{el::Level::Info};
+
+    Catch::Session session{};
+
+    auto parser = session.cli();
+    parser |= Catch::clara::Opt(
+        [&](std::string const& arg) {
+            logLevel = Logging::getLLfromString(arg);
+        },
+        "LEVEL")["--ll"]("set the log level");
+    parser |= Catch::clara::Opt(gTestMetrics, "METRIC-NAME")["--metric"](
+        "report metric METRIC-NAME on exit");
+    parser |= Catch::clara::Opt(gTestAllVersions)["--all-versions"](
+        "test all versions");
+    parser |= Catch::clara::Opt(gVersionsToTest, "version")["--version"](
+        "test specific version(s)");
+    parser |= Catch::clara::Opt(gBaseInstance, "offset")["--base-instance"](
+        "instance number offset so multiple instances of "
+        "stellar-core can run tests concurrently");
+    session.cli(parser);
+
+    auto result = session.cli().parse(
+        args.mCommandName, Catch::clara::detail::TokenStream{
+                               std::begin(args.mArgs), std::end(args.mArgs)});
+    if (!result)
+    {
+        writeWithTextFlow(std::cerr, result.errorMessage());
+        writeWithTextFlow(std::cerr, args.mCommandDescription);
+        session.cli().writeToStream(std::cerr);
+        return 1;
+    }
+
+    if (session.configData().showHelp)
+    {
+        writeWithTextFlow(std::cout, args.mCommandDescription);
+        session.cli().writeToStream(std::cout);
+        return 0;
+    }
+
+    if (session.configData().libIdentify)
+    {
+        session.libIdentify();
+        return 0;
+    }
+
+    // Note: Have to setLogLevel twice here to ensure --list-test-names-only is
+    // not mixed with stellar-core logging.
+    Logging::setFmt("<test>");
+    Logging::setLogLevel(logLevel, nullptr);
+    Config const& cfg = getTestConfig();
+    Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+    Logging::setLogLevel(logLevel, nullptr);
+
+    LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
+    LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
+
+    if (gVersionsToTest.empty())
+    {
+        gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
+
+    auto r = session.run();
+    gTestRoots.clear();
+    gTestCfg->clear();
+    return r;
+}
+
 void
 for_versions_to(uint32 to, Application& app, std::function<void(void)> const& f)
 {

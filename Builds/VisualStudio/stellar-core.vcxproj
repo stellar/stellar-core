@@ -319,6 +319,7 @@ exit /b 0
     <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorum.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp" />
+    <ClCompile Include="..\..\src\history\InferredQuorumUtils.cpp" />
     <ClCompile Include="..\..\src\history\SerializeTests.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
@@ -412,7 +413,10 @@ exit /b 0
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationTests.cpp" />
+    <ClCompile Include="..\..\src\main\ApplicationUtils.cpp" />
     <ClCompile Include="..\..\src\main\ConfigTests.cpp" />
+    <ClCompile Include="..\..\src\main\CommandLine.cpp" />
+    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
     <ClCompile Include="..\..\src\main\fuzz.cpp" />
     <ClCompile Include="..\..\src\main\LruCacheTests.cpp" />
@@ -595,6 +599,7 @@ exit /b 0
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h" />
     <ClInclude Include="..\..\src\history\HistoryTestsUtils.h" />
     <ClInclude Include="..\..\src\history\InferredQuorum.h" />
+    <ClInclude Include="..\..\src\history\InferredQuorumUtils.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
@@ -652,8 +657,11 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\ApplicationImpl.h" />
+    <ClInclude Include="..\..\src\main\ApplicationUtils.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
+    <ClInclude Include="..\..\src\main\CommandLine.h" />
+    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h" />
     <ClInclude Include="..\..\src\main\dumpxdr.h" />
     <ClInclude Include="..\..\src\main\fuzz.h" />
     <ClInclude Include="..\..\src\main\PersistentState.h" />

@@ -141,6 +141,15 @@
     <ClCompile Include="..\..\src\main\Application.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\ApplicationUtils.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\CommandLine.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\main.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -720,6 +729,9 @@
     <ClCompile Include="..\..\src\history\InferredQuorum.cpp">
       <Filter>history</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorumUtils.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -885,6 +897,15 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Application.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\ApplicationUtils.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\CommandLine.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
@@ -1413,6 +1434,9 @@
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\InferredQuorum.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\InferredQuorumUtils.h">
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\StateSnapshot.h">

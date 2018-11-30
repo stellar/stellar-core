@@ -224,5 +224,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool resolveNodeID(std::string const& s, PublicKey& retKey) const;
 
     std::chrono::seconds getExpectedLedgerCloseTime() const;
+
+    void setNoListen();
 };
 }

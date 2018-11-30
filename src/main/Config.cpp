@@ -242,6 +242,14 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
 void
 Config::load(std::string const& filename)
 {
+    if (filename != "-" && !fs::exists(filename))
+    {
+        std::string s;
+        s = "No config file ";
+        s += filename + " found";
+        throw std::invalid_argument(s);
+    }
+
     LOG(DEBUG) << "Loading config from: " << filename;
     try
     {
@@ -834,5 +842,14 @@ Config::getExpectedLedgerCloseTime() const
         return std::chrono::seconds{1};
     }
     return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
+}
+
+void
+Config::setNoListen()
+{
+    // prevent opening up a port for other peers
+    RUN_STANDALONE = true;
+    HTTP_PORT = 0;
+    MANUAL_CLOSE = true;
 }
 }
