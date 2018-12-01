@@ -27,6 +27,7 @@ addons:
     - clang-format-5.0
     - pandoc
     - perl
+    - parallel
 
 script: ./travis-build.sh
 
