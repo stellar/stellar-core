@@ -29,7 +29,7 @@ TEST_CASE("pointToTm tmToPoint stuff", "[timer]")
     CHECK(twelvesec == 12);
 }
 
-TEST_CASE("VirtualClock::pointToISOString", "[timer]")
+TEST_CASE("VirtualClock pointToISOString", "[timer]")
 {
     VirtualClock clock;
 
@@ -50,7 +50,7 @@ TEST_CASE("VirtualClock::pointToISOString", "[timer]")
           std::string("1970-01-02T13:10:18Z"));
 }
 
-TEST_CASE("VirtualClock::to_time_t", "[timer]")
+TEST_CASE("VirtualClock to_time_t", "[timer]")
 {
     VirtualClock clock;
 
@@ -67,7 +67,7 @@ TEST_CASE("VirtualClock::to_time_t", "[timer]")
     CHECK(VirtualClock::to_time_t(now) == 133818);
 }
 
-TEST_CASE("VirtualClock::from_time_t", "[timer]")
+TEST_CASE("VirtualClock from_time_t", "[timer]")
 {
     VirtualClock clock;
 

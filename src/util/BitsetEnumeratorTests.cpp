@@ -79,7 +79,7 @@ TEST_CASE("PermutationEnumerator", "[bitset]")
         });
 }
 
-TEST_CASE("CartesianProductEnumerator-of-constants", "[bitset]")
+TEST_CASE("CartesianProductEnumerator of constants", "[bitset]")
 {
     CartesianProductEnumerator cpe(
         {std::make_shared<ConstantEnumerator>(std::bitset<64>(0x0000ff)),
@@ -87,7 +87,7 @@ TEST_CASE("CartesianProductEnumerator-of-constants", "[bitset]")
     expect_bitsets(cpe, {0xff00ff});
 }
 
-TEST_CASE("SelectionEnumerator-of-constants", "[bitset]")
+TEST_CASE("SelectionEnumerator of constants", "[bitset]")
 {
     SelectionEnumerator spe(
         std::make_shared<PermutationEnumerator>(2, 3),
@@ -103,7 +103,7 @@ TEST_CASE("SelectionEnumerator-of-constants", "[bitset]")
          0b0000000000000000000000000000000000000000000000001111111111111111ULL});
 }
 
-TEST_CASE("SelectionEnumerator-of-bit-numbers", "[bitset]")
+TEST_CASE("SelectionEnumerator of bit numbers", "[bitset]")
 {
     auto se = SelectionEnumerator::bitNumbers(4, {1, 2, 7, 8, 30, 31});
     expect_bitsets(
@@ -125,7 +125,7 @@ TEST_CASE("SelectionEnumerator-of-bit-numbers", "[bitset]")
          0b0000000000000000000000000000000011000000000000000000000110000000ULL});
 }
 
-TEST_CASE("CartesianProductEnumerator-of-selections", "[bitset]")
+TEST_CASE("CartesianProductEnumerator of selections", "[bitset]")
 {
     CartesianProductEnumerator cpe(
         {SelectionEnumerator::bitNumbers(2, std::vector<size_t>({0, 1, 2})),
@@ -153,7 +153,7 @@ TEST_CASE("CartesianProductEnumerator-of-selections", "[bitset]")
          0b0000000001000000000000000000100100000000000000000000000110000110ULL});
 }
 
-TEST_CASE("CartesianProductEnumerator-of-mixture", "[bitset]")
+TEST_CASE("CartesianProductEnumerator of mixture", "[bitset]")
 {
     CartesianProductEnumerator cpe(
         {SelectionEnumerator::bitNumbers(2, std::vector<size_t>({0, 1, 2})),
@@ -182,7 +182,7 @@ TEST_CASE("CartesianProductEnumerator-of-mixture", "[bitset]")
          0b0000000001000000000000000000100100000000000000001111111110000110ULL});
 }
 
-TEST_CASE("SelectionEnumerator-of-selections", "[bitset]")
+TEST_CASE("SelectionEnumerator of selections", "[bitset]")
 {
     auto a = SelectionEnumerator::bitNumbers(2, {0, 1, 2});
     auto b = SelectionEnumerator::bitNumbers(2, {0x10, 0x11, 0x12});

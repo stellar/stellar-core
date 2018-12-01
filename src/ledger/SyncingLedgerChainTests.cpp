@@ -45,7 +45,7 @@ TEST_CASE("not empty syncing ledger chain accepts next ledger",
     REQUIRE(ledgerChain.back().getLedgerSeq() == 2);
 }
 
-TEST_CASE("not empty syncing ledger chain do not accept after-next ledger",
+TEST_CASE("not empty syncing ledger chain do not accept afternext ledger",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};

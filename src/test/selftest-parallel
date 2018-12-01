@@ -34,6 +34,7 @@ perl -e '
          my $test_partitions_dir = $ARGV[2];
          my @all_tests = shuffle `./stellar-core --ll FATAL --test --list-test-names-only $test_spec`;
          for (my $p = 0; $p < $num_partitions; $p++) {
+             die "Invalid test name \"$p\"" if $p =~ /[^A-Za-z0-9 _()]/;
              open(my $out, ">", "$test_partitions_dir/test-partition-$p.txt");
              for (my $i = $p; $i < @all_tests; $i+=$num_partitions) {
                  print $out $all_tests[$i];
