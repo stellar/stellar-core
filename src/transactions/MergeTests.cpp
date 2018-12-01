@@ -84,12 +84,14 @@ TEST_CASE("merge", "[tx][merge]")
         txFrame->addSignature(b1.getSecretKey());
 
         for_versions_to(5, *app, [&] {
-            applyCheck(txFrame, *app);
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txSUCCESS,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()},
+                 CREATE_ACCOUNT_SUCCESS,
+                 {ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()}});
+            validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
+                              applyResult);
 
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[2]);
-
-            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(b1.getBalance() == 2 * a1Balance + b1Balance -
                                            createBalance -
                                            2 * txFrame->getFee());
@@ -97,12 +99,14 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(6, 9, *app, [&] {
-            applyCheck(txFrame, *app);
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txSUCCESS,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()},
+                 CREATE_ACCOUNT_SUCCESS,
+                 {ACCOUNT_MERGE_SUCCESS, createBalance}});
+            validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
+                              applyResult);
 
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[2]);
-
-            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(b1.getBalance() ==
                     a1Balance + b1Balance - txFrame->getFee());
             REQUIRE(!doesAccountExist(*app, a1));
@@ -110,22 +114,13 @@ TEST_CASE("merge", "[tx][merge]")
 
         for_versions_from(10, *app, [&]() {
             // can't merge an account that just got created
-            REQUIRE(!applyCheck(txFrame, *app));
-            REQUIRE(txFrame->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(txFrame->getResult()
-                        .result.results()[1]
-                        .tr()
-                        .createAccountResult()
-                        .code() == CREATE_ACCOUNT_SUCCESS);
-            REQUIRE(txFrame->getResult()
-                        .result.results()[2]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()},
+                 CREATE_ACCOUNT_SUCCESS,
+                 ACCOUNT_MERGE_SEQNUM_TOO_FAR});
+            validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
+                              applyResult);
         });
     }
 
@@ -171,7 +166,12 @@ TEST_CASE("merge", "[tx][merge]")
                          accountMerge(b1)});
 
         for_versions_to(4, *app, [&] {
-            REQUIRE(!applyCheck(tx, *app));
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFee()},
+                 CREATE_ACCOUNT_ALREADY_EXIST,
+                 {ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFee()}});
+            validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(doesAccountExist(*app, b1));
@@ -179,46 +179,15 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
             REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
-
-            REQUIRE(tx->getResult().result.code() == txFAILED);
-            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[0].tr().type() ==
-                    ACCOUNT_MERGE);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() == a1Balance - tx->getFee());
-            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[1].tr().type() ==
-                    CREATE_ACCOUNT);
-            REQUIRE(tx->getResult()
-                        .result.results()[1]
-                        .tr()
-                        .createAccountResult()
-                        .code() == CREATE_ACCOUNT_ALREADY_EXIST);
-            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[2].tr().type() ==
-                    ACCOUNT_MERGE);
-            REQUIRE(tx->getResult()
-                        .result.results()[2]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(tx->getResult()
-                        .result.results()[2]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() == a1Balance - tx->getFee());
         });
 
         for_versions(5, 7, *app, [&] {
-            REQUIRE(!applyCheck(tx, *app));
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFee()},
+                 CREATE_ACCOUNT_ALREADY_EXIST,
+                 ACCOUNT_MERGE_NO_ACCOUNT});
+            validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(doesAccountExist(*app, b1));
@@ -226,41 +195,15 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
             REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
-
-            REQUIRE(tx->getResult().result.code() == txFAILED);
-            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[0].tr().type() ==
-                    ACCOUNT_MERGE);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() == a1Balance - tx->getFee());
-            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[1].tr().type() ==
-                    CREATE_ACCOUNT);
-            REQUIRE(tx->getResult()
-                        .result.results()[1]
-                        .tr()
-                        .createAccountResult()
-                        .code() == CREATE_ACCOUNT_ALREADY_EXIST);
-            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[2].tr().type() ==
-                    ACCOUNT_MERGE);
-            REQUIRE(tx->getResult()
-                        .result.results()[2]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_NO_ACCOUNT);
         });
 
         for_versions_from(8, *app, [&] {
-            REQUIRE(!applyCheck(tx, *app));
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFee()},
+                 opNO_ACCOUNT,
+                 opNO_ACCOUNT});
+            validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(doesAccountExist(*app, b1));
@@ -268,23 +211,6 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
             REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
-
-            REQUIRE(tx->getResult().result.code() == txFAILED);
-            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[0].tr().type() ==
-                    ACCOUNT_MERGE);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() == a1Balance - tx->getFee());
-            REQUIRE(tx->getResult().result.results()[1].code() == opNO_ACCOUNT);
-            REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
         });
     }
 
@@ -301,7 +227,8 @@ TEST_CASE("merge", "[tx][merge]")
                          accountMerge(b1)});
 
         for_versions_to(7, *app, [&] {
-            REQUIRE(!applyCheck(tx, *app));
+            auto applyResult = expectedResult(txfee * 3, 3, txINTERNAL_ERROR);
+            validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(doesAccountExist(*app, b1));
@@ -310,12 +237,15 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
             REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
-
-            REQUIRE(tx->getResult().result.code() == txINTERNAL_ERROR);
         });
 
         for_versions_from(8, *app, [&] {
-            REQUIRE(!applyCheck(tx, *app));
+            auto applyResult = expectedResult(
+                txfee * 3, 3, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFee()},
+                 opNO_ACCOUNT,
+                 opNO_ACCOUNT});
+            validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(doesAccountExist(*app, b1));
@@ -324,22 +254,6 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
             REQUIRE(b1.loadSequenceNumber() == b1SeqNum);
-
-            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
-            REQUIRE(tx->getResult().result.results()[0].tr().type() ==
-                    ACCOUNT_MERGE);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .code() == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(tx->getResult()
-                        .result.results()[0]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() == a1Balance - tx->getFee());
-            REQUIRE(tx->getResult().result.results()[1].code() == opNO_ACCOUNT);
-            REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
         });
     }
 
@@ -351,33 +265,41 @@ TEST_CASE("merge", "[tx][merge]")
         auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
 
         for_versions_to(4, *app, [&] {
-            REQUIRE(applyCheck(txFrame, *app));
-
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[1]);
+            auto applyResult = expectedResult(
+                txfee * 2, 2, txSUCCESS,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()},
+                 {ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()}});
+            validateTxResults(txFrame, *app, {txfee * 2, txSUCCESS},
+                              applyResult);
 
             auto a1BalanceAfterFee = a1Balance - txFrame->getFee();
-            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee ==
                     b1.getBalance());
             REQUIRE(!doesAccountExist(*app, a1));
         });
 
         for_versions(5, 7, *app, [&] {
-            REQUIRE(!applyCheck(txFrame, *app));
+            auto applyResult = expectedResult(
+                txfee * 2, 2, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()},
+                 ACCOUNT_MERGE_NO_ACCOUNT});
+            validateTxResults(txFrame, *app, {txfee * 2, txSUCCESS},
+                              applyResult);
 
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[1]);
-
-            REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
             REQUIRE(b1Balance == b1.getBalance());
             REQUIRE((a1Balance - txFrame->getFee()) == a1.getBalance());
         });
 
         for_versions_from(8, *app, [&] {
-            REQUIRE(!applyCheck(txFrame, *app));
-            REQUIRE(txFrame->getResult().result.results()[1].code() ==
-                    opNO_ACCOUNT);
+            auto applyResult = expectedResult(
+                txfee * 2, 2, txFAILED,
+                {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFee()},
+                 opNO_ACCOUNT});
+            validateTxResults(txFrame, *app, {txfee * 2, txSUCCESS},
+                              applyResult);
+
+            REQUIRE(b1Balance == b1.getBalance());
+            REQUIRE((a1Balance - txFrame->getFee()) == a1.getBalance());
         });
     }
 
@@ -411,27 +333,32 @@ TEST_CASE("merge", "[tx][merge]")
         REQUIRE(!doesAccountExist(*app, c.getPublicKey()));
         REQUIRE(!doesAccountExist(*app, d.getPublicKey()));
         auto a1Balance = a1.getBalance();
+        auto createBalance = app->getLedgerManager().getLastMinBalance(0);
 
-        auto txFrame = a1.tx(
-            {createAccount(c.getPublicKey(),
-                           app->getLedgerManager().getLastMinBalance(0)),
-             accountMerge(c.getPublicKey()),
-             createAccount(d.getPublicKey(),
-                           app->getLedgerManager().getLastMinBalance(0))});
+        auto txFrame = a1.tx({createAccount(c.getPublicKey(), createBalance),
+                              accountMerge(c.getPublicKey()),
+                              createAccount(d.getPublicKey(), createBalance)});
 
         for_versions_to(7, *app, [&] {
-            applyCheck(txFrame, *app);
+            auto applyResult = expectedResult(txfee * 3, 3, txINTERNAL_ERROR);
+            validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
+                              applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(!doesAccountExist(*app, c.getPublicKey()));
             REQUIRE(!doesAccountExist(*app, d.getPublicKey()));
-            REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
-
             REQUIRE(a1Balance == a1.getBalance() + txFrame->getFee());
         });
 
         for_versions_from(8, *app, [&] {
-            applyCheck(txFrame, *app);
+            auto applyResult =
+                expectedResult(txfee * 3, 3, txFAILED,
+                               {CREATE_ACCOUNT_SUCCESS,
+                                {ACCOUNT_MERGE_SUCCESS,
+                                 a1Balance - createBalance - txFrame->getFee()},
+                                opNO_ACCOUNT});
+            validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
+                              applyResult);
 
             REQUIRE(doesAccountExist(*app, a1));
             REQUIRE(!doesAccountExist(*app, c.getPublicKey()));
@@ -439,10 +366,6 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(txFrame->getResultCode() == txFAILED);
 
             REQUIRE(a1Balance == a1.getBalance() + txFrame->getFee());
-            REQUIRE(txFrame->getResult().result.results()[0].code() == opINNER);
-            REQUIRE(txFrame->getResult().result.results()[1].code() == opINNER);
-            REQUIRE(txFrame->getResult().result.results()[2].code() ==
-                    opNO_ACCOUNT);
         });
     }
 
