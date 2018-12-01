@@ -19,6 +19,9 @@ if [[ -z "$BATCHSIZE" ]]; then
     # number of tests to run per run per job slot
     BATCHSIZE=5
 fi
+if [[ -z "$RND_SEED" ]]; then
+    RND_SEED=1
+fi
 
 cleanup() {
     rm -rf $TEST_PARTITIONS_DIR
@@ -28,7 +31,7 @@ trap cleanup 0 2 15 ERR
 
 perl -e '
          use List::Util qw/shuffle/;
-         srand(0);
+         srand($ARGV[3]);
          my $num_partitions = $ARGV[0];
          my $test_spec = $ARGV[1];
          my $test_partitions_dir = $ARGV[2];
@@ -40,7 +43,7 @@ perl -e '
                  print $out $all_tests[$i];
              }
              close $out;
-         }' -- "$NUM_PARTITIONS" "$TEST_SPEC" "$TEST_PARTITIONS_DIR"
+         }' -- "$NUM_PARTITIONS" "$TEST_SPEC" "$TEST_PARTITIONS_DIR" "$RND_SEED"
 
 runpart()
 {
