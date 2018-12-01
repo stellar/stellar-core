@@ -66,5 +66,5 @@ for i in $RUN_PARTITIONS; do
   cat $TEST_PARTITIONS_DIR/test-partition-$i.txt >> $TESTS
 done
 
-cat $TESTS | parallel -j $nparts -n $BATCHSIZE --progress --halt-on-error 2 runpart '{%}' "{}"
+cat $TESTS | parallel -j $nparts -n $BATCHSIZE --line-buffer --tag-string '{%}' --progress --halt-on-error 2 runpart '{%}' "{}"
 
