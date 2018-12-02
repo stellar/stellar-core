@@ -104,6 +104,11 @@ Whitelist::isWhitelistSig(DecoratedSignature const& sig, Hash const& txHash)
         }
     }
 
+    // Check if the signer is the whitelist holder's account.
+    auto holder = accountID().get();
+    if (holder && PubKeyUtils::verifySig(*holder, sig.signature, txHash))
+        return true;
+
     return false;
 }
 } // namespace stellar
