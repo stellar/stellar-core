@@ -93,7 +93,7 @@ TEST_CASE("failed auth", "[overlay]")
                 .count() != 0);
 }
 
-TEST_CASE("reject non-preferred peer", "[overlay]")
+TEST_CASE("reject non preferred peer", "[overlay]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
@@ -312,7 +312,7 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
     }
 }
 
-TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
+TEST_CASE("reject peers who dont handshake quickly", "[overlay]")
 {
     auto test = [](unsigned short authenticationTimeout) {
         VirtualClock clock;

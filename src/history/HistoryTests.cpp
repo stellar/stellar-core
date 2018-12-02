@@ -45,7 +45,7 @@ TEST_CASE("next checkpoint ledger", "[history]")
     CHECK(hm.nextCheckpointLedger(130) == 192);
 }
 
-TEST_CASE("HistoryManager::compress", "[history]")
+TEST_CASE("HistoryManager compress", "[history]")
 {
     CatchupSimulation catchupSimulation{};
 
@@ -69,7 +69,7 @@ TEST_CASE("HistoryManager::compress", "[history]")
     REQUIRE(!fs::exists(compressed));
 }
 
-TEST_CASE("HistoryArchiveState::get_put", "[history]")
+TEST_CASE("HistoryArchiveState get_put", "[history]")
 {
     CatchupSimulation catchupSimulation{};
 
@@ -233,7 +233,7 @@ TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
           2 * freq + 1);
 }
 
-TEST_CASE("Publish/catchup alternation, with stall",
+TEST_CASE("Publish catchup alternation with stall",
           "[history][historycatchup][catchupalternation]")
 {
     CatchupSimulation catchupSimulation{};
@@ -384,7 +384,7 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
     REQUIRE_THROWS_AS(app2->start(), std::runtime_error);
 }
 
-TEST_CASE("Publish/catchup via s3", "[!hide][s3]")
+TEST_CASE("Publish catchup via s3", "[!hide][s3]")
 {
     CatchupSimulation catchupSimulation{
         std::make_shared<S3HistoryConfigurator>()};
@@ -467,7 +467,7 @@ TEST_CASE("persist publish queue", "[history]")
 // The idea with this test is that we join a network and somehow get a gap
 // in the SCP voting sequence while we're trying to catchup. This will let
 // system catchup just before the gap.
-TEST_CASE("too far behind / catchup restart", "[history][catchupstall]")
+TEST_CASE("too far behind catchup restart", "[history][catchupstall]")
 {
     CatchupSimulation catchupSimulation{};
 

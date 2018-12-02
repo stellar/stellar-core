@@ -58,7 +58,7 @@ TEST_CASE("InferredQuorum intersection", "[history][inferredquorum]")
     CHECK(iq.checkQuorumIntersection(cfg));
 }
 
-TEST_CASE("InferredQuorum intersection w/ subquorums",
+TEST_CASE("InferredQuorum intersection w subquorums",
           "[history][inferredquorum][subquorum]")
 {
     InferredQuorum iq;
@@ -142,7 +142,7 @@ TEST_CASE("InferredQuorum intersection w/ subquorums",
     CHECK(iq.checkQuorumIntersection(cfg));
 }
 
-TEST_CASE("InferredQuorum non-intersection", "[history][inferredquorum]")
+TEST_CASE("InferredQuorum non intersection", "[history][inferredquorum]")
 {
     InferredQuorum iq;
 
@@ -206,7 +206,7 @@ TEST_CASE("InferredQuorum non-intersection", "[history][inferredquorum]")
     CHECK(!iq.checkQuorumIntersection(cfg));
 }
 
-TEST_CASE("InferredQuorum non-intersection w/ subquorums",
+TEST_CASE("InferredQuorum non intersection w subquorums",
           "[history][inferredquorum][subquorum]")
 {
     InferredQuorum iq;

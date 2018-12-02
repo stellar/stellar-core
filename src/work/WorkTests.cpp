@@ -221,7 +221,7 @@ class WorkWith2Subworks : public Work
     bool mCalledSuccessWithPendingSubwork{false};
 };
 
-TEST_CASE("sub-subwork items succed at the same time", "[work]")
+TEST_CASE("sub subwork items succed at the same time", "[work]")
 {
     VirtualClock clock;
     auto const& cfg = getTestConfig();

@@ -154,15 +154,13 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
     if (mApp.getState() == Application::APP_SYNCED_STATE)
     {
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-        mLoadTimer->async_wait([this, nAccounts, offset, nTxs, txRate,
-                                batchSize, isCreate,
-                                autoRate](asio::error_code const& error) {
-            if (!error)
-            {
+        mLoadTimer->async_wait(
+            [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate,
+             autoRate]() {
                 this->generateLoad(isCreate, nAccounts, offset, nTxs, txRate,
                                    batchSize, autoRate);
-            }
-        });
+            },
+            &VirtualTimer::onFailureNoop);
     }
     else
     {
@@ -170,15 +168,13 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
             << "Application is not in sync, load generation inhibited. State "
             << mApp.getState();
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
-        mLoadTimer->async_wait([this, nAccounts, offset, nTxs, txRate,
-                                batchSize, isCreate,
-                                autoRate](asio::error_code const& error) {
-            if (!error)
-            {
+        mLoadTimer->async_wait(
+            [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate,
+             autoRate]() {
                 this->scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs,
                                              txRate, batchSize, autoRate);
-            }
-        });
+            },
+            &VirtualTimer::onFailureNoop);
     }
 }
 
@@ -620,12 +616,8 @@ LoadGenerator::waitTillComplete()
     {
         mLoadTimer->expires_from_now(
             mApp.getConfig().getExpectedLedgerCloseTime());
-        mLoadTimer->async_wait([this](asio::error_code const& error) {
-            if (!error)
-            {
-                this->waitTillComplete();
-            }
-        });
+        mLoadTimer->async_wait([this]() { this->waitTillComplete(); },
+                               &VirtualTimer::onFailureNoop);
     }
 }
 

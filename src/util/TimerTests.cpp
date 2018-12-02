@@ -29,7 +29,7 @@ TEST_CASE("pointToTm tmToPoint stuff", "[timer]")
     CHECK(twelvesec == 12);
 }
 
-TEST_CASE("VirtualClock::pointToISOString", "[timer]")
+TEST_CASE("VirtualClock pointToISOString", "[timer]")
 {
     VirtualClock clock;
 
@@ -50,7 +50,7 @@ TEST_CASE("VirtualClock::pointToISOString", "[timer]")
           std::string("1970-01-02T13:10:18Z"));
 }
 
-TEST_CASE("VirtualClock::to_time_t", "[timer]")
+TEST_CASE("VirtualClock to_time_t", "[timer]")
 {
     VirtualClock clock;
 
@@ -67,7 +67,7 @@ TEST_CASE("VirtualClock::to_time_t", "[timer]")
     CHECK(VirtualClock::to_time_t(now) == 133818);
 }
 
-TEST_CASE("VirtualClock::from_time_t", "[timer]")
+TEST_CASE("VirtualClock from_time_t", "[timer]")
 {
     VirtualClock clock;
 
@@ -91,12 +91,12 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
 
+    size_t eventsDispatched = 0;
+
     VirtualTimer timer1(app);
     VirtualTimer timer20(app);
     VirtualTimer timer21(app);
     VirtualTimer timer200(app);
-
-    size_t eventsDispatched = 0;
 
     timer1.expires_from_now(std::chrono::milliseconds(1));
     timer1.async_wait([&](asio::error_code const& e) {
@@ -195,29 +195,42 @@ TEST_CASE("timer cancels", "[timer]")
 
     int timerFired = 0;
     int timerCancelled = 0;
-    std::vector<std::unique_ptr<VirtualTimer>> timers;
-    for (int i = 0; i < 10; i++)
     {
-        timers.push_back(std::make_unique<VirtualTimer>(*app));
-        timers.back()->expires_from_now(std::chrono::seconds(i));
-        timers.back()->async_wait([&](asio::error_code const& ec) {
-            if (ec)
-                ++timerCancelled;
-            else
-                ++timerFired;
-        });
-    }
-    timers[5]->async_wait([&](asio::error_code const& ec) {
-        if (!ec)
+        std::vector<std::unique_ptr<VirtualTimer>> timers;
+        for (int i = 0; i < 10; i++)
         {
-            timers[4]->cancel();
-            timers[5]->cancel();
-            timers[6]->cancel();
-            timers[7]->cancel();
+            timers.push_back(std::make_unique<VirtualTimer>(*app));
+            timers.back()->expires_from_now(std::chrono::seconds(i));
+            timers.back()->async_wait([&](asio::error_code const& ec) {
+                if (ec)
+                    ++timerCancelled;
+                else
+                    ++timerFired;
+            });
         }
-    });
-    while (clock.crank(false) > 0)
-        ;
+        timers[5]->async_wait([&](asio::error_code const& ec) {
+            if (!ec)
+            {
+                timers[4]->cancel();
+                timers[5]->cancel();
+                timers[6]->cancel();
+                timers[7]->cancel();
+            }
+        });
+        while (clock.crank(false) > 0)
+            ;
+        // timers 0, 1, 2, 3, 4, 5, 8, 9 fire normally
+        // timer 5b cancels 6, 7
+        REQUIRE(timerFired == 8);
+        REQUIRE(timerCancelled == 2);
+
+        // create another timer that gets cancelled when destructing
+        timers.push_back(std::make_unique<VirtualTimer>(*app));
+        timers.back()->expires_from_now(std::chrono::seconds(1));
+        timers.back()->async_wait(
+            [&](asio::error_code const& ec) { REQUIRE(ec); });
+    }
+    // timers that already triggered don't fire again
     REQUIRE(timerFired == 8);
     REQUIRE(timerCancelled == 2);
 }

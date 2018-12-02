@@ -25,9 +25,9 @@ TEST_CASE("subprocess", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
-    auto evt = app->getProcessManager().runProcess("hostname");
     bool exited = false;
     bool failed = false;
+    auto evt = app->getProcessManager().runProcess("hostname");
     evt.async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
@@ -50,9 +50,9 @@ TEST_CASE("subprocess fails", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
-    auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
     bool exited = false;
     bool failed = false;
+    auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
     evt.async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
@@ -77,8 +77,8 @@ TEST_CASE("subprocess redirect to file", "[process]")
     Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
     std::string filename("hostname.txt");
-    auto evt = app.getProcessManager().runProcess("hostname", filename);
     bool exited = false;
+    auto evt = app.getProcessManager().runProcess("hostname", filename);
     evt.async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
@@ -171,11 +171,11 @@ TEST_CASE("shutdown while process running", "[process]")
 #else
     std::string command = "sleep 10";
 #endif
+    std::vector<asio::error_code> errorCodes;
+    size_t exitedCount = 0;
     std::vector<ProcessExitEvent> events = {
         app1->getProcessManager().runProcess(command),
         app2->getProcessManager().runProcess(command)};
-    std::vector<asio::error_code> errorCodes;
-    size_t exitedCount = 0;
     for (auto& event : events)
     {
         event.async_wait([&](asio::error_code ec) {

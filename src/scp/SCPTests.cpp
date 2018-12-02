@@ -421,7 +421,7 @@ TEST_CASE("vblocking and quorum", "[scp]")
     REQUIRE(LocalNode::isVBlocking(qSet, nodeSet) == true);
 }
 
-TEST_CASE("v-blocking distance", "[scp]")
+TEST_CASE("v blocking distance", "[scp]")
 {
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);

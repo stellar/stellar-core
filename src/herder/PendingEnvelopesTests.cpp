@@ -16,7 +16,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
+TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;

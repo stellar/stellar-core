@@ -5,7 +5,7 @@
 # of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 BASE_INSTANCE="$1"
-TEST_SPEC_PATH="$2"
+TESTS="$2"
 if [[ -z "$TEMP_POSTGRES" ]]; then
     TEMP_POSTGRES=1
 fi
@@ -94,7 +94,7 @@ else
     echo "PostgreSQL enabled for tests using existing database cluster"
 fi
 if [ "$ALL_VERSIONS" != "" ]; then
-    ./stellar-core -ll fatal --test -f $TEST_SPEC_PATH --base-instance $BASE_INSTANCE --all-versions -a -r simple 2> /dev/null
+    ./stellar-core -ll fatal --test --base-instance $BASE_INSTANCE --all-versions -a -r simple "$TESTS" 2> /dev/null
 else
-    ./stellar-core -ll fatal --test -f $TEST_SPEC_PATH --base-instance $BASE_INSTANCE -a -r simple 2> /dev/null
+    ./stellar-core -ll fatal --test --base-instance $BASE_INSTANCE -a -r simple "$TESTS" 2> /dev/null
 fi

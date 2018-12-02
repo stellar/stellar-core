@@ -1,15 +1,15 @@
 language: cpp
 sudo: false
+dist: xenial
 
 compiler:
 - clang
 - gcc
 
 addons:
-  postgresql: "9.3"
+  postgresql: "9.5"
   apt:
     sources:
-    - llvm-toolchain-trusty-5.0
     - ubuntu-toolchain-r-test
     packages:
     - autoconf
@@ -27,6 +27,7 @@ addons:
     - clang-format-5.0
     - pandoc
     - perl
+    - parallel
 
 script: ./travis-build.sh
 

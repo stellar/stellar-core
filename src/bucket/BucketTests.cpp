@@ -459,7 +459,7 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
     REQUIRE(pair2.second == 0);
 }
 
-TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
+TEST_CASE("file backed buckets", "[bucket][bucketbench]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -897,7 +897,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     }
 }
 
-TEST_CASE("BucketList sizeOf* and oldestLedgerIn* relations", "[bucket][count]")
+TEST_CASE("BucketList sizeOf and oldestLedgerIn relations", "[bucket][count]")
 {
     std::default_random_engine gen;
     std::uniform_int_distribution<uint32_t> dist;

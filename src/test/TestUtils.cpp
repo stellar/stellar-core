@@ -31,12 +31,11 @@ injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
     if (clock.now() < end && connection.getInitiator()->isConnected())
     {
         timer.expires_from_now(std::chrono::milliseconds(10));
-        timer.async_wait([&](asio::error_code const& ec) {
-            if (!ec)
-            {
+        timer.async_wait(
+            [&]() {
                 injectSendPeersAndReschedule(end, clock, timer, connection);
-            }
-        });
+            },
+            &VirtualTimer::onFailureNoop);
     }
 }
 

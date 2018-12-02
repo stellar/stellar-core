@@ -10,7 +10,7 @@
 
 using namespace stellar;
 
-TEST_CASE("Serialization round-trip", "[history][serialize]")
+TEST_CASE("Serialization round trip", "[history][serialize]")
 {
     std::vector<std::string> testFiles = {
         "stellar-history.testnet.6714239.json",

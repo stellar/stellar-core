@@ -54,27 +54,27 @@ void decode_b64(Iter1 start, Iter1 end, Iter2 out);
 namespace impl
 {
 
-const int Error = -1;
+const unsigned char Error = std::numeric_limits<unsigned char>::max();
 
 namespace {
 
-char extract_partial_bits(char value, size_t start_bit, size_t bits_count)
+unsigned char extract_partial_bits(unsigned char value, size_t start_bit, size_t bits_count)
 {
     assert(start_bit + bits_count < 8);
     // shift extracted bits to the beginning of the byte
-    char t1 = value >> (8 - bits_count - start_bit);
+    unsigned char t1 = value >> (8 - bits_count - start_bit);
     // mask out bits on the left
-    char t2 = t1 & ~(0xff << bits_count);
+    unsigned char t2 = t1 & ~(0xff << bits_count);
     return t2;
 }
 
-char extract_overlapping_bits(char previous, char next, size_t start_bit, size_t bits_count)
+unsigned char extract_overlapping_bits(unsigned char previous, unsigned char next, size_t start_bit, size_t bits_count)
 {
     assert(start_bit + bits_count < 16);
     size_t bits_count_in_previous = 8 - start_bit;
     size_t bits_count_in_next = bits_count - bits_count_in_previous;
-    char t1 = previous << bits_count_in_next;
-    char t2 = next >> (8 - bits_count_in_next) & ~(0xff << bits_count_in_next) ;
+    unsigned char t1 = previous << bits_count_in_next;
+    unsigned char t2 = next >> (8 - bits_count_in_next) & ~(0xff << bits_count_in_next) ;
     return (t1 | t2) & ~(0xff << bits_count);
 }
 
@@ -87,14 +87,14 @@ struct b16_conversion_traits
        return 4;
     }
 
-    static char encode(unsigned int index)
+    static unsigned char encode(unsigned int index)
     {
         static const char dictionary[17] = "0123456789ABCDEF";
         assert(index < 16);
         return dictionary[index];
     }
 
-    static char decode(char c)
+    static unsigned char decode(unsigned char c)
     {
         if (c >= '0' && c <= '9') {
             return c - '0';
@@ -112,14 +112,14 @@ struct b32_conversion_traits
        return 5;
     }
 
-    static char encode(unsigned int index)
+    static unsigned char encode(unsigned int index)
     {
         static const char dictionary[33] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         assert(index < 32);
         return dictionary[index];
     }
 
-    static char decode(char c)
+    static unsigned char decode(unsigned char c)
     {
         if (c >= 'A' && c <= 'Z') {
             return c - 'A';
@@ -137,14 +137,14 @@ struct b64_conversion_traits
        return 6;
     }
 
-    static char encode(unsigned int index)
+    static unsigned char encode(unsigned int index)
     {
         static const char dictionary[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         assert(index < 64);
         return dictionary[index];
     }
 
-    static char decode(char c)
+    static unsigned char decode(unsigned char c)
     {
         const int alph_len = 26;
         if (c >= 'A' && c <= 'Z') {
@@ -167,14 +167,14 @@ void decode(Iter1 start, Iter1 end, Iter2 out)
 {
     Iter1 iter = start;
     size_t output_current_bit = 0;
-    char buffer = 0;
+    unsigned char buffer = 0;
 
     while (iter != end) {
         if (std::isspace(*iter)) {
             ++iter;
             continue;
         }
-        char value = ConversionTraits::decode(*iter);
+        unsigned char value = ConversionTraits::decode(*iter);
         if (value == Error) {
             // malformed data, but let's go on...
             ++iter;
@@ -213,14 +213,14 @@ void encode(Iter1 start, Iter1 end, Iter2 out)
     Iter1 iter = start;
     size_t start_bit = 0;
     bool has_backlog = false;
-    char backlog = 0;
+    unsigned char backlog = 0;
 
     while (has_backlog || iter != end) {
         if (!has_backlog) {
             if (start_bit + ConversionTraits::group_length() < 8) {
                 // the value fits within single byte, so we can extract it
                 // directly
-                char v = extract_partial_bits(*iter, start_bit, ConversionTraits::group_length());
+                unsigned char v = extract_partial_bits(*iter, start_bit, ConversionTraits::group_length());
                 *out++ = ConversionTraits::encode(v);
                 // since we know that start_bit + ConversionTraits::group_length() < 8 we don't need to go
                 // to the next byte
@@ -234,7 +234,7 @@ void encode(Iter1 start, Iter1 end, Iter2 out)
         } else {
             // encode value which is made from bits spanning across byte
             // boundary
-            char v;
+            unsigned char v;
             if (iter == end)
                  v = extract_overlapping_bits(backlog, 0, start_bit, ConversionTraits::group_length());
             else

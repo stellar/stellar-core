@@ -145,7 +145,7 @@ TEST_CASE("enable registered invariants regex", "[invariant]")
     }
 }
 
-TEST_CASE("onBucketApply fail/succeed", "[invariant]")
+TEST_CASE("onBucketApply fail succeed", "[invariant]")
 {
     {
         VirtualClock clock;
@@ -185,7 +185,7 @@ TEST_CASE("onBucketApply fail/succeed", "[invariant]")
     }
 }
 
-TEST_CASE("onOperationApply fail/succeed", "[invariant]")
+TEST_CASE("onOperationApply fail succeed", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
