@@ -45,7 +45,8 @@ elif test $CXX = 'g++'; then
 fi
 export PGUSER=postgres
 psql -c "create database test;"
-for j in $RUN_PARTITIONS; do
+# we run NPROCS jobs in parallel
+for j in $(seq 0 $((NPROCS-1))); do
     base_instance=$((j*50))
     for i in $(seq $base_instance $((base_instance+15))); do
         psql -c "create database test$i;"

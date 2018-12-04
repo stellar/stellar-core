@@ -54,8 +54,9 @@ EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
 #ifdef MSAN_ENABLED
     __msan_unpoison(q, crypto_scalarmult_BYTES);
 #endif
-    std::vector<uint8_t> buf(crypto_scalarmult_BYTES + publicA.key.size() +
-                             publicB.key.size());
+    std::vector<uint8_t> buf;
+    buf.reserve(crypto_scalarmult_BYTES + publicA.key.size() +
+                publicB.key.size());
     buf.insert(buf.end(), q, q + crypto_scalarmult_BYTES);
     buf.insert(buf.end(), publicA.key.begin(), publicA.key.end());
     buf.insert(buf.end(), publicB.key.begin(), publicB.key.end());
