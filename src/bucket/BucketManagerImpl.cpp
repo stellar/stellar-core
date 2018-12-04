@@ -272,6 +272,11 @@ BucketManagerImpl::getReferencedBuckets() const
 void
 BucketManagerImpl::cleanupStaleFiles()
 {
+    if (mApp.getConfig().DISABLE_BUCKET_GC)
+    {
+        return;
+    }
+
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto referenced = getReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
@@ -324,7 +329,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             CLOG(TRACE, "Bucket")
                 << "BucketManager::forgetUnreferencedBuckets dropping "
                 << filename;
-            if (!filename.empty())
+            if (!filename.empty() && !mApp.getConfig().DISABLE_BUCKET_GC)
             {
                 CLOG(TRACE, "Bucket") << "removing bucket file: " << filename;
                 std::remove(filename.c_str());
