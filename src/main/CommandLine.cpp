@@ -415,6 +415,21 @@ runCatchup(CommandLineArgs const& args)
 }
 
 int
+runPublish(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto config = configOption.getConfig();
+        config.setNoListen();
+
+        VirtualClock clock(VirtualClock::REAL_TIME);
+        auto app = Application::create(clock, config, false);
+        return publish(app);
+    });
+}
+
+int
 runCheckQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -712,6 +727,11 @@ handleCommandLine(int argc, char* const* argv)
          {"offline-info", "return information for an offline instance",
           runOfflineInfo},
          {"print-xdr", "pretty-print one XDR envelope, then quit", runPrintXdr},
+         {"publish",
+          "execute publish of all items remaining in publish queue without "
+          "connecting to network, may not publish last checkpoint if last "
+          "closed ledger is on checkpoint boundary",
+          runPublish},
          {"report-last-history-checkpoint",
           "report information about last checkpoint available in "
           "history archives",
