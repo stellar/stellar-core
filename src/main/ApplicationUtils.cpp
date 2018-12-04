@@ -331,25 +331,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
         return 1;
     }
 
-    // set known cursors before starting maintenance job
-    ExternalQueue ps(*app);
-    ps.setInitialCursors(app->getConfig().KNOWN_CURSORS);
-    app->getMaintainer().start();
-
-    auto done = false;
-    app->getLedgerManager().loadLastKnownLedger(
-        [&done](asio::error_code const& ec) {
-            if (ec)
-            {
-                throw std::runtime_error(
-                    "Unable to restore last-known ledger state");
-            }
-
-            done = true;
-        });
-    auto& clock = app->getClock();
-    while (!done && clock.crank(true))
-        ;
+    app->start();
 
     try
     {
@@ -367,10 +349,11 @@ catchup(Application::pointer app, CatchupConfiguration cc,
         return 2;
     }
 
+    auto& clock = app->getClock();
     auto& io = clock.getIOService();
     auto synced = false;
     asio::io_service::work mainWork(io);
-    done = false;
+    auto done = false;
     while (!done && clock.crank(true))
     {
         switch (app->getLedgerManager().getState())
@@ -434,26 +417,9 @@ publish(Application::pointer app)
         return 1;
     }
 
-    // set known cursors before starting maintenance job
-    ExternalQueue ps(*app);
-    ps.setInitialCursors(app->getConfig().KNOWN_CURSORS);
-    app->getMaintainer().start();
+    app->start();
 
-    auto done = false;
-    app->getLedgerManager().loadLastKnownLedger(
-        [&done](asio::error_code const& ec) {
-            if (ec)
-            {
-                throw std::runtime_error(
-                    "Unable to restore last-known ledger state");
-            }
-
-            done = true;
-        });
     auto& clock = app->getClock();
-    while (!done && clock.crank(true))
-        ;
-
     auto& io = clock.getIOService();
     asio::io_service::work mainWork(io);
 
