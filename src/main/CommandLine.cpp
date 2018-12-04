@@ -428,15 +428,20 @@ int
 runPublish(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    auto disableBucketGC = false;
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        auto config = configOption.getConfig();
-        config.setNoListen();
+    return runWithHelp(args,
+                       {configurationParser(configOption),
+                        disableBucketGCParser(disableBucketGC)},
+                       [&] {
+                           auto config = configOption.getConfig();
+                           config.setNoListen();
+                           config.DISABLE_BUCKET_GC = disableBucketGC;
 
-        VirtualClock clock(VirtualClock::REAL_TIME);
-        auto app = Application::create(clock, config, false);
-        return publish(app);
-    });
+                           VirtualClock clock(VirtualClock::REAL_TIME);
+                           auto app = Application::create(clock, config, false);
+                           return publish(app);
+                       });
 }
 
 int
