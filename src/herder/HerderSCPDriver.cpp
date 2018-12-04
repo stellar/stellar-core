@@ -179,6 +179,31 @@ HerderSCPDriver::isSlotCompatibleWithCurrentState(uint64_t slotIndex) const
     return res;
 }
 
+bool
+HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+                                StellarValue const& b) const
+{
+    // Check closeTime (not too old)
+    if (b.closeTime <= lastCloseTime)
+    {
+        CLOG(TRACE, "Herder")
+            << "Close time too old for slot " << slotIndex << ", got "
+            << b.closeTime << " vs " << lastCloseTime;
+        return false;
+    }
+
+    // Check closeTime (not too far in future)
+    uint64_t timeNow = mApp.timeNow();
+    if (b.closeTime > timeNow + Herder::MAX_TIME_SLIP_SECONDS.count())
+    {
+        CLOG(TRACE, "Herder")
+            << "Close time too far in future for slot " << slotIndex << ", got "
+            << b.closeTime << " vs " << timeNow;
+        return false;
+    }
+    return true;
+}
+
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
                                      StellarValue const& b) const
@@ -187,13 +212,48 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 
     bool compat = isSlotCompatibleWithCurrentState(slotIndex);
 
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+
+    // when checking close time, start with what we have locally
+    lastCloseTime = lcl.scpValue.closeTime;
+
     if (compat)
     {
-        lastCloseTime = mLedgerManager.getLastClosedLedgerHeader()
-                            .header.scpValue.closeTime;
+        if (!checkCloseTime(slotIndex, lastCloseTime, b))
+        {
+            return SCPDriver::kInvalidValue;
+        }
     }
     else
     {
+        if (slotIndex == lcl.ledgerSeq)
+        {
+            // previous ledger
+            if (b.closeTime != lastCloseTime)
+            {
+                CLOG(TRACE, "Herder")
+                    << "Got a bad close time for ledger " << slotIndex
+                    << ", got " << b.closeTime << " vs " << lastCloseTime;
+                return SCPDriver::kInvalidValue;
+            }
+        }
+        else if (slotIndex < lcl.ledgerSeq)
+        {
+            // basic sanity check on older value
+            if (b.closeTime >= lastCloseTime)
+            {
+                CLOG(TRACE, "Herder")
+                    << "Got a bad close time for ledger " << slotIndex
+                    << ", got " << b.closeTime << " vs " << lastCloseTime;
+                return SCPDriver::kInvalidValue;
+            }
+        }
+        else if (!checkCloseTime(slotIndex, lastCloseTime, b))
+        {
+            // future messages must be valid compared to lastCloseTime
+            return SCPDriver::kInvalidValue;
+        }
+
         if (!mTrackingSCP)
         {
             // if we're not tracking, there is not much more we can do to
@@ -230,36 +290,14 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
                 << nextConsensusLedgerIndex();
             return SCPDriver::kInvalidValue;
         }
+
+        // when tracking, we use the tracked time for last close time
         lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
-    }
-
-    // Check closeTime (not too old)
-    if (b.closeTime <= lastCloseTime)
-    {
-        if (Logging::logTrace("Herder"))
+        if (!checkCloseTime(slotIndex, lastCloseTime, b))
         {
-            CLOG(TRACE, "Herder")
-                << "Close time too old for slot " << slotIndex << ", got "
-                << b.closeTime << " vs " << lastCloseTime;
+            return SCPDriver::kInvalidValue;
         }
-        return SCPDriver::kInvalidValue;
-    }
 
-    // Check closeTime (not too far in future)
-    uint64_t timeNow = mApp.timeNow();
-    if (b.closeTime > timeNow + Herder::MAX_TIME_SLIP_SECONDS.count())
-    {
-        if (Logging::logTrace("Herder"))
-        {
-            CLOG(TRACE, "Herder")
-                << "Close time too recent for slot " << slotIndex << ", got "
-                << b.closeTime << " vs " << timeNow;
-        }
-        return SCPDriver::kInvalidValue;
-    }
-
-    if (!compat)
-    {
         // this is as far as we can go if we don't have the state
         if (Logging::logTrace("Herder"))
         {

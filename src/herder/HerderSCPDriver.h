@@ -211,6 +211,9 @@ class HerderSCPDriver : public SCPDriver
 
     void stateChanged();
 
+    bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+                        StellarValue const& b) const;
+
     SCPDriver::ValidationLevel
     validateValueHelper(uint64_t slotIndex, StellarValue const& sv) const;
 
