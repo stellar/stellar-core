@@ -101,6 +101,23 @@ class BucketManager : NonMovableOrCopyable
     // current BL.
     virtual void assumeState(HistoryArchiveState const& has) = 0;
 
+    // Create and store a fresh bucket from a given vector of live LedgerEntries
+    // and dead LedgerEntryKeys.
+    virtual std::shared_ptr<Bucket>
+    fresh(std::vector<LedgerEntry> const& liveEntries,
+          std::vector<LedgerKey> const& deadEntries) = 0;
+
+    // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
+    // are overridden in the fresh bucket by keywise-equal entries in
+    // `newBucket`. Entries are inhibited from the fresh bucket by keywise-equal
+    // entries in any of the buckets in the provided `shadows` vector.
+    virtual std::shared_ptr<Bucket>
+    merge(std::shared_ptr<Bucket> const& oldBucket,
+          std::shared_ptr<Bucket> const& newBucket,
+          std::vector<std::shared_ptr<Bucket>> const& shadows =
+              std::vector<std::shared_ptr<Bucket>>(),
+          bool keepDeadEntries = true) = 0;
+
     // Ensure all needed buckets are retained
     virtual void shutdown() = 0;
 };

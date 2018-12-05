@@ -73,25 +73,5 @@ class RawBucket : public std::enable_shared_from_this<RawBucket>,
     // database; if the entry is dead (a tombstone), deletes the corresponding
     // entry in the database.
     void apply(Application& app) const;
-
-    // Create a fresh bucket from a given vector of live LedgerEntries and
-    // dead LedgerEntryKeys. The bucket will be sorted, hashed, and adopted
-    // in the provided BucketManager.
-    static std::shared_ptr<Bucket>
-    fresh(BucketManager& bucketManager,
-          std::vector<LedgerEntry> const& liveEntries,
-          std::vector<LedgerKey> const& deadEntries);
-
-    // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
-    // are overridden in the fresh bucket by keywise-equal entries in
-    // `newBucket`. Entries are inhibited from the fresh bucket by keywise-equal
-    // entries in any of the buckets in the provided `shadows` vector.
-    static std::shared_ptr<Bucket>
-    merge(BucketManager& bucketManager,
-          std::shared_ptr<Bucket> const& oldBucket,
-          std::shared_ptr<Bucket> const& newBucket,
-          std::vector<std::shared_ptr<Bucket>> const& shadows =
-              std::vector<std::shared_ptr<Bucket>>(),
-          bool keepDeadEntries = true);
 };
 }

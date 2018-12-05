@@ -3,7 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManagerImpl.h"
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketOutputIterator.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
@@ -469,6 +471,144 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
 
     mBucketList.restartMerges(mApp);
     cleanupStaleFiles();
+}
+
+std::shared_ptr<Bucket>
+BucketManagerImpl::fresh(std::vector<LedgerEntry> const& liveEntries,
+                         std::vector<LedgerKey> const& deadEntries)
+{
+    std::vector<BucketEntry> live, dead, combined;
+    live.reserve(liveEntries.size());
+    dead.reserve(deadEntries.size());
+
+    for (auto const& e : liveEntries)
+    {
+        BucketEntry ce;
+        ce.type(LIVEENTRY);
+        ce.liveEntry() = e;
+        live.push_back(ce);
+    }
+
+    for (auto const& e : deadEntries)
+    {
+        BucketEntry ce;
+        ce.type(DEADENTRY);
+        ce.deadEntry() = e;
+        dead.push_back(ce);
+    }
+
+    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
+
+    std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
+
+    BucketOutputIterator liveOut(getTmpDir(), true);
+    BucketOutputIterator deadOut(getTmpDir(), true);
+    for (auto const& e : live)
+    {
+        liveOut.put(e);
+    }
+    for (auto const& e : dead)
+    {
+        deadOut.put(e);
+    }
+
+    auto liveBucket = liveOut.getBucket(*this);
+    auto deadBucket = deadOut.getBucket(*this);
+
+    std::shared_ptr<Bucket> bucket;
+    {
+        auto timer = LogSlowExecution("Bucket merge");
+        bucket = merge(liveBucket, deadBucket);
+    }
+    return bucket;
+}
+
+inline void
+maybePut(BucketOutputIterator& out, BucketEntry const& entry,
+         std::vector<BucketInputIterator>& shadowIterators)
+{
+    BucketEntryIdCmp cmp;
+    for (auto& si : shadowIterators)
+    {
+        // Advance the shadowIterator while it's less than the candidate
+        while (si && cmp(*si, entry))
+        {
+            ++si;
+        }
+        // We have stepped si forward to the point that either si is exhausted,
+        // or else *si >= entry; we now check the opposite direction to see if
+        // we have equality.
+        if (si && !cmp(entry, *si))
+        {
+            // If so, then entry is shadowed in at least one level and we will
+            // not be doing a 'put'; we return early. There is no need to
+            // advance the other iterators, they will advance as and if
+            // necessary in future calls to maybePut.
+            return;
+        }
+    }
+    // Nothing shadowed.
+    out.put(entry);
+}
+
+std::shared_ptr<Bucket>
+BucketManagerImpl::merge(std::shared_ptr<Bucket> const& oldBucket,
+                         std::shared_ptr<Bucket> const& newBucket,
+                         std::vector<std::shared_ptr<Bucket>> const& shadows,
+                         bool keepDeadEntries)
+{
+    // This is the key operation in the scheme: merging two (read-only)
+    // buckets together into a new 3rd bucket, while calculating its hash,
+    // in a single pass.
+
+    assert(oldBucket);
+    assert(newBucket);
+
+    BucketInputIterator oi(oldBucket);
+    BucketInputIterator ni(newBucket);
+
+    std::vector<BucketInputIterator> shadowIterators(shadows.begin(),
+                                                     shadows.end());
+
+    auto timer = getMergeTimer().TimeScope();
+    BucketOutputIterator out(getTmpDir(), keepDeadEntries);
+
+    BucketEntryIdCmp cmp;
+    while (oi || ni)
+    {
+        if (!ni)
+        {
+            // Out of new entries, take old entries.
+            maybePut(out, *oi, shadowIterators);
+            ++oi;
+        }
+        else if (!oi)
+        {
+            // Out of old entries, take new entries.
+            maybePut(out, *ni, shadowIterators);
+            ++ni;
+        }
+        else if (cmp(*oi, *ni))
+        {
+            // Next old-entry has smaller key, take it.
+            maybePut(out, *oi, shadowIterators);
+            ++oi;
+        }
+        else if (cmp(*ni, *oi))
+        {
+            // Next new-entry has smaller key, take it.
+            maybePut(out, *ni, shadowIterators);
+            ++ni;
+        }
+        else
+        {
+            // Old and new are for the same key, take new.
+            maybePut(out, *ni, shadowIterators);
+            ++oi;
+            ++ni;
+        }
+    }
+    return out.getBucket(*this);
 }
 
 void

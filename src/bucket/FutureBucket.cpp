@@ -280,7 +280,7 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
                 << "Worker merging curr=" << hexAbbrev(curr->getHash())
                 << " with snap=" << hexAbbrev(snap->getHash());
 
-            auto res = Bucket::merge(bm, curr, snap, shadows, keepDeadEntries);
+            auto res = bm.merge(curr, snap, shadows, keepDeadEntries);
 
             CLOG(TRACE, "Bucket")
                 << "Worker finished merging curr=" << hexAbbrev(curr->getHash())

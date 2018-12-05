@@ -415,10 +415,9 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     }
 
     assert(shadows.size() == 0);
-    mLevels[0].prepare(
-        app, currLedger,
-        Bucket::fresh(app.getBucketManager(), liveEntries, deadEntries),
-        shadows);
+    mLevels[0].prepare(app, currLedger,
+                       app.getBucketManager().fresh(liveEntries, deadEntries),
+                       shadows);
     mLevels[0].commit();
 }
 

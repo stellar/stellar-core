@@ -413,10 +413,10 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto& level = bl.getLevel(i);
-        level.setCurr(Bucket::fresh(
-            bm, LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8)));
-        level.setSnap(Bucket::fresh(
-            bm, LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8)));
+        level.setCurr(bm.fresh(LedgerTestUtils::generateValidLedgerEntries(8),
+                               deadGen(8)));
+        level.setSnap(bm.fresh(LedgerTestUtils::generateValidLedgerEntries(8),
+                               deadGen(8)));
     }
 
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -474,8 +474,8 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
     for (auto& e : dead)
         e = deadGen(3);
     CLOG(DEBUG, "Bucket") << "Hashing entries";
-    std::shared_ptr<Bucket> b1 =
-        Bucket::fresh(app->getBucketManager(), live, dead);
+    auto& bm = app->getBucketManager();
+    std::shared_ptr<Bucket> b1 = bm.fresh(live, dead);
     for (uint32_t i = 0; i < 5; ++i)
     {
         CLOG(DEBUG, "Bucket") << "Merging 10000 new ledger entries into "
@@ -485,9 +485,7 @@ TEST_CASE("file backed buckets", "[bucket][bucketbench]")
         for (auto& e : dead)
             e = deadGen(3);
         {
-            b1 = Bucket::merge(
-                app->getBucketManager(), b1,
-                Bucket::fresh(app->getBucketManager(), live, dead));
+            b1 = bm.merge(b1, bm.fresh(live, dead));
         }
     }
     CLOG(DEBUG, "Bucket") << "Spill file size: " << fileSize(b1->getFilename());
@@ -513,8 +511,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         deadEntry.account().accountID = liveEntry.data.account().accountID;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
-        std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b1 = app->getBucketManager().fresh(live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -528,8 +525,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         deadEntry.trustLine().asset = liveEntry.data.trustLine().asset;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
-        std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b1 = app->getBucketManager().fresh(live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -542,8 +538,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         deadEntry.offer().offerID = liveEntry.data.offer().offerID;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
-        std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b1 = app->getBucketManager().fresh(live, dead);
         CHECK(countEntries(b1) == 1);
     }
 
@@ -559,8 +554,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
                 dead.push_back(LedgerEntryKey(e));
             }
         }
-        std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b1 = app->getBucketManager().fresh(live, dead);
         CHECK(countEntries(b1) == live.size());
         auto liveCount = b1->countLiveAndDeadEntries().first;
         CLOG(DEBUG, "Bucket")
@@ -576,8 +570,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         {
             e = LedgerTestUtils::generateValidLedgerEntry(10);
         }
-        std::shared_ptr<Bucket> b1 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b1 = app->getBucketManager().fresh(live, dead);
         std::random_shuffle(live.begin(), live.end());
         size_t liveCount = live.size();
         for (auto& e : live)
@@ -588,10 +581,8 @@ TEST_CASE("merging bucket entries", "[bucket]")
                 ++liveCount;
             }
         }
-        std::shared_ptr<Bucket> b2 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
-        std::shared_ptr<Bucket> b3 =
-            Bucket::merge(app->getBucketManager(), b1, b2);
+        std::shared_ptr<Bucket> b2 = app->getBucketManager().fresh(live, dead);
+        std::shared_ptr<Bucket> b3 = app->getBucketManager().merge(b1, b2);
         CHECK(countEntries(b3) == liveCount);
     }
 }
@@ -648,17 +639,14 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     std::shared_ptr<Bucket> b1;
 
     {
-        std::shared_ptr<Bucket> b2 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b2 = app->getBucketManager().fresh(live, dead);
         b1 = b2;
 
         // Bucket is referenced by b1, b2 and the BucketManager.
         CHECK(b1.use_count() == 3);
 
-        std::shared_ptr<Bucket> b3 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
-        std::shared_ptr<Bucket> b4 =
-            Bucket::fresh(app->getBucketManager(), live, dead);
+        std::shared_ptr<Bucket> b3 = app->getBucketManager().fresh(live, dead);
+        std::shared_ptr<Bucket> b4 = app->getBucketManager().fresh(live, dead);
         // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
         CHECK(b1.use_count() == 5);
     }
@@ -1048,11 +1036,9 @@ TEST_CASE("bucket apply", "[bucket]")
         dead.emplace_back(LedgerEntryKey(e));
     }
 
-    std::shared_ptr<Bucket> birth =
-        Bucket::fresh(app->getBucketManager(), live, noDead);
+    std::shared_ptr<Bucket> birth = app->getBucketManager().fresh(live, noDead);
 
-    std::shared_ptr<Bucket> death =
-        Bucket::fresh(app->getBucketManager(), noLive, dead);
+    std::shared_ptr<Bucket> death = app->getBucketManager().fresh(noLive, dead);
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
@@ -1090,7 +1076,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
         }
 
         std::shared_ptr<Bucket> birth =
-            Bucket::fresh(app->getBucketManager(), live, noDead);
+            app->getBucketManager().fresh(live, noDead);
 
         CLOG(INFO, "Bucket")
             << "Applying bucket with " << live.size() << " live entries";

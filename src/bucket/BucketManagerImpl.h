@@ -81,6 +81,16 @@ class BucketManagerImpl : public BucketManager
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has) override;
+
+    std::shared_ptr<Bucket>
+    fresh(std::vector<LedgerEntry> const& liveEntries,
+          std::vector<LedgerKey> const& deadEntries) override;
+    std::shared_ptr<Bucket>
+    merge(std::shared_ptr<Bucket> const& oldBucket,
+          std::shared_ptr<Bucket> const& newBucket,
+          std::vector<std::shared_ptr<Bucket>> const& shadows =
+              std::vector<std::shared_ptr<Bucket>>(),
+          bool keepDeadEntries = true) override;
     void shutdown() override;
 };
 
