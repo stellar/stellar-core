@@ -97,7 +97,6 @@ class LoadGenerator
     struct TxMetrics
     {
         medida::Meter& mAccountCreated;
-        medida::Meter& mPayment;
         medida::Meter& mNativePayment;
         medida::Meter& mTxnAttempted;
         medida::Meter& mTxnRejected;

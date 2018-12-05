@@ -762,6 +762,7 @@ exit /b 0
     <None Include="..\..\docs\history.md" />
     <None Include="..\..\docs\integration.md" />
     <None Include="..\..\docs\ledger.md" />
+    <None Include="..\..\docs\metrics.md" />
     <None Include="..\..\docs\readme.md" />
     <None Include="..\..\docs\software\admin.md" />
     <None Include="..\..\docs\software\commands.md" />

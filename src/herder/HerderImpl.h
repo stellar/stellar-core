@@ -108,8 +108,6 @@ class HerderImpl : public Herder
     void rebroadcast();
     void broadcast(SCPEnvelope const& e);
 
-    void updateSCPCounters();
-
     void processSCPQueueUpToIndex(uint64 slotIndex);
 
     // 0- tx we got during ledger close
@@ -159,15 +157,8 @@ class HerderImpl : public Herder
     {
         medida::Meter& mLostSync;
 
-        medida::Meter& mBallotExpire;
-
         medida::Meter& mEnvelopeEmit;
         medida::Meter& mEnvelopeReceive;
-
-        // Counters for stuff in parent class (SCP)
-        // that we monitor on a best-effort basis from
-        // here.
-        medida::Counter& mKnownSlotsSize;
 
         // Counters for things reached-through the
         // SCP maps: Slots and Nodes

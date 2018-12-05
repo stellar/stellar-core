@@ -27,22 +27,10 @@ ApplyLedgerChainWork::ApplyLedgerChainWork(
     , mCurrSeq(
           mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
     , mLastApplied(lastApplied)
-    , mApplyLedgerStart(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "start"}, "event"))
-    , mApplyLedgerSkip(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "skip"}, "event"))
     , mApplyLedgerSuccess(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "success"}, "event"))
-    , mApplyLedgerFailureInvalidHash(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "failure-invalid-hash"}, "event"))
-    , mApplyLedgerFailurePastCurrent(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "failure-past-current"}, "event"))
-    , mApplyLedgerFailureInvalidLCLHash(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "failure-LCL-hash"}, "event"))
-    , mApplyLedgerFailureInvalidTxSetHash(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "failure-tx-set-hash"}, "event"))
-    , mApplyLedgerFailureInvalidResultHash(app.getMetrics().NewMeter(
-          {"history", "apply-ledger", "failure-result-hahs"}, "event"))
+          {"history", "apply-ledger-chain", "success"}, "event"))
+    , mApplyLedgerFailure(app.getMetrics().NewMeter(
+          {"history", "apply-ledger-chain", "failure"}, "event"))
 {
 }
 
@@ -136,8 +124,6 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
         return false;
     }
 
-    mApplyLedgerStart.Mark();
-
     auto& lm = mApp.getLedgerManager();
 
     auto const& lclHeader = lm.getLastClosedLedgerHeader();
@@ -147,7 +133,6 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     {
         CLOG(DEBUG, "History")
             << "Catchup skipping old ledger " << header.ledgerSeq;
-        mApplyLedgerSkip.Mark();
         return true;
     }
 
@@ -166,7 +151,6 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
         }
         CLOG(DEBUG, "History") << "Catchup at 1-before LCL ("
                                << header.ledgerSeq << "), hash correct";
-        mApplyLedgerSkip.Mark();
         return true;
     }
 
@@ -175,7 +159,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     {
         if (hHeader.hash != lm.getLastClosedLedgerHeader().hash)
         {
-            mApplyLedgerFailureInvalidHash.Mark();
+            mApplyLedgerFailure.Mark();
             throw std::runtime_error(
                 fmt::format("replay of {:s} at LCL {:s} disagreed on hash",
                             LedgerManager::ledgerAbbrev(hHeader),
@@ -183,14 +167,13 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
         }
         CLOG(DEBUG, "History")
             << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
-        mApplyLedgerSkip.Mark();
         return true;
     }
 
     // If we are past current, we can't catch up: fail.
     if (header.ledgerSeq != lclHeader.header.ledgerSeq + 1)
     {
-        mApplyLedgerFailurePastCurrent.Mark();
+        mApplyLedgerFailure.Mark();
         throw std::runtime_error(
             fmt::format("replay overshot current ledger: {:d} > {:d}",
                         header.ledgerSeq, lclHeader.header.ledgerSeq + 1));
@@ -199,7 +182,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     // If we do not agree about LCL hash, we can't catch up: fail.
     if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
     {
-        mApplyLedgerFailureInvalidLCLHash.Mark();
+        mApplyLedgerFailure.Mark();
         throw std::runtime_error(fmt::format(
             "replay at current ledger {:s} disagreed on LCL hash {:s}",
             LedgerManager::ledgerAbbrev(header.ledgerSeq - 1,
@@ -217,7 +200,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     // header.
     if (header.scpValue.txSetHash != txset->getContentsHash())
     {
-        mApplyLedgerFailureInvalidTxSetHash.Mark();
+        mApplyLedgerFailure.Mark();
         throw std::runtime_error(fmt::format(
             "replay txset hash differs from txset hash in replay ledger: hash "
             "for txset for {:d} is {:s}, expected {:s}",
@@ -234,7 +217,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     CLOG(DEBUG, "History") << "Replay header:\n" << xdr::xdr_to_string(hHeader);
     if (lm.getLastClosedLedgerHeader().hash != hHeader.hash)
     {
-        mApplyLedgerFailureInvalidResultHash.Mark();
+        mApplyLedgerFailure.Mark();
         throw std::runtime_error(fmt::format(
             "replay of {:s} produced mismatched ledger hash {:s}",
             LedgerManager::ledgerAbbrev(hHeader),

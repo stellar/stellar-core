@@ -66,14 +66,6 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
     , mWorkDir(nullptr)
     , mPublishWork(nullptr)
 
-    , mPublishSkip(
-          app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
-    , mPublishQueue(
-          app.getMetrics().NewMeter({"history", "publish", "queue"}, "event"))
-    , mPublishDelay(
-          app.getMetrics().NewMeter({"history", "publish", "delay"}, "event"))
-    , mPublishStart(
-          app.getMetrics().NewMeter({"history", "publish", "start"}, "event"))
     , mPublishSuccess(
           app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
     , mPublishFailure(
@@ -243,7 +235,6 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 
     if (!mApp.getHistoryArchiveManager().hasAnyWritableHistoryArchive())
     {
-        mPublishSkip.Mark();
         CLOG(DEBUG, "History")
             << "Skipping checkpoint, no writable history archives";
         return false;
@@ -278,7 +269,7 @@ HistoryManagerImpl::queueCurrentHistory()
     // into the in-memory publish queue in order to preserve those
     // merges-in-progress, avoid restarting them.
 
-    mPublishQueue.Mark();
+    mPublishQueued++;
     mPublishQueueBuckets.addBuckets(has.allBuckets());
     takeSnapshotAndPublish(has);
 }
@@ -288,14 +279,12 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 {
     if (mPublishWork)
     {
-        mPublishDelay.Mark();
         return;
     }
     auto ledgerSeq = has.currentLedger;
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
 
-    mPublishStart.Mark();
     mPublishWork = mApp.getWorkManager().addWork<PublishWork>(snap);
     mApp.getWorkManager().advanceChildren();
 }
@@ -430,13 +419,7 @@ HistoryManagerImpl::downloadMissingBuckets(
 uint64_t
 HistoryManagerImpl::getPublishQueueCount()
 {
-    return mPublishQueue.count();
-}
-
-uint64_t
-HistoryManagerImpl::getPublishDelayCount()
-{
-    return mPublishDelay.count();
+    return mPublishQueued;
 }
 
 uint64_t

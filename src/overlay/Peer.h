@@ -118,24 +118,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mSendSCPMessageSetMeter;
     medida::Meter& mSendGetSCPStateMeter;
 
-    medida::Meter& mDropInConnectHandlerMeter;
-    medida::Meter& mDropInRecvMessageDecodeMeter;
-    medida::Meter& mDropInRecvMessageSeqMeter;
-    medida::Meter& mDropInRecvMessageMacMeter;
-    medida::Meter& mDropInRecvMessageUnauthMeter;
-    medida::Meter& mDropInRecvHelloUnexpectedMeter;
-    medida::Meter& mDropInRecvHelloVersionMeter;
-    medida::Meter& mDropInRecvHelloSelfMeter;
-    medida::Meter& mDropInRecvHelloPeerIDMeter;
-    medida::Meter& mDropInRecvHelloCertMeter;
-    medida::Meter& mDropInRecvHelloBanMeter;
-    medida::Meter& mDropInRecvHelloNetMeter;
-    medida::Meter& mDropInRecvHelloAddressMeter;
-    medida::Meter& mDropInRecvAuthUnexpectedMeter;
-    medida::Meter& mDropInRecvAuthRejectMeter;
-    medida::Meter& mDropInRecvAuthInvalidPeerMeter;
-    medida::Meter& mDropInRecvErrorMeter;
-
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
     void recvMessage(AuthenticatedMessage const& msg);
@@ -269,7 +251,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    void drop(ErrorCode err, std::string const& msg);
+    virtual void drop(ErrorCode err, std::string const& msg);
 
     // If force is true, it will drop immediately without waiting for all
     // outgoing messages to be sent

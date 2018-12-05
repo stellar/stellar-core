@@ -54,7 +54,10 @@ class PendingEnvelopes
     // NodeIDs that are in quorum
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
-    medida::Counter& mReadyEnvelopesSize;
+    medida::Counter& mProcessedCount;
+    medida::Counter& mDiscardedCount;
+    medida::Counter& mFetchingCount;
+    medida::Counter& mReadyCount;
 
     // returns true if we think that the node is in quorum
     bool isNodeInQuorum(NodeID const& node);
@@ -62,6 +65,8 @@ class PendingEnvelopes
     // discards all SCP envelopes thats use QSet with given hash,
     // as it is not sane QSet
     void discardSCPEnvelopesWithQSet(Hash hash);
+
+    void updateMetrics();
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);

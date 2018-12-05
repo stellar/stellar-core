@@ -18,7 +18,7 @@
 #include "database/Database.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
-#include "medida/medida.h"
+#include "medida/timer.h"
 #include "util/Fs.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"

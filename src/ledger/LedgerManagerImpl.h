@@ -43,10 +43,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mLedgerClose;
     medida::Timer& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
-    medida::Counter& mLedgerStateCurrent;
-    medida::Timer& mLedgerStateChanges;
     VirtualClock::time_point mLastClose;
-    VirtualClock::time_point mLastStateChange;
 
     medida::Counter& mSyncingLedgersSize;
     SyncingLedgerChain mSyncingLedgers;

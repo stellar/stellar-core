@@ -627,7 +627,6 @@ LoadGenerator::waitTillComplete()
 
 LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
     : mAccountCreated(m.NewMeter({"loadgen", "account", "created"}, "account"))
-    , mPayment(m.NewMeter({"loadgen", "payment", "any"}, "payment"))
     , mNativePayment(m.NewMeter({"loadgen", "payment", "native"}, "payment"))
     , mTxnAttempted(m.NewMeter({"loadgen", "txn", "attempted"}, "txn"))
     , mTxnRejected(m.NewMeter({"loadgen", "txn", "rejected"}, "txn"))
@@ -642,7 +641,6 @@ LoadGenerator::TxMetrics::report()
                            << mTxnRejected.count() << " rj, "
                            << mTxnBytes.count() << " by, "
                            << mAccountCreated.count() << " ac ("
-                           << mPayment.count() << " pa ("
                            << mNativePayment.count() << " na, ";
 
     CLOG(DEBUG, "LoadGen") << "Rates/sec (1m EWMA): " << std::setprecision(3)
@@ -650,7 +648,6 @@ LoadGenerator::TxMetrics::report()
                            << mTxnRejected.one_minute_rate() << " rj, "
                            << mTxnBytes.one_minute_rate() << " by, "
                            << mAccountCreated.one_minute_rate() << " ac, "
-                           << mPayment.one_minute_rate() << " pa ("
                            << mNativePayment.one_minute_rate() << " na, ";
 }
 
@@ -675,7 +672,6 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     }
     else
     {
-        txm.mPayment.Mark();
         txm.mNativePayment.Mark();
     }
     txm.mTxnAttempted.Mark();

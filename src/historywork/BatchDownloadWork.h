@@ -34,8 +34,6 @@ class BatchDownloadWork : public Work
     std::string mFileType;
     TmpDir const& mDownloadDir;
 
-    medida::Meter& mDownloadCached;
-    medida::Meter& mDownloadStart;
     medida::Meter& mDownloadSuccess;
     medida::Meter& mDownloadFailure;
 

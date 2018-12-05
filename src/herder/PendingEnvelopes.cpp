@@ -31,8 +31,13 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
     , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
-    , mReadyEnvelopesSize(
-          app.getMetrics().NewCounter({"scp", "memory", "pending-envelopes"}))
+    , mProcessedCount(
+          app.getMetrics().NewCounter({"scp", "pending", "processed"}))
+    , mDiscardedCount(
+          app.getMetrics().NewCounter({"scp", "pending", "discarded"}))
+    , mFetchingCount(
+          app.getMetrics().NewCounter({"scp", "pending", "fetching"}))
+    , mReadyCount(app.getMetrics().NewCounter({"scp", "pending", "ready"}))
 {
 }
 
@@ -104,6 +109,30 @@ PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash hash)
     auto envelopes = mQuorumSetFetcher.fetchingFor(hash);
     for (auto& envelope : envelopes)
         discardSCPEnvelope(envelope);
+
+    updateMetrics();
+}
+
+void
+PendingEnvelopes::updateMetrics()
+{
+    int64 processed = 0;
+    int64 discarded = 0;
+    int64 fetching = 0;
+    int64 ready = 0;
+
+    for (auto const& s : mEnvelopes)
+    {
+        auto& v = s.second;
+        processed += v.mProcessedEnvelopes.size();
+        discarded += v.mDiscardedEnvelopes.size();
+        fetching += v.mFetchingEnvelopes.size();
+        ready += v.mReadyEnvelopes.size();
+    }
+    mProcessedCount.set_count(processed);
+    mDiscardedCount.set_count(discarded);
+    mFetchingCount.set_count(fetching);
+    mReadyCount.set_count(ready);
 }
 
 void
@@ -213,9 +242,11 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             processedList.emplace_back(*fetching);
             set.erase(fetching);
             envelopeReady(envelope);
+            updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         } // else just keep waiting for it to come in
 
+        updateMetrics();
         return Herder::ENVELOPE_STATUS_FETCHING;
     }
     catch (xdr::xdr_runtime_error& e)
@@ -246,6 +277,7 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
         fetchingSet.erase(envelope);
 
         stopFetch(envelope);
+        updateMetrics();
     }
     catch (xdr::xdr_runtime_error& e)
     {
@@ -406,6 +438,8 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
         return i.first != 0 && i.first < slotIndex;
     });
+
+    updateMetrics();
 }
 
 void
@@ -428,6 +462,8 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
         mTxSetCache.erase_if(
             [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
     }
+
+    updateMetrics();
 }
 
 TxSetFramePtr
@@ -456,6 +492,8 @@ Json::Value
 PendingEnvelopes::getJsonInfo(size_t limit)
 {
     Json::Value ret;
+
+    updateMetrics();
 
     {
         auto it = mEnvelopes.rbegin();

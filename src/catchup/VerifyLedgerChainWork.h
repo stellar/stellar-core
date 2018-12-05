@@ -28,14 +28,9 @@ class VerifyLedgerChainWork : public Work
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
-    medida::Meter& mVerifyLedgerSuccessOld;
     medida::Meter& mVerifyLedgerSuccess;
-    medida::Meter& mVerifyLedgerFailureLedgerVersion;
-    medida::Meter& mVerifyLedgerFailureOvershot;
-    medida::Meter& mVerifyLedgerFailureLink;
     medida::Meter& mVerifyLedgerChainSuccess;
     medida::Meter& mVerifyLedgerChainFailure;
-    medida::Meter& mVerifyLedgerChainFailureEnd;
 
     HistoryManager::LedgerVerificationStatus verifyHistoryOfSingleCheckpoint();
 

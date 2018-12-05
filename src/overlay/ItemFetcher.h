@@ -97,12 +97,6 @@ class ItemFetcher : private NonMovableOrCopyable
     Application& mApp;
     std::map<Hash, std::shared_ptr<Tracker>> mTrackers;
 
-    // NB: There are many ItemFetchers in the system at once, but we are sharing
-    // a single counter for all the items being fetched by all of them. Be
-    // careful, therefore, to only increment and decrement this counter, not set
-    // it absolutely.
-    medida::Counter& mItemMapSize;
-
   private:
     AskPeer mAskPeer;
 };

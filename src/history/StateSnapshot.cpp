@@ -19,11 +19,6 @@
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
-
-#include <soci.h>
-
 namespace stellar
 {
 

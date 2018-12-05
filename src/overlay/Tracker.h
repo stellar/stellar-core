@@ -46,7 +46,6 @@ class Tracker
     VirtualTimer mTimer;
     std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
     Hash mItemHash;
-    medida::Meter& mTryNextPeerReset;
     medida::Meter& mTryNextPeer;
     uint64 mLastSeenSlotIndex{0};
 

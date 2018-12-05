@@ -57,11 +57,9 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
-    , mBucketObjectInsert(
-          app.getMetrics().NewMeter({"bucket", "object", "insert"}, "object"))
-    , mBucketByteInsert(
-          app.getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte"))
-    , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "add"}))
+    , mBucketObjectInsertBatch(app.getMetrics().NewMeter(
+          {"bucket", "batch", "objectsadded"}, "object"))
+    , mBucketAddBatch(app.getMetrics().NewTimer({"bucket", "batch", "addtime"}))
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
@@ -179,8 +177,6 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     }
     else
     {
-        mBucketObjectInsert.Mark(nObjects);
-        mBucketByteInsert.Mark(nBytes);
         std::string canonicalName = bucketFilename(hash);
         CLOG(DEBUG, "Bucket")
             << "Adopting bucket file " << filename << " as " << canonicalName;
@@ -348,6 +344,7 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
                             std::vector<LedgerKey> const& deadEntries)
 {
     auto timer = mBucketAddBatch.TimeScope();
+    mBucketObjectInsertBatch.Mark(liveEntries.size());
     mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
 }
 

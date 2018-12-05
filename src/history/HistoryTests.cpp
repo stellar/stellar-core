@@ -184,9 +184,6 @@ TEST_CASE("History publish queueing", "[history][historydelay][historycatchup]")
     // just-before-LCL
     catchupSimulation.generateRandomLedger();
 
-    CLOG(INFO, "History") << "publish-delay count: "
-                          << hm.getPublishDelayCount();
-
     while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
     {
         CHECK(hm.getPublishFailureCount() == 0);

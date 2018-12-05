@@ -69,8 +69,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStoppingTimer(*this)
     , mMetrics(std::make_unique<medida::MetricsRegistry>())
     , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
-    , mAppStateChanges(mMetrics->NewTimer({"app", "state", "changes"}))
-    , mLastStateChange(clock.now())
     , mStartedOn(clock.now())
 {
 #ifdef SIGQUIT
@@ -590,9 +588,6 @@ ApplicationImpl::syncOwnMetrics()
     if (c != n)
     {
         mAppStateCurrent.set_count(n);
-        auto now = mVirtualClock.now();
-        mAppStateChanges.Update(now - mLastStateChange);
-        mLastStateChange = now;
     }
 
     // Flush crypto pure-global-cache stats. They don't belong

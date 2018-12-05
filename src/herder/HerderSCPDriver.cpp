@@ -32,27 +32,8 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
     , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
           app.getMetrics().NewMeter({"scp", "value", "invalid"}, "value"))
-    , mValueExternalize(
-          app.getMetrics().NewMeter({"scp", "value", "externalize"}, "value"))
-    , mQuorumHeard(
-          app.getMetrics().NewMeter({"scp", "quorum", "heard"}, "quorum"))
-    , mNominatingValue(
-          app.getMetrics().NewMeter({"scp", "value", "nominating"}, "value"))
-    , mUpdatedCandidate(
-          app.getMetrics().NewMeter({"scp", "value", "candidate"}, "value"))
-    , mStartBallotProtocol(
-          app.getMetrics().NewMeter({"scp", "ballot", "started"}, "ballot"))
-    , mAcceptedBallotPrepared(app.getMetrics().NewMeter(
-          {"scp", "ballot", "accepted-prepared"}, "ballot"))
-    , mConfirmedBallotPrepared(app.getMetrics().NewMeter(
-          {"scp", "ballot", "confirmed-prepared"}, "ballot"))
-    , mAcceptedCommit(app.getMetrics().NewMeter(
-          {"scp", "ballot", "accepted-commit"}, "ballot"))
-
-    , mHerderStateCurrent(
-          app.getMetrics().NewCounter({"herder", "state", "current"}))
-    , mHerderStateChanges(
-          app.getMetrics().NewTimer({"herder", "state", "changes"}))
+    , mCombinedCandidates(app.getMetrics().NewMeter(
+          {"scp", "nomination", "combinecandidates"}, "value"))
     , mNominateToPrepare(
           app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
     , mPrepareToExternalize(
@@ -71,7 +52,6 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
     , mSCPMetrics{mApp}
-    , mLastStateChange{mApp.getClock().now()}
 {
 }
 
@@ -82,10 +62,6 @@ HerderSCPDriver::~HerderSCPDriver()
 void
 HerderSCPDriver::stateChanged()
 {
-    mSCPMetrics.mHerderStateCurrent.set_count(static_cast<int64_t>(getState()));
-    auto now = mApp.getClock().now();
-    mSCPMetrics.mHerderStateChanges.Update(now - mLastStateChange);
-    mLastStateChange = now;
     mApp.syncOwnMetrics();
 }
 
@@ -110,17 +86,6 @@ HerderSCPDriver::getState() const
 {
     return mTrackingSCP && mLastTrackingSCP ? Herder::HERDER_TRACKING_STATE
                                             : Herder::HERDER_SYNCING_STATE;
-}
-
-void
-HerderSCPDriver::syncMetrics()
-{
-    auto c = mSCPMetrics.mHerderStateCurrent.count();
-    auto n = static_cast<int64_t>(getState());
-    if (c != n)
-    {
-        mSCPMetrics.mHerderStateCurrent.set_count(n);
-    }
 }
 
 void
@@ -505,6 +470,9 @@ Value
 HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                                    std::set<Value> const& candidates)
 {
+    CLOG(DEBUG, "Herder") << "Combining " << candidates.size() << " candidates";
+    mSCPMetrics.mCombinedCandidates.Mark(candidates.size());
+
     Hash h;
 
     StellarValue comp(h, 0, emptyUpgradeSteps, 0);
@@ -635,8 +603,6 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 void
 HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 {
-    mSCPMetrics.mValueExternalize.Mark();
-
     auto it = mSCPTimers.begin(); // cancel all timers below this slot
     while (it != mSCPTimers.end() && it->first <= slotIndex)
     {
@@ -753,7 +719,6 @@ HerderSCPDriver::getQSet(Hash const& qSetHash)
 void
 HerderSCPDriver::ballotDidHearFromQuorum(uint64_t, SCPBallot const&)
 {
-    mSCPMetrics.mQuorumHeard.Mark();
 }
 
 void
@@ -762,17 +727,11 @@ HerderSCPDriver::nominatingValue(uint64_t slotIndex, Value const& value)
     if (Logging::logDebug("Herder"))
         CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
                               << " v: " << getValueString(value);
-
-    if (!value.empty())
-    {
-        mSCPMetrics.mNominatingValue.Mark();
-    }
 }
 
 void
 HerderSCPDriver::updatedCandidateValue(uint64_t slotIndex, Value const& value)
 {
-    mSCPMetrics.mUpdatedCandidate.Mark();
 }
 
 void
@@ -780,26 +739,22 @@ HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
                                        SCPBallot const& ballot)
 {
     recordSCPEvent(slotIndex, false);
-    mSCPMetrics.mStartBallotProtocol.Mark();
 }
 void
 HerderSCPDriver::acceptedBallotPrepared(uint64_t slotIndex,
                                         SCPBallot const& ballot)
 {
-    mSCPMetrics.mAcceptedBallotPrepared.Mark();
 }
 
 void
 HerderSCPDriver::confirmedBallotPrepared(uint64_t slotIndex,
                                          SCPBallot const& ballot)
 {
-    mSCPMetrics.mConfirmedBallotPrepared.Mark();
 }
 
 void
 HerderSCPDriver::acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot)
 {
-    mSCPMetrics.mAcceptedCommit.Mark();
 }
 
 optional<VirtualClock::time_point>

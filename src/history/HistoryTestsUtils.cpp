@@ -639,13 +639,10 @@ CatchupSimulation::getCatchupMetrics(Application::pointer app)
         {"history", "download-history-archive-state", "success"}, "event");
     auto historyArchiveStatesDownloaded = getHistoryArchiveStateSuccess.count();
 
-    auto& downloadLedgersCached = app->getMetrics().NewMeter(
-        {"history", "download-ledger", "cached"}, "event");
     auto& downloadLedgersSuccess = app->getMetrics().NewMeter(
         {"history", "download-ledger", "success"}, "event");
 
-    auto ledgersDownloaded =
-        downloadLedgersSuccess.count() + downloadLedgersCached.count();
+    auto ledgersDownloaded = downloadLedgersSuccess.count();
 
     auto& verifyLedgerSuccess = app->getMetrics().NewMeter(
         {"history", "verify-ledger", "success"}, "event");
@@ -665,16 +662,13 @@ CatchupSimulation::getCatchupMetrics(Application::pointer app)
 
     auto bucketsApplied = bucketApplySuccess.count();
 
-    auto& downloadTransactionsCached = app->getMetrics().NewMeter(
-        {"history", "download-transactions", " cached "}, "event");
     auto& downloadTransactionsSuccess = app->getMetrics().NewMeter(
         {"history", "download-transactions", "success"}, "event");
 
-    auto transactionsDownloaded = downloadTransactionsSuccess.count() +
-                                  downloadTransactionsCached.count();
+    auto transactionsDownloaded = downloadTransactionsSuccess.count();
 
     auto& applyLedgerSuccess = app->getMetrics().NewMeter(
-        {"history", "apply-ledger", "success"}, "event");
+        {"history", "apply-ledger-chain", "success"}, "event");
 
     auto transactionsApplied = applyLedgerSuccess.count();
 

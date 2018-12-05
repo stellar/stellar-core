@@ -26,10 +26,6 @@ BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
     , mNext(mRange.first())
     , mFileType(type)
     , mDownloadDir(downloadDir)
-    , mDownloadCached(app.getMetrics().NewMeter(
-          {"history", "download-" + type, "cached"}, "event"))
-    , mDownloadStart(app.getMetrics().NewMeter(
-          {"history", "download-" + type, "start"}, "event"))
     , mDownloadSuccess(app.getMetrics().NewMeter(
           {"history", "download-" + type, "success"}, "event"))
     , mDownloadFailure(app.getMetrics().NewMeter(
@@ -66,7 +62,7 @@ BatchDownloadWork::addNextDownloadWorker()
     {
         CLOG(DEBUG, "History")
             << "already have " << mFileType << " for checkpoint " << mNext;
-        mDownloadCached.Mark();
+        mDownloadSuccess.Mark();
     }
     else
     {
@@ -75,7 +71,6 @@ BatchDownloadWork::addNextDownloadWorker()
         auto getAndUnzip = addWork<GetAndUnzipRemoteFileWork>(ft);
         assert(mRunning.find(getAndUnzip->getUniqueName()) == mRunning.end());
         mRunning.insert(std::make_pair(getAndUnzip->getUniqueName(), mNext));
-        mDownloadStart.Mark();
     }
     mNext += mApp.getHistoryManager().getCheckpointFrequency();
 }

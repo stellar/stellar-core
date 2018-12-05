@@ -24,9 +24,7 @@ class GetHistoryArchiveStateWork : public Work
     std::shared_ptr<HistoryArchive> mArchive;
     std::string mLocalFilename;
 
-    medida::Meter& mGetHistoryArchiveStateStart;
     medida::Meter& mGetHistoryArchiveStateSuccess;
-    medida::Meter& mGetHistoryArchiveStateFailure;
 
   public:
     GetHistoryArchiveStateWork(

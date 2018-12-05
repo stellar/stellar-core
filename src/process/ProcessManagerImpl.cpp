@@ -17,9 +17,6 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
-
 #include <algorithm>
 #include <functional>
 #include <iterator>

@@ -21,8 +21,6 @@ DownloadBucketsWork::DownloadBucketsWork(
     , mBuckets{buckets}
     , mHashes{std::move(hashes)}
     , mDownloadDir{downloadDir}
-    , mDownloadBucketStart{app.getMetrics().NewMeter(
-          {"history", "download-bucket", "start"}, "event")}
     , mDownloadBucketSuccess{app.getMetrics().NewMeter(
           {"history", "download-bucket", "success"}, "event")}
     , mDownloadBucketFailure{app.getMetrics().NewMeter(
@@ -59,7 +57,6 @@ DownloadBucketsWork::onReset()
         auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
                                                 hexToBin256(hash));
         verify->addWork<GetAndUnzipRemoteFileWork>(ft);
-        mDownloadBucketStart.Mark();
     }
 }
 

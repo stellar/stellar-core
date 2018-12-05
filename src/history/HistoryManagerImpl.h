@@ -28,10 +28,7 @@ class HistoryManagerImpl : public HistoryManager
     PublishQueueBuckets mPublishQueueBuckets;
     bool mPublishQueueBucketsFilled{false};
 
-    medida::Meter& mPublishSkip;
-    medida::Meter& mPublishQueue;
-    medida::Meter& mPublishDelay;
-    medida::Meter& mPublishStart;
+    int mPublishQueued{0};
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
 
@@ -86,7 +83,6 @@ class HistoryManagerImpl : public HistoryManager
     std::string localFilename(std::string const& basename) override;
 
     uint64_t getPublishQueueCount() override;
-    uint64_t getPublishDelayCount() override;
     uint64_t getPublishSuccessCount() override;
     uint64_t getPublishFailureCount() override;
 };

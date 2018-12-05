@@ -27,12 +27,8 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
           archive ? HistoryArchiveState::localName(app, archive->getName())
                   : app.getHistoryManager().localFilename(
                         HistoryArchiveState::baseName()))
-    , mGetHistoryArchiveStateStart(app.getMetrics().NewMeter(
-          {"history", "download-history-archive-state", "start"}, "event"))
     , mGetHistoryArchiveStateSuccess(app.getMetrics().NewMeter(
           {"history", "download-history-archive-state", "success"}, "event"))
-    , mGetHistoryArchiveStateFailure(app.getMetrics().NewMeter(
-          {"history", "download-history-archive-state", "failure"}, "event"))
 {
 }
 
@@ -61,8 +57,6 @@ GetHistoryArchiveStateWork::onReset()
                                    ? HistoryArchiveState::wellKnownRemoteName()
                                    : HistoryArchiveState::remoteName(mSeq),
                                mLocalFilename, mArchive, getMaxRetries());
-
-    mGetHistoryArchiveStateStart.Mark();
 }
 
 void
@@ -90,14 +84,12 @@ GetHistoryArchiveStateWork::onSuccess()
 void
 GetHistoryArchiveStateWork::onFailureRetry()
 {
-    mGetHistoryArchiveStateFailure.Mark();
     Work::onFailureRetry();
 }
 
 void
 GetHistoryArchiveStateWork::onFailureRaise()
 {
-    mGetHistoryArchiveStateFailure.Mark();
     Work::onFailureRaise();
 }
 }

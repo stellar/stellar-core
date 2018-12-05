@@ -518,11 +518,11 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "ENTRY_CACHE_SIZE")
             {
-                ENTRY_CACHE_SIZE = readInt<size_t>(item);
+                ENTRY_CACHE_SIZE = readInt<uint32_t>(item);
             }
             else if (item.first == "BEST_OFFERS_CACHE_SIZE")
             {
-                BEST_OFFERS_CACHE_SIZE = readInt<size_t>(item);
+                BEST_OFFERS_CACHE_SIZE = readInt<uint32_t>(item);
             }
             else
             {
