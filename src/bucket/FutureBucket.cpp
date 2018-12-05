@@ -12,6 +12,7 @@
 #include "bucket/FutureBucket.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 
@@ -29,6 +30,8 @@ FutureBucket::FutureBucket(Application& app, Bucket const& curr,
     , mInputSnapBucket(snap)
     , mInputShadowBuckets(shadows)
 {
+    assertThreadIsMain();
+
     // Constructed with a bunch of inputs, _immediately_ commence merging
     // them; there's no valid state for have-inputs-but-not-merging, the
     // presence of inputs implies merging, and vice-versa.
@@ -46,6 +49,9 @@ FutureBucket::FutureBucket(Application& app, Bucket const& curr,
 void
 FutureBucket::setLiveOutput(Bucket output)
 {
+    assertThreadIsMain();
+    assert(output);
+
     mState = FB_LIVE_OUTPUT;
     mOutputBucketHash = binToHex(output->getHash());
     // Given an output bucket, fake-up a promise for it connected to
@@ -65,6 +71,8 @@ checkHashEq(Bucket b, std::string const& h)
 void
 FutureBucket::checkHashesMatch() const
 {
+    assertThreadIsMain();
+
     if (!mInputShadowBuckets.empty())
     {
         assert(mInputShadowBuckets.size() == mInputShadowBucketHashes.size());
@@ -97,6 +105,8 @@ FutureBucket::checkHashesMatch() const
 void
 FutureBucket::checkState() const
 {
+    assertThreadIsMain();
+
     switch (mState)
     {
     case FB_CLEAR:
@@ -152,6 +162,8 @@ FutureBucket::checkState() const
 void
 FutureBucket::clearInputs()
 {
+    assertThreadIsMain();
+
     mInputShadowBuckets.clear();
     mInputSnapBucket.reset();
     mInputCurrBucket.reset();
@@ -164,6 +176,8 @@ FutureBucket::clearInputs()
 void
 FutureBucket::clearOutput()
 {
+    assertThreadIsMain();
+
     // NB: MSVC future<> implementation doesn't purge the task lambda (and
     // its captures) on invalidation (due to get()); must explicitly reset.
     mOutputBucket = std::shared_future<Bucket>();
@@ -173,6 +187,8 @@ FutureBucket::clearOutput()
 void
 FutureBucket::clear()
 {
+    assertThreadIsMain();
+
     mState = FB_CLEAR;
     clearInputs();
     clearOutput();
@@ -181,24 +197,32 @@ FutureBucket::clear()
 bool
 FutureBucket::isLive() const
 {
+    assertThreadIsMain();
+
     return (mState == FB_LIVE_INPUTS || mState == FB_LIVE_OUTPUT);
 }
 
 bool
 FutureBucket::isMerging() const
 {
+    assertThreadIsMain();
+
     return mState == FB_LIVE_INPUTS;
 }
 
 bool
 FutureBucket::hasHashes() const
 {
+    assertThreadIsMain();
+
     return (mState == FB_HASH_INPUTS || mState == FB_HASH_OUTPUT);
 }
 
 bool
 FutureBucket::mergeComplete() const
 {
+    assertThreadIsMain();
+
     assert(isLive());
     auto status = mOutputBucket.wait_for(std::chrono::nanoseconds(1));
     return status == std::future_status::ready;
@@ -207,6 +231,8 @@ FutureBucket::mergeComplete() const
 Bucket
 FutureBucket::resolve()
 {
+    assertThreadIsMain();
+
     checkState();
     assert(isLive());
     clearInputs();
@@ -233,6 +259,8 @@ FutureBucket::resolve()
 bool
 FutureBucket::hasOutputHash() const
 {
+    assertThreadIsMain();
+
     if (mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT)
     {
         assert(!mOutputBucketHash.empty());
@@ -244,6 +272,8 @@ FutureBucket::hasOutputHash() const
 std::string const&
 FutureBucket::getOutputHash() const
 {
+    assertThreadIsMain();
+
     assert(mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT);
     assert(!mOutputBucketHash.empty());
     return mOutputBucketHash;
@@ -252,6 +282,8 @@ FutureBucket::getOutputHash() const
 void
 FutureBucket::startMerge(Application& app, bool keepDeadEntries)
 {
+    assertThreadIsMain();
+
     // NB: startMerge starts with FutureBucket in a half-valid state; the inputs
     // are live but the merge is not yet running. So you can't call checkState()
     // on entry, only on exit.
@@ -296,6 +328,8 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
 void
 FutureBucket::makeLive(Application& app, bool keepDeadEntries)
 {
+    assertThreadIsMain();
+
     checkState();
     assert(!isLive());
     assert(hasHashes());
@@ -328,6 +362,8 @@ FutureBucket::makeLive(Application& app, bool keepDeadEntries)
 std::vector<std::string>
 FutureBucket::getHashes() const
 {
+    assertThreadIsMain();
+
     std::vector<std::string> hashes;
     if (!mInputCurrBucketHash.empty())
     {

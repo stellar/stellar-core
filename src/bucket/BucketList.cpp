@@ -10,9 +10,11 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
+
 #include <cassert>
 
 namespace stellar
@@ -28,6 +30,8 @@ BucketLevel::BucketLevel(uint32_t i)
 uint256
 BucketLevel::getHash() const
 {
+    assertThreadIsMain();
+
     auto hsh = SHA256::create();
     hsh->add(mCurr->getHash());
     hsh->add(mSnap->getHash());
@@ -37,36 +41,48 @@ BucketLevel::getHash() const
 FutureBucket const&
 BucketLevel::getNext() const
 {
+    assertThreadIsMain();
+
     return mNextCurr;
 }
 
 FutureBucket&
 BucketLevel::getNext()
 {
+    assertThreadIsMain();
+
     return mNextCurr;
 }
 
 void
 BucketLevel::setNext(FutureBucket const& fb)
 {
+    assertThreadIsMain();
+
     mNextCurr = fb;
 }
 
 Bucket
 BucketLevel::getCurr() const
 {
+    assertThreadIsMain();
+
     return mCurr;
 }
 
 Bucket
 BucketLevel::getSnap() const
 {
+    assertThreadIsMain();
+
     return mSnap;
 }
 
 void
 BucketLevel::setCurr(Bucket b)
 {
+    assertThreadIsMain();
+
     mNextCurr.clear();
     mCurr = b;
 }
@@ -74,12 +90,16 @@ BucketLevel::setCurr(Bucket b)
 void
 BucketLevel::setSnap(Bucket b)
 {
+    assertThreadIsMain();
+
     mSnap = b;
 }
 
 void
 BucketLevel::commit()
 {
+    assertThreadIsMain();
+
     if (mNextCurr.isLive())
     {
         setCurr(mNextCurr.resolve());
@@ -93,6 +113,8 @@ void
 BucketLevel::prepare(Application& app, uint32_t currLedger, Bucket snap,
                      std::vector<Bucket> const& shadows)
 {
+    assertThreadIsMain();
+
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
     assert(!mNextCurr.isMerging());
@@ -126,6 +148,8 @@ BucketLevel::prepare(Application& app, uint32_t currLedger, Bucket snap,
 Bucket
 BucketLevel::snap()
 {
+    assertThreadIsMain();
+
     mSnap = mCurr;
     mCurr = std::make_shared<RawBucket>();
     // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mSnap to "
@@ -285,6 +309,8 @@ BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 uint256
 BucketList::getHash() const
 {
+    assertThreadIsMain();
+
     auto hsh = SHA256::create();
     for (auto const& lev : mLevels)
     {
@@ -329,6 +355,8 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
                      std::vector<LedgerEntry> const& liveEntries,
                      std::vector<LedgerKey> const& deadEntries)
 {
+    assertThreadIsMain();
+
     assert(currLedger > 0);
 
     std::vector<Bucket> shadows;
@@ -423,6 +451,8 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app)
 {
+    assertThreadIsMain();
+
     for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
     {
         auto& level = mLevels[i];
@@ -443,6 +473,8 @@ BucketListDepth BucketList::kNumLevels = 11;
 
 BucketList::BucketList()
 {
+    assertThreadIsMain();
+
     for (uint32_t i = 0; i < kNumLevels; ++i)
     {
         mLevels.push_back(BucketLevel(i));

@@ -25,6 +25,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/format.h"
@@ -632,6 +633,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                                    CatchupWork::ProgressState progressState,
                                    LedgerHeaderHistoryEntry const& lastClosed)
 {
+    assertThreadIsMain();
     assert(mCatchupState == CatchupState::APPLYING_HISTORY);
 
     if (ec)

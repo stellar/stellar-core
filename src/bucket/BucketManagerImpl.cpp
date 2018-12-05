@@ -13,10 +13,12 @@
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
+
 #include <fstream>
 #include <map>
 #include <regex>
@@ -177,6 +179,8 @@ BucketManagerImpl::cleanDir()
 BucketList&
 BucketManagerImpl::getBucketList()
 {
+    assertThreadIsMain();
+
     return mBucketList;
 }
 
@@ -265,8 +269,11 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
 std::set<Hash>
 BucketManagerImpl::getReferencedBuckets() const
 {
+    assertThreadIsMain();
+
     std::set<Hash> referenced;
     // retain current bucket list
+
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
@@ -328,6 +335,8 @@ BucketManagerImpl::cleanupStaleFiles()
         return;
     }
 
+    assertThreadIsMain();
+
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto referenced = getReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
@@ -351,6 +360,8 @@ BucketManagerImpl::cleanupStaleFiles()
 void
 BucketManagerImpl::forgetUnreferencedBuckets()
 {
+    assertThreadIsMain();
+
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     auto referenced = getReferencedBuckets();
 
@@ -396,6 +407,8 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
                             std::vector<LedgerEntry> const& liveEntries,
                             std::vector<LedgerKey> const& deadEntries)
 {
+    assertThreadIsMain();
+
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(liveEntries.size());
     mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
@@ -413,7 +426,6 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 void
 BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 {
-
     if ((currentHeader.ledgerSeq % SKIP_1) == 0)
     {
         int v = currentHeader.ledgerSeq - SKIP_1;
@@ -439,6 +451,8 @@ BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 std::vector<std::string>
 BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 {
+    assertThreadIsMain();
+
     std::vector<std::string> buckets = has.allBuckets();
     std::vector<std::string> result;
     std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result),
@@ -453,6 +467,8 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has)
 {
+    assertThreadIsMain();
+
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
