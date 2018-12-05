@@ -15,7 +15,8 @@ class Meter;
 namespace stellar
 {
 
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 
 class VerifyBucketWork : public Work
 {

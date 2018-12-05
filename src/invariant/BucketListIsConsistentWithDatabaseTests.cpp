@@ -175,7 +175,7 @@ struct BucketListGenerator
 };
 
 bool
-doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
+doesBucketContain(std::shared_ptr<Bucket> bucket, const BucketEntry& be)
 {
     for (BucketInputIterator iter(bucket); iter; ++iter)
     {

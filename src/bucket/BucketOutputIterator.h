@@ -14,7 +14,8 @@
 namespace stellar
 {
 
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 class BucketManager;
 
 // Helper class that writes new elements to a file and returns a bucket

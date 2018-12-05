@@ -77,7 +77,7 @@ BucketListIsConsistentWithDatabase::getName() const
 
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
-    std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
+    std::shared_ptr<Bucket> bucket, uint32_t oldestLedger,
     uint32_t newestLedger)
 {
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;

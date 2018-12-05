@@ -68,7 +68,7 @@ InvariantManagerImpl::getEnabledInvariants() const
 }
 
 void
-InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
+InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket> bucket,
                                          uint32_t ledger, uint32_t level,
                                          bool isCurr)
 {

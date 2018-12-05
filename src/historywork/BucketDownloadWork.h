@@ -10,7 +10,8 @@
 namespace stellar
 {
 
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 class TmpDir;
 
 class BucketDownloadWork : public Work

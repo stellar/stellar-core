@@ -26,7 +26,8 @@ namespace stellar
 
 class TmpDir;
 class Application;
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 class BucketList;
 struct HistoryArchiveState;
 

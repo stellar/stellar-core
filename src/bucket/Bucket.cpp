@@ -31,42 +31,42 @@
 namespace stellar
 {
 
-Bucket::Bucket(std::string const& filename, Hash const& hash)
+RawBucket::RawBucket(std::string const& filename, Hash const& hash)
     : mFilename(filename), mHash(hash)
 {
     assert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
     {
         CLOG(TRACE, "Bucket")
-            << "Bucket::Bucket() created, file exists : " << mFilename;
+            << "RawBucket::RawBucket() created, file exists : " << mFilename;
         mSize = fs::size(filename);
     }
 }
 
-Bucket::Bucket()
+RawBucket::RawBucket()
 {
 }
 
 Hash const&
-Bucket::getHash() const
+RawBucket::getHash() const
 {
     return mHash;
 }
 
 std::string const&
-Bucket::getFilename() const
+RawBucket::getFilename() const
 {
     return mFilename;
 }
 
 size_t
-Bucket::getSize() const
+RawBucket::getSize() const
 {
     return mSize;
 }
 
 bool
-Bucket::containsBucketIdentity(BucketEntry const& id) const
+RawBucket::containsBucketIdentity(BucketEntry const& id) const
 {
     BucketEntryIdCmp cmp;
     BucketInputIterator iter(shared_from_this());
@@ -82,7 +82,7 @@ Bucket::containsBucketIdentity(BucketEntry const& id) const
 }
 
 std::pair<size_t, size_t>
-Bucket::countLiveAndDeadEntries() const
+RawBucket::countLiveAndDeadEntries() const
 {
     size_t live = 0, dead = 0;
     BucketInputIterator iter(shared_from_this());
@@ -102,7 +102,7 @@ Bucket::countLiveAndDeadEntries() const
 }
 
 void
-Bucket::apply(Application& app) const
+RawBucket::apply(Application& app) const
 {
     BucketApplicator applicator(app, shared_from_this());
     while (applicator)
@@ -112,7 +112,7 @@ Bucket::apply(Application& app) const
 }
 
 std::vector<BucketEntry>
-Bucket::convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries)
+RawBucket::convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries)
 {
     std::vector<BucketEntry> live;
     live.reserve(liveEntries.size());
@@ -128,7 +128,7 @@ Bucket::convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries)
 }
 
 std::vector<BucketEntry>
-Bucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
+RawBucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
 {
     std::vector<BucketEntry> dead;
     dead.reserve(deadEntries.size());
@@ -144,9 +144,9 @@ Bucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
 }
 
 std::shared_ptr<Bucket>
-Bucket::fresh(BucketManager& bucketManager,
-              std::vector<LedgerEntry> const& liveEntries,
-              std::vector<LedgerKey> const& deadEntries)
+RawBucket::fresh(BucketManager& bucketManager,
+                 std::vector<LedgerEntry> const& liveEntries,
+                 std::vector<LedgerKey> const& deadEntries)
 {
     auto live = convertToBucketEntry(liveEntries);
     auto dead = convertToBucketEntry(deadEntries);
@@ -168,7 +168,7 @@ Bucket::fresh(BucketManager& bucketManager,
     std::shared_ptr<Bucket> bucket;
     {
         auto timer = LogSlowExecution("Bucket merge");
-        bucket = Bucket::merge(bucketManager, liveBucket, deadBucket);
+        bucket = RawBucket::merge(bucketManager, liveBucket, deadBucket);
     }
     return bucket;
 }
@@ -202,11 +202,11 @@ maybePut(BucketOutputIterator& out, BucketEntry const& entry,
 }
 
 std::shared_ptr<Bucket>
-Bucket::merge(BucketManager& bucketManager,
-              std::shared_ptr<Bucket> const& oldBucket,
-              std::shared_ptr<Bucket> const& newBucket,
-              std::vector<std::shared_ptr<Bucket>> const& shadows,
-              bool keepDeadEntries)
+RawBucket::merge(BucketManager& bucketManager,
+                 std::shared_ptr<Bucket> const& oldBucket,
+                 std::shared_ptr<Bucket> const& newBucket,
+                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+                 bool keepDeadEntries)
 {
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,

@@ -25,7 +25,7 @@ class BucketApplicator
     size_t mCount{0};
 
   public:
-    BucketApplicator(Application& app, std::shared_ptr<const Bucket> bucket);
+    BucketApplicator(Application& app, std::shared_ptr<Bucket> bucket);
     operator bool() const;
     size_t advance();
 

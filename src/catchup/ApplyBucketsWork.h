@@ -17,7 +17,8 @@ namespace stellar
 class BucketApplicator;
 class BucketLevel;
 class BucketList;
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
@@ -35,8 +36,8 @@ class ApplyBucketsWork : public Work
     size_t mLastAppliedSizeMb;
     size_t mLastPos;
     uint32_t mLevel;
-    std::shared_ptr<Bucket const> mSnapBucket;
-    std::shared_ptr<Bucket const> mCurrBucket;
+    std::shared_ptr<Bucket> mSnapBucket;
+    std::shared_ptr<Bucket> mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;
     std::unique_ptr<BucketApplicator> mCurrApplicator;
 
@@ -44,7 +45,7 @@ class ApplyBucketsWork : public Work
     medida::Meter& mBucketApplySuccess;
     medida::Meter& mBucketApplyFailure;
 
-    std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
+    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
     void advance(BucketApplicator& applicator);
 

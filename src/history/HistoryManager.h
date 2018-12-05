@@ -174,7 +174,8 @@ typedef std::error_code error_code;
 namespace stellar
 {
 class Application;
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 class BucketList;
 class Config;
 class Database;

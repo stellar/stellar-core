@@ -54,8 +54,8 @@ class TestInvariant : public Invariant
     }
 
     virtual std::string
-    checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                       uint32_t oldestLedger, uint32_t newestLedger) override
+    checkOnBucketApply(std::shared_ptr<Bucket> bucket, uint32_t oldestLedger,
+                       uint32_t newestLedger) override
     {
         return mShouldFail ? "fail" : "";
     }

@@ -52,7 +52,7 @@ ApplyBucketsWork::getBucketLevel(uint32_t level)
     return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
-std::shared_ptr<Bucket const>
+std::shared_ptr<Bucket>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
     auto i = mBuckets.find(hash);
@@ -74,7 +74,7 @@ ApplyBucketsWork::onReset()
     mLastAppliedSizeMb = 0;
     mLastPos = 0;
 
-    auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
+    auto addBucket = [this](std::shared_ptr<Bucket> const& bucket) {
         if (bucket->getSize() > 0)
         {
             mTotalBuckets++;

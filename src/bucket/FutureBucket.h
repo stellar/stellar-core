@@ -14,7 +14,9 @@
 namespace stellar
 {
 
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
+
 class Application;
 
 /**

@@ -28,7 +28,8 @@ namespace stellar
 
 class Application;
 class BucketList;
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 
 struct HistoryStateBucket
 {

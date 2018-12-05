@@ -10,7 +10,8 @@
 namespace stellar
 {
 
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 struct LedgerTxnDelta;
 struct Operation;
 struct OperationResult;
@@ -40,8 +41,8 @@ class Invariant
     }
 
     virtual std::string
-    checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                       uint32_t oldestLedger, uint32_t newestLedger)
+    checkOnBucketApply(std::shared_ptr<Bucket> bucket, uint32_t oldestLedger,
+                       uint32_t newestLedger)
     {
         return std::string{};
     }

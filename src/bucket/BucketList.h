@@ -234,7 +234,8 @@ namespace stellar
 // behavior, which ought to be tolerably fast anyways.
 
 class Application;
-class Bucket;
+class RawBucket;
+using Bucket = const RawBucket;
 
 namespace testutil
 {

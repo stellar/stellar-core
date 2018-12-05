@@ -30,8 +30,11 @@ class BucketManager;
 class BucketList;
 class Database;
 
-class Bucket : public std::enable_shared_from_this<Bucket>,
-               public NonMovableOrCopyable
+class RawBucket;
+using Bucket = const RawBucket;
+
+class RawBucket : public std::enable_shared_from_this<RawBucket>,
+                  public NonMovableOrCopyable
 {
 
     std::string const mFilename;
@@ -41,12 +44,12 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
   public:
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
-    Bucket();
+    RawBucket();
 
     // Construct a bucket with a given filename and hash. Asserts that the file
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
-    Bucket(std::string const& filename, Hash const& hash);
+    RawBucket(std::string const& filename, Hash const& hash);
 
     Hash const& getHash() const;
     std::string const& getFilename() const;
