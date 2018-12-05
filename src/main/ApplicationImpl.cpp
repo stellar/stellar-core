@@ -64,6 +64,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mWork(std::make_unique<asio::io_service::work>(mWorkerIOService))
     , mWorkerThreads()
     , mStopSignals(clock.getIOService(), SIGINT)
+    , mStarted(false)
     , mStopping(false)
     , mStoppingTimer(*this)
     , mMetrics(std::make_unique<medida::MetricsRegistry>())
@@ -314,6 +315,13 @@ ApplicationImpl::timeNow()
 void
 ApplicationImpl::start()
 {
+    if (mStarted)
+    {
+        CLOG(INFO, "Ledger") << "Skipping application start up";
+        return;
+    }
+    CLOG(INFO, "Ledger") << "Starting up application";
+    mStarted = true;
     mDatabase->upgradeToCurrentSchema();
 
     if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)

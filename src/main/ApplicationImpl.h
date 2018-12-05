@@ -159,6 +159,7 @@ class ApplicationImpl : public Application
 
     asio::signal_set mStopSignals;
 
+    bool mStarted;
     bool mStopping;
 
     VirtualTimer mStoppingTimer;
