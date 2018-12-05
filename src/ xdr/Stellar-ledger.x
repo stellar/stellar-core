@@ -271,9 +271,12 @@ struct TransactionMetaV1
     OperationMeta operations<>; // meta for each operation
 };
 
-// this is the meta produced when applying transactions
-// it does not include pre-apply updates such as fees
-union TransactionMeta switch (int v)
+// นี่คือรูปแบบการสร้างหรือเรียกใช้งานได้
+// ที่ไร่ความกังวน
+}
+
+
+
 {
 case 0:
     OperationMeta operations<>;
