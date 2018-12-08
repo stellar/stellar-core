@@ -261,10 +261,7 @@ LedgerManagerImpl::loadLastKnownLedger(
 
         if (handler)
         {
-            string hasString = mApp.getPersistentState().getState(
-                PersistentState::kHistoryArchiveState);
-            HistoryArchiveState has;
-            has.fromString(hasString);
+            HistoryArchiveState has = getLastClosedLedgerHAS();
 
             auto continuation = [this, handler,
                                  has](asio::error_code const& ec) {
@@ -352,6 +349,16 @@ LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
     return mLastClosedLedger;
+}
+
+HistoryArchiveState
+LedgerManagerImpl::getLastClosedLedgerHAS()
+{
+    string hasString = mApp.getPersistentState().getState(
+        PersistentState::kHistoryArchiveState);
+    HistoryArchiveState has;
+    has.fromString(hasString);
+    return has;
 }
 
 uint32_t
