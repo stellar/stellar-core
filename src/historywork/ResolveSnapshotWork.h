@@ -24,5 +24,10 @@ class ResolveSnapshotWork : public BasicWork
 
   protected:
     State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
 };
 }

@@ -50,5 +50,10 @@ class VerifyLedgerChainWork : public BasicWork
   protected:
     void onReset() override;
     BasicWork::State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
 };
 }

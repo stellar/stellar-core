@@ -53,6 +53,11 @@ class ApplyBucketsWork : public BasicWork
   protected:
     void onReset() override;
     BasicWork::State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
     void onFailureRaise() override;
     void onFailureRetry() override;
 };

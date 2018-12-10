@@ -78,5 +78,10 @@ class ApplyLedgerChainWork : public BasicWork
   protected:
     void onReset() override;
     State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
 };
 }
