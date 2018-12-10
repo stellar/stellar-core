@@ -50,6 +50,8 @@ class WorkScheduler : public Work
                                       std::forward<Args>(args)...);
     }
 
+    void shutdown() override;
+
   protected:
     static void scheduleOne(std::weak_ptr<WorkScheduler> weak);
     State doWork() override;

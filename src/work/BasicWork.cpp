@@ -18,20 +18,21 @@ size_t const BasicWork::RETRY_FOREVER = 0xffffffff;
 
 std::set<BasicWork::Transition> const BasicWork::ALLOWED_TRANSITIONS = {
     Transition(InternalState::PENDING, InternalState::RUNNING),
-    Transition(InternalState::PENDING, InternalState::DESTRUCTING),
+    Transition(InternalState::PENDING, InternalState::ABORTING),
     Transition(InternalState::RUNNING, InternalState::RUNNING),
     Transition(InternalState::RUNNING, InternalState::WAITING),
     Transition(InternalState::RUNNING, InternalState::SUCCESS),
     Transition(InternalState::RUNNING, InternalState::FAILURE),
     Transition(InternalState::RUNNING, InternalState::RETRYING),
-    Transition(InternalState::RUNNING, InternalState::DESTRUCTING),
+    Transition(InternalState::RUNNING, InternalState::ABORTING),
     Transition(InternalState::WAITING, InternalState::RUNNING),
-    Transition(InternalState::WAITING, InternalState::DESTRUCTING),
+    Transition(InternalState::WAITING, InternalState::ABORTING),
     Transition(InternalState::RETRYING, InternalState::WAITING),
-    Transition(InternalState::SUCCESS, InternalState::DESTRUCTING),
     Transition(InternalState::SUCCESS, InternalState::PENDING),
-    Transition(InternalState::FAILURE, InternalState::DESTRUCTING),
     Transition(InternalState::FAILURE, InternalState::PENDING),
+    Transition(InternalState::ABORTING, InternalState::ABORTING),
+    Transition(InternalState::ABORTING, InternalState::ABORTED),
+    Transition(InternalState::ABORTED, InternalState::PENDING),
 };
 
 BasicWork::BasicWork(Application& app, std::string name, size_t maxRetries)
@@ -41,14 +42,16 @@ BasicWork::BasicWork(Application& app, std::string name, size_t maxRetries)
 
 BasicWork::~BasicWork()
 {
+    // Work completed or has not started yet
+    assert(isDone() || mState == InternalState::PENDING);
 }
 
 void
 BasicWork::shutdown()
 {
-    if (mState != InternalState::DESTRUCTING)
+    if (!isDone())
     {
-        setState(InternalState::DESTRUCTING);
+        setState(InternalState::ABORTING);
     }
 }
 
@@ -81,8 +84,10 @@ BasicWork::getStatus() const
     }
     case InternalState::FAILURE:
         return fmt::format("Failed: {:s}", getName());
-    case InternalState::DESTRUCTING:
-        return fmt::format("Destructing: {:s}", getName());
+    case InternalState::ABORTING:
+        return fmt::format("Aborting: {:s}", getName());
+    case InternalState::ABORTED:
+        return fmt::format("Aborted: {:s}", getName());
     default:
         abort();
     }
@@ -91,7 +96,8 @@ BasicWork::getStatus() const
 bool
 BasicWork::isDone() const
 {
-    return mState == InternalState::SUCCESS || mState == InternalState::FAILURE;
+    return mState == InternalState::SUCCESS ||
+           mState == InternalState::FAILURE || mState == InternalState::ABORTED;
 }
 
 std::string
@@ -109,8 +115,10 @@ BasicWork::stateName(InternalState st)
         return "WORK_FAILURE";
     case InternalState::PENDING:
         return "WORK_PENDING";
-    case InternalState::DESTRUCTING:
-        return "WORK_DESTRUCTING";
+    case InternalState::ABORTING:
+        return "WORK_ABORTING";
+    case InternalState::ABORTED:
+        return "WORK_ABORTED";
     case InternalState::RETRYING:
         return "WORK_RETRYING";
     default:
@@ -171,7 +179,8 @@ BasicWork::waitForRetry()
             return;
         }
         assert(self->mState == InternalState::WAITING ||
-               self->mState == InternalState::DESTRUCTING);
+               self->mState == InternalState::ABORTED ||
+               self->mState == InternalState::ABORTING);
         if (self->mState == InternalState::WAITING)
         {
             self->mRetries++;
@@ -208,6 +217,7 @@ BasicWork::getState() const
     {
     case InternalState::RUNNING:
     case InternalState::PENDING:
+    case InternalState::ABORTING:
         return State::WORK_RUNNING;
     case InternalState::WAITING:
     case InternalState::RETRYING:
@@ -216,8 +226,8 @@ BasicWork::getState() const
         return State::WORK_SUCCESS;
     case InternalState::FAILURE:
         return State::WORK_FAILURE;
-    case InternalState::DESTRUCTING:
-        return State::WORK_DESTRUCTING;
+    case InternalState::ABORTED:
+        return State::WORK_ABORTED;
     default:
         abort();
     }
@@ -226,29 +236,21 @@ BasicWork::getState() const
 void
 BasicWork::setState(InternalState st)
 {
-    auto maxR = getMaxRetries();
-    if (st == InternalState::FAILURE && (mRetries < maxR))
+    if (st == InternalState::FAILURE && (mRetries < mMaxRetries))
     {
         st = InternalState::RETRYING;
     }
 
     assertValidTransition(Transition(mState, st));
-
-    auto prevState = mState;
-    if (mState != st)
-    {
-        CLOG(DEBUG, "Work") << "work " << getName() << " : "
-                            << stateName(mState) << " -> " << stateName(st);
-        mState = st;
-    }
-
-    if (prevState == InternalState::PENDING && st == InternalState::RUNNING)
+    if (mState == InternalState::PENDING && st == InternalState::RUNNING)
     {
         reset();
         mRetries = 0;
     }
 
-    switch (mState)
+    // Perform necessary action *before* changing state (in case shutdown was
+    // issued in between)
+    switch (st)
     {
     case InternalState::SUCCESS:
         onSuccess();
@@ -260,13 +262,24 @@ BasicWork::setState(InternalState st)
     case InternalState::RETRYING:
         onFailureRetry();
         reset();
-        waitForRetry();
         break;
-    case InternalState::DESTRUCTING:
+    case InternalState::ABORTED:
         reset();
         break;
     default:
         break;
+    }
+
+    if (mState != st)
+    {
+        CLOG(DEBUG, "Work") << "work " << getName() << " : "
+                            << stateName(mState) << " -> " << stateName(st);
+        mState = st;
+    }
+
+    if (mState == InternalState::RETRYING)
+    {
+        waitForRetry();
     }
 }
 
@@ -298,7 +311,7 @@ BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
         }
 
         self->wakeUp();
-        if (innerCallback && self->getState() != State::WORK_DESTRUCTING)
+        if (innerCallback && !self->isAborting())
         {
             innerCallback();
         }
@@ -311,14 +324,17 @@ BasicWork::crankWork()
 {
     assert(!isDone() && mState != InternalState::WAITING);
 
-    auto nextState = onRun();
-    setState(getInternalState(nextState));
-}
-
-size_t
-BasicWork::getMaxRetries() const
-{
-    return mMaxRetries;
+    InternalState nextState;
+    if (mState == InternalState::ABORTING)
+    {
+        nextState =
+            onAbort() ? InternalState::ABORTED : InternalState::ABORTING;
+    }
+    else
+    {
+        nextState = getInternalState(onRun());
+    }
+    setState(nextState);
 }
 
 VirtualClock::duration
@@ -362,8 +378,8 @@ BasicWork::getInternalState(State s) const
         return InternalState::WAITING;
     case State::WORK_RUNNING:
         return InternalState::RUNNING;
-    case State::WORK_DESTRUCTING:
-        return InternalState::DESTRUCTING;
+    case State::WORK_ABORTED:
+        return InternalState::ABORTED;
     default:
         abort();
     }

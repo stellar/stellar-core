@@ -63,9 +63,9 @@ class Work : public BasicWork
     std::shared_ptr<T>
     addWorkWithCallback(std::function<void()> cb, Args&&... args)
     {
-        if (getState() == State::WORK_DESTRUCTING)
+        if (isAborting())
         {
-            throw std::runtime_error(getName() + " is being destructed!");
+            throw std::runtime_error(getName() + " is being aborted!");
         }
 
         auto child = std::make_shared<T>(mApp, std::forward<Args>(args)...);
@@ -77,6 +77,7 @@ class Work : public BasicWork
     }
 
     State onRun() final;
+    bool onAbort() final;
     void onReset() final;
     void onFailureRaise() override;
     void onFailureRetry() override;
@@ -99,6 +100,8 @@ class Work : public BasicWork
     void addChild(std::shared_ptr<BasicWork> child);
     void clearChildren();
     void shutdownChildren();
+
+    bool mAbortChildrenButNotSelf{false};
 };
 
 /*
@@ -123,6 +126,7 @@ class WorkSequence : public BasicWork
 
   protected:
     State onRun() final;
+    bool onAbort() final;
     void onReset() final;
 };
 

@@ -45,9 +45,8 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         // Note that it is implementers' responsibility then to correctly
         // use `wakeUp` to exit WAITING state.
         WORK_WAITING,
-        // Work is shutting down; Implementers are not expected to return this
-        // state, as when work is shutting down, no calls to wakeUp are made.
-        WORK_DESTRUCTING,
+        // Terminal aborted state
+        WORK_ABORTED,
         // Terminal successful state
         WORK_SUCCESS,
         // Terminal unsuccessful state. When this state is
@@ -80,6 +79,12 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     // internal state of work.
     virtual void shutdown();
 
+    bool
+    isAborting() const
+    {
+        return mState == InternalState::ABORTING;
+    }
+
   protected:
     // Implementers can override these callbacks to customize functionality.
     // `onReset` is expected to restore work's state to its initial condition;
@@ -94,6 +99,11 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
 
     virtual void onReset();
     virtual State onRun() = 0;
+
+    // Implementers must decide what they want to do when asked to shutdown
+    // Some examples would be aborting children, then aborting self (e.g.
+    // `Work`) or killing a process that it's managing (`RunCommandWork`)
+    virtual bool onAbort() = 0;
     virtual void onFailureRetry();
     virtual void onFailureRaise();
     virtual void onSuccess();
@@ -123,7 +133,8 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         WAITING,
         // WorkScheduler is shutting down, this state prevents wakeUp callbacks
         // from messing with BasicWork's state while it is shutting down
-        DESTRUCTING,
+        ABORTING,
+        ABORTED,
         // `onRun` returned WORK_FAILURE. If there are retries left, go into
         // RETRYING state
         RETRYING,
@@ -145,7 +156,6 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     void assertValidTransition(Transition const& t) const;
     static std::string stateName(InternalState st);
     uint64_t getRetryETA() const;
-    size_t getMaxRetries() const;
 
     std::function<void()> mNotifyCallback;
     std::string const mName;

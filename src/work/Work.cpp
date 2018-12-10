@@ -16,6 +16,7 @@ Work::Work(Application& app, std::string name, size_t maxRetries)
 
 Work::~Work()
 {
+    // Work is destroyed only if in terminal state, and is properly reset
     assert(!hasChildren());
 }
 
@@ -34,16 +35,19 @@ Work::getStatus() const
 void
 Work::shutdown()
 {
-    for (auto const& c : mChildren)
-    {
-        c->shutdown();
-    }
+    shutdownChildren();
     BasicWork::shutdown();
 }
 
 BasicWork::State
 Work::onRun()
 {
+    if (mAbortChildrenButNotSelf)
+    {
+        // Stop whatever work was doing, just wait for children to abort
+        return onAbort() ? State::WORK_FAILURE : State::WORK_RUNNING;
+    }
+
     auto child = yieldNextRunningChild();
     if (child)
     {
@@ -60,20 +64,44 @@ Work::onRun()
             mDoneChildren += mChildren.size();
             clearChildren();
         }
+        else if (state == State::WORK_FAILURE && !allChildrenDone())
+        {
+            CLOG(DEBUG, "History")
+                << "A child of " << getName()
+                << " failed: aborting remaining children before failure.";
+            shutdownChildren();
+            mAbortChildrenButNotSelf = true;
+            return State::WORK_RUNNING;
+        }
         return state;
+    }
+}
+
+bool
+Work::onAbort()
+{
+    auto child = yieldNextRunningChild();
+    if (child)
+    {
+        assert(child->isAborting());
+        child->crankWork();
+        return false;
+    }
+    else
+    {
+        CLOG(DEBUG, "Work") << "Aborting " << getName();
+        return allChildrenDone();
     }
 }
 
 void
 Work::onFailureRaise()
 {
-    shutdownChildren();
 }
 
 void
 Work::onFailureRetry()
 {
-    shutdownChildren();
 }
 
 void
@@ -93,6 +121,7 @@ void
 Work::onReset()
 {
     clearChildren();
+    mAbortChildrenButNotSelf = false;
     doReset();
 }
 
@@ -104,8 +133,7 @@ Work::doReset()
 void
 Work::clearChildren()
 {
-    // TODO (mlo) consider this assert when abort logic is implemented
-    // assert assert(allChildrenDone());
+    assert(allChildrenDone());
     mChildren.clear();
     mNextChild = mChildren.begin();
 }
@@ -174,7 +202,8 @@ Work::yieldNextRunningChild()
         auto next = mNextChild;
         mNextChild++;
         assert(*next);
-        if ((*next)->getState() == State::WORK_RUNNING)
+        auto state = (*next)->getState();
+        if (state == State::WORK_RUNNING)
         {
             return *next;
         }
@@ -231,6 +260,18 @@ WorkSequence::onRun()
     }
     w->crankWork();
     return State::WORK_RUNNING;
+}
+
+bool
+WorkSequence::onAbort()
+{
+    if (mCurrentExecuting && !mCurrentExecuting->isDone())
+    {
+        // Wait for the current work in sequence to finish aborting
+        mCurrentExecuting->crankWork();
+        return false;
+    }
+    return true;
 }
 
 void

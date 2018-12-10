@@ -59,4 +59,13 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
         }
     });
 }
+
+void
+WorkScheduler::shutdown()
+{
+    Work::shutdown();
+    std::weak_ptr<WorkScheduler> weak(
+        std::static_pointer_cast<WorkScheduler>(shared_from_this()));
+    scheduleOne(weak);
+}
 }
