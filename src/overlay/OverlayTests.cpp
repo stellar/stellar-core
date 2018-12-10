@@ -39,6 +39,9 @@ TEST_CASE("loopback peer hello", "[overlay]")
 
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("loopback peer with 0 port", "[overlay]")
@@ -56,6 +59,9 @@ TEST_CASE("loopback peer with 0 port", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isAuthenticated());
     REQUIRE(!conn.getAcceptor()->isAuthenticated());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("loopback peer send auth before hello", "[overlay]")
@@ -72,6 +78,9 @@ TEST_CASE("loopback peer send auth before hello", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isAuthenticated());
     REQUIRE(!conn.getAcceptor()->isAuthenticated());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("failed auth", "[overlay]")
@@ -91,6 +100,9 @@ TEST_CASE("failed auth", "[overlay]")
     REQUIRE(app1->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-message-mac"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject non-preferred peer", "[overlay]")
@@ -112,6 +124,9 @@ TEST_CASE("reject non-preferred peer", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-auth-reject"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("accept preferred peer even when strict", "[overlay]")
@@ -132,6 +147,9 @@ TEST_CASE("accept preferred peer even when strict", "[overlay]")
 
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers beyond max", "[overlay]")
@@ -158,6 +176,9 @@ TEST_CASE("reject peers beyond max", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-auth-reject"}, "drop")
                 .count() == 1);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("allow pending peers beyond max", "[overlay]")
@@ -191,6 +212,11 @@ TEST_CASE("allow pending peers beyond max", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                 .count() == 2);
+
+    testutil::shutdownWorkScheduler(*app4);
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject pending beyond max", "[overlay]")
@@ -217,6 +243,10 @@ TEST_CASE("reject pending beyond max", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "connection", "reject"}, "connection")
                 .count() == 1);
+
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers with differing network passphrases", "[overlay]")
@@ -238,6 +268,9 @@ TEST_CASE("reject peers with differing network passphrases", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-hello-cert"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers with invalid cert", "[overlay]")
@@ -258,6 +291,9 @@ TEST_CASE("reject peers with invalid cert", "[overlay]")
     REQUIRE(app1->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-hello-cert"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject banned peers", "[overlay]")
@@ -278,6 +314,9 @@ TEST_CASE("reject banned peers", "[overlay]")
     REQUIRE(app1->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-hello-ban"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
@@ -301,6 +340,9 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
         REQUIRE(app2->getMetrics()
                     .NewMeter({"overlay", "drop", "recv-hello-version"}, "drop")
                     .count() != 0);
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     };
     SECTION("cfg2 above")
     {
@@ -344,6 +386,9 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
         REQUIRE(app2->getMetrics()
                     .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                     .count() != 0);
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     };
 
     SECTION("2 seconds timeout")
@@ -381,6 +426,10 @@ TEST_CASE("reject peers with the same nodeid", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-hello-peerid"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("connecting to saturated nodes", "[overlay]")

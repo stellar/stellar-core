@@ -30,6 +30,7 @@ namespace BucketListIsConsistentWithDatabaseTests
 struct BucketListGenerator
 {
     VirtualClock mClock;
+    VirtualClock mApplyClock;
     std::shared_ptr<std::default_random_engine> mGen;
     Application::pointer mAppGenerate;
     Application::pointer mAppApply;
@@ -40,7 +41,7 @@ struct BucketListGenerator
     BucketListGenerator(std::shared_ptr<std::default_random_engine> const& gen)
         : mGen(gen)
         , mAppGenerate(createTestApplication(mClock, getTestConfig(0)))
-        , mAppApply(createTestApplication(mClock, getTestConfig(1)))
+        , mAppApply(createTestApplication(mApplyClock, getTestConfig(1)))
         , mLedgerSeq(1)
     {
         auto skey = SecretKey::fromSeed(mAppGenerate->getNetworkID());

@@ -10,6 +10,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
 #include "scp/LocalNode.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -46,6 +47,9 @@ Simulation::~Simulation()
     mLoopbackConnections.clear();
     // destroy all nodes first
     mNodes.clear();
+
+    // kill scheduler before the io service
+    testutil::shutdownWorkScheduler(*mIdleApp);
 
     // tear down main app/clock
     mClock.getIOService().poll_one();

@@ -408,8 +408,9 @@ TEST_CASE("Repair missing buckets via history",
 
     auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
+    VirtualClock clock;
     auto app2 = createTestApplication(
-        catchupSimulation.getClock(),
+        clock,
         catchupSimulation.getHistoryConfigurator().configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
@@ -450,8 +451,9 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
 
     auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
+    VirtualClock clock;
     auto app2 = createTestApplication(
-        catchupSimulation.getClock(),
+        clock,
         catchupSimulation.getHistoryConfigurator().configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);

@@ -473,8 +473,11 @@ CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
     {
         mCfgs.back().CATCHUP_RECENT = count;
     }
+
+    mSpawnedAppsClocks.emplace_front();
     Application::pointer app2 = createTestApplication(
-        mClock, mHistoryConfigurator->configure(mCfgs.back(), false));
+        mSpawnedAppsClocks.front(),
+        mHistoryConfigurator->configure(mCfgs.back(), false));
 
     app2->start();
     REQUIRE(catchupApplication(initLedger, count, manual, app2));

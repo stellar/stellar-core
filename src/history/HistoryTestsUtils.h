@@ -147,6 +147,7 @@ class CatchupSimulation
 {
   protected:
     VirtualClock mClock;
+    std::list<VirtualClock> mSpawnedAppsClocks;
     std::shared_ptr<HistoryConfigurator> mHistoryConfigurator;
     Config mCfg;
     std::vector<Config> mCfgs;

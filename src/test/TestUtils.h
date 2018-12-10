@@ -23,6 +23,8 @@ void injectSendPeersAndReschedule(VirtualClock::time_point& end,
                                   VirtualClock& clock, VirtualTimer& timer,
                                   LoopbackPeerConnection& connection);
 
+void shutdownWorkScheduler(Application& app);
+
 class BucketListDepthModifier
 {
     uint32_t const mPrevDepth;

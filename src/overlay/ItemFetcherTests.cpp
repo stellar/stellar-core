@@ -246,6 +246,10 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
             REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 2);
             REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 2);
+
+            testutil::shutdownWorkScheduler(*other2);
+            testutil::shutdownWorkScheduler(*other1);
+            testutil::shutdownWorkScheduler(*app);
         }
 
         SECTION("ignore not asked items")

@@ -26,15 +26,19 @@ class TestBasicWork : public BasicWork
     bool mFail;
 
   public:
-    int const mNumSteps{3};
-    int mCount{mNumSteps};
+    int const mNumSteps;
+    int mCount;
     int mRunningCount{0};
     int mSuccessCount{0};
     int mFailureCount{0};
     int mRetryCount{0};
 
-    TestBasicWork(Application& app, std::string name, bool fail = false)
-        : BasicWork(app, std::move(name), RETRY_ONCE), mFail(fail)
+    TestBasicWork(Application& app, std::string name, bool fail = false,
+                  int steps = 3, size_t retries = RETRY_ONCE)
+        : BasicWork(app, std::move(name), retries)
+        , mFail(fail)
+        , mNumSteps(steps)
+        , mCount(steps)
     {
     }
 
@@ -55,6 +59,13 @@ class TestBasicWork : public BasicWork
             return State::WORK_RUNNING;
         }
         return mFail ? State::WORK_FAILURE : State::WORK_SUCCESS;
+    }
+
+    bool
+    onAbort() override
+    {
+        CLOG(DEBUG, "Work") << "Aborting " << getName();
+        return true;
     }
 
     void
@@ -172,6 +183,9 @@ TEST_CASE("BasicWork test", "[work]")
     }
 }
 
+// Test work to allow flexibility of adding work trees on individual test level
+// Note RETRY_NEVER setting, as this work will not properly retry since no work
+// is added in `doWork`
 class TestWork : public Work
 {
   public:
@@ -256,13 +270,41 @@ TEST_CASE("work with children", "[work]")
         REQUIRE(l3->getState() == TestBasicWork::State::WORK_FAILURE);
         REQUIRE(wm.getState() == TestBasicWork::State::WORK_WAITING);
     }
-    SECTION("shutdown")
+    SECTION("child failed so parent aborts other child")
+    {
+        auto l3 = w2->addTestWork<TestBasicWork>("leaf-work3", true, 3,
+                                                 TestBasicWork::RETRY_NEVER);
+        auto l4 = w2->addTestWork<TestBasicWork>("leaf-work4", false, 100);
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+        REQUIRE(l1->getState() == TestBasicWork::State::WORK_SUCCESS);
+        REQUIRE(l2->getState() == TestBasicWork::State::WORK_SUCCESS);
+        REQUIRE(w1->getState() == TestBasicWork::State::WORK_SUCCESS);
+        REQUIRE(w2->getState() == TestBasicWork::State::WORK_FAILURE);
+        REQUIRE(l3->getState() == TestBasicWork::State::WORK_FAILURE);
+        REQUIRE(l4->getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(wm.getState() == TestBasicWork::State::WORK_WAITING);
+    }
+    SECTION("work scheduler shutdown")
     {
         wm.shutdown();
-        // on shutdown, work goes into DESTRUCTING state, wakeUp
+        // on shutdown, work goes into ABORTING state, wakeUp
         // should be a no-op
         REQUIRE_NOTHROW(l1->forceWakeUp());
         REQUIRE_NOTHROW(l2->forceWakeUp());
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(wm.getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(w1->getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(w2->getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(l1->getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(l2->getState() == TestBasicWork::State::WORK_ABORTED);
     }
 }
 
@@ -313,8 +355,6 @@ TEST_CASE("work scheduling and run count", "[work]")
         //     w1   w2
         //     /\   /\
         //   c1 c2 c3 c4
-        // Level 2
-        // Level 1
         auto w1 = mainWork->addTestWork<TestWork>("test-work-1");
         auto w2 = mainWork->addTestWork<TestWork>("test-work-2");
 
@@ -451,6 +491,32 @@ TEST_CASE("RunCommandWork test", "[work]")
         }
         REQUIRE(w->getState() == TestBasicWork::State::WORK_FAILURE);
     }
+
+    SECTION("run command aborted")
+    {
+#ifdef _WIN32
+        std::string command = "waitfor /T 10 pause";
+#else
+        std::string command = "sleep 10";
+#endif
+        auto w =
+            wm.scheduleWork<TestRunCommandWork>("test-run-command", command);
+        while (w->getState() != TestBasicWork::State::WORK_WAITING)
+        {
+            clock.crank();
+        }
+
+        REQUIRE(appPtr->getProcessManager().getNumRunningProcesses());
+        wm.shutdown();
+
+        while (wm.getState() != TestBasicWork::State::WORK_ABORTED)
+        {
+            clock.crank();
+        }
+
+        REQUIRE(w->getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(!appPtr->getProcessManager().getNumRunningProcesses());
+    }
 }
 
 TEST_CASE("WorkSequence test", "[work]")
@@ -498,15 +564,6 @@ TEST_CASE("WorkSequence test", "[work]")
         }
         REQUIRE(work2->getState() == TestBasicWork::State::WORK_SUCCESS);
     }
-}
-
-TEST_CASE("WorkSequence work in sequence fails", "[work]")
-{
-    VirtualClock clock;
-    Config const& cfg = getTestConfig();
-    Application::pointer appPtr = createTestApplication(clock, cfg);
-    auto& wm = appPtr->getWorkScheduler();
-
     SECTION("first work fails")
     {
         auto w1 = std::make_shared<TestBasicWork>(*appPtr, "test-work-1", true);
@@ -514,15 +571,12 @@ TEST_CASE("WorkSequence work in sequence fails", "[work]")
         auto w3 = std::make_shared<TestBasicWork>(*appPtr, "test-work-3");
         std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};
 
-        auto work = wm.scheduleWork<WorkSequence>("test-work-sequence", seq);
-        while (!wm.allChildrenDone())
-        {
-            clock.crank();
-        }
+        auto work = wm.executeWork<WorkSequence>("test-work-sequence", seq);
 
         // w1 should run and retry
         auto w1RunCount = (w1->mNumSteps + 1) * (BasicWork::RETRY_ONCE + 1);
         REQUIRE(w1->mRunningCount == w1RunCount * (BasicWork::RETRY_A_FEW + 1));
+        REQUIRE(w1->getState() == TestBasicWork::State::WORK_FAILURE);
 
         // Ensure the rest of sequence is NOT run.
         REQUIRE_FALSE(w2->mRunningCount);
@@ -542,18 +596,14 @@ TEST_CASE("WorkSequence work in sequence fails", "[work]")
         auto w3 = std::make_shared<TestBasicWork>(*appPtr, "test-work-3");
         std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};
 
-        auto work = wm.scheduleWork<WorkSequence>("test-work-sequence", seq);
-        bool firstCompleted = false;
-        while (!wm.allChildrenDone())
-        {
-            if (w1->getState() == TestBasicWork::State::WORK_SUCCESS)
-            {
-                firstCompleted = true;
-            }
+        auto work = wm.executeWork<WorkSequence>("test-work-sequence", seq);
 
-            clock.crank();
-        }
-        REQUIRE(firstCompleted);
+        // w2 should run and retry
+        auto w2RunCount = (w2->mNumSteps + 1) * (BasicWork::RETRY_ONCE + 1);
+        REQUIRE(w2->mRunningCount == w2RunCount * (BasicWork::RETRY_A_FEW + 1));
+        REQUIRE(w2->getState() == BasicWork::State::WORK_FAILURE);
+
+        REQUIRE(w1->getState() == TestBasicWork::State::WORK_SUCCESS);
         REQUIRE(w1->mRunningCount);
         REQUIRE(w1->mSuccessCount);
         REQUIRE_FALSE(w1->mFailureCount);
@@ -563,6 +613,30 @@ TEST_CASE("WorkSequence work in sequence fails", "[work]")
         REQUIRE_FALSE(w3->mFailureCount);
         REQUIRE_FALSE(w3->mRetryCount);
         REQUIRE(work->getState() == TestBasicWork::State::WORK_FAILURE);
+    }
+    SECTION("work scheduler shutdown")
+    {
+        // Queue up some long-running works to span over multiple cranks
+        auto w1 =
+            std::make_shared<TestBasicWork>(*appPtr, "test-work-1", false, 100);
+        auto w2 =
+            std::make_shared<TestBasicWork>(*appPtr, "test-work-2", false, 100);
+        auto w3 =
+            std::make_shared<TestBasicWork>(*appPtr, "test-work-3", false, 100);
+        std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};
+
+        auto work = wm.scheduleWork<WorkSequence>("test-work-sequence", seq);
+        clock.crank();
+        CHECK(!wm.allChildrenDone());
+        wm.shutdown();
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(work->getState() == TestBasicWork::State::WORK_ABORTED);
+        REQUIRE(wm.getState() == TestBasicWork::State::WORK_ABORTED);
     }
 }
 
