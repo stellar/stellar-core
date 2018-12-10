@@ -6,6 +6,7 @@
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -237,28 +238,55 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
 std::set<Hash>
 BucketManagerImpl::getReferencedBuckets() const
 {
-    auto referenced = std::set<Hash>{};
+    std::set<Hash> referenced;
+    // retain current bucket list
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
-        referenced.insert(level.getCurr()->getHash());
-        referenced.insert(level.getSnap()->getHash());
+        auto rit = referenced.insert(level.getCurr()->getHash());
+        if (rit.second)
+        {
+            CLOG(TRACE, "Bucket")
+                << binToHex(*rit.first) << " referenced by bucket list";
+        }
+        rit = referenced.insert(level.getSnap()->getHash());
+        if (rit.second)
+        {
+            CLOG(TRACE, "Bucket")
+                << binToHex(*rit.first) << " referenced by bucket list";
+        }
         for (auto const& h : level.getNext().getHashes())
         {
-            referenced.insert(hexToBin256(h));
+            rit = referenced.insert(hexToBin256(h));
+            if (rit.second)
+            {
+                CLOG(TRACE, "Bucket") << h << " referenced by bucket list";
+            }
+        }
+    }
+    // retain any bucket referenced by the last closed ledger as recorded in the
+    // database (as merge complete, the bucket list drifts from that state)
+    auto lclHas = mApp.getLedgerManager().getLastClosedLedgerHAS();
+    auto lclBuckets = lclHas.allBuckets();
+    for (auto const& h : lclBuckets)
+    {
+        auto rit = referenced.insert(hexToBin256(h));
+        if (rit.second)
+        {
+            CLOG(TRACE, "Bucket") << h << " referenced by LCL";
         }
     }
 
-    // Implicitly retain any buckets that are referenced by a state in
-    // the publish queue.
+    // retain buckets that are referenced by a state in the publish queue.
     auto pub = mApp.getHistoryManager().getBucketsReferencedByPublishQueue();
     {
         for (auto const& h : pub)
         {
-            CLOG(DEBUG, "Bucket")
-                << "BucketManager::forgetUnreferencedBuckets: " << h
-                << " referenced by publish queue";
-            referenced.insert(hexToBin256(h));
+            auto rit = referenced.insert(hexToBin256(h));
+            if (rit.second)
+            {
+                CLOG(TRACE, "Bucket") << h << " referenced by publish queue";
+            }
         }
     }
 

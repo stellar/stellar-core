@@ -113,6 +113,8 @@ class LedgerManagerImpl : public LedgerManager
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
 
+    HistoryArchiveState getLastClosedLedgerHAS() override;
+
     Database& getDatabase() override;
 
     void startCatchup(CatchupConfiguration configuration,

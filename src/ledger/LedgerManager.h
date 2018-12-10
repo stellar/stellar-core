@@ -104,6 +104,10 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
+    // return the HAS that corresponds to the last closed ledger as persisted in
+    // the database
+    virtual HistoryArchiveState getLastClosedLedgerHAS() = 0;
+
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
 
