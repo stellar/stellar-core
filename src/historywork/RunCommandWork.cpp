@@ -29,11 +29,16 @@ RunCommandWork::onRun()
         auto outfile = commandInfo.mOutFile;
         if (!cmd.empty())
         {
-            auto exit = mApp.getProcessManager().runProcess(cmd, outfile);
+            mExitEvent = mApp.getProcessManager().runProcess(cmd, outfile);
+            auto exit = mExitEvent.lock();
+            if (!exit)
+            {
+                return State::WORK_FAILURE;
+            }
 
             std::weak_ptr<RunCommandWork> weak(
                 std::static_pointer_cast<RunCommandWork>(shared_from_this()));
-            exit.async_wait([weak](asio::error_code const& ec) {
+            exit->async_wait([weak](asio::error_code const& ec) {
                 auto self = weak.lock();
                 if (self)
                 {
@@ -56,5 +61,19 @@ RunCommandWork::onReset()
 {
     mDone = false;
     mEc = asio::error_code();
+    mExitEvent.reset();
+}
+
+bool
+RunCommandWork::onAbort()
+{
+    auto process = mExitEvent.lock();
+    if (!process)
+    {
+        // Process is already destroyed, complete abort
+        return true;
+    }
+
+    return mApp.getProcessManager().tryProcessShutdown(process);
 }
 }
