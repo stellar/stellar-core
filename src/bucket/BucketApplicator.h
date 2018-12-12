@@ -22,11 +22,14 @@ class BucketApplicator
 {
     Application& mApp;
     BucketInputIterator mBucketIter;
-    size_t mSize{0};
+    size_t mCount{0};
 
   public:
     BucketApplicator(Application& app, std::shared_ptr<const Bucket> bucket);
     operator bool() const;
-    void advance();
+    size_t advance();
+
+    size_t pos();
+    size_t size() const;
 };
 }

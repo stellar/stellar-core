@@ -48,6 +48,10 @@ std::vector<std::string>
 findfiles(std::string const& path,
           std::function<bool(std::string const& name)> predicate);
 
+size_t size(std::ifstream& ifs);
+
+size_t size(std::string const& path);
+
 class PathSplitter
 {
   public:

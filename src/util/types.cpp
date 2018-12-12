@@ -3,8 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/types.h"
+#include "lib/util/format.h"
 #include "lib/util/uint128_t.h"
 #include "util/XDROperators.h"
+
 #include <algorithm>
 #include <locale>
 
@@ -185,6 +187,22 @@ compareAsset(Asset const& first, Asset const& second)
             return true;
     }
     return false;
+}
+
+std::string
+formatSize(size_t size)
+{
+    const std::vector<std::string> suffixes = {"B", "KB", "MB", "GB"};
+    double dsize = size;
+
+    auto i = 0;
+    while (dsize >= 1024 && i < suffixes.size() - 1)
+    {
+        dsize /= 1024;
+        i++;
+    }
+
+    return fmt::format("{:.2f}{}", dsize, suffixes[i]);
 }
 
 bool

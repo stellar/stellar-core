@@ -24,6 +24,18 @@ BucketInputIterator::loadEntry()
     }
 }
 
+size_t
+BucketInputIterator::pos()
+{
+    return mIn.pos();
+}
+
+size_t
+BucketInputIterator::size() const
+{
+    return mIn.size();
+}
+
 BucketInputIterator::operator bool() const
 {
     return mEntryPtr != nullptr;

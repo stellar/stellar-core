@@ -27,6 +27,13 @@ class ApplyBucketsWork : public Work
     const HistoryArchiveState& mApplyState;
 
     bool mApplying;
+    size_t mTotalBuckets;
+    size_t mAppliedBuckets;
+    size_t mAppliedEntries;
+    size_t mTotalSize;
+    size_t mAppliedSize;
+    size_t mLastAppliedSizeMb;
+    size_t mLastPos;
     uint32_t mLevel;
     std::shared_ptr<Bucket const> mSnapBucket;
     std::shared_ptr<Bucket const> mCurrBucket;
@@ -39,6 +46,7 @@ class ApplyBucketsWork : public Work
 
     std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
+    void advance(BucketApplicator& applicator);
 
   public:
     ApplyBucketsWork(

@@ -39,6 +39,7 @@ Bucket::Bucket(std::string const& filename, Hash const& hash)
     {
         CLOG(TRACE, "Bucket")
             << "Bucket::Bucket() created, file exists : " << mFilename;
+        mSize = fs::size(filename);
     }
 }
 
@@ -56,6 +57,12 @@ std::string const&
 Bucket::getFilename() const
 {
     return mFilename;
+}
+
+size_t
+Bucket::getSize() const
+{
+    return mSize;
 }
 
 bool

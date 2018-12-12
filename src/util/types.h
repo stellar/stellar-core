@@ -36,6 +36,8 @@ AccountID getIssuer(Asset const& asset);
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 
+std::string formatSize(size_t size);
+
 template <uint32_t N>
 void
 assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr)
