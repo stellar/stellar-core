@@ -104,8 +104,6 @@ ApplicationImpl::initialize()
 {
     mDatabase = std::make_unique<Database>(*this);
     mPersistentState = std::make_unique<PersistentState>(*this);
-    mTmpDirManager =
-        std::make_unique<TmpDirManager>(mConfig.BUCKET_DIR_PATH + "/tmp");
     mOverlayManager = createOverlayManager();
     mLedgerManager = LedgerManager::create(*this);
     mHerder = createHerder();
@@ -630,7 +628,7 @@ ApplicationImpl::clearMetrics(std::string const& domain)
 TmpDirManager&
 ApplicationImpl::getTmpDirManager()
 {
-    return *mTmpDirManager;
+    return getBucketManager().getTmpDirManager();
 }
 
 LedgerManager&

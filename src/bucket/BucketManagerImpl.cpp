@@ -31,19 +31,15 @@ namespace stellar
 std::unique_ptr<BucketManager>
 BucketManager::create(Application& app)
 {
-    return std::make_unique<BucketManagerImpl>(app);
+    auto bucketManagerPtr = std::make_unique<BucketManagerImpl>(app);
+    bucketManagerPtr->initialize();
+    return bucketManagerPtr;
 }
 
 void
-BucketManager::dropAll(Application& app)
+BucketManagerImpl::initialize()
 {
-    std::string d = app.getConfig().BUCKET_DIR_PATH;
-
-    if (fs::exists(d))
-    {
-        CLOG(DEBUG, "Bucket") << "Deleting bucket directory: " << d;
-        fs::deltree(d);
-    }
+    std::string d = mApp.getConfig().BUCKET_DIR_PATH;
 
     if (!fs::exists(d))
     {
@@ -52,10 +48,43 @@ BucketManager::dropAll(Application& app)
             throw std::runtime_error("Unable to create bucket directory: " + d);
         }
     }
+
+    // Acquire exclusive lock on `buckets` folder
+    std::string lock = d + "/" + kLockFilename;
+
+    // there are many reasons the lock can fail so let lockFile throw
+    // directly for more clear error messages since we end up just raising
+    // a runtime exception anyway
+    fs::lockFile(lock);
+
+    mLockedBucketDir = std::make_unique<std::string>(d);
+    mTmpDirManager = std::make_unique<TmpDirManager>(d + "/tmp");
+}
+
+void
+BucketManagerImpl::dropAll()
+{
+    std::string d = mApp.getConfig().BUCKET_DIR_PATH;
+
+    if (fs::exists(d))
+    {
+        CLOG(DEBUG, "Bucket") << "Deleting bucket directory: " << d;
+        cleanDir();
+        fs::deltree(d);
+    }
+
+    initialize();
+}
+
+TmpDirManager&
+BucketManagerImpl::getTmpDirManager()
+{
+    return *mTmpDirManager;
 }
 
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
+    , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
     , mBucketObjectInsertBatch(app.getMetrics().NewMeter(
@@ -111,7 +140,7 @@ BucketManagerImpl::getTmpDir()
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (!mWorkDir)
     {
-        TmpDir t = mApp.getTmpDirManager().tmpDir("bucket");
+        TmpDir t = mTmpDirManager->tmpDir("bucket");
         mWorkDir = std::make_unique<TmpDir>(std::move(t));
     }
     return mWorkDir->getName();
@@ -120,23 +149,16 @@ BucketManagerImpl::getTmpDir()
 std::string const&
 BucketManagerImpl::getBucketDir()
 {
-    if (!mLockedBucketDir)
-    {
-        std::string d = mApp.getConfig().BUCKET_DIR_PATH;
-
-        std::string lock = d + "/" + kLockFilename;
-
-        // there are many reasons the lock can fail so let lockFile throw
-        // directly for more clear error messages since we end up just raising
-        // a runtime exception anyway
-        fs::lockFile(lock);
-
-        mLockedBucketDir = std::make_unique<std::string>(d);
-    }
     return *(mLockedBucketDir);
 }
 
 BucketManagerImpl::~BucketManagerImpl()
+{
+    cleanDir();
+}
+
+void
+BucketManagerImpl::cleanDir()
 {
     if (mLockedBucketDir)
     {
@@ -144,7 +166,10 @@ BucketManagerImpl::~BucketManagerImpl()
         std::string lock = d + "/" + kLockFilename;
         assert(fs::exists(lock));
         fs::unlockFile(lock);
+        mLockedBucketDir.reset();
     }
+    mWorkDir.reset();
+    mTmpDirManager.reset();
 }
 
 BucketList&

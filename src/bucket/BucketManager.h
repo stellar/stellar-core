@@ -16,6 +16,7 @@ namespace stellar
 
 class Application;
 class BucketList;
+class TmpDirManager;
 struct LedgerHeader;
 struct HistoryArchiveState;
 
@@ -45,12 +46,14 @@ class BucketManager : NonMovableOrCopyable
 
   public:
     static std::unique_ptr<BucketManager> create(Application&);
-    static void dropAll(Application& app);
 
     virtual ~BucketManager()
     {
     }
+    virtual void initialize() = 0;
+    virtual void dropAll() = 0;
     virtual std::string const& getTmpDir() = 0;
+    virtual TmpDirManager& getTmpDirManager() = 0;
     virtual std::string const& getBucketDir() = 0;
     virtual BucketList& getBucketList() = 0;
 

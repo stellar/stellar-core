@@ -311,7 +311,7 @@ Database::initialize()
     LedgerHeaderUtils::dropAll(*this);
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
-    BucketManager::dropAll(mApp);
+    mApp.getBucketManager().dropAll();
     putSchemaVersion(1);
 }
 

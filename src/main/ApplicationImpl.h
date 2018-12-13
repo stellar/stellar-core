@@ -136,7 +136,6 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_service::work> mWork;
 
     std::unique_ptr<Database> mDatabase;
-    std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<CatchupManager> mCatchupManager;
