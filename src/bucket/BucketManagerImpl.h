@@ -46,7 +46,6 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mSharedBucketsSize;
 
     std::set<Hash> getReferencedBuckets() const;
-    void cleanupStaleFiles();
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
@@ -75,6 +74,7 @@ class BucketManagerImpl : public BucketManager
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has) override;
+    void cleanupStaleFiles() override;
     void shutdown() override;
 };
 

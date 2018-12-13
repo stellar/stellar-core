@@ -443,7 +443,6 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
     }
 
     mBucketList.restartMerges(mApp);
-    cleanupStaleFiles();
 }
 
 void

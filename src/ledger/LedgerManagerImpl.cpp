@@ -141,6 +141,10 @@ LedgerManagerImpl::setState(State s)
             mCatchupState = CatchupState::NONE;
             mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
         }
+        if (mState == LM_SYNCED_STATE)
+        {
+            mApp.getBucketManager().cleanupStaleFiles();
+        }
     }
 }
 

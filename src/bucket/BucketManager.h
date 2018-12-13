@@ -98,6 +98,10 @@ class BucketManager : NonMovableOrCopyable
     // current BL.
     virtual void assumeState(HistoryArchiveState const& has) = 0;
 
+    // Remove staled bucket files that are not used currently. Call after
+    // syncing to the network.
+    virtual void cleanupStaleFiles() = 0;
+
     // Ensure all needed buckets are retained
     virtual void shutdown() = 0;
 };
