@@ -14,7 +14,9 @@
 #include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
+
 #include <cstdlib>
+#include <lib/util/format.h>
 #include <numeric>
 #include <time.h>
 
@@ -216,8 +218,9 @@ runTest(CommandLineArgs const& args)
     session.cli(parser);
 
     auto result = session.cli().parse(
-        args.mCommandName, Catch::clara::detail::TokenStream{
-                               std::begin(args.mArgs), std::end(args.mArgs)});
+        fmt::format("{0} {1}", args.mExeName, args.mCommandName),
+        Catch::clara::detail::TokenStream{std::begin(args.mArgs),
+                                          std::end(args.mArgs)});
     if (!result)
     {
         writeWithTextFlow(std::cerr, result.errorMessage());

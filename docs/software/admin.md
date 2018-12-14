@@ -183,7 +183,7 @@ Before attempting to configure stellar-core, it is highly recommended to first t
 All configuration for stellar-core is done with a TOML file. By default 
 stellar-core loads `./stellar-core.cfg`, but you can specify a different file to load on the command line:
 
-`$ stellar-core <COMMAND> --conf betterfile.cfg` 
+`$ stellar-core --conf betterfile.cfg <COMMAND>`
 
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) is not a real configuration, but documents all possible configuration elements as well as their default values.
 
