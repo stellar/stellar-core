@@ -2,7 +2,7 @@
 
 This directory contains minor convenience wrappers around
 [libsodium](http://libsodium.org), a copy of which is stored in the
-[src/lib/libsodium](../lib/libsodium) submodule of the `stellar-core`
+[src/lib/libsodium](/../../../libsodium) submodule of the `stellar-core`
 distribution, and compiled along with it.
 
 The crypto module also contains a small implementation to turn public/private
