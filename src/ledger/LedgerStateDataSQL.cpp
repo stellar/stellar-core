@@ -124,6 +124,7 @@ LedgerStateRoot::Impl::dropData()
                               "accountid    VARCHAR(56)  NOT NULL,"
                               "dataname     VARCHAR(64)  NOT NULL,"
                               "datavalue    VARCHAR(112) NOT NULL,"
+                              "lastmodified INT          NOT NULL,"
                               "PRIMARY KEY  (accountid, dataname)"
                               ");";
 }
