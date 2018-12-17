@@ -244,6 +244,7 @@ ApplicationImpl::getJsonInfo()
     info["peers"]["authenticated_count"] =
         getOverlayManager().getAuthenticatedPeersCount();
     info["network"] = getConfig().NETWORK_PASSPHRASE;
+    info["whitelist"] = getConfig().WHITELIST;
 
     auto& statusMessages = getStatusManager();
     auto counter = 0;
