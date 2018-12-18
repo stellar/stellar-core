@@ -54,7 +54,8 @@ After installing packages, head to [building with clang and libc++](#building-wi
 #### Adding the test toolchain
     # NOTE: newer version of the compilers are not
     #    provided by stock distributions
-    #    and are provided by the /test toolchain 
+    #    and are provided by the /test toolchain
+    sudo apt-get install software-properties-common
     sudo add-apt-repository ppa:ubuntu-toolchain-r/test
     sudo apt-get update
 
@@ -99,7 +100,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-5 ./configure` or similar, depending on your compiler.)*
+- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-6 ./configure` or similar, depending on your compiler.)*
 - Type `make` or `make -j` (for aggressive parallel build)
 - Type `make check` to run tests.
 - Type `make install` to install.
@@ -108,10 +109,19 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 
 On some systems, building with `libc++`, [LLVM's version of the standard library](https://libcxx.llvm.org/) can be done instead of `libstdc++` (typically used on Linux).
 
-Here are sample steps to achieve just this:
+NB: there are newer versions available of both clang and libc++, you will have to use the versions suited for your system.
 
+You may need to install additional packages for this, for example, on Linux Ubuntu:
+
+    # install libc++ headers
+    sudo apt-get install libc++-dev libc++abi-dev
+
+Here are sample steps to achieve this:
+
+    export CC=clang-5.0
     export CXX=clang++-5.0
-    export CXXFLAGS="-stdlib=libc++ -fno-omit-frame-pointer -isystem /usr/include/libcxxabi -O3 -ggdb"
+    export CFLAGS="-O3 -g1 -fno-omit-frame-pointer"
+    export CXXFLAGS="$CFLAGS -stdlib=libc++ -isystem /usr/include/libcxxabi"
     git clone https://github.com/stellar/stellar-core.git
     cd stellar-core/
     ./autogen.sh && ./configure && make -j6
