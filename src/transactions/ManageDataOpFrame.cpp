@@ -8,6 +8,7 @@
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
+#include "main/Whitelist.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "util/Logging.h"
@@ -87,6 +88,11 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
         mSourceAccount->addNumEntries(-1, ledgerManager);
         mSourceAccount->storeChange(delta, db);
         dataFrame->storeDelete(delta, db);
+    }
+
+    auto wlID = *app.getWhitelist().accountID().get();
+    if (getSourceID() == wlID) {
+        app.getWhitelist().setNeedsUpdate();
     }
 
     innerResult().code(MANAGE_DATA_SUCCESS);
