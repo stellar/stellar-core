@@ -1,0 +1,1618 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" width="1200" height="886" onload="init(evt)" viewBox="0 0 1200 886" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<!-- Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples. -->
+<!-- NOTES:  -->
+<defs >
+	<linearGradient id="background" y1="0" y2="1" x1="0" x2="0" >
+		<stop stop-color="#eeeeee" offset="5%" />
+		<stop stop-color="#eeeeb0" offset="95%" />
+	</linearGradient>
+</defs>
+<style type="text/css">
+	.func_g:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+</style>
+<script type="text/ecmascript">
+<![CDATA[
+	var details, searchbtn, matchedtxt, svg;
+	function init(evt) {
+		details = document.getElementById("details").firstChild;
+		searchbtn = document.getElementById("search");
+		matchedtxt = document.getElementById("matched");
+		svg = document.getElementsByTagName("svg")[0];
+		searching = 0;
+	}
+
+	// mouse-over for info
+	function s(node) {		// show
+		info = g_to_text(node);
+		details.nodeValue = "Function: " + info;
+	}
+	function c() {			// clear
+		details.nodeValue = ' ';
+	}
+
+	// ctrl-F for search
+	window.addEventListener("keydown",function (e) {
+		if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+			e.preventDefault();
+			search_prompt();
+		}
+	})
+
+	// functions
+	function find_child(parent, name, attr) {
+		var children = parent.childNodes;
+		for (var i=0; i<children.length;i++) {
+			if (children[i].tagName == name)
+				return (attr != undefined) ? children[i].attributes[attr].value : children[i];
+		}
+		return;
+	}
+	function orig_save(e, attr, val) {
+		if (e.attributes["_orig_"+attr] != undefined) return;
+		if (e.attributes[attr] == undefined) return;
+		if (val == undefined) val = e.attributes[attr].value;
+		e.setAttribute("_orig_"+attr, val);
+	}
+	function orig_load(e, attr) {
+		if (e.attributes["_orig_"+attr] == undefined) return;
+		e.attributes[attr].value = e.attributes["_orig_"+attr].value;
+		e.removeAttribute("_orig_"+attr);
+	}
+	function g_to_text(e) {
+		var text = find_child(e, "title").firstChild.nodeValue;
+		return (text)
+	}
+	function g_to_func(e) {
+		var func = g_to_text(e);
+		// if there's any manipulation we want to do to the function
+		// name before it's searched, do it here before returning.
+		return (func);
+	}
+	function update_text(e) {
+		var r = find_child(e, "rect");
+		var t = find_child(e, "text");
+		var w = parseFloat(r.attributes["width"].value) -3;
+		var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+		t.attributes["x"].value = parseFloat(r.attributes["x"].value) +3;
+
+		// Smaller than this size won't fit anything
+		if (w < 2*12*0.59) {
+			t.textContent = "";
+			return;
+		}
+
+		t.textContent = txt;
+		// Fit in full text width
+		if (/^ *$/.test(txt) || t.getSubStringLength(0, txt.length) < w)
+			return;
+
+		for (var x=txt.length-2; x>0; x--) {
+			if (t.getSubStringLength(0, x+2) <= w) {
+				t.textContent = txt.substring(0,x) + "..";
+				return;
+			}
+		}
+		t.textContent = "";
+	}
+
+	// zoom
+	function zoom_reset(e) {
+		if (e.attributes != undefined) {
+			orig_load(e, "x");
+			orig_load(e, "width");
+		}
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_reset(c[i]);
+		}
+	}
+	function zoom_child(e, x, ratio) {
+		if (e.attributes != undefined) {
+			if (e.attributes["x"] != undefined) {
+				orig_save(e, "x");
+				e.attributes["x"].value = (parseFloat(e.attributes["x"].value) - x - 10) * ratio + 10;
+				if(e.tagName == "text") e.attributes["x"].value = find_child(e.parentNode, "rect", "x") + 3;
+			}
+			if (e.attributes["width"] != undefined) {
+				orig_save(e, "width");
+				e.attributes["width"].value = parseFloat(e.attributes["width"].value) * ratio;
+			}
+		}
+
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_child(c[i], x-10, ratio);
+		}
+	}
+	function zoom_parent(e) {
+		if (e.attributes) {
+			if (e.attributes["x"] != undefined) {
+				orig_save(e, "x");
+				e.attributes["x"].value = 10;
+			}
+			if (e.attributes["width"] != undefined) {
+				orig_save(e, "width");
+				e.attributes["width"].value = parseInt(svg.width.baseVal.value) - (10*2);
+			}
+		}
+		if (e.childNodes == undefined) return;
+		for(var i=0, c=e.childNodes; i<c.length; i++) {
+			zoom_parent(c[i]);
+		}
+	}
+	function zoom(node) {
+		var attr = find_child(node, "rect").attributes;
+		var width = parseFloat(attr["width"].value);
+		var xmin = parseFloat(attr["x"].value);
+		var xmax = parseFloat(xmin + width);
+		var ymin = parseFloat(attr["y"].value);
+		var ratio = (svg.width.baseVal.value - 2*10) / width;
+
+		// XXX: Workaround for JavaScript float issues (fix me)
+		var fudge = 0.0001;
+
+		var unzoombtn = document.getElementById("unzoom");
+		unzoombtn.style["opacity"] = "1.0";
+
+		var el = document.getElementsByTagName("g");
+		for(var i=0;i<el.length;i++){
+			var e = el[i];
+			var a = find_child(e, "rect").attributes;
+			var ex = parseFloat(a["x"].value);
+			var ew = parseFloat(a["width"].value);
+			// Is it an ancestor
+			if (0 == 0) {
+				var upstack = parseFloat(a["y"].value) > ymin;
+			} else {
+				var upstack = parseFloat(a["y"].value) < ymin;
+			}
+			if (upstack) {
+				// Direct ancestor
+				if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+					e.style["opacity"] = "0.5";
+					zoom_parent(e);
+					e.onclick = function(e){unzoom(); zoom(this);};
+					update_text(e);
+				}
+				// not in current path
+				else
+					e.style["display"] = "none";
+			}
+			// Children maybe
+			else {
+				// no common path
+				if (ex < xmin || ex + fudge >= xmax) {
+					e.style["display"] = "none";
+				}
+				else {
+					zoom_child(e, xmin, ratio);
+					e.onclick = function(e){zoom(this);};
+					update_text(e);
+				}
+			}
+		}
+	}
+	function unzoom() {
+		var unzoombtn = document.getElementById("unzoom");
+		unzoombtn.style["opacity"] = "0.0";
+
+		var el = document.getElementsByTagName("g");
+		for(i=0;i<el.length;i++) {
+			el[i].style["display"] = "block";
+			el[i].style["opacity"] = "1";
+			zoom_reset(el[i]);
+			update_text(el[i]);
+		}
+	}
+
+	// search
+	function reset_search() {
+		var el = document.getElementsByTagName("rect");
+		for (var i=0; i < el.length; i++) {
+			orig_load(el[i], "fill")
+		}
+	}
+	function search_prompt() {
+		if (!searching) {
+			var term = prompt("Enter a search term (regexp " +
+			    "allowed, eg: ^ext4_)", "");
+			if (term != null) {
+				search(term)
+			}
+		} else {
+			reset_search();
+			searching = 0;
+			searchbtn.style["opacity"] = "0.1";
+			searchbtn.firstChild.nodeValue = "Search"
+			matchedtxt.style["opacity"] = "0.0";
+			matchedtxt.firstChild.nodeValue = ""
+		}
+	}
+	function search(term) {
+		var re = new RegExp(term);
+		var el = document.getElementsByTagName("g");
+		var matches = new Object();
+		var maxwidth = 0;
+		for (var i = 0; i < el.length; i++) {
+			var e = el[i];
+			if (e.attributes["class"].value != "func_g")
+				continue;
+			var func = g_to_func(e);
+			var rect = find_child(e, "rect");
+			if (rect == null) {
+				// the rect might be wrapped in an anchor
+				// if nameattr href is being used
+				if (rect = find_child(e, "a")) {
+				    rect = find_child(r, "rect");
+				}
+			}
+			if (func == null || rect == null)
+				continue;
+
+			// Save max width. Only works as we have a root frame
+			var w = parseFloat(rect.attributes["width"].value);
+			if (w > maxwidth)
+				maxwidth = w;
+
+			if (func.match(re)) {
+				// highlight
+				var x = parseFloat(rect.attributes["x"].value);
+				orig_save(rect, "fill");
+				rect.attributes["fill"].value =
+				    "rgb(230,0,230)";
+
+				// remember matches
+				if (matches[x] == undefined) {
+					matches[x] = w;
+				} else {
+					if (w > matches[x]) {
+						// overwrite with parent
+						matches[x] = w;
+					}
+				}
+				searching = 1;
+			}
+		}
+		if (!searching)
+			return;
+
+		searchbtn.style["opacity"] = "1.0";
+		searchbtn.firstChild.nodeValue = "Reset Search"
+
+		// calculate percent matched, excluding vertical overlap
+		var count = 0;
+		var lastx = -1;
+		var lastw = 0;
+		var keys = Array();
+		for (k in matches) {
+			if (matches.hasOwnProperty(k))
+				keys.push(k);
+		}
+		// sort the matched frames by their x location
+		// ascending, then width descending
+		keys.sort(function(a, b){
+			return a - b;
+		});
+		// Step through frames saving only the biggest bottom-up frames
+		// thanks to the sort order. This relies on the tree property
+		// where children are always smaller than their parents.
+		var fudge = 0.0001;	// JavaScript floating point
+		for (var k in keys) {
+			var x = parseFloat(keys[k]);
+			var w = matches[keys[k]];
+			if (x >= lastx + lastw - fudge) {
+				count += w;
+				lastx = x;
+				lastw = w;
+			}
+		}
+		// display matched percent
+		matchedtxt.style["opacity"] = "1.0";
+		pct = 100 * count / maxwidth;
+		if (pct == 100)
+			pct = "100"
+		else
+			pct = pct.toFixed(1)
+		matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+	}
+	function searchover(e) {
+		searchbtn.style["opacity"] = "1.0";
+	}
+	function searchout(e) {
+		if (searching) {
+			searchbtn.style["opacity"] = "1.0";
+		} else {
+			searchbtn.style["opacity"] = "0.1";
+		}
+	}
+]]>
+</script>
+<rect x="0.0" y="0" width="1200.0" height="886.0" fill="url(#background)"  />
+<text text-anchor="middle" x="600.00" y="24" font-size="17" font-family="Verdana" fill="rgb(0,0,0)"  >Flame Graph</text>
+<text text-anchor="" x="10.00" y="869" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="details" > </text>
+<text text-anchor="" x="10.00" y="24" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="unzoom" onclick="unzoom()" style="opacity:0.0;cursor:pointer" >Reset Zoom</text>
+<text text-anchor="" x="1090.00" y="24" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="search" onmouseover="searchover()" onmouseout="searchout()" onclick="search_prompt()" style="opacity:0.1;cursor:pointer" >Search</text>
+<text text-anchor="" x="1090.00" y="869" font-size="12" font-family="Verdana" fill="rgb(0,0,0)" id="matched" > </text>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (1,339 samples, 0.53%)</title><rect x="27.1" y="389" width="6.3" height="15.0" fill="rgb(236,110,3)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service8poll_oneERSt10error_code (4,964 samples, 1.97%)</title><rect x="10.1" y="693" width="23.3" height="15.0" fill="rgb(220,166,40)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar16TransactionFrame5applyERNS_11ApplicationERNS_19AbstractLedgerStateERNS_17TransactionMetaV1E (70 samples, 0.03%)</title><rect x="35.4" y="757" width="0.3" height="15.0" fill="rgb(216,116,11)" rx="2" ry="2" />
+<text text-anchor="" x="38.37" y="767.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_buffered_read (23 samples, 0.01%)</title><rect x="10.0" y="85" width="0.1" height="15.0" fill="rgb(216,159,34)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait (744 samples, 0.30%)</title><rect x="11.0" y="341" width="3.5" height="15.0" fill="rgb(234,129,16)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>unixSync (267 samples, 0.11%)</title><rect x="34.1" y="309" width="1.3" height="15.0" fill="rgb(233,174,26)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork26applyHistoryOfSingleLedgerEv (424 samples, 0.17%)</title><rect x="33.4" y="613" width="2.0" height="15.0" fill="rgb(220,226,22)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="623.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio10io_service3runEv (246,122 samples, 97.81%)</title><rect x="35.9" y="741" width="1154.1" height="15.0" fill="rgb(254,150,2)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="751.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_ZN4asio10io_service3runEv</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12VirtualClock5crankEb (424 samples, 0.17%)</title><rect x="33.4" y="741" width="2.0" height="15.0" fill="rgb(227,0,38)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="751.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>open64 (6,909 samples, 2.75%)</title><rect x="1157.6" y="453" width="32.4" height="15.0" fill="rgb(238,39,11)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >op..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait_queue_me (89 samples, 0.04%)</title><rect x="10.6" y="293" width="0.4" height="15.0" fill="rgb(242,157,30)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ep_poll (239,164 samples, 95.04%)</title><rect x="35.9" y="597" width="1121.5" height="15.0" fill="rgb(211,121,47)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="607.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ep_poll</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4Impl12unsealHeaderERS0_St8functionIFvRNS_12LedgerHeaderEEE (197 samples, 0.08%)</title><rect x="10.1" y="533" width="0.9" height="15.0" fill="rgb(205,70,19)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (108 samples, 0.04%)</title><rect x="10.1" y="325" width="0.5" height="15.0" fill="rgb(254,56,51)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_writepages (267 samples, 0.11%)</title><rect x="34.1" y="149" width="1.3" height="15.0" fill="rgb(247,71,35)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="159.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvvESt5_BindIFMSt13packaged_taskIFSt10shared_ptrIN7stellar6BucketEEvEEFvvES3_IS8_EEEE9_M_invokeERKSt9_Any_data (6,946 samples, 2.76%)</title><rect x="1157.4" y="677" width="32.6" height="15.0" fill="rgb(232,58,43)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>new_sync_read (23 samples, 0.01%)</title><rect x="10.0" y="133" width="0.1" height="15.0" fill="rgb(252,83,31)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="143.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="549" width="0.1" height="15.0" fill="rgb(244,2,36)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail18completion_handlerISt8functionIFvvEEE11do_completeEPNS0_15task_io_serviceEPNS0_25task_io_service_operationERKSt10error_codem (4,964 samples, 1.97%)</title><rect x="10.1" y="661" width="23.3" height="15.0" fill="rgb(239,147,49)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_read_iter (23 samples, 0.01%)</title><rect x="10.0" y="101" width="0.1" height="15.0" fill="rgb(248,93,22)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="111.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (250 samples, 0.10%)</title><rect x="34.1" y="85" width="1.2" height="15.0" fill="rgb(213,37,18)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="95.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait (1,339 samples, 0.53%)</title><rect x="27.1" y="325" width="6.3" height="15.0" fill="rgb(219,143,15)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci11transaction6commitEv (424 samples, 0.17%)</title><rect x="33.4" y="485" width="2.0" height="15.0" fill="rgb(247,21,12)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__pthread_mutex_lock (28 samples, 0.01%)</title><rect x="1157.5" y="501" width="0.1" height="15.0" fill="rgb(243,178,7)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait_queue_me (744 samples, 0.30%)</title><rect x="11.0" y="325" width="3.5" height="15.0" fill="rgb(206,152,54)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_buffered_read (50 samples, 0.02%)</title><rect x="35.5" y="165" width="0.2" height="15.0" fill="rgb(227,72,1)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="175.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12FutureBucket10startMergeERNS_11ApplicationEb (1,355 samples, 0.54%)</title><rect x="27.0" y="485" width="6.4" height="15.0" fill="rgb(218,163,6)" rx="2" ry="2" />
+<text text-anchor="" x="30.03" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar16TransactionFrame16processFeeSeqNumERNS_19AbstractLedgerStateE (23 samples, 0.01%)</title><rect x="10.0" y="661" width="0.1" height="15.0" fill="rgb(236,63,16)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__vfs_read (50 samples, 0.02%)</title><rect x="35.5" y="229" width="0.2" height="15.0" fill="rgb(229,181,35)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="239.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>syscall (744 samples, 0.30%)</title><rect x="11.0" y="421" width="3.5" height="15.0" fill="rgb(249,151,53)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3BtreeMovetoUnpacked (23 samples, 0.01%)</title><rect x="10.0" y="341" width="0.1" height="15.0" fill="rgb(220,1,20)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (108 samples, 0.04%)</title><rect x="10.1" y="421" width="0.5" height="15.0" fill="rgb(232,183,5)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl11closeLedgerERKNS_15LedgerCloseDataE (424 samples, 0.17%)</title><rect x="33.4" y="597" width="2.0" height="15.0" fill="rgb(234,168,9)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="607.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio10io_service8poll_oneEv (4,964 samples, 1.97%)</title><rect x="10.1" y="709" width="23.3" height="15.0" fill="rgb(220,20,24)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="719.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>getPageNormal (23 samples, 0.01%)</title><rect x="10.0" y="293" width="0.1" height="15.0" fill="rgb(225,148,44)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState4Impl16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="645" width="0.2" height="15.0" fill="rgb(229,174,3)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (239,164 samples, 95.04%)</title><rect x="35.9" y="661" width="1121.5" height="15.0" fill="rgb(250,159,47)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >entry_SYSCALL_64_after_hwframe</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar7catchupESt10shared_ptrINS_11ApplicationEENS_20CatchupConfigurationERN4Json5ValueE (424 samples, 0.17%)</title><rect x="33.4" y="757" width="2.0" height="15.0" fill="rgb(235,180,49)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="767.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3OsSync.part.4 (157 samples, 0.06%)</title><rect x="33.4" y="309" width="0.7" height="15.0" fill="rgb(252,33,43)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar4Work3runEv (4,964 samples, 1.97%)</title><rect x="10.1" y="629" width="23.3" height="15.0" fill="rgb(233,77,6)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (157 samples, 0.06%)</title><rect x="33.4" y="245" width="0.7" height="15.0" fill="rgb(246,206,41)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="255.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12_GLOBAL__N_111runWithHelpERKNS_15CommandLineArgsESt6vectorINS0_20ParserWithValidationESaIS5_EESt8functionIFivEE (424 samples, 0.17%)</title><rect x="33.4" y="805" width="2.0" height="15.0" fill="rgb(237,200,54)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="815.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFivEZN7stellar10runCatchupERKNS1_15CommandLineArgsEEUlvE0_E9_M_invokeERKSt9_Any_data (4,964 samples, 1.97%)</title><rect x="10.1" y="773" width="23.3" height="15.0" fill="rgb(220,222,41)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="783.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (239,164 samples, 95.04%)</title><rect x="35.9" y="645" width="1121.5" height="15.0" fill="rgb(254,186,33)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do_syscall_64</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork26applyHistoryOfSingleLedgerEv (30 samples, 0.01%)</title><rect x="35.8" y="645" width="0.1" height="15.0" fill="rgb(235,158,47)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3VdbeHalt (157 samples, 0.06%)</title><rect x="33.4" y="373" width="0.7" height="15.0" fill="rgb(252,119,47)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>getPageNormal (50 samples, 0.02%)</title><rect x="35.5" y="373" width="0.2" height="15.0" fill="rgb(205,22,37)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_sys_open (6,909 samples, 2.75%)</title><rect x="1157.6" y="389" width="32.4" height="15.0" fill="rgb(207,219,41)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt28__atomic_futex_unsigned_base19_M_futex_wait_untilEPjjbNSt6chrono8durationIlSt5ratioILl1ELl1EEEENS2_IlS3_ILl1ELl1000000000EEEE (1,339 samples, 0.53%)</title><rect x="27.1" y="421" width="6.3" height="15.0" fill="rgb(222,150,7)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12FutureBucketC1ERNS_11ApplicationERKSt10shared_ptrINS_6BucketEES7_RKSt6vectorIS5_SaIS5_EEb (1,355 samples, 0.54%)</title><rect x="27.0" y="501" width="6.4" height="15.0" fill="rgb(230,30,34)" rx="2" ry="2" />
+<text text-anchor="" x="30.03" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork5onRunEv (30 samples, 0.01%)</title><rect x="35.8" y="661" width="0.1" height="15.0" fill="rgb(232,64,16)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>file_write_and_wait_range (267 samples, 0.11%)</title><rect x="34.1" y="181" width="1.3" height="15.0" fill="rgb(227,157,33)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="191.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_futex (89 samples, 0.04%)</title><rect x="10.6" y="341" width="0.4" height="15.0" fill="rgb(233,208,52)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>unixRead (23 samples, 0.01%)</title><rect x="10.0" y="261" width="0.1" height="15.0" fill="rgb(245,154,44)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="271.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12VirtualClock5crankEb (30 samples, 0.01%)</title><rect x="35.8" y="773" width="0.1" height="15.0" fill="rgb(245,214,23)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="783.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>unixRead (50 samples, 0.02%)</title><rect x="35.5" y="341" width="0.2" height="15.0" fill="rgb(248,213,0)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service11do_poll_oneERNS0_11scoped_lockINS0_11posix_mutexEEERNS0_27task_io_service_thread_infoERKSt10error_code (23 samples, 0.01%)</title><rect x="10.0" y="789" width="0.1" height="15.0" fill="rgb(233,211,0)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="799.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar4Work3runEv (23 samples, 0.01%)</title><rect x="10.0" y="741" width="0.1" height="15.0" fill="rgb(231,40,27)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="751.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail18completion_handlerISt8functionIFvvEEE11do_completeEPNS0_15task_io_serviceEPNS0_25task_io_service_operationERKSt10error_codem (30 samples, 0.01%)</title><rect x="35.8" y="709" width="0.1" height="15.0" fill="rgb(208,189,0)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="719.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_read (50 samples, 0.02%)</title><rect x="35.5" y="277" width="0.2" height="15.0" fill="rgb(252,153,15)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar15LedgerStateRoot4Impl16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="549" width="0.2" height="15.0" fill="rgb(226,201,30)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar4Work3runEv (424 samples, 0.17%)</title><rect x="33.4" y="645" width="2.0" height="15.0" fill="rgb(232,3,53)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar16TransactionFrame15applyOperationsERNS_16SignatureCheckerERNS_11ApplicationERNS_19AbstractLedgerStateERNS_17TransactionMetaV1E (70 samples, 0.03%)</title><rect x="35.4" y="741" width="0.3" height="15.0" fill="rgb(208,172,12)" rx="2" ry="2" />
+<text text-anchor="" x="38.37" y="751.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (50 samples, 0.02%)</title><rect x="35.5" y="149" width="0.2" height="15.0" fill="rgb(239,126,37)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="159.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4Impl4loadERS0_RKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="661" width="0.2" height="15.0" fill="rgb(217,63,39)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (50 samples, 0.02%)</title><rect x="35.5" y="117" width="0.2" height="15.0" fill="rgb(241,89,47)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>generic_file_read_iter (50 samples, 0.02%)</title><rect x="35.5" y="181" width="0.2" height="15.0" fill="rgb(232,196,15)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="191.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (6,909 samples, 2.75%)</title><rect x="1157.6" y="277" width="32.4" height="15.0" fill="rgb(207,62,21)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>getAndInitPage (23 samples, 0.01%)</title><rect x="10.0" y="309" width="0.1" height="15.0" fill="rgb(238,140,39)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (6,909 samples, 2.75%)</title><rect x="1157.6" y="437" width="32.4" height="15.0" fill="rgb(245,192,18)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >en..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl18processFeesSeqNumsERSt6vectorISt10shared_ptrINS_16TransactionFrameEESaIS4_EERNS_19AbstractLedgerStateE (23 samples, 0.01%)</title><rect x="10.0" y="677" width="0.1" height="15.0" fill="rgb(251,109,20)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait (108 samples, 0.04%)</title><rect x="10.1" y="357" width="0.5" height="15.0" fill="rgb(237,12,9)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork26applyHistoryOfSingleLedgerEv (23 samples, 0.01%)</title><rect x="10.0" y="709" width="0.1" height="15.0" fill="rgb(248,159,46)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="719.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>epoll_wait (239,164 samples, 95.04%)</title><rect x="35.9" y="677" width="1121.5" height="15.0" fill="rgb(243,71,28)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >epoll_wait</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl18storeCurrentLedgerERKNS_12LedgerHeaderE (197 samples, 0.08%)</title><rect x="10.1" y="501" width="0.9" height="15.0" fill="rgb(205,87,9)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>rwsem_down_read_failed (6,909 samples, 2.75%)</title><rect x="1157.6" y="309" width="32.4" height="15.0" fill="rgb(230,118,46)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >rw..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_futex (744 samples, 0.30%)</title><rect x="11.0" y="373" width="3.5" height="15.0" fill="rgb(228,108,54)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>moveToChild (50 samples, 0.02%)</title><rect x="35.5" y="405" width="0.2" height="15.0" fill="rgb(246,149,32)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl17applyTransactionsERSt6vectorISt10shared_ptrINS_16TransactionFrameEESaIS4_EERNS_19AbstractLedgerStateERNS_20TransactionResultSetE (70 samples, 0.03%)</title><rect x="35.4" y="773" width="0.3" height="15.0" fill="rgb(218,126,0)" rx="2" ry="2" />
+<text text-anchor="" x="38.37" y="783.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvvEZN7stellar4Work11scheduleRunEvEUlvE_E9_M_invokeERKSt9_Any_data (4,964 samples, 1.97%)</title><rect x="10.1" y="645" width="23.3" height="15.0" fill="rgb(234,98,8)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (239,164 samples, 95.04%)</title><rect x="35.9" y="533" width="1121.5" height="15.0" fill="rgb(250,90,20)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__sched_text_start</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service11do_poll_oneERNS0_11scoped_lockINS0_11posix_mutexEEERNS0_27task_io_service_thread_infoERKSt10error_code (424 samples, 0.17%)</title><rect x="33.4" y="693" width="2.0" height="15.0" fill="rgb(247,107,44)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>syscall (108 samples, 0.04%)</title><rect x="10.1" y="437" width="0.5" height="15.0" fill="rgb(223,219,40)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>readDbPage (23 samples, 0.01%)</title><rect x="10.0" y="277" width="0.1" height="15.0" fill="rgb(238,184,11)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl11closeLedgerERKNS_15LedgerCloseDataE (4,964 samples, 1.97%)</title><rect x="10.1" y="581" width="23.3" height="15.0" fill="rgb(218,107,48)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="591.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt28__atomic_futex_unsigned_base19_M_futex_wait_untilEPjjbNSt6chrono8durationIlSt5ratioILl1ELl1EEEENS2_IlS3_ILl1ELl1000000000EEEE (2,668 samples, 1.06%)</title><rect x="14.5" y="485" width="12.5" height="15.0" fill="rgb(246,83,13)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__vfs_read (23 samples, 0.01%)</title><rect x="10.0" y="149" width="0.1" height="15.0" fill="rgb(239,18,21)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="159.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (50 samples, 0.02%)</title><rect x="35.5" y="309" width="0.2" height="15.0" fill="rgb(209,136,18)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork5onRunEv (23 samples, 0.01%)</title><rect x="10.0" y="725" width="0.1" height="15.0" fill="rgb(215,14,5)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="735.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait_queue_me (2,668 samples, 1.06%)</title><rect x="14.5" y="373" width="12.5" height="15.0" fill="rgb(207,144,18)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (23 samples, 0.01%)</title><rect x="10.0" y="213" width="0.1" height="15.0" fill="rgb(252,59,7)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="223.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>vfs_fsync_range (267 samples, 0.11%)</title><rect x="34.1" y="213" width="1.3" height="15.0" fill="rgb(205,152,20)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="223.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail18completion_handlerISt8functionIFvvEEE11do_completeEPNS0_15task_io_serviceEPNS0_25task_io_service_operationERKSt10error_codem (6,946 samples, 2.76%)</title><rect x="1157.4" y="693" width="32.6" height="15.0" fill="rgb(244,3,22)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl12ledgerClosedERNS_19AbstractLedgerStateE (4,964 samples, 1.97%)</title><rect x="10.1" y="565" width="23.3" height="15.0" fill="rgb(244,63,10)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="575.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3PagerCommitPhaseOne (157 samples, 0.06%)</title><rect x="33.4" y="341" width="0.7" height="15.0" fill="rgb(235,220,50)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>new_sync_read (50 samples, 0.02%)</title><rect x="35.5" y="213" width="0.2" height="15.0" fill="rgb(219,210,11)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="223.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar7catchupESt10shared_ptrINS_11ApplicationEENS_20CatchupConfigurationERN4Json5ValueE (30 samples, 0.01%)</title><rect x="35.8" y="789" width="0.1" height="15.0" fill="rgb(213,45,34)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="799.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar10BucketList8addBatchERNS_11ApplicationEjRKSt6vectorINS_11LedgerEntryESaIS4_EERKS3_INS_9LedgerKeyESaIS9_EE (4,767 samples, 1.89%)</title><rect x="11.0" y="533" width="22.4" height="15.0" fill="rgb(237,174,26)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (267 samples, 0.11%)</title><rect x="34.1" y="277" width="1.3" height="15.0" fill="rgb(209,37,9)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3BtreeMovetoUnpacked (50 samples, 0.02%)</title><rect x="35.5" y="421" width="0.2" height="15.0" fill="rgb(233,24,39)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4Impl4loadERS0_RKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="581" width="0.1" height="15.0" fill="rgb(222,60,27)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="591.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11loadAccountERNS_19AbstractLedgerStateERKNS_9PublicKeyE (23 samples, 0.01%)</title><rect x="10.0" y="613" width="0.1" height="15.0" fill="rgb(236,90,6)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="623.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>io_schedule (23 samples, 0.01%)</title><rect x="10.0" y="69" width="0.1" height="15.0" fill="rgb(222,53,8)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar4Work3runEv (30 samples, 0.01%)</title><rect x="35.8" y="677" width="0.1" height="15.0" fill="rgb(222,185,8)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="517" width="0.1" height="15.0" fill="rgb(232,70,25)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_IO_file_fopen (6,909 samples, 2.75%)</title><rect x="1157.6" y="469" width="32.4" height="15.0" fill="rgb(220,5,38)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_I..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (250 samples, 0.10%)</title><rect x="34.1" y="69" width="1.2" height="15.0" fill="rgb(248,6,34)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="79.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (744 samples, 0.30%)</title><rect x="11.0" y="309" width="3.5" height="15.0" fill="rgb(250,175,41)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>fopen (6,909 samples, 2.75%)</title><rect x="1157.6" y="485" width="32.4" height="15.0" fill="rgb(225,50,29)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >fo..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio10io_service8poll_oneEv (30 samples, 0.01%)</title><rect x="35.8" y="757" width="0.1" height="15.0" fill="rgb(239,197,29)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="767.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvRN7stellar12LedgerHeaderEEZNS0_17LedgerManagerImpl12ledgerClosedERNS0_19AbstractLedgerStateEEUlS2_E_E9_M_invokeERKSt9_Any_dataS2_ (197 samples, 0.08%)</title><rect x="10.1" y="517" width="0.9" height="15.0" fill="rgb(218,1,7)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_futex (108 samples, 0.04%)</title><rect x="10.1" y="373" width="0.5" height="15.0" fill="rgb(241,111,53)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZZN7stellar12FutureBucket10startMergeERNS_11ApplicationEbENKUlvE_clEv (6,946 samples, 2.76%)</title><rect x="1157.4" y="565" width="32.6" height="15.0" fill="rgb(227,206,51)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="575.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZZSt9call_onceIMNSt13__future_base13_State_baseV2EFvPSt8functionIFSt10unique_ptrINS0_12_Result_baseENS4_8_DeleterEEvEEPbEJPS1_S9_SA_EEvRSt9once_flagOT_DpOT0_ENUlvE0_4_FUNEv (6,946 samples, 2.76%)</title><rect x="1157.4" y="613" width="32.6" height="15.0" fill="rgb(249,177,42)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="623.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20BucketOutputIterator9getBucketERNS_13BucketManagerE (28 samples, 0.01%)</title><rect x="1157.5" y="533" width="0.1" height="15.0" fill="rgb(254,208,38)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait_queue_me (1,339 samples, 0.53%)</title><rect x="27.1" y="309" width="6.3" height="15.0" fill="rgb(249,43,46)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3_step (23 samples, 0.01%)</title><rect x="10.0" y="373" width="0.1" height="15.0" fill="rgb(241,31,44)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket13mergeCompleteEv (108 samples, 0.04%)</title><rect x="10.1" y="469" width="0.5" height="15.0" fill="rgb(249,144,1)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar15LedgerStateRoot4Impl16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="469" width="0.1" height="15.0" fill="rgb(242,188,53)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt28__atomic_futex_unsigned_base19_M_futex_wait_untilEPjjbNSt6chrono8durationIlSt5ratioILl1ELl1EEEENS2_IlS3_ILl1ELl1000000000EEEE (744 samples, 0.30%)</title><rect x="11.0" y="437" width="3.5" height="15.0" fill="rgb(252,76,3)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket10checkStateEv (89 samples, 0.04%)</title><rect x="10.6" y="453" width="0.4" height="15.0" fill="rgb(253,66,10)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_futex (2,668 samples, 1.06%)</title><rect x="14.5" y="405" width="12.5" height="15.0" fill="rgb(221,195,53)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZZN7stellar10runCatchupERKNS_15CommandLineArgsEENKUlvE0_clEv (30 samples, 0.01%)</title><rect x="35.8" y="805" width="0.1" height="15.0" fill="rgb(227,31,39)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="815.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar15LedgerStateRoot4Impl11loadAccountERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="533" width="0.2" height="15.0" fill="rgb(241,197,2)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar16TransactionFrame17loadSourceAccountERNS_19AbstractLedgerStateERKNS_17LedgerStateHeaderE (23 samples, 0.01%)</title><rect x="10.0" y="645" width="0.1" height="15.0" fill="rgb(227,86,8)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (6,909 samples, 2.75%)</title><rect x="1157.6" y="421" width="32.4" height="15.0" fill="rgb(213,218,48)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_futex (28 samples, 0.01%)</title><rect x="1157.5" y="421" width="0.1" height="15.0" fill="rgb(207,64,53)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (28 samples, 0.01%)</title><rect x="1157.5" y="453" width="0.1" height="15.0" fill="rgb(244,65,37)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait (2,668 samples, 1.06%)</title><rect x="14.5" y="389" width="12.5" height="15.0" fill="rgb(221,24,14)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci25sqlite3_statement_backend16bind_and_executeEi (50 samples, 0.02%)</title><rect x="35.5" y="485" width="0.2" height="15.0" fill="rgb(220,86,33)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci7details14statement_impl7executeEb (23 samples, 0.01%)</title><rect x="10.0" y="437" width="0.1" height="15.0" fill="rgb(208,223,11)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_futex (2,668 samples, 1.06%)</title><rect x="14.5" y="421" width="12.5" height="15.0" fill="rgb(218,48,9)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_filp_open (6,909 samples, 2.75%)</title><rect x="1157.6" y="373" width="32.4" height="15.0" fill="rgb(253,123,39)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci25sqlite3_statement_backend16bind_and_executeEi (23 samples, 0.01%)</title><rect x="10.0" y="405" width="0.1" height="15.0" fill="rgb(210,184,7)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>syscall (1,339 samples, 0.53%)</title><rect x="27.1" y="405" width="6.3" height="15.0" fill="rgb(224,118,40)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (157 samples, 0.06%)</title><rect x="33.4" y="117" width="0.7" height="15.0" fill="rgb(250,208,48)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvvEZN7stellar4Work11scheduleRunEvEUlvE_E9_M_invokeERKSt9_Any_data (424 samples, 0.17%)</title><rect x="33.4" y="661" width="2.0" height="15.0" fill="rgb(247,198,48)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>mpage_prepare_extent_to_map (267 samples, 0.11%)</title><rect x="34.1" y="117" width="1.3" height="15.0" fill="rgb(241,123,14)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar19HistoryArchiveState8toStringB5cxx11Ev (89 samples, 0.04%)</title><rect x="10.6" y="485" width="0.4" height="15.0" fill="rgb(215,89,48)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3_exec (424 samples, 0.17%)</title><rect x="33.4" y="421" width="2.0" height="15.0" fill="rgb(212,215,13)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci23sqlite3_session_backend6commitEPKc (424 samples, 0.17%)</title><rect x="33.4" y="453" width="2.0" height="15.0" fill="rgb(217,192,41)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (2,668 samples, 1.06%)</title><rect x="14.5" y="437" width="12.5" height="15.0" fill="rgb(247,228,7)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service8poll_oneERSt10error_code (23 samples, 0.01%)</title><rect x="10.0" y="805" width="0.1" height="15.0" fill="rgb(211,151,49)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="815.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>pagerWalFrames (157 samples, 0.06%)</title><rect x="33.4" y="325" width="0.7" height="15.0" fill="rgb(236,58,7)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState4Impl16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="533" width="0.1" height="15.0" fill="rgb(207,42,27)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl11closeLedgerERKNS_15LedgerCloseDataE (70 samples, 0.03%)</title><rect x="35.4" y="789" width="0.3" height="15.0" fill="rgb(249,38,17)" rx="2" ry="2" />
+<text text-anchor="" x="38.37" y="799.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule_hrtimeout_range (239,164 samples, 95.04%)</title><rect x="35.9" y="581" width="1121.5" height="15.0" fill="rgb(214,79,29)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="591.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >schedule_hrtimeout_range</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>fsync (267 samples, 0.11%)</title><rect x="34.1" y="293" width="1.3" height="15.0" fill="rgb(214,60,12)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_futex (1,339 samples, 0.53%)</title><rect x="27.1" y="357" width="6.3" height="15.0" fill="rgb(205,198,10)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_writepages (267 samples, 0.11%)</title><rect x="34.1" y="133" width="1.3" height="15.0" fill="rgb(243,103,3)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="143.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__libc_read (50 samples, 0.02%)</title><rect x="35.5" y="325" width="0.2" height="15.0" fill="rgb(240,66,31)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (1,339 samples, 0.53%)</title><rect x="27.1" y="373" width="6.3" height="15.0" fill="rgb(235,161,20)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket10checkStateEv (744 samples, 0.30%)</title><rect x="11.0" y="485" width="3.5" height="15.0" fill="rgb(253,70,47)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail13epoll_reactor3runEbRNS0_8op_queueINS0_25task_io_service_operationEEE (239,164 samples, 95.04%)</title><rect x="35.9" y="693" width="1121.5" height="15.0" fill="rgb(246,71,3)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_ZN4asio6detail13epoll_reactor3runEbRNS0_8op_queueINS0_25task_io_service_operationEEE</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (2,668 samples, 1.06%)</title><rect x="14.5" y="453" width="12.5" height="15.0" fill="rgb(226,90,10)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11loadAccountERNS_19AbstractLedgerStateERKNS_9PublicKeyE (50 samples, 0.02%)</title><rect x="35.5" y="693" width="0.2" height="15.0" fill="rgb(234,121,30)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_sync_file (267 samples, 0.11%)</title><rect x="34.1" y="197" width="1.3" height="15.0" fill="rgb(224,38,17)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="207.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__clone (246,122 samples, 97.81%)</title><rect x="35.9" y="805" width="1154.1" height="15.0" fill="rgb(208,214,6)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="815.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__clone</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (28 samples, 0.01%)</title><rect x="1157.5" y="357" width="0.1" height="15.0" fill="rgb(229,102,52)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket13mergeCompleteEv (89 samples, 0.04%)</title><rect x="10.6" y="421" width="0.4" height="15.0" fill="rgb(245,1,36)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4loadERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="597" width="0.1" height="15.0" fill="rgb(208,4,50)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="607.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (50 samples, 0.02%)</title><rect x="35.5" y="133" width="0.2" height="15.0" fill="rgb(218,99,15)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="143.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail18completion_handlerISt8functionIFvvEEE11do_completeEPNS0_15task_io_serviceEPNS0_25task_io_service_operationERKSt10error_codem (23 samples, 0.01%)</title><rect x="10.0" y="773" width="0.1" height="15.0" fill="rgb(249,80,3)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="783.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt13basic_filebufIcSt11char_traitsIcEE4openEPKcSt13_Ios_Openmode (6,909 samples, 2.75%)</title><rect x="1157.6" y="517" width="32.4" height="15.0" fill="rgb(226,114,15)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl11closeLedgerERKNS_15LedgerCloseDataE (30 samples, 0.01%)</title><rect x="35.8" y="629" width="0.1" height="15.0" fill="rgb(250,24,39)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>syscall (2,668 samples, 1.06%)</title><rect x="14.5" y="469" width="12.5" height="15.0" fill="rgb(242,110,25)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__filemap_fdatawrite_range (267 samples, 0.11%)</title><rect x="34.1" y="165" width="1.3" height="15.0" fill="rgb(237,84,6)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="175.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3WalDefaultHook (267 samples, 0.11%)</title><rect x="34.1" y="389" width="1.3" height="15.0" fill="rgb(251,129,35)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (28 samples, 0.01%)</title><rect x="1157.5" y="469" width="0.1" height="15.0" fill="rgb(253,188,4)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (23 samples, 0.01%)</title><rect x="10.0" y="37" width="0.1" height="15.0" fill="rgb(243,134,18)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="47.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt13packaged_taskIFSt10shared_ptrIN7stellar6BucketEEvEEclEv (6,946 samples, 2.76%)</title><rect x="1157.4" y="661" width="32.6" height="15.0" fill="rgb(209,110,29)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="671.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN12_GLOBAL__N_117execude_hardcodedEPN10sqlite_api7sqlite3EPKcS4_ (424 samples, 0.17%)</title><rect x="33.4" y="437" width="2.0" height="15.0" fill="rgb(243,35,51)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ksys_read (23 samples, 0.01%)</title><rect x="10.0" y="181" width="0.1" height="15.0" fill="rgb(231,194,44)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="191.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_sync_file (157 samples, 0.06%)</title><rect x="33.4" y="181" width="0.7" height="15.0" fill="rgb(213,165,8)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="191.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>getAndInitPage (50 samples, 0.02%)</title><rect x="35.5" y="389" width="0.2" height="15.0" fill="rgb(233,181,52)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>vfs_read (50 samples, 0.02%)</title><rect x="35.5" y="245" width="0.2" height="15.0" fill="rgb(212,170,50)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="255.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail18completion_handlerISt8functionIFvvEEE11do_completeEPNS0_15task_io_serviceEPNS0_25task_io_service_operationERKSt10error_codem (424 samples, 0.17%)</title><rect x="33.4" y="677" width="2.0" height="15.0" fill="rgb(252,196,11)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>vfs_fsync_range (157 samples, 0.06%)</title><rect x="33.4" y="197" width="0.7" height="15.0" fill="rgb(249,100,36)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="207.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3VdbeExec (50 samples, 0.02%)</title><rect x="35.5" y="437" width="0.2" height="15.0" fill="rgb(244,77,45)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt13__future_base13_State_baseV29_M_do_setEPSt8functionIFSt10unique_ptrINS_12_Result_baseENS3_8_DeleterEEvEEPb (6,946 samples, 2.76%)</title><rect x="1157.4" y="597" width="32.6" height="15.0" fill="rgb(230,135,13)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="607.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_fsync (267 samples, 0.11%)</title><rect x="34.1" y="229" width="1.3" height="15.0" fill="rgb(220,207,37)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="239.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (744 samples, 0.30%)</title><rect x="11.0" y="389" width="3.5" height="15.0" fill="rgb(229,92,54)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_futex (89 samples, 0.04%)</title><rect x="10.6" y="325" width="0.4" height="15.0" fill="rgb(205,32,15)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3Checkpoint (267 samples, 0.11%)</title><rect x="34.1" y="357" width="1.3" height="15.0" fill="rgb(212,106,23)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (89 samples, 0.04%)</title><rect x="10.6" y="261" width="0.4" height="15.0" fill="rgb(215,104,38)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="271.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20BucketOutputIteratorC2ERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEb (6,909 samples, 2.75%)</title><rect x="1157.6" y="533" width="32.4" height="15.0" fill="rgb(248,210,28)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState4Impl16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="581" width="0.2" height="15.0" fill="rgb(249,1,34)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="591.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci25sqlite3_statement_backend8load_oneEv (23 samples, 0.01%)</title><rect x="10.0" y="389" width="0.1" height="15.0" fill="rgb(244,122,13)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_futex (1,339 samples, 0.53%)</title><rect x="27.1" y="341" width="6.3" height="15.0" fill="rgb(213,143,3)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3OsSync.part.4 (267 samples, 0.11%)</title><rect x="34.1" y="325" width="1.3" height="15.0" fill="rgb(229,165,31)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (250 samples, 0.10%)</title><rect x="34.1" y="53" width="1.2" height="15.0" fill="rgb(222,122,51)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="63.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17LedgerManagerImpl11closeLedgerERKNS_15LedgerCloseDataE (23 samples, 0.01%)</title><rect x="10.0" y="693" width="0.1" height="15.0" fill="rgb(242,170,17)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (89 samples, 0.04%)</title><rect x="10.6" y="277" width="0.4" height="15.0" fill="rgb(249,39,47)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_futex (28 samples, 0.01%)</title><rect x="1157.5" y="437" width="0.1" height="15.0" fill="rgb(246,10,49)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>call_rwsem_down_read_failed (6,909 samples, 2.75%)</title><rect x="1157.6" y="325" width="32.4" height="15.0" fill="rgb(250,79,54)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >ca..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3_step (424 samples, 0.17%)</title><rect x="33.4" y="405" width="2.0" height="15.0" fill="rgb(229,134,31)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (23 samples, 0.01%)</title><rect x="10.0" y="53" width="0.1" height="15.0" fill="rgb(236,179,0)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="63.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt28__atomic_futex_unsigned_base19_M_futex_wait_untilEPjjbNSt6chrono8durationIlSt5ratioILl1ELl1EEEENS2_IlS3_ILl1ELl1000000000EEEE (89 samples, 0.04%)</title><rect x="10.6" y="405" width="0.4" height="15.0" fill="rgb(208,37,18)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar7catchupESt10shared_ptrINS_11ApplicationEENS_20CatchupConfigurationERN4Json5ValueE (4,964 samples, 1.97%)</title><rect x="10.1" y="741" width="23.3" height="15.0" fill="rgb(210,195,30)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="751.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket16checkHashesMatchEv (744 samples, 0.30%)</title><rect x="11.0" y="469" width="3.5" height="15.0" fill="rgb(247,8,5)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (267 samples, 0.11%)</title><rect x="34.1" y="261" width="1.3" height="15.0" fill="rgb(222,222,40)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="271.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (2,668 samples, 1.06%)</title><rect x="14.5" y="357" width="12.5" height="15.0" fill="rgb(214,130,38)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork5onRunEv (4,964 samples, 1.97%)</title><rect x="10.1" y="613" width="23.3" height="15.0" fill="rgb(253,13,21)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="623.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3_wal_checkpoint_v2 (267 samples, 0.11%)</title><rect x="34.1" y="373" width="1.3" height="15.0" fill="rgb(206,218,32)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvvEZN7stellar4Work11scheduleRunEvEUlvE_E9_M_invokeERKSt9_Any_data (23 samples, 0.01%)</title><rect x="10.0" y="757" width="0.1" height="15.0" fill="rgb(250,217,49)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="767.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (89 samples, 0.04%)</title><rect x="10.6" y="357" width="0.4" height="15.0" fill="rgb(243,30,1)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_file_read_iter (23 samples, 0.01%)</title><rect x="10.0" y="117" width="0.1" height="15.0" fill="rgb(208,214,44)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="127.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12_GLOBAL__N_111runWithHelpERKNS_15CommandLineArgsESt6vectorINS0_20ParserWithValidationESaIS5_EESt8functionIFivEE (4,964 samples, 1.97%)</title><rect x="10.1" y="789" width="23.3" height="15.0" fill="rgb(228,83,26)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="799.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork26applyHistoryOfSingleLedgerEv (4,964 samples, 1.97%)</title><rect x="10.1" y="597" width="23.3" height="15.0" fill="rgb(208,170,42)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="607.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__pthread_once_slow (6,946 samples, 2.76%)</title><rect x="1157.4" y="629" width="32.6" height="15.0" fill="rgb(224,202,18)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="629" width="0.2" height="15.0" fill="rgb(227,108,35)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>stellar-core (251,644 samples, 100.00%)</title><rect x="10.0" y="821" width="1180.0" height="15.0" fill="rgb(236,135,11)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="831.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >stellar-core</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket13mergeCompleteEv (744 samples, 0.30%)</title><rect x="11.0" y="453" width="3.5" height="15.0" fill="rgb(238,148,44)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (28 samples, 0.01%)</title><rect x="1157.5" y="373" width="0.1" height="15.0" fill="rgb(212,229,32)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>syscall (89 samples, 0.04%)</title><rect x="10.6" y="389" width="0.4" height="15.0" fill="rgb(238,221,47)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_epoll_wait (239,164 samples, 95.04%)</title><rect x="35.9" y="629" width="1121.5" height="15.0" fill="rgb(233,3,20)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__x64_sys_epoll_wait</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3VdbeExec (157 samples, 0.06%)</title><rect x="33.4" y="389" width="0.7" height="15.0" fill="rgb(235,106,19)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3VdbeExec (23 samples, 0.01%)</title><rect x="10.0" y="357" width="0.1" height="15.0" fill="rgb(242,33,50)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState4Impl16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="501" width="0.1" height="15.0" fill="rgb(239,222,7)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar16TransactionFrame11loadAccountERNS_19AbstractLedgerStateERKNS_17LedgerStateHeaderERKNS_9PublicKeyE (23 samples, 0.01%)</title><rect x="10.0" y="629" width="0.1" height="15.0" fill="rgb(239,35,39)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait (28 samples, 0.01%)</title><rect x="1157.5" y="405" width="0.1" height="15.0" fill="rgb(253,5,48)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar6Bucket5mergeERNS_13BucketManagerERKSt10shared_ptrIS0_ES6_RKSt6vectorIS4_SaIS4_EEb (6,944 samples, 2.76%)</title><rect x="1157.4" y="549" width="32.6" height="15.0" fill="rgb(205,191,17)" rx="2" ry="2" />
+<text text-anchor="" x="1160.44" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (1,339 samples, 0.53%)</title><rect x="27.1" y="293" width="6.3" height="15.0" fill="rgb(208,197,18)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service3runERSt10error_code (246,122 samples, 97.81%)</title><rect x="35.9" y="725" width="1154.1" height="15.0" fill="rgb(248,113,21)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="735.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_ZN4asio6detail15task_io_service3runERSt10error_code</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket16checkHashesMatchEv (89 samples, 0.04%)</title><rect x="10.6" y="437" width="0.4" height="15.0" fill="rgb(224,79,36)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (1,339 samples, 0.53%)</title><rect x="27.1" y="277" width="6.3" height="15.0" fill="rgb(218,115,7)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_read (23 samples, 0.01%)</title><rect x="10.0" y="197" width="0.1" height="15.0" fill="rgb(206,210,49)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="207.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (108 samples, 0.04%)</title><rect x="10.1" y="309" width="0.5" height="15.0" fill="rgb(206,202,13)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar10runCatchupERKNS_15CommandLineArgsE (4,964 samples, 1.97%)</title><rect x="10.1" y="805" width="23.3" height="15.0" fill="rgb(230,154,31)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="815.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service8poll_oneERSt10error_code (30 samples, 0.01%)</title><rect x="35.8" y="741" width="0.1" height="15.0" fill="rgb(248,167,35)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="751.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (157 samples, 0.06%)</title><rect x="33.4" y="133" width="0.7" height="15.0" fill="rgb(253,156,52)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="143.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (50 samples, 0.02%)</title><rect x="35.5" y="293" width="0.2" height="15.0" fill="rgb(209,186,0)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFivEZN7stellar10runCatchupERKNS1_15CommandLineArgsEEUlvE0_E9_M_invokeERKSt9_Any_data (424 samples, 0.17%)</title><rect x="33.4" y="789" width="2.0" height="15.0" fill="rgb(246,189,47)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="799.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt12__basic_fileIcE4openEPKcSt13_Ios_Openmodei (6,909 samples, 2.75%)</title><rect x="1157.6" y="501" width="32.4" height="15.0" fill="rgb(241,176,16)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule_hrtimeout_range_clock (239,164 samples, 95.04%)</title><rect x="35.9" y="565" width="1121.5" height="15.0" fill="rgb(240,43,18)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="575.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >schedule_hrtimeout_range_clock</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17BucketManagerImpl8addBatchERNS_11ApplicationEjRKSt6vectorINS_11LedgerEntryESaIS4_EERKS3_INS_9LedgerKeyESaIS9_EE (4,767 samples, 1.89%)</title><rect x="11.0" y="549" width="22.4" height="15.0" fill="rgb(253,155,8)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11BucketLevel6commitEv (3,412 samples, 1.36%)</title><rect x="11.0" y="517" width="16.0" height="15.0" fill="rgb(238,96,45)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ksys_read (50 samples, 0.02%)</title><rect x="35.5" y="261" width="0.2" height="15.0" fill="rgb(233,83,45)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="271.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_epoll_wait (239,164 samples, 95.04%)</title><rect x="35.9" y="613" width="1121.5" height="15.0" fill="rgb(225,95,40)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="623.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do_epoll_wait</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt6thread11_State_implINS_8_InvokerISt5tupleIJZN7stellar15ApplicationImplC4ERNS3_12VirtualClockERKNS3_6ConfigEEUlvE0_EEEEE6_M_runEv (246,122 samples, 97.81%)</title><rect x="35.9" y="757" width="1154.1" height="15.0" fill="rgb(241,198,4)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="767.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_ZNSt6thread11_State_implINS_8_InvokerISt5tupleIJZN7stellar15ApplicationImplC4ERNS3_12VirtualClockERKNS3_6ConfigEEUlvE0_EEEEE6_M_runEv</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState4Impl16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="613" width="0.2" height="15.0" fill="rgb(222,181,22)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="623.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4Impl6commitEv (424 samples, 0.17%)</title><rect x="33.4" y="565" width="2.0" height="15.0" fill="rgb(228,81,6)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="575.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11BucketLevel7prepareERNS_11ApplicationEjSt10shared_ptrINS_6BucketEERKSt6vectorIS5_SaIS5_EE (1,355 samples, 0.54%)</title><rect x="27.0" y="517" width="6.4" height="15.0" fill="rgb(207,207,50)" rx="2" ry="2" />
+<text text-anchor="" x="30.03" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket16checkHashesMatchEv (1,339 samples, 0.53%)</title><rect x="27.1" y="453" width="6.3" height="15.0" fill="rgb(212,83,34)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (23 samples, 0.01%)</title><rect x="10.0" y="229" width="0.1" height="15.0" fill="rgb(243,29,15)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="239.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_futex (108 samples, 0.04%)</title><rect x="10.1" y="389" width="0.5" height="15.0" fill="rgb(244,84,29)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_fsync (267 samples, 0.11%)</title><rect x="34.1" y="245" width="1.3" height="15.0" fill="rgb(243,217,5)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="255.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar15LedgerStateRoot4Impl11loadAccountERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="453" width="0.1" height="15.0" fill="rgb(229,159,40)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_futex (744 samples, 0.30%)</title><rect x="11.0" y="357" width="3.5" height="15.0" fill="rgb(254,72,7)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvRKSt3mapIN7stellar9LedgerKeyESt10shared_ptrINS1_11LedgerEntryEESt4lessIS2_ESaISt4pairIKS2_S5_EEEEZNS1_11LedgerState4Impl6commitEvEUlSE_E_E9_M_invokeERKSt9_Any_dataSE_ (424 samples, 0.17%)</title><rect x="33.4" y="533" width="2.0" height="15.0" fill="rgb(246,172,43)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="543.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_fsync (157 samples, 0.06%)</title><rect x="33.4" y="213" width="0.7" height="15.0" fill="rgb(221,91,53)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="223.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>start_thread (246,122 samples, 97.81%)</title><rect x="35.9" y="789" width="1154.1" height="15.0" fill="rgb(252,105,43)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="799.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >start_thread</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>unixSync (157 samples, 0.06%)</title><rect x="33.4" y="293" width="0.7" height="15.0" fill="rgb(227,71,15)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12FutureBucket7resolveEv (3,412 samples, 1.36%)</title><rect x="11.0" y="501" width="16.0" height="15.0" fill="rgb(221,211,49)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>ext4_file_read_iter (50 samples, 0.02%)</title><rect x="35.5" y="197" width="0.2" height="15.0" fill="rgb(222,16,27)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="207.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar15LedgerStateRoot16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="565" width="0.2" height="15.0" fill="rgb(205,180,37)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="575.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar14OperationFrame5applyERNS_16SignatureCheckerERNS_11ApplicationERNS_19AbstractLedgerStateE (70 samples, 0.03%)</title><rect x="35.4" y="725" width="0.3" height="15.0" fill="rgb(208,43,17)" rx="2" ry="2" />
+<text text-anchor="" x="38.37" y="735.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait (89 samples, 0.04%)</title><rect x="10.6" y="309" width="0.4" height="15.0" fill="rgb(225,97,38)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="319.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar15LedgerStateRoot4Impl11commitChildENS_13EntryIteratorE (424 samples, 0.17%)</title><rect x="33.4" y="501" width="2.0" height="15.0" fill="rgb(251,217,21)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar17BucketManagerImpl17adoptFileAsBucketERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKN3xdr12opaque_arrayILj32EEEmm (28 samples, 0.01%)</title><rect x="1157.5" y="517" width="0.1" height="15.0" fill="rgb(231,117,3)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState12unsealHeaderESt8functionIFvRNS_12LedgerHeaderEEE (197 samples, 0.08%)</title><rect x="10.1" y="549" width="0.9" height="15.0" fill="rgb(226,206,29)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3BtreeCommitPhaseOne.part.501 (157 samples, 0.06%)</title><rect x="33.4" y="357" width="0.7" height="15.0" fill="rgb(225,19,53)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service11do_poll_oneERNS0_11scoped_lockINS0_11posix_mutexEEERNS0_27task_io_service_thread_infoERKSt10error_code (4,964 samples, 1.97%)</title><rect x="10.1" y="677" width="23.3" height="15.0" fill="rgb(227,196,29)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__libc_read (23 samples, 0.01%)</title><rect x="10.0" y="245" width="0.1" height="15.0" fill="rgb(226,65,21)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="255.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar15LedgerStateRoot11commitChildENS_13EntryIteratorE (424 samples, 0.17%)</title><rect x="33.4" y="517" width="2.0" height="15.0" fill="rgb(222,192,30)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar12VirtualClock5crankEb (4,964 samples, 1.97%)</title><rect x="10.1" y="725" width="23.3" height="15.0" fill="rgb(234,191,14)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="735.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__lll_lock_wait (28 samples, 0.01%)</title><rect x="1157.5" y="485" width="0.1" height="15.0" fill="rgb(243,197,50)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>readDbPage (50 samples, 0.02%)</title><rect x="35.5" y="357" width="0.2" height="15.0" fill="rgb(250,35,7)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>moveToChild (23 samples, 0.01%)</title><rect x="10.0" y="325" width="0.1" height="15.0" fill="rgb(236,178,13)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="335.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZZN7stellar10runCatchupERKNS_15CommandLineArgsEENKUlvE0_clEv (4,964 samples, 1.97%)</title><rect x="10.1" y="757" width="23.3" height="15.0" fill="rgb(211,131,24)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="767.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (744 samples, 0.30%)</title><rect x="11.0" y="405" width="3.5" height="15.0" fill="rgb(207,184,19)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4Impl41maybeUpdateLastModifiedThenInvokeThenSealESt8functionIFvRKSt3mapINS_9LedgerKeyESt10shared_ptrINS_11LedgerEntryEESt4lessIS4_ESaISt4pairIKS4_S7_EEEEE (424 samples, 0.17%)</title><rect x="33.4" y="549" width="2.0" height="15.0" fill="rgb(222,25,35)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>vfs_read (23 samples, 0.01%)</title><rect x="10.0" y="165" width="0.1" height="15.0" fill="rgb(245,156,21)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="175.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZZN7stellar10runCatchupERKNS_15CommandLineArgsEENKUlvE0_clEv (424 samples, 0.17%)</title><rect x="33.4" y="773" width="2.0" height="15.0" fill="rgb(207,207,25)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="783.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (157 samples, 0.06%)</title><rect x="33.4" y="261" width="0.7" height="15.0" fill="rgb(230,46,25)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="271.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>fsync (157 samples, 0.06%)</title><rect x="33.4" y="277" width="0.7" height="15.0" fill="rgb(231,28,10)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="287.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci7session6commitEv (424 samples, 0.17%)</title><rect x="33.4" y="469" width="2.0" height="15.0" fill="rgb(211,156,23)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>0x7f45db61a63e (246,122 samples, 97.81%)</title><rect x="35.9" y="773" width="1154.1" height="15.0" fill="rgb(215,169,16)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="783.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >0x7f45db61a63e</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci7details14statement_impl7executeEb (50 samples, 0.02%)</title><rect x="35.5" y="517" width="0.2" height="15.0" fill="rgb(226,87,54)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="527.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2_log_wait_commit (157 samples, 0.06%)</title><rect x="33.4" y="149" width="0.7" height="15.0" fill="rgb(226,62,0)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="159.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState6commitEv (424 samples, 0.17%)</title><rect x="33.4" y="581" width="2.0" height="15.0" fill="rgb(234,163,13)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="591.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFSt10unique_ptrINSt13__future_base12_Result_baseENS2_8_DeleterEEvENS1_12_Task_setterIS0_INS1_7_ResultISt10shared_ptrIN7stellar6BucketEEEES3_EZNS1_11_Task_stateIZNS9_12FutureBucket10startMergeERNS9_11ApplicationEbEUlvE_SaIiEFSB_vEE6_M_runEvEUlvE_SB_EEE9_M_invokeERKSt9_Any_data (6,946 samples, 2.76%)</title><rect x="1157.4" y="581" width="32.6" height="15.0" fill="rgb(254,84,26)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="591.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (239,164 samples, 95.04%)</title><rect x="35.9" y="549" width="1121.5" height="15.0" fill="rgb(241,105,34)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="559.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >schedule</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (744 samples, 0.30%)</title><rect x="11.0" y="293" width="3.5" height="15.0" fill="rgb(236,131,8)" rx="2" ry="2" />
+<text text-anchor="" x="14.03" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci25sqlite3_statement_backend7executeEi (23 samples, 0.01%)</title><rect x="10.0" y="421" width="0.1" height="15.0" fill="rgb(242,162,3)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="431.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState4Impl16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="565" width="0.1" height="15.0" fill="rgb(245,13,18)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="575.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_fsync (157 samples, 0.06%)</title><rect x="33.4" y="229" width="0.7" height="15.0" fill="rgb(241,183,24)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="239.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>down_read (6,909 samples, 2.75%)</title><rect x="1157.6" y="341" width="32.4" height="15.0" fill="rgb(234,118,15)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >do..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service8poll_oneERSt10error_code (424 samples, 0.17%)</title><rect x="33.4" y="709" width="2.0" height="15.0" fill="rgb(226,1,27)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="719.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket13mergeCompleteEv (1,339 samples, 0.53%)</title><rect x="27.1" y="437" width="6.3" height="15.0" fill="rgb(248,60,23)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="447.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork26applyHistoryOfSingleLedgerEv (70 samples, 0.03%)</title><rect x="35.4" y="805" width="0.3" height="15.0" fill="rgb(227,188,14)" rx="2" ry="2" />
+<text text-anchor="" x="38.37" y="815.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>all (251,644 samples, 100%)</title><rect x="10.0" y="837" width="1180.0" height="15.0" fill="rgb(241,143,15)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="847.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3_step (50 samples, 0.02%)</title><rect x="35.5" y="453" width="0.2" height="15.0" fill="rgb(227,26,45)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__sched_text_start (2,668 samples, 1.06%)</title><rect x="14.5" y="341" width="12.5" height="15.0" fill="rgb(253,146,2)" rx="2" ry="2" />
+<text text-anchor="" x="17.52" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar19HistoryArchiveState22resolveAnyReadyFuturesEv (108 samples, 0.04%)</title><rect x="10.1" y="485" width="0.5" height="15.0" fill="rgb(253,188,2)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>schedule (6,909 samples, 2.75%)</title><rect x="1157.6" y="293" width="32.4" height="15.0" fill="rgb(250,126,18)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="303.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >sc..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>sqlite3WalCheckpoint (267 samples, 0.11%)</title><rect x="34.1" y="341" width="1.3" height="15.0" fill="rgb(249,228,16)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt17_Function_handlerIFvvEZN7stellar4Work11scheduleRunEvEUlvE_E9_M_invokeERKSt9_Any_data (30 samples, 0.01%)</title><rect x="35.8" y="693" width="0.1" height="15.0" fill="rgb(216,228,15)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="703.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>jbd2_complete_transaction (157 samples, 0.06%)</title><rect x="33.4" y="165" width="0.7" height="15.0" fill="rgb(231,224,21)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="175.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>entry_SYSCALL_64_after_hwframe (89 samples, 0.04%)</title><rect x="10.6" y="373" width="0.4" height="15.0" fill="rgb(239,229,39)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="383.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar12FutureBucket10checkStateEv (1,339 samples, 0.53%)</title><rect x="27.1" y="469" width="6.3" height="15.0" fill="rgb(223,60,12)" rx="2" ry="2" />
+<text text-anchor="" x="30.10" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait_queue_me (28 samples, 0.01%)</title><rect x="1157.5" y="389" width="0.1" height="15.0" fill="rgb(227,208,14)" rx="2" ry="2" />
+<text text-anchor="" x="1160.47" y="399.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service10do_run_oneERNS0_11scoped_lockINS0_11posix_mutexEEERNS0_27task_io_service_thread_infoERKSt10error_code (246,121 samples, 97.81%)</title><rect x="35.9" y="709" width="1154.1" height="15.0" fill="rgb(212,163,1)" rx="2" ry="2" />
+<text text-anchor="" x="38.90" y="719.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_ZN4asio6detail15task_io_service10do_run_oneERNS0_11scoped_lockINS0_11posix_mutexEEERNS0_27task_io_service_thread_infoERKSt10error_code</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20CreateAccountOpFrame7doApplyERNS_11ApplicationERNS_19AbstractLedgerStateE (50 samples, 0.02%)</title><rect x="35.5" y="709" width="0.2" height="15.0" fill="rgb(219,88,43)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="719.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZSt9call_onceIMNSt13__future_base13_State_baseV2EFvPSt8functionIFSt10unique_ptrINS0_12_Result_baseENS4_8_DeleterEEvEEPbEJPS1_S9_SA_EEvRSt9once_flagOT_DpOT0_ (6,946 samples, 2.76%)</title><rect x="1157.4" y="645" width="32.6" height="15.0" fill="rgb(232,155,26)" rx="2" ry="2" />
+<text text-anchor="" x="1160.43" y="655.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >_Z..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar11LedgerState16getNewestVersionERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="597" width="0.2" height="15.0" fill="rgb(240,123,0)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="607.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>path_openat (6,909 samples, 2.75%)</title><rect x="1157.6" y="357" width="32.4" height="15.0" fill="rgb(238,128,18)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="367.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >pa..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>futex_wait_queue_me (108 samples, 0.04%)</title><rect x="10.1" y="341" width="0.5" height="15.0" fill="rgb(213,162,23)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="351.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNSt28__atomic_futex_unsigned_base19_M_futex_wait_untilEPjjbNSt6chrono8durationIlSt5ratioILl1ELl1EEEENS2_IlS3_ILl1ELl1000000000EEEE (108 samples, 0.04%)</title><rect x="10.1" y="453" width="0.5" height="15.0" fill="rgb(223,70,18)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="463.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci25sqlite3_statement_backend8load_oneEv (50 samples, 0.02%)</title><rect x="35.5" y="469" width="0.2" height="15.0" fill="rgb(247,51,15)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar19HistoryArchiveState9serializeIN6cereal17JSONOutputArchiveEEEvRT_ (89 samples, 0.04%)</title><rect x="10.6" y="469" width="0.4" height="15.0" fill="rgb(221,81,20)" rx="2" ry="2" />
+<text text-anchor="" x="13.61" y="479.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar11LedgerState4loadERKNS_9LedgerKeyE (50 samples, 0.02%)</title><rect x="35.5" y="677" width="0.2" height="15.0" fill="rgb(205,70,44)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="687.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZNK7stellar15LedgerStateRoot16getNewestVersionERKNS_9LedgerKeyE (23 samples, 0.01%)</title><rect x="10.0" y="485" width="0.1" height="15.0" fill="rgb(219,153,27)" rx="2" ry="2" />
+<text text-anchor="" x="13.00" y="495.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__x64_sys_openat (6,909 samples, 2.75%)</title><rect x="1157.6" y="405" width="32.4" height="15.0" fill="rgb(254,167,41)" rx="2" ry="2" />
+<text text-anchor="" x="1160.60" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  >__..</text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>do_syscall_64 (108 samples, 0.04%)</title><rect x="10.1" y="405" width="0.5" height="15.0" fill="rgb(245,90,25)" rx="2" ry="2" />
+<text text-anchor="" x="13.11" y="415.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio6detail15task_io_service11do_poll_oneERNS0_11scoped_lockINS0_11posix_mutexEEERNS0_27task_io_service_thread_infoERKSt10error_code (30 samples, 0.01%)</title><rect x="35.8" y="725" width="0.1" height="15.0" fill="rgb(208,109,43)" rx="2" ry="2" />
+<text text-anchor="" x="38.76" y="735.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>__lock_page (250 samples, 0.10%)</title><rect x="34.1" y="101" width="1.2" height="15.0" fill="rgb(234,213,27)" rx="2" ry="2" />
+<text text-anchor="" x="37.12" y="111.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4asio10io_service8poll_oneEv (424 samples, 0.17%)</title><rect x="33.4" y="725" width="2.0" height="15.0" fill="rgb(243,169,23)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="735.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN7stellar20ApplyLedgerChainWork5onRunEv (424 samples, 0.17%)</title><rect x="33.4" y="629" width="2.0" height="15.0" fill="rgb(234,122,24)" rx="2" ry="2" />
+<text text-anchor="" x="36.38" y="639.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
+<title>_ZN4soci25sqlite3_statement_backend7executeEi (50 samples, 0.02%)</title><rect x="35.5" y="501" width="0.2" height="15.0" fill="rgb(240,221,28)" rx="2" ry="2" />
+<text text-anchor="" x="38.47" y="511.5" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"  ></text>
+</g>
+</svg>
