@@ -27,7 +27,7 @@ Try to separate logically distinct changes into separate commits and thematicall
 
 # Performance impacting changes
 
-When submitting changes that may impact performance, you need to also provide some evidence of the improvement (which also implies no regression). See the [performance evaluation](performance-eval.md) document for more details.
+When submitting changes that may impact performance, you need to also provide some evidence of the improvement (which also implies no regression). See the [performance evaluation](../performance-eval/performance-eval.md) document for more details.
 
 # Submitting Changes
 
@@ -153,7 +153,7 @@ will partition the history tests into 4 parts then run parts 0, 1, and 3.
 
 ## Running stress tests
 
-There are a few special stress tests included in the test suite. Those are *subsystem level* tests, not to be confused with more advanced tests that would be done as part of [performance evaluation](performance-eval.md).
+There are a few special stress tests included in the test suite. Those are *subsystem level* tests, not to be confused with more advanced tests that would be done as part of [performance evaluation](../performance-eval/performance-eval.md).
 
 We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide].
 

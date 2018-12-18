@@ -191,6 +191,15 @@ export CFLAGS="$CFLAGS -fno-omit-frame-pointer -ggdb"
 export CXXFLAGS="$CXXFLAGS -fno-omit-frame-pointer -ggdb"
 ```
 
+#### Reducing the dataset
+
+A run can be scoped to
+* only a subset of threads, see the `--tid` option
+* a specific range, for example only capture data during "normal" operation,
+excluding startup/shutdown.
+   * this is achieved by invoking `perf` separately and using the `--pid` option
+   combined with a command like ` -- sleep 30s` to capture events for a specific time.
+
 #### Tips for getting the best stack traces
 
 Note: on some systems, the quality of symbols differs depending on the tool-chain. If you don't get good stack traces, try switching to gcc/g++.
@@ -233,13 +242,17 @@ You can just pull a local copy with
 This example grabs 60 seconds of data from a running stellar-core instance.
 
     perf record -F 99 -p $(pgrep stellar-core) --call-graph dwarf,20000 -o perf-cpu.data -- sleep 60
+
+To view the report: `perf report -n  -F +period -i perf-cpu.data`
+
+To generate a flame graph:
+
     perf report --stdio -i perf-cpu.data --no-children -n -g folded,0,caller,count -s comm | awk '/^ / { comm = $3 } /^[0-9]/ { print comm ";" $2, $1 }'  > perf-cpu.folded
     ~/src/FlameGraph/flamegraph.pl perf-cpu.folded > ~/reports/folded-cpu.svg
 
-This generates a report that looks like [this](performance-eval/sample-reports/folded-cpu.svg)
+This generates a report that looks like [this](sample-reports/folded-cpu.svg)
 
 #### "Off CPU" session
-
 
 Records for 60 seconds events related to when a running stellar-core process is waiting on something.
 
@@ -250,10 +263,15 @@ Note: "counts" in this report represent time in milliseconds.
     perf record -e 'sched:sched_stat_sleep,sched:sched_switch,sched:sched_process_exit' -p $(pgrep stellar-core) --call-graph dwarf -o perf-offcpu-raw.data  -- sleep 60
     sudo perf inject -f -v -s -i perf-offcpu-raw.data -o perf-offcpu.data
     sudo chown user.user perf-offcpu.data
+
+To view the report: `perf report -n  -F +period -i perf-offcpu.data`
+
+To generate a flame graph:
+
     perf report --stdio -i perf-offcpu.data --no-children -n -g folded,0,caller,period -s comm | awk '/^ / { comm = $3 } /^[0-9]/ { print comm ";" $2, $1/1000000 }'  > perf-offcpu.folded
     ~/src/FlameGraph/flamegraph.pl perf-offcpu.folded > ~/reports/folded-offcpu.svg
 
-This generates a report that looks like [this](performance-eval/sample-reports/folded-offcpu.svg)
+This generates a report that looks like [this](sample-reports/folded-offcpu.svg)
 
 #### common issues
 

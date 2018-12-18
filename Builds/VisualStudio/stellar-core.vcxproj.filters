@@ -1632,7 +1632,7 @@
     <None Include="..\..\src\history\serialize-tests\stellar-history.testnet.6714239.json">
       <Filter>history\tests\serialize-tests</Filter>
     </None>
-    <None Include="..\..\performance-eval.md" />
+    <None Include="..\..\performance-eval\performance-eval.md" />
     <None Include="..\..\docs\metrics.md">
       <Filter>docs</Filter>
     </None>

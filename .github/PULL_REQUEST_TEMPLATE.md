@@ -14,4 +14,4 @@ Describe what this pull request does, which issue it's resolving (usually applic
 - [ ] Ran `clang-format` v5.0.0 (via `make format` or the Visual Studio extension)
 - [ ] Compiles
 - [ ] Ran all tests
-- [ ] If change impacts performance, include supporting evidence per the [performance document](https://github.com/stellar/stellar-core/blob/master/performance-eval.md)
+- [ ] If change impacts performance, include supporting evidence per the [performance document](https://github.com/stellar/stellar-core/blob/master/performance-eval/performance-eval.md)
