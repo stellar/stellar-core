@@ -342,13 +342,13 @@ LedgerState::Impl::erase(LedgerKey const& key)
     }
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerState::getAllOffers()
 {
     return getImpl()->getAllOffers();
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerState::Impl::getAllOffers()
 {
     auto offers = mParent.getAllOffers();
@@ -438,6 +438,7 @@ LedgerEntryChanges
 LedgerState::Impl::getChanges()
 {
     LedgerEntryChanges changes;
+    changes.reserve(mEntry.size() * 2);
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
@@ -485,6 +486,7 @@ std::vector<LedgerKey>
 LedgerState::Impl::getDeadEntries()
 {
     std::vector<LedgerKey> res;
+    res.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
@@ -509,6 +511,7 @@ LedgerStateDelta
 LedgerState::Impl::getDelta()
 {
     LedgerStateDelta delta;
+    delta.entry.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
@@ -710,6 +713,7 @@ std::vector<LedgerEntry>
 LedgerState::Impl::getLiveEntries()
 {
     std::vector<LedgerEntry> res;
+    res.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
@@ -740,14 +744,14 @@ LedgerState::Impl::getNewestVersion(LedgerKey const& key) const
     return mParent.getNewestVersion(key);
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerState::getOffersByAccountAndAsset(AccountID const& account,
                                         Asset const& asset)
 {
     return getImpl()->getOffersByAccountAndAsset(account, asset);
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerState::Impl::getOffersByAccountAndAsset(AccountID const& account,
                                               Asset const& asset)
 {
@@ -914,6 +918,7 @@ LedgerState::Impl::loadOffersByAccountAndAsset(LedgerState& self,
     try
     {
         std::vector<LedgerStateEntry> res;
+        res.reserve(offers.size());
         for (auto const& kv : offers)
         {
             auto const& key = kv.first;
@@ -1029,6 +1034,7 @@ LedgerState::Impl::maybeUpdateLastModified() const
     // Note: We do a deep copy here since a shallow copy would not be exception
     // safe.
     EntryMap entries;
+    entries.reserve(mEntry.size());
     for (auto const& kv : mEntry)
     {
         auto const& key = kv.first;
@@ -1344,13 +1350,13 @@ LedgerStateRoot::dropTrustLines()
     mImpl->dropTrustLines();
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerStateRoot::getAllOffers()
 {
     return mImpl->getAllOffers();
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerStateRoot::Impl::getAllOffers()
 {
     std::vector<LedgerEntry> offers;
@@ -1370,7 +1376,7 @@ LedgerStateRoot::Impl::getAllOffers()
             "unknown fatal error when getting all offers from LedgerStateRoot");
     }
 
-    std::map<LedgerKey, LedgerEntry> offersByKey;
+    std::unordered_map<LedgerKey, LedgerEntry> offersByKey(offers.size());
     for (auto const& offer : offers)
     {
         offersByKey.emplace(LedgerEntryKey(offer), offer);
@@ -1380,7 +1386,7 @@ LedgerStateRoot::Impl::getAllOffers()
 
 std::shared_ptr<LedgerEntry const>
 LedgerStateRoot::getBestOffer(Asset const& buying, Asset const& selling,
-                              std::set<LedgerKey>& exclude)
+                              std::unordered_set<LedgerKey>& exclude)
 {
     return mImpl->getBestOffer(buying, selling, exclude);
 }
@@ -1388,7 +1394,7 @@ LedgerStateRoot::getBestOffer(Asset const& buying, Asset const& selling,
 static std::shared_ptr<LedgerEntry const>
 findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
                   std::list<LedgerEntry>::const_iterator const& end,
-                  std::set<LedgerKey> const& exclude)
+                  std::unordered_set<LedgerKey> const& exclude)
 {
     for (; iter != end; ++iter)
     {
@@ -1446,14 +1452,14 @@ LedgerStateRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     return res;
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerStateRoot::getOffersByAccountAndAsset(AccountID const& account,
                                             Asset const& asset)
 {
     return mImpl->getOffersByAccountAndAsset(account, asset);
 }
 
-std::map<LedgerKey, LedgerEntry>
+std::unordered_map<LedgerKey, LedgerEntry>
 LedgerStateRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
                                                   Asset const& asset)
 {
@@ -1474,7 +1480,7 @@ LedgerStateRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
                            "and asset from LedgerStateRoot");
     }
 
-    std::map<LedgerKey, LedgerEntry> res;
+    std::unordered_map<LedgerKey, LedgerEntry> res(offers.size());
     for (auto const& offer : offers)
     {
         res.emplace(LedgerEntryKey(offer), offer);

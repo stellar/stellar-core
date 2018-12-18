@@ -8,9 +8,11 @@
 #include "ledger/LedgerStateHeader.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
+#include <ledger/LedgerHashUtils.h>
 #include <map>
 #include <memory>
 #include <set>
+#include <unordered_map>
 
 namespace stellar
 {
@@ -47,7 +49,7 @@ struct LedgerStateDelta
         LedgerHeader previous;
     };
 
-    std::map<LedgerKey, EntryDelta> entry;
+    std::unordered_map<LedgerKey, EntryDelta> entry;
     HeaderDelta header;
 };
 
@@ -115,11 +117,11 @@ class AbstractLedgerStateParent
     // - getOffersByAccountAndAsset
     //     Get XDR for every offer owned by the specified account that is either
     //     buying or selling the specified asset.
-    virtual std::map<LedgerKey, LedgerEntry> getAllOffers() = 0;
+    virtual std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() = 0;
     virtual std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  std::set<LedgerKey>& exclude) = 0;
-    virtual std::map<LedgerKey, LedgerEntry>
+    virtual std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
 
@@ -289,7 +291,7 @@ class LedgerState final : public AbstractLedgerState
 
     void erase(LedgerKey const& key) override;
 
-    std::map<LedgerKey, LedgerEntry> getAllOffers() override;
+    std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
@@ -301,7 +303,7 @@ class LedgerState final : public AbstractLedgerState
 
     LedgerStateDelta getDelta() override;
 
-    std::map<LedgerKey, LedgerEntry>
+    std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 
@@ -366,13 +368,13 @@ class LedgerStateRoot : public AbstractLedgerStateParent
     void dropOffers();
     void dropTrustLines();
 
-    std::map<LedgerKey, LedgerEntry> getAllOffers() override;
+    std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  std::set<LedgerKey>& exclude) override;
 
-    std::map<LedgerKey, LedgerEntry>
+    std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 

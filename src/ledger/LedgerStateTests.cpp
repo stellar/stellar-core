@@ -21,8 +21,9 @@
 using namespace stellar;
 
 static void
-validate(AbstractLedgerState& ls,
-         std::map<LedgerKey, LedgerStateDelta::EntryDelta> const& expected)
+validate(
+    AbstractLedgerState& ls,
+    std::unordered_map<LedgerKey, LedgerStateDelta::EntryDelta> const& expected)
 {
     auto const delta = ls.getDelta();
 
@@ -269,9 +270,9 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
     std::bernoulli_distribution shouldCommitDist;
 
     auto generateNew = [](AbstractLedgerState& ls,
-                          std::map<LedgerKey, LedgerEntry>& entries) {
+                          std::unordered_map<LedgerKey, LedgerEntry>& entries) {
         size_t const NEW_ENTRIES = 100;
-        std::map<LedgerKey, LedgerEntry> newBatch;
+        std::unordered_map<LedgerKey, LedgerEntry> newBatch;
         while (newBatch.size() < NEW_ENTRIES)
         {
             auto le = LedgerTestUtils::generateValidLedgerEntry();
@@ -290,78 +291,81 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
         }
     };
 
-    auto generateModify = [&gen](AbstractLedgerState& ls,
-                                 std::map<LedgerKey, LedgerEntry>& entries) {
-        size_t const MODIFY_ENTRIES = 25;
-        std::map<LedgerKey, LedgerEntry> modifyBatch;
-        std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
-        while (modifyBatch.size() < MODIFY_ENTRIES)
-        {
-            auto iter = entries.begin();
-            std::advance(iter, dist(gen));
-            modifyBatch[iter->first] =
-                generateLedgerEntryWithSameKey(iter->second);
-        }
-
-        for (auto const& kv : modifyBatch)
-        {
-            auto lse = ls.load(kv.first);
-            REQUIRE(lse);
-            lse.current() = kv.second;
-            entries[kv.first] = kv.second;
-        }
-    };
-
-    auto generateErase = [&gen](AbstractLedgerState& ls,
-                                std::map<LedgerKey, LedgerEntry>& entries,
-                                std::set<LedgerKey>& dead) {
-        size_t const ERASE_ENTRIES = 25;
-        std::set<LedgerKey> eraseBatch;
-        std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
-        while (eraseBatch.size() < ERASE_ENTRIES)
-        {
-            auto iter = entries.begin();
-            std::advance(iter, dist(gen));
-            eraseBatch.insert(iter->first);
-        }
-
-        for (auto const& key : eraseBatch)
-        {
-            REQUIRE_NOTHROW(ls.erase(key));
-            entries.erase(key);
-            dead.insert(key);
-        }
-    };
-
-    auto checkLedger = [](AbstractLedgerStateParent& lsParent,
-                          std::map<LedgerKey, LedgerEntry> const& entries,
-                          std::set<LedgerKey> const& dead) {
-        LedgerState ls(lsParent);
-        for (auto const& kv : entries)
-        {
-            auto lse = ls.load(kv.first);
-            REQUIRE(lse);
-            REQUIRE(lse.current() == kv.second);
-        }
-
-        for (auto const& key : dead)
-        {
-            if (entries.find(key) == entries.end())
+    auto generateModify =
+        [&gen](AbstractLedgerState& ls,
+               std::unordered_map<LedgerKey, LedgerEntry>& entries) {
+            size_t const MODIFY_ENTRIES = 25;
+            std::unordered_map<LedgerKey, LedgerEntry> modifyBatch;
+            std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
+            while (modifyBatch.size() < MODIFY_ENTRIES)
             {
-                REQUIRE(!ls.load(key));
+                auto iter = entries.begin();
+                std::advance(iter, dist(gen));
+                modifyBatch[iter->first] =
+                    generateLedgerEntryWithSameKey(iter->second);
             }
-        }
-    };
+
+            for (auto const& kv : modifyBatch)
+            {
+                auto lse = ls.load(kv.first);
+                REQUIRE(lse);
+                lse.current() = kv.second;
+                entries[kv.first] = kv.second;
+            }
+        };
+
+    auto generateErase =
+        [&gen](AbstractLedgerState& ls,
+               std::unordered_map<LedgerKey, LedgerEntry>& entries,
+               std::set<LedgerKey>& dead) {
+            size_t const ERASE_ENTRIES = 25;
+            std::set<LedgerKey> eraseBatch;
+            std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
+            while (eraseBatch.size() < ERASE_ENTRIES)
+            {
+                auto iter = entries.begin();
+                std::advance(iter, dist(gen));
+                eraseBatch.insert(iter->first);
+            }
+
+            for (auto const& key : eraseBatch)
+            {
+                REQUIRE_NOTHROW(ls.erase(key));
+                entries.erase(key);
+                dead.insert(key);
+            }
+        };
+
+    auto checkLedger =
+        [](AbstractLedgerStateParent& lsParent,
+           std::unordered_map<LedgerKey, LedgerEntry> const& entries,
+           std::set<LedgerKey> const& dead) {
+            LedgerState ls(lsParent);
+            for (auto const& kv : entries)
+            {
+                auto lse = ls.load(kv.first);
+                REQUIRE(lse);
+                REQUIRE(lse.current() == kv.second);
+            }
+
+            for (auto const& key : dead)
+            {
+                if (entries.find(key) == entries.end())
+                {
+                    REQUIRE(!ls.load(key));
+                }
+            }
+        };
 
     auto runTest = [&](AbstractLedgerStateParent& lsParent) {
-        std::map<LedgerKey, LedgerEntry> entries;
+        std::unordered_map<LedgerKey, LedgerEntry> entries;
         std::set<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
         for (size_t k = 0; k < NUM_BATCHES; ++k)
         {
             checkLedger(lsParent, entries, dead);
 
-            std::map<LedgerKey, LedgerEntry> updatedEntries = entries;
+            std::unordered_map<LedgerKey, LedgerEntry> updatedEntries = entries;
             std::set<LedgerKey> updatedDead = dead;
             LedgerState ls1(lsParent);
             generateNew(ls1, updatedEntries);
