@@ -317,9 +317,9 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
     auto generateErase =
         [&gen](AbstractLedgerState& ls,
                std::unordered_map<LedgerKey, LedgerEntry>& entries,
-               std::set<LedgerKey>& dead) {
+               std::unordered_set<LedgerKey>& dead) {
             size_t const ERASE_ENTRIES = 25;
-            std::set<LedgerKey> eraseBatch;
+            std::unordered_set<LedgerKey> eraseBatch;
             std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
             while (eraseBatch.size() < ERASE_ENTRIES)
             {
@@ -339,7 +339,7 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
     auto checkLedger =
         [](AbstractLedgerStateParent& lsParent,
            std::unordered_map<LedgerKey, LedgerEntry> const& entries,
-           std::set<LedgerKey> const& dead) {
+           std::unordered_set<LedgerKey> const& dead) {
             LedgerState ls(lsParent);
             for (auto const& kv : entries)
             {
@@ -359,14 +359,14 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
 
     auto runTest = [&](AbstractLedgerStateParent& lsParent) {
         std::unordered_map<LedgerKey, LedgerEntry> entries;
-        std::set<LedgerKey> dead;
+        std::unordered_set<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
         for (size_t k = 0; k < NUM_BATCHES; ++k)
         {
             checkLedger(lsParent, entries, dead);
 
             std::unordered_map<LedgerKey, LedgerEntry> updatedEntries = entries;
-            std::set<LedgerKey> updatedDead = dead;
+            std::unordered_set<LedgerKey> updatedDead = dead;
             LedgerState ls1(lsParent);
             generateNew(ls1, updatedEntries);
             generateModify(ls1, updatedEntries);

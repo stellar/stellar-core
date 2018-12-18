@@ -372,17 +372,24 @@ LedgerState::Impl::getAllOffers()
 
 std::shared_ptr<LedgerEntry const>
 LedgerState::getBestOffer(Asset const& buying, Asset const& selling,
-                          std::set<LedgerKey>& exclude)
+                          std::unordered_set<LedgerKey>& exclude)
 {
     return getImpl()->getBestOffer(buying, selling, exclude);
 }
 
 std::shared_ptr<LedgerEntry const>
 LedgerState::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                std::set<LedgerKey>& exclude)
+                                std::unordered_set<LedgerKey>& exclude)
 {
     auto end = mEntry.cend();
     auto bestOfferIter = end;
+    if (exclude.size() + mEntry.size() > exclude.bucket_count())
+    {
+        // taking a best guess as a starting point for how big exclude can get
+        // this avoids rehashing when processing transactions after a lot of
+        // changes already occured
+        exclude.reserve(exclude.size() + mEntry.size());
+    }
     for (auto iter = mEntry.cbegin(); iter != end; ++iter)
     {
         auto const& key = iter->first;
@@ -869,7 +876,7 @@ LedgerState::Impl::loadBestOffer(LedgerState& self, Asset const& buying,
     throwIfSealed();
     throwIfChild();
 
-    std::set<LedgerKey> exclude;
+    std::unordered_set<LedgerKey> exclude;
     auto le = getBestOffer(buying, selling, exclude);
     return le ? load(self, LedgerEntryKey(*le)) : LedgerStateEntry();
 }
@@ -1409,7 +1416,7 @@ findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
 
 std::shared_ptr<LedgerEntry const>
 LedgerStateRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                    std::set<LedgerKey>& exclude)
+                                    std::unordered_set<LedgerKey>& exclude)
 {
     // Note: Elements of mBestOffersCache are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant

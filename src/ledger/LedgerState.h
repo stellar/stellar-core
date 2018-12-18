@@ -11,8 +11,8 @@
 #include <ledger/LedgerHashUtils.h>
 #include <map>
 #include <memory>
-#include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace stellar
 {
@@ -120,7 +120,7 @@ class AbstractLedgerStateParent
     virtual std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() = 0;
     virtual std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::set<LedgerKey>& exclude) = 0;
+                 std::unordered_set<LedgerKey>& exclude) = 0;
     virtual std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
@@ -295,7 +295,7 @@ class LedgerState final : public AbstractLedgerState
 
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::set<LedgerKey>& exclude) override;
+                 std::unordered_set<LedgerKey>& exclude) override;
 
     LedgerEntryChanges getChanges() override;
 
@@ -372,7 +372,7 @@ class LedgerStateRoot : public AbstractLedgerStateParent
 
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::set<LedgerKey>& exclude) override;
+                 std::unordered_set<LedgerKey>& exclude) override;
 
     std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,

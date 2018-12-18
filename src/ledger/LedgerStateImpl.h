@@ -135,7 +135,7 @@ class LedgerState::Impl
     //   even cleared
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::set<LedgerKey>& exclude);
+                 std::unordered_set<LedgerKey>& exclude);
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -390,7 +390,7 @@ class LedgerStateRoot::Impl
     //   even cleared
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::set<LedgerKey>& exclude);
+                 std::unordered_set<LedgerKey>& exclude);
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
