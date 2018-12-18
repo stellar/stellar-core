@@ -9,8 +9,6 @@
 #include "historywork/Progress.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -19,9 +17,9 @@ BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
                                      CheckpointRange range,
                                      std::string const& type,
                                      TmpDir const& downloadDir)
-    : Work(app, parent,
-           fmt::format("batch-download-{:s}-{:08x}-{:08x}", type, range.first(),
-                       range.last()))
+    : BatchWork(app, parent,
+                fmt::format("download-{:s}-{:08x}-{:08x}", type, range.first(),
+                            range.last()))
     , mRange(range)
     , mNext(mRange.first())
     , mFileType(type)
@@ -49,93 +47,56 @@ BatchDownloadWork::getStatus() const
     return Work::getStatus();
 }
 
-void
-BatchDownloadWork::addNextDownloadWorker()
+bool
+BatchDownloadWork::hasNext()
 {
-    if (mNext > mRange.last())
-    {
-        return;
-    }
-
-    FileTransferInfo ft(mDownloadDir, mFileType, mNext);
-    if (fs::exists(ft.localPath_nogz()))
-    {
-        CLOG(DEBUG, "History")
-            << "already have " << mFileType << " for checkpoint " << mNext;
-        mDownloadSuccess.Mark();
-    }
-    else
-    {
-        CLOG(DEBUG, "History") << "Downloading and unzipping " << mFileType
-                               << " for checkpoint " << mNext;
-        auto getAndUnzip = addWork<GetAndUnzipRemoteFileWork>(ft);
-        assert(mRunning.find(getAndUnzip->getUniqueName()) == mRunning.end());
-        mRunning.insert(std::make_pair(getAndUnzip->getUniqueName(), mNext));
-    }
-    mNext += mApp.getHistoryManager().getCheckpointFrequency();
+    return mNext <= mRange.last();
 }
 
 void
-BatchDownloadWork::onReset()
+BatchDownloadWork::resetIter()
 {
     mNext = mRange.first();
-    mRunning.clear();
-    mFinished.clear();
-    clearChildren();
-    size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
-    while (mChildren.size() < nChildren && mNext <= mRange.last())
+}
+
+std::string
+BatchDownloadWork::yieldMoreWork()
+{
+    if (!hasNext())
     {
-        addNextDownloadWorker();
+        throw std::runtime_error("Nothing to iterate over!");
     }
+
+    FileTransferInfo ft(mDownloadDir, mFileType, mNext);
+    CLOG(DEBUG, "History") << "Downloading and unzipping " << mFileType << " "
+                           << mNext;
+    auto getAndUnzip = addWork<GetAndUnzipRemoteFileWork>(ft);
+
+    mNext += mApp.getHistoryManager().getCheckpointFrequency();
+    return getAndUnzip->getUniqueName();
 }
 
 void
 BatchDownloadWork::notify(std::string const& child)
 {
-    auto i = mChildren.find(child);
-    if (i == mChildren.end())
+    auto work = mChildren.find(child);
+    if (work != mChildren.end())
     {
-        CLOG(WARNING, "Work")
-            << "BatchDownloadWork notified by unknown child " << child;
-        return;
-    }
-
-    switch (i->second->getState())
-    {
-    case Work::WORK_SUCCESS:
-        mDownloadSuccess.Mark();
-        break;
-    case Work::WORK_FAILURE_RETRY:
-    case Work::WORK_FAILURE_FATAL:
-    case Work::WORK_FAILURE_RAISE:
-        mDownloadFailure.Mark();
-        break;
-    default:
-        break;
-    }
-
-    std::vector<std::string> done;
-    for (auto const& c : mChildren)
-    {
-        if (c.second->getState() == WORK_SUCCESS)
+        switch (work->second->getState())
         {
-            done.push_back(c.first);
+        case Work::WORK_SUCCESS:
+            mDownloadSuccess.Mark();
+            break;
+        case Work::WORK_FAILURE_RETRY:
+        case Work::WORK_FAILURE_FATAL:
+        case Work::WORK_FAILURE_RAISE:
+            mDownloadFailure.Mark();
+            break;
+        default:
+            break;
         }
     }
-    for (auto const& d : done)
-    {
-        mChildren.erase(d);
-        auto checkpoint = mRunning.find(d);
-        assert(checkpoint != mRunning.end());
 
-        CLOG(DEBUG, "History") << "Finished download of " << mFileType
-                               << " for checkpoint " << checkpoint->second;
-
-        mFinished.push_back(checkpoint->second);
-        mRunning.erase(checkpoint);
-        addNextDownloadWorker();
-    }
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-    advance();
+    BatchWork::notify(child);
 }
 }
