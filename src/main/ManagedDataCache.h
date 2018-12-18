@@ -23,6 +23,11 @@ class ManagedDataCache
         needsUpdate = true;
     }
 
+    uint32_t getUpdateCounter()
+    {
+        return updateCounter;
+    }
+    
     std::shared_ptr<AccountID> accountID();
 
     void update();
@@ -34,5 +39,6 @@ class ManagedDataCache
 
   private:
     bool needsUpdate;
+    uint32_t updateCounter = 0;
 };
 }

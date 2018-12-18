@@ -39,7 +39,7 @@ class TransactionFrame
 {
   private:
     bool mIsWhitelisted = false;
-    uint32_t mCheckedLedger = 0;
+    uint32_t mWhitelistCounter = 0;
 
   protected:
     TransactionEnvelope mEnvelope;

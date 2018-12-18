@@ -82,12 +82,12 @@ TransactionFrame::clearCached()
 bool
 TransactionFrame::isWhitelisted(Application& app)
 {
-    auto lastLedger = app.getLedgerManager().getLastClosedLedgerNum();
-    if (mCheckedLedger < lastLedger)
+    auto counter = app.getWhitelist().getUpdateCounter();
+    if (mWhitelistCounter < counter)
     {
         mIsWhitelisted = app.getWhitelist().isWhitelisted(getEnvelope().signatures,
                                                           getContentsHash());
-        mCheckedLedger = lastLedger;
+        mWhitelistCounter = counter;
     }
 
     return mIsWhitelisted;
