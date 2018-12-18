@@ -27,6 +27,10 @@ void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
             auto name = data.dataName;
             auto value = data.dataValue;
 
+            // If the value isn't 4 bytes long, skip the entry.
+            if (value.size() != 4)
+                continue;
+
             int32_t intVal =
                 (value[0] << 24) + (value[1] << 16) + (value[2] << 8) + value[3];
 
@@ -44,9 +48,17 @@ void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
                 continue;
             }
 
-            std::vector<string64> keys = whitelist[intVal];
-            keys.emplace_back(name);
-            whitelist[intVal] = keys;
+            try
+            {
+                // An exception is thrown if the key isn't convertible.  The entry is then skipped.
+                KeyUtils::fromStrKey<PublicKey>(name);
+
+                std::vector<string64> keys = whitelist[intVal];
+                keys.emplace_back(name);
+                whitelist[intVal] = keys;
+            }
+            catch (...)
+            {}
         }
 }
 
