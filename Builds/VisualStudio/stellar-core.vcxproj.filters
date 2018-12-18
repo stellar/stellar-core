@@ -1535,6 +1535,9 @@
     <ClInclude Include="..\..\src\ledger\LedgerStateImpl.h">
       <Filter>ledger</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h">
       <Filter>crypto</Filter>
     </ClInclude>

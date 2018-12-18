@@ -614,6 +614,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h" />
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h" />
     <ClInclude Include="..\..\src\ledger\LedgerHeaderUtils.h" />
     <ClInclude Include="..\..\src\ledger\LedgerRange.h" />
     <ClInclude Include="..\..\src\ledger\LedgerState.h" />
