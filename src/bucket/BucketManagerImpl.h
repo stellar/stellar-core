@@ -36,6 +36,7 @@ class BucketManagerImpl : public BucketManager
 
     Application& mApp;
     BucketList mBucketList;
+    std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
     mutable std::recursive_mutex mBucketMutex;
@@ -47,6 +48,7 @@ class BucketManagerImpl : public BucketManager
 
     std::set<Hash> getReferencedBuckets() const;
     void cleanupStaleFiles();
+    void cleanDir();
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
@@ -56,10 +58,13 @@ class BucketManagerImpl : public BucketManager
   public:
     BucketManagerImpl(Application& app);
     ~BucketManagerImpl() override;
+    void initialize() override;
+    void dropAll() override;
     std::string const& getTmpDir() override;
     std::string const& getBucketDir() override;
     BucketList& getBucketList() override;
     medida::Timer& getMergeTimer() override;
+    TmpDirManager& getTmpDirManager() override;
     std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
                                               uint256 const& hash,
                                               size_t nObjects,
