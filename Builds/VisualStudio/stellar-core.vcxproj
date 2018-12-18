@@ -265,6 +265,7 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\CatchupWorkTests.cpp" />
     <ClCompile Include="..\..\src\catchup\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
+    <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
@@ -556,6 +557,7 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
+    <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h" />
     <ClInclude Include="..\..\src\crypto\ECDH.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
     <ClInclude Include="..\..\src\crypto\KeyUtils.h" />

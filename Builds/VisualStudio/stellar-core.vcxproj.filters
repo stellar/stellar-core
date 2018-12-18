@@ -888,6 +888,9 @@
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1531,6 +1534,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerStateImpl.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
