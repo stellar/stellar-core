@@ -104,15 +104,11 @@ Bucket::apply(Application& app) const
     }
 }
 
-std::shared_ptr<Bucket>
-Bucket::fresh(BucketManager& bucketManager,
-              std::vector<LedgerEntry> const& liveEntries,
-              std::vector<LedgerKey> const& deadEntries)
+std::vector<BucketEntry>
+Bucket::convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries)
 {
-    std::vector<BucketEntry> live, dead, combined;
+    std::vector<BucketEntry> live;
     live.reserve(liveEntries.size());
-    dead.reserve(deadEntries.size());
-
     for (auto const& e : liveEntries)
     {
         BucketEntry ce;
@@ -120,7 +116,15 @@ Bucket::fresh(BucketManager& bucketManager,
         ce.liveEntry() = e;
         live.push_back(ce);
     }
+    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
+    return live;
+}
 
+std::vector<BucketEntry>
+Bucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
+{
+    std::vector<BucketEntry> dead;
+    dead.reserve(deadEntries.size());
     for (auto const& e : deadEntries)
     {
         BucketEntry ce;
@@ -128,10 +132,17 @@ Bucket::fresh(BucketManager& bucketManager,
         ce.deadEntry() = e;
         dead.push_back(ce);
     }
-
-    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
-
     std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
+    return dead;
+}
+
+std::shared_ptr<Bucket>
+Bucket::fresh(BucketManager& bucketManager,
+              std::vector<LedgerEntry> const& liveEntries,
+              std::vector<LedgerKey> const& deadEntries)
+{
+    auto live = convertToBucketEntry(liveEntries);
+    auto dead = convertToBucketEntry(deadEntries);
 
     BucketOutputIterator liveOut(bucketManager.getTmpDir(), true);
     BucketOutputIterator deadOut(bucketManager.getTmpDir(), true);

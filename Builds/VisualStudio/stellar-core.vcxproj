@@ -263,7 +263,6 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWorkTests.cpp" />
-    <ClCompile Include="..\..\src\catchup\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
@@ -293,7 +292,9 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\herder\UpgradesTests.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetHistoryArchiveStateWork.cpp" />
@@ -553,7 +554,6 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h" />
     <ClInclude Include="..\..\src\catchup\CatchupWork.h" />
     <ClInclude Include="..\..\src\catchup\CatchupWorkTests.h" />
-    <ClInclude Include="..\..\src\catchup\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\ECDH.h" />
@@ -574,7 +574,9 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\HerderUtils.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
+    <ClCompile Include="..\..\src\historywork\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h" />
+    <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h" />
     <ClInclude Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GetHistoryArchiveStateWork.h" />

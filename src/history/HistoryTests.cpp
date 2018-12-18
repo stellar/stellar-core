@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "FileTransferInfo.h"
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupWorkTests.h"
 #include "history/HistoryArchiveManager.h"
@@ -20,11 +21,49 @@
 #include "util/Fs.h"
 #include "work/WorkManager.h"
 
+#include "historywork/DownloadBucketsWork.h"
 #include <lib/catch.hpp>
 #include <lib/util/format.h>
 
 using namespace stellar;
 using namespace historytestutils;
+
+namespace historytests
+{
+class TestBatchWork : public BatchWork
+{
+  public:
+    int mCount{0};
+
+    TestBatchWork(Application& app, WorkParent& parent,
+                  std::string const& uniqueName)
+        : BatchWork(app, parent, uniqueName)
+    {
+    }
+
+  protected:
+    bool
+    hasNext() override
+    {
+        return mCount < mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES * 2;
+    }
+
+    void
+    resetIter() override
+    {
+        mCount = 0;
+    }
+
+    std::string
+    yieldMoreWork() override
+    {
+        return addWork<Work>(fmt::format("child-{:d}", mCount++), 0)
+            ->getUniqueName();
+    }
+};
+}
+
+using namespace historytests;
 
 TEST_CASE("next checkpoint ledger", "[history]")
 {
@@ -200,6 +239,109 @@ TEST_CASE("History publish queueing", "[history][historydelay][historycatchup]")
     CHECK(
         app2->getLedgerManager().getLastClosedLedgerNum() ==
         catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum());
+}
+
+TEST_CASE("History bucket verification",
+          "[history][bucketverification][batching]")
+{
+    /* Tests bucket verification stage of catchup. Assumes ledger chain
+     * verification was successful. **/
+
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    auto cg = std::make_shared<TmpDirHistoryConfigurator>();
+    cg->configure(cfg, true);
+    Application::pointer app = createTestApplication(clock, cfg);
+    CHECK(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+
+    auto bucketGenerator = TestBucketGenerator{
+        *app, app->getHistoryArchiveManager().getHistoryArchive("test")};
+    std::vector<std::string> hashes;
+    auto& wm = app->getWorkManager();
+    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    auto tmpDir =
+        std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
+    hashes.push_back(
+        bucketGenerator.generateBucket(TestBucketState::CONTENTS_AND_HASH_OK));
+
+    // Helper for failed cases
+    auto downloadStatusCheck = [](DownloadBucketsWork& parent, bool success) {
+        for (auto const& child : parent.getChildren())
+        {
+            REQUIRE(child.second->getState() == Work::WORK_FAILURE_RAISE);
+            if (success)
+            {
+                REQUIRE(child.second->allChildrenSuccessful());
+            }
+            else
+            {
+                REQUIRE_FALSE(child.second->allChildrenSuccessful());
+            }
+        }
+    };
+
+    SECTION("successful download and verify")
+    {
+        hashes.push_back(bucketGenerator.generateBucket(
+            TestBucketState::CONTENTS_AND_HASH_OK));
+        auto verify =
+            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
+        REQUIRE(verify->getState() == Work::WORK_SUCCESS);
+    }
+    SECTION("download fails file not found")
+    {
+        hashes.push_back(
+            bucketGenerator.generateBucket(TestBucketState::FILE_NOT_UPLOADED));
+
+        auto verify =
+            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
+        REQUIRE(verify->getState() == Work::WORK_FAILURE_RAISE);
+        downloadStatusCheck(*verify, false);
+    }
+    SECTION("download succeeds but unzip fails")
+    {
+        hashes.push_back(bucketGenerator.generateBucket(
+            TestBucketState::CORRUPTED_ZIPPED_FILE));
+
+        auto verify =
+            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
+        REQUIRE(verify->getState() == Work::WORK_FAILURE_RAISE);
+        downloadStatusCheck(*verify, false);
+    }
+    SECTION("verify fails hash mismatch")
+    {
+        hashes.push_back(
+            bucketGenerator.generateBucket(TestBucketState::HASH_MISMATCH));
+
+        auto verify =
+            wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
+        REQUIRE(verify->getState() == Work::WORK_FAILURE_RAISE);
+        downloadStatusCheck(*verify, true);
+    }
+    SECTION("no hashes to verify")
+    {
+        // Ensure proper behavior when no hashes are passed in
+        auto verify = wm.executeWork<DownloadBucketsWork>(
+            mBuckets, std::vector<std::string>(), *tmpDir);
+        REQUIRE(verify->getState() == Work::WORK_SUCCESS);
+    }
+}
+
+TEST_CASE("Work batching", "[batching]")
+{
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, getTestConfig());
+    auto& wm = app->getWorkManager();
+
+    auto verify = wm.addWork<TestBatchWork>("test-batch");
+    wm.advanceChildren();
+    while (!clock.getIOService().stopped() && !wm.allChildrenDone())
+    {
+        clock.crank(true);
+        REQUIRE(verify->getChildren().size() <=
+                app->getConfig().MAX_CONCURRENT_SUBPROCESSES);
+    }
+    REQUIRE(verify->getState() == Work::WORK_SUCCESS);
 }
 
 TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
