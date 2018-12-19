@@ -1208,22 +1208,20 @@ testAllOffers(
         {
             REQUIRE(expectedIter->first == iter->first);
 
-            auto const& expectedInner = expectedIter->second;
+            auto expectedInner = expectedIter->second;
             auto const& inner = iter->second;
-            auto expectedInnerIter = expectedInner.cbegin();
-            auto innerIter = inner.cbegin();
-            while (expectedInnerIter != expectedInner.end() &&
-                   innerIter != inner.end())
+
+            REQUIRE(expectedInner.size() == inner.size());
+            for (auto& innerCur : inner)
             {
-                auto const& oe = innerIter->current().data.offer();
-                REQUIRE(*expectedInnerIter ==
-                        std::make_tuple(oe.offerID, oe.buying, oe.selling,
-                                        oe.amount));
-                ++expectedInnerIter;
-                ++innerIter;
+                auto const& oe = innerCur.current().data.offer();
+                auto d = std::make_tuple(oe.offerID, oe.buying, oe.selling,
+                                         oe.amount);
+                auto expectedInnerIter =
+                    std::find(expectedInner.begin(), expectedInner.end(), d);
+                REQUIRE(expectedInnerIter != expectedInner.end());
+                expectedInner.erase(expectedInnerIter);
             }
-            REQUIRE(expectedInnerIter == expectedInner.end());
-            REQUIRE(innerIter == inner.end());
 
             ++expectedIter;
             ++iter;
@@ -1711,18 +1709,18 @@ testOffersByAccountAndAsset(
     else
     {
         auto offers = ls.loadOffersByAccountAndAsset(accountID, asset);
-        auto expectedIter = expected.begin();
-        auto iter = offers.begin();
-        while (expectedIter != expected.end() && iter != offers.end())
+        REQUIRE(expected.size() == offers.size());
+        auto expected2 = expected;
+
+        for (auto& curoff : offers)
         {
-            auto const& oe = iter->current().data.offer();
-            REQUIRE(*expectedIter == std::make_tuple(oe.offerID, oe.buying,
-                                                     oe.selling, oe.amount));
-            ++expectedIter;
-            ++iter;
+            auto const& oe = curoff.current().data.offer();
+            auto expo =
+                std::make_tuple(oe.offerID, oe.buying, oe.selling, oe.amount);
+            auto it = std::find(expected2.begin(), expected2.end(), expo);
+            REQUIRE(it != expected2.end());
+            expected2.erase(it);
         }
-        REQUIRE(expectedIter == expected.end());
-        REQUIRE(iter == offers.end());
     }
 }
 
