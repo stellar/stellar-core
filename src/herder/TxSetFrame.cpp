@@ -341,12 +341,23 @@ TxSetFrame::trimInvalid(Application& app,
 
     auto processInvalidTxLambda = [&](TransactionFramePtr tx,
                                       SequenceNumber lastSeq) {
+        CLOG(DEBUG, "Herder")
+            << "bad txSet: " << hexAbbrev(mPreviousLedgerHash) << " tx invalid"
+            << " lastSeq:" << lastSeq
+            << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
+            << " result: " << tx->getResultCode();
+
         trimmed.push_back(tx);
         removeTx(tx);
         return true;
     };
     auto processInsufficientBalance =
         [&](vector<TransactionFramePtr> const& item) {
+            CLOG(DEBUG, "Herder")
+                << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                << " account can't pay fee"
+                << " tx:" << xdr::xdr_to_string(item.back()->getEnvelope());
+
             for (auto& tx : item)
             {
                 trimmed.push_back(tx);
