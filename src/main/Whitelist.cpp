@@ -2,6 +2,7 @@
 #include "ledger/DataFrame.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrame.h"
+#include "util/Logging.h"
 #include <stdint.h>
 #include <unordered_map>
 
@@ -29,7 +30,12 @@ void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
 
             // If the value isn't 4 bytes long, skip the entry.
             if (value.size() != 4)
+            {
+                CLOG(INFO, "Whitelist")
+                    << "bad value for: " << name;
+
                 continue;
+            }
 
             int32_t intVal =
                 (value[0] << 24) + (value[1] << 16) + (value[2] << 8) + value[3];
@@ -58,7 +64,10 @@ void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
                 whitelist[intVal] = keys;
             }
             catch (...)
-            {}
+            {
+                CLOG(INFO, "Whitelist")
+                    << "bad public key: " << name;
+            }
         }
 }
 
