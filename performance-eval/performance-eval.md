@@ -9,7 +9,7 @@ When submitting changes that may impact the network's performance, we require to
 * Execution (real) time
 * CPU utilization at various interval, and/or percentile
 * Disk I/O at the operating system level (ie: unit is typically in blocks/s), both reads and writes of the stellar-core process
-* SQL: rate of operations (read and writes), Disk I/O of the SQL process if available (PostgreSQL)
+* SQL: rate of operations (read and writes), Disk I/O of the SQL process if available (*PostgreSQL*)
 * Memory utilization
 
 # High level scenarios
@@ -92,12 +92,7 @@ Calling the `metrics` [command](docs/software/commands.md) allows to gather the 
 
 ### Notable metrics
 
-|   name                      | description                      |
-| --------------------------- | -------------------------------- |
-| ledger.ledger.close         | time to apply a ledger           |
-| overlay.byte.read           | number of bytes received         |
-| overlay.byte.write          | number of bytes sent             |
-
+See [docs/metrics](docs/metrics.md) for information on metrics exposed by stellar-core.
 
 ## System metrics
 Tools used to gather those metrics are O/S specific.
@@ -127,6 +122,12 @@ $ mpstat -P ALL
 ### Disk I/O
 #### Linux
 
+It is a best practice to clear all I/O caches between runs.
+
+On Linux system, this can be done with a command like
+
+    sync ; echo 3 > /proc/sys/vm/drop_caches
+
 `iotop` is the equivalent of `top` for I/O; it also allows to aggregate data, which can be useful to identify small but steady utilization of I/O subsystems.
 
 Basic view:
@@ -155,23 +156,137 @@ This section contains some examples on how to perform profiling on different pla
 ## Linux
 `perf` is a good alternative to `gprof` for event based profiling. A good tutorial is https://perf.wiki.kernel.org/index.php/Tutorial
 
-Preparing the binary to be “perf friendly” (run before running `make`):
+A very good source of how to use perf can be found at http://www.brendangregg.com/linuxperf.html
+
+### Environment preparation
+
+#### Kernel setup
+If you want to profile as a regular user, with `sysctl` check the values of:
+
+    kernel.perf_event_max_contexts_per_stack
+    kernel.perf_event_max_stack
+    kernel.perf_event_paranoid
+    kernel.perf_event_max_sample_rate
+    kernel.perf_event_mlock_kb
+
+In particular
+     * `kernel.perf_event_paranoid` that when above 1, disables CPU events.
+     * `kernel.sched_schedstats` should be set to 1
+
+If they are not what you want, you can set them, as root:
+
+    echo 'kernel.perf_event_paranoid=0' '/etc/sysctl.d/51-enable-perf-events.conf'
+    sysctl kernel.perf_event_paranoid=0
+
+
+#### Compile flags
+Preparing the binary to be "perf friendly" (run before running `configure`):
 ```
-export CXXFLAGS="-Og -fno-omit-frame-pointer"
-export CFLAGS="$CXXFLAGS"
-export LDFLAGS = -ltcmalloc_minimal
+# whatever flags you want to set, -O2 is typical
+export CFLAGS="-O2"
+export CXXFLAGS="-O2"
+
+# make things "perf friendly"
+export CFLAGS="$CFLAGS -fno-omit-frame-pointer -ggdb"
+export CXXFLAGS="$CXXFLAGS -fno-omit-frame-pointer -ggdb"
 ```
 
-Gather data:
+#### Reducing the dataset
+
+A run can be scoped to
+* only a subset of threads, see the `--tid` option
+* a specific range, for example only capture data during "normal" operation,
+excluding startup/shutdown.
+   * this is achieved by invoking `perf` separately and using the `--pid` option
+   combined with a command like ` -- sleep 30s` to capture events for a specific time.
+
+#### Tips for getting the best stack traces
+
+Note: on some systems, the quality of symbols differs depending on the tool-chain. If you don't get good stack traces, try switching to gcc/g++.
+
+In order to improve the quality of stack traces:
+* Use your own version of dependencies (sqlite, etc) with the same compile options (done for you by stellar-core's configure script) 
+* Use alternate libraries such as google-tcmalloc
 ```
-perf record ./stellar-core ...
+# you may need to install a package such as libtcmalloc-minimal4 for this to work
+export LDFLAGS=-ltcmalloc_minimal
+# alternatively, you can start "stellar-core", with something like
+LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so ./stellar-core ...
+```
+* use clang/clang++ and a custom `libc++` compiled with the same compilation options that you use.
+    * See [building a custom libc++](CONTRIBUTING.md#building-a-custom-libc)
+    * Do not enable memory sanitizer for that version, instead run something like
+```
+    svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm
+    (cd llvm/projects && svn co http://llvm.org/svn/llvm-project/libcxx/trunk libcxx)
+    (cd llvm/projects && svn co http://llvm.org/svn/llvm-project/libcxxabi/trunk libcxxabi)
+    mkdir lbcxx_perf && cd libcxx_perf
+    cmake ../llvm -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_FLAGS='-O2 -g1 -fno-omit-frame-pointer' -DCMAKE_CXX_FLAGS='-O2 -g1 -fno-omit-frame-pointer'
+    make cxx -j7
+    export LIBCXX_PATH=`pwd`/lib
 ```
 
-Generate reports
+### Flame graphs
+
+A very good way to summarize data is to use flame graphs.
+
+A good tool for this is located at https://github.com/brendangregg/FlameGraph
+
+You can just pull a local copy with
+
+    git clone https://github.com/brendangregg/FlameGraph
+
+### Example perf sessions
+#### Sampling session
+
+This example grabs 60 seconds of data from a running stellar-core instance.
+
+    perf record -F 99 -p $(pgrep stellar-core) --call-graph dwarf,20000 -o perf-cpu.data -- sleep 60
+
+To view the report: `perf report -n  -F +period -i perf-cpu.data`
+
+To generate a flame graph:
+
+    perf report --stdio -i perf-cpu.data --no-children -n -g folded,0,caller,count -s comm | awk '/^ / { comm = $3 } /^[0-9]/ { print comm ";" $2, $1 }'  > perf-cpu.folded
+    ~/src/FlameGraph/flamegraph.pl perf-cpu.folded > ~/reports/folded-cpu.svg
+
+This generates a report that looks like [this](sample-reports/folded-cpu.svg)
+
+#### "Off CPU" session
+
+Records for 60 seconds events related to when a running stellar-core process is waiting on something.
+
+As most threads "sleep" (waiting for some work), most of the interesting data in this report is in the smaller parts of the report (as the cummulative time of threads waiting for work is dominant).
+
+Note: "counts" in this report represent time in milliseconds.
+
+    perf record -e 'sched:sched_stat_sleep,sched:sched_switch,sched:sched_process_exit' -p $(pgrep stellar-core) --call-graph dwarf -o perf-offcpu-raw.data  -- sleep 60
+    sudo perf inject -f -v -s -i perf-offcpu-raw.data -o perf-offcpu.data
+    sudo chown user.user perf-offcpu.data
+
+To view the report: `perf report -n  -F +period -i perf-offcpu.data`
+
+To generate a flame graph:
+
+    perf report --stdio -i perf-offcpu.data --no-children -n -g folded,0,caller,period -s comm | awk '/^ / { comm = $3 } /^[0-9]/ { print comm ";" $2, $1/1000000 }'  > perf-offcpu.folded
+    ~/src/FlameGraph/flamegraph.pl perf-offcpu.folded > ~/reports/folded-offcpu.svg
+
+This generates a report that looks like [this](sample-reports/folded-offcpu.svg)
+
+#### common issues
+
 ```
-perf report --stdio -g none -i ./perfdata  | c++filt | less
-perf report --stdio -g graph -i ./perfdata | c++filt | less
+event syntax error: 'sched:sched_stat_sleep,sched:sched_switch,sched:sched_process_exit'
+                     \___ can't access trace events
+
+Error:  No permissions to read /sys/kernel/debug/tracing/events/sched/sched_stat_sleep
+Hint:   Try 'sudo mount -o remount,mode=755 /sys/kernel/debug/tracing'
 ```
+
+solution is, as root to run
+
+    sysctl kernel.perf_event_paranoid=-1
+    sysctl kernel.sched_schedstats=1
 
 ## Windows
 The main page for the profiler built into Visual Studio Community Edition is located there:  https://docs.microsoft.com/en-us/visualstudio/profiling/index

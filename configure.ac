@@ -12,6 +12,8 @@ AM_INIT_AUTOMAKE([-Wall -Wextra -Wconversion subdir-objects tar-ustar silent-rul
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
 
+AC_ARG_VAR([LIBCXX_PATH], [path to libc++ and libc++abi])
+
 if test -z "${WFLAGS+set}"; then
    WFLAGS=-Wall
 
@@ -108,14 +110,18 @@ AS_IF([test "x$enable_memcheck" = "xyes"], [
   ])
   sanitizeopts="memory -fsanitize-memory-track-origins=2 -fsanitize-memory-use-after-dtor"
 
-  AC_ARG_VAR([LIBCXX_PATH], [path to libc++ and libc++abi])
-
   if test -z "$LIBCXX_PATH"; then
    AC_MSG_ERROR(LIBCXX_PATH must be set for memcheck to work)
   fi
 
-  CXXFLAGS="$CXXFLAGS -stdlib=libc++ -DMSAN_ENABLED"
-  LDFLAGS="$LDFLAGS -fsanitize=$sanitizeopts -L$LIBCXX_PATH -stdlib=libc++ -lc++abi -Wl,-rpath -Wl,$LIBCXX_PATH"
+  CXXFLAGS="$CXXFLAGS -DMSAN_ENABLED"
+  LDFLAGS="$LDFLAGS -fsanitize=$sanitizeopts"
+])
+
+AS_IF([test x != "x$LIBCXX_PATH"], [
+  # use custom libc++
+  CXXFLAGS="$CXXFLAGS -stdlib=libc++"
+  LDFLAGS="$LDFLAGS -L$LIBCXX_PATH -stdlib=libc++ -lc++abi -Wl,-rpath -Wl,$LIBCXX_PATH"
 ])
 
 AC_ARG_ENABLE([undefinedcheck],

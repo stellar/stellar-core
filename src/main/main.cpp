@@ -6,6 +6,7 @@
 #include "main/DeprecatedCommandLine.h"
 #include "util/Logging.h"
 
+#include "crypto/ByteSliceHasher.h"
 #include <sodium/core.h>
 #include <xdrpp/marshal.h>
 
@@ -22,6 +23,8 @@ main(int argc, char* const* argv)
         LOG(FATAL) << "Could not initialize crypto";
         return 1;
     }
+    shortHash::initialize();
+
     xdr::marshaling_stack_limit = 1000;
 
     auto result = handleCommandLine(argc, argv);

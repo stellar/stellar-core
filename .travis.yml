@@ -16,6 +16,7 @@ addons:
     - automake
     - bison
     - clang-5.0
+    - cpp-6
     - flex
     - gcc-6
     - g++-6

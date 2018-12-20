@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "catchup/ApplyBucketsWork.h"
+#include "ledger/LedgerHashUtils.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
@@ -17,7 +18,7 @@
 #include "transactions/TransactionUtils.h"
 #include "work/WorkManager.h"
 #include <random>
-#include <set>
+#include <unordered_set>
 #include <vector>
 
 using namespace stellar;
@@ -32,7 +33,7 @@ struct BucketListGenerator
     Application::pointer mAppGenerate;
     Application::pointer mAppApply;
     uint32_t mLedgerSeq;
-    std::set<LedgerKey> mLiveKeys;
+    std::unordered_set<LedgerKey> mLiveKeys;
 
   public:
     BucketListGenerator(std::shared_ptr<std::default_random_engine> const& gen)
@@ -128,7 +129,7 @@ struct BucketListGenerator
     virtual std::vector<LedgerKey>
     generateDeadEntries(AbstractLedgerState& ls)
     {
-        std::set<LedgerKey> live(mLiveKeys);
+        std::unordered_set<LedgerKey> live(mLiveKeys);
         std::vector<LedgerKey> dead;
         while (dead.size() < 2 && !live.empty())
         {
@@ -219,7 +220,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
     {
         if (mLedgerSeq == mSelectLedger)
         {
-            std::set<LedgerKey> filteredKeys;
+            std::unordered_set<LedgerKey> filteredKeys(mLiveKeys.size());
             std::copy_if(
                 mLiveKeys.begin(), mLiveKeys.end(),
                 std::inserter(filteredKeys, filteredKeys.end()),
