@@ -261,8 +261,6 @@ TEST_CASE("History bucket verification",
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
-    hashes.push_back(
-        bucketGenerator.generateBucket(TestBucketState::CONTENTS_AND_HASH_OK));
 
     // Helper for failed cases
     auto downloadStatusCheck = [](DownloadBucketsWork& parent, bool success) {
@@ -282,6 +280,8 @@ TEST_CASE("History bucket verification",
 
     SECTION("successful download and verify")
     {
+        hashes.push_back(bucketGenerator.generateBucket(
+            TestBucketState::CONTENTS_AND_HASH_OK));
         hashes.push_back(bucketGenerator.generateBucket(
             TestBucketState::CONTENTS_AND_HASH_OK));
         auto verify =
