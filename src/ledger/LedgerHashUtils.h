@@ -43,7 +43,7 @@ template <> class hash<stellar::LedgerKey>
             }
             case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
             {
-                auto& tl12 = tl.asset.alphaNum4();
+                auto& tl12 = tl.asset.alphaNum12();
                 res ^= stellar::shortHash::computeHash(
                     stellar::ByteSlice(tl12.issuer.ed25519().data(), 8));
                 res ^= tl12.assetCode[0];
