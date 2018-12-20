@@ -485,7 +485,7 @@ void
 ProcessExitEvent::Impl::run()
 {
     auto manager = mProcManagerImpl.lock();
-    assert(!manager->isShutdown());
+    assert(manager && !manager->isShutdown());
     if (mRunning)
     {
         CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
