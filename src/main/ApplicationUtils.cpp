@@ -77,9 +77,9 @@ runWithConfig(Config cfg)
                              << "(for testing only)";
             }
 
-            app->applyCfgCommands();
-
             app->start();
+
+            app->applyCfgCommands();
         }
     }
     catch (std::exception& e)
