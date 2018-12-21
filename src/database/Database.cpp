@@ -108,40 +108,9 @@ Database::applySchemaUpgrade(unsigned long vers)
 {
     clearPreparedStatementCache();
 
+    soci::transaction tx(mSession);
     switch (vers)
     {
-    case 2:
-        HerderPersistence::dropAll(*this);
-        break;
-
-    case 3:
-        mApp.getLedgerStateRoot().dropData();
-        break;
-
-    case 4:
-        BanManager::dropAll(*this);
-        mSession << "CREATE INDEX scpquorumsbyseq ON scpquorums(lastledgerseq)";
-        break;
-
-    case 5:
-        try
-        {
-            mSession << "ALTER TABLE accountdata ADD lastmodified INT NOT NULL "
-                        "DEFAULT 0;";
-        }
-        catch (soci::soci_error& e)
-        {
-            if (std::string(e.what()).find("lastmodified") == std::string::npos)
-            {
-                throw;
-            }
-        }
-        break;
-
-    case 6:
-        mSession << "ALTER TABLE peers ADD flags INT NOT NULL DEFAULT 0";
-        break;
-
     case 7:
         Upgrades::dropAll(*this);
         mSession << "ALTER TABLE accounts ADD buyingliabilities BIGINT "
@@ -155,9 +124,17 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
 
     default:
-        throw std::runtime_error("Unknown DB schema version");
-        break;
+        if (vers <= 6)
+        {
+            throw std::runtime_error(
+                "Database version is too old, must use at least 7");
+        }
+        else
+        {
+            throw std::runtime_error("Unknown DB schema version");
+        }
     }
+    tx.commit();
 }
 
 void
@@ -312,7 +289,10 @@ Database::initialize()
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
     mApp.getBucketManager().dropAll();
-    putSchemaVersion(1);
+    HerderPersistence::dropAll(*this);
+    mApp.getLedgerStateRoot().dropData();
+    BanManager::dropAll(*this);
+    putSchemaVersion(6);
 }
 
 soci::session&
