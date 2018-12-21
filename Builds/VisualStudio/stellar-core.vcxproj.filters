@@ -135,24 +135,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\Application.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\ApplicationUtils.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\CommandLine.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\main.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -167,12 +149,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
       <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketList.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\Config.cpp">
-      <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
       <Filter>lib\util</Filter>
@@ -201,9 +177,6 @@
     <ClCompile Include="..\..\lib\http\HttpClient.cpp">
       <Filter>lib\http</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\CommandHandler.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp">
       <Filter>process</Filter>
     </ClCompile>
@@ -221,9 +194,6 @@
     </ClCompile>
     <ClCompile Include="..\..\lib\json\jsoncpp.cpp">
       <Filter>lib\json</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\Database.cpp">
-      <Filter>database</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\marshal.cc">
       <Filter>lib\xdrpp</Filter>
@@ -273,17 +243,8 @@
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\Hex.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\SHA.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\lib\util\format.cc">
       <Filter>lib\util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\SecretKey.cpp">
-      <Filter>crypto</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\OfferTests.cpp">
       <Filter>transactions\tests</Filter>
@@ -306,9 +267,6 @@
     <ClCompile Include="..\..\lib\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\lib\util\uint128_t.cpp">
       <Filter>lib\util</Filter>
     </ClCompile>
@@ -321,15 +279,6 @@
     <ClCompile Include="..\..\src\util\TmpDir.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\Random.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderImpl.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\TimerTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -341,15 +290,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\Bucket.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp">
-      <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketTests.cpp">
       <Filter>bucket\tests</Filter>
@@ -366,17 +306,11 @@
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\ApplicationImpl.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp">
       <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\PersistentState.cpp">
-      <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
       <Filter>transactions</Filter>
@@ -395,15 +329,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\fuzz.cpp">
       <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\Herder.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\FutureBucket.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp">
-      <Filter>herder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\HashOfHash.cpp">
       <Filter>util</Filter>
@@ -438,29 +363,14 @@
     <ClCompile Include="..\..\src\scp\SCPDriver.cpp">
       <Filter>scp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\lib\util\crc16.cpp">
       <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\StrKey.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\dumpxdr.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
-      <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\PeerAuth.cpp">
       <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\ECDH.cpp">
-      <Filter>crypto</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\scp\SCPTests.cpp">
       <Filter>scp\tests</Filter>
@@ -501,9 +411,6 @@
     <ClCompile Include="..\..\src\work\WorkParent.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -524,12 +431,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\StatusManagerTest.cpp">
       <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\ApplicationTests.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp">
-      <Filter>main</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\TestAccount.cpp">
       <Filter>transactions\tests</Filter>
@@ -555,23 +456,11 @@
     <ClCompile Include="..\..\src\test\TestUtils.cpp">
       <Filter>test</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\SignerKey.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\SignerKeyUtils.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\KeyUtils.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp">
       <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
-      <Filter>herder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\BalanceTests.cpp">
       <Filter>util</Filter>
@@ -585,12 +474,6 @@
     <ClCompile Include="..\..\src\util\SecretValue.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseConnectionString.cpp">
-      <Filter>database</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
-      <Filter>bucket</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\test\TestExceptions.cpp">
       <Filter>test</Filter>
     </ClCompile>
@@ -599,9 +482,6 @@
     </ClCompile>
     <ClCompile Include="..\..\lib\util\easylogging++.cc">
       <Filter>lib\util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp">
-      <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChainTests.cpp">
       <Filter>ledger\tests</Filter>
@@ -627,6 +507,121 @@
     <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\catchup\CatchupWorkTests.cpp">
+      <Filter>catchup\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\UpgradesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
+      <Filter>crypto\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
+      <Filter>database\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\LruCacheTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TrackerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\process\ProcessTests.cpp">
+      <Filter>process\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\WorkTests.cpp">
+      <Filter>work\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantTestUtils.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ConservationOfLumensTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
+      <Filter>database\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\SerializeTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp">
+      <Filter>main\generated</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\BumpSequenceTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\LoadManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffersTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\numeric.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerStateTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\BatchWork.h" />
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
@@ -644,15 +639,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp">
       <Filter>catchup</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\catchup\CatchupWorkTests.cpp">
-      <Filter>catchup\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerRange.cpp">
-      <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
       <Filter>historyWork</Filter>
@@ -717,6 +703,96 @@
     <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\Bucket.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketList.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\FutureBucket.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\ECDH.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Hex.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\KeyUtils.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Random.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SecretKey.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SHA.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SignerKey.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SignerKeyUtils.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\StrKey.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\Database.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseConnectionString.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseUtils.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\Herder.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderImpl.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderPersistenceImpl.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderSCPDriver.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\Upgrades.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\FileTransferInfo.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -738,127 +814,16 @@
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp">
       <Filter>history</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
-      <Filter>herder\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\UpgradesTests.cpp">
-      <Filter>herder\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
-      <Filter>crypto\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
-      <Filter>database\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderPersistenceImpl.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\HerderSCPDriver.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\LruCacheTests.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TrackerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\process\ProcessTests.cpp">
-      <Filter>process\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkTests.cpp">
-      <Filter>work\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\herder\Upgrades.cpp">
-      <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantTestUtils.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\ConservationOfLumensTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
-      <Filter>database\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\SerializeTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\Maintainer.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseUtils.cpp">
-      <Filter>database</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp">
-      <Filter>main\generated</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\BumpSequenceTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\LoadManagerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffersTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\numeric.cpp">
-      <Filter>util</Filter>
+    <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp">
+      <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerRange.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerState.cpp">
@@ -882,38 +847,56 @@
     <ClCompile Include="..\..\src\ledger\LedgerStateTrustLineSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateTests.cpp">
-      <Filter>ledger\tests</Filter>
+    <ClCompile Include="..\..\src\main\Application.cpp">
+      <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
-      <Filter>transactions</Filter>
+    <ClCompile Include="..\..\src\main\ApplicationImpl.cpp">
+      <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp">
-      <Filter>crypto</Filter>
+    <ClCompile Include="..\..\src\main\ApplicationTests.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\ApplicationUtils.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\CommandHandler.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\CommandLine.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\Config.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\dumpxdr.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\main.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\Maintainer.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\PersistentState.cpp">
+      <Filter>main</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\src\ledger\LedgerManager.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\Application.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\ApplicationUtils.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\CommandLine.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h">
-      <Filter>main</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
       <Filter>overlay</Filter>
     </ClInclude>
@@ -931,12 +914,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
       <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\Config.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketList.h">
-      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
       <Filter>lib\util</Filter>
@@ -977,9 +954,6 @@
     <ClInclude Include="..\..\lib\http\HttpClient.h">
       <Filter>lib\http</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\CommandHandler.h">
-      <Filter>main</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\process\ProcessManager.h">
       <Filter>process</Filter>
     </ClInclude>
@@ -988,9 +962,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\Timer.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\database\Database.h">
-      <Filter>database</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\types.h">
       <Filter>util</Filter>
@@ -1016,18 +987,6 @@
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\crypto\ByteSlice.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\Hex.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\SHA.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\SecretKey.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\format.h">
       <Filter>lib\util</Filter>
     </ClInclude>
@@ -1049,26 +1008,11 @@
     <ClInclude Include="..\..\src\util\TmpDir.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\crypto\Random.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderImpl.h">
-      <Filter>herder</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\Herder.h">
-      <Filter>herder</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\TxSetFrame.h">
-      <Filter>herder</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\simulation\Simulation.h">
       <Filter>simulation</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\OfferExchange.h">
       <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\LedgerCmp.h">
-      <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Math.h">
       <Filter>util</Filter>
@@ -1076,32 +1020,11 @@
     <ClInclude Include="..\..\src\util\asio.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\Bucket.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketInputIterator.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerRecord.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketManager.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\ApplicationImpl.h">
-      <Filter>main</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\PersistentState.h">
-      <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\OperationFrame.h">
       <Filter>transactions</Filter>
@@ -1139,12 +1062,6 @@
     <ClInclude Include="..\..\lib\util\lrucache.hpp">
       <Filter>lib\util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\FutureBucket.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\PendingEnvelopes.h">
-      <Filter>herder</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\util\HashOfHash.h">
       <Filter>util</Filter>
     </ClInclude>
@@ -1175,20 +1092,11 @@
     <ClInclude Include="..\..\src\scp\SCPDriver.h">
       <Filter>scp</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\LedgerCloseData.h">
-      <Filter>herder</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\crc16.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\util\basen.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\StrKey.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\dumpxdr.h">
-      <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="src\generated\xdr\Stellar-ledger.h">
       <Filter>xdr\generated</Filter>
@@ -1208,9 +1116,6 @@
     <ClInclude Include="src\generated\xdr\Stellar-types.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\main\ExternalQueue.h">
-      <Filter>main</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\catch.hpp">
       <Filter>lib</Filter>
     </ClInclude>
@@ -1219,9 +1124,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerAuth.h">
       <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\ECDH.h">
-      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\LoadManager.h">
       <Filter>overlay</Filter>
@@ -1244,9 +1146,6 @@
     <ClInclude Include="..\..\src\work\WorkParent.h">
       <Filter>work</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
       <Filter>util</Filter>
     </ClInclude>
@@ -1264,9 +1163,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\StatusManager.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h">
-      <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\TestAccount.h">
       <Filter>transactions\tests</Filter>
@@ -1289,23 +1185,11 @@
     <ClInclude Include="..\..\src\test\TestUtils.h">
       <Filter>test</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\crypto\SignerKey.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\SignerKeyUtils.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\KeyUtils.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\SignatureChecker.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h">
       <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderUtils.h">
-      <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Algoritm.h">
       <Filter>util</Filter>
@@ -1316,20 +1200,65 @@
     <ClInclude Include="..\..\src\util\SociNoWarnings.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\database\DatabaseConnectionString.h">
-      <Filter>database</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h">
-      <Filter>bucket</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\test\TestPrinter.h">
       <Filter>test</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\test\TestMarket.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\CatchupWorkTests.h">
+      <Filter>catchup\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\SimpleTestReporter.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\Invariant.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantManager.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantTestUtils.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\LogSlowExecution.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\numeric.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
+      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h">
       <Filter>catchup</Filter>
@@ -1351,15 +1280,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h">
       <Filter>catchup</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\catchup\CatchupWorkTests.h">
-      <Filter>catchup\tests</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\CheckpointRange.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerRange.h">
-      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
       <Filter>historyWork</Filter>
@@ -1424,6 +1344,108 @@
     <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\bucket\Bucket.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketInputIterator.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketList.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketManager.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\FutureBucket.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\LedgerCmp.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ByteSlice.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ECDH.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Hex.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\KeyUtils.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Random.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SecretKey.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SHA.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SignerKey.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SignerKeyUtils.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\StrKey.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\Database.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\DatabaseConnectionString.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\DatabaseUtils.h">
+      <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\Herder.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderImpl.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderPersistence.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderPersistenceImpl.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderSCPDriver.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderUtils.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\LedgerCloseData.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\PendingEnvelopes.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\TxSetFrame.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\Upgrades.h">
+      <Filter>herder</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\history\FileTransferInfo.h">
       <Filter>history</Filter>
     </ClInclude>
@@ -1451,76 +1473,22 @@
     <ClInclude Include="..\..\src\history\StateSnapshot.h">
       <Filter>history</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderPersistence.h">
-      <Filter>herder</Filter>
+    <ClInclude Include="..\..\src\ledger\CheckpointRange.h">
+      <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderPersistenceImpl.h">
-      <Filter>herder</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\HerderSCPDriver.h">
-      <Filter>herder</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\test\SimpleTestReporter.h">
-      <Filter>test</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\herder\Upgrades.h">
-      <Filter>herder</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\Invariant.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantManager.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantTestUtils.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\Maintainer.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\database\DatabaseUtils.h">
-      <Filter>database</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\StellarCoreVersion.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\LogSlowExecution.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\numeric.h">
-      <Filter>util</Filter>
+    <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h">
+      <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerHeaderUtils.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerManager.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerRange.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerState.h">
@@ -1532,20 +1500,53 @@
     <ClInclude Include="..\..\src\ledger\LedgerStateHeader.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerStateImpl.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h">
+    <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h">
-      <Filter>crypto</Filter>
+    <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\StellarCoreVersion.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\Application.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\ApplicationImpl.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\ApplicationUtils.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\CommandHandler.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\CommandLine.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\Config.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\dumpxdr.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\ExternalQueue.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\Maintainer.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\PersistentState.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1560,18 +1561,6 @@
     <None Include="..\..\README.md" />
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\Makefile.am" />
-    <None Include="..\..\src\bucket\readme.md">
-      <Filter>bucket</Filter>
-    </None>
-    <None Include="..\..\src\crypto\readme.md">
-      <Filter>crypto</Filter>
-    </None>
-    <None Include="..\..\src\database\readme.md">
-      <Filter>database</Filter>
-    </None>
-    <None Include="..\..\src\ledger\readme.md">
-      <Filter>ledger</Filter>
-    </None>
     <None Include="..\..\src\transactions\readme.md">
       <Filter>transactions</Filter>
     </None>
@@ -1638,9 +1627,6 @@
     <None Include="..\..\travis-build.sh" />
     <None Include="..\..\.github\ISSUE_TEMPLATE.md" />
     <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md" />
-    <None Include="..\..\src\history\readme.md">
-      <Filter>history</Filter>
-    </None>
     <None Include="..\..\src\history\serialize-tests\stellar-history.livenet.15686975.json">
       <Filter>history\tests\serialize-tests</Filter>
     </None>
@@ -1650,6 +1636,21 @@
     <None Include="..\..\performance-eval\performance-eval.md" />
     <None Include="..\..\docs\metrics.md">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\src\bucket\readme.md">
+      <Filter>bucket</Filter>
+    </None>
+    <None Include="..\..\src\crypto\readme.md">
+      <Filter>crypto</Filter>
+    </None>
+    <None Include="..\..\src\database\readme.md">
+      <Filter>database</Filter>
+    </None>
+    <None Include="..\..\src\history\readme.md">
+      <Filter>history</Filter>
+    </None>
+    <None Include="..\..\src\ledger\readme.md">
+      <Filter>ledger</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
