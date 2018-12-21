@@ -25,9 +25,23 @@ BucketApplicator::operator bool() const
     return (bool)mBucketIter;
 }
 
-void
+size_t
+BucketApplicator::pos()
+{
+    return mBucketIter.pos();
+}
+
+size_t
+BucketApplicator::size() const
+{
+    return mBucketIter.size();
+}
+
+size_t
 BucketApplicator::advance()
 {
+    size_t count = 0;
+
     LedgerState ls(mApp.getLedgerStateRoot(), false);
     for (; mBucketIter; ++mBucketIter)
     {
@@ -53,17 +67,15 @@ BucketApplicator::advance()
                 entry.erase();
             }
         }
-        if ((++mSize & 0xff) == 0xff)
+
+        if ((++count & 0xff) == 0xff)
         {
             break;
         }
     }
     ls.commit();
 
-    if (!mBucketIter || (mSize & 0xfff) == 0xfff)
-    {
-        CLOG(INFO, "Bucket")
-            << "Bucket-apply: committed " << mSize << " entries";
-    }
+    mCount += count;
+    return count;
 }
 }

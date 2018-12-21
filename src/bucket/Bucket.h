@@ -36,6 +36,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     std::string const mFilename;
     Hash const mHash;
+    size_t mSize{0};
 
   public:
     // Create an empty bucket. The empty bucket has hash '000000...' and its
@@ -49,6 +50,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 
     Hash const& getHash() const;
     std::string const& getFilename() const;
+    size_t getSize() const;
 
     // Returns true if a BucketEntry that is key-wise identical to the given
     // BucketEntry exists in the bucket. For testing.

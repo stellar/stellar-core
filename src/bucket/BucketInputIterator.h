@@ -39,5 +39,8 @@ class BucketInputIterator
     ~BucketInputIterator();
 
     BucketInputIterator& operator++();
+
+    size_t pos();
+    size_t size() const;
 };
 }

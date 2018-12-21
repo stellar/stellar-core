@@ -6,8 +6,10 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
+
 #include <fstream>
 #include <string>
 #include <vector>
@@ -23,7 +25,8 @@ class XDRInputFileStream
 {
     std::ifstream mIn;
     std::vector<char> mBuf;
-    unsigned int mSizeLimit;
+    size_t mSizeLimit;
+    size_t mSize;
 
   public:
     XDRInputFileStream(unsigned int sizeLimit = 0) : mSizeLimit{sizeLimit}
@@ -49,11 +52,27 @@ class XDRInputFileStream
             CLOG(ERROR, "Fs") << msg;
             throw std::runtime_error(msg);
         }
+
+        mSize = fs::size(mIn);
     }
 
     operator bool() const
     {
         return mIn.good();
+    }
+
+    size_t
+    size() const
+    {
+        return mSize;
+    }
+
+    size_t
+    pos()
+    {
+        assert(!mIn.fail());
+
+        return mIn.tellg();
     }
 
     template <typename T>

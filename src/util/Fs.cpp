@@ -442,6 +442,33 @@ checkNoGzipSuffix(std::string const& filename)
     }
 }
 
+size_t
+size(std::ifstream& ifs)
+{
+    assert(ifs.is_open());
+
+    ifs.seekg(0, ifs.end);
+    auto result = ifs.tellg();
+    ifs.seekg(0, ifs.beg);
+
+    return std::max(decltype(result){0}, result);
+}
+
+size_t
+size(std::string const& filename)
+{
+    std::ifstream ifs;
+    ifs.open(filename, std::ifstream::binary);
+    if (ifs)
+    {
+        return size(ifs);
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 #ifdef _WIN32
 
 int
