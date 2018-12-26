@@ -679,8 +679,7 @@ TEST_CASE("whitelist", "[herder]")
 
         DataValue value;
         value.resize(4);
-        SignatureHint hint =
-            SignatureUtils::getHint(accountWL.getPublicKey().ed25519());
+        SignatureHint hint = SignatureUtils::getHint(accountWL.getPublicKey().ed25519());
         for (int n = 0; n < 4; n++)
         {
             value[n] = (unsigned char)hint[n];
@@ -724,6 +723,52 @@ TEST_CASE("whitelist", "[herder]")
 
         REQUIRE(txSet->mTransactions.size() == 20);
         REQUIRE(wlCount == 10);
+        REQUIRE(txSet->checkValid(*app));
+    }
+
+    SECTION("all whitelisted")
+    {
+
+        DataValue value;
+        value.resize(4);
+        SignatureHint hint = SignatureUtils::getHint(accountWL.getPublicKey().ed25519());
+        for (int n = 0; n < 4; n++)
+        {
+            value[n] = (unsigned char)hint[n];
+        }
+
+        whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()),
+                             &value);
+
+        closeLedgerOn(*app, 2, 4, 11, 2018, txSet->mTransactions);
+
+        txSet = std::make_shared<TxSetFrame>(app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        auto dfs = DataFrame::loadAccountData(app->getDatabase(),
+                                              whitelist.getPublicKey());
+
+        int wlCount = 0;
+
+        // extra transaction would push the account below the reserve
+        for (int n = 0; n < 20; n++)
+        {
+            txSet->add(accountWL.tx({payment(destAccount, n + 10)}));
+        }
+
+        txSet->sortForHash();
+
+        txSet->surgePricingFilter(lm, *app);
+
+        for (auto& tx3 : txSet->mTransactions)
+        {
+            if (tx3->getSourceID() == accountWL.getPublicKey())
+                wlCount++;
+            else
+                REQUIRE(tx3->getSourceID() == accountC.getPublicKey());
+        }
+
+        REQUIRE(txSet->mTransactions.size() == 20);
+        REQUIRE(wlCount == 20);
         REQUIRE(txSet->checkValid(*app));
     }
 

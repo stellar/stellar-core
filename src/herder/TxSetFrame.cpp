@@ -216,6 +216,10 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm, Application& app)
                 unwhitelisted.emplace_back(tx);
         }
 
+        // Adjust reserve downward if there are fewer unwhitelisted txs
+        if (unwhitelisted.size() < reserveCapacity)
+            reserveCapacity = unwhitelisted.size();
+
         // determine the fee ratio for each account
         map<AccountID, double> accountFeeMap;
         for (auto& tx : mTransactions)
