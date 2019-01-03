@@ -54,7 +54,7 @@ history.download-<X>.success      | meter     | download of <X> completed succes
 history.download-<X>.failure      | meter     | download of <X> failed
 history.verify-<X>.success        | meter     | verification of <X> succeeded
 history.verify-<X>.failure        | meter     | verification of <X> failed
-invariant.does-not-hold.count.<X> | counter   | number of times invariant <X> failed
+ledger.invariant.failure          | counter   | number of times invariants failed
 ledger.transaction.apply          | timer     | time to apply one transaction
 ledger.transaction.count          | histogram | number of transactions per ledger
 ledger.transaction.internal-error | counter   | number of internal errors since start

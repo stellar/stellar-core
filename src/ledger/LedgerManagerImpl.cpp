@@ -1007,6 +1007,9 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         }
         catch (InvariantDoesNotHold&)
         {
+            CLOG(ERROR, "Ledger")
+                << "Invariant failure during tx->apply for tx "
+                << tx->getFullHash();
             throw;
         }
         catch (std::runtime_error& e)
