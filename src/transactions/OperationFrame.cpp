@@ -28,9 +28,6 @@
 #include "xdrpp/printer.h"
 #include <string>
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-
 namespace stellar
 {
 
@@ -144,9 +141,6 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
         if (!mParentTx.checkSignature(signatureChecker, sourceAccount,
                                       neededThreshold))
         {
-            app.getMetrics()
-                .NewMeter({"operation", "failure", "bad-auth"}, "operation")
-                .Mark();
             mResult.code(opBAD_AUTH);
             return false;
         }
@@ -155,9 +149,6 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
     {
         if (forApply || !mOperation.sourceAccount)
         {
-            app.getMetrics()
-                .NewMeter({"operation", "failure", "no-account"}, "operation")
-                .Mark();
             mResult.code(opNO_ACCOUNT);
             return false;
         }
@@ -165,9 +156,6 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
         if (!mParentTx.checkSignatureNoAccount(signatureChecker,
                                                *mOperation.sourceAccount))
         {
-            app.getMetrics()
-                .NewMeter({"operation", "failure", "bad-auth"}, "operation")
-                .Mark();
             mResult.code(opBAD_AUTH);
             return false;
         }
@@ -202,9 +190,6 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     auto ledgerVersion = ls.loadHeader().current().ledgerVersion;
     if (!isVersionSupported(ledgerVersion))
     {
-        app.getMetrics()
-            .NewMeter({"operation", "failure", "not-supported"}, "operation")
-            .Mark();
         mResult.code(opNOT_SUPPORTED);
         return false;
     }
@@ -222,9 +207,6 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         // previous versions it is done in checkSignature call
         if (!loadSourceAccount(ls, ls.loadHeader()))
         {
-            app.getMetrics()
-                .NewMeter({"operation", "failure", "no-account"}, "operation")
-                .Mark();
             mResult.code(opNO_ACCOUNT);
             return false;
         }

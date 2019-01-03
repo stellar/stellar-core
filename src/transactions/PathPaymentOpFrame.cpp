@@ -16,8 +16,6 @@
 #include <algorithm>
 
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 
 namespace stellar
 {
@@ -71,10 +69,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     {
         if (!stellar::loadAccountWithoutRecord(ls, mPathPayment.destination))
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "no-destination"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_NO_DESTINATION);
             return false;
         }
@@ -86,10 +80,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         auto destination = stellar::loadAccount(ls, mPathPayment.destination);
         if (!addBalance(ls.loadHeader(), destination, curBReceived))
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "invalid", "balance-overflow"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_MALFORMED);
             return false;
         }
@@ -102,10 +92,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 stellar::loadAccountWithoutRecord(ls, getIssuer(curB));
             if (!issuer)
             {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "failure", "no-issuer"},
-                              "operation")
-                    .Mark();
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curB;
                 return false;
@@ -116,30 +102,18 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             stellar::loadTrustLine(ls, mPathPayment.destination, curB);
         if (!destLine)
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "no-trust"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_NO_TRUST);
             return false;
         }
 
         if (!destLine.isAuthorized())
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "not-authorized"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
             return false;
         }
 
         if (!destLine.addBalance(ls.loadHeader(), curBReceived))
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "line-full"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_LINE_FULL);
             return false;
         }
@@ -163,10 +137,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         {
             if (!stellar::loadAccountWithoutRecord(ls, getIssuer(curA)))
             {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "failure", "no-issuer"},
-                              "operation")
-                    .Mark();
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curA;
                 return false;
@@ -174,21 +144,15 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         }
 
         // curA -> curB
-        medida::MetricsRegistry& metrics = app.getMetrics();
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
             ls, curA, INT64_MAX, curASent, curB, curBReceived,
             actualCurBReceived, true,
-            [this, &metrics](LedgerStateEntry const& o) {
+            [this](LedgerStateEntry const& o) {
                 auto const& offer = o.current().data.offer();
                 if (offer.sellerID == getSourceID())
                 {
                     // we are crossing our own offer
-                    metrics
-                        .NewMeter(
-                            {"op-path-payment", "failure", "offer-cross-self"},
-                            "operation")
-                        .Mark();
                     innerResult().code(PATH_PAYMENT_OFFER_CROSS_SELF);
                     return OfferFilterResult::eStop;
                 }
@@ -209,10 +173,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             }
         // fall through
         case ConvertResult::ePartial:
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "too-few-offers"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
             return false;
         }
@@ -231,10 +191,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     int64_t curBSent = curBReceived;
     if (curBSent > mPathPayment.sendMax)
     { // make sure not over the max
-        app.getMetrics()
-            .NewMeter({"op-path-payment", "failure", "over-send-max"},
-                      "operation")
-            .Mark();
         innerResult().code(PATH_PAYMENT_OVER_SENDMAX);
         return false;
     }
@@ -248,10 +204,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             sourceAccount = stellar::loadAccount(ls, getSourceID());
             if (!sourceAccount)
             {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "invalid", "no-account"},
-                              "operation")
-                    .Mark();
                 innerResult().code(PATH_PAYMENT_MALFORMED);
                 return false;
             }
@@ -263,10 +215,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
         if (curBSent > getAvailableBalance(header, sourceAccount))
         { // they don't have enough to send
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "underfunded"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
@@ -287,10 +235,6 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
                 stellar::loadAccountWithoutRecord(ls, getIssuer(curB));
             if (!issuer)
             {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "failure", "no-issuer"},
-                              "operation")
-                    .Mark();
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curB;
                 return false;
@@ -300,38 +244,22 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         auto sourceLine = loadTrustLine(ls, getSourceID(), curB);
         if (!sourceLine)
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "src-no-trust"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
             return false;
         }
 
         if (!sourceLine.isAuthorized())
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "src-not-authorized"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
             return false;
         }
 
         if (!sourceLine.addBalance(ls.loadHeader(), -curBSent))
         {
-            app.getMetrics()
-                .NewMeter({"op-path-payment", "failure", "underfunded"},
-                          "operation")
-                .Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
         }
     }
-
-    app.getMetrics()
-        .NewMeter({"op-path-payment", "success", "apply"}, "operation")
-        .Mark();
 
     return true;
 }
@@ -341,30 +269,18 @@ PathPaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
-        app.getMetrics()
-            .NewMeter({"op-path-payment", "invalid", "malformed-amounts"},
-                      "operation")
-            .Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }
     if (!isAssetValid(mPathPayment.sendAsset) ||
         !isAssetValid(mPathPayment.destAsset))
     {
-        app.getMetrics()
-            .NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
-                      "operation")
-            .Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }
     auto const& p = mPathPayment.path;
     if (!std::all_of(p.begin(), p.end(), isAssetValid))
     {
-        app.getMetrics()
-            .NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
-                      "operation")
-            .Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
     }

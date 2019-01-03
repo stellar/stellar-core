@@ -90,9 +90,5 @@ loadgen.payment.native            | meter     | loadgenerator: native payment su
 loadgen.txn.attempted             | meter     | loadgenerator: transaction submitted
 loadgen.txn.rejected              | meter     | loadgenerator: transaction rejected
 loadgen.txn.bytes                 | meter     | loadgenerator: size of transactions submitted
-op-<NAME>.success.apply           | meter     | operation <NAME> succeeded
-op-<NAME>.failure.<ERR>           | meter     | operation <NAME> failed for reason <ERR>
-operation.failure.<ERR>           | meter     | common operation failure for reason <ERR>
-transaction.failure.<ERR>         | meter     | common transaction failure for reason <ERR>
 transaction.op.apply              | timer     | time applying an operation
 
