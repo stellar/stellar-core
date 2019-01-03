@@ -111,6 +111,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewHistogram({"ledger", "transaction", "count"}))
     , mOperationCount(
           app.getMetrics().NewHistogram({"ledger", "operation", "count"}))
+    , mInternalErrorCount(app.getMetrics().NewCounter(
+          {"ledger", "transaction", "internal-error"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
     , mLedgerAge(
@@ -1011,6 +1013,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply for tx "
                                   << tx->getFullHash() << " : " << e.what();
+            mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         catch (...)
@@ -1018,6 +1021,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
             CLOG(ERROR, "Ledger")
                 << "Unknown exception during tx->apply for tx "
                 << tx->getFullHash();
+            mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
