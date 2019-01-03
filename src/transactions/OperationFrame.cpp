@@ -25,6 +25,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
+#include "xdrpp/printer.h"
 #include <string>
 
 #include "medida/meter.h"
@@ -100,10 +101,19 @@ OperationFrame::apply(SignatureChecker& signatureChecker, Application& app,
                       AbstractLedgerState& ls)
 {
     bool res;
+    if (Logging::logTrace("Tx"))
+    {
+        CLOG(TRACE, "Tx") << "Operation: " << xdr::xdr_to_string(mOperation);
+    }
     res = checkValid(signatureChecker, app, ls, true);
     if (res)
     {
         res = doApply(app, ls);
+        if (Logging::logTrace("Tx"))
+        {
+            CLOG(TRACE, "Tx")
+                << "Operation result: " << xdr::xdr_to_string(mResult);
+        }
     }
 
     return res;
