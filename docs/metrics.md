@@ -57,6 +57,7 @@ history.verify-<X>.failure        | meter     | verification of <X> failed
 invariant.does-not-hold.count.<X> | counter   | number of times invariant <X> failed
 ledger.transaction.apply          | timer     | time to apply one transaction
 ledger.transaction.count          | histogram | number of transactions per ledger
+ledger.operation.count            | histogram | number of operations per ledger
 ledger.ledger.close               | timer     | time to close a ledger (excluding consensus)
 ledger.age.closed                 | timer     | time between ledgers
 ledger.age.current-seconds        | counter   | gap between last close ledger time and current time
