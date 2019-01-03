@@ -59,6 +59,7 @@ ledger.transaction.apply          | timer     | time to apply one transaction
 ledger.transaction.count          | histogram | number of transactions per ledger
 ledger.transaction.internal-error | counter   | number of internal errors since start
 ledger.operation.count            | histogram | number of operations per ledger
+ledger.operation.apply            | timer     | time applying an operation
 ledger.ledger.close               | timer     | time to close a ledger (excluding consensus)
 ledger.age.closed                 | timer     | time between ledgers
 ledger.age.current-seconds        | counter   | gap between last close ledger time and current time
@@ -91,5 +92,3 @@ loadgen.payment.native            | meter     | loadgenerator: native payment su
 loadgen.txn.attempted             | meter     | loadgenerator: transaction submitted
 loadgen.txn.rejected              | meter     | loadgenerator: transaction rejected
 loadgen.txn.bytes                 | meter     | loadgenerator: size of transactions submitted
-transaction.op.apply              | timer     | time applying an operation
-

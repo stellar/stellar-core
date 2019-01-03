@@ -402,7 +402,7 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
 
     auto& m = mApp.getMetrics();
     auto& applyTx = m.NewTimer({"ledger", "transaction", "apply"});
-    auto& applyOp = m.NewTimer({"transaction", "op", "apply"});
+    auto& applyOp = m.NewTimer({"ledger", "operation", "apply"});
 
     auto submitSteps = duration_cast<milliseconds>(submitTimer).count();
 

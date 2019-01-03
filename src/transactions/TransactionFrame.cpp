@@ -554,7 +554,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
     // shield outer scope of any side effects with LedgerState
     LedgerState lsTx(ls);
-    auto& opTimer = app.getMetrics().NewTimer({"transaction", "op", "apply"});
+    auto& opTimer = app.getMetrics().NewTimer({"ledger", "operation", "apply"});
     for (auto& op : mOperations)
     {
         auto time = opTimer.TimeScope();
