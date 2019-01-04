@@ -6,8 +6,8 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -81,7 +81,7 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
     auto finalCoins = getTotalBalance(entries);
     REQUIRE(initialCoins + netChange == finalCoins);
 
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
     ls.loadHeader().current().totalCoins += netChange;
     ls.commit();
     return entries;
@@ -95,7 +95,7 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app,
 
     int64_t totalCoins = 0;
     {
-        LedgerState ls(app.getLedgerStateRoot());
+        LedgerTxn ls(app.getLedgerTxnRoot());
         totalCoins = ls.loadHeader().current().totalCoins;
     }
 
@@ -117,7 +117,7 @@ TEST_CASE("Total coins change without inflation",
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    LedgerState ls(app->getLedgerStateRoot());
+    LedgerTxn ls(app->getLedgerTxnRoot());
     ls.loadHeader().current().totalCoins = dist(gen);
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
@@ -137,7 +137,7 @@ TEST_CASE("Fee pool change without inflation",
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    LedgerState ls(app->getLedgerStateRoot());
+    LedgerTxn ls(app->getLedgerTxnRoot());
     ls.loadHeader().current().feePool = dist(gen);
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
@@ -264,7 +264,7 @@ TEST_CASE("Inflation changes are consistent",
         auto deltaFeePool = deltaFeePoolDist(gen);
 
         {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             ls.loadHeader().current().feePool += deltaFeePool;
             REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
                                   {}, opRes, ls.getDelta()),
@@ -272,7 +272,7 @@ TEST_CASE("Inflation changes are consistent",
         }
 
         {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             ls.loadHeader().current().feePool += deltaFeePool;
             ls.loadHeader().current().totalCoins +=
                 deltaFeePool + inflationAmount;
@@ -283,7 +283,7 @@ TEST_CASE("Inflation changes are consistent",
 
         auto entries2 = updateBalances(entries1, *app, gen, inflationAmount);
         {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             ls.loadHeader().current().feePool += deltaFeePool;
             ls.loadHeader().current().totalCoins +=
                 deltaFeePool + inflationAmount;

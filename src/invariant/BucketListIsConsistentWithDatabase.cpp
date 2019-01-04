@@ -8,8 +8,8 @@
 #include "crypto/Hex.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerRange.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
@@ -18,7 +18,7 @@ namespace stellar
 {
 
 static std::string
-checkAgainstDatabase(AbstractLedgerState& ls, LedgerEntry const& entry)
+checkAgainstDatabase(AbstractLedgerTxn& ls, LedgerEntry const& entry)
 {
     auto fromDb = ls.loadWithoutRecord(LedgerEntryKey(entry));
     if (!fromDb)
@@ -43,7 +43,7 @@ checkAgainstDatabase(AbstractLedgerState& ls, LedgerEntry const& entry)
 }
 
 static std::string
-checkAgainstDatabase(AbstractLedgerState& ls, LedgerKey const& key)
+checkAgainstDatabase(AbstractLedgerTxn& ls, LedgerKey const& key)
 {
     auto fromDb = ls.loadWithoutRecord(key);
     if (!fromDb)
@@ -82,7 +82,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 {
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
+        LedgerTxn ls(mApp.getLedgerTxnRoot());
 
         bool hasPreviousEntry = false;
         BucketEntry previousEntry;
@@ -156,7 +156,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 
     LedgerRange range{oldestLedger, newestLedger};
     std::string countFormat = "Incorrect {} count: Bucket = {} Database = {}";
-    auto& lsRoot = mApp.getLedgerStateRoot();
+    auto& lsRoot = mApp.getLedgerTxnRoot();
     uint64_t nAccountsInDb = lsRoot.countObjects(ACCOUNT, range);
     if (nAccountsInDb != nAccounts)
     {

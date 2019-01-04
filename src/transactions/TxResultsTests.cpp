@@ -4,8 +4,8 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "test/TestAccount.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
@@ -103,13 +103,13 @@ TEST_CASE("txresults", "[tx][txresults]")
     const int64_t startAmount = baseReserve * 100;
 
     {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         ls.loadHeader().current().scpValue.closeTime = 10;
         ls.commit();
     }
 
     auto getCloseTime = [&] {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         return ls.loadHeader().current().scpValue.closeTime;
     };
 
@@ -540,7 +540,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         for_all_versions(*app, [&] {
             uint32_t ledgerVersion = 0;
             {
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 ledgerVersion = ls.loadHeader().current().ledgerVersion;
             }
             auto validationResult =

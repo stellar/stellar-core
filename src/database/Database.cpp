@@ -18,7 +18,7 @@
 #include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerHeaderUtils.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
@@ -279,9 +279,9 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
-    mApp.getLedgerStateRoot().dropAccounts();
-    mApp.getLedgerStateRoot().dropOffers();
-    mApp.getLedgerStateRoot().dropTrustLines();
+    mApp.getLedgerTxnRoot().dropAccounts();
+    mApp.getLedgerTxnRoot().dropOffers();
+    mApp.getLedgerTxnRoot().dropTrustLines();
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
@@ -290,7 +290,7 @@ Database::initialize()
     HistoryManager::dropAll(*this);
     mApp.getBucketManager().dropAll();
     HerderPersistence::dropAll(*this);
-    mApp.getLedgerStateRoot().dropData();
+    mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
     putSchemaVersion(6);
 }

@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -144,14 +144,14 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("non-account signers")
         {
             auto countSubEntriesAndSigners = [&](uint32_t expected) {
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 auto a1Account = stellar::loadAccount(ls, a1);
                 auto const& ae = a1Account.current().data.account();
                 REQUIRE(ae.numSubEntries == expected);
                 REQUIRE(ae.signers.size() == expected);
             };
             auto checkFirstSigner = [&](Signer const& sk) {
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 auto a1Account = stellar::loadAccount(ls, a1);
                 auto const& ae = a1Account.current().data.account();
                 REQUIRE(ae.signers.size() >= 1);

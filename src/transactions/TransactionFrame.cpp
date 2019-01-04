@@ -13,9 +13,9 @@
 #include "herder/TxSetFrame.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerHeaderUtils.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
@@ -110,7 +110,7 @@ TransactionFrame::getFee() const
 }
 
 int64_t
-TransactionFrame::getMinFee(LedgerStateHeader const& header) const
+TransactionFrame::getMinFee(LedgerTxnHeader const& header) const
 {
     return ((int64_t)header.current().baseFee) *
            std::max<int64_t>(1, mOperations.size());
@@ -132,7 +132,7 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 LedgerStateEntry const& account,
+                                 LedgerTxnEntry const& account,
                                  int32_t neededWeight)
 {
     auto& acc = account.current().data.account();
@@ -158,9 +158,9 @@ TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
     return signatureChecker.checkSignature(accountID, signers, 0);
 }
 
-LedgerStateEntry
-TransactionFrame::loadSourceAccount(AbstractLedgerState& ls,
-                                    LedgerStateHeader const& header)
+LedgerTxnEntry
+TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ls,
+                                    LedgerTxnHeader const& header)
 {
     auto res = loadAccount(ls, header, getSourceID());
     if (header.current().ledgerVersion < 8)
@@ -179,9 +179,9 @@ TransactionFrame::loadSourceAccount(AbstractLedgerState& ls,
     return res;
 }
 
-LedgerStateEntry
-TransactionFrame::loadAccount(AbstractLedgerState& ls,
-                              LedgerStateHeader const& header,
+LedgerTxnEntry
+TransactionFrame::loadAccount(AbstractLedgerTxn& ls,
+                              LedgerTxnHeader const& header,
                               AccountID const& accountID)
 {
     if (header.current().ledgerVersion < 8 && mCachedAccount &&
@@ -233,7 +233,7 @@ TransactionFrame::resetResults()
 
 bool
 TransactionFrame::commonValidPreSeqNum(Application& app,
-                                       AbstractLedgerState& ls, bool forApply)
+                                       AbstractLedgerTxn& ls, bool forApply)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
@@ -277,7 +277,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app,
 }
 
 void
-TransactionFrame::processSeqNum(AbstractLedgerState& ls)
+TransactionFrame::processSeqNum(AbstractLedgerTxn& ls)
 {
     auto header = ls.loadHeader();
     if (header.current().ledgerVersion >= 10)
@@ -294,11 +294,11 @@ TransactionFrame::processSeqNum(AbstractLedgerState& ls)
 bool
 TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
                                     Application& app,
-                                    AbstractLedgerState& lsOuter)
+                                    AbstractLedgerTxn& lsOuter)
 {
     auto allOpsValid = true;
     {
-        LedgerState ls(lsOuter);
+        LedgerTxn ls(lsOuter);
         if (ls.loadHeader().current().ledgerVersion < 10)
         {
             return true;
@@ -332,10 +332,10 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
 
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                              Application& app, AbstractLedgerState& lsOuter,
+                              Application& app, AbstractLedgerTxn& lsOuter,
                               SequenceNumber current, bool applying)
 {
-    LedgerState ls(lsOuter);
+    LedgerTxn ls(lsOuter);
     ValidationType res = ValidationType::kInvalid;
 
     if (!commonValidPreSeqNum(app, ls, applying))
@@ -391,7 +391,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 }
 
 void
-TransactionFrame::processFeeSeqNum(AbstractLedgerState& ls)
+TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ls)
 {
     mCachedAccount.reset();
     resetResults();
@@ -429,7 +429,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerState& ls)
 
 void
 TransactionFrame::removeUsedOneTimeSignerKeys(
-    SignatureChecker& signatureChecker, AbstractLedgerState& ls)
+    SignatureChecker& signatureChecker, AbstractLedgerTxn& ls)
 {
     for (auto const& usedAccount : signatureChecker.usedOneTimeSignerKeys())
     {
@@ -439,7 +439,7 @@ TransactionFrame::removeUsedOneTimeSignerKeys(
 
 void
 TransactionFrame::removeUsedOneTimeSignerKeys(
-    AbstractLedgerState& ls, AccountID const& accountID,
+    AbstractLedgerTxn& ls, AccountID const& accountID,
     std::set<SignerKey> const& keys) const
 {
     auto account = stellar::loadAccount(ls, accountID);
@@ -462,8 +462,8 @@ TransactionFrame::removeUsedOneTimeSignerKeys(
 }
 
 bool
-TransactionFrame::removeAccountSigner(LedgerStateHeader const& header,
-                                      LedgerStateEntry& account,
+TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
+                                      LedgerTxnEntry& account,
                                       SignerKey const& signerKey) const
 {
     auto& acc = account.current().data.account();
@@ -482,13 +482,13 @@ TransactionFrame::removeAccountSigner(LedgerStateHeader const& header,
 }
 
 bool
-TransactionFrame::checkValid(Application& app, AbstractLedgerState& lsOuter,
+TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& lsOuter,
                              SequenceNumber current)
 {
     mCachedAccount.reset();
     resetResults();
 
-    LedgerState ls(lsOuter);
+    LedgerTxn ls(lsOuter);
     SignatureChecker signatureChecker{ls.loadHeader().current().ledgerVersion,
                                       getContentsHash(), mEnvelope.signatures};
     bool res = commonValid(signatureChecker, app, ls, current, false) ==
@@ -539,7 +539,7 @@ TransactionFrame::markResultFailed()
 }
 
 bool
-TransactionFrame::apply(Application& app, AbstractLedgerState& ls)
+TransactionFrame::apply(Application& app, AbstractLedgerTxn& ls)
 {
     TransactionMeta tm(1);
     return apply(app, ls, tm.v1());
@@ -547,18 +547,18 @@ TransactionFrame::apply(Application& app, AbstractLedgerState& ls)
 
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
-                                  Application& app, AbstractLedgerState& ls,
+                                  Application& app, AbstractLedgerTxn& ls,
                                   TransactionMetaV1& meta)
 {
     bool errorEncountered = false;
 
-    // shield outer scope of any side effects with LedgerState
-    LedgerState lsTx(ls);
+    // shield outer scope of any side effects with LedgerTxn
+    LedgerTxn lsTx(ls);
     auto& opTimer = app.getMetrics().NewTimer({"ledger", "operation", "apply"});
     for (auto& op : mOperations)
     {
         auto time = opTimer.TimeScope();
-        LedgerState lsOp(lsTx);
+        LedgerTxn lsOp(lsTx);
         bool txRes = op->apply(signatureChecker, app, lsOp);
 
         if (!txRes)
@@ -603,7 +603,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 }
 
 bool
-TransactionFrame::apply(Application& app, AbstractLedgerState& ls,
+TransactionFrame::apply(Application& app, AbstractLedgerTxn& ls,
                         TransactionMetaV1& meta)
 {
     mCachedAccount.reset();
@@ -612,7 +612,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerState& ls,
 
     bool valid = false;
     {
-        LedgerState lsTx(ls);
+        LedgerTxn lsTx(ls);
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed

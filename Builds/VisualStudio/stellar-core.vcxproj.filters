@@ -615,7 +615,7 @@
     <ClCompile Include="..\..\src\util\numeric.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateTests.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp">
@@ -826,25 +826,25 @@
     <ClCompile Include="..\..\src\ledger\LedgerRange.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerState.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxn.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateAccountSQL.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnAccountSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateDataSQL.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnDataSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateEntry.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnEntry.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateHeader.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateOfferSQL.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerStateTrustLineSQL.cpp">
+    <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp">
@@ -1491,16 +1491,16 @@
     <ClInclude Include="..\..\src\ledger\LedgerRange.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerState.h">
+    <ClInclude Include="..\..\src\ledger\LedgerTxn.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerStateEntry.h">
+    <ClInclude Include="..\..\src\ledger\LedgerTxnEntry.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerStateHeader.h">
+    <ClInclude Include="..\..\src\ledger\LedgerTxnHeader.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\LedgerStateImpl.h">
+    <ClInclude Include="..\..\src\ledger\LedgerTxnImpl.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h">

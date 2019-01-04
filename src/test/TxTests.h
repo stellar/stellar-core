@@ -12,8 +12,8 @@
 
 namespace stellar
 {
-class AbstractLedgerState;
-class ConstLedgerStateEntry;
+class AbstractLedgerTxn;
+class ConstLedgerTxnEntry;
 class TransactionFrame;
 class OperationFrame;
 class TxSetFrame;
@@ -81,7 +81,7 @@ SecretKey getAccount(const char* n);
 
 Signer makeSigner(SecretKey key, int weight);
 
-ConstLedgerStateEntry loadAccount(AbstractLedgerState& ls, PublicKey const& k,
+ConstLedgerTxnEntry loadAccount(AbstractLedgerTxn& ls, PublicKey const& k,
                                   bool mustExist = true);
 
 bool doesAccountExist(Application& app, PublicKey const& k);

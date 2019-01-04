@@ -5,9 +5,9 @@
 #include "herder/Upgrades.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"
 #include "transactions/OfferExchange.h"
@@ -129,7 +129,7 @@ Upgrades::createUpgradesFor(LedgerHeader const& header) const
 }
 
 void
-Upgrades::applyTo(LedgerUpgrade const& upgrade, AbstractLedgerState& ls)
+Upgrades::applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ls)
 {
     switch (upgrade.type())
     {
@@ -408,7 +408,7 @@ static int64_t
 getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
                                         Asset const& asset,
                                         int64_t balanceAboveReserve,
-                                        AbstractLedgerState& ls)
+                                        AbstractLedgerTxn& ls)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -436,7 +436,7 @@ getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
 static int64_t
 getAvailableLimitExcludingLiabilities(AccountID const& accountID,
                                       Asset const& asset, int64_t balance,
-                                      AbstractLedgerState& ls)
+                                      AbstractLedgerTxn& ls)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -491,11 +491,11 @@ enum class UpdateOfferResult
 
 static UpdateOfferResult
 updateOffer(
-    LedgerStateEntry& offerEntry, int64_t balance, int64_t balanceAboveReserve,
+    LedgerTxnEntry& offerEntry, int64_t balance, int64_t balanceAboveReserve,
     std::map<Asset, Liabilities>& liabilities,
     std::map<Asset, std::unique_ptr<int64_t>> const& initialBuyingLiabilities,
     std::map<Asset, std::unique_ptr<int64_t>> const& initialSellingLiabilities,
-    AbstractLedgerState& ls, LedgerStateHeader const& header)
+    AbstractLedgerTxn& ls, LedgerTxnHeader const& header)
 {
     using namespace std::placeholders;
     auto& offer = offerEntry.current().data.offer();
@@ -581,7 +581,7 @@ updateOffer(
 // using the initial result of step (1), so it does not matter what order the
 // offers are processed.
 static void
-prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
+prepareLiabilities(AbstractLedgerTxn& ls, LedgerTxnHeader const& header)
 {
     CLOG(INFO, "Ledger") << "Starting prepareLiabilities";
 
@@ -725,7 +725,7 @@ prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
 }
 
 void
-Upgrades::applyVersionUpgrade(AbstractLedgerState& ls, uint32_t newVersion)
+Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ls, uint32_t newVersion)
 {
     auto header = ls.loadHeader();
     uint32_t prevVersion = header.current().ledgerVersion;
@@ -738,7 +738,7 @@ Upgrades::applyVersionUpgrade(AbstractLedgerState& ls, uint32_t newVersion)
 }
 
 void
-Upgrades::applyReserveUpgrade(AbstractLedgerState& ls, uint32_t newReserve)
+Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ls, uint32_t newReserve)
 {
     auto header = ls.loadHeader();
     bool didReserveIncrease = newReserve > header.current().baseReserve;

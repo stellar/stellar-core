@@ -33,9 +33,9 @@ BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
-    LedgerState lsInner(ls);
+    LedgerTxn lsInner(ls);
     auto header = lsInner.loadHeader();
     auto sourceAccountEntry = loadSourceAccount(lsInner, header);
     auto& sourceAccount = sourceAccountEntry.current().data.account();

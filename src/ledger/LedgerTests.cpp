@@ -6,9 +6,9 @@
 #include "database/Database.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -38,14 +38,14 @@ TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
 
     applyEmptyLedger();
     {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         ls.loadHeader().current().ledgerVersion =
             Config::CURRENT_LEDGER_PROTOCOL_VERSION;
         ls.commit();
     }
     applyEmptyLedger();
     {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         ls.loadHeader().current().ledgerVersion =
             Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1;
         ls.commit();

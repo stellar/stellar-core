@@ -4,9 +4,9 @@
 
 #include "transactions/InflationOpFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionUtils.h"
@@ -28,7 +28,7 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     auto header = ls.loadHeader();
     auto& lh = header.current();

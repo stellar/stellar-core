@@ -5,7 +5,7 @@
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
@@ -260,7 +260,7 @@ LiabilitiesMatchOffers::getName() const
 std::string
 LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                                               OperationResult const& result,
-                                              LedgerStateDelta const& lsDelta)
+                                              LedgerTxnDelta const& lsDelta)
 {
     auto ledgerVersion = lsDelta.header.current.ledgerVersion;
     if (ledgerVersion >= 10)

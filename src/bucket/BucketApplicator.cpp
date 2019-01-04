@@ -5,8 +5,8 @@
 #include "util/asio.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/Bucket.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -42,7 +42,7 @@ BucketApplicator::advance()
 {
     size_t count = 0;
 
-    LedgerState ls(mApp.getLedgerStateRoot(), false);
+    LedgerTxn ls(mApp.getLedgerTxnRoot(), false);
     for (; mBucketIter; ++mBucketIter)
     {
         if ((*mBucketIter).type() == LIVEENTRY)

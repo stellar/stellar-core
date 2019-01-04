@@ -5,9 +5,9 @@
 #include "ChangeTrustOpFrame.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -24,7 +24,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     auto header = ls.loadHeader();
     auto issuerID = getIssuer(mChangeTrust.line);

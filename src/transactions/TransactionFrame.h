@@ -21,13 +21,13 @@ We can get it in from the DB or from the wire
 */
 namespace stellar
 {
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 class Application;
 class Database;
 class OperationFrame;
 class LedgerManager;
-class LedgerStateEntry;
-class LedgerStateHeader;
+class LedgerTxnEntry;
+class LedgerTxnHeader;
 class SecretKey;
 class SignatureChecker;
 class XDROutputFileStream;
@@ -51,8 +51,8 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    LedgerStateEntry loadSourceAccount(AbstractLedgerState& ls,
-                                       LedgerStateHeader const& header);
+    LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ls,
+                                       LedgerTxnHeader const& header);
 
     enum ValidationType
     {
@@ -64,35 +64,35 @@ class TransactionFrame
         kFullyValid
     };
 
-    bool commonValidPreSeqNum(Application& app, AbstractLedgerState& ls,
+    bool commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ls,
                               bool forApply);
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               Application& app, AbstractLedgerState& lsOuter,
+                               Application& app, AbstractLedgerTxn& lsOuter,
                                SequenceNumber current, bool applying);
 
     void resetResults();
 
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
-                                     AbstractLedgerState& ls);
+                                     AbstractLedgerTxn& ls);
 
-    void removeUsedOneTimeSignerKeys(AbstractLedgerState& ls,
+    void removeUsedOneTimeSignerKeys(AbstractLedgerTxn& ls,
                                      AccountID const& accountID,
                                      std::set<SignerKey> const& keys) const;
 
-    bool removeAccountSigner(LedgerStateHeader const& header,
-                             LedgerStateEntry& account,
+    bool removeAccountSigner(LedgerTxnHeader const& header,
+                             LedgerTxnEntry& account,
                              SignerKey const& signerKey) const;
 
     void markResultFailed();
 
     bool applyOperations(SignatureChecker& checker, Application& app,
-                         AbstractLedgerState& ls, TransactionMetaV1& meta);
+                         AbstractLedgerTxn& ls, TransactionMetaV1& meta);
 
-    void processSeqNum(AbstractLedgerState& ls);
+    void processSeqNum(AbstractLedgerTxn& ls);
 
     bool processSignatures(SignatureChecker& signatureChecker, Application& app,
-                           AbstractLedgerState& lsOuter);
+                           AbstractLedgerTxn& lsOuter);
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -149,36 +149,36 @@ class TransactionFrame
 
     uint32_t getFee() const;
 
-    int64_t getMinFee(LedgerStateHeader const& header) const;
+    int64_t getMinFee(LedgerTxnHeader const& header) const;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        LedgerStateEntry const& account, int32_t neededWeight);
+                        LedgerTxnEntry const& account, int32_t neededWeight);
 
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
     bool checkValid(Application& app, SequenceNumber current);
-    bool checkValid(Application& app, AbstractLedgerState& lsOuter,
+    bool checkValid(Application& app, AbstractLedgerTxn& lsOuter,
                     SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerState& ls);
+    void processFeeSeqNum(AbstractLedgerTxn& ls);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(Application& app, AbstractLedgerState& ls,
+    bool apply(Application& app, AbstractLedgerTxn& ls,
                TransactionMetaV1& meta);
 
     // version without meta
-    bool apply(Application& app, AbstractLedgerState& ls);
+    bool apply(Application& app, AbstractLedgerTxn& ls);
 
     StellarMessage toStellarMessage() const;
 
-    LedgerStateEntry loadAccount(AbstractLedgerState& ls,
-                                 LedgerStateHeader const& header,
+    LedgerTxnEntry loadAccount(AbstractLedgerTxn& ls,
+                                 LedgerTxnHeader const& header,
                                  AccountID const& accountID);
 
     // transaction history

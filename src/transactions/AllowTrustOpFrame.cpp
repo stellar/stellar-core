@@ -5,9 +5,9 @@
 #include "transactions/AllowTrustOpFrame.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -28,7 +28,7 @@ AllowTrustOpFrame::getThresholdLevel() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     if (ls.loadHeader().current().ledgerVersion > 2)
     {
@@ -41,7 +41,7 @@ AllowTrustOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     }
 
     {
-        LedgerState lsSource(ls); // lsSource will be rolled back
+        LedgerTxn lsSource(ls); // lsSource will be rolled back
         auto header = lsSource.loadHeader();
         auto sourceAccountEntry = loadSourceAccount(lsSource, header);
         auto const& sourceAccount = sourceAccountEntry.current().data.account();

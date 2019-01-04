@@ -10,7 +10,7 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -63,7 +63,7 @@ class TestInvariant : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerStateDelta const& lsDelta) override
+                          LedgerTxnDelta const& lsDelta) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -198,7 +198,7 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
         app->getInvariantManager().enableInvariant(
             TestInvariant::toString(0, true));
 
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
                               {}, res, ls.getDelta()),
                           InvariantDoesNotHold);
@@ -209,7 +209,7 @@ TEST_CASE("onOperationApply fail succeed", "[invariant]")
         app->getInvariantManager().enableInvariant(
             TestInvariant::toString(0, false));
 
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         REQUIRE_NOTHROW(app->getInvariantManager().checkOnOperationApply(
             {}, res, ls.getDelta()));
     }

@@ -4,7 +4,7 @@
 
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/format.h"
@@ -100,7 +100,7 @@ AccountSubEntriesCountIsValid::getName() const
 std::string
 AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerStateDelta const& lsDelta)
+    LedgerTxnDelta const& lsDelta)
 {
     std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
     for (auto const& entryDelta : lsDelta.entry)

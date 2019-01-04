@@ -28,10 +28,10 @@ class Histogram;
 
 namespace stellar
 {
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 class Application;
 class Database;
-class LedgerStateHeader;
+class LedgerTxnHeader;
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -66,13 +66,13 @@ class LedgerManagerImpl : public LedgerManager
     void applyBufferedLedgers();
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            AbstractLedgerState& lsOuter);
+                            AbstractLedgerTxn& lsOuter);
 
     void applyTransactions(std::vector<TransactionFramePtr>& txs,
-                           AbstractLedgerState& ls,
+                           AbstractLedgerTxn& ls,
                            TransactionResultSet& txResultSet);
 
-    void ledgerClosed(AbstractLedgerState& ls);
+    void ledgerClosed(AbstractLedgerTxn& ls);
 
     void storeCurrentLedger(LedgerHeader const& header);
     void advanceLedgerPointers(LedgerHeader const& header);

@@ -4,9 +4,9 @@
 
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -444,7 +444,7 @@ TEST_CASE("merge", "[tx][merge]")
                 a1.merge(b1);
 
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
+                    LedgerTxn ls(app->getLedgerTxnRoot());
                     REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
                 }
             });
@@ -461,7 +461,7 @@ TEST_CASE("merge", "[tx][merge]")
                 checkTx(1, r, txNO_ACCOUNT);
 
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
+                    LedgerTxn ls(app->getLedgerTxnRoot());
                     REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
                 }
 
@@ -553,7 +553,7 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_from(10, *app, [&]() {
             SequenceNumber curStartSeqNum;
             {
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 ++ls.loadHeader().current().ledgerSeq;
                 curStartSeqNum = getStartingSequenceNumber(ls.loadHeader());
             }
@@ -611,7 +611,7 @@ TEST_CASE("merge", "[tx][merge]")
             acc2.merge(acc1);
 
             {
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 auto header = ls.loadHeader();
                 auto account = stellar::loadAccount(ls, acc1.getPublicKey());
                 auto const& ae = account.current().data.account();

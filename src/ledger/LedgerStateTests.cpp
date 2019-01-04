@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -22,8 +22,8 @@ using namespace stellar;
 
 static void
 validate(
-    AbstractLedgerState& ls,
-    std::unordered_map<LedgerKey, LedgerStateDelta::EntryDelta> const& expected)
+    AbstractLedgerTxn& ls,
+    std::unordered_map<LedgerKey, LedgerTxnDelta::EntryDelta> const& expected)
 {
     auto const delta = ls.getDelta();
 
@@ -88,41 +88,41 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
     return le;
 }
 
-TEST_CASE("LedgerState addChild", "[ledgerstate]")
+TEST_CASE("LedgerTxn addChild", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     app->start();
 
-    SECTION("with LedgerState parent")
+    SECTION("with LedgerTxn parent")
     {
         SECTION("fails if parent has children")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
-            LedgerState ls2(ls1);
-            REQUIRE_THROWS_AS(LedgerState(ls1), std::runtime_error);
+            LedgerTxn ls1(app->getLedgerTxnRoot());
+            LedgerTxn ls2(ls1);
+            REQUIRE_THROWS_AS(LedgerTxn(ls1), std::runtime_error);
         }
 
         SECTION("fails if parent is sealed")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             ls1.getDelta();
-            REQUIRE_THROWS_AS(LedgerState(ls1), std::runtime_error);
+            REQUIRE_THROWS_AS(LedgerTxn(ls1), std::runtime_error);
         }
     }
 
-    SECTION("with LedgerStateRoot parent")
+    SECTION("with LedgerTxnRoot parent")
     {
         SECTION("fails if parent has children")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
-            REQUIRE_THROWS_AS(LedgerState(app->getLedgerStateRoot()),
+            LedgerTxn ls1(app->getLedgerTxnRoot());
+            REQUIRE_THROWS_AS(LedgerTxn(app->getLedgerTxnRoot()),
                               std::runtime_error);
         }
     }
 }
 
-TEST_CASE("LedgerState commit into LedgerState", "[ledgerstate]")
+TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -138,9 +138,9 @@ TEST_CASE("LedgerState commit into LedgerState", "[ledgerstate]")
     {
         SECTION("created in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             REQUIRE(ls2.create(le1));
             ls2.commit();
 
@@ -151,10 +151,10 @@ TEST_CASE("LedgerState commit into LedgerState", "[ledgerstate]")
 
         SECTION("loaded in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             REQUIRE(ls1.create(le1));
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             REQUIRE(ls2.load(key));
             ls2.commit();
 
@@ -165,10 +165,10 @@ TEST_CASE("LedgerState commit into LedgerState", "[ledgerstate]")
 
         SECTION("modified in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             REQUIRE(ls1.create(le1));
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             auto lse1 = ls2.load(key);
             REQUIRE(lse1);
             lse1.current() = le2;
@@ -181,10 +181,10 @@ TEST_CASE("LedgerState commit into LedgerState", "[ledgerstate]")
 
         SECTION("erased in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             REQUIRE(ls1.create(le1));
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             REQUIRE_NOTHROW(ls2.erase(key));
             ls2.commit();
 
@@ -193,7 +193,7 @@ TEST_CASE("LedgerState commit into LedgerState", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerState rollback into LedgerState", "[ledgerstate]")
+TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -209,9 +209,9 @@ TEST_CASE("LedgerState rollback into LedgerState", "[ledgerstate]")
     {
         SECTION("created in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             REQUIRE(ls2.create(le1));
             ls2.rollback();
 
@@ -220,10 +220,10 @@ TEST_CASE("LedgerState rollback into LedgerState", "[ledgerstate]")
 
         SECTION("loaded in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             REQUIRE(ls1.create(le1));
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             REQUIRE(ls2.load(key));
             ls2.rollback();
 
@@ -234,10 +234,10 @@ TEST_CASE("LedgerState rollback into LedgerState", "[ledgerstate]")
 
         SECTION("modified in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             REQUIRE(ls1.create(le1));
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             auto lse1 = ls2.load(key);
             REQUIRE(lse1);
             lse1.current() = le2;
@@ -250,10 +250,10 @@ TEST_CASE("LedgerState rollback into LedgerState", "[ledgerstate]")
 
         SECTION("erased in child")
         {
-            LedgerState ls1(app->getLedgerStateRoot());
+            LedgerTxn ls1(app->getLedgerTxnRoot());
             REQUIRE(ls1.create(le1));
 
-            LedgerState ls2(ls1);
+            LedgerTxn ls2(ls1);
             REQUIRE_NOTHROW(ls2.erase(key));
             ls2.rollback();
 
@@ -264,12 +264,12 @@ TEST_CASE("LedgerState rollback into LedgerState", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerState round trip", "[ledgerstate]")
+TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
 {
     std::default_random_engine gen;
     std::bernoulli_distribution shouldCommitDist;
 
-    auto generateNew = [](AbstractLedgerState& ls,
+    auto generateNew = [](AbstractLedgerTxn& ls,
                           std::unordered_map<LedgerKey, LedgerEntry>& entries) {
         size_t const NEW_ENTRIES = 100;
         std::unordered_map<LedgerKey, LedgerEntry> newBatch;
@@ -292,7 +292,7 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
     };
 
     auto generateModify =
-        [&gen](AbstractLedgerState& ls,
+        [&gen](AbstractLedgerTxn& ls,
                std::unordered_map<LedgerKey, LedgerEntry>& entries) {
             size_t const MODIFY_ENTRIES = 25;
             std::unordered_map<LedgerKey, LedgerEntry> modifyBatch;
@@ -315,7 +315,7 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
         };
 
     auto generateErase =
-        [&gen](AbstractLedgerState& ls,
+        [&gen](AbstractLedgerTxn& ls,
                std::unordered_map<LedgerKey, LedgerEntry>& entries,
                std::unordered_set<LedgerKey>& dead) {
             size_t const ERASE_ENTRIES = 25;
@@ -337,10 +337,10 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
         };
 
     auto checkLedger =
-        [](AbstractLedgerStateParent& lsParent,
+        [](AbstractLedgerTxnParent& lsParent,
            std::unordered_map<LedgerKey, LedgerEntry> const& entries,
            std::unordered_set<LedgerKey> const& dead) {
-            LedgerState ls(lsParent);
+            LedgerTxn ls(lsParent);
             for (auto const& kv : entries)
             {
                 auto lse = ls.load(kv.first);
@@ -357,7 +357,7 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
             }
         };
 
-    auto runTest = [&](AbstractLedgerStateParent& lsParent) {
+    auto runTest = [&](AbstractLedgerTxnParent& lsParent) {
         std::unordered_map<LedgerKey, LedgerEntry> entries;
         std::unordered_set<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
@@ -367,7 +367,7 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
 
             std::unordered_map<LedgerKey, LedgerEntry> updatedEntries = entries;
             std::unordered_set<LedgerKey> updatedDead = dead;
-            LedgerState ls1(lsParent);
+            LedgerTxn ls1(lsParent);
             generateNew(ls1, updatedEntries);
             generateModify(ls1, updatedEntries);
             generateErase(ls1, updatedEntries, updatedDead);
@@ -381,17 +381,17 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
         }
     };
 
-    SECTION("round trip to LedgerState")
+    SECTION("round trip to LedgerTxn")
     {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         runTest(ls1);
     }
 
-    SECTION("round trip to LedgerStateRoot")
+    SECTION("round trip to LedgerTxnRoot")
     {
         SECTION("with normal caching")
         {
@@ -399,7 +399,7 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
             auto app = createTestApplication(clock, getTestConfig());
             app->start();
 
-            runTest(app->getLedgerStateRoot());
+            runTest(app->getLedgerTxnRoot());
         }
 
         SECTION("with no cache")
@@ -411,27 +411,27 @@ TEST_CASE("LedgerState round trip", "[ledgerstate]")
             auto app = createTestApplication(clock, cfg);
             app->start();
 
-            runTest(app->getLedgerStateRoot());
+            runTest(app->getLedgerTxnRoot());
         }
     }
 }
 
-TEST_CASE("LedgerState rollback and commit deactivate", "[ledgerstate]")
+TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     app->start();
 
-    auto& root = app->getLedgerStateRoot();
+    auto& root = app->getLedgerTxnRoot();
     auto lh = root.getHeader();
 
     LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
     LedgerKey key = LedgerEntryKey(le);
 
-    auto checkDeactivate = [&](std::function<void(LedgerState & ls)> f) {
+    auto checkDeactivate = [&](std::function<void(LedgerTxn & ls)> f) {
         SECTION("entry")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             auto entry = ls.create(le);
             REQUIRE(entry);
             f(ls);
@@ -440,7 +440,7 @@ TEST_CASE("LedgerState rollback and commit deactivate", "[ledgerstate]")
 
         SECTION("const entry")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             ls.create(le);
             auto entry = ls.loadWithoutRecord(key);
             REQUIRE(entry);
@@ -450,7 +450,7 @@ TEST_CASE("LedgerState rollback and commit deactivate", "[ledgerstate]")
 
         SECTION("header")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             auto header = ls.loadHeader();
             REQUIRE(header);
             f(ls);
@@ -460,16 +460,16 @@ TEST_CASE("LedgerState rollback and commit deactivate", "[ledgerstate]")
 
     SECTION("commit")
     {
-        checkDeactivate([](LedgerState& ls) { ls.commit(); });
+        checkDeactivate([](LedgerTxn& ls) { ls.commit(); });
     }
 
     SECTION("rollback")
     {
-        checkDeactivate([](LedgerState& ls) { ls.rollback(); });
+        checkDeactivate([](LedgerTxn& ls) { ls.rollback(); });
     }
 }
 
-TEST_CASE("LedgerState create", "[ledgerstate]")
+TEST_CASE("LedgerTxn create", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -481,21 +481,21 @@ TEST_CASE("LedgerState create", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.create(le), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.create(le), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
         validate(ls1,
                  {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
@@ -503,31 +503,31 @@ TEST_CASE("LedgerState create", "[ledgerstate]")
 
     SECTION("when key exists in self or parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
         REQUIRE_THROWS_AS(ls1.create(le), std::runtime_error);
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls2.create(le), std::runtime_error);
         validate(ls2, {});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_NOTHROW(ls2.erase(key));
 
-        LedgerState ls3(ls2);
+        LedgerTxn ls3(ls2);
         REQUIRE(ls3.create(le));
         validate(ls3,
                  {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
     }
 }
 
-TEST_CASE("LedgerState erase", "[ledgerstate]")
+TEST_CASE("LedgerTxn erase", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -539,16 +539,16 @@ TEST_CASE("LedgerState erase", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.erase(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.erase(key), std::runtime_error);
@@ -556,17 +556,17 @@ TEST_CASE("LedgerState erase", "[ledgerstate]")
 
     SECTION("when key does not exist")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE_THROWS_AS(ls1.erase(key), std::runtime_error);
         validate(ls1, {});
     }
 
     SECTION("when key exists in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_NOTHROW(ls2.erase(key));
         validate(ls2,
                  {{key, {nullptr, std::make_shared<LedgerEntry const>(le)}}});
@@ -574,21 +574,21 @@ TEST_CASE("LedgerState erase", "[ledgerstate]")
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_NOTHROW(ls2.erase(key));
 
-        LedgerState ls3(ls2);
+        LedgerTxn ls3(ls2);
         REQUIRE_THROWS_AS(ls3.erase(key), std::runtime_error);
         validate(ls3, {});
     }
 }
 
 static void
-applyLedgerStateUpdates(
-    AbstractLedgerState& ls,
+applyLedgerTxnUpdates(
+    AbstractLedgerTxn& ls,
     std::map<AccountID, std::pair<AccountID, int64_t>> const& updates)
 {
     for (auto const& kv : updates)
@@ -624,7 +624,7 @@ applyLedgerStateUpdates(
 
 static void
 testInflationWinners(
-    AbstractLedgerStateParent& lsParent, size_t maxWinners, int64_t minBalance,
+    AbstractLedgerTxnParent& lsParent, size_t maxWinners, int64_t minBalance,
     std::vector<std::tuple<AccountID, int64_t>> const& expected,
     std::vector<std::map<AccountID,
                          std::pair<AccountID, int64_t>>>::const_iterator begin,
@@ -632,8 +632,8 @@ testInflationWinners(
         const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerState ls(lsParent);
-    applyLedgerStateUpdates(ls, *begin);
+    LedgerTxn ls(lsParent);
+    applyLedgerTxnUpdates(ls, *begin);
 
     if (++begin != end)
     {
@@ -667,15 +667,15 @@ testInflationWinners(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerState ls1(app.getLedgerStateRoot());
-            applyLedgerStateUpdates(ls1, *updates.cbegin());
+            LedgerTxn ls1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ls1, *updates.cbegin());
             ls1.commit();
         }
-        testInflationWinners(app.getLedgerStateRoot(), maxWinners, minBalance,
+        testInflationWinners(app.getLedgerTxnRoot(), maxWinners, minBalance,
                              expected, ++updates.cbegin(), updates.cend());
     };
 
-    // first changes are in LedgerStateRoot with cache
+    // first changes are in LedgerTxnRoot with cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -684,7 +684,7 @@ testInflationWinners(
         testAtRoot(*app);
     }
 
-    // first changes are in LedgerStateRoot without cache
+    // first changes are in LedgerTxnRoot without cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -696,18 +696,18 @@ testInflationWinners(
         testAtRoot(*app);
     }
 
-    // first changes are in child of LedgerStateRoot
+    // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        testInflationWinners(app->getLedgerStateRoot(), maxWinners, minBalance,
+        testInflationWinners(app->getLedgerTxnRoot(), maxWinners, minBalance,
                              expected, updates.cbegin(), updates.cend());
     }
 }
 
-TEST_CASE("LedgerState queryInflationWinners", "[ledgerstate]")
+TEST_CASE("LedgerTxn queryInflationWinners", "[ledgerstate]")
 {
     int64_t const QUERY_VOTE_MINIMUM = 1000000000;
 
@@ -736,8 +736,8 @@ TEST_CASE("LedgerState queryInflationWinners", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.queryInflationWinners(1, 1), std::runtime_error);
     }
 
@@ -747,7 +747,7 @@ TEST_CASE("LedgerState queryInflationWinners", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.queryInflationWinners(1, 1), std::runtime_error);
     }
@@ -989,7 +989,7 @@ TEST_CASE("LedgerState queryInflationWinners", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerState loadHeader", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadHeader", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -999,21 +999,21 @@ TEST_CASE("LedgerState loadHeader", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.loadHeader(), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.loadHeader(), std::runtime_error);
     }
 
     SECTION("fails if header already loaded")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         auto lhe = ls1.loadHeader();
         REQUIRE(lhe);
         REQUIRE_THROWS_AS(ls1.loadHeader(), std::runtime_error);
@@ -1021,7 +1021,7 @@ TEST_CASE("LedgerState loadHeader", "[ledgerstate]")
 
     SECTION("check after update")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         auto lhPrev = ls1.loadHeader().current();
         ls1.loadHeader().current() = lh;
 
@@ -1031,7 +1031,7 @@ TEST_CASE("LedgerState loadHeader", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerState load", "[ledgerstate]")
+TEST_CASE("LedgerTxn load", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1043,31 +1043,31 @@ TEST_CASE("LedgerState load", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.load(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.load(key), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(!ls1.load(key));
         validate(ls1, {});
     }
 
     SECTION("when key exists in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE(ls2.load(key));
         validate(ls2, {{key,
                         {std::make_shared<LedgerEntry const>(le),
@@ -1076,19 +1076,19 @@ TEST_CASE("LedgerState load", "[ledgerstate]")
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_NOTHROW(ls2.erase(key));
 
-        LedgerState ls3(ls2);
+        LedgerTxn ls3(ls2);
         REQUIRE(!ls3.load(key));
         validate(ls3, {});
     }
 }
 
-TEST_CASE("LedgerState loadWithoutRecord", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1100,52 +1100,52 @@ TEST_CASE("LedgerState loadWithoutRecord", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.loadWithoutRecord(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.loadWithoutRecord(key), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(!ls1.loadWithoutRecord(key));
         validate(ls1, {});
     }
 
     SECTION("when key exists in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE(ls2.loadWithoutRecord(key));
         validate(ls2, {});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         REQUIRE(ls1.create(le));
 
-        LedgerState ls2(ls1);
+        LedgerTxn ls2(ls1);
         REQUIRE_NOTHROW(ls2.erase(key));
 
-        LedgerState ls3(ls2);
+        LedgerTxn ls3(ls2);
         REQUIRE(!ls3.loadWithoutRecord(key));
         validate(ls3, {});
     }
 }
 
 static void
-applyLedgerStateUpdates(
-    AbstractLedgerState& ls,
+applyLedgerTxnUpdates(
+    AbstractLedgerTxn& ls,
     std::map<std::pair<AccountID, uint64_t>,
              std::tuple<Asset, Asset, int64_t>> const& updates)
 {
@@ -1180,7 +1180,7 @@ applyLedgerStateUpdates(
 
 static void
 testAllOffers(
-    AbstractLedgerStateParent& lsParent,
+    AbstractLedgerTxnParent& lsParent,
     std::map<AccountID,
              std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>>> const&
         expected,
@@ -1192,8 +1192,8 @@ testAllOffers(
                  std::tuple<Asset, Asset, int64_t>>>::const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerState ls(lsParent);
-    applyLedgerStateUpdates(ls, *begin);
+    LedgerTxn ls(lsParent);
+    applyLedgerTxnUpdates(ls, *begin);
 
     if (++begin != end)
     {
@@ -1243,15 +1243,15 @@ testAllOffers(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerState ls1(app.getLedgerStateRoot());
-            applyLedgerStateUpdates(ls1, *updates.cbegin());
+            LedgerTxn ls1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ls1, *updates.cbegin());
             ls1.commit();
         }
-        testAllOffers(app.getLedgerStateRoot(), expected, ++updates.cbegin(),
+        testAllOffers(app.getLedgerTxnRoot(), expected, ++updates.cbegin(),
                       updates.cend());
     };
 
-    // first changes are in LedgerStateRoot with cache
+    // first changes are in LedgerTxnRoot with cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -1260,7 +1260,7 @@ testAllOffers(
         testAtRoot(*app);
     }
 
-    // first changes are in LedgerStateRoot without cache
+    // first changes are in LedgerTxnRoot without cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -1272,18 +1272,18 @@ testAllOffers(
         testAtRoot(*app);
     }
 
-    // first changes are in child of LedgerStateRoot
+    // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        testAllOffers(app->getLedgerStateRoot(), expected, updates.cbegin(),
+        testAllOffers(app->getLedgerTxnRoot(), expected, updates.cbegin(),
                       updates.cend());
     }
 }
 
-TEST_CASE("LedgerState loadAllOffers", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadAllOffers", "[ledgerstate]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
@@ -1297,8 +1297,8 @@ TEST_CASE("LedgerState loadAllOffers", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.loadAllOffers(), std::runtime_error);
     }
 
@@ -1308,7 +1308,7 @@ TEST_CASE("LedgerState loadAllOffers", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.loadAllOffers(), std::runtime_error);
     }
@@ -1409,8 +1409,8 @@ TEST_CASE("LedgerState loadAllOffers", "[ledgerstate]")
 }
 
 static void
-applyLedgerStateUpdates(
-    AbstractLedgerState& ls,
+applyLedgerTxnUpdates(
+    AbstractLedgerTxn& ls,
     std::map<std::pair<AccountID, uint64_t>,
              std::tuple<Asset, Asset, Price, int64_t>> const& updates)
 {
@@ -1445,7 +1445,7 @@ applyLedgerStateUpdates(
 
 static void
 testBestOffer(
-    AbstractLedgerStateParent& lsParent, Asset const& buying,
+    AbstractLedgerTxnParent& lsParent, Asset const& buying,
     Asset const& selling,
     std::vector<std::tuple<uint64_t, Asset, Asset, Price, int64_t>> const&
         expected,
@@ -1457,8 +1457,8 @@ testBestOffer(
         const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerState ls(lsParent);
-    applyLedgerStateUpdates(ls, *begin);
+    LedgerTxn ls(lsParent);
+    applyLedgerTxnUpdates(ls, *begin);
 
     if (++begin != end)
     {
@@ -1495,15 +1495,15 @@ testBestOffer(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerState ls1(app.getLedgerStateRoot());
-            applyLedgerStateUpdates(ls1, *updates.cbegin());
+            LedgerTxn ls1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ls1, *updates.cbegin());
             ls1.commit();
         }
-        testBestOffer(app.getLedgerStateRoot(), buying, selling, expected,
+        testBestOffer(app.getLedgerTxnRoot(), buying, selling, expected,
                       ++updates.cbegin(), updates.cend());
     };
 
-    // first changes are in LedgerStateRoot with cache
+    // first changes are in LedgerTxnRoot with cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -1512,7 +1512,7 @@ testBestOffer(
         testAtRoot(*app);
     }
 
-    // first changes are in LedgerStateRoot without cache
+    // first changes are in LedgerTxnRoot without cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -1524,18 +1524,18 @@ testBestOffer(
         testAtRoot(*app);
     }
 
-    // first changes are in child of LedgerStateRoot
+    // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        testBestOffer(app->getLedgerStateRoot(), buying, selling, expected,
+        testBestOffer(app->getLedgerTxnRoot(), buying, selling, expected,
                       updates.cbegin(), updates.cend());
     }
 }
 
-TEST_CASE("LedgerState loadBestOffer", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
@@ -1550,8 +1550,8 @@ TEST_CASE("LedgerState loadBestOffer", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.loadBestOffer(buying, selling),
                           std::runtime_error);
     }
@@ -1562,7 +1562,7 @@ TEST_CASE("LedgerState loadBestOffer", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.loadBestOffer(buying, selling),
                           std::runtime_error);
@@ -1688,7 +1688,7 @@ TEST_CASE("LedgerState loadBestOffer", "[ledgerstate]")
 
 static void
 testOffersByAccountAndAsset(
-    AbstractLedgerStateParent& lsParent, AccountID const& accountID,
+    AbstractLedgerTxnParent& lsParent, AccountID const& accountID,
     Asset const& asset,
     std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>> const& expected,
     std::vector<std::map<std::pair<AccountID, uint64_t>,
@@ -1699,8 +1699,8 @@ testOffersByAccountAndAsset(
                  std::tuple<Asset, Asset, int64_t>>>::const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerState ls(lsParent);
-    applyLedgerStateUpdates(ls, *begin);
+    LedgerTxn ls(lsParent);
+    applyLedgerTxnUpdates(ls, *begin);
 
     if (++begin != end)
     {
@@ -1736,16 +1736,16 @@ testOffersByAccountAndAsset(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerState ls1(app.getLedgerStateRoot());
-            applyLedgerStateUpdates(ls1, *updates.cbegin());
+            LedgerTxn ls1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ls1, *updates.cbegin());
             ls1.commit();
         }
-        testOffersByAccountAndAsset(app.getLedgerStateRoot(), accountID, asset,
+        testOffersByAccountAndAsset(app.getLedgerTxnRoot(), accountID, asset,
                                     expected, ++updates.cbegin(),
                                     updates.cend());
     };
 
-    // first changes are in LedgerStateRoot with cache
+    // first changes are in LedgerTxnRoot with cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -1754,7 +1754,7 @@ testOffersByAccountAndAsset(
         testAtRoot(*app);
     }
 
-    // first changes are in LedgerStateRoot without cache
+    // first changes are in LedgerTxnRoot without cache
     if (updates.size() > 1)
     {
         VirtualClock clock;
@@ -1766,18 +1766,18 @@ testOffersByAccountAndAsset(
         testAtRoot(*app);
     }
 
-    // first changes are in child of LedgerStateRoot
+    // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        testOffersByAccountAndAsset(app->getLedgerStateRoot(), accountID, asset,
+        testOffersByAccountAndAsset(app->getLedgerTxnRoot(), accountID, asset,
                                     expected, updates.cbegin(), updates.cend());
     }
 }
 
-TEST_CASE("LedgerState loadOffersByAccountAndAsset", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgerstate]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
@@ -1795,8 +1795,8 @@ TEST_CASE("LedgerState loadOffersByAccountAndAsset", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
-        LedgerState ls2(ls1);
+        LedgerTxn ls1(app->getLedgerTxnRoot());
+        LedgerTxn ls2(ls1);
         REQUIRE_THROWS_AS(ls1.loadOffersByAccountAndAsset(a1, buying),
                           std::runtime_error);
     }
@@ -1807,7 +1807,7 @@ TEST_CASE("LedgerState loadOffersByAccountAndAsset", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerState ls1(app->getLedgerStateRoot());
+        LedgerTxn ls1(app->getLedgerTxnRoot());
         ls1.getDelta();
         REQUIRE_THROWS_AS(ls1.loadOffersByAccountAndAsset(a1, buying),
                           std::runtime_error);
@@ -1894,7 +1894,7 @@ TEST_CASE("LedgerState loadOffersByAccountAndAsset", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerState unsealHeader", "[ledgerstate]")
+TEST_CASE("LedgerTxn unsealHeader", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1904,13 +1904,13 @@ TEST_CASE("LedgerState unsealHeader", "[ledgerstate]")
 
     SECTION("fails if not sealed")
     {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         REQUIRE_THROWS_AS(ls.unsealHeader(doNothing), std::runtime_error);
     }
 
     SECTION("fails if header is active")
     {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         ls.getLiveEntries();
         ls.unsealHeader([&ls, &doNothing](LedgerHeader&) {
             REQUIRE_THROWS_AS(ls.unsealHeader(doNothing), std::runtime_error);
@@ -1919,21 +1919,21 @@ TEST_CASE("LedgerState unsealHeader", "[ledgerstate]")
 
     SECTION("deactivates header on completion")
     {
-        LedgerState ls(app->getLedgerStateRoot());
+        LedgerTxn ls(app->getLedgerTxnRoot());
         ls.getLiveEntries();
         REQUIRE_NOTHROW(ls.unsealHeader(doNothing));
         REQUIRE_NOTHROW(ls.unsealHeader(doNothing));
     }
 }
 
-TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
+TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment",
           "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
     app->start();
 
-    auto& root = app->getLedgerStateRoot();
+    auto& root = app->getLedgerTxnRoot();
     auto lh = root.getHeader();
 
     LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
@@ -1945,10 +1945,10 @@ TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
     {
         SECTION("entry")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             auto entry1 = ls.create(le1);
             // Avoid warning for explicit move-to-self
-            LedgerStateEntry& entryRef = entry1;
+            LedgerTxnEntry& entryRef = entry1;
             entry1 = std::move(entryRef);
             REQUIRE(entry1.current() == le1);
             REQUIRE_THROWS_AS(ls.load(key1), std::runtime_error);
@@ -1957,11 +1957,11 @@ TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
 
         SECTION("const entry")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             ls.create(le1);
             auto entry1 = ls.loadWithoutRecord(key1);
             // Avoid warning for explicit move-to-self
-            ConstLedgerStateEntry& entryRef = entry1;
+            ConstLedgerTxnEntry& entryRef = entry1;
             entry1 = std::move(entryRef);
             REQUIRE(entry1.current() == le1);
             REQUIRE_THROWS_AS(ls.load(key1), std::runtime_error);
@@ -1970,10 +1970,10 @@ TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
 
         SECTION("header")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             auto header = ls.loadHeader();
             // Avoid warning for explicit move-to-self
-            LedgerStateHeader& headerRef = header;
+            LedgerTxnHeader& headerRef = header;
             header = std::move(headerRef);
             REQUIRE(header.current() == lh);
             REQUIRE_THROWS_AS(ls.loadHeader(), std::runtime_error);
@@ -1984,7 +1984,7 @@ TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
     {
         SECTION("entry")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             auto entry1 = ls.create(le1);
             auto entry2 = ls.create(le2);
             entry1 = std::move(entry2);
@@ -1996,7 +1996,7 @@ TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
 
         SECTION("const entry")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             ls.create(le1);
             ls.create(le2);
             auto entry1 = ls.loadWithoutRecord(key1);
@@ -2010,9 +2010,9 @@ TEST_CASE("LedgerStateEntry and LedgerStateHeader move assignment",
 
         SECTION("header")
         {
-            LedgerState ls(root, false);
+            LedgerTxn ls(root, false);
             auto header1 = ls.loadHeader();
-            LedgerStateHeader header2 = std::move(header1);
+            LedgerTxnHeader header2 = std::move(header1);
             REQUIRE(header2.current() == lh);
             REQUIRE_THROWS_AS(ls.loadHeader(), std::runtime_error);
         }

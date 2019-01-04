@@ -6,8 +6,8 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -34,14 +34,14 @@ generateRandomAccount(uint32_t ledgerSeq)
 }
 
 bool
-store(Application& app, UpdateList const& apply, AbstractLedgerState* lsPtr,
+store(Application& app, UpdateList const& apply, AbstractLedgerTxn* lsPtr,
       OperationResult const* resPtr)
 {
     bool shouldCommit = !lsPtr;
-    std::unique_ptr<LedgerState> lsStore;
+    std::unique_ptr<LedgerTxn> lsStore;
     if (lsPtr == nullptr)
     {
-        lsStore = std::make_unique<LedgerState>(app.getLedgerStateRoot());
+        lsStore = std::make_unique<LedgerTxn>(app.getLedgerTxnRoot());
         lsPtr = lsStore.get();
     }
     for (auto const& toApply : apply)
@@ -49,7 +49,7 @@ store(Application& app, UpdateList const& apply, AbstractLedgerState* lsPtr,
         auto& current = std::get<0>(toApply);
         auto& previous = std::get<1>(toApply);
 
-        LedgerStateEntry entry;
+        LedgerTxnEntry entry;
         if (previous)
         {
             entry = lsPtr->load(LedgerEntryKey(*previous));

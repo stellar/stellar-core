@@ -6,8 +6,8 @@
 #include "transactions/PaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "util/Logging.h"
@@ -26,7 +26,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines

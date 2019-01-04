@@ -11,9 +11,9 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -336,7 +336,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     }
 
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
+        LedgerTxn ls(mApp.getLedgerTxnRoot());
         if (!tx->checkValid(mApp, ls, highSeq))
         {
             return TX_STATUS_ERROR;

@@ -5,9 +5,9 @@
 #include "OfferExchange.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
 #include "transactions/TransactionUtils.h"
@@ -18,7 +18,7 @@ namespace stellar
 // returns the amount of wheat that would be traded
 // while buying as much sheep as possible
 int64_t
-canSellAtMostBasedOnSheep(LedgerStateHeader const& header, Asset const& sheep,
+canSellAtMostBasedOnSheep(LedgerTxnHeader const& header, Asset const& sheep,
                           ConstTrustLineWrapper const& sheepLine,
                           Price const& wheatPrice)
 {
@@ -41,7 +41,7 @@ canSellAtMostBasedOnSheep(LedgerStateHeader const& header, Asset const& sheep,
 }
 
 int64_t
-canSellAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
+canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
               Asset const& asset, TrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -59,8 +59,8 @@ canSellAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
 }
 
 int64_t
-canSellAtMost(LedgerStateHeader const& header,
-              ConstLedgerStateEntry const& account, Asset const& asset,
+canSellAtMost(LedgerTxnHeader const& header,
+              ConstLedgerTxnEntry const& account, Asset const& asset,
               ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -78,7 +78,7 @@ canSellAtMost(LedgerStateHeader const& header,
 }
 
 int64_t
-canBuyAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
+canBuyAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
              Asset const& asset, TrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -94,8 +94,8 @@ canBuyAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
 }
 
 int64_t
-canBuyAtMost(LedgerStateHeader const& header,
-             ConstLedgerStateEntry const& account, Asset const& asset,
+canBuyAtMost(LedgerTxnHeader const& header,
+             ConstLedgerTxnEntry const& account, Asset const& asset,
              ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -601,8 +601,8 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
 }
 
 void
-adjustOffer(LedgerStateHeader const& header, LedgerStateEntry& offer,
-            LedgerStateEntry const& account, Asset const& wheat,
+adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
+            LedgerTxnEntry const& account, Asset const& wheat,
             TrustLineWrapper const& wheatLine, Asset const& sheep,
             TrustLineWrapper const& sheepLine)
 {
@@ -747,9 +747,9 @@ adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive)
 }
 
 static ExchangeResultType
-performExchange(LedgerStateHeader const& header,
-                LedgerStateEntry const& sellingWheatOffer,
-                ConstLedgerStateEntry const& accountB,
+performExchange(LedgerTxnHeader const& header,
+                LedgerTxnEntry const& sellingWheatOffer,
+                ConstLedgerTxnEntry const& accountB,
                 ConstTrustLineWrapper const& wheatLineAccountB,
                 ConstTrustLineWrapper const& sheepLineAccountB,
                 int64_t maxWheatReceived, int64_t& numWheatReceived,
@@ -797,7 +797,7 @@ performExchange(LedgerStateHeader const& header,
 }
 
 static CrossOfferResult
-crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
+crossOffer(AbstractLedgerTxn& ls, LedgerTxnEntry& sellingWheatOffer,
            int64_t maxWheatReceived, int64_t& numWheatReceived,
            int64_t maxSheepSend, int64_t& numSheepSend,
            std::vector<ClaimOfferAtom>& offerTrail)
@@ -852,11 +852,11 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     // Adjust balances
     if (numSheepSend != 0)
     {
-        // This LedgerState makes it so that we don't record that we loaded
+        // This LedgerTxn makes it so that we don't record that we loaded
         // accountB or sheepLineAccountB if we return eOfferCantConvert. We need
-        // a LedgerState here since it is possible that changes were already
+        // a LedgerTxn here since it is possible that changes were already
         // stored.
-        LedgerState lsInner(ls);
+        LedgerTxn lsInner(ls);
         auto header = lsInner.loadHeader();
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
@@ -880,11 +880,11 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
     if (numWheatReceived != 0)
     {
-        // This LedgerState makes it so that we don't record that we loaded
+        // This LedgerTxn makes it so that we don't record that we loaded
         // accountB or wheatLineAccountB if we return eOfferCantConvert. We need
-        // a LedgerState here since it is possible that changes were already
+        // a LedgerTxn here since it is possible that changes were already
         // stored.
-        LedgerState lsInner(ls);
+        LedgerTxn lsInner(ls);
         auto header = lsInner.loadHeader();
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
@@ -913,7 +913,7 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 }
 
 static CrossOfferResult
-crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
+crossOfferV10(AbstractLedgerTxn& ls, LedgerTxnEntry& sellingWheatOffer,
               int64_t maxWheatReceived, int64_t& numWheatReceived,
               int64_t maxSheepSend, int64_t& numSheepSend, bool& wheatStays,
               bool isPathPayment, std::vector<ClaimOfferAtom>& offerTrail)
@@ -939,7 +939,7 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
     // Load necessary accounts and trustlines. Note that any LedgerEntry loaded
     // here was also loaded during releaseLiabilities.
-    LedgerStateEntry accountB;
+    LedgerTxnEntry accountB;
     if (wheat.type() == ASSET_TYPE_NATIVE || sheep.type() == ASSET_TYPE_NATIVE)
     {
         accountB = stellar::loadAccount(ls, accountBID);
@@ -1016,7 +1016,7 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     auto res = (offer.amount == 0) ? CrossOfferResult::eOfferTaken
                                    : CrossOfferResult::eOfferPartial;
     {
-        LedgerState lsInner(ls);
+        LedgerTxn lsInner(ls);
         header = lsInner.loadHeader();
         sellingWheatOffer = loadOffer(lsInner, accountBID, offerID);
         if (res == CrossOfferResult::eOfferTaken)
@@ -1032,7 +1032,7 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         lsInner.commit();
     }
 
-    // Note: The previous block creates a nested LedgerState so all entries are
+    // Note: The previous block creates a nested LedgerTxn so all entries are
     // deactivated at this point. Specifically, you cannot use sellingWheatOffer
     // or offer (which is a reference) since it is not active (and may have been
     // erased) at this point.
@@ -1043,10 +1043,10 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
 ConvertResult
 convertWithOffers(
-    AbstractLedgerState& lsOuter, Asset const& sheep, int64_t maxSheepSend,
+    AbstractLedgerTxn& lsOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, bool isPathPayment,
-    std::function<OfferFilterResult(LedgerStateEntry const&)> filter,
+    std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
     std::vector<ClaimOfferAtom>& offerTrail)
 {
     sheepSend = 0;
@@ -1055,7 +1055,7 @@ convertWithOffers(
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
     while (needMore)
     {
-        LedgerState ls(lsOuter);
+        LedgerTxn ls(lsOuter);
         auto wheatOffer = ls.loadBestOffer(sheep, wheat);
         if (!wheatOffer)
         {

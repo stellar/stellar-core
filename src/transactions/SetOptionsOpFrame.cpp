@@ -5,9 +5,9 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
@@ -41,7 +41,7 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     auto header = ls.loadHeader();
     auto sourceAccount = loadSourceAccount(ls, header);

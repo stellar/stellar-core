@@ -7,9 +7,9 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
@@ -120,7 +120,7 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
 bool
 applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 {
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
     // Increment ledgerSeq to simulate the behavior of closeLedger, which begins
     // by advancing the ledgerSeq.
     ++ls.loadHeader().current().ledgerSeq;
@@ -130,7 +130,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     TransactionResultCode code;
     AccountEntry srcAccountBefore;
     {
-        LedgerState lsFeeProc(ls);
+        LedgerTxn lsFeeProc(ls);
         check = tx->checkValid(app, lsFeeProc, 0);
         checkResult = tx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
@@ -180,7 +180,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 
     bool res = false;
     {
-        LedgerState lsTx(ls);
+        LedgerTxn lsTx(ls);
         try
         {
             res = tx->apply(app, lsTx);
@@ -293,7 +293,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 {
     auto shouldValidateOk = validationResult.code == txSUCCESS;
     {
-        LedgerState ls(app.getLedgerStateRoot());
+        LedgerTxn ls(app.getLedgerTxnRoot());
         REQUIRE(tx->checkValid(app, ls, 0) == shouldValidateOk);
     }
     REQUIRE(tx->getResult().result.code() == validationResult.code);
@@ -381,8 +381,8 @@ makeSigner(SecretKey key, int weight)
     return Signer{KeyUtils::convertKey<SignerKey>(key.getPublicKey()), weight};
 }
 
-ConstLedgerStateEntry
-loadAccount(AbstractLedgerState& ls, PublicKey const& k, bool mustExist)
+ConstLedgerTxnEntry
+loadAccount(AbstractLedgerTxn& ls, PublicKey const& k, bool mustExist)
 {
     auto res = stellar::loadAccountWithoutRecord(ls, k);
     if (mustExist)
@@ -395,14 +395,14 @@ loadAccount(AbstractLedgerState& ls, PublicKey const& k, bool mustExist)
 bool
 doesAccountExist(Application& app, PublicKey const& k)
 {
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
     return (bool)stellar::loadAccountWithoutRecord(ls, k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
     auto account = stellar::loadAccount(ls, k);
     return account.current().data.account().signers;
 }
@@ -578,7 +578,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
                        SequenceNumber seq)
 {
     auto getIdPool = [&]() {
-        LedgerState ls(app.getLedgerStateRoot());
+        LedgerTxn ls(app.getLedgerTxnRoot());
         return ls.loadHeader().current().idPool;
     };
     auto lastGeneratedID = getIdPool();
@@ -614,7 +614,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     case MANAGE_OFFER_CREATED:
     case MANAGE_OFFER_UPDATED:
     {
-        LedgerState ls(app.getLedgerStateRoot());
+        LedgerTxn ls(app.getLedgerTxnRoot());
         auto offer =
             stellar::loadOffer(ls, source.getPublicKey(), expectedOfferID);
         REQUIRE(offer);
@@ -627,7 +627,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     break;
     case MANAGE_OFFER_DELETED:
     {
-        LedgerState ls(app.getLedgerStateRoot());
+        LedgerTxn ls(app.getLedgerTxnRoot());
         REQUIRE(
             !stellar::loadOffer(ls, source.getPublicKey(), expectedOfferID));
     }
@@ -661,7 +661,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         ManageOfferEffect expectedEffect)
 {
     auto getIdPool = [&]() {
-        LedgerState ls(app.getLedgerStateRoot());
+        LedgerTxn ls(app.getLedgerTxnRoot());
         return ls.loadHeader().current().idPool;
     };
     auto lastGeneratedID = getIdPool();
@@ -695,7 +695,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            LedgerState ls(app.getLedgerStateRoot());
+            LedgerTxn ls(app.getLedgerTxnRoot());
             auto offer =
                 stellar::loadOffer(ls, source.getPublicKey(), expectedOfferID);
             REQUIRE(offer);
@@ -709,7 +709,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         break;
         case MANAGE_OFFER_DELETED:
         {
-            LedgerState ls(app.getLedgerStateRoot());
+            LedgerTxn ls(app.getLedgerTxnRoot());
             REQUIRE(!stellar::loadOffer(ls, source.getPublicKey(),
                                         expectedOfferID));
         }

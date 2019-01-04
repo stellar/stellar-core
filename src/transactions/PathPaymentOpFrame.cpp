@@ -6,9 +6,9 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -31,7 +31,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     innerResult().code(PATH_PAYMENT_SUCCESS);
 
@@ -148,7 +148,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         ConvertResult r = convertWithOffers(
             ls, curA, INT64_MAX, curASent, curB, curBReceived,
             actualCurBReceived, true,
-            [this](LedgerStateEntry const& o) {
+            [this](LedgerTxnEntry const& o) {
                 auto const& offer = o.current().data.offer();
                 if (offer.sellerID == getSourceID())
                 {
@@ -198,7 +198,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
         auto header = ls.loadHeader();
-        LedgerStateEntry sourceAccount;
+        LedgerTxnEntry sourceAccount;
         if (header.current().ledgerVersion > 7)
         {
             sourceAccount = stellar::loadAccount(ls, getSourceID());

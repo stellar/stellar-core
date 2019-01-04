@@ -13,7 +13,7 @@
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/format.h"
 #include <medida/meter.h>
@@ -111,7 +111,7 @@ ApplyBucketsWork::onStart()
                                           mApplyState.currentLedger, mLevel)
                                     : BucketList::oldestLedgerInCurr(
                                           mApplyState.currentLedger, mLevel);
-        auto& lsRoot = mApp.getLedgerStateRoot();
+        auto& lsRoot = mApp.getLedgerTxnRoot();
         lsRoot.deleteObjectsModifiedOnOrAfterLedger(oldestLedger);
     }
 

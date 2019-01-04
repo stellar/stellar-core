@@ -8,9 +8,9 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionUtils.h"
@@ -159,7 +159,7 @@ struct SurgeSorter
 void
 TxSetFrame::surgePricingFilter(Application& app)
 {
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
     auto header = ls.loadHeader();
     size_t max = header.current().maxTxSetSize;
     if (mTransactions.size() > max)
@@ -202,7 +202,7 @@ TxSetFrame::checkOrTrim(
     std::function<bool(std::vector<TransactionFramePtr> const&)>
         processInsufficientBalance)
 {
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
 
     map<AccountID, vector<TransactionFramePtr>> accountTxMap;
 

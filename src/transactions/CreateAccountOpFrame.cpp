@@ -6,9 +6,9 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -30,7 +30,7 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     if (!stellar::loadAccount(ls, mCreateAccount.destination))
     {

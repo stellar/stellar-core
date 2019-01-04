@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 #include <ledger/LedgerHashUtils.h>
@@ -18,46 +18,46 @@
 //  Overview
 /////////////////////////////////////////////////////////////////////////////
 //
-// The LedgerState subsystem consists of a number of classes (made a bit
+// The LedgerTxn subsystem consists of a number of classes (made a bit
 // more numerous through the use of inner ::Impl "compiler firewall"
 // classes and abstract base classes), of which the essential members and
 // relationships are diagrammed here.
 //
 //
 //  +-----------------------------------+
-//  |LedgerStateRoot                    |
+//  |LedgerTxnRoot                      |
 //  |(will commit child entries to DB)  |
 //  |                                   |
 //  |Database &mDatabase                |
-//  |AbstractLedgerState *mChild -----------+
+//  |AbstractLedgerTxn *mChild -------------+
 //  +-----------------------------------+   |
 //      ^                                   v
 //      |   +-----------------------------------+
-//      |   |LedgerState                        |
+//      |   |LedgerTxn                          |
 //      |   |(will commit child entries to self)|
 //      |   |                                   |
-//      +----AbstractLedgerStateParent &mParent |
-//          |AbstracLedgerState *mChild ----------+
+//      +----AbstractLedgerTxnParent &mParent   |
+//          |AbstracLedgerTxn *mChild ------------+
 //          +-----------------------------------+ |
 //                ^                               v
 //                |    +-----------------------------------------------------+
-//                |    |LedgerState : AbstractLedgerState                    |
+//                |    |LedgerTxn : AbstractLedgerTxn                        |
 //                |    |(an in-memory transaction-in-progress)               |
 //                |    |                                                     |
 //                |    |            void commit()                            |
 //                |    |            void rollback()                          |
-//                |    |LedgerStateEntry create(LedgerEntry)                 |
-//                |    |LedgerStateEntry load(LedgerKey)                     |
+//                |    |LedgerTxnEntry create(LedgerEntry)                   |
+//                |    |LedgerTxnEntry load(LedgerKey)                       |
 //                |    |            void erase(LedgerKey)                    |
 //                |    |                                                     |
 //                |    |+---------------------------------------------------+|
-//                |    ||LedgerState::Impl                                  ||
+//                |    ||LedgerTxn::Impl                                    ||
 //                |    ||                                                   ||
-//                +------AbstractLedgerStateParent &mParent                 ||
-//                     ||AbstractLedgerState *mChild = nullptr              ||
+//                +------AbstractLedgerTxnParent &mParent                   ||
+//                     ||AbstractLedgerTxn *mChild = nullptr                ||
 //                     ||                                                   ||
 //  +----------------+ ||+------------------------------+ +----------------+||
-//  |LedgerStateEntry| |||mActive                       | |mEntry          |||
+//  |LedgerTxnEntry  | |||mActive                       | |mEntry          |||
 //  |(for client use)| |||                              | |                |||
 //  |                | |||map<LedgerKey,                | |map<LedgerKey,  |||
 //  |weak_ptr<Impl>  | |||    shared_ptr<EntryImplBase>>| |    LedgerEntry>|||
@@ -68,26 +68,26 @@
 //                       +-------------------------+    |  +-------------+
 //           |           |+-------------------------+   |  |+-------------+
 //                       ||+-------------------------+  |  ||+-------------+
-//           |           |||LedgerStateEntry::Impl   |  |  +||LedgerEntry  |
+//           |           |||LedgerTxnEntry::Impl     |  |  +||LedgerEntry  |
 //         weak - - - - >|||(indicates "entry is     |  |   +|(XDR object) |
 //                       |||active in this state")   |  |    +-------------+
 //                       |||                         |  |           ^
-//                       +||AbstractLedgerState &  -----+           |
-//                        +|LedgerEntry &          -----------------+
+//                       +||AbstractLedgerTxn &  -------+           |
+//                        +|LedgerEntry &        -------------------+
 //                         +-------------------------+
 //
 //
 // The following notes may help with orientation and understanding:
 //
-//  - A LedgerState is an in-memory transaction-in-progress against the
+//  - A LedgerTxn is an in-memory transaction-in-progress against the
 //    ledger in the database. Its ultimate purpose is to model a collection
 //    of LedgerEntry (XDR) objects to commit to the database.
 //
-//  - At any given time, a LedgerState may have zero-or-one active
-//    _sub_-LedgerStates (sub-transactions), arranged in a parent/child
-//    relationship. The terms "parent" and "child" refer exclusively to
-//    this nesting-relationship of transactions. The presence of an active
-//    sub-LedgerState is indicated by a non-null mChild pointer.
+//  - At any given time, a LedgerTxn may have zero-or-one active
+//    sub-transactions, arranged in a parent/child relationship. The terms
+//    "parent" and "child" refer exclusively to this nesting-relationship
+//    of transactions. The presence of an active sub-LedgerTxn is indicated
+//    by a non-null mChild pointer.
 //
 //  - Once a child is closed and the mChild pointer is reset to null,
 //    a new child may be opened. Attempting to open two children at once
@@ -96,58 +96,57 @@
 //  - The entries to be committed in each transaction are stored in the
 //    mEntry map, keyed by LedgerKey. This much is straightforward!
 //
-//  - Committing any LedgerState merges its entries into its parent. In the
-//    case where the parent is simply another in-memory LedgerState, this
+//  - Committing any LedgerTxn merges its entries into its parent. In the
+//    case where the parent is simply another in-memory LedgerTxn, this
 //    means writing the entries into the parent's mEntries map. In the case
-//    where the parent is the LedgerStateRoot, this means opening a Real SQL
+//    where the parent is the LedgerTxnRoot, this means opening a Real SQL
 //    Transaction against the database and writing the entries to it.
 //
-//  - Each entry may also be designated as _active_ in a given LedgerState;
+//  - Each entry may also be designated as _active_ in a given LedgerTxn;
 //    tracking active-ness is the purpose of the other (mActive) map in
 //    the diagram above. Active-ness is a logical state that simply means
 //    "it is ok, from a concurrency-control perspective, for a client to
-//    access this entry in this LedgerState." See below for the
+//    access this entry in this LedgerTxn." See below for the
 //    concurrency-control issues this is designed to trap.
 //
 //  - Entries are made-active by calling load() or create(), each of which
-//    returns a LedgerStateEntry which is a handle that can be used to get
-//    at the underlying LedgerEntry. References to the underlying
+//    returns a LedgerTxnEntry which is a handle that can be used to get at
+//    the underlying LedgerEntry. References to the underlying
 //    LedgerEntries should generally not be retained anywhere, because the
-//    LedgerStateEntry handles may be "deactivated", and access to a
+//    LedgerTxnEntry handles may be "deactivated", and access to a
 //    deactivated entry is a _logic error_ in the client that this
 //    machinery is set up to try to trap. If you hold a reference to the
 //    underlying entry, you're bypassing the checking machinery that is
 //    here to catch such errors. Don't do it.
 //
-//  - load()ing an entry will either check the current LedgerState for an
+//  - load()ing an entry will either check the current LedgerTxn for an
 //    entry, or if none is found it will ask its parent. This process
 //    recurses until it hits an entry or terminates at the root, where an
 //    LRU cache is consulted and then (finally!) the database itself.
 //
-//  - The LedgerStateEntry handles that clients should use are
+//  - The LedgerTxnEntry handles that clients should use are
 //    double-indirect references.
 //
-//      - The first level of indirection is a LedgerStateEntry::Impl, which
+//      - The first level of indirection is a LedgerTxnEntry::Impl, which
 //        is an internal 2-word binding stored in the mActive map that
 //        serves simply track the fact that an entry _is_ active, and to
 //        facilitate deactivating the entry.
 //
 //      - The second level of indirection is the client-facing type
-//        LedgerStateEntry, which is _weakly_ linked to its ::Impl type
-//        (via std::weak_ptr). This weak linkage enables the LedgerState to
+//        LedgerTxnEntry, which is _weakly_ linked to its ::Impl type (via
+//        std::weak_ptr). This weak linkage enables the LedgerTxn to
 //        deactivate entries without worrying that some handle might remain
 //        able to access them (assuming they did not hold references to the
 //        inner LedgerEntries).
 //
 //  - The purpose of the double-indirection is to maintain one critical
 //    invariant in the system: clients can _only access_ the entries in the
-//    innermost (child-most) LedgerState / transaction open at any given
-//    time. This is enforced by deactivating all the entries in a parent
-//    LedgerState when a child is opened. The entries in the parent still
-//    exist in the mEntry map (and will be committed to the parent's parent
-//    when the parent commits); but they are not _active_, meaning that
-//    attempts to access them through any LedgerStateEntry handles will
-//    throw an exception.
+//    innermost (child-most) LedgerTxn open at any given time. This is
+//    enforced by deactivating all the entries in a parent LedgerTxn when a
+//    child is opened. The entries in the parent still exist in its mEntry
+//    map (and will be committed to the parent's parent when the parent
+//    commits); but they are not _active_, meaning that attempts to access
+//    them through any LedgerTxnEntry handles will throw an exception.
 //
 //  - The _reason_ for this invariant is to prevent concurrency anomalies:
 //
@@ -175,7 +174,7 @@ class LedgerRange;
 
 bool isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry);
 
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 
 struct InflationWinner
 {
@@ -183,9 +182,9 @@ struct InflationWinner
     int64_t votes;
 };
 
-// LedgerStateDelta represents the difference between a LedgerState and its
+// LedgerTxnDelta represents the difference between a LedgerTxn and its
 // parent. Used in the Invariants subsystem.
-struct LedgerStateDelta
+struct LedgerTxnDelta
 {
     struct EntryDelta
     {
@@ -204,8 +203,8 @@ struct LedgerStateDelta
 };
 
 // An abstraction for an object that is iterator-like and permits enumerating
-// the LedgerStateEntry objects managed by an AbstractLedgerState. This enables
-// an AbstractLedgerStateParent to iterate over the entries managed by its child
+// the LedgerTxnEntry objects managed by an AbstractLedgerTxn. This enables
+// an AbstractLedgerTxnParent to iterate over the entries managed by its child
 // without any knowledge of the implementation of the child.
 class EntryIterator
 {
@@ -233,26 +232,26 @@ class EntryIterator
     LedgerKey const& key() const;
 };
 
-// An abstraction for an object that can be the parent of an AbstractLedgerState
+// An abstraction for an object that can be the parent of an AbstractLedgerTxn
 // (discussed below). Allows children to commit atomically to the parent. Has no
-// notion of a LedgerStateEntry or LedgerStateHeader (discussed respectively in
-// LedgerStateEntry.h and LedgerStateHeader.h) but allows access to XDR objects
+// notion of a LedgerTxnEntry or LedgerTxnHeader (discussed respectively in
+// LedgerTxnEntry.h and LedgerTxnHeader.h) but allows access to XDR objects
 // such as LedgerEntry and LedgerHeader. This interface is designed such that
-// concrete implementations can be databases or AbstractLedgerState objects. In
+// concrete implementations can be databases or AbstractLedgerTxn objects. In
 // general, this interface was not designed to be used directly by end users.
-// Rather, end users should interact with AbstractLedgerStateParent through the
-// AbstractLedgerState interface.
-class AbstractLedgerStateParent
+// Rather, end users should interact with AbstractLedgerTxnParent through the
+// AbstractLedgerTxn interface.
+class AbstractLedgerTxnParent
 {
   public:
-    virtual ~AbstractLedgerStateParent();
+    virtual ~AbstractLedgerTxnParent();
 
-    // addChild is called by a newly constructed AbstractLedgerState to become a
-    // child of AbstractLedgerStateParent. Throws if AbstractLedgerStateParent
+    // addChild is called by a newly constructed AbstractLedgerTxn to become a
+    // child of AbstractLedgerTxnParent. Throws if AbstractLedgerTxnParent
     // is in the sealed state or already has a child.
-    virtual void addChild(AbstractLedgerState& child) = 0;
+    virtual void addChild(AbstractLedgerTxn& child) = 0;
 
-    // commitChild and rollbackChild are called by a child AbstractLedgerState
+    // commitChild and rollbackChild are called by a child AbstractLedgerTxn
     // to trigger an atomic commit or an atomic rollback of the data stored in
     // the child.
     virtual void commitChild(EntryIterator iter) = 0;
@@ -275,7 +274,7 @@ class AbstractLedgerStateParent
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
 
-    // getHeader returns the LedgerHeader stored by AbstractLedgerStateParent.
+    // getHeader returns the LedgerHeader stored by AbstractLedgerTxnParent.
     // Used to allow the LedgerHeader to propagate to a child.
     virtual LedgerHeader const& getHeader() const = 0;
 
@@ -287,84 +286,84 @@ class AbstractLedgerStateParent
 
     // getNewestVersion finds the newest version of the LedgerEntry associated
     // with the LedgerKey key by checking if there is a version stored in this
-    // AbstractLedgerStateParent, and if not recursively invoking
+    // AbstractLedgerTxnParent, and if not recursively invoking
     // getNewestVersion on its parent. Returns nullptr if the key does not exist
     // or if the corresponding LedgerEntry has been erased.
     virtual std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const = 0;
 };
 
-// An abstraction for an object that is an AbstractLedgerStateParent and has
-// transaction semantics. AbstractLedgerStates manage LedgerStateEntry and
-// LedgerStateHeader objects to allow data to be created, modified, and erased.
-class AbstractLedgerState : public AbstractLedgerStateParent
+// An abstraction for an object that is an AbstractLedgerTxnParent and has
+// transaction semantics. AbstractLedgerTxns manage LedgerTxnEntry and
+// LedgerTxnHeader objects to allow data to be created, modified, and erased.
+class AbstractLedgerTxn : public AbstractLedgerTxnParent
 {
-    // deactivate is used to deactivate the LedgerStateEntry associated with the
+    // deactivate is used to deactivate the LedgerTxnEntry associated with the
     // given key.
-    friend class LedgerStateEntry::Impl;
-    friend class ConstLedgerStateEntry::Impl;
+    friend class LedgerTxnEntry::Impl;
+    friend class ConstLedgerTxnEntry::Impl;
     virtual void deactivate(LedgerKey const& key) = 0;
 
-    // deactivateHeader is used to deactivate the LedgerStateHeader.
-    friend class LedgerStateHeader::Impl;
+    // deactivateHeader is used to deactivate the LedgerTxnHeader.
+    friend class LedgerTxnHeader::Impl;
     virtual void deactivateHeader() = 0;
 
   public:
-    // Automatically rollback the data stored in the AbstractLedgerState if it
+    // Automatically rollback the data stored in the AbstractLedgerTxn if it
     // has not already been committed or rolled back.
-    virtual ~AbstractLedgerState();
+    virtual ~AbstractLedgerTxn();
 
     // commit and rollback trigger an atomic commit into the parent or an atomic
-    // rollback of the data stored in the AbstractLedgerState.
+    // rollback of the data stored in the AbstractLedgerTxn.
     virtual void commit() = 0;
     virtual void rollback() = 0;
 
     // loadHeader, create, erase, load, and loadWithoutRecord provide the main
-    // interface to interact with data stored in the AbstractLedgerState. These
+    // interface to interact with data stored in the AbstractLedgerTxn. These
     // functions only allow one instance of a particular data to be active at a
     // time.
     // - loadHeader
     //     Loads the current LedgerHeader. Throws if there is already an active
-    //     LedgerStateHeader.
+    //     LedgerTxnHeader.
     // - create
-    //     Creates a new LedgerStateEntry from entry. Throws if the key
+    //     Creates a new LedgerTxnEntry from entry. Throws if the key
     //     associated with this entry is already associated with an entry in
-    //     this AbstractLedgerState or any parent.
+    //     this AbstractLedgerTxn or any parent.
     // - erase
     //     Erases the existing LedgerEntry associated with key. Throws if the
     //     key is not already associated with an entry in this
-    //     AbstractLedgerState or any parent. Throws if there is an active
-    //     LedgerStateEntry associated with this key.
+    //     AbstractLedgerTxn or any parent. Throws if there is an active
+    //     LedgerTxnEntry associated with this key.
     // - load:
     //     Loads a LedgerEntry by key. Returns nullptr if the key is not
-    //     associated with an entry in this AbstractLedgerState or in any
-    //     parent. Throws if there is an active LedgerStateEntry associated with
+    //     associated with an entry in this AbstractLedgerTxn or in any
+    //     parent. Throws if there is an active LedgerTxnEntry associated with
     //     this key.
     // - loadWithoutRecord:
     //     Similar to load, but the load is not recorded (meaning that it does
     //     not lead to a LIVE entry in the bucket list) and the loaded data is
     //     const as a consequence. Note that if the key was already recorded
     //     then it will still be recorded after calling loadWithoutRecord.
-    //     Throws if there is an active LedgerStateEntry associated with this
+    //     Throws if there is an active LedgerTxnEntry associated with this
     //     key.
-    // All of these functions throw if the AbstractLedgerState is sealed or if
-    // the AbstractLedgerState has a child.
-    virtual LedgerStateHeader loadHeader() = 0;
-    virtual LedgerStateEntry create(LedgerEntry const& entry) = 0;
+    // All of these functions throw if the AbstractLedgerTxn is sealed or if
+    // the AbstractLedgerTxn has a child.
+    virtual LedgerTxnHeader loadHeader() = 0;
+    virtual LedgerTxnEntry create(LedgerEntry const& entry) = 0;
     virtual void erase(LedgerKey const& key) = 0;
-    virtual LedgerStateEntry load(LedgerKey const& key) = 0;
-    virtual ConstLedgerStateEntry loadWithoutRecord(LedgerKey const& key) = 0;
+    virtual LedgerTxnEntry load(LedgerKey const& key) = 0;
+    virtual ConstLedgerTxnEntry loadWithoutRecord(LedgerKey const& key) = 0;
 
     // getChanges, getDelta, getDeadEntries, and getLiveEntries are used to
-    // extract information about changes contained in the AbstractLedgerState
-    // in different formats. These functions also cause the AbstractLedgerState
+    // extract information about changes contained in the AbstractLedgerTxn
+    // in different formats. These functions also cause the AbstractLedgerTxn
     // to enter the sealed state, simultaneously updating last modified if
     // necessary.
     // - getChanges
-    //     Extract all changes from this AbstractLedgerState in XDR format. To
+    //     Extract all changes from this AbstractLedgerTxn in XDR format. To
     //     be stored as meta.
     // - getDelta
-    //     Extract all changes from this AbstractLedgerState (including changes
+    //     Extract all changes from this AbstractLedgerTxn (including changes
     //     to the LedgerHeader) in a format convenient for answering queries
     //     about how specific entries and the header have changed. To be used
     //     for invariants.
@@ -372,9 +371,9 @@ class AbstractLedgerState : public AbstractLedgerStateParent
     //     getDeadEntries extracts a list of keys that are now dead, whereas
     //     getLiveEntries extracts a list of entries that were recorded and
     //     are still alive. To be inserted into the BucketList.
-    // All of these functions throw if the AbstractLedgerState has a child.
+    // All of these functions throw if the AbstractLedgerTxn has a child.
     virtual LedgerEntryChanges getChanges() = 0;
-    virtual LedgerStateDelta getDelta() = 0;
+    virtual LedgerTxnDelta getDelta() = 0;
     virtual std::vector<LedgerKey> getDeadEntries() = 0;
     virtual std::vector<LedgerEntry> getLiveEntries() = 0;
 
@@ -388,31 +387,31 @@ class AbstractLedgerState : public AbstractLedgerStateParent
     // - loadOffersByAccountAndAsset
     //     Load every offer owned by the specified account that is either buying
     //     or selling the specified asset.
-    // All of these functions throw if the AbstractLedgerState is sealed or if
-    // the AbstractLedgerState has a child. These functions also throw if any
+    // All of these functions throw if the AbstractLedgerTxn is sealed or if
+    // the AbstractLedgerTxn has a child. These functions also throw if any
     // LedgerKey they try to load is already active.
-    virtual std::map<AccountID, std::vector<LedgerStateEntry>>
+    virtual std::map<AccountID, std::vector<LedgerTxnEntry>>
     loadAllOffers() = 0;
-    virtual LedgerStateEntry loadBestOffer(Asset const& buying,
+    virtual LedgerTxnEntry loadBestOffer(Asset const& buying,
                                            Asset const& selling) = 0;
-    virtual std::vector<LedgerStateEntry>
+    virtual std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) = 0;
 
     // queryInflationWinners is a wrapper around getInflationWinners that throws
-    // if the AbstractLedgerState is sealed or if the AbstractLedgerState has a
+    // if the AbstractLedgerTxn is sealed or if the AbstractLedgerTxn has a
     // child.
     virtual std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) = 0;
 
-    // unsealHeader is used to modify the LedgerHeader after AbstractLedgerState
+    // unsealHeader is used to modify the LedgerHeader after AbstractLedgerTxn
     // has entered the sealed state. This is required to update bucketListHash,
     // which can only be done after getDeadEntries and getLiveEntries have been
     // called.
     virtual void unsealHeader(std::function<void(LedgerHeader&)> f) = 0;
 };
 
-class LedgerState final : public AbstractLedgerState
+class LedgerTxn final : public AbstractLedgerTxn
 {
     class Impl;
     std::unique_ptr<Impl> mImpl;
@@ -424,20 +423,20 @@ class LedgerState final : public AbstractLedgerState
     std::unique_ptr<Impl> const& getImpl() const;
 
   public:
-    explicit LedgerState(AbstractLedgerStateParent& parent,
+    explicit LedgerTxn(AbstractLedgerTxnParent& parent,
                          bool shouldUpdateLastModified = true);
-    explicit LedgerState(LedgerState& parent,
+    explicit LedgerTxn(LedgerTxn& parent,
                          bool shouldUpdateLastModified = true);
 
-    virtual ~LedgerState();
+    virtual ~LedgerTxn();
 
-    void addChild(AbstractLedgerState& child) override;
+    void addChild(AbstractLedgerTxn& child) override;
 
     void commit() override;
 
     void commitChild(EntryIterator iter) override;
 
-    LedgerStateEntry create(LedgerEntry const& entry) override;
+    LedgerTxnEntry create(LedgerEntry const& entry) override;
 
     void erase(LedgerKey const& key) override;
 
@@ -451,7 +450,7 @@ class LedgerState final : public AbstractLedgerState
 
     std::vector<LedgerKey> getDeadEntries() override;
 
-    LedgerStateDelta getDelta() override;
+    LedgerTxnDelta getDelta() override;
 
     std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
@@ -470,20 +469,20 @@ class LedgerState final : public AbstractLedgerState
     std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const override;
 
-    LedgerStateEntry load(LedgerKey const& key) override;
+    LedgerTxnEntry load(LedgerKey const& key) override;
 
-    std::map<AccountID, std::vector<LedgerStateEntry>> loadAllOffers() override;
+    std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;
 
-    LedgerStateEntry loadBestOffer(Asset const& buying,
+    LedgerTxnEntry loadBestOffer(Asset const& buying,
                                    Asset const& selling) override;
 
-    LedgerStateHeader loadHeader() override;
+    LedgerTxnHeader loadHeader() override;
 
-    std::vector<LedgerStateEntry>
+    std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) override;
 
-    ConstLedgerStateEntry loadWithoutRecord(LedgerKey const& key) override;
+    ConstLedgerTxnEntry loadWithoutRecord(LedgerKey const& key) override;
 
     void rollback() override;
 
@@ -492,18 +491,18 @@ class LedgerState final : public AbstractLedgerState
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
 };
 
-class LedgerStateRoot : public AbstractLedgerStateParent
+class LedgerTxnRoot : public AbstractLedgerTxnParent
 {
     class Impl;
     std::unique_ptr<Impl> const mImpl;
 
   public:
-    explicit LedgerStateRoot(Database& db, size_t entryCacheSize = 4096,
+    explicit LedgerTxnRoot(Database& db, size_t entryCacheSize = 4096,
                              size_t bestOfferCacheSize = 64);
 
-    virtual ~LedgerStateRoot();
+    virtual ~LedgerTxnRoot();
 
-    void addChild(AbstractLedgerState& child) override;
+    void addChild(AbstractLedgerTxn& child) override;
 
     void commitChild(EntryIterator iter) override;
 

@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -42,7 +42,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             bool res =
@@ -74,7 +74,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 le.data.type(ACCOUNT);
                 le.data.account() = ae;
 
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 auto header = ls.loadHeader();
                 auto acc = ls.create(le);
                 bool res = stellar::addSellingLiabilities(header, acc,
@@ -236,7 +236,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             bool res =
@@ -269,7 +269,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             bool res =
@@ -455,7 +455,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             bool res =
@@ -490,7 +490,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 le.data.type(TRUSTLINE);
                 le.data.trustLine() = tl;
 
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ls(app->getLedgerTxnRoot());
                 auto header = ls.loadHeader();
                 auto trust = ls.create(le);
                 bool res = stellar::addSellingLiabilities(header, trust,
@@ -597,7 +597,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             bool res =
@@ -631,7 +631,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             bool res =
@@ -741,7 +741,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             bool res = stellar::addBalance(header, acc, deltaBalance);
@@ -847,7 +847,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             bool res = stellar::addNumEntries(header, acc, deltaNumSubEntries);
@@ -934,7 +934,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             bool res = stellar::addBalance(header, trust, deltaBalance);
@@ -1014,7 +1014,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             auto availableBalance =
@@ -1065,7 +1065,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto acc = ls.create(le);
             auto availableLimit =
@@ -1137,7 +1137,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             auto availableBalance =
@@ -1182,7 +1182,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             auto availableLimit =
@@ -1230,7 +1230,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto trust = ls.create(le);
             trust.current().data.trustLine().limit =

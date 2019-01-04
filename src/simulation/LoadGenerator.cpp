@@ -5,8 +5,8 @@
 #include "simulation/LoadGenerator.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "test/TestAccount.h"
@@ -469,7 +469,7 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
 bool
 LoadGenerator::loadAccount(TestAccount& account, Application& app)
 {
-    LedgerState ls(app.getLedgerStateRoot());
+    LedgerTxn ls(app.getLedgerTxnRoot());
     auto entry = stellar::loadAccount(ls, account.getPublicKey());
     if (!entry)
     {

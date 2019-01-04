@@ -5,9 +5,9 @@
 #include "util/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
@@ -34,7 +34,7 @@ namespace stellar
 using namespace std;
 
 static int32_t
-getNeededThreshold(LedgerStateEntry const& account, ThresholdLevel const level)
+getNeededThreshold(LedgerTxnEntry const& account, ThresholdLevel const level)
 {
     auto const& acc = account.current().data.account();
     switch (level)
@@ -95,7 +95,7 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(SignatureChecker& signatureChecker, Application& app,
-                      AbstractLedgerState& ls)
+                      AbstractLedgerTxn& ls)
 {
     bool res;
     if (Logging::logTrace("Tx"))
@@ -129,7 +129,7 @@ bool OperationFrame::isVersionSupported(uint32_t) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               Application& app, AbstractLedgerState& ls,
+                               Application& app, AbstractLedgerTxn& ls,
                                bool forApply)
 {
     auto header = ls.loadHeader();
@@ -183,10 +183,10 @@ OperationFrame::getResultCode() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
-                           AbstractLedgerState& lsOuter, bool forApply)
+                           AbstractLedgerTxn& lsOuter, bool forApply)
 {
     // Note: ls is always rolled back so checkValid never modifies the ledger
-    LedgerState ls(lsOuter);
+    LedgerTxn ls(lsOuter);
     auto ledgerVersion = ls.loadHeader().current().ledgerVersion;
     if (!isVersionSupported(ledgerVersion))
     {
@@ -218,9 +218,9 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     return doCheckValid(app, ledgerVersion);
 }
 
-LedgerStateEntry
-OperationFrame::loadSourceAccount(AbstractLedgerState& ls,
-                                  LedgerStateHeader const& header)
+LedgerTxnEntry
+OperationFrame::loadSourceAccount(AbstractLedgerTxn& ls,
+                                  LedgerTxnHeader const& header)
 {
     return mParentTx.loadAccount(ls, header, getSourceID());
 }

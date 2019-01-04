@@ -4,7 +4,7 @@
 
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include <numeric>
@@ -45,7 +45,7 @@ ConservationOfLumens::getName() const
 std::string
 ConservationOfLumens::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& result,
-                                            LedgerStateDelta const& lsDelta)
+                                            LedgerTxnDelta const& lsDelta)
 {
     auto const& lhCurr = lsDelta.header.current;
     auto const& lhPrev = lsDelta.header.previous;

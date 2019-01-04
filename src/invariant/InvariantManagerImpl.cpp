@@ -9,7 +9,7 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -98,7 +98,7 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
 void
 InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& opres,
-                                            LedgerStateDelta const& lsDelta)
+                                            LedgerTxnDelta const& lsDelta)
 {
     if (lsDelta.header.current.ledgerVersion < 8)
     {

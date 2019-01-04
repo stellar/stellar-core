@@ -4,9 +4,9 @@
 
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "lib/util/uint128_t.h"
@@ -410,7 +410,7 @@ TEST_CASE("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 int64_t usdBuyingLiabilities = 0;
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
+                    LedgerTxn ls(app->getLedgerTxnRoot());
                     auto trustLine = stellar::loadTrustLine(ls, a1, usd);
                     usdBuyingLiabilities =
                         trustLine.getBuyingLiabilities(ls.loadHeader());
@@ -2233,7 +2233,7 @@ TEST_CASE("create offer", "[tx][offers]")
     SECTION("modify offer assets with liabilities")
     {
         auto getLiabilities = [&](TestAccount& acc) {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto account = stellar::loadAccount(ls, acc.getPublicKey());
             Liabilities res;
             if (account)
@@ -2244,7 +2244,7 @@ TEST_CASE("create offer", "[tx][offers]")
             return res;
         };
         auto getAssetLiabilities = [&](TestAccount& acc, Asset const& asset) {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto trust = stellar::loadTrustLine(ls, acc.getPublicKey(), asset);
             Liabilities res;
             if (trust)
@@ -2834,7 +2834,7 @@ TEST_CASE("liabilities match created offer", "[tx][offers]")
         Liabilities liabilities;
         int64_t offerAmount = 0;
         {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             auto header = ls.loadHeader();
             auto entry =
                 stellar::loadOffer(ls, a1.getPublicKey(), offer.key.offerID);
@@ -2908,7 +2908,7 @@ TEST_CASE("liabilities match created offer", "[tx][offers]")
         }
 
         {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ls(app->getLedgerTxnRoot());
             ++ls.loadHeader().current().ledgerSeq;
             ls.commit();
         }

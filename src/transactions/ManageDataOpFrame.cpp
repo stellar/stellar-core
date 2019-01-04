@@ -5,9 +5,9 @@
 #include "util/asio.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -27,7 +27,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     auto header = ls.loadHeader();
     if (header.current().ledgerVersion == 3)

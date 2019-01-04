@@ -4,9 +4,9 @@
 
 #include "transactions/MergeOpFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -35,7 +35,7 @@ MergeOpFrame::getThresholdLevel() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 {
     auto header = ls.loadHeader();
 

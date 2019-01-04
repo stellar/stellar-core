@@ -6,8 +6,8 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/LiabilitiesMatchOffers.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -187,7 +187,7 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
 
         int64_t minBalance = 0;
         {
-            LedgerState ls(app.getLedgerStateRoot());
+            LedgerTxn ls(app.getLedgerTxnRoot());
             minBalance = getMinBalance(ls.loadHeader(), account.numSubEntries) +
                          oe.amount;
         }

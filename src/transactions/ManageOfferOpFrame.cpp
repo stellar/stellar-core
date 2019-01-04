@@ -6,9 +6,9 @@
 #include "transactions/ManageOfferOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -36,9 +36,9 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 
 // make sure these issuers exist and you can hold the ask asset
 bool
-ManageOfferOpFrame::checkOfferValid(AbstractLedgerState& lsOuter)
+ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& lsOuter)
 {
-    LedgerState ls(lsOuter); // ls will always be rolled back
+    LedgerTxn ls(lsOuter); // ls will always be rolled back
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
 
@@ -101,11 +101,11 @@ ManageOfferOpFrame::checkOfferValid(AbstractLedgerState& lsOuter)
 
 bool
 ManageOfferOpFrame::computeOfferExchangeParameters(
-    Application& app, AbstractLedgerState& lsOuter,
+    Application& app, AbstractLedgerTxn& lsOuter,
     LedgerEntry const& offerEntry, bool creatingNewOffer, int64_t& maxSheepSend,
     int64_t& maxWheatReceive)
 {
-    LedgerState ls(lsOuter); // ls will always be rolled back
+    LedgerTxn ls(lsOuter); // ls will always be rolled back
 
     auto const& offer = offerEntry.data.offer();
     Asset const& sheep = offer.selling;
@@ -182,9 +182,9 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
+ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
 {
-    LedgerState ls(lsOuter);
+    LedgerTxn ls(lsOuter);
     if (!checkOfferValid(ls))
     {
         return false;
@@ -261,7 +261,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerState& lsOuter)
         ConvertResult r = convertWithOffers(
             ls, sheep, maxSheepSend, sheepSent, wheat, maxWheatReceive,
             wheatReceived, false,
-            [this, &newOffer, &maxWheatPrice](LedgerStateEntry const& entry) {
+            [this, &newOffer, &maxWheatPrice](LedgerTxnEntry const& entry) {
                 auto const& o = entry.current().data.offer();
                 assert(o.offerID != newOffer.data.offer().offerID);
                 if ((mPassive && (o.price >= maxWheatPrice)) ||

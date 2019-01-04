@@ -18,9 +18,9 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerHeaderUtils.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -198,7 +198,7 @@ LedgerManagerImpl::startNewLedger(LedgerHeader genesisLedger)
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
-    LedgerState ls(mApp.getLedgerStateRoot(), false);
+    LedgerTxn ls(mApp.getLedgerTxnRoot(), false);
     ls.loadHeader().current() = genesisLedger;
 
     LedgerEntry rootEntry;
@@ -259,7 +259,7 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
 
         {
-            LedgerState ls(mApp.getLedgerStateRoot());
+            LedgerTxn ls(mApp.getLedgerTxnRoot());
             ls.loadHeader().current() = *currentLedger;
             ls.commit();
         }
@@ -278,7 +278,7 @@ LedgerManagerImpl::loadLastKnownLedger(
                 {
                     mApp.getBucketManager().assumeState(has);
                     {
-                        LedgerState ls(mApp.getLedgerStateRoot());
+                        LedgerTxn ls(mApp.getLedgerTxnRoot());
                         auto header = ls.loadHeader();
                         CLOG(INFO, "Ledger") << "Loaded last known ledger: "
                                              << ledgerAbbrev(header.current());
@@ -310,7 +310,7 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
         else
         {
-            LedgerState ls(mApp.getLedgerStateRoot());
+            LedgerTxn ls(mApp.getLedgerTxnRoot());
             advanceLedgerPointers(ls.loadHeader().current());
         }
     }
@@ -680,7 +680,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         {
         case CatchupWork::ProgressState::APPLIED_BUCKETS:
         {
-            LedgerState ls(mApp.getLedgerStateRoot());
+            LedgerTxn ls(mApp.getLedgerTxnRoot());
             auto header = ls.loadHeader();
             header.current() = lastClosed.header;
             storeCurrentLedger(header.current());
@@ -777,7 +777,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     DBTimeExcluder qtExclude(mApp);
 
-    LedgerState ls(mApp.getLedgerStateRoot());
+    LedgerTxn ls(mApp.getLedgerTxnRoot());
     auto header = ls.loadHeader();
     ++header.current().ledgerSeq;
     header.current().previousLedgerHash = mLastClosedLedger.hash;
@@ -860,7 +860,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
         try
         {
-            LedgerState lsUpgrade(ls);
+            LedgerTxn lsUpgrade(ls);
             Upgrades::applyTo(lupgrade, lsUpgrade);
 
             auto ledgerSeq = lsUpgrade.loadHeader().current().ledgerSeq;
@@ -943,17 +943,17 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 
 void
 LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                                      AbstractLedgerState& lsOuter)
+                                      AbstractLedgerTxn& lsOuter)
 {
     CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
     int index = 0;
     try
     {
-        LedgerState ls(lsOuter);
+        LedgerTxn ls(lsOuter);
         auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
         for (auto tx : txs)
         {
-            LedgerState lsTx(ls);
+            LedgerTxn lsTx(ls);
             tx->processFeeSeqNum(lsTx);
             tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq,
                                     lsTx.getChanges(), ++index);
@@ -971,7 +971,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 
 void
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
-                                     AbstractLedgerState& ls,
+                                     AbstractLedgerTxn& ls,
                                      TransactionResultSet& txResultSet)
 {
     int index = 0;
@@ -1063,7 +1063,7 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 }
 
 void
-LedgerManagerImpl::ledgerClosed(AbstractLedgerState& ls)
+LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ls)
 {
     auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
     mApp.getBucketManager().addBatch(mApp, ledgerSeq, ls.getLiveEntries(),
