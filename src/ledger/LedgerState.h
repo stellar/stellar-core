@@ -14,6 +14,156 @@
 #include <unordered_map>
 #include <unordered_set>
 
+/////////////////////////////////////////////////////////////////////////////
+//  Overview
+/////////////////////////////////////////////////////////////////////////////
+//
+// The LedgerState subsystem consists of a number of classes (made a bit
+// more numerous through the use of inner ::Impl "compiler firewall"
+// classes and abstract base classes), of which the essential members and
+// relationships are diagrammed here.
+//
+//
+//  +-----------------------------------+
+//  |LedgerStateRoot                    |
+//  |(will commit child entries to DB)  |
+//  |                                   |
+//  |Database &mDatabase                |
+//  |AbstractLedgerState *mChild -----------+
+//  +-----------------------------------+   |
+//      ^                                   v
+//      |   +-----------------------------------+
+//      |   |LedgerState                        |
+//      |   |(will commit child entries to self)|
+//      |   |                                   |
+//      +----AbstractLedgerStateParent &mParent |
+//          |AbstracLedgerState *mChild ----------+
+//          +-----------------------------------+ |
+//                ^                               v
+//                |    +-----------------------------------------------------+
+//                |    |LedgerState : AbstractLedgerState                    |
+//                |    |(an in-memory transaction-in-progress)               |
+//                |    |                                                     |
+//                |    |            void commit()                            |
+//                |    |            void rollback()                          |
+//                |    |LedgerStateEntry create(LedgerEntry)                 |
+//                |    |LedgerStateEntry load(LedgerKey)                     |
+//                |    |            void erase(LedgerKey)                    |
+//                |    |                                                     |
+//                |    |+---------------------------------------------------+|
+//                |    ||LedgerState::Impl                                  ||
+//                |    ||                                                   ||
+//                +------AbstractLedgerStateParent &mParent                 ||
+//                     ||AbstractLedgerState *mChild = nullptr              ||
+//                     ||                                                   ||
+//  +----------------+ ||+------------------------------+ +----------------+||
+//  |LedgerStateEntry| |||mActive                       | |mEntry          |||
+//  |(for client use)| |||                              | |                |||
+//  |                | |||map<LedgerKey,                | |map<LedgerKey,  |||
+//  |weak_ptr<Impl>  | |||    shared_ptr<EntryImplBase>>| |    LedgerEntry>|||
+//  +----------------+ ||+------------------------------+ +----------------+||
+//           |         |+---------------------------------------------------+|
+//                     +-----------------------------------------------------+
+//           |                                          ^
+//                       +-------------------------+    |  +-------------+
+//           |           |+-------------------------+   |  |+-------------+
+//                       ||+-------------------------+  |  ||+-------------+
+//           |           |||LedgerStateEntry::Impl   |  |  +||LedgerEntry  |
+//         weak - - - - >|||(indicates "entry is     |  |   +|(XDR object) |
+//                       |||active in this state")   |  |    +-------------+
+//                       |||                         |  |           ^
+//                       +||AbstractLedgerState &  -----+           |
+//                        +|LedgerEntry &          -----------------+
+//                         +-------------------------+
+//
+//
+// The following notes may help with orientation and understanding:
+//
+//  - A LedgerState is an in-memory transaction-in-progress against the
+//    ledger in the database. Its ultimate purpose is to model a collection
+//    of LedgerEntry (XDR) objects to commit to the database.
+//
+//  - At any given time, a LedgerState may have zero-or-one active
+//    _sub_-LedgerStates (sub-transactions), arranged in a parent/child
+//    relationship. The terms "parent" and "child" refer exclusively to
+//    this nesting-relationship of transactions. The presence of an active
+//    sub-LedgerState is indicated by a non-null mChild pointer.
+//
+//  - Once a child is closed and the mChild pointer is reset to null,
+//    a new child may be opened. Attempting to open two children at once
+//    will throw an exception.
+//
+//  - The entries to be committed in each transaction are stored in the
+//    mEntry map, keyed by LedgerKey. This much is straightforward!
+//
+//  - Committing any LedgerState merges its entries into its parent. In the
+//    case where the parent is simply another in-memory LedgerState, this
+//    means writing the entries into the parent's mEntries map. In the case
+//    where the parent is the LedgerStateRoot, this means opening a Real SQL
+//    Transaction against the database and writing the entries to it.
+//
+//  - Each entry may also be designated as _active_ in a given LedgerState;
+//    tracking active-ness is the purpose of the other (mActive) map in
+//    the diagram above. Active-ness is a logical state that simply means
+//    "it is ok, from a concurrency-control perspective, for a client to
+//    access this entry in this LedgerState." See below for the
+//    concurrency-control issues this is designed to trap.
+//
+//  - Entries are made-active by calling load() or create(), each of which
+//    returns a LedgerStateEntry which is a handle that can be used to get
+//    at the underlying LedgerEntry. References to the underlying
+//    LedgerEntries should generally not be retained anywhere, because the
+//    LedgerStateEntry handles may be "deactivated", and access to a
+//    deactivated entry is a _logic error_ in the client that this
+//    machinery is set up to try to trap. If you hold a reference to the
+//    underlying entry, you're bypassing the checking machinery that is
+//    here to catch such errors. Don't do it.
+//
+//  - load()ing an entry will either check the current LedgerState for an
+//    entry, or if none is found it will ask its parent. This process
+//    recurses until it hits an entry or terminates at the root, where an
+//    LRU cache is consulted and then (finally!) the database itself.
+//
+//  - The LedgerStateEntry handles that clients should use are
+//    double-indirect references.
+//
+//      - The first level of indirection is a LedgerStateEntry::Impl, which
+//        is an internal 2-word binding stored in the mActive map that
+//        serves simply track the fact that an entry _is_ active, and to
+//        facilitate deactivating the entry.
+//
+//      - The second level of indirection is the client-facing type
+//        LedgerStateEntry, which is _weakly_ linked to its ::Impl type
+//        (via std::weak_ptr). This weak linkage enables the LedgerState to
+//        deactivate entries without worrying that some handle might remain
+//        able to access them (assuming they did not hold references to the
+//        inner LedgerEntries).
+//
+//  - The purpose of the double-indirection is to maintain one critical
+//    invariant in the system: clients can _only access_ the entries in the
+//    innermost (child-most) LedgerState / transaction open at any given
+//    time. This is enforced by deactivating all the entries in a parent
+//    LedgerState when a child is opened. The entries in the parent still
+//    exist in the mEntry map (and will be committed to the parent's parent
+//    when the parent commits); but they are not _active_, meaning that
+//    attempts to access them through any LedgerStateEntry handles will
+//    throw an exception.
+//
+//  - The _reason_ for this invariant is to prevent concurrency anomalies:
+//
+//      - Stale reads: a client could open a sub-transaction, write some
+//        entries into it, and then accidentally read from the parent and
+//        thereby observe stale data.
+//
+//      - Lost updates: a client could open a sub-transaction, write some
+//        entries to it, and then accidentally write more updates to those
+//        same entries to the parent, which would be overwritten by the
+//        child when it commits.
+//
+//    Both these anomalies are harder to cause if the interface refuses all
+//    accesses to a parent's entries when a child is open.
+//
+
 namespace stellar
 {
 
