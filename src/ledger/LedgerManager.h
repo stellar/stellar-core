@@ -51,7 +51,7 @@ class LedgerManager
         LM_BOOTING_STATE,
 
         // local state is in sync with view of consensus coming from herder
-        // desynchronization will cause transition to CATCHING_UP_STATE.
+        // desynchronization will cause transition to LM_BOOTING_STATE.
         LM_SYNCED_STATE,
 
         // local state doesn't match view of consensus from herder

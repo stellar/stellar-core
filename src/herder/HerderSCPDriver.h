@@ -186,10 +186,12 @@ class HerderSCPDriver : public SCPDriver
     // herder keeps track of the consensus index and ballot
     // when not set, it just means that herder will try to snap to any slot that
     // reached consensus
+    // on startup, this can be set to a value persisted from the database
     std::unique_ptr<ConsensusData> mTrackingSCP;
 
-    // when losing track of consensus, records where we left off so that we
-    // ignore older ledgers (as we potentially receive old messages)
+    // when losing track of consensus, we remember the consensus value so that
+    // we can ignore older ledgers (as we potentially receive old messages)
+    // it only tracks actual consensus values (learned when externalizing)
     std::unique_ptr<ConsensusData> mLastTrackingSCP;
 
     void stateChanged();
