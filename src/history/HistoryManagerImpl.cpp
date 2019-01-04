@@ -271,7 +271,6 @@ HistoryManagerImpl::queueCurrentHistory()
 
     mPublishQueued++;
     mPublishQueueBuckets.addBuckets(has.allBuckets());
-    takeSnapshotAndPublish(has);
 }
 
 void
