@@ -511,12 +511,26 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     try
     {
+        uint64 minSlotIndex = 0;
+        bool wasTracking = mHerderSCPDriver.trackingSCP();
         while (true)
         {
             SCPEnvelope env;
-            if (mPendingEnvelopes.pop(slotIndex, env))
+            if (mPendingEnvelopes.pop(minSlotIndex, slotIndex, env))
             {
+                // ensures that regardless of what receiveEnvelope does to
+                // mPendingEnvelopes, we process messages from mPendingEnvelope
+                // in ascending order
+
+                minSlotIndex = env.statement.slotIndex;
                 getSCP().receiveEnvelope(env);
+                if (!wasTracking && mHerderSCPDriver.trackingSCP())
+                {
+                    // if this message moved us to tracking, only process this
+                    // slot
+                    slotIndex = minSlotIndex;
+                    wasTracking = true;
+                }
             }
             else
             {

@@ -125,7 +125,9 @@ class PendingEnvelopes
 
     void envelopeReady(SCPEnvelope const& envelope);
 
-    bool pop(uint64 slotIndex, SCPEnvelope& ret);
+    // returns true if it could pop a message in ready state from the lowest
+    // slot in the range [minSlotIndex, maxSlotIndex] returns false otherwise
+    bool pop(uint64 minSlotIndex, uint64 maxSlotIndex, SCPEnvelope& ret);
 
     void eraseBelow(uint64 slotIndex);
 

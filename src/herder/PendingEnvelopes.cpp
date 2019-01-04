@@ -390,10 +390,15 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 }
 
 bool
-PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
+PendingEnvelopes::pop(uint64 minSlotIndex, uint64 maxSlotIndex,
+                      SCPEnvelope& ret)
 {
-    auto it = mEnvelopes.begin();
-    while (it != mEnvelopes.end() && slotIndex >= it->first)
+    if (minSlotIndex > maxSlotIndex)
+    {
+        throw std::range_error("bad range for PendingEnvelopes::pop");
+    }
+    auto end = mEnvelopes.upper_bound(maxSlotIndex);
+    for (auto it = mEnvelopes.lower_bound(minSlotIndex); it != end; it++)
     {
         auto& v = it->second.mReadyEnvelopes;
         if (v.size() != 0)
@@ -403,7 +408,6 @@ PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
 
             return true;
         }
-        it++;
     }
     return false;
 }
@@ -412,6 +416,7 @@ vector<uint64>
 PendingEnvelopes::readySlots()
 {
     vector<uint64> result;
+    result.reserve(mEnvelopes.size());
     for (auto const& entry : mEnvelopes)
     {
         if (!entry.second.mReadyEnvelopes.empty())
