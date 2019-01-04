@@ -10,7 +10,7 @@ if [[ -z "$TEMP_POSTGRES" ]]; then
     TEMP_POSTGRES=1
 fi
 
-PGDIRS=$(exec 2>/dev/null; cd /usr/lib/postgresql && ls -1d */bin | sort -rn)
+PGDIRS=$(exec 2>/dev/null; cd /usr/lib/postgresql && ls -1d */bin | sort -rn | xargs realpath)
 
 findpg() {
     local cmd="$1"
