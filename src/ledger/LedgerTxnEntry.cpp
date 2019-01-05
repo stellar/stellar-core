@@ -18,7 +18,7 @@ class LedgerTxnEntry::Impl : public EntryImplBase
     LedgerEntry& mCurrent;
 
   public:
-    explicit Impl(AbstractLedgerTxn& ls, LedgerEntry& current);
+    explicit Impl(AbstractLedgerTxn& ltx, LedgerEntry& current);
 
     ~Impl() override;
 
@@ -39,9 +39,9 @@ class LedgerTxnEntry::Impl : public EntryImplBase
 };
 
 std::shared_ptr<LedgerTxnEntry::Impl>
-LedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ls, LedgerEntry& current)
+LedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ltx, LedgerEntry& current)
 {
-    return std::make_shared<Impl>(ls, current);
+    return std::make_shared<Impl>(ltx, current);
 }
 
 std::shared_ptr<EntryImplBase>
@@ -59,8 +59,8 @@ LedgerTxnEntry::LedgerTxnEntry(std::shared_ptr<Impl> const& impl)
 {
 }
 
-LedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ls, LedgerEntry& current)
-    : mLedgerTxn(ls), mCurrent(current)
+LedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ltx, LedgerEntry& current)
+    : mLedgerTxn(ltx), mCurrent(current)
 {
 }
 
@@ -189,7 +189,7 @@ class ConstLedgerTxnEntry::Impl : public EntryImplBase
     LedgerEntry const mCurrent;
 
   public:
-    explicit Impl(AbstractLedgerTxn& ls, LedgerEntry const& current);
+    explicit Impl(AbstractLedgerTxn& ltx, LedgerEntry const& current);
 
     ~Impl() override;
 
@@ -207,10 +207,10 @@ class ConstLedgerTxnEntry::Impl : public EntryImplBase
 };
 
 std::shared_ptr<ConstLedgerTxnEntry::Impl>
-ConstLedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ls,
+ConstLedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ltx,
                                       LedgerEntry const& current)
 {
-    return std::make_shared<Impl>(ls, current);
+    return std::make_shared<Impl>(ltx, current);
 }
 
 std::shared_ptr<EntryImplBase>
@@ -228,9 +228,9 @@ ConstLedgerTxnEntry::ConstLedgerTxnEntry(std::shared_ptr<Impl> const& impl)
 {
 }
 
-ConstLedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ls,
+ConstLedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ltx,
                                   LedgerEntry const& current)
-    : mLedgerTxn(ls), mCurrent(current)
+    : mLedgerTxn(ltx), mCurrent(current)
 {
 }
 

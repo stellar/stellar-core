@@ -22,10 +22,10 @@ using namespace stellar;
 
 static void
 validate(
-    AbstractLedgerTxn& ls,
+    AbstractLedgerTxn& ltx,
     std::unordered_map<LedgerKey, LedgerTxnDelta::EntryDelta> const& expected)
 {
-    auto const delta = ls.getDelta();
+    auto const delta = ltx.getDelta();
 
     auto expectedIter = expected.begin();
     auto iter = delta.entry.begin();
@@ -98,16 +98,16 @@ TEST_CASE("LedgerTxn addChild", "[ledgerstate]")
     {
         SECTION("fails if parent has children")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            LedgerTxn ls2(ls1);
-            REQUIRE_THROWS_AS(LedgerTxn(ls1), std::runtime_error);
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(LedgerTxn(ltx1), std::runtime_error);
         }
 
         SECTION("fails if parent is sealed")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            ls1.getDelta();
-            REQUIRE_THROWS_AS(LedgerTxn(ls1), std::runtime_error);
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(LedgerTxn(ltx1), std::runtime_error);
         }
     }
 
@@ -115,7 +115,7 @@ TEST_CASE("LedgerTxn addChild", "[ledgerstate]")
     {
         SECTION("fails if parent has children")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
             REQUIRE_THROWS_AS(LedgerTxn(app->getLedgerTxnRoot()),
                               std::runtime_error);
         }
@@ -138,57 +138,57 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgerstate]")
     {
         SECTION("created in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
 
-            LedgerTxn ls2(ls1);
-            REQUIRE(ls2.create(le1));
-            ls2.commit();
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.create(le1));
+            ltx2.commit();
 
             validate(
-                ls1,
+                ltx1,
                 {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
         }
 
         SECTION("loaded in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            REQUIRE(ls1.create(le1));
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le1));
 
-            LedgerTxn ls2(ls1);
-            REQUIRE(ls2.load(key));
-            ls2.commit();
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.load(key));
+            ltx2.commit();
 
             validate(
-                ls1,
+                ltx1,
                 {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
         }
 
         SECTION("modified in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            REQUIRE(ls1.create(le1));
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le1));
 
-            LedgerTxn ls2(ls1);
-            auto lse1 = ls2.load(key);
-            REQUIRE(lse1);
-            lse1.current() = le2;
-            ls2.commit();
+            LedgerTxn ltx2(ltx1);
+            auto ltxe1 = ltx2.load(key);
+            REQUIRE(ltxe1);
+            ltxe1.current() = le2;
+            ltx2.commit();
 
             validate(
-                ls1,
+                ltx1,
                 {{key, {std::make_shared<LedgerEntry const>(le2), nullptr}}});
         }
 
         SECTION("erased in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            REQUIRE(ls1.create(le1));
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le1));
 
-            LedgerTxn ls2(ls1);
-            REQUIRE_NOTHROW(ls2.erase(key));
-            ls2.commit();
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+            ltx2.commit();
 
-            validate(ls1, {});
+            validate(ltx1, {});
         }
     }
 }
@@ -209,56 +209,56 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgerstate]")
     {
         SECTION("created in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
 
-            LedgerTxn ls2(ls1);
-            REQUIRE(ls2.create(le1));
-            ls2.rollback();
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.create(le1));
+            ltx2.rollback();
 
-            validate(ls1, {});
+            validate(ltx1, {});
         }
 
         SECTION("loaded in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            REQUIRE(ls1.create(le1));
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le1));
 
-            LedgerTxn ls2(ls1);
-            REQUIRE(ls2.load(key));
-            ls2.rollback();
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.load(key));
+            ltx2.rollback();
 
             validate(
-                ls1,
+                ltx1,
                 {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
         }
 
         SECTION("modified in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            REQUIRE(ls1.create(le1));
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le1));
 
-            LedgerTxn ls2(ls1);
-            auto lse1 = ls2.load(key);
-            REQUIRE(lse1);
-            lse1.current() = le2;
-            ls2.rollback();
+            LedgerTxn ltx2(ltx1);
+            auto ltxe1 = ltx2.load(key);
+            REQUIRE(ltxe1);
+            ltxe1.current() = le2;
+            ltx2.rollback();
 
             validate(
-                ls1,
+                ltx1,
                 {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
         }
 
         SECTION("erased in child")
         {
-            LedgerTxn ls1(app->getLedgerTxnRoot());
-            REQUIRE(ls1.create(le1));
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le1));
 
-            LedgerTxn ls2(ls1);
-            REQUIRE_NOTHROW(ls2.erase(key));
-            ls2.rollback();
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+            ltx2.rollback();
 
             validate(
-                ls1,
+                ltx1,
                 {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
         }
     }
@@ -269,7 +269,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
     std::default_random_engine gen;
     std::bernoulli_distribution shouldCommitDist;
 
-    auto generateNew = [](AbstractLedgerTxn& ls,
+    auto generateNew = [](AbstractLedgerTxn& ltx,
                           std::unordered_map<LedgerKey, LedgerEntry>& entries) {
         size_t const NEW_ENTRIES = 100;
         std::unordered_map<LedgerKey, LedgerEntry> newBatch;
@@ -286,13 +286,13 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
 
         for (auto const& kv : newBatch)
         {
-            REQUIRE(ls.create(kv.second));
+            REQUIRE(ltx.create(kv.second));
             entries[kv.first] = kv.second;
         }
     };
 
     auto generateModify =
-        [&gen](AbstractLedgerTxn& ls,
+        [&gen](AbstractLedgerTxn& ltx,
                std::unordered_map<LedgerKey, LedgerEntry>& entries) {
             size_t const MODIFY_ENTRIES = 25;
             std::unordered_map<LedgerKey, LedgerEntry> modifyBatch;
@@ -307,15 +307,15 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
 
             for (auto const& kv : modifyBatch)
             {
-                auto lse = ls.load(kv.first);
-                REQUIRE(lse);
-                lse.current() = kv.second;
+                auto ltxe = ltx.load(kv.first);
+                REQUIRE(ltxe);
+                ltxe.current() = kv.second;
                 entries[kv.first] = kv.second;
             }
         };
 
     auto generateErase =
-        [&gen](AbstractLedgerTxn& ls,
+        [&gen](AbstractLedgerTxn& ltx,
                std::unordered_map<LedgerKey, LedgerEntry>& entries,
                std::unordered_set<LedgerKey>& dead) {
             size_t const ERASE_ENTRIES = 25;
@@ -330,53 +330,53 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
 
             for (auto const& key : eraseBatch)
             {
-                REQUIRE_NOTHROW(ls.erase(key));
+                REQUIRE_NOTHROW(ltx.erase(key));
                 entries.erase(key);
                 dead.insert(key);
             }
         };
 
     auto checkLedger =
-        [](AbstractLedgerTxnParent& lsParent,
+        [](AbstractLedgerTxnParent& ltxParent,
            std::unordered_map<LedgerKey, LedgerEntry> const& entries,
            std::unordered_set<LedgerKey> const& dead) {
-            LedgerTxn ls(lsParent);
+            LedgerTxn ltx(ltxParent);
             for (auto const& kv : entries)
             {
-                auto lse = ls.load(kv.first);
-                REQUIRE(lse);
-                REQUIRE(lse.current() == kv.second);
+                auto ltxe = ltx.load(kv.first);
+                REQUIRE(ltxe);
+                REQUIRE(ltxe.current() == kv.second);
             }
 
             for (auto const& key : dead)
             {
                 if (entries.find(key) == entries.end())
                 {
-                    REQUIRE(!ls.load(key));
+                    REQUIRE(!ltx.load(key));
                 }
             }
         };
 
-    auto runTest = [&](AbstractLedgerTxnParent& lsParent) {
+    auto runTest = [&](AbstractLedgerTxnParent& ltxParent) {
         std::unordered_map<LedgerKey, LedgerEntry> entries;
         std::unordered_set<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
         for (size_t k = 0; k < NUM_BATCHES; ++k)
         {
-            checkLedger(lsParent, entries, dead);
+            checkLedger(ltxParent, entries, dead);
 
             std::unordered_map<LedgerKey, LedgerEntry> updatedEntries = entries;
             std::unordered_set<LedgerKey> updatedDead = dead;
-            LedgerTxn ls1(lsParent);
-            generateNew(ls1, updatedEntries);
-            generateModify(ls1, updatedEntries);
-            generateErase(ls1, updatedEntries, updatedDead);
+            LedgerTxn ltx1(ltxParent);
+            generateNew(ltx1, updatedEntries);
+            generateModify(ltx1, updatedEntries);
+            generateErase(ltx1, updatedEntries, updatedDead);
 
             if (entries.empty() || shouldCommitDist(gen))
             {
                 entries = updatedEntries;
                 dead = updatedDead;
-                REQUIRE_NOTHROW(ls1.commit());
+                REQUIRE_NOTHROW(ltx1.commit());
             }
         }
     };
@@ -387,8 +387,8 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        runTest(ls1);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        runTest(ltx1);
     }
 
     SECTION("round trip to LedgerTxnRoot")
@@ -428,44 +428,44 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgerstate]")
     LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
     LedgerKey key = LedgerEntryKey(le);
 
-    auto checkDeactivate = [&](std::function<void(LedgerTxn & ls)> f) {
+    auto checkDeactivate = [&](std::function<void(LedgerTxn & ltx)> f) {
         SECTION("entry")
         {
-            LedgerTxn ls(root, false);
-            auto entry = ls.create(le);
+            LedgerTxn ltx(root, false);
+            auto entry = ltx.create(le);
             REQUIRE(entry);
-            f(ls);
+            f(ltx);
             REQUIRE(!entry);
         }
 
         SECTION("const entry")
         {
-            LedgerTxn ls(root, false);
-            ls.create(le);
-            auto entry = ls.loadWithoutRecord(key);
+            LedgerTxn ltx(root, false);
+            ltx.create(le);
+            auto entry = ltx.loadWithoutRecord(key);
             REQUIRE(entry);
-            f(ls);
+            f(ltx);
             REQUIRE(!entry);
         }
 
         SECTION("header")
         {
-            LedgerTxn ls(root, false);
-            auto header = ls.loadHeader();
+            LedgerTxn ltx(root, false);
+            auto header = ltx.loadHeader();
             REQUIRE(header);
-            f(ls);
+            f(ltx);
             REQUIRE(!header);
         }
     };
 
     SECTION("commit")
     {
-        checkDeactivate([](LedgerTxn& ls) { ls.commit(); });
+        checkDeactivate([](LedgerTxn& ltx) { ltx.commit(); });
     }
 
     SECTION("rollback")
     {
-        checkDeactivate([](LedgerTxn& ls) { ls.rollback(); });
+        checkDeactivate([](LedgerTxn& ltx) { ltx.rollback(); });
     }
 }
 
@@ -481,48 +481,48 @@ TEST_CASE("LedgerTxn create", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.create(le), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.create(le), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.create(le), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.create(le), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
-        validate(ls1,
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+        validate(ltx1,
                  {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
     }
 
     SECTION("when key exists in self or parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
-        REQUIRE_THROWS_AS(ls1.create(le), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+        REQUIRE_THROWS_AS(ltx1.create(le), std::runtime_error);
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls2.create(le), std::runtime_error);
-        validate(ls2, {});
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx2.create(le), std::runtime_error);
+        validate(ltx2, {});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_NOTHROW(ls2.erase(key));
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
 
-        LedgerTxn ls3(ls2);
-        REQUIRE(ls3.create(le));
-        validate(ls3,
+        LedgerTxn ltx3(ltx2);
+        REQUIRE(ltx3.create(le));
+        validate(ltx3,
                  {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
     }
 }
@@ -539,76 +539,76 @@ TEST_CASE("LedgerTxn erase", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.erase(key), std::runtime_error);
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.erase(key), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE_THROWS_AS(ls1.erase(key), std::runtime_error);
-        validate(ls1, {});
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+        validate(ltx1, {});
     }
 
     SECTION("when key exists in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_NOTHROW(ls2.erase(key));
-        validate(ls2,
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
+        validate(ltx2,
                  {{key, {nullptr, std::make_shared<LedgerEntry const>(le)}}});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_NOTHROW(ls2.erase(key));
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
 
-        LedgerTxn ls3(ls2);
-        REQUIRE_THROWS_AS(ls3.erase(key), std::runtime_error);
-        validate(ls3, {});
+        LedgerTxn ltx3(ltx2);
+        REQUIRE_THROWS_AS(ltx3.erase(key), std::runtime_error);
+        validate(ltx3, {});
     }
 }
 
 static void
 applyLedgerTxnUpdates(
-    AbstractLedgerTxn& ls,
+    AbstractLedgerTxn& ltx,
     std::map<AccountID, std::pair<AccountID, int64_t>> const& updates)
 {
     for (auto const& kv : updates)
     {
-        auto lse = loadAccount(ls, kv.first);
-        if (lse && kv.second.second > 0)
+        auto ltxe = loadAccount(ltx, kv.first);
+        if (ltxe && kv.second.second > 0)
         {
-            auto& ae = lse.current().data.account();
+            auto& ae = ltxe.current().data.account();
             ae.inflationDest.activate() = kv.second.first;
             ae.balance = kv.second.second;
         }
-        else if (lse)
+        else if (ltxe)
         {
-            lse.erase();
+            ltxe.erase();
         }
         else
         {
             REQUIRE(kv.second.second > 0);
             LedgerEntry acc;
-            acc.lastModifiedLedgerSeq = ls.loadHeader().current().ledgerSeq;
+            acc.lastModifiedLedgerSeq = ltx.loadHeader().current().ledgerSeq;
             acc.data.type(ACCOUNT);
 
             auto& ae = acc.data.account();
@@ -617,14 +617,14 @@ applyLedgerTxnUpdates(
             ae.inflationDest.activate() = kv.second.first;
             ae.balance = kv.second.second;
 
-            ls.create(acc);
+            ltx.create(acc);
         }
     }
 }
 
 static void
 testInflationWinners(
-    AbstractLedgerTxnParent& lsParent, size_t maxWinners, int64_t minBalance,
+    AbstractLedgerTxnParent& ltxParent, size_t maxWinners, int64_t minBalance,
     std::vector<std::tuple<AccountID, int64_t>> const& expected,
     std::vector<std::map<AccountID,
                          std::pair<AccountID, int64_t>>>::const_iterator begin,
@@ -632,16 +632,16 @@ testInflationWinners(
         const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerTxn ls(lsParent);
-    applyLedgerTxnUpdates(ls, *begin);
+    LedgerTxn ltx(ltxParent);
+    applyLedgerTxnUpdates(ltx, *begin);
 
     if (++begin != end)
     {
-        testInflationWinners(ls, maxWinners, minBalance, expected, begin, end);
+        testInflationWinners(ltx, maxWinners, minBalance, expected, begin, end);
     }
     else
     {
-        auto winners = ls.queryInflationWinners(maxWinners, minBalance);
+        auto winners = ltx.queryInflationWinners(maxWinners, minBalance);
         auto expectedIter = expected.begin();
         auto iter = winners.begin();
         while (expectedIter != expected.end() && iter != winners.end())
@@ -667,9 +667,9 @@ testInflationWinners(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerTxn ls1(app.getLedgerTxnRoot());
-            applyLedgerTxnUpdates(ls1, *updates.cbegin());
-            ls1.commit();
+            LedgerTxn ltx1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ltx1, *updates.cbegin());
+            ltx1.commit();
         }
         testInflationWinners(app.getLedgerTxnRoot(), maxWinners, minBalance,
                              expected, ++updates.cbegin(), updates.cend());
@@ -736,9 +736,9 @@ TEST_CASE("LedgerTxn queryInflationWinners", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.queryInflationWinners(1, 1), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.queryInflationWinners(1, 1), std::runtime_error);
     }
 
     SECTION("fails if sealed")
@@ -747,9 +747,9 @@ TEST_CASE("LedgerTxn queryInflationWinners", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.queryInflationWinners(1, 1), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.queryInflationWinners(1, 1), std::runtime_error);
     }
 
     SECTION("empty parent")
@@ -999,33 +999,33 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.loadHeader(), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.loadHeader(), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
     }
 
     SECTION("fails if header already loaded")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        auto lhe = ls1.loadHeader();
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        auto lhe = ltx1.loadHeader();
         REQUIRE(lhe);
-        REQUIRE_THROWS_AS(ls1.loadHeader(), std::runtime_error);
+        REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
     }
 
     SECTION("check after update")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        auto lhPrev = ls1.loadHeader().current();
-        ls1.loadHeader().current() = lh;
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        auto lhPrev = ltx1.loadHeader().current();
+        ltx1.loadHeader().current() = lh;
 
-        auto delta = ls1.getDelta();
+        auto delta = ltx1.getDelta();
         REQUIRE(delta.header.current == lh);
         REQUIRE(delta.header.previous == lhPrev);
     }
@@ -1043,48 +1043,48 @@ TEST_CASE("LedgerTxn load", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.load(key), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.load(key), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(!ls1.load(key));
-        validate(ls1, {});
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(!ltx1.load(key));
+        validate(ltx1, {});
     }
 
     SECTION("when key exists in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE(ls2.load(key));
-        validate(ls2, {{key,
+        LedgerTxn ltx2(ltx1);
+        REQUIRE(ltx2.load(key));
+        validate(ltx2, {{key,
                         {std::make_shared<LedgerEntry const>(le),
                          std::make_shared<LedgerEntry const>(le)}}});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_NOTHROW(ls2.erase(key));
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
 
-        LedgerTxn ls3(ls2);
-        REQUIRE(!ls3.load(key));
-        validate(ls3, {});
+        LedgerTxn ltx3(ltx2);
+        REQUIRE(!ltx3.load(key));
+        validate(ltx3, {});
     }
 }
 
@@ -1100,72 +1100,72 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgerstate]")
 
     SECTION("fails with children")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.loadWithoutRecord(key), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.loadWithoutRecord(key), std::runtime_error);
     }
 
     SECTION("fails if sealed")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.loadWithoutRecord(key), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.loadWithoutRecord(key), std::runtime_error);
     }
 
     SECTION("when key does not exist")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(!ls1.loadWithoutRecord(key));
-        validate(ls1, {});
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(!ltx1.loadWithoutRecord(key));
+        validate(ltx1, {});
     }
 
     SECTION("when key exists in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE(ls2.loadWithoutRecord(key));
-        validate(ls2, {});
+        LedgerTxn ltx2(ltx1);
+        REQUIRE(ltx2.loadWithoutRecord(key));
+        validate(ltx2, {});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
     {
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        REQUIRE(ls1.create(le));
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
 
-        LedgerTxn ls2(ls1);
-        REQUIRE_NOTHROW(ls2.erase(key));
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
 
-        LedgerTxn ls3(ls2);
-        REQUIRE(!ls3.loadWithoutRecord(key));
-        validate(ls3, {});
+        LedgerTxn ltx3(ltx2);
+        REQUIRE(!ltx3.loadWithoutRecord(key));
+        validate(ltx3, {});
     }
 }
 
 static void
 applyLedgerTxnUpdates(
-    AbstractLedgerTxn& ls,
+    AbstractLedgerTxn& ltx,
     std::map<std::pair<AccountID, uint64_t>,
              std::tuple<Asset, Asset, int64_t>> const& updates)
 {
     for (auto const& kv : updates)
     {
-        auto lse = loadOffer(ls, kv.first.first, kv.first.second);
-        if (lse && std::get<2>(kv.second) > 0)
+        auto ltxe = loadOffer(ltx, kv.first.first, kv.first.second);
+        if (ltxe && std::get<2>(kv.second) > 0)
         {
-            auto& oe = lse.current().data.offer();
+            auto& oe = ltxe.current().data.offer();
             std::tie(oe.buying, oe.selling, oe.amount) = kv.second;
         }
-        else if (lse)
+        else if (ltxe)
         {
-            lse.erase();
+            ltxe.erase();
         }
         else
         {
             REQUIRE(std::get<2>(kv.second) > 0);
             LedgerEntry offer;
-            offer.lastModifiedLedgerSeq = ls.loadHeader().current().ledgerSeq;
+            offer.lastModifiedLedgerSeq = ltx.loadHeader().current().ledgerSeq;
             offer.data.type(OFFER);
 
             auto& oe = offer.data.offer();
@@ -1173,14 +1173,14 @@ applyLedgerTxnUpdates(
             std::tie(oe.sellerID, oe.offerID) = kv.first;
             std::tie(oe.buying, oe.selling, oe.amount) = kv.second;
 
-            ls.create(offer);
+            ltx.create(offer);
         }
     }
 }
 
 static void
 testAllOffers(
-    AbstractLedgerTxnParent& lsParent,
+    AbstractLedgerTxnParent& ltxParent,
     std::map<AccountID,
              std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>>> const&
         expected,
@@ -1192,16 +1192,16 @@ testAllOffers(
                  std::tuple<Asset, Asset, int64_t>>>::const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerTxn ls(lsParent);
-    applyLedgerTxnUpdates(ls, *begin);
+    LedgerTxn ltx(ltxParent);
+    applyLedgerTxnUpdates(ltx, *begin);
 
     if (++begin != end)
     {
-        testAllOffers(ls, expected, begin, end);
+        testAllOffers(ltx, expected, begin, end);
     }
     else
     {
-        auto offers = ls.loadAllOffers();
+        auto offers = ltx.loadAllOffers();
         auto expectedIter = expected.begin();
         auto iter = offers.begin();
         while (expectedIter != expected.end() && iter != offers.end())
@@ -1243,9 +1243,9 @@ testAllOffers(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerTxn ls1(app.getLedgerTxnRoot());
-            applyLedgerTxnUpdates(ls1, *updates.cbegin());
-            ls1.commit();
+            LedgerTxn ltx1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ltx1, *updates.cbegin());
+            ltx1.commit();
         }
         testAllOffers(app.getLedgerTxnRoot(), expected, ++updates.cbegin(),
                       updates.cend());
@@ -1297,9 +1297,9 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.loadAllOffers(), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.loadAllOffers(), std::runtime_error);
     }
 
     SECTION("fails if sealed")
@@ -1308,9 +1308,9 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.loadAllOffers(), std::runtime_error);
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.loadAllOffers(), std::runtime_error);
     }
 
     SECTION("empty parent")
@@ -1410,27 +1410,27 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgerstate]")
 
 static void
 applyLedgerTxnUpdates(
-    AbstractLedgerTxn& ls,
+    AbstractLedgerTxn& ltx,
     std::map<std::pair<AccountID, uint64_t>,
              std::tuple<Asset, Asset, Price, int64_t>> const& updates)
 {
     for (auto const& kv : updates)
     {
-        auto lse = loadOffer(ls, kv.first.first, kv.first.second);
-        if (lse && std::get<3>(kv.second) > 0)
+        auto ltxe = loadOffer(ltx, kv.first.first, kv.first.second);
+        if (ltxe && std::get<3>(kv.second) > 0)
         {
-            auto& oe = lse.current().data.offer();
+            auto& oe = ltxe.current().data.offer();
             std::tie(oe.buying, oe.selling, oe.price, oe.amount) = kv.second;
         }
-        else if (lse)
+        else if (ltxe)
         {
-            lse.erase();
+            ltxe.erase();
         }
         else
         {
             REQUIRE(std::get<3>(kv.second) > 0);
             LedgerEntry offer;
-            offer.lastModifiedLedgerSeq = ls.loadHeader().current().ledgerSeq;
+            offer.lastModifiedLedgerSeq = ltx.loadHeader().current().ledgerSeq;
             offer.data.type(OFFER);
 
             auto& oe = offer.data.offer();
@@ -1438,14 +1438,14 @@ applyLedgerTxnUpdates(
             std::tie(oe.sellerID, oe.offerID) = kv.first;
             std::tie(oe.buying, oe.selling, oe.price, oe.amount) = kv.second;
 
-            ls.create(offer);
+            ltx.create(offer);
         }
     }
 }
 
 static void
 testBestOffer(
-    AbstractLedgerTxnParent& lsParent, Asset const& buying,
+    AbstractLedgerTxnParent& ltxParent, Asset const& buying,
     Asset const& selling,
     std::vector<std::tuple<uint64_t, Asset, Asset, Price, int64_t>> const&
         expected,
@@ -1457,16 +1457,16 @@ testBestOffer(
         const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerTxn ls(lsParent);
-    applyLedgerTxnUpdates(ls, *begin);
+    LedgerTxn ltx(ltxParent);
+    applyLedgerTxnUpdates(ltx, *begin);
 
     if (++begin != end)
     {
-        testBestOffer(ls, buying, selling, expected, begin, end);
+        testBestOffer(ltx, buying, selling, expected, begin, end);
     }
     else
     {
-        auto offer = ls.loadBestOffer(buying, selling);
+        auto offer = ltx.loadBestOffer(buying, selling);
         if (offer)
         {
             auto const& oe = offer.current().data.offer();
@@ -1495,9 +1495,9 @@ testBestOffer(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerTxn ls1(app.getLedgerTxnRoot());
-            applyLedgerTxnUpdates(ls1, *updates.cbegin());
-            ls1.commit();
+            LedgerTxn ltx1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ltx1, *updates.cbegin());
+            ltx1.commit();
         }
         testBestOffer(app.getLedgerTxnRoot(), buying, selling, expected,
                       ++updates.cbegin(), updates.cend());
@@ -1550,9 +1550,9 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.loadBestOffer(buying, selling),
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
                           std::runtime_error);
     }
 
@@ -1562,9 +1562,9 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.loadBestOffer(buying, selling),
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
                           std::runtime_error);
     }
 
@@ -1688,7 +1688,7 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
 
 static void
 testOffersByAccountAndAsset(
-    AbstractLedgerTxnParent& lsParent, AccountID const& accountID,
+    AbstractLedgerTxnParent& ltxParent, AccountID const& accountID,
     Asset const& asset,
     std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>> const& expected,
     std::vector<std::map<std::pair<AccountID, uint64_t>,
@@ -1699,16 +1699,16 @@ testOffersByAccountAndAsset(
                  std::tuple<Asset, Asset, int64_t>>>::const_iterator const& end)
 {
     REQUIRE(begin != end);
-    LedgerTxn ls(lsParent);
-    applyLedgerTxnUpdates(ls, *begin);
+    LedgerTxn ltx(ltxParent);
+    applyLedgerTxnUpdates(ltx, *begin);
 
     if (++begin != end)
     {
-        testOffersByAccountAndAsset(ls, accountID, asset, expected, begin, end);
+        testOffersByAccountAndAsset(ltx, accountID, asset, expected, begin, end);
     }
     else
     {
-        auto offers = ls.loadOffersByAccountAndAsset(accountID, asset);
+        auto offers = ltx.loadOffersByAccountAndAsset(accountID, asset);
         REQUIRE(expected.size() == offers.size());
         auto expected2 = expected;
 
@@ -1736,9 +1736,9 @@ testOffersByAccountAndAsset(
 
     auto testAtRoot = [&](Application& app) {
         {
-            LedgerTxn ls1(app.getLedgerTxnRoot());
-            applyLedgerTxnUpdates(ls1, *updates.cbegin());
-            ls1.commit();
+            LedgerTxn ltx1(app.getLedgerTxnRoot());
+            applyLedgerTxnUpdates(ltx1, *updates.cbegin());
+            ltx1.commit();
         }
         testOffersByAccountAndAsset(app.getLedgerTxnRoot(), accountID, asset,
                                     expected, ++updates.cbegin(),
@@ -1795,9 +1795,9 @@ TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        LedgerTxn ls2(ls1);
-        REQUIRE_THROWS_AS(ls1.loadOffersByAccountAndAsset(a1, buying),
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.loadOffersByAccountAndAsset(a1, buying),
                           std::runtime_error);
     }
 
@@ -1807,9 +1807,9 @@ TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgerstate]")
         auto app = createTestApplication(clock, getTestConfig());
         app->start();
 
-        LedgerTxn ls1(app->getLedgerTxnRoot());
-        ls1.getDelta();
-        REQUIRE_THROWS_AS(ls1.loadOffersByAccountAndAsset(a1, buying),
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.loadOffersByAccountAndAsset(a1, buying),
                           std::runtime_error);
     }
 
@@ -1904,25 +1904,25 @@ TEST_CASE("LedgerTxn unsealHeader", "[ledgerstate]")
 
     SECTION("fails if not sealed")
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        REQUIRE_THROWS_AS(ls.unsealHeader(doNothing), std::runtime_error);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE_THROWS_AS(ltx.unsealHeader(doNothing), std::runtime_error);
     }
 
     SECTION("fails if header is active")
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        ls.getLiveEntries();
-        ls.unsealHeader([&ls, &doNothing](LedgerHeader&) {
-            REQUIRE_THROWS_AS(ls.unsealHeader(doNothing), std::runtime_error);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.getLiveEntries();
+        ltx.unsealHeader([&ltx, &doNothing](LedgerHeader&) {
+            REQUIRE_THROWS_AS(ltx.unsealHeader(doNothing), std::runtime_error);
         });
     }
 
     SECTION("deactivates header on completion")
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        ls.getLiveEntries();
-        REQUIRE_NOTHROW(ls.unsealHeader(doNothing));
-        REQUIRE_NOTHROW(ls.unsealHeader(doNothing));
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.getLiveEntries();
+        REQUIRE_NOTHROW(ltx.unsealHeader(doNothing));
+        REQUIRE_NOTHROW(ltx.unsealHeader(doNothing));
     }
 }
 
@@ -1945,38 +1945,38 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment",
     {
         SECTION("entry")
         {
-            LedgerTxn ls(root, false);
-            auto entry1 = ls.create(le1);
+            LedgerTxn ltx(root, false);
+            auto entry1 = ltx.create(le1);
             // Avoid warning for explicit move-to-self
             LedgerTxnEntry& entryRef = entry1;
             entry1 = std::move(entryRef);
             REQUIRE(entry1.current() == le1);
-            REQUIRE_THROWS_AS(ls.load(key1), std::runtime_error);
-            REQUIRE_THROWS_AS(ls.loadWithoutRecord(key1), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.load(key1), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadWithoutRecord(key1), std::runtime_error);
         }
 
         SECTION("const entry")
         {
-            LedgerTxn ls(root, false);
-            ls.create(le1);
-            auto entry1 = ls.loadWithoutRecord(key1);
+            LedgerTxn ltx(root, false);
+            ltx.create(le1);
+            auto entry1 = ltx.loadWithoutRecord(key1);
             // Avoid warning for explicit move-to-self
             ConstLedgerTxnEntry& entryRef = entry1;
             entry1 = std::move(entryRef);
             REQUIRE(entry1.current() == le1);
-            REQUIRE_THROWS_AS(ls.load(key1), std::runtime_error);
-            REQUIRE_THROWS_AS(ls.loadWithoutRecord(key1), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.load(key1), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadWithoutRecord(key1), std::runtime_error);
         }
 
         SECTION("header")
         {
-            LedgerTxn ls(root, false);
-            auto header = ls.loadHeader();
+            LedgerTxn ltx(root, false);
+            auto header = ltx.loadHeader();
             // Avoid warning for explicit move-to-self
             LedgerTxnHeader& headerRef = header;
             header = std::move(headerRef);
             REQUIRE(header.current() == lh);
-            REQUIRE_THROWS_AS(ls.loadHeader(), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadHeader(), std::runtime_error);
         }
     }
 
@@ -1984,37 +1984,37 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment",
     {
         SECTION("entry")
         {
-            LedgerTxn ls(root, false);
-            auto entry1 = ls.create(le1);
-            auto entry2 = ls.create(le2);
+            LedgerTxn ltx(root, false);
+            auto entry1 = ltx.create(le1);
+            auto entry2 = ltx.create(le2);
             entry1 = std::move(entry2);
             REQUIRE(entry1.current() == le2);
-            REQUIRE_THROWS_AS(ls.load(key2), std::runtime_error);
-            REQUIRE(ls.load(key1).current() == le1);
-            REQUIRE(ls.loadWithoutRecord(key1).current() == le1);
+            REQUIRE_THROWS_AS(ltx.load(key2), std::runtime_error);
+            REQUIRE(ltx.load(key1).current() == le1);
+            REQUIRE(ltx.loadWithoutRecord(key1).current() == le1);
         }
 
         SECTION("const entry")
         {
-            LedgerTxn ls(root, false);
-            ls.create(le1);
-            ls.create(le2);
-            auto entry1 = ls.loadWithoutRecord(key1);
-            auto entry2 = ls.loadWithoutRecord(key2);
+            LedgerTxn ltx(root, false);
+            ltx.create(le1);
+            ltx.create(le2);
+            auto entry1 = ltx.loadWithoutRecord(key1);
+            auto entry2 = ltx.loadWithoutRecord(key2);
             entry1 = std::move(entry2);
             REQUIRE(entry1.current() == le2);
-            REQUIRE_THROWS_AS(ls.load(key2), std::runtime_error);
-            REQUIRE(ls.load(key1).current() == le1);
-            REQUIRE(ls.loadWithoutRecord(key1).current() == le1);
+            REQUIRE_THROWS_AS(ltx.load(key2), std::runtime_error);
+            REQUIRE(ltx.load(key1).current() == le1);
+            REQUIRE(ltx.loadWithoutRecord(key1).current() == le1);
         }
 
         SECTION("header")
         {
-            LedgerTxn ls(root, false);
-            auto header1 = ls.loadHeader();
+            LedgerTxn ltx(root, false);
+            auto header1 = ltx.loadHeader();
             LedgerTxnHeader header2 = std::move(header1);
             REQUIRE(header2.current() == lh);
-            REQUIRE_THROWS_AS(ls.loadHeader(), std::runtime_error);
+            REQUIRE_THROWS_AS(ltx.loadHeader(), std::runtime_error);
         }
     }
 }

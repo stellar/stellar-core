@@ -251,11 +251,11 @@ LedgerTxn::Impl::create(LedgerTxn& self, LedgerEntry const& entry)
     // contains key. LedgerTxnEntry constructor does not throw so this is
     // still exception safe.
     mActive.emplace(key, toEntryImplBase(impl));
-    LedgerTxnEntry lse(impl);
+    LedgerTxnEntry ltxe(impl);
 
     // std::shared_ptr assignment is noexcept
     mEntry[key] = current;
-    return lse;
+    return ltxe;
 }
 
 void
@@ -821,11 +821,11 @@ LedgerTxn::Impl::load(LedgerTxn& self, LedgerKey const& key)
     // contains key. LedgerTxnEntry constructor does not throw so this is
     // still exception safe.
     mActive.emplace(key, toEntryImplBase(impl));
-    LedgerTxnEntry lse(impl);
+    LedgerTxnEntry ltxe(impl);
 
     // std::shared_ptr assignment is noexcept
     mEntry[key] = current;
-    return lse;
+    return ltxe;
 }
 
 std::map<AccountID, std::vector<LedgerTxnEntry>>

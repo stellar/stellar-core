@@ -62,7 +62,7 @@ class Upgrades
     createUpgradesFor(LedgerHeader const& header) const;
 
     // apply upgrade to ledger header
-    static void applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ls);
+    static void applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ltx);
 
     // convert upgrade value to string
     static std::string toString(LedgerUpgrade const& upgrade);
@@ -97,10 +97,10 @@ class Upgrades
 
     bool timeForUpgrade(uint64_t time) const;
 
-    static void applyVersionUpgrade(AbstractLedgerTxn& ls,
+    static void applyVersionUpgrade(AbstractLedgerTxn& ltx,
                                     uint32_t newVersion);
 
-    static void applyReserveUpgrade(AbstractLedgerTxn& ls,
+    static void applyReserveUpgrade(AbstractLedgerTxn& ltx,
                                     uint32_t newReserve);
 };
 }

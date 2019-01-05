@@ -52,12 +52,12 @@ createTestAccounts(Application& app, int nbAccounts,
             SecretKey to = getTestAccount(i);
             root.create(to, bal);
 
-            LedgerTxn ls(app.getLedgerTxnRoot());
-            auto account = stellar::loadAccount(ls, to.getPublicKey());
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto account = stellar::loadAccount(ltx, to.getPublicKey());
             auto& ae = account.current().data.account();
             ae.inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
-            ls.commit();
+            ltx.commit();
         }
     }
 }
@@ -138,10 +138,10 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
             bigDivide(coinsToDole, votes.at(w), totVotes, ROUND_DOWN);
         if (ledgerVersion >= 10)
         {
-            LedgerTxn ls(app.getLedgerTxnRoot());
-            auto header = ls.loadHeader();
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
             auto winner =
-                stellar::loadAccount(ls, getTestAccount(w).getPublicKey());
+                stellar::loadAccount(ltx, getTestAccount(w).getPublicKey());
             toDoleToThis =
                 std::min(getMaxAmountReceive(header, winner), toDoleToThis);
         }
@@ -176,12 +176,12 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
             std::function<int(int)> getVote, int expectedWinnerCount)
 {
     auto getFeePool = [&] {
-        LedgerTxn ls(app.getLedgerTxnRoot());
-        return ls.loadHeader().current().feePool;
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        return ltx.loadHeader().current().feePool;
     };
     auto getTotalCoins = [&] {
-        LedgerTxn ls(app.getLedgerTxnRoot());
-        return ls.loadHeader().current().totalCoins;
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        return ltx.loadHeader().current().totalCoins;
     };
 
     // simulate the expected inflation based off the current ledger state
@@ -197,9 +197,9 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         }
         else
         {
-            LedgerTxn ls(app.getLedgerTxnRoot());
+            LedgerTxn ltx(app.getLedgerTxnRoot());
             auto account =
-                stellar::loadAccount(ls, getTestAccount(i).getPublicKey());
+                stellar::loadAccount(ltx, getTestAccount(i).getPublicKey());
             auto const& ae = account.current().data.account();
             balances[i] = ae.balance;
             // double check that inflationDest is setup properly
@@ -253,8 +253,8 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         else
         {
             {
-                LedgerTxn ls(app.getLedgerTxnRoot());
-                auto account = stellar::loadAccount(ls, k.getPublicKey());
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                auto account = stellar::loadAccount(ltx, k.getPublicKey());
                 auto const& ae = account.current().data.account();
                 REQUIRE(expectedBalances[i] == ae.balance);
             }
@@ -299,20 +299,20 @@ TEST_CASE("inflation", "[tx][inflation]")
     auto root = TestAccount::createRoot(*app);
 
     auto getFeePool = [&] {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        return ls.loadHeader().current().feePool;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().feePool;
     };
     auto getInflationSeq = [&] {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        return ls.loadHeader().current().inflationSeq;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().inflationSeq;
     };
     auto getLedgerVersion = [&] {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        return ls.loadHeader().current().ledgerVersion;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().ledgerVersion;
     };
     auto getTotalCoins = [&] {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        return ls.loadHeader().current().totalCoins;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().totalCoins;
     };
 
     app->start();

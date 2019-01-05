@@ -31,7 +31,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
     innerResult().code(PATH_PAYMENT_SUCCESS);
 
@@ -59,15 +59,15 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
                         (getIssuer(curB) == mPathPayment.destination);
 
     bool doesSourceAccountExist = true;
-    if (ls.loadHeader().current().ledgerVersion < 8)
+    if (ltx.loadHeader().current().ledgerVersion < 8)
     {
         doesSourceAccountExist =
-            (bool)stellar::loadAccountWithoutRecord(ls, getSourceID());
+            (bool)stellar::loadAccountWithoutRecord(ltx, getSourceID());
     }
 
     if (!bypassIssuerCheck)
     {
-        if (!stellar::loadAccountWithoutRecord(ls, mPathPayment.destination))
+        if (!stellar::loadAccountWithoutRecord(ltx, mPathPayment.destination))
         {
             innerResult().code(PATH_PAYMENT_NO_DESTINATION);
             return false;
@@ -77,8 +77,8 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
     // update last balance in the chain
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        auto destination = stellar::loadAccount(ls, mPathPayment.destination);
-        if (!addBalance(ls.loadHeader(), destination, curBReceived))
+        auto destination = stellar::loadAccount(ltx, mPathPayment.destination);
+        if (!addBalance(ltx.loadHeader(), destination, curBReceived))
         {
             innerResult().code(PATH_PAYMENT_MALFORMED);
             return false;
@@ -89,7 +89,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         if (!bypassIssuerCheck)
         {
             auto issuer =
-                stellar::loadAccountWithoutRecord(ls, getIssuer(curB));
+                stellar::loadAccountWithoutRecord(ltx, getIssuer(curB));
             if (!issuer)
             {
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
@@ -99,7 +99,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         }
 
         auto destLine =
-            stellar::loadTrustLine(ls, mPathPayment.destination, curB);
+            stellar::loadTrustLine(ltx, mPathPayment.destination, curB);
         if (!destLine)
         {
             innerResult().code(PATH_PAYMENT_NO_TRUST);
@@ -112,7 +112,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             return false;
         }
 
-        if (!destLine.addBalance(ls.loadHeader(), curBReceived))
+        if (!destLine.addBalance(ltx.loadHeader(), curBReceived))
         {
             innerResult().code(PATH_PAYMENT_LINE_FULL);
             return false;
@@ -135,7 +135,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 
         if (curA.type() != ASSET_TYPE_NATIVE)
         {
-            if (!stellar::loadAccountWithoutRecord(ls, getIssuer(curA)))
+            if (!stellar::loadAccountWithoutRecord(ltx, getIssuer(curA)))
             {
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curA;
@@ -146,7 +146,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         // curA -> curB
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
-            ls, curA, INT64_MAX, curASent, curB, curBReceived,
+            ltx, curA, INT64_MAX, curASent, curB, curBReceived,
             actualCurBReceived, true,
             [this](LedgerTxnEntry const& o) {
                 auto const& offer = o.current().data.offer();
@@ -197,11 +197,11 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        auto header = ls.loadHeader();
+        auto header = ltx.loadHeader();
         LedgerTxnEntry sourceAccount;
         if (header.current().ledgerVersion > 7)
         {
-            sourceAccount = stellar::loadAccount(ls, getSourceID());
+            sourceAccount = stellar::loadAccount(ltx, getSourceID());
             if (!sourceAccount)
             {
                 innerResult().code(PATH_PAYMENT_MALFORMED);
@@ -210,7 +210,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         }
         else
         {
-            sourceAccount = loadSourceAccount(ls, header);
+            sourceAccount = loadSourceAccount(ltx, header);
         }
 
         if (curBSent > getAvailableBalance(header, sourceAccount))
@@ -232,7 +232,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         if (!bypassIssuerCheck)
         {
             auto issuer =
-                stellar::loadAccountWithoutRecord(ls, getIssuer(curB));
+                stellar::loadAccountWithoutRecord(ltx, getIssuer(curB));
             if (!issuer)
             {
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
@@ -241,7 +241,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             }
         }
 
-        auto sourceLine = loadTrustLine(ls, getSourceID(), curB);
+        auto sourceLine = loadTrustLine(ltx, getSourceID(), curB);
         if (!sourceLine)
         {
             innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
@@ -254,7 +254,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             return false;
         }
 
-        if (!sourceLine.addBalance(ls.loadHeader(), -curBSent))
+        if (!sourceLine.addBalance(ltx.loadHeader(), -curBSent))
         {
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;

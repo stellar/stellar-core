@@ -42,26 +42,26 @@ BucketApplicator::advance()
 {
     size_t count = 0;
 
-    LedgerTxn ls(mApp.getLedgerTxnRoot(), false);
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
     for (; mBucketIter; ++mBucketIter)
     {
         if ((*mBucketIter).type() == LIVEENTRY)
         {
             auto const& bucketEntry = (*mBucketIter).liveEntry();
             auto key = LedgerEntryKey(bucketEntry);
-            auto entry = ls.load(key);
+            auto entry = ltx.load(key);
             if (entry)
             {
                 entry.current() = bucketEntry;
             }
             else
             {
-                ls.create(bucketEntry);
+                ltx.create(bucketEntry);
             }
         }
         else
         {
-            auto entry = ls.load((*mBucketIter).deadEntry());
+            auto entry = ltx.load((*mBucketIter).deadEntry());
             if (entry)
             {
                 entry.erase();
@@ -73,7 +73,7 @@ BucketApplicator::advance()
             break;
         }
     }
-    ls.commit();
+    ltx.commit();
 
     mCount += count;
     return count;

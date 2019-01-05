@@ -3927,9 +3927,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             };
             auto validateOffer = [&](const TestAccount& account,
                                      uint64_t offerId, int64_t difference) {
-                LedgerTxn ls(app->getLedgerTxnRoot());
+                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto offer =
-                    stellar::loadOffer(ls, account.getPublicKey(), offerId);
+                    stellar::loadOffer(ltx, account.getPublicKey(), offerId);
                 auto const& oe = offer.current().data.offer();
                 REQUIRE(oe.amount == offerAmount + difference);
             };

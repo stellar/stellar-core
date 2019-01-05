@@ -36,9 +36,9 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 
 // make sure these issuers exist and you can hold the ask asset
 bool
-ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& lsOuter)
+ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& ltxOuter)
 {
-    LedgerTxn ls(lsOuter); // ls will always be rolled back
+    LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
 
@@ -50,8 +50,8 @@ ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& lsOuter)
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
-        auto sheepLineA = loadTrustLine(ls, getSourceID(), sheep);
-        auto issuer = stellar::loadAccount(ls, getIssuer(sheep));
+        auto sheepLineA = loadTrustLine(ltx, getSourceID(), sheep);
+        auto issuer = stellar::loadAccount(ltx, getIssuer(sheep));
         if (!issuer)
         {
             innerResult().code(MANAGE_OFFER_SELL_NO_ISSUER);
@@ -77,8 +77,8 @@ ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& lsOuter)
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        auto wheatLineA = loadTrustLine(ls, getSourceID(), wheat);
-        auto issuer = stellar::loadAccount(ls, getIssuer(wheat));
+        auto wheatLineA = loadTrustLine(ltx, getSourceID(), wheat);
+        auto issuer = stellar::loadAccount(ltx, getIssuer(wheat));
         if (!issuer)
         {
             innerResult().code(MANAGE_OFFER_BUY_NO_ISSUER);
@@ -101,20 +101,20 @@ ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& lsOuter)
 
 bool
 ManageOfferOpFrame::computeOfferExchangeParameters(
-    Application& app, AbstractLedgerTxn& lsOuter,
+    Application& app, AbstractLedgerTxn& ltxOuter,
     LedgerEntry const& offerEntry, bool creatingNewOffer, int64_t& maxSheepSend,
     int64_t& maxWheatReceive)
 {
-    LedgerTxn ls(lsOuter); // ls will always be rolled back
+    LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
     auto const& offer = offerEntry.data.offer();
     Asset const& sheep = offer.selling;
     Asset const& wheat = offer.buying;
 
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     auto ledgerVersion = header.current().ledgerVersion;
 
-    auto sourceAccount = loadSourceAccount(ls, header);
+    auto sourceAccount = loadSourceAccount(ltx, header);
 
     if (creatingNewOffer &&
         (ledgerVersion >= 10 ||
@@ -130,8 +130,8 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
         }
     }
 
-    auto sheepLineA = loadTrustLineIfNotNative(ls, getSourceID(), sheep);
-    auto wheatLineA = loadTrustLineIfNotNative(ls, getSourceID(), wheat);
+    auto sheepLineA = loadTrustLineIfNotNative(ltx, getSourceID(), sheep);
+    auto wheatLineA = loadTrustLineIfNotNative(ltx, getSourceID(), wheat);
 
     maxWheatReceive = canBuyAtMost(header, sourceAccount, wheat, wheatLineA);
     if (ledgerVersion >= 10)
@@ -182,10 +182,10 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
+ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& ltxOuter)
 {
-    LedgerTxn ls(lsOuter);
-    if (!checkOfferValid(ls))
+    LedgerTxn ltx(ltxOuter);
+    if (!checkOfferValid(ltx))
     {
         return false;
     }
@@ -200,7 +200,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
     newOffer.data.type(OFFER);
     if (offerID)
     { // modifying an old offer
-        auto sellSheepOffer = stellar::loadOffer(ls, getSourceID(), offerID);
+        auto sellSheepOffer = stellar::loadOffer(ltx, getSourceID(), offerID);
         if (!sellSheepOffer)
         {
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
@@ -212,10 +212,10 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
         // executed. Both trust lines must be reset since it is possible that
         // the assets are updated (including the edge case that the buying and
         // selling assets are swapped).
-        auto header = ls.loadHeader();
+        auto header = ltx.loadHeader();
         if (header.current().ledgerVersion >= 10)
         {
-            releaseLiabilities(ls, header, sellSheepOffer);
+            releaseLiabilities(ltx, header, sellSheepOffer);
         }
 
         // rebuild offer based off the manage offer
@@ -244,7 +244,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
                             newOffer.data.offer().price.n);
         int64_t maxSheepSend = 0;
         int64_t maxWheatReceive = 0;
-        if (!computeOfferExchangeParameters(app, ls, newOffer, creatingNewOffer,
+        if (!computeOfferExchangeParameters(app, ltx, newOffer, creatingNewOffer,
                                             maxSheepSend, maxWheatReceive))
         {
             return false;
@@ -259,7 +259,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
         int64_t sheepSent, wheatReceived;
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
-            ls, sheep, maxSheepSend, sheepSent, wheat, maxWheatReceive,
+            ltx, sheep, maxSheepSend, sheepSent, wheat, maxWheatReceive,
             wheatReceived, false,
             [this, &newOffer, &maxWheatPrice](LedgerTxnEntry const& entry) {
                 auto const& o = entry.current().data.offer();
@@ -306,14 +306,14 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
             innerResult().success().offersClaimed.push_back(oatom);
         }
 
-        auto header = ls.loadHeader();
+        auto header = ltx.loadHeader();
         if (wheatReceived > 0)
         {
             // it's OK to use mSourceAccount, mWheatLineA and mSheepLineA
             // here as OfferExchange won't cross offers from source account
             if (wheat.type() == ASSET_TYPE_NATIVE)
             {
-                auto sourceAccount = loadSourceAccount(ls, header);
+                auto sourceAccount = loadSourceAccount(ltx, header);
                 if (!addBalance(header, sourceAccount, wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
@@ -322,7 +322,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
             }
             else
             {
-                auto wheatLineA = loadTrustLine(ls, getSourceID(), wheat);
+                auto wheatLineA = loadTrustLine(ltx, getSourceID(), wheat);
                 if (!wheatLineA.addBalance(header, wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
@@ -332,7 +332,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
             {
-                auto sourceAccount = loadSourceAccount(ls, header);
+                auto sourceAccount = loadSourceAccount(ltx, header);
                 if (!addBalance(header, sourceAccount, -sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
@@ -341,7 +341,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
             }
             else
             {
-                auto sheepLineA = loadTrustLine(ls, getSourceID(), sheep);
+                auto sheepLineA = loadTrustLine(ltx, getSourceID(), sheep);
                 if (!sheepLineA.addBalance(header, -sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
@@ -356,11 +356,11 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
             if (sheepStays)
             {
                 auto sourceAccount =
-                    stellar::loadAccountWithoutRecord(ls, getSourceID());
+                    stellar::loadAccountWithoutRecord(ltx, getSourceID());
                 auto sheepLineA = loadTrustLineWithoutRecordIfNotNative(
-                    ls, getSourceID(), sheep);
+                    ltx, getSourceID(), sheep);
                 auto wheatLineA = loadTrustLineWithoutRecordIfNotNative(
-                    ls, getSourceID(), wheat);
+                    ltx, getSourceID(), wheat);
 
                 OfferEntry& oe = newOffer.data.offer();
                 int64_t sheepSendLimit =
@@ -378,14 +378,14 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
         }
     }
 
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     if (newOffer.data.offer().amount > 0)
     { // we still have sheep to sell so leave an offer
         if (creatingNewOffer)
         {
             // make sure we don't allow us to add offers when we don't have
             // the minbalance (should never happen at this stage in v9+)
-            auto sourceAccount = loadSourceAccount(ls, header);
+            auto sourceAccount = loadSourceAccount(ltx, header);
             if (!addNumEntries(header, sourceAccount, 1))
             {
                 innerResult().code(MANAGE_OFFER_LOW_RESERVE);
@@ -398,13 +398,13 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
         {
             innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
         }
-        auto sellSheepOffer = ls.create(newOffer);
+        auto sellSheepOffer = ltx.create(newOffer);
         innerResult().success().offer.offer() =
             sellSheepOffer.current().data.offer();
 
         if (header.current().ledgerVersion >= 10)
         {
-            acquireLiabilities(ls, header, sellSheepOffer);
+            acquireLiabilities(ltx, header, sellSheepOffer);
         }
     }
     else
@@ -413,12 +413,12 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& lsOuter)
 
         if (!creatingNewOffer)
         {
-            auto sourceAccount = loadSourceAccount(ls, header);
+            auto sourceAccount = loadSourceAccount(ltx, header);
             addNumEntries(header, sourceAccount, -1);
         }
     }
 
-    ls.commit();
+    ltx.commit();
     return true;
 }
 

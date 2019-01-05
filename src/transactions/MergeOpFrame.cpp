@@ -35,11 +35,11 @@ MergeOpFrame::getThresholdLevel() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
 
-    auto otherAccount = stellar::loadAccount(ls, mOperation.body.destination());
+    auto otherAccount = stellar::loadAccount(ltx, mOperation.body.destination());
     if (!otherAccount)
     {
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
@@ -53,7 +53,7 @@ MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         // in versions < 8, merge account could be called with a stale account
         LedgerKey key(ACCOUNT);
         key.account().accountID = getSourceID();
-        auto thisAccount = ls.loadWithoutRecord(key);
+        auto thisAccount = ltx.loadWithoutRecord(key);
         if (!thisAccount)
         {
             innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
@@ -66,7 +66,7 @@ MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         }
     }
 
-    auto sourceAccountEntry = loadSourceAccount(ls, header);
+    auto sourceAccountEntry = loadSourceAccount(ltx, header);
     auto const& sourceAccount = sourceAccountEntry.current().data.account();
     // Only set sourceBalance here if it wasn't set in the previous block
     if (header.current().ledgerVersion <= 5 ||

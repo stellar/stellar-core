@@ -47,8 +47,8 @@ struct BucketListGenerator
         key.account().accountID = skey.getPublicKey();
         mLiveKeys.insert(key);
 
-        LedgerTxn ls(mAppGenerate->getLedgerTxnRoot(), false);
-        REQUIRE(mLedgerSeq == ls.loadHeader().current().ledgerSeq);
+        LedgerTxn ltx(mAppGenerate->getLedgerTxnRoot(), false);
+        REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
     }
 
     BucketListGenerator()
@@ -70,39 +70,39 @@ struct BucketListGenerator
     generateLedger()
     {
         auto& app = mAppGenerate;
-        LedgerTxn ls(app->getLedgerTxnRoot(), false);
-        REQUIRE(mLedgerSeq == ls.loadHeader().current().ledgerSeq);
-        mLedgerSeq = ++ls.loadHeader().current().ledgerSeq;
+        LedgerTxn ltx(app->getLedgerTxnRoot(), false);
+        REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
+        mLedgerSeq = ++ltx.loadHeader().current().ledgerSeq;
 
-        auto dead = generateDeadEntries(ls);
+        auto dead = generateDeadEntries(ltx);
         assert(dead.size() <= mLiveKeys.size());
         for (auto const& key : dead)
         {
             auto iter = mLiveKeys.find(key);
             assert(iter != mLiveKeys.end());
-            ls.erase(key);
+            ltx.erase(key);
             mLiveKeys.erase(iter);
         }
 
-        auto live = generateLiveEntries(ls);
+        auto live = generateLiveEntries(ltx);
         for (auto& le : live)
         {
             auto key = LedgerEntryKey(le);
             auto iter = mLiveKeys.find(key);
             if (iter == mLiveKeys.end())
             {
-                ls.create(le);
+                ltx.create(le);
             }
             else
             {
-                ls.load(key).current() = le;
+                ltx.load(key).current() = le;
             }
             mLiveKeys.insert(LedgerEntryKey(le));
         }
 
-        app->getBucketManager().addBatch(*app, mLedgerSeq, ls.getLiveEntries(),
-                                         ls.getDeadEntries());
-        ls.commit();
+        app->getBucketManager().addBatch(*app, mLedgerSeq, ltx.getLiveEntries(),
+                                         ltx.getDeadEntries());
+        ltx.commit();
     }
 
     void
@@ -116,7 +116,7 @@ struct BucketListGenerator
     }
 
     virtual std::vector<LedgerEntry>
-    generateLiveEntries(AbstractLedgerTxn& ls)
+    generateLiveEntries(AbstractLedgerTxn& ltx)
     {
         auto entries = LedgerTestUtils::generateValidLedgerEntries(5);
         for (auto& le : entries)
@@ -127,7 +127,7 @@ struct BucketListGenerator
     }
 
     virtual std::vector<LedgerKey>
-    generateDeadEntries(AbstractLedgerTxn& ls)
+    generateDeadEntries(AbstractLedgerTxn& ltx)
     {
         std::unordered_set<LedgerKey> live(mLiveKeys);
         std::vector<LedgerKey> dead;
@@ -216,7 +216,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
     }
 
     virtual std::vector<LedgerEntry>
-    generateLiveEntries(AbstractLedgerTxn& ls)
+    generateLiveEntries(AbstractLedgerTxn& ltx)
     {
         if (mLedgerSeq == mSelectLedger)
         {
@@ -234,16 +234,16 @@ struct SelectBucketListGenerator : public BucketListGenerator
                 std::advance(iter, dist(*mGen));
 
                 mSelected = std::make_shared<LedgerEntry>(
-                    ls.loadWithoutRecord(*iter).current());
+                    ltx.loadWithoutRecord(*iter).current());
             }
         }
-        return BucketListGenerator::generateLiveEntries(ls);
+        return BucketListGenerator::generateLiveEntries(ltx);
     }
 
     virtual std::vector<LedgerKey>
-    generateDeadEntries(AbstractLedgerTxn& ls)
+    generateDeadEntries(AbstractLedgerTxn& ltx)
     {
-        auto dead = BucketListGenerator::generateDeadEntries(ls);
+        auto dead = BucketListGenerator::generateDeadEntries(ltx);
         if (mSelected)
         {
             auto key = LedgerEntryKey(*mSelected);
@@ -282,18 +282,18 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         {
             uint32_t minLedger = mEntry.lastModifiedLedgerSeq;
             uint32_t maxLedger = std::numeric_limits<int32_t>::max();
-            auto& lsRoot = mApp.getLedgerTxnRoot();
+            auto& ltxRoot = mApp.getLedgerTxnRoot();
             size_t count =
-                lsRoot.countObjects(ACCOUNT, {minLedger, maxLedger}) +
-                lsRoot.countObjects(DATA, {minLedger, maxLedger}) +
-                lsRoot.countObjects(OFFER, {minLedger, maxLedger}) +
-                lsRoot.countObjects(TRUSTLINE, {minLedger, maxLedger});
+                ltxRoot.countObjects(ACCOUNT, {minLedger, maxLedger}) +
+                ltxRoot.countObjects(DATA, {minLedger, maxLedger}) +
+                ltxRoot.countObjects(OFFER, {minLedger, maxLedger}) +
+                ltxRoot.countObjects(TRUSTLINE, {minLedger, maxLedger});
 
             if (count > 0)
             {
-                LedgerTxn ls(lsRoot, false);
-                ls.create(mEntry);
-                ls.commit();
+                LedgerTxn ltx(ltxRoot, false);
+                ltx.create(mEntry);
+                ltx.commit();
                 mAdded = true;
             }
         }
@@ -330,12 +330,12 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     {
         if (!mDeleted)
         {
-            LedgerTxn ls(mApp.getLedgerTxnRoot(), false);
-            auto entry = ls.load(mKey);
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
+            auto entry = ltx.load(mKey);
             if (entry && entry.current() == mEntry)
             {
                 entry.erase();
-                ls.commit();
+                ltx.commit();
                 mDeleted = true;
             }
         }
@@ -415,8 +415,8 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     {
         if (!mModified)
         {
-            LedgerTxn ls(mApp.getLedgerTxnRoot(), false);
-            auto entry = ls.load(mKey);
+            LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
+            auto entry = ltx.load(mKey);
             if (entry && entry.current() == mEntry)
             {
                 switch (mEntry.data.type())
@@ -436,7 +436,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 default:
                     REQUIRE(false);
                 }
-                ls.commit();
+                ltx.commit();
                 mModified = true;
             }
         }
@@ -466,13 +466,13 @@ TEST_CASE("BucketListIsConsistentWithDatabase empty ledgers",
     class EmptyBucketListGenerator : public BucketListGenerator
     {
         virtual std::vector<LedgerEntry>
-        generateLiveEntries(AbstractLedgerTxn& ls)
+        generateLiveEntries(AbstractLedgerTxn& ltx)
         {
             return {};
         }
 
         virtual std::vector<LedgerKey>
-        generateDeadEntries(AbstractLedgerTxn& ls)
+        generateDeadEntries(AbstractLedgerTxn& ltx)
         {
             return {};
         }
@@ -513,7 +513,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
         }
 
         virtual std::vector<LedgerEntry>
-        generateLiveEntries(AbstractLedgerTxn& ls)
+        generateLiveEntries(AbstractLedgerTxn& ltx)
         {
             if (mLedgerSeq == mTargetLedger)
             {
@@ -521,18 +521,18 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
                 auto& app = mAppGenerate;
                 auto skey = SecretKey::fromSeed(app->getNetworkID());
                 auto root = skey.getPublicKey();
-                auto le = stellar::loadAccountWithoutRecord(ls, root).current();
+                auto le = stellar::loadAccountWithoutRecord(ltx, root).current();
                 le.lastModifiedLedgerSeq = mLedgerSeq;
                 return {le};
             }
             else
             {
-                return BucketListGenerator::generateLiveEntries(ls);
+                return BucketListGenerator::generateLiveEntries(ltx);
             }
         }
 
         virtual std::vector<LedgerKey>
-        generateDeadEntries(AbstractLedgerTxn& ls)
+        generateDeadEntries(AbstractLedgerTxn& ltx)
         {
             return {};
         }
@@ -630,9 +630,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
         }
 
         virtual std::vector<LedgerEntry>
-        generateLiveEntries(AbstractLedgerTxn& ls)
+        generateLiveEntries(AbstractLedgerTxn& ltx)
         {
-            auto entries = BucketListGenerator::generateLiveEntries(ls);
+            auto entries = BucketListGenerator::generateLiveEntries(ltx);
             if (mLedgerSeq == mTargetLedger)
             {
                 mModifiedLedger = true;
@@ -709,7 +709,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
         }
 
         virtual std::vector<LedgerKey>
-        generateDeadEntries(AbstractLedgerTxn& ls)
+        generateDeadEntries(AbstractLedgerTxn& ltx)
         {
             if (mLedgerSeq == mTargetLedger)
             {
@@ -717,14 +717,14 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             }
             else
             {
-                return SelectBucketListGenerator::generateDeadEntries(ls);
+                return SelectBucketListGenerator::generateDeadEntries(ltx);
             }
         }
     };
 
     auto exists = [](Application& app, LedgerEntry const& le) {
-        LedgerTxn ls(app.getLedgerTxnRoot());
-        return (bool)ls.load(LedgerEntryKey(le));
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        return (bool)ltx.load(LedgerEntryKey(le));
     };
 
     testutil::BucketListDepthModifier bldm(3);

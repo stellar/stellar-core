@@ -138,8 +138,8 @@ TEST_CASE("standalone", "[herder]")
 
                 bool hasC = false;
                 {
-                    LedgerTxn ls(app->getLedgerTxnRoot());
-                    hasC = ls.loadHeader().current().ledgerVersion >= 10;
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    hasC = ltx.loadHeader().current().ledgerVersion >= 10;
                 }
                 if (hasC)
                 {
@@ -376,8 +376,8 @@ TEST_CASE("surge", "[herder]")
     app->start();
 
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        ls.loadHeader().current().maxTxSetSize =
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().maxTxSetSize =
             cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     }
 
@@ -514,8 +514,8 @@ TEST_CASE("SCP Driver", "[herder]")
     app->start();
 
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        ls.loadHeader().current().maxTxSetSize =
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().maxTxSetSize =
             cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     }
 

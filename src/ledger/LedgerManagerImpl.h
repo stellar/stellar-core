@@ -66,13 +66,13 @@ class LedgerManagerImpl : public LedgerManager
     void applyBufferedLedgers();
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            AbstractLedgerTxn& lsOuter);
+                            AbstractLedgerTxn& ltxOuter);
 
     void applyTransactions(std::vector<TransactionFramePtr>& txs,
-                           AbstractLedgerTxn& ls,
+                           AbstractLedgerTxn& ltx,
                            TransactionResultSet& txResultSet);
 
-    void ledgerClosed(AbstractLedgerTxn& ls);
+    void ledgerClosed(AbstractLedgerTxn& ltx);
 
     void storeCurrentLedger(LedgerHeader const& header);
     void advanceLedgerPointers(LedgerHeader const& header);

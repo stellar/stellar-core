@@ -444,8 +444,8 @@ TEST_CASE("merge", "[tx][merge]")
                 a1.merge(b1);
 
                 {
-                    LedgerTxn ls(app->getLedgerTxnRoot());
-                    REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!stellar::loadAccount(ltx, a1.getPublicKey()));
                 }
             });
         }
@@ -461,8 +461,8 @@ TEST_CASE("merge", "[tx][merge]")
                 checkTx(1, r, txNO_ACCOUNT);
 
                 {
-                    LedgerTxn ls(app->getLedgerTxnRoot());
-                    REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!stellar::loadAccount(ltx, a1.getPublicKey()));
                 }
 
                 int64 expectedB1Balance =
@@ -553,9 +553,9 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_from(10, *app, [&]() {
             SequenceNumber curStartSeqNum;
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                ++ls.loadHeader().current().ledgerSeq;
-                curStartSeqNum = getStartingSequenceNumber(ls.loadHeader());
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ++ltx.loadHeader().current().ledgerSeq;
+                curStartSeqNum = getStartingSequenceNumber(ltx.loadHeader());
             }
             auto maxSeqNum = curStartSeqNum - 1;
 
@@ -611,9 +611,9 @@ TEST_CASE("merge", "[tx][merge]")
             acc2.merge(acc1);
 
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                auto header = ls.loadHeader();
-                auto account = stellar::loadAccount(ls, acc1.getPublicKey());
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto header = ltx.loadHeader();
+                auto account = stellar::loadAccount(ltx, acc1.getPublicKey());
                 auto const& ae = account.current().data.account();
                 REQUIRE(ae.balance == 2 * minBal);
                 REQUIRE(ae.balance + getBuyingLiabilities(header, account) ==

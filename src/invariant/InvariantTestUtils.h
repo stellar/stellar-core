@@ -25,7 +25,7 @@ typedef std::vector<
     UpdateList;
 
 bool store(Application& app, UpdateList const& apply,
-           AbstractLedgerTxn* lsPtr = nullptr,
+           AbstractLedgerTxn* ltxPtr = nullptr,
            OperationResult const* resPtr = nullptr);
 
 UpdateList makeUpdateList(std::vector<LedgerEntry> const& current,

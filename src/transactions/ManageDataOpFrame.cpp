@@ -27,21 +27,21 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     if (header.current().ledgerVersion == 3)
     {
         throw std::runtime_error(
             "MANAGE_DATA not supported on ledger version 3");
     }
 
-    auto data = stellar::loadData(ls, getSourceID(), mManageData.dataName);
+    auto data = stellar::loadData(ltx, getSourceID(), mManageData.dataName);
     if (mManageData.dataValue)
     {
         if (!data)
         { // create a new data entry
-            auto sourceAccount = loadSourceAccount(ls, header);
+            auto sourceAccount = loadSourceAccount(ltx, header);
             if (!addNumEntries(header, sourceAccount, 1))
             {
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
@@ -54,7 +54,7 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             dataEntry.accountID = getSourceID();
             dataEntry.dataName = mManageData.dataName;
             dataEntry.dataValue = *mManageData.dataValue;
-            ls.create(newData);
+            ltx.create(newData);
         }
         else
         { // modify an existing entry
@@ -69,7 +69,7 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             return false;
         }
         data.erase();
-        auto sourceAccount = loadSourceAccount(ls, header);
+        auto sourceAccount = loadSourceAccount(ltx, header);
         addNumEntries(header, sourceAccount, -1);
     }
 

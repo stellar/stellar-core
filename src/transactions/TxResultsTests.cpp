@@ -103,14 +103,14 @@ TEST_CASE("txresults", "[tx][txresults]")
     const int64_t startAmount = baseReserve * 100;
 
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        ls.loadHeader().current().scpValue.closeTime = 10;
-        ls.commit();
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().scpValue.closeTime = 10;
+        ltx.commit();
     }
 
     auto getCloseTime = [&] {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        return ls.loadHeader().current().scpValue.closeTime;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().scpValue.closeTime;
     };
 
     auto amount = [&](PaymentValidity t) {
@@ -540,8 +540,8 @@ TEST_CASE("txresults", "[tx][txresults]")
         for_all_versions(*app, [&] {
             uint32_t ledgerVersion = 0;
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                ledgerVersion = ls.loadHeader().current().ledgerVersion;
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
             auto validationResult =
                 makeValidationResult(signs, ops, ledgerVersion);

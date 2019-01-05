@@ -156,8 +156,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerTxn ls(mApp.getLedgerTxnRoot());
-        auto acc = stellar::loadAccount(ls, key.getPublicKey());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto acc = stellar::loadAccount(ltx, key.getPublicKey());
         if (acc)
         {
             auto const& ae = acc.current().data.account();

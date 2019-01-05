@@ -81,10 +81,10 @@ TEST_CASE("payment", "[tx][payment]")
 
     AccountEntry rootAcc, a1Acc;
     {
-        LedgerTxn ls(app->getLedgerTxnRoot());
-        auto rootAccount = txtest::loadAccount(ls, root);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto rootAccount = txtest::loadAccount(ltx, root);
         rootAcc = rootAccount.current().data.account();
-        auto a1Account = txtest::loadAccount(ls, a1);
+        auto a1Account = txtest::loadAccount(ltx, a1);
         a1Acc = a1Account.current().data.account();
         REQUIRE(rootAcc.thresholds[THRESHOLD_MASTER_WEIGHT] == 1);
         REQUIRE(rootAcc.thresholds[THRESHOLD_HIGH] == 0);
@@ -269,10 +269,10 @@ TEST_CASE("payment", "[tx][payment]")
             root.pay(a1, morePayment);
 
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                auto rootAccount2 = stellar::loadAccount(ls, root);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto rootAccount2 = stellar::loadAccount(ltx, root);
                 auto rootAcc2 = rootAccount2.current().data.account();
-                auto a1Account2 = stellar::loadAccount(ls, a1);
+                auto a1Account2 = stellar::loadAccount(ltx, a1);
                 auto a1Acc2 = a1Account2.current().data.account();
                 REQUIRE(a1Acc2.balance == a1Acc.balance + morePayment);
 
@@ -292,8 +292,8 @@ TEST_CASE("payment", "[tx][payment]")
                 ex_PAYMENT_NO_DESTINATION);
 
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                auto rootAccount2 = stellar::loadAccount(ls, root);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto rootAccount2 = stellar::loadAccount(ltx, root);
                 auto rootAcc2 = rootAccount2.current().data.account();
                 REQUIRE(rootAcc2.balance == (rootAcc.balance - txfee));
             }
@@ -304,8 +304,8 @@ TEST_CASE("payment", "[tx][payment]")
     {
         for_all_versions(*app, [&] {
             auto getMinBalance = [&] {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                return stellar::getMinBalance(ls.loadHeader(), 0);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                return stellar::getMinBalance(ltx.loadHeader(), 0);
             };
 
             int64 orgReserve = getMinBalance();
@@ -315,9 +315,9 @@ TEST_CASE("payment", "[tx][payment]")
             // raise the reserve
             uint32 addReserve = 100000;
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                ls.loadHeader().current().baseReserve += addReserve;
-                ls.commit();
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ltx.loadHeader().current().baseReserve += addReserve;
+                ltx.commit();
             }
 
             // verify that the account can't do anything
@@ -1572,8 +1572,8 @@ TEST_CASE("payment", "[tx][payment]")
 
             // in ledger versions 1 and 2 each of these payment succeeds
             {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                if (ls.loadHeader().current().ledgerVersion < 3)
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                if (ltx.loadHeader().current().ledgerVersion < 3)
                 {
                     payNoTrust = payOk;
                     payLineFull = payOk;
@@ -1597,11 +1597,11 @@ TEST_CASE("payment", "[tx][payment]")
                     {
                         data.payWithoutTrustline(data.asset, 1);
 
-                        LedgerTxn ls(app->getLedgerTxnRoot());
-                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
                         REQUIRE(ae.balance == minBalance2 - txfee);
-                        REQUIRE(!stellar::loadTrustLine(ls, sendToSelf,
+                        REQUIRE(!stellar::loadTrustLine(ltx, sendToSelf,
                                                         data.asset));
                     }
                 }
@@ -1635,12 +1635,12 @@ TEST_CASE("payment", "[tx][payment]")
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
 
-                        LedgerTxn ls(app->getLedgerTxnRoot());
-                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
                         REQUIRE(ae.balance == minBalance2 - 4 * txfee);
                         auto trust =
-                            stellar::loadTrustLine(ls, sendToSelf, data.asset);
+                            stellar::loadTrustLine(ltx, sendToSelf, data.asset);
                         REQUIRE(trust);
                         REQUIRE(trust.getBalance() == 0);
                     }
@@ -1662,12 +1662,12 @@ TEST_CASE("payment", "[tx][payment]")
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
 
-                        LedgerTxn ls(app->getLedgerTxnRoot());
-                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
                         REQUIRE(ae.balance == minBalance2 - 4 * txfee);
                         auto trust =
-                            stellar::loadTrustLine(ls, sendToSelf, data.asset);
+                            stellar::loadTrustLine(ltx, sendToSelf, data.asset);
                         REQUIRE(trust);
                         REQUIRE(trust.getBalance() == 500);
                     }
@@ -1689,12 +1689,12 @@ TEST_CASE("payment", "[tx][payment]")
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
 
-                        LedgerTxn ls(app->getLedgerTxnRoot());
-                        auto account = txtest::loadAccount(ls, sendToSelf);
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
                         REQUIRE(ae.balance == minBalance2 - 4 * txfee);
                         auto trust =
-                            stellar::loadTrustLine(ls, sendToSelf, data.asset);
+                            stellar::loadTrustLine(ltx, sendToSelf, data.asset);
                         REQUIRE(trust);
                         REQUIRE(trust.getBalance() == 1000);
                     }

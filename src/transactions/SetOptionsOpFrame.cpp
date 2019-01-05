@@ -41,17 +41,17 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    auto header = ls.loadHeader();
-    auto sourceAccount = loadSourceAccount(ls, header);
+    auto header = ltx.loadHeader();
+    auto sourceAccount = loadSourceAccount(ltx, header);
     auto& account = sourceAccount.current().data.account();
     if (mSetOptions.inflationDest)
     {
         AccountID inflationID = *mSetOptions.inflationDest;
         if (!(inflationID == getSourceID()))
         {
-            if (!stellar::loadAccountWithoutRecord(ls, inflationID))
+            if (!stellar::loadAccountWithoutRecord(ltx, inflationID))
             {
                 innerResult().code(SET_OPTIONS_INVALID_INFLATION);
                 return false;

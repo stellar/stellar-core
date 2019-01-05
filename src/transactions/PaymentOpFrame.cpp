@@ -26,12 +26,12 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines
     // in ledger version 2 it would work for any asset type
-    auto ledgerVersion = ls.loadHeader().current().ledgerVersion;
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     auto instantSuccess = ledgerVersion > 2
                               ? mPayment.destination == getSourceID() &&
                                     mPayment.asset.type() == ASSET_TYPE_NATIVE
@@ -61,7 +61,7 @@ PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
 
     if (!ppayment.doCheckValid(app, ledgerVersion) ||
-        !ppayment.doApply(app, ls))
+        !ppayment.doApply(app, ltx))
     {
         if (ppayment.getResultCode() != opINNER)
         {

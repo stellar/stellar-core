@@ -30,11 +30,11 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    if (!stellar::loadAccount(ls, mCreateAccount.destination))
+    if (!stellar::loadAccount(ltx, mCreateAccount.destination))
     {
-        auto header = ls.loadHeader();
+        auto header = ltx.loadHeader();
         if (mCreateAccount.startingBalance < getMinBalance(header, 0))
         { // not over the minBalance to make an account
             innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
@@ -47,10 +47,10 @@ CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             {
                 LedgerKey key(ACCOUNT);
                 key.account().accountID = getSourceID();
-                doesAccountExist = (bool)ls.loadWithoutRecord(key);
+                doesAccountExist = (bool)ltx.loadWithoutRecord(key);
             }
 
-            auto sourceAccount = loadSourceAccount(ls, header);
+            auto sourceAccount = loadSourceAccount(ltx, header);
             if (getAvailableBalance(header, sourceAccount) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
@@ -75,7 +75,7 @@ CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             newAccount.accountID = mCreateAccount.destination;
             newAccount.seqNum = getStartingSequenceNumber(header);
             newAccount.balance = mCreateAccount.startingBalance;
-            ls.create(newAccountEntry);
+            ltx.create(newAccountEntry);
 
             innerResult().code(CREATE_ACCOUNT_SUCCESS);
             return true;

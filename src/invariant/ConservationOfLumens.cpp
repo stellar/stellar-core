@@ -45,16 +45,16 @@ ConservationOfLumens::getName() const
 std::string
 ConservationOfLumens::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& result,
-                                            LedgerTxnDelta const& lsDelta)
+                                            LedgerTxnDelta const& ltxDelta)
 {
-    auto const& lhCurr = lsDelta.header.current;
-    auto const& lhPrev = lsDelta.header.previous;
+    auto const& lhCurr = ltxDelta.header.current;
+    auto const& lhPrev = ltxDelta.header.previous;
 
     int64_t deltaTotalCoins = lhCurr.totalCoins - lhPrev.totalCoins;
     int64_t deltaFeePool = lhCurr.feePool - lhPrev.feePool;
     int64_t deltaBalances = std::accumulate(
-        lsDelta.entry.begin(), lsDelta.entry.end(), static_cast<int64_t>(0),
-        [](int64_t lhs, decltype(lsDelta.entry)::value_type const& rhs) {
+        ltxDelta.entry.begin(), ltxDelta.entry.end(), static_cast<int64_t>(0),
+        [](int64_t lhs, decltype(ltxDelta.entry)::value_type const& rhs) {
             return lhs + stellar::calculateDeltaBalance(rhs.second.current,
                                                         rhs.second.previous);
         });

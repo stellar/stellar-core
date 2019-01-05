@@ -469,8 +469,8 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
 bool
 LoadGenerator::loadAccount(TestAccount& account, Application& app)
 {
-    LedgerTxn ls(app.getLedgerTxnRoot());
-    auto entry = stellar::loadAccount(ls, account.getPublicKey());
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto entry = stellar::loadAccount(ltx, account.getPublicKey());
     if (!entry)
     {
         return false;

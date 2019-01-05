@@ -24,9 +24,9 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     auto issuerID = getIssuer(mChangeTrust.line);
 
     if (header.current().ledgerVersion > 2)
@@ -49,7 +49,7 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
-        else if (!stellar::loadAccountWithoutRecord(ls, issuerID))
+        else if (!stellar::loadAccountWithoutRecord(ltx, issuerID))
         {
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
@@ -61,7 +61,7 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
     key.trustLine().accountID = getSourceID();
     key.trustLine().asset = mChangeTrust.line;
 
-    auto trustLine = ls.load(key);
+    auto trustLine = ltx.load(key);
     if (trustLine)
     { // we are modifying an old trustline
         if (mChangeTrust.limit < getMinimumLimit(header, trustLine))
@@ -75,12 +75,12 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         {
             // line gets deleted
             trustLine.erase();
-            auto sourceAccount = loadSourceAccount(ls, header);
+            auto sourceAccount = loadSourceAccount(ltx, header);
             addNumEntries(header, sourceAccount, -1);
         }
         else
         {
-            auto issuer = stellar::loadAccountWithoutRecord(ls, issuerID);
+            auto issuer = stellar::loadAccountWithoutRecord(ltx, issuerID);
             if (!issuer)
             {
                 innerResult().code(CHANGE_TRUST_NO_ISSUER);
@@ -98,14 +98,14 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
             innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
-        auto issuer = stellar::loadAccountWithoutRecord(ls, issuerID);
+        auto issuer = stellar::loadAccountWithoutRecord(ltx, issuerID);
         if (!issuer)
         {
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
 
-        auto sourceAccount = loadSourceAccount(ls, header);
+        auto sourceAccount = loadSourceAccount(ltx, header);
         if (!addNumEntries(header, sourceAccount, 1))
         {
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
@@ -123,7 +123,7 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         {
             tl.flags = AUTHORIZED_FLAG;
         }
-        ls.create(trustLineEntry);
+        ltx.create(trustLineEntry);
 
         innerResult().code(CHANGE_TRUST_SUCCESS);
         return true;

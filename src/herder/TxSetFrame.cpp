@@ -159,8 +159,8 @@ struct SurgeSorter
 void
 TxSetFrame::surgePricingFilter(Application& app)
 {
-    LedgerTxn ls(app.getLedgerTxnRoot());
-    auto header = ls.loadHeader();
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    auto header = ltx.loadHeader();
     size_t max = header.current().maxTxSetSize;
     if (mTransactions.size() > max)
     { // surge pricing in effect!
@@ -202,7 +202,7 @@ TxSetFrame::checkOrTrim(
     std::function<bool(std::vector<TransactionFramePtr> const&)>
         processInsufficientBalance)
 {
-    LedgerTxn ls(app.getLedgerTxnRoot());
+    LedgerTxn ltx(app.getLedgerTxnRoot());
 
     map<AccountID, vector<TransactionFramePtr>> accountTxMap;
 
@@ -230,7 +230,7 @@ TxSetFrame::checkOrTrim(
         int64_t totFee = 0;
         for (auto& tx : item.second)
         {
-            if (!tx->checkValid(app, ls, lastSeq))
+            if (!tx->checkValid(app, ltx, lastSeq))
             {
                 if (processInvalidTxLambda(tx, lastSeq))
                     continue;
@@ -246,8 +246,8 @@ TxSetFrame::checkOrTrim(
         {
             // make sure account can pay the fee for all these tx
             auto const& source =
-                stellar::loadAccount(ls, lastTx->getSourceID());
-            if (getAvailableBalance(ls.loadHeader(), source) < totFee)
+                stellar::loadAccount(ltx, lastTx->getSourceID());
+            if (getAvailableBalance(ltx.loadHeader(), source) < totFee)
             {
                 if (!processInsufficientBalance(item.second))
                     return false;

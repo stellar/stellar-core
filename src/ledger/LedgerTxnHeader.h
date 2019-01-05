@@ -46,7 +46,7 @@ class LedgerTxnHeader
 
     void swap(LedgerTxnHeader& other);
 
-    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ls,
+    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ltx,
                                                 LedgerHeader& current);
 };
 }

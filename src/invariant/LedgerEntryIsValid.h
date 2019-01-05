@@ -29,7 +29,7 @@ class LedgerEntryIsValid : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerTxnDelta const& lsDelta) override;
+                          LedgerTxnDelta const& ltxDelta) override;
 
   private:
     template <typename IterType>

@@ -26,7 +26,7 @@ class TrustLineWrapper
 
   public:
     TrustLineWrapper();
-    TrustLineWrapper(AbstractLedgerTxn& ls, AccountID const& accountID,
+    TrustLineWrapper(AbstractLedgerTxn& ltx, AccountID const& accountID,
                      Asset const& asset);
     explicit TrustLineWrapper(LedgerTxnEntry&& entry);
 
@@ -111,7 +111,7 @@ class ConstTrustLineWrapper
 
   public:
     ConstTrustLineWrapper();
-    ConstTrustLineWrapper(AbstractLedgerTxn& ls, AccountID const& accountID,
+    ConstTrustLineWrapper(AbstractLedgerTxn& ltx, AccountID const& accountID,
                           Asset const& asset);
     explicit ConstTrustLineWrapper(ConstLedgerTxnEntry&& entry);
 

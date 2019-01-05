@@ -57,7 +57,7 @@ class LedgerTxnEntry
 
     void swap(LedgerTxnEntry& other);
 
-    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ls,
+    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ltx,
                                                 LedgerEntry& current);
 };
 
@@ -95,7 +95,7 @@ class ConstLedgerTxnEntry
 
     void swap(ConstLedgerTxnEntry& other);
 
-    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ls,
+    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ltx,
                                                 LedgerEntry const& current);
 };
 

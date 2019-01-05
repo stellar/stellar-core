@@ -59,8 +59,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
         {
             LedgerEntry gen;
             {
-                LedgerTxn ls(app0->getLedgerTxnRoot());
-                gen = stellar::loadAccount(ls, root.getPublicKey()).current();
+                LedgerTxn ltx(app0->getLedgerTxnRoot());
+                gen = stellar::loadAccount(ltx, root.getPublicKey()).current();
             }
 
             for (int i = 0; i < nbTx; i++)
@@ -72,9 +72,9 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 // need to create on all nodes
                 for (auto n : nodes)
                 {
-                    LedgerTxn ls(n->getLedgerTxnRoot(), false);
-                    ls.create(gen);
-                    ls.commit();
+                    LedgerTxn ltx(n->getLedgerTxnRoot(), false);
+                    ltx.create(gen);
+                    ltx.commit();
                 }
             }
         }

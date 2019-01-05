@@ -16,67 +16,67 @@ namespace stellar
 {
 
 LedgerTxnEntry
-loadAccount(AbstractLedgerTxn& ls, AccountID const& accountID)
+loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
-    return ls.load(key);
+    return ltx.load(key);
 }
 
 ConstLedgerTxnEntry
-loadAccountWithoutRecord(AbstractLedgerTxn& ls, AccountID const& accountID)
+loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
-    return ls.loadWithoutRecord(key);
+    return ltx.loadWithoutRecord(key);
 }
 
 LedgerTxnEntry
-loadData(AbstractLedgerTxn& ls, AccountID const& accountID,
+loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
          std::string const& dataName)
 {
     LedgerKey key(DATA);
     key.data().accountID = accountID;
     key.data().dataName = dataName;
-    return ls.load(key);
+    return ltx.load(key);
 }
 
 LedgerTxnEntry
-loadOffer(AbstractLedgerTxn& ls, AccountID const& sellerID, uint64_t offerID)
+loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, uint64_t offerID)
 {
     LedgerKey key(OFFER);
     key.offer().sellerID = sellerID;
     key.offer().offerID = offerID;
-    return ls.load(key);
+    return ltx.load(key);
 }
 
 TrustLineWrapper
-loadTrustLine(AbstractLedgerTxn& ls, AccountID const& accountID,
+loadTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
               Asset const& asset)
 {
-    return TrustLineWrapper(ls, accountID, asset);
+    return TrustLineWrapper(ltx, accountID, asset);
 }
 
 ConstTrustLineWrapper
-loadTrustLineWithoutRecord(AbstractLedgerTxn& ls, AccountID const& accountID,
+loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID,
                            Asset const& asset)
 {
-    return ConstTrustLineWrapper(ls, accountID, asset);
+    return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
 TrustLineWrapper
-loadTrustLineIfNotNative(AbstractLedgerTxn& ls, AccountID const& accountID,
+loadTrustLineIfNotNative(AbstractLedgerTxn& ltx, AccountID const& accountID,
                          Asset const& asset)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return {};
     }
-    return TrustLineWrapper(ls, accountID, asset);
+    return TrustLineWrapper(ltx, accountID, asset);
 }
 
 ConstTrustLineWrapper
-loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ls,
+loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
                                       AccountID const& accountID,
                                       Asset const& asset)
 {
@@ -84,11 +84,11 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ls,
     {
         return {};
     }
-    return ConstTrustLineWrapper(ls, accountID, asset);
+    return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
 static void
-acquireOrReleaseLiabilities(AbstractLedgerTxn& ls,
+acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
                             LedgerTxnHeader const& header,
                             LedgerTxnEntry const& offerEntry, bool isAcquire)
 {
@@ -100,8 +100,8 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ls,
     }
     auto const& sellerID = offer.sellerID;
 
-    auto loadAccountAndValidate = [&ls, &sellerID]() {
-        auto account = stellar::loadAccount(ls, sellerID);
+    auto loadAccountAndValidate = [&ltx, &sellerID]() {
+        auto account = stellar::loadAccount(ltx, sellerID);
         if (!account)
         {
             throw std::runtime_error("account does not exist");
@@ -109,8 +109,8 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ls,
         return account;
     };
 
-    auto loadTrustAndValidate = [&ls, &sellerID](Asset const& asset) {
-        auto trust = stellar::loadTrustLine(ls, sellerID, asset);
+    auto loadTrustAndValidate = [&ltx, &sellerID](Asset const& asset) {
+        auto trust = stellar::loadTrustLine(ltx, sellerID, asset);
         if (!trust)
         {
             throw std::runtime_error("trustline does not exist");
@@ -160,10 +160,10 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ls,
 }
 
 void
-acquireLiabilities(AbstractLedgerTxn& ls, LedgerTxnHeader const& header,
+acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                    LedgerTxnEntry const& offer)
 {
-    acquireOrReleaseLiabilities(ls, header, offer, true);
+    acquireOrReleaseLiabilities(ltx, header, offer, true);
 }
 
 bool
@@ -655,10 +655,10 @@ normalizeSigners(LedgerTxnEntry& entry)
 }
 
 void
-releaseLiabilities(AbstractLedgerTxn& ls, LedgerTxnHeader const& header,
+releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                    LedgerTxnEntry const& offer)
 {
-    acquireOrReleaseLiabilities(ls, header, offer, false);
+    acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 
 void

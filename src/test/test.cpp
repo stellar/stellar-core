@@ -309,8 +309,8 @@ for_versions(std::vector<uint32> const& versions, Application& app,
 {
     uint32_t previousVersion = 0;
     {
-        LedgerTxn ls(app.getLedgerTxnRoot());
-        previousVersion = ls.loadHeader().current().ledgerVersion;
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        previousVersion = ltx.loadHeader().current().ledgerVersion;
     }
 
     for (auto v : versions)
@@ -324,18 +324,18 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         SECTION("protocol version " + std::to_string(v))
         {
             {
-                LedgerTxn ls(app.getLedgerTxnRoot());
-                ls.loadHeader().current().ledgerVersion = v;
-                ls.commit();
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                ltx.loadHeader().current().ledgerVersion = v;
+                ltx.commit();
             }
             f();
         }
     }
 
     {
-        LedgerTxn ls(app.getLedgerTxnRoot());
-        ls.loadHeader().current().ledgerVersion = previousVersion;
-        ls.commit();
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        ltx.loadHeader().current().ledgerVersion = previousVersion;
+        ltx.commit();
     }
 }
 

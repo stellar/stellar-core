@@ -14,7 +14,7 @@ class LedgerTxnHeader::Impl
     LedgerHeader& mCurrent;
 
   public:
-    explicit Impl(AbstractLedgerTxn& ls, LedgerHeader& current);
+    explicit Impl(AbstractLedgerTxn& ltx, LedgerHeader& current);
 
     // Copy construction and copy assignment are forbidden.
     Impl(Impl const&) = delete;
@@ -31,10 +31,10 @@ class LedgerTxnHeader::Impl
 };
 
 std::shared_ptr<LedgerTxnHeader::Impl>
-LedgerTxnHeader::makeSharedImpl(AbstractLedgerTxn& ls,
+LedgerTxnHeader::makeSharedImpl(AbstractLedgerTxn& ltx,
                                   LedgerHeader& current)
 {
-    return std::make_shared<Impl>(ls, current);
+    return std::make_shared<Impl>(ltx, current);
 }
 
 LedgerTxnHeader::LedgerTxnHeader(std::shared_ptr<Impl> const& impl)
@@ -42,8 +42,8 @@ LedgerTxnHeader::LedgerTxnHeader(std::shared_ptr<Impl> const& impl)
 {
 }
 
-LedgerTxnHeader::Impl::Impl(AbstractLedgerTxn& ls, LedgerHeader& current)
-    : mLedgerTxn(ls), mCurrent(current)
+LedgerTxnHeader::Impl::Impl(AbstractLedgerTxn& ltx, LedgerHeader& current)
+    : mLedgerTxn(ltx), mCurrent(current)
 {
 }
 

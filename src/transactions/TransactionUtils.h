@@ -16,33 +16,33 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 
-LedgerTxnEntry loadAccount(AbstractLedgerTxn& ls,
+LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                              AccountID const& accountID);
 
-ConstLedgerTxnEntry loadAccountWithoutRecord(AbstractLedgerTxn& ls,
+ConstLedgerTxnEntry loadAccountWithoutRecord(AbstractLedgerTxn& ltx,
                                                AccountID const& accountID);
 
-LedgerTxnEntry loadData(AbstractLedgerTxn& ls, AccountID const& accountID,
+LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
                           std::string const& dataName);
 
-LedgerTxnEntry loadOffer(AbstractLedgerTxn& ls, AccountID const& sellerID,
+LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
                            uint64_t offerID);
 
-TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ls,
+TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
                                AccountID const& accountID, Asset const& asset);
 
-ConstTrustLineWrapper loadTrustLineWithoutRecord(AbstractLedgerTxn& ls,
+ConstTrustLineWrapper loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx,
                                                  AccountID const& accountID,
                                                  Asset const& asset);
 
-TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ls,
+TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
                                           AccountID const& accountID,
                                           Asset const& asset);
 
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
-    AbstractLedgerTxn& ls, AccountID const& accountID, Asset const& asset);
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset);
 
-void acquireLiabilities(AbstractLedgerTxn& ls,
+void acquireLiabilities(AbstractLedgerTxn& ltx,
                         LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
@@ -114,7 +114,7 @@ bool isImmutableAuth(LedgerTxnEntry const& entry);
 
 void normalizeSigners(LedgerTxnEntry& entry);
 
-void releaseLiabilities(AbstractLedgerTxn& ls,
+void releaseLiabilities(AbstractLedgerTxn& ltx,
                         LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 

@@ -100,10 +100,10 @@ AccountSubEntriesCountIsValid::getName() const
 std::string
 AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerTxnDelta const& lsDelta)
+    LedgerTxnDelta const& ltxDelta)
 {
     std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
-    for (auto const& entryDelta : lsDelta.entry)
+    for (auto const& entryDelta : ltxDelta.entry)
     {
         stellar::updateChangedSubEntriesCount(subEntriesChange,
                                               entryDelta.second.current,
@@ -123,7 +123,7 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
         }
     }
 
-    for (auto const& entryDelta : lsDelta.entry)
+    for (auto const& entryDelta : ltxDelta.entry)
     {
         if (entryDelta.second.current)
             continue;

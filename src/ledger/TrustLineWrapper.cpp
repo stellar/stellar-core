@@ -79,7 +79,7 @@ TrustLineWrapper::TrustLineWrapper()
 {
 }
 
-TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ls,
+TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
                                    AccountID const& accountID,
                                    Asset const& asset)
 {
@@ -93,7 +93,7 @@ TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ls,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = asset;
-        auto entry = ls.load(key);
+        auto entry = ltx.load(key);
         if (entry)
         {
             mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));
@@ -411,7 +411,7 @@ ConstTrustLineWrapper::ConstTrustLineWrapper()
 {
 }
 
-ConstTrustLineWrapper::ConstTrustLineWrapper(AbstractLedgerTxn& ls,
+ConstTrustLineWrapper::ConstTrustLineWrapper(AbstractLedgerTxn& ltx,
                                              AccountID const& accountID,
                                              Asset const& asset)
 {
@@ -420,7 +420,7 @@ ConstTrustLineWrapper::ConstTrustLineWrapper(AbstractLedgerTxn& ls,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = asset;
-        auto entry = ls.loadWithoutRecord(key);
+        auto entry = ltx.loadWithoutRecord(key);
         if (entry)
         {
             mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));

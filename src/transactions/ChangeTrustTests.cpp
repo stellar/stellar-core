@@ -89,8 +89,8 @@ TEST_CASE("change trust", "[tx][changetrust]")
                 REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
                                   ex_CHANGE_TRUST_NO_ISSUER);
                 {
-                    LedgerTxn ls(app->getLedgerTxnRoot());
-                    REQUIRE(!stellar::loadAccount(ls, gateway));
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!stellar::loadAccount(ltx, gateway));
                 }
             });
         }
@@ -98,16 +98,16 @@ TEST_CASE("change trust", "[tx][changetrust]")
     SECTION("trusting self")
     {
         auto validateTrustLineIsConst = [&]() {
-            LedgerTxn ls(app->getLedgerTxnRoot());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
             auto trustLine =
-                stellar::loadTrustLine(ls, gateway.getPublicKey(), idr);
+                stellar::loadTrustLine(ltx, gateway.getPublicKey(), idr);
             REQUIRE(trustLine);
             REQUIRE(trustLine.getBalance() == INT64_MAX);
         };
 
         auto loadAccount = [&](PublicKey const& k) {
-            LedgerTxn ls(app->getLedgerTxnRoot());
-            auto le = stellar::loadAccount(ls, k).current();
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto le = stellar::loadAccount(ltx, k).current();
             return le.data.account();
         };
 

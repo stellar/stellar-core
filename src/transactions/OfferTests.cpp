@@ -410,10 +410,10 @@ TEST_CASE("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 int64_t usdBuyingLiabilities = 0;
                 {
-                    LedgerTxn ls(app->getLedgerTxnRoot());
-                    auto trustLine = stellar::loadTrustLine(ls, a1, usd);
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    auto trustLine = stellar::loadTrustLine(ltx, a1, usd);
                     usdBuyingLiabilities =
-                        trustLine.getBuyingLiabilities(ls.loadHeader());
+                        trustLine.getBuyingLiabilities(ltx.loadHeader());
                 }
                 issuer.pay(a1, usd, trustLineLimit - usdBuyingLiabilities);
                 REQUIRE_THROWS_AS(issuer.pay(a1, usd, 1), ex_PAYMENT_LINE_FULL);
@@ -2233,24 +2233,24 @@ TEST_CASE("create offer", "[tx][offers]")
     SECTION("modify offer assets with liabilities")
     {
         auto getLiabilities = [&](TestAccount& acc) {
-            LedgerTxn ls(app->getLedgerTxnRoot());
-            auto account = stellar::loadAccount(ls, acc.getPublicKey());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto account = stellar::loadAccount(ltx, acc.getPublicKey());
             Liabilities res;
             if (account)
             {
-                res.selling = getSellingLiabilities(ls.loadHeader(), account);
-                res.buying = getBuyingLiabilities(ls.loadHeader(), account);
+                res.selling = getSellingLiabilities(ltx.loadHeader(), account);
+                res.buying = getBuyingLiabilities(ltx.loadHeader(), account);
             }
             return res;
         };
         auto getAssetLiabilities = [&](TestAccount& acc, Asset const& asset) {
-            LedgerTxn ls(app->getLedgerTxnRoot());
-            auto trust = stellar::loadTrustLine(ls, acc.getPublicKey(), asset);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto trust = stellar::loadTrustLine(ltx, acc.getPublicKey(), asset);
             Liabilities res;
             if (trust)
             {
-                res.selling = trust.getSellingLiabilities(ls.loadHeader());
-                res.buying = trust.getBuyingLiabilities(ls.loadHeader());
+                res.selling = trust.getSellingLiabilities(ltx.loadHeader());
+                res.buying = trust.getBuyingLiabilities(ltx.loadHeader());
             }
             return res;
         };
@@ -2834,10 +2834,10 @@ TEST_CASE("liabilities match created offer", "[tx][offers]")
         Liabilities liabilities;
         int64_t offerAmount = 0;
         {
-            LedgerTxn ls(app->getLedgerTxnRoot());
-            auto header = ls.loadHeader();
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
             auto entry =
-                stellar::loadOffer(ls, a1.getPublicKey(), offer.key.offerID);
+                stellar::loadOffer(ltx, a1.getPublicKey(), offer.key.offerID);
             liabilities =
                 Liabilities{getOfferBuyingLiabilities(header, entry),
                             getOfferSellingLiabilities(header, entry)};
@@ -2908,9 +2908,9 @@ TEST_CASE("liabilities match created offer", "[tx][offers]")
         }
 
         {
-            LedgerTxn ls(app->getLedgerTxnRoot());
-            ++ls.loadHeader().current().ledgerSeq;
-            ls.commit();
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ++ltx.loadHeader().current().ledgerSeq;
+            ltx.commit();
         }
         mergeAccount(a1);
         mergeAccount(a2);

@@ -28,9 +28,9 @@ AllowTrustOpFrame::getThresholdLevel() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
+AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    if (ls.loadHeader().current().ledgerVersion > 2)
+    if (ltx.loadHeader().current().ledgerVersion > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
         {
@@ -41,9 +41,9 @@ AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
     }
 
     {
-        LedgerTxn lsSource(ls); // lsSource will be rolled back
-        auto header = lsSource.loadHeader();
-        auto sourceAccountEntry = loadSourceAccount(lsSource, header);
+        LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
+        auto header = ltxSource.loadHeader();
+        auto sourceAccountEntry = loadSourceAccount(ltxSource, header);
         auto const& sourceAccount = sourceAccountEntry.current().data.account();
         if (!(sourceAccount.flags & AUTH_REQUIRED_FLAG))
         { // this account doesn't require authorization to
@@ -86,7 +86,7 @@ AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
 
     bool didRevokeAuth = false;
     {
-        auto trust = ls.load(key);
+        auto trust = ltx.load(key);
         if (!trust)
         {
             innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
@@ -95,12 +95,12 @@ AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
         didRevokeAuth = isAuthorized(trust) && !mAllowTrust.authorize;
     }
 
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     if (header.current().ledgerVersion >= 10 && didRevokeAuth)
     {
         // Delete all offers owned by the trustor that are either buying or
         // selling the asset which had authorization revoked.
-        auto offers = ls.loadOffersByAccountAndAsset(mAllowTrust.trustor, ci);
+        auto offers = ltx.loadOffersByAccountAndAsset(mAllowTrust.trustor, ci);
         for (auto& offer : offers)
         {
             auto const& oe = offer.current().data.offer();
@@ -114,14 +114,14 @@ AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ls)
                     "Offer not buying or selling expected asset");
             }
 
-            releaseLiabilities(ls, header, offer);
-            auto trustAcc = stellar::loadAccount(ls, mAllowTrust.trustor);
+            releaseLiabilities(ltx, header, offer);
+            auto trustAcc = stellar::loadAccount(ltx, mAllowTrust.trustor);
             addNumEntries(header, trustAcc, -1);
             offer.erase();
         }
     }
 
-    auto trustLineEntry = ls.load(key);
+    auto trustLineEntry = ltx.load(key);
     setAuthorized(trustLineEntry, mAllowTrust.authorize);
 
     innerResult().code(ALLOW_TRUST_SUCCESS);

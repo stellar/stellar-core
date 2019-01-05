@@ -34,15 +34,15 @@ generateRandomAccount(uint32_t ledgerSeq)
 }
 
 bool
-store(Application& app, UpdateList const& apply, AbstractLedgerTxn* lsPtr,
+store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
       OperationResult const* resPtr)
 {
-    bool shouldCommit = !lsPtr;
-    std::unique_ptr<LedgerTxn> lsStore;
-    if (lsPtr == nullptr)
+    bool shouldCommit = !ltxPtr;
+    std::unique_ptr<LedgerTxn> ltxStore;
+    if (ltxPtr == nullptr)
     {
-        lsStore = std::make_unique<LedgerTxn>(app.getLedgerTxnRoot());
-        lsPtr = lsStore.get();
+        ltxStore = std::make_unique<LedgerTxn>(app.getLedgerTxnRoot());
+        ltxPtr = ltxStore.get();
     }
     for (auto const& toApply : apply)
     {
@@ -52,7 +52,7 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* lsPtr,
         LedgerTxnEntry entry;
         if (previous)
         {
-            entry = lsPtr->load(LedgerEntryKey(*previous));
+            entry = ltxPtr->load(LedgerEntryKey(*previous));
             if (current)
             {
                 entry.current() = *current;
@@ -64,7 +64,7 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* lsPtr,
         }
         else if (current)
         {
-            entry = lsPtr->create(*current);
+            entry = ltxPtr->create(*current);
         }
         else
         {
@@ -87,7 +87,7 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* lsPtr,
     try
     {
         app.getInvariantManager().checkOnOperationApply({}, *resPtr,
-                                                        lsPtr->getDelta());
+                                                        ltxPtr->getDelta());
     }
     catch (InvariantDoesNotHold&)
     {
@@ -96,7 +96,7 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* lsPtr,
 
     if (shouldCommit)
     {
-        lsPtr->commit();
+        ltxPtr->commit();
     }
     return doInvariantsHold;
 }

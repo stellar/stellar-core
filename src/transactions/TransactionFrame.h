@@ -51,7 +51,7 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ls,
+    LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                        LedgerTxnHeader const& header);
 
     enum ValidationType
@@ -64,19 +64,19 @@ class TransactionFrame
         kFullyValid
     };
 
-    bool commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ls,
+    bool commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
                               bool forApply);
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               Application& app, AbstractLedgerTxn& lsOuter,
+                               Application& app, AbstractLedgerTxn& ltxOuter,
                                SequenceNumber current, bool applying);
 
     void resetResults();
 
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ls);
+                                     AbstractLedgerTxn& ltx);
 
-    void removeUsedOneTimeSignerKeys(AbstractLedgerTxn& ls,
+    void removeUsedOneTimeSignerKeys(AbstractLedgerTxn& ltx,
                                      AccountID const& accountID,
                                      std::set<SignerKey> const& keys) const;
 
@@ -87,12 +87,12 @@ class TransactionFrame
     void markResultFailed();
 
     bool applyOperations(SignatureChecker& checker, Application& app,
-                         AbstractLedgerTxn& ls, TransactionMetaV1& meta);
+                         AbstractLedgerTxn& ltx, TransactionMetaV1& meta);
 
-    void processSeqNum(AbstractLedgerTxn& ls);
+    void processSeqNum(AbstractLedgerTxn& ltx);
 
     bool processSignatures(SignatureChecker& signatureChecker, Application& app,
-                           AbstractLedgerTxn& lsOuter);
+                           AbstractLedgerTxn& ltxOuter);
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -161,23 +161,23 @@ class TransactionFrame
                                  AccountID const& accountID);
 
     bool checkValid(Application& app, SequenceNumber current);
-    bool checkValid(Application& app, AbstractLedgerTxn& lsOuter,
+    bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                     SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ls);
+    void processFeeSeqNum(AbstractLedgerTxn& ltx);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(Application& app, AbstractLedgerTxn& ls,
+    bool apply(Application& app, AbstractLedgerTxn& ltx,
                TransactionMetaV1& meta);
 
     // version without meta
-    bool apply(Application& app, AbstractLedgerTxn& ls);
+    bool apply(Application& app, AbstractLedgerTxn& ltx);
 
     StellarMessage toStellarMessage() const;
 
-    LedgerTxnEntry loadAccount(AbstractLedgerTxn& ls,
+    LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                  LedgerTxnHeader const& header,
                                  AccountID const& accountID);
 

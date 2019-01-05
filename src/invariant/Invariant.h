@@ -49,7 +49,7 @@ class Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerTxnDelta const& lsDelta)
+                          LedgerTxnDelta const& ltxDelta)
     {
         return std::string{};
     }

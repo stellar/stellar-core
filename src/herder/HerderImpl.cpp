@@ -336,14 +336,14 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     }
 
     {
-        LedgerTxn ls(mApp.getLedgerTxnRoot());
-        if (!tx->checkValid(mApp, ls, highSeq))
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        if (!tx->checkValid(mApp, ltx, highSeq))
         {
             return TX_STATUS_ERROR;
         }
 
-        auto sourceAccount = stellar::loadAccount(ls, tx->getSourceID());
-        if (getAvailableBalance(ls.loadHeader(), sourceAccount) < totFee)
+        auto sourceAccount = stellar::loadAccount(ltx, tx->getSourceID());
+        if (getAvailableBalance(ltx.loadHeader(), sourceAccount) < totFee)
         {
             tx->getResult().result.code(txINSUFFICIENT_BALANCE);
             return TX_STATUS_ERROR;

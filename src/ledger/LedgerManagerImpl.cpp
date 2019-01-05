@@ -198,8 +198,8 @@ LedgerManagerImpl::startNewLedger(LedgerHeader genesisLedger)
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
-    LedgerTxn ls(mApp.getLedgerTxnRoot(), false);
-    ls.loadHeader().current() = genesisLedger;
+    LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
+    ltx.loadHeader().current() = genesisLedger;
 
     LedgerEntry rootEntry;
     rootEntry.lastModifiedLedgerSeq = 1;
@@ -208,12 +208,12 @@ LedgerManagerImpl::startNewLedger(LedgerHeader genesisLedger)
     rootAccount.accountID = skey.getPublicKey();
     rootAccount.thresholds[0] = 1;
     rootAccount.balance = genesisLedger.totalCoins;
-    ls.create(rootEntry);
+    ltx.create(rootEntry);
 
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed().value;
-    ledgerClosed(ls);
-    ls.commit();
+    ledgerClosed(ltx);
+    ltx.commit();
 }
 
 void
@@ -259,9 +259,9 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
 
         {
-            LedgerTxn ls(mApp.getLedgerTxnRoot());
-            ls.loadHeader().current() = *currentLedger;
-            ls.commit();
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            ltx.loadHeader().current() = *currentLedger;
+            ltx.commit();
         }
 
         if (handler)
@@ -278,8 +278,8 @@ LedgerManagerImpl::loadLastKnownLedger(
                 {
                     mApp.getBucketManager().assumeState(has);
                     {
-                        LedgerTxn ls(mApp.getLedgerTxnRoot());
-                        auto header = ls.loadHeader();
+                        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+                        auto header = ltx.loadHeader();
                         CLOG(INFO, "Ledger") << "Loaded last known ledger: "
                                              << ledgerAbbrev(header.current());
                         advanceLedgerPointers(header.current());
@@ -310,8 +310,8 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
         else
         {
-            LedgerTxn ls(mApp.getLedgerTxnRoot());
-            advanceLedgerPointers(ls.loadHeader().current());
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            advanceLedgerPointers(ltx.loadHeader().current());
         }
     }
 }
@@ -680,11 +680,11 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         {
         case CatchupWork::ProgressState::APPLIED_BUCKETS:
         {
-            LedgerTxn ls(mApp.getLedgerTxnRoot());
-            auto header = ls.loadHeader();
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
             header.current() = lastClosed.header;
             storeCurrentLedger(header.current());
-            ls.commit();
+            ltx.commit();
 
             mLastClosedLedger = lastClosed;
             return;
@@ -777,8 +777,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     DBTimeExcluder qtExclude(mApp);
 
-    LedgerTxn ls(mApp.getLedgerTxnRoot());
-    auto header = ls.loadHeader();
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto header = ltx.loadHeader();
     ++header.current().ledgerSeq;
     header.current().previousLedgerHash = mLastClosedLedger.hash;
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
@@ -832,14 +832,14 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
 
     // first, charge fees
-    processFeesSeqNums(txs, ls);
+    processFeesSeqNums(txs, ltx);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
 
-    applyTransactions(txs, ls, txResultSet);
+    applyTransactions(txs, ltx, txResultSet);
 
-    ls.loadHeader().current().txSetResultHash =
+    ltx.loadHeader().current().txSetResultHash =
         sha256(xdr::xdr_to_opaque(txResultSet));
 
     // apply any upgrades that were decided during consensus
@@ -860,16 +860,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
         try
         {
-            LedgerTxn lsUpgrade(ls);
-            Upgrades::applyTo(lupgrade, lsUpgrade);
+            LedgerTxn ltxUpgrade(ltx);
+            Upgrades::applyTo(lupgrade, ltxUpgrade);
 
-            auto ledgerSeq = lsUpgrade.loadHeader().current().ledgerSeq;
+            auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
             // Note: Index from 1 rather than 0 to match the behavior of
             // storeTransaction and storeTransactionFee.
             Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq, lupgrade,
-                                          lsUpgrade.getChanges(),
+                                          ltxUpgrade.getChanges(),
                                           static_cast<int>(i + 1));
-            lsUpgrade.commit();
+            ltxUpgrade.commit();
         }
         catch (std::runtime_error& e)
         {
@@ -881,7 +881,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    ledgerClosed(ls);
+    ledgerClosed(ltx);
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
@@ -905,7 +905,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     hm.maybeQueueHistoryCheckpoint();
 
     // step 2
-    ls.commit();
+    ltx.commit();
 
     // step 3
     hm.publishQueuedHistory();
@@ -943,23 +943,23 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 
 void
 LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                                      AbstractLedgerTxn& lsOuter)
+                                      AbstractLedgerTxn& ltxOuter)
 {
     CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
     int index = 0;
     try
     {
-        LedgerTxn ls(lsOuter);
-        auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
+        LedgerTxn ltx(ltxOuter);
+        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
         for (auto tx : txs)
         {
-            LedgerTxn lsTx(ls);
-            tx->processFeeSeqNum(lsTx);
+            LedgerTxn ltxTx(ltx);
+            tx->processFeeSeqNum(ltxTx);
             tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq,
-                                    lsTx.getChanges(), ++index);
-            lsTx.commit();
+                                    ltxTx.getChanges(), ++index);
+            ltxTx.commit();
         }
-        ls.commit();
+        ltx.commit();
     }
     catch (std::exception& e)
     {
@@ -971,7 +971,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 
 void
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
-                                     AbstractLedgerTxn& ls,
+                                     AbstractLedgerTxn& ltx,
                                      TransactionResultSet& txResultSet)
 {
     int index = 0;
@@ -988,7 +988,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                             });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
-                                        ls.loadHeader().current().ledgerSeq,
+                                        ltx.loadHeader().current().ledgerSeq,
                                         numTxs, numOps);
     }
 
@@ -1003,7 +1003,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 << " ops=" << tx->getOperations().size()
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
-            tx->apply(mApp, ls, tm.v1());
+            tx->apply(mApp, ltx, tm.v1());
         }
         catch (InvariantDoesNotHold&)
         {
@@ -1027,7 +1027,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
             mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
-        auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
+        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
         tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, ++index,
                              txResultSet);
     }
@@ -1063,13 +1063,13 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 }
 
 void
-LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ls)
+LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
 {
-    auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
-    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ls.getLiveEntries(),
-                                     ls.getDeadEntries());
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ltx.getLiveEntries(),
+                                     ltx.getDeadEntries());
 
-    ls.unsealHeader([this](LedgerHeader& lh) {
+    ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
         storeCurrentLedger(lh);
         advanceLedgerPointers(lh);

@@ -144,15 +144,15 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("non-account signers")
         {
             auto countSubEntriesAndSigners = [&](uint32_t expected) {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                auto a1Account = stellar::loadAccount(ls, a1);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto a1Account = stellar::loadAccount(ltx, a1);
                 auto const& ae = a1Account.current().data.account();
                 REQUIRE(ae.numSubEntries == expected);
                 REQUIRE(ae.signers.size() == expected);
             };
             auto checkFirstSigner = [&](Signer const& sk) {
-                LedgerTxn ls(app->getLedgerTxnRoot());
-                auto a1Account = stellar::loadAccount(ls, a1);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto a1Account = stellar::loadAccount(ltx, a1);
                 auto const& ae = a1Account.current().data.account();
                 REQUIRE(ae.signers.size() >= 1);
                 REQUIRE(ae.signers[0].key == sk.key);

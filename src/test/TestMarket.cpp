@@ -248,16 +248,16 @@ void
 TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
                        std::vector<OfferKey> const& deletedOffers)
 {
-    LedgerTxn ls(mApp.getLedgerTxnRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
     for (auto const& o : offers)
     {
-        auto offer = stellar::loadOffer(ls, o.first.sellerID, o.first.offerID);
+        auto offer = stellar::loadOffer(ltx, o.first.sellerID, o.first.offerID);
         REQUIRE(offer);
         REQUIRE(offer.current().data.offer() == o.second);
     }
     for (auto const& o : deletedOffers)
     {
-        REQUIRE(!stellar::loadOffer(ls, o.sellerID, o.offerID));
+        REQUIRE(!stellar::loadOffer(ltx, o.sellerID, o.offerID));
     }
 }
 }
