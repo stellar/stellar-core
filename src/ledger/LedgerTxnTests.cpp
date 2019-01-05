@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -1070,8 +1070,8 @@ TEST_CASE("LedgerTxn load", "[ledgerstate]")
         LedgerTxn ltx2(ltx1);
         REQUIRE(ltx2.load(key));
         validate(ltx2, {{key,
-                        {std::make_shared<LedgerEntry const>(le),
-                         std::make_shared<LedgerEntry const>(le)}}});
+                         {std::make_shared<LedgerEntry const>(le),
+                          std::make_shared<LedgerEntry const>(le)}}});
     }
 
     SECTION("when key exists in grandparent, erased in parent")
@@ -1704,7 +1704,8 @@ testOffersByAccountAndAsset(
 
     if (++begin != end)
     {
-        testOffersByAccountAndAsset(ltx, accountID, asset, expected, begin, end);
+        testOffersByAccountAndAsset(ltx, accountID, asset, expected, begin,
+                                    end);
     }
     else
     {
@@ -1926,8 +1927,7 @@ TEST_CASE("LedgerTxn unsealHeader", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment",
-          "[ledgerstate]")
+TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

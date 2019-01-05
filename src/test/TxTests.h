@@ -82,7 +82,7 @@ SecretKey getAccount(const char* n);
 Signer makeSigner(SecretKey key, int weight);
 
 ConstLedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, PublicKey const& k,
-                                  bool mustExist = true);
+                                bool mustExist = true);
 
 bool doesAccountExist(Application& app, PublicKey const& k);
 

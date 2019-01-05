@@ -52,7 +52,7 @@ class TransactionFrame
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
-                                       LedgerTxnHeader const& header);
+                                     LedgerTxnHeader const& header);
 
     enum ValidationType
     {
@@ -178,8 +178,8 @@ class TransactionFrame
     StellarMessage toStellarMessage() const;
 
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
-                                 LedgerTxnHeader const& header,
-                                 AccountID const& accountID);
+                               LedgerTxnHeader const& header,
+                               AccountID const& accountID);
 
     // transaction history
     void storeTransaction(Database& db, uint32_t ledgerSeq, TransactionMeta& tm,

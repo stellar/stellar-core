@@ -83,7 +83,7 @@ AbstractLedgerTxn::~AbstractLedgerTxn()
 
 // Implementation of LedgerTxn ----------------------------------------------
 LedgerTxn::LedgerTxn(AbstractLedgerTxnParent& parent,
-                         bool shouldUpdateLastModified)
+                     bool shouldUpdateLastModified)
     : mImpl(std::make_unique<Impl>(*this, parent, shouldUpdateLastModified))
 {
 }
@@ -94,7 +94,7 @@ LedgerTxn::LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified)
 }
 
 LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
-                        bool shouldUpdateLastModified)
+                      bool shouldUpdateLastModified)
     : mParent(parent)
     , mChild(nullptr)
     , mHeader(std::make_unique<LedgerHeader>(mParent.getHeader()))
@@ -372,14 +372,14 @@ LedgerTxn::Impl::getAllOffers()
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
-                          std::unordered_set<LedgerKey>& exclude)
+                        std::unordered_set<LedgerKey>& exclude)
 {
     return getImpl()->getBestOffer(buying, selling, exclude);
 }
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                std::unordered_set<LedgerKey>& exclude)
+                              std::unordered_set<LedgerKey>& exclude)
 {
     auto end = mEntry.cend();
     auto bestOfferIter = end;
@@ -753,14 +753,14 @@ LedgerTxn::Impl::getNewestVersion(LedgerKey const& key) const
 
 std::unordered_map<LedgerKey, LedgerEntry>
 LedgerTxn::getOffersByAccountAndAsset(AccountID const& account,
-                                        Asset const& asset)
+                                      Asset const& asset)
 {
     return getImpl()->getOffersByAccountAndAsset(account, asset);
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>
 LedgerTxn::Impl::getOffersByAccountAndAsset(AccountID const& account,
-                                              Asset const& asset)
+                                            Asset const& asset)
 {
     auto offers = mParent.getOffersByAccountAndAsset(account, asset);
     for (auto const& kv : mEntry)
@@ -871,7 +871,7 @@ LedgerTxn::loadBestOffer(Asset const& buying, Asset const& selling)
 
 LedgerTxnEntry
 LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
-                                 Asset const& selling)
+                               Asset const& selling)
 {
     throwIfSealed();
     throwIfChild();
@@ -907,15 +907,15 @@ LedgerTxn::Impl::loadHeader(LedgerTxn& self)
 
 std::vector<LedgerTxnEntry>
 LedgerTxn::loadOffersByAccountAndAsset(AccountID const& accountID,
-                                         Asset const& asset)
+                                       Asset const& asset)
 {
     return getImpl()->loadOffersByAccountAndAsset(*this, accountID, asset);
 }
 
 std::vector<LedgerTxnEntry>
 LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
-                                               AccountID const& accountID,
-                                               Asset const& asset)
+                                             AccountID const& accountID,
+                                             Asset const& asset)
 {
     throwIfSealed();
     throwIfChild();
@@ -1016,7 +1016,7 @@ LedgerTxn::unsealHeader(std::function<void(LedgerHeader&)> f)
 
 void
 LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
-                                std::function<void(LedgerHeader&)> f)
+                              std::function<void(LedgerHeader&)> f)
 {
     if (!mIsSealed)
     {
@@ -1088,8 +1088,8 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
 }
 
 // Implementation of LedgerTxn::Impl::EntryIteratorImpl ---------------------
-LedgerTxn::Impl::EntryIteratorImpl::EntryIteratorImpl(
-    IteratorType const& begin, IteratorType const& end)
+LedgerTxn::Impl::EntryIteratorImpl::EntryIteratorImpl(IteratorType const& begin,
+                                                      IteratorType const& end)
     : mIter(begin), mEnd(end)
 {
 }
@@ -1126,13 +1126,13 @@ LedgerTxn::Impl::EntryIteratorImpl::key() const
 
 // Implementation of LedgerTxnRoot ------------------------------------------
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
-                                 size_t bestOfferCacheSize)
+                             size_t bestOfferCacheSize)
     : mImpl(std::make_unique<Impl>(db, entryCacheSize, bestOfferCacheSize))
 {
 }
 
 LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
-                            size_t bestOfferCacheSize)
+                          size_t bestOfferCacheSize)
     : mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
@@ -1281,14 +1281,14 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let) const
 
 uint64_t
 LedgerTxnRoot::countObjects(LedgerEntryType let,
-                              LedgerRange const& ledgers) const
+                            LedgerRange const& ledgers) const
 {
     return mImpl->countObjects(let, ledgers);
 }
 
 uint64_t
 LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
-                                    LedgerRange const& ledgers) const
+                                  LedgerRange const& ledgers) const
 {
     using namespace soci;
     throwIfChild();
@@ -1310,8 +1310,7 @@ LedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
 }
 
 void
-LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(
-    uint32_t ledger) const
+LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
 {
     using namespace soci;
     throwIfChild();
@@ -1393,7 +1392,7 @@ LedgerTxnRoot::Impl::getAllOffers()
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
-                              std::unordered_set<LedgerKey>& exclude)
+                            std::unordered_set<LedgerKey>& exclude)
 {
     return mImpl->getBestOffer(buying, selling, exclude);
 }
@@ -1416,7 +1415,7 @@ findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                    std::unordered_set<LedgerKey>& exclude)
+                                  std::unordered_set<LedgerKey>& exclude)
 {
     // Note: Elements of mBestOffersCache are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
@@ -1461,14 +1460,14 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
 std::unordered_map<LedgerKey, LedgerEntry>
 LedgerTxnRoot::getOffersByAccountAndAsset(AccountID const& account,
-                                            Asset const& asset)
+                                          Asset const& asset)
 {
     return mImpl->getOffersByAccountAndAsset(account, asset);
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>
 LedgerTxnRoot::Impl::getOffersByAccountAndAsset(AccountID const& account,
-                                                  Asset const& asset)
+                                                Asset const& asset)
 {
     std::vector<LedgerEntry> offers;
     try
@@ -1602,8 +1601,7 @@ LedgerTxnRoot::Impl::rollbackChild()
     catch (std::exception& e)
     {
         printErrorAndAbort(
-            "fatal error when rolling back child of LedgerTxnRoot: ",
-            e.what());
+            "fatal error when rolling back child of LedgerTxnRoot: ", e.what());
     }
     catch (...)
     {

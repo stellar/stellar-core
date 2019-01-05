@@ -262,8 +262,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     }
 
     // Undo the increment from the beginning of this function. Note that if this
-    // function exits without reaching this point, then ltx will not be committed
-    // and the increment will be rolled back anyway.
+    // function exits without reaching this point, then ltx will not be
+    // committed and the increment will be rolled back anyway.
     --ltx.loadHeader().current().ledgerSeq;
     ltx.commit();
     return res;

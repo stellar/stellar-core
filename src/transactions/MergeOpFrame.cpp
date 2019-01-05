@@ -39,7 +39,8 @@ MergeOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
 
-    auto otherAccount = stellar::loadAccount(ltx, mOperation.body.destination());
+    auto otherAccount =
+        stellar::loadAccount(ltx, mOperation.body.destination());
     if (!otherAccount)
     {
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);

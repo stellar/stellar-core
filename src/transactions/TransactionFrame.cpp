@@ -232,8 +232,8 @@ TransactionFrame::resetResults()
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(Application& app,
-                                       AbstractLedgerTxn& ltx, bool forApply)
+TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
+                                       bool forApply)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)

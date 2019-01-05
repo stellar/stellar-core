@@ -47,10 +47,8 @@ class TrustLineWrapper
     int64_t getBuyingLiabilities(LedgerTxnHeader const& header);
     int64_t getSellingLiabilities(LedgerTxnHeader const& header);
 
-    int64_t addBuyingLiabilities(LedgerTxnHeader const& header,
-                                 int64_t delta);
-    int64_t addSellingLiabilities(LedgerTxnHeader const& header,
-                                  int64_t delta);
+    int64_t addBuyingLiabilities(LedgerTxnHeader const& header, int64_t delta);
+    int64_t addSellingLiabilities(LedgerTxnHeader const& header, int64_t delta);
 
     bool isAuthorized() const;
 

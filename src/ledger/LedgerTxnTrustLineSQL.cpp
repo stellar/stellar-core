@@ -84,7 +84,7 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
 
 void
 LedgerTxnRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
-                                               bool isInsert)
+                                             bool isInsert)
 {
     auto const& tl = entry.data.trustLine();
 

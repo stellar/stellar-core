@@ -59,9 +59,8 @@ canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
 }
 
 int64_t
-canSellAtMost(LedgerTxnHeader const& header,
-              ConstLedgerTxnEntry const& account, Asset const& asset,
-              ConstTrustLineWrapper const& trustLine)
+canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
+              Asset const& asset, ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -94,9 +93,8 @@ canBuyAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
 }
 
 int64_t
-canBuyAtMost(LedgerTxnHeader const& header,
-             ConstLedgerTxnEntry const& account, Asset const& asset,
-             ConstTrustLineWrapper const& trustLine)
+canBuyAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
+             Asset const& asset, ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {

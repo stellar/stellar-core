@@ -16,17 +16,16 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 
-LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
-                             AccountID const& accountID);
+LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 
 ConstLedgerTxnEntry loadAccountWithoutRecord(AbstractLedgerTxn& ltx,
-                                               AccountID const& accountID);
+                                             AccountID const& accountID);
 
 LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
-                          std::string const& dataName);
+                        std::string const& dataName);
 
 LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
-                           uint64_t offerID);
+                         uint64_t offerID);
 
 TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
                                AccountID const& accountID, Asset const& asset);
@@ -42,21 +41,20 @@ TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
     AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset);
 
-void acquireLiabilities(AbstractLedgerTxn& ltx,
-                        LedgerTxnHeader const& header,
+void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
 bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                 int64_t delta);
 
-bool addBuyingLiabilities(LedgerTxnHeader const& header,
-                          LedgerTxnEntry& entry, int64_t delta);
+bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                          int64_t delta);
 
 bool addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    int count);
 
-bool addSellingLiabilities(LedgerTxnHeader const& header,
-                           LedgerTxnEntry& entry, int64_t delta);
+bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                           int64_t delta);
 
 uint64_t generateID(LedgerTxnHeader& header);
 
@@ -114,8 +112,7 @@ bool isImmutableAuth(LedgerTxnEntry const& entry);
 
 void normalizeSigners(LedgerTxnEntry& entry);
 
-void releaseLiabilities(AbstractLedgerTxn& ltx,
-                        LedgerTxnHeader const& header,
+void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
 void setAuthorized(LedgerTxnEntry& entry, bool authorized);

@@ -49,7 +49,7 @@ class OperationFrame
     virtual bool isVersionSupported(uint32_t protocolVersion) const;
 
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
-                                       LedgerTxnHeader const& header);
+                                     LedgerTxnHeader const& header);
 
   public:
     static std::shared_ptr<OperationFrame>

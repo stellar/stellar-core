@@ -53,8 +53,7 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
 }
 
 void
-LedgerTxnRoot::Impl::insertOrUpdateData(LedgerEntry const& entry,
-                                          bool isInsert)
+LedgerTxnRoot::Impl::insertOrUpdateData(LedgerEntry const& entry, bool isInsert)
 {
     auto const& data = entry.data.data();
     std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);

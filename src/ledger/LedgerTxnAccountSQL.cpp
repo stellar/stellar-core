@@ -122,7 +122,7 @@ LedgerTxnRoot::Impl::loadSigners(LedgerKey const& key) const
 
 std::vector<InflationWinner>
 LedgerTxnRoot::Impl::loadInflationWinners(size_t maxWinners,
-                                            int64_t minBalance) const
+                                          int64_t minBalance) const
 {
     InflationWinner w;
     std::string inflationDest;
@@ -155,7 +155,7 @@ LedgerTxnRoot::Impl::loadInflationWinners(size_t maxWinners,
 
 void
 LedgerTxnRoot::Impl::insertOrUpdateAccount(LedgerEntry const& entry,
-                                             bool isInsert)
+                                           bool isInsert)
 {
     auto const& account = entry.data.account();
     std::string actIDStrKey = KeyUtils::toStrKey(account.accountID);

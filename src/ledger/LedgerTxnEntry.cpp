@@ -208,7 +208,7 @@ class ConstLedgerTxnEntry::Impl : public EntryImplBase
 
 std::shared_ptr<ConstLedgerTxnEntry::Impl>
 ConstLedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ltx,
-                                      LedgerEntry const& current)
+                                    LedgerEntry const& current)
 {
     return std::make_shared<Impl>(ltx, current);
 }
@@ -229,7 +229,7 @@ ConstLedgerTxnEntry::ConstLedgerTxnEntry(std::shared_ptr<Impl> const& impl)
 }
 
 ConstLedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ltx,
-                                  LedgerEntry const& current)
+                                LedgerEntry const& current)
     : mLedgerTxn(ltx), mCurrent(current)
 {
 }

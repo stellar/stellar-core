@@ -244,8 +244,9 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& ltxOuter)
                             newOffer.data.offer().price.n);
         int64_t maxSheepSend = 0;
         int64_t maxWheatReceive = 0;
-        if (!computeOfferExchangeParameters(app, ltx, newOffer, creatingNewOffer,
-                                            maxSheepSend, maxWheatReceive))
+        if (!computeOfferExchangeParameters(app, ltx, newOffer,
+                                            creatingNewOffer, maxSheepSend,
+                                            maxWheatReceive))
         {
             return false;
         }

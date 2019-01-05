@@ -15,12 +15,9 @@ class ManageOfferOpFrame : public OperationFrame
 {
     bool checkOfferValid(AbstractLedgerTxn& lsOuter);
 
-    bool computeOfferExchangeParameters(Application& app,
-                                        AbstractLedgerTxn& lsOuter,
-                                        LedgerEntry const& offer,
-                                        bool creatingNewOffer,
-                                        int64_t& maxSheepSend,
-                                        int64_t& maxWheatReceive);
+    bool computeOfferExchangeParameters(
+        Application& app, AbstractLedgerTxn& lsOuter, LedgerEntry const& offer,
+        bool creatingNewOffer, int64_t& maxSheepSend, int64_t& maxWheatReceive);
 
     ManageOfferResult&
     innerResult()

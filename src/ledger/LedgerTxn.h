@@ -393,7 +393,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual std::map<AccountID, std::vector<LedgerTxnEntry>>
     loadAllOffers() = 0;
     virtual LedgerTxnEntry loadBestOffer(Asset const& buying,
-                                           Asset const& selling) = 0;
+                                         Asset const& selling) = 0;
     virtual std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) = 0;
@@ -424,9 +424,8 @@ class LedgerTxn final : public AbstractLedgerTxn
 
   public:
     explicit LedgerTxn(AbstractLedgerTxnParent& parent,
-                         bool shouldUpdateLastModified = true);
-    explicit LedgerTxn(LedgerTxn& parent,
-                         bool shouldUpdateLastModified = true);
+                       bool shouldUpdateLastModified = true);
+    explicit LedgerTxn(LedgerTxn& parent, bool shouldUpdateLastModified = true);
 
     virtual ~LedgerTxn();
 
@@ -474,7 +473,7 @@ class LedgerTxn final : public AbstractLedgerTxn
     std::map<AccountID, std::vector<LedgerTxnEntry>> loadAllOffers() override;
 
     LedgerTxnEntry loadBestOffer(Asset const& buying,
-                                   Asset const& selling) override;
+                                 Asset const& selling) override;
 
     LedgerTxnHeader loadHeader() override;
 
@@ -498,7 +497,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
   public:
     explicit LedgerTxnRoot(Database& db, size_t entryCacheSize = 4096,
-                             size_t bestOfferCacheSize = 64);
+                           size_t bestOfferCacheSize = 64);
 
     virtual ~LedgerTxnRoot();
 

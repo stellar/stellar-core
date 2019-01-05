@@ -458,15 +458,13 @@ ConstTrustLineWrapper::isAuthorized() const
 }
 
 int64_t
-ConstTrustLineWrapper::getAvailableBalance(
-    LedgerTxnHeader const& header) const
+ConstTrustLineWrapper::getAvailableBalance(LedgerTxnHeader const& header) const
 {
     return getImpl()->getAvailableBalance(header);
 }
 
 int64_t
-ConstTrustLineWrapper::getMaxAmountReceive(
-    LedgerTxnHeader const& header) const
+ConstTrustLineWrapper::getMaxAmountReceive(LedgerTxnHeader const& header) const
 {
     return getImpl()->getMaxAmountReceive(header);
 }
@@ -482,8 +480,7 @@ ConstTrustLineWrapper::getImpl() const
 }
 
 // Implementation of ConstTrustLineWrapper::NonIssuerImpl ---------------------
-ConstTrustLineWrapper::NonIssuerImpl::NonIssuerImpl(
-    ConstLedgerTxnEntry&& entry)
+ConstTrustLineWrapper::NonIssuerImpl::NonIssuerImpl(ConstLedgerTxnEntry&& entry)
     : mEntry(std::move(entry))
 {
 }

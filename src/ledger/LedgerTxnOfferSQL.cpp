@@ -94,8 +94,8 @@ LedgerTxnRoot::Impl::loadAllOffers() const
 
 std::list<LedgerEntry>::const_iterator
 LedgerTxnRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
-                                      Asset const& buying, Asset const& selling,
-                                      size_t numOffers, size_t offset) const
+                                    Asset const& buying, Asset const& selling,
+                                    size_t numOffers, size_t offset) const
 {
     std::string sql = "SELECT sellerid, offerid, "
                       "sellingassettype, sellingassetcode, sellingissuer, "
@@ -211,7 +211,7 @@ isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
 // throws in that case.
 std::vector<LedgerEntry>
 LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
-                                                   Asset const& asset) const
+                                                 Asset const& asset) const
 {
     std::string sql = "SELECT sellerid, offerid, "
                       "sellingassettype, sellingassetcode, sellingissuer, "
@@ -306,7 +306,7 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
 
 std::list<LedgerEntry>::const_iterator
 LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
-                                  std::list<LedgerEntry>& offers) const
+                                std::list<LedgerEntry>& offers) const
 {
     std::string actIDStrKey;
     unsigned int sellingAssetType, buyingAssetType;
@@ -363,7 +363,7 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
 
 void
 LedgerTxnRoot::Impl::insertOrUpdateOffer(LedgerEntry const& entry,
-                                           bool isInsert)
+                                         bool isInsert)
 {
     auto const& offer = entry.data.offer();
     std::string actIDStrKey = KeyUtils::toStrKey(offer.sellerID);

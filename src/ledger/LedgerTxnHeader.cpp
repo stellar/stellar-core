@@ -31,8 +31,7 @@ class LedgerTxnHeader::Impl
 };
 
 std::shared_ptr<LedgerTxnHeader::Impl>
-LedgerTxnHeader::makeSharedImpl(AbstractLedgerTxn& ltx,
-                                  LedgerHeader& current)
+LedgerTxnHeader::makeSharedImpl(AbstractLedgerTxn& ltx, LedgerHeader& current)
 {
     return std::make_shared<Impl>(ltx, current);
 }

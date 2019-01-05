@@ -167,8 +167,7 @@ acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 }
 
 bool
-addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-           int64_t delta)
+addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
 {
     if (entry.current().data.type() == ACCOUNT)
     {
@@ -295,8 +294,7 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 }
 
 bool
-addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-              int count)
+addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
 {
     auto& acc = entry.current().data.account();
     int newEntriesCount = acc.numSubEntries + count;
@@ -414,8 +412,7 @@ getAvailableBalance(LedgerTxnHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getAvailableBalance(LedgerTxnHeader const& header,
-                    LedgerTxnEntry const& entry)
+getAvailableBalance(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getAvailableBalance(header, entry.current());
 }
@@ -449,8 +446,7 @@ getBuyingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getBuyingLiabilities(LedgerTxnHeader const& header,
-                     LedgerTxnEntry const& entry)
+getBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getBuyingLiabilities(header, entry.current());
 }
@@ -489,8 +485,7 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getMaxAmountReceive(LedgerTxnHeader const& header,
-                    LedgerTxnEntry const& entry)
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getMaxAmountReceive(header, entry.current());
 }
@@ -531,8 +526,7 @@ getMinimumLimit(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 }
 
 int64_t
-getMinimumLimit(LedgerTxnHeader const& header,
-                ConstLedgerTxnEntry const& entry)
+getMinimumLimit(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& entry)
 {
     return getMinimumLimit(header, entry.current());
 }

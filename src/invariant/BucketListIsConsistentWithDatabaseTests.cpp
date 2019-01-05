@@ -7,10 +7,10 @@
 #include "bucket/BucketOutputIterator.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "ledger/LedgerHashUtils.h"
+#include "ledger/LedgerTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -521,7 +521,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
                 auto& app = mAppGenerate;
                 auto skey = SecretKey::fromSeed(app->getNetworkID());
                 auto root = skey.getPublicKey();
-                auto le = stellar::loadAccountWithoutRecord(ltx, root).current();
+                auto le =
+                    stellar::loadAccountWithoutRecord(ltx, root).current();
                 le.lastModifiedLedgerSeq = mLedgerSeq;
                 return {le};
             }
