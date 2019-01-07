@@ -84,6 +84,8 @@ HerderSCPDriver::lostSync()
 Herder::State
 HerderSCPDriver::getState() const
 {
+    // we're only returning "TRACKING" when we're tracking the actual network
+    // (mLastTrackingSCP is also set when this happens)
     return mTrackingSCP && mLastTrackingSCP ? Herder::HERDER_TRACKING_STATE
                                             : Herder::HERDER_SYNCING_STATE;
 }
@@ -251,8 +253,10 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
             CLOG(ERROR, "Herder")
                 << "HerderSCPDriver::validateValue"
                 << " i: " << slotIndex
-                << " processing a future message while tracking; got: "
-                << nextConsensusLedgerIndex();
+                << " processing a future message while tracking "
+                << "(tracking: " << mTrackingSCP->mConsensusIndex << ", last: "
+                << (mLastTrackingSCP ? mLastTrackingSCP->mConsensusIndex : 0)
+                << " ) ";
             return SCPDriver::kInvalidValue;
         }
 

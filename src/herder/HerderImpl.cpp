@@ -509,17 +509,28 @@ HerderImpl::processSCPQueue()
 void
 HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
-    while (true)
+    try
     {
-        SCPEnvelope env;
-        if (mPendingEnvelopes.pop(slotIndex, env))
+        while (true)
         {
-            getSCP().receiveEnvelope(env);
+            SCPEnvelope env;
+            if (mPendingEnvelopes.pop(slotIndex, env))
+            {
+                getSCP().receiveEnvelope(env);
+            }
+            else
+            {
+                return;
+            }
         }
-        else
-        {
-            return;
-        }
+    }
+    catch (...)
+    {
+        auto s = getJsonInfo(20).toStyledString();
+        CLOG(FATAL, "Herder") << "Exception processing SCP messages at "
+                              << slotIndex << ", SCP context: " << s;
+
+        throw;
     }
 }
 
