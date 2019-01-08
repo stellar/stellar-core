@@ -163,8 +163,12 @@ ApplyBucketsWork::advance(BucketApplicator& applicator)
         return;
     }
 
+    auto& meter =
+        mApp.getMetrics().NewMeter({"bucket", "apply", "entries"}, "entry");
     assert(mTotalSize != 0);
-    mAppliedEntries += applicator.advance();
+    auto sz = applicator.advance();
+    mAppliedEntries += sz;
+    meter.Mark(sz);
 
     auto log = false;
     if (applicator)
@@ -193,7 +197,8 @@ ApplyBucketsWork::advance(BucketApplicator& applicator)
             << "Bucket-apply: " << mAppliedEntries << " entries in "
             << formatSize(mAppliedSize) << "/" << formatSize(mTotalSize)
             << " in " << mAppliedBuckets << "/" << mTotalBuckets << " files ("
-            << (100 * mAppliedSize / mTotalSize) << "%)";
+            << (100 * mAppliedSize / mTotalSize) << "%, " << meter.mean_rate()
+            << " entries/sec)";
     }
 }
 
