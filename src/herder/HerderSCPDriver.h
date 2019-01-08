@@ -209,5 +209,8 @@ class HerderSCPDriver : public SCPDriver
     void logQuorumInformation(uint64_t index);
 
     void clearSCPExecutionEvents();
+
+    void timerCallbackWrapper(uint64_t slotIndex, int timerID,
+                              std::function<void()> cb);
 };
 }
