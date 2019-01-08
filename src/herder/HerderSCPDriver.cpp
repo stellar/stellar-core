@@ -438,6 +438,25 @@ HerderSCPDriver::getValueString(Value const& v) const
 }
 
 // timer handling
+void
+HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
+                                      std::function<void()> cb)
+{
+    // reschedule timers for future slots when tracking
+    if (trackingSCP() && nextConsensusLedgerIndex() != slotIndex)
+    {
+        CLOG(WARNING, "Herder")
+            << "Herder rescheduled timer " << timerID << " for slot "
+            << slotIndex << " with next slot " << nextConsensusLedgerIndex();
+        setupTimer(slotIndex, timerID, std::chrono::seconds(1),
+                   std::bind(&HerderSCPDriver::timerCallbackWrapper, this,
+                             slotIndex, timerID, cb));
+    }
+    else
+    {
+        cb();
+    }
+}
 
 void
 HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
@@ -464,7 +483,9 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     if (cb)
     {
         timer.expires_from_now(timeout);
-        timer.async_wait(cb, &VirtualTimer::onFailureNoop);
+        timer.async_wait(std::bind(&HerderSCPDriver::timerCallbackWrapper, this,
+                                   slotIndex, timerID, cb),
+                         &VirtualTimer::onFailureNoop);
     }
 }
 
