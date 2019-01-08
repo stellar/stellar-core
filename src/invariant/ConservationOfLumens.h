@@ -11,7 +11,7 @@ namespace stellar
 {
 
 class Application;
-struct LedgerStateDelta;
+struct LedgerTxnDelta;
 
 // This Invariant is used to validate that the total number of lumens only
 // changes during inflation. The Invariant also checks that, after inflation,
@@ -29,6 +29,6 @@ class ConservationOfLumens : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerStateDelta const& lsDelta) override;
+                          LedgerTxnDelta const& ltxDelta) override;
 };
 }

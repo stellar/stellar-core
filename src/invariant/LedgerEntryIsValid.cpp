@@ -4,7 +4,7 @@
 
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
@@ -37,17 +37,17 @@ LedgerEntryIsValid::getName() const
 std::string
 LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
                                           OperationResult const& result,
-                                          LedgerStateDelta const& lsDelta)
+                                          LedgerTxnDelta const& ltxDelta)
 {
-    uint32_t currLedgerSeq = lsDelta.header.current.ledgerSeq;
+    uint32_t currLedgerSeq = ltxDelta.header.current.ledgerSeq;
     if (currLedgerSeq > INT32_MAX)
     {
         return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",
                            currLedgerSeq, INT32_MAX);
     }
 
-    auto ver = lsDelta.header.current.ledgerVersion;
-    for (auto const& entryDelta : lsDelta.entry)
+    auto ver = ltxDelta.header.current.ledgerVersion;
+    for (auto const& entryDelta : ltxDelta.entry)
     {
         if (!entryDelta.second.current)
             continue;

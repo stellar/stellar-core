@@ -6,8 +6,8 @@
 #include "transactions/PaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "util/Logging.h"
@@ -26,12 +26,12 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines
     // in ledger version 2 it would work for any asset type
-    auto ledgerVersion = ls.loadHeader().current().ledgerVersion;
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     auto instantSuccess = ledgerVersion > 2
                               ? mPayment.destination == getSourceID() &&
                                     mPayment.asset.type() == ASSET_TYPE_NATIVE
@@ -61,7 +61,7 @@ PaymentOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
 
     if (!ppayment.doCheckValid(app, ledgerVersion) ||
-        !ppayment.doApply(app, ls))
+        !ppayment.doApply(app, ltx))
     {
         if (ppayment.getResultCode() != opINNER)
         {

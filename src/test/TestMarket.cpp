@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestMarket.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
@@ -248,16 +248,16 @@ void
 TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
                        std::vector<OfferKey> const& deletedOffers)
 {
-    LedgerState ls(mApp.getLedgerStateRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
     for (auto const& o : offers)
     {
-        auto offer = stellar::loadOffer(ls, o.first.sellerID, o.first.offerID);
+        auto offer = stellar::loadOffer(ltx, o.first.sellerID, o.first.offerID);
         REQUIRE(offer);
         REQUIRE(offer.current().data.offer() == o.second);
     }
     for (auto const& o : deletedOffers)
     {
-        REQUIRE(!stellar::loadOffer(ls, o.sellerID, o.offerID));
+        REQUIRE(!stellar::loadOffer(ltx, o.sellerID, o.offerID));
     }
 }
 }

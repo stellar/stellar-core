@@ -5,9 +5,9 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
@@ -41,17 +41,17 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    auto header = ls.loadHeader();
-    auto sourceAccount = loadSourceAccount(ls, header);
+    auto header = ltx.loadHeader();
+    auto sourceAccount = loadSourceAccount(ltx, header);
     auto& account = sourceAccount.current().data.account();
     if (mSetOptions.inflationDest)
     {
         AccountID inflationID = *mSetOptions.inflationDest;
         if (!(inflationID == getSourceID()))
         {
-            if (!stellar::loadAccountWithoutRecord(ls, inflationID))
+            if (!stellar::loadAccountWithoutRecord(ltx, inflationID))
             {
                 innerResult().code(SET_OPTIONS_INVALID_INFLATION);
                 return false;

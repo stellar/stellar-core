@@ -13,7 +13,7 @@ namespace stellar
 
 class Application;
 class Database;
-struct LedgerStateDelta;
+struct LedgerTxnDelta;
 
 struct SubEntriesChange
 {
@@ -40,6 +40,6 @@ class AccountSubEntriesCountIsValid : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerStateDelta const& lsDelta) override;
+                          LedgerTxnDelta const& ltxDelta) override;
 };
 }

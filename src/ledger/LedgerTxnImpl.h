@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "util/lrucache.hpp"
 
 namespace stellar
@@ -27,9 +27,9 @@ class EntryIterator::AbstractImpl
     virtual LedgerKey const& key() const = 0;
 };
 
-// Many functions in LedgerState::Impl provide a basic exception safety
+// Many functions in LedgerTxn::Impl provide a basic exception safety
 // guarantee that states that certain caches may be modified or cleared if an
-// exception is thrown. It is always safe to continue using the LedgerState
+// exception is thrown. It is always safe to continue using the LedgerTxn
 // object in such a case and the results of any successful query are correct.
 // However, it should be noted that a query which would have succeeded had there
 // not been an earlier exception may fail in the case where there had been an
@@ -37,17 +37,17 @@ class EntryIterator::AbstractImpl
 // query would have hit the cache but in the second case the query hits the
 // database because the cache has been cleared but the database connection has
 // been lost.
-class LedgerState::Impl
+class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
 
     typedef std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry>>
         EntryMap;
 
-    AbstractLedgerStateParent& mParent;
-    AbstractLedgerState* mChild;
+    AbstractLedgerTxnParent& mParent;
+    AbstractLedgerTxn* mChild;
     std::unique_ptr<LedgerHeader> mHeader;
-    std::shared_ptr<LedgerStateHeader::Impl> mActiveHeader;
+    std::shared_ptr<LedgerTxnHeader::Impl> mActiveHeader;
     EntryMap mEntry;
     std::unordered_map<LedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
@@ -87,11 +87,11 @@ class LedgerState::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(LedgerState& self, AbstractLedgerStateParent& parent,
+    Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
          bool shouldUpdateLastModified);
 
     // addChild has the strong exception safety guarantee
-    void addChild(AbstractLedgerState& child);
+    void addChild(AbstractLedgerTxn& child);
 
     // commit has the strong exception safety guarantee.
     void commit();
@@ -104,7 +104,7 @@ class LedgerState::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    LedgerStateEntry create(LedgerState& self, LedgerEntry const& entry);
+    LedgerTxnEntry create(LedgerTxn& self, LedgerEntry const& entry);
 
     // deactivate has the strong exception safety guarantee
     void deactivate(LedgerKey const& key);
@@ -152,7 +152,7 @@ class LedgerState::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    LedgerStateDelta getDelta();
+    LedgerTxnDelta getDelta();
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
@@ -194,15 +194,15 @@ class LedgerState::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    LedgerStateEntry load(LedgerState& self, LedgerKey const& key);
+    LedgerTxnEntry load(LedgerTxn& self, LedgerKey const& key);
 
     // loadAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    std::map<AccountID, std::vector<LedgerStateEntry>>
-    loadAllOffers(LedgerState& self);
+    std::map<AccountID, std::vector<LedgerTxnEntry>>
+    loadAllOffers(LedgerTxn& self);
 
     // loadBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -212,19 +212,19 @@ class LedgerState::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
-    LedgerStateEntry loadBestOffer(LedgerState& self, Asset const& buying,
-                                   Asset const& selling);
+    LedgerTxnEntry loadBestOffer(LedgerTxn& self, Asset const& buying,
+                                 Asset const& selling);
 
     // loadHeader has the strong exception safety guarantee
-    LedgerStateHeader loadHeader(LedgerState& self);
+    LedgerTxnHeader loadHeader(LedgerTxn& self);
 
     // loadOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    std::vector<LedgerStateEntry>
-    loadOffersByAccountAndAsset(LedgerState& self, AccountID const& accountID,
+    std::vector<LedgerTxnEntry>
+    loadOffersByAccountAndAsset(LedgerTxn& self, AccountID const& accountID,
                                 Asset const& asset);
 
     // loadWithoutRecord has the basic exception safety guarantee. If it throws
@@ -232,8 +232,8 @@ class LedgerState::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
-    ConstLedgerStateEntry loadWithoutRecord(LedgerState& self,
-                                            LedgerKey const& key);
+    ConstLedgerTxnEntry loadWithoutRecord(LedgerTxn& self,
+                                          LedgerKey const& key);
 
     // rollback does not throw
     void rollback();
@@ -242,12 +242,12 @@ class LedgerState::Impl
     void rollbackChild();
 
     // unsealHeader has the same exception safety guarantee as f
-    void unsealHeader(LedgerState& self, std::function<void(LedgerHeader&)> f);
+    void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
 };
 
-class LedgerState::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
+class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 {
-    typedef LedgerState::Impl::EntryMap::const_iterator IteratorType;
+    typedef LedgerTxn::Impl::EntryMap::const_iterator IteratorType;
     IteratorType mIter;
     IteratorType const mEnd;
 
@@ -265,9 +265,9 @@ class LedgerState::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     LedgerKey const& key() const override;
 };
 
-// Many functions in LedgerStateRoot::Impl provide a basic exception safety
+// Many functions in LedgerTxnRoot::Impl provide a basic exception safety
 // guarantee that states that certain caches may be modified or cleared if an
-// exception is thrown. It is always safe to continue using the LedgerState
+// exception is thrown. It is always safe to continue using the LedgerTxn
 // object in such a case and the results of any successful query are correct.
 // However, it should be noted that a query which would have succeeded had there
 // not been an earlier exception may fail in the case where there had been an
@@ -275,7 +275,7 @@ class LedgerState::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 // query would have hit the cache but in the second case the query hits the
 // database because the cache has been cleared but the database connection has
 // been lost.
-class LedgerStateRoot::Impl
+class LedgerTxnRoot::Impl
 {
     typedef std::string EntryCacheKey;
     typedef cache::lru_cache<EntryCacheKey, std::shared_ptr<LedgerEntry const>>
@@ -294,7 +294,7 @@ class LedgerStateRoot::Impl
     mutable EntryCache mEntryCache;
     mutable BestOffersCache mBestOffersCache;
     std::unique_ptr<soci::transaction> mTransaction;
-    AbstractLedgerState* mChild;
+    AbstractLedgerTxn* mChild;
 
     void throwIfChild() const;
 
@@ -354,7 +354,7 @@ class LedgerStateRoot::Impl
     ~Impl();
 
     // addChild has the strong exception safety guarantee.
-    void addChild(AbstractLedgerState& child);
+    void addChild(AbstractLedgerTxn& child);
 
     // commitChild has the strong exception safety guarantee.
     void commitChild(EntryIterator iter);

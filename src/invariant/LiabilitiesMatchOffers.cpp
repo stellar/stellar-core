@@ -5,7 +5,7 @@
 #include "invariant/LiabilitiesMatchOffers.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxn.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
@@ -260,13 +260,13 @@ LiabilitiesMatchOffers::getName() const
 std::string
 LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                                               OperationResult const& result,
-                                              LedgerStateDelta const& lsDelta)
+                                              LedgerTxnDelta const& ltxDelta)
 {
-    auto ledgerVersion = lsDelta.header.current.ledgerVersion;
+    auto ledgerVersion = ltxDelta.header.current.ledgerVersion;
     if (ledgerVersion >= 10)
     {
         std::map<AccountID, std::map<Asset, Liabilities>> deltaLiabilities;
-        for (auto const& entryDelta : lsDelta.entry)
+        for (auto const& entryDelta : ltxDelta.entry)
         {
             auto checkAuthStr =
                 stellar::checkAuthorized(entryDelta.second.current);
@@ -306,10 +306,10 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
         }
     }
 
-    for (auto const& entryDelta : lsDelta.entry)
+    for (auto const& entryDelta : ltxDelta.entry)
     {
         auto msg = stellar::checkBalanceAndLimit(
-            lsDelta.header.current, entryDelta.second.current,
+            ltxDelta.header.current, entryDelta.second.current,
             entryDelta.second.previous, ledgerVersion);
         if (!msg.empty())
         {

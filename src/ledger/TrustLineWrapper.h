@@ -4,15 +4,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <memory>
 
 namespace stellar
 {
 
-class LedgerState;
-class LedgerStateHeader;
+class LedgerTxn;
+class LedgerTxnHeader;
 
 class TrustLineWrapper
 {
@@ -26,9 +26,9 @@ class TrustLineWrapper
 
   public:
     TrustLineWrapper();
-    TrustLineWrapper(AbstractLedgerState& ls, AccountID const& accountID,
+    TrustLineWrapper(AbstractLedgerTxn& ltx, AccountID const& accountID,
                      Asset const& asset);
-    explicit TrustLineWrapper(LedgerStateEntry&& entry);
+    explicit TrustLineWrapper(LedgerTxnEntry&& entry);
 
     TrustLineWrapper(TrustLineWrapper const&) = delete;
     TrustLineWrapper& operator=(TrustLineWrapper const&) = delete;
@@ -42,21 +42,19 @@ class TrustLineWrapper
     Asset const& getAsset() const;
 
     int64_t getBalance() const;
-    bool addBalance(LedgerStateHeader const& header, int64_t delta);
+    bool addBalance(LedgerTxnHeader const& header, int64_t delta);
 
-    int64_t getBuyingLiabilities(LedgerStateHeader const& header);
-    int64_t getSellingLiabilities(LedgerStateHeader const& header);
+    int64_t getBuyingLiabilities(LedgerTxnHeader const& header);
+    int64_t getSellingLiabilities(LedgerTxnHeader const& header);
 
-    int64_t addBuyingLiabilities(LedgerStateHeader const& header,
-                                 int64_t delta);
-    int64_t addSellingLiabilities(LedgerStateHeader const& header,
-                                  int64_t delta);
+    int64_t addBuyingLiabilities(LedgerTxnHeader const& header, int64_t delta);
+    int64_t addSellingLiabilities(LedgerTxnHeader const& header, int64_t delta);
 
     bool isAuthorized() const;
 
-    int64_t getAvailableBalance(LedgerStateHeader const& header) const;
+    int64_t getAvailableBalance(LedgerTxnHeader const& header) const;
 
-    int64_t getMaxAmountReceive(LedgerStateHeader const& header) const;
+    int64_t getMaxAmountReceive(LedgerTxnHeader const& header) const;
 
     void deactivate();
 };
@@ -80,23 +78,23 @@ class TrustLineWrapper::AbstractImpl
     virtual Asset const& getAsset() const = 0;
 
     virtual int64_t getBalance() const = 0;
-    virtual bool addBalance(LedgerStateHeader const& header, int64_t delta) = 0;
+    virtual bool addBalance(LedgerTxnHeader const& header, int64_t delta) = 0;
 
-    virtual int64_t getBuyingLiabilities(LedgerStateHeader const& header) = 0;
-    virtual int64_t getSellingLiabilities(LedgerStateHeader const& header) = 0;
+    virtual int64_t getBuyingLiabilities(LedgerTxnHeader const& header) = 0;
+    virtual int64_t getSellingLiabilities(LedgerTxnHeader const& header) = 0;
 
-    virtual int64_t addBuyingLiabilities(LedgerStateHeader const& header,
+    virtual int64_t addBuyingLiabilities(LedgerTxnHeader const& header,
                                          int64_t delta) = 0;
-    virtual int64_t addSellingLiabilities(LedgerStateHeader const& header,
+    virtual int64_t addSellingLiabilities(LedgerTxnHeader const& header,
                                           int64_t delta) = 0;
 
     virtual bool isAuthorized() const = 0;
 
     virtual int64_t
-    getAvailableBalance(LedgerStateHeader const& header) const = 0;
+    getAvailableBalance(LedgerTxnHeader const& header) const = 0;
 
     virtual int64_t
-    getMaxAmountReceive(LedgerStateHeader const& header) const = 0;
+    getMaxAmountReceive(LedgerTxnHeader const& header) const = 0;
 };
 
 class ConstTrustLineWrapper
@@ -111,9 +109,9 @@ class ConstTrustLineWrapper
 
   public:
     ConstTrustLineWrapper();
-    ConstTrustLineWrapper(AbstractLedgerState& ls, AccountID const& accountID,
+    ConstTrustLineWrapper(AbstractLedgerTxn& ltx, AccountID const& accountID,
                           Asset const& asset);
-    explicit ConstTrustLineWrapper(ConstLedgerStateEntry&& entry);
+    explicit ConstTrustLineWrapper(ConstLedgerTxnEntry&& entry);
 
     ConstTrustLineWrapper(ConstTrustLineWrapper const&) = delete;
     ConstTrustLineWrapper& operator=(ConstTrustLineWrapper const&) = delete;
@@ -127,9 +125,9 @@ class ConstTrustLineWrapper
 
     bool isAuthorized() const;
 
-    int64_t getAvailableBalance(LedgerStateHeader const& header) const;
+    int64_t getAvailableBalance(LedgerTxnHeader const& header) const;
 
-    int64_t getMaxAmountReceive(LedgerStateHeader const& header) const;
+    int64_t getMaxAmountReceive(LedgerTxnHeader const& header) const;
 
     void deactivate();
 };
@@ -154,9 +152,9 @@ class ConstTrustLineWrapper::AbstractImpl
     virtual bool isAuthorized() const = 0;
 
     virtual int64_t
-    getAvailableBalance(LedgerStateHeader const& header) const = 0;
+    getAvailableBalance(LedgerTxnHeader const& header) const = 0;
 
     virtual int64_t
-    getMaxAmountReceive(LedgerStateHeader const& header) const = 0;
+    getMaxAmountReceive(LedgerTxnHeader const& header) const = 0;
 };
 }

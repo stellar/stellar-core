@@ -5,14 +5,14 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerStateImpl.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
 
 namespace stellar
 {
 
 std::shared_ptr<LedgerEntry const>
-LedgerStateRoot::Impl::loadData(LedgerKey const& key) const
+LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
 {
     std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string const& dataName = key.data().dataName;
@@ -53,8 +53,7 @@ LedgerStateRoot::Impl::loadData(LedgerKey const& key) const
 }
 
 void
-LedgerStateRoot::Impl::insertOrUpdateData(LedgerEntry const& entry,
-                                          bool isInsert)
+LedgerTxnRoot::Impl::insertOrUpdateData(LedgerEntry const& entry, bool isInsert)
 {
     auto const& data = entry.data.data();
     std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
@@ -89,7 +88,7 @@ LedgerStateRoot::Impl::insertOrUpdateData(LedgerEntry const& entry,
 }
 
 void
-LedgerStateRoot::Impl::deleteData(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteData(LedgerKey const& key)
 {
     auto const& data = key.data();
     std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
@@ -112,7 +111,7 @@ LedgerStateRoot::Impl::deleteData(LedgerKey const& key)
 }
 
 void
-LedgerStateRoot::Impl::dropData()
+LedgerTxnRoot::Impl::dropData()
 {
     throwIfChild();
     mEntryCache.clear();

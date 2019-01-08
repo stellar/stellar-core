@@ -6,7 +6,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerStateImpl.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -15,7 +15,7 @@ namespace stellar
 {
 
 std::shared_ptr<LedgerEntry const>
-LedgerStateRoot::Impl::loadAccount(LedgerKey const& key) const
+LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
 {
     std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
 
@@ -87,7 +87,7 @@ LedgerStateRoot::Impl::loadAccount(LedgerKey const& key) const
 }
 
 std::vector<Signer>
-LedgerStateRoot::Impl::loadSigners(LedgerKey const& key) const
+LedgerTxnRoot::Impl::loadSigners(LedgerKey const& key) const
 {
     std::vector<Signer> res;
 
@@ -121,8 +121,8 @@ LedgerStateRoot::Impl::loadSigners(LedgerKey const& key) const
 }
 
 std::vector<InflationWinner>
-LedgerStateRoot::Impl::loadInflationWinners(size_t maxWinners,
-                                            int64_t minBalance) const
+LedgerTxnRoot::Impl::loadInflationWinners(size_t maxWinners,
+                                          int64_t minBalance) const
 {
     InflationWinner w;
     std::string inflationDest;
@@ -154,8 +154,8 @@ LedgerStateRoot::Impl::loadInflationWinners(size_t maxWinners,
 }
 
 void
-LedgerStateRoot::Impl::insertOrUpdateAccount(LedgerEntry const& entry,
-                                             bool isInsert)
+LedgerTxnRoot::Impl::insertOrUpdateAccount(LedgerEntry const& entry,
+                                           bool isInsert)
 {
     auto const& account = entry.data.account();
     std::string actIDStrKey = KeyUtils::toStrKey(account.accountID);
@@ -222,7 +222,7 @@ LedgerStateRoot::Impl::insertOrUpdateAccount(LedgerEntry const& entry,
 }
 
 void
-LedgerStateRoot::Impl::storeSigners(
+LedgerTxnRoot::Impl::storeSigners(
     LedgerEntry const& entry,
     std::shared_ptr<LedgerEntry const> const& previous)
 {
@@ -334,7 +334,7 @@ LedgerStateRoot::Impl::storeSigners(
 }
 
 void
-LedgerStateRoot::Impl::deleteAccount(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteAccount(LedgerKey const& key)
 {
     std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
 
@@ -368,7 +368,7 @@ LedgerStateRoot::Impl::deleteAccount(LedgerKey const& key)
 }
 
 void
-LedgerStateRoot::Impl::dropAccounts()
+LedgerTxnRoot::Impl::dropAccounts()
 {
     throwIfChild();
     mEntryCache.clear();

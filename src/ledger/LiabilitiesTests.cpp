@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
 #include "ledger/LedgerTestUtils.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -42,9 +42,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             bool res =
                 stellar::addSellingLiabilities(header, acc, deltaLiabilities);
             REQUIRE(acc.current().data.account().balance == initBalance);
@@ -74,9 +74,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 le.data.type(ACCOUNT);
                 le.data.account() = ae;
 
-                LedgerState ls(app->getLedgerStateRoot());
-                auto header = ls.loadHeader();
-                auto acc = ls.create(le);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto header = ltx.loadHeader();
+                auto acc = ltx.create(le);
                 bool res = stellar::addSellingLiabilities(header, acc,
                                                           deltaLiabilities);
                 REQUIRE(acc.current().data.account().balance == initBalance);
@@ -236,9 +236,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             bool res =
                 stellar::addBuyingLiabilities(header, acc, deltaLiabilities);
             REQUIRE(acc.current().data.account().balance == initBalance);
@@ -269,9 +269,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             bool res =
                 stellar::addBuyingLiabilities(header, acc, deltaLiabilities);
             REQUIRE(acc.current().data.account().balance == initBalance);
@@ -455,9 +455,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             bool res =
                 stellar::addSellingLiabilities(header, trust, deltaLiabilities);
             REQUIRE(trust.current().data.trustLine().balance == initBalance);
@@ -490,9 +490,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 le.data.type(TRUSTLINE);
                 le.data.trustLine() = tl;
 
-                LedgerState ls(app->getLedgerStateRoot());
-                auto header = ls.loadHeader();
-                auto trust = ls.create(le);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto header = ltx.loadHeader();
+                auto trust = ltx.create(le);
                 bool res = stellar::addSellingLiabilities(header, trust,
                                                           deltaLiabilities);
                 REQUIRE(trust.current().data.trustLine().balance ==
@@ -597,9 +597,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             bool res =
                 stellar::addBuyingLiabilities(header, trust, deltaLiabilities);
             REQUIRE(trust.current().data.trustLine().balance == initBalance);
@@ -631,9 +631,9 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             bool res =
                 stellar::addBuyingLiabilities(header, trust, deltaLiabilities);
             REQUIRE(trust.current().data.trustLine().balance == initBalance);
@@ -741,9 +741,9 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             bool res = stellar::addBalance(header, acc, deltaBalance);
             REQUIRE(getSellingLiabilities(header, acc) ==
                     initLiabilities.selling);
@@ -847,9 +847,9 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             bool res = stellar::addNumEntries(header, acc, deltaNumSubEntries);
             REQUIRE(getSellingLiabilities(header, acc) ==
                     initSellingLiabilities);
@@ -934,9 +934,9 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             bool res = stellar::addBalance(header, trust, deltaBalance);
             REQUIRE(getSellingLiabilities(header, trust) ==
                     initLiabilities.selling);
@@ -1014,9 +1014,9 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             auto availableBalance =
                 std::max({int64_t(0), getAvailableBalance(header, acc)});
             REQUIRE(!stellar::addBalance(header, acc, -availableBalance - 1));
@@ -1065,9 +1065,9 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto acc = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto acc = ltx.create(le);
             auto availableLimit =
                 std::max({int64_t(0), getMaxAmountReceive(header, acc)});
             if (availableLimit < INT64_MAX)
@@ -1137,9 +1137,9 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             auto availableBalance =
                 std::max({int64_t(0), getAvailableBalance(header, trust)});
             REQUIRE(!stellar::addBalance(header, trust, -availableBalance - 1));
@@ -1182,9 +1182,9 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             auto availableLimit =
                 std::max({int64_t(0), getMaxAmountReceive(header, trust)});
             if (availableLimit < INT64_MAX)
@@ -1230,9 +1230,9 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            LedgerState ls(app->getLedgerStateRoot());
-            auto header = ls.loadHeader();
-            auto trust = ls.create(le);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto header = ltx.loadHeader();
+            auto trust = ltx.create(le);
             trust.current().data.trustLine().limit =
                 getMinimumLimit(header, trust);
             REQUIRE(getMaxAmountReceive(header, trust) == 0);

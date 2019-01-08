@@ -7,8 +7,8 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "lib/util/format.h"
@@ -156,8 +156,8 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
             key = getAccount(accName->second.c_str());
         }
 
-        LedgerState ls(mApp.getLedgerStateRoot());
-        auto acc = stellar::loadAccount(ls, key.getPublicKey());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto acc = stellar::loadAccount(ltx, key.getPublicKey());
         if (acc)
         {
             auto const& ae = acc.current().data.account();

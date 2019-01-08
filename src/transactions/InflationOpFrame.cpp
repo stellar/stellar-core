@@ -4,9 +4,9 @@
 
 #include "transactions/InflationOpFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionUtils.h"
@@ -28,9 +28,9 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+InflationOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 {
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     auto& lh = header.current();
     time_t closeTime = lh.scpValue.closeTime;
     uint64_t seq = lh.inflationSeq;
@@ -55,7 +55,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     int64_t minBalance =
         bigDivide(totalVotes, INFLATION_WIN_MIN_PERCENT, TRILLION, ROUND_DOWN);
 
-    auto winners = ls.queryInflationWinners(INFLATION_NUM_WINNERS, minBalance);
+    auto winners = ltx.queryInflationWinners(INFLATION_NUM_WINNERS, minBalance);
 
     auto inflationAmount = bigDivide(lh.totalCoins, INFLATION_RATE_TRILLIONTHS,
                                      TRILLION, ROUND_DOWN);
@@ -79,7 +79,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
         if (lh.ledgerVersion >= 10)
         {
-            auto winner = stellar::loadAccountWithoutRecord(ls, w.accountID);
+            auto winner = stellar::loadAccountWithoutRecord(ltx, w.accountID);
             if (winner)
             {
                 toDoleThisWinner = std::min(getMaxAmountReceive(header, winner),
@@ -89,7 +89,7 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             }
         }
 
-        auto winner = stellar::loadAccount(ls, w.accountID);
+        auto winner = stellar::loadAccount(ltx, w.accountID);
         if (winner)
         {
             leftAfterDole -= toDoleThisWinner;

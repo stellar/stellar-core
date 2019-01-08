@@ -2,19 +2,19 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerStateHeader.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerTxn.h"
 
 namespace stellar
 {
 
-class LedgerStateHeader::Impl
+class LedgerTxnHeader::Impl
 {
-    AbstractLedgerState& mLedgerState;
+    AbstractLedgerTxn& mLedgerTxn;
     LedgerHeader& mCurrent;
 
   public:
-    explicit Impl(AbstractLedgerState& ls, LedgerHeader& current);
+    explicit Impl(AbstractLedgerTxn& ltx, LedgerHeader& current);
 
     // Copy construction and copy assignment are forbidden.
     Impl(Impl const&) = delete;
@@ -30,24 +30,23 @@ class LedgerStateHeader::Impl
     void deactivate();
 };
 
-std::shared_ptr<LedgerStateHeader::Impl>
-LedgerStateHeader::makeSharedImpl(AbstractLedgerState& ls,
-                                  LedgerHeader& current)
+std::shared_ptr<LedgerTxnHeader::Impl>
+LedgerTxnHeader::makeSharedImpl(AbstractLedgerTxn& ltx, LedgerHeader& current)
 {
-    return std::make_shared<Impl>(ls, current);
+    return std::make_shared<Impl>(ltx, current);
 }
 
-LedgerStateHeader::LedgerStateHeader(std::shared_ptr<Impl> const& impl)
+LedgerTxnHeader::LedgerTxnHeader(std::shared_ptr<Impl> const& impl)
     : mImpl(impl) // Constructing weak_ptr from shared_ptr is noexcept
 {
 }
 
-LedgerStateHeader::Impl::Impl(AbstractLedgerState& ls, LedgerHeader& current)
-    : mLedgerState(ls), mCurrent(current)
+LedgerTxnHeader::Impl::Impl(AbstractLedgerTxn& ltx, LedgerHeader& current)
+    : mLedgerTxn(ltx), mCurrent(current)
 {
 }
 
-LedgerStateHeader::~LedgerStateHeader()
+LedgerTxnHeader::~LedgerTxnHeader()
 {
     auto impl = mImpl.lock();
     if (impl)
@@ -56,7 +55,7 @@ LedgerStateHeader::~LedgerStateHeader()
     }
 }
 
-LedgerStateHeader::LedgerStateHeader(LedgerStateHeader&& other)
+LedgerTxnHeader::LedgerTxnHeader(LedgerTxnHeader&& other)
     : mImpl(std::move(other.mImpl))
 {
     // According to https://en.cppreference.com/w/cpp/memory/weak_ptr/weak_ptr
@@ -66,83 +65,83 @@ LedgerStateHeader::LedgerStateHeader(LedgerStateHeader&& other)
 // Copy-and-swap implementation ensures that *this is properly destructed (and
 // deactivated) if this->mImpl != nullptr, but note that self-assignment must
 // still be handled explicitly since the copy would still deactivate the entry.
-LedgerStateHeader&
-LedgerStateHeader::operator=(LedgerStateHeader&& other)
+LedgerTxnHeader&
+LedgerTxnHeader::operator=(LedgerTxnHeader&& other)
 {
     if (this != &other)
     {
-        LedgerStateHeader otherCopy(other.mImpl.lock());
+        LedgerTxnHeader otherCopy(other.mImpl.lock());
         swap(otherCopy);
         other.mImpl.reset();
     }
     return *this;
 }
 
-LedgerStateHeader::operator bool() const
+LedgerTxnHeader::operator bool() const
 {
     return !mImpl.expired();
 }
 
 LedgerHeader&
-LedgerStateHeader::current()
+LedgerTxnHeader::current()
 {
     return getImpl()->current();
 }
 
 LedgerHeader const&
-LedgerStateHeader::current() const
+LedgerTxnHeader::current() const
 {
     return getImpl()->current();
 }
 
 LedgerHeader&
-LedgerStateHeader::Impl::current()
+LedgerTxnHeader::Impl::current()
 {
     return mCurrent;
 }
 
 LedgerHeader const&
-LedgerStateHeader::Impl::current() const
+LedgerTxnHeader::Impl::current() const
 {
     return mCurrent;
 }
 
 void
-LedgerStateHeader::deactivate()
+LedgerTxnHeader::deactivate()
 {
     getImpl()->deactivate();
 }
 
 void
-LedgerStateHeader::Impl::deactivate()
+LedgerTxnHeader::Impl::deactivate()
 {
-    mLedgerState.deactivateHeader();
+    mLedgerTxn.deactivateHeader();
 }
 
-std::shared_ptr<LedgerStateHeader::Impl>
-LedgerStateHeader::getImpl()
+std::shared_ptr<LedgerTxnHeader::Impl>
+LedgerTxnHeader::getImpl()
 {
     auto impl = mImpl.lock();
     if (!impl)
     {
-        throw std::runtime_error("LedgerStateHeader not active");
+        throw std::runtime_error("LedgerTxnHeader not active");
     }
     return impl;
 }
 
-std::shared_ptr<LedgerStateHeader::Impl const>
-LedgerStateHeader::getImpl() const
+std::shared_ptr<LedgerTxnHeader::Impl const>
+LedgerTxnHeader::getImpl() const
 {
     auto impl = mImpl.lock();
     if (!impl)
     {
-        throw std::runtime_error("LedgerStateHeader not active");
+        throw std::runtime_error("LedgerTxnHeader not active");
     }
     return impl;
 }
 
 void
-LedgerStateHeader::swap(LedgerStateHeader& other)
+LedgerTxnHeader::swap(LedgerTxnHeader& other)
 {
     mImpl.swap(other.mImpl);
 }

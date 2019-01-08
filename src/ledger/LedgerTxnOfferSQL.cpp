@@ -5,7 +5,7 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerStateImpl.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 
@@ -47,7 +47,7 @@ processAsset(Asset& asset, AssetType assetType, std::string const& issuerStr,
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerStateRoot::Impl::loadOffer(LedgerKey const& key) const
+LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
 {
     uint64_t offerID = key.offer().offerID;
     std::string actIDStrKey = KeyUtils::toStrKey(key.offer().sellerID);
@@ -75,7 +75,7 @@ LedgerStateRoot::Impl::loadOffer(LedgerKey const& key) const
 }
 
 std::vector<LedgerEntry>
-LedgerStateRoot::Impl::loadAllOffers() const
+LedgerTxnRoot::Impl::loadAllOffers() const
 {
     std::string sql = "SELECT sellerid, offerid, "
                       "sellingassettype, sellingassetcode, sellingissuer, "
@@ -93,9 +93,9 @@ LedgerStateRoot::Impl::loadAllOffers() const
 }
 
 std::list<LedgerEntry>::const_iterator
-LedgerStateRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
-                                      Asset const& buying, Asset const& selling,
-                                      size_t numOffers, size_t offset) const
+LedgerTxnRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
+                                    Asset const& buying, Asset const& selling,
+                                    size_t numOffers, size_t offset) const
 {
     std::string sql = "SELECT sellerid, offerid, "
                       "sellingassettype, sellingassetcode, sellingissuer, "
@@ -210,8 +210,8 @@ isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
 // a consequence, I have not implemented that possibility so this function
 // throws in that case.
 std::vector<LedgerEntry>
-LedgerStateRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
-                                                   Asset const& asset) const
+LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
+                                                 Asset const& asset) const
 {
     std::string sql = "SELECT sellerid, offerid, "
                       "sellingassettype, sellingassetcode, sellingissuer, "
@@ -256,7 +256,7 @@ LedgerStateRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
 }
 
 std::vector<LedgerEntry>
-LedgerStateRoot::Impl::loadOffers(StatementContext& prep) const
+LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
 {
     std::vector<LedgerEntry> offers;
 
@@ -305,8 +305,8 @@ LedgerStateRoot::Impl::loadOffers(StatementContext& prep) const
 }
 
 std::list<LedgerEntry>::const_iterator
-LedgerStateRoot::Impl::loadOffers(StatementContext& prep,
-                                  std::list<LedgerEntry>& offers) const
+LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
+                                std::list<LedgerEntry>& offers) const
 {
     std::string actIDStrKey;
     unsigned int sellingAssetType, buyingAssetType;
@@ -362,8 +362,8 @@ LedgerStateRoot::Impl::loadOffers(StatementContext& prep,
 }
 
 void
-LedgerStateRoot::Impl::insertOrUpdateOffer(LedgerEntry const& entry,
-                                           bool isInsert)
+LedgerTxnRoot::Impl::insertOrUpdateOffer(LedgerEntry const& entry,
+                                         bool isInsert)
 {
     auto const& offer = entry.data.offer();
     std::string actIDStrKey = KeyUtils::toStrKey(offer.sellerID);
@@ -455,7 +455,7 @@ LedgerStateRoot::Impl::insertOrUpdateOffer(LedgerEntry const& entry,
 }
 
 void
-LedgerStateRoot::Impl::deleteOffer(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteOffer(LedgerKey const& key)
 {
     auto const& offer = key.offer();
 
@@ -475,7 +475,7 @@ LedgerStateRoot::Impl::deleteOffer(LedgerKey const& key)
 }
 
 void
-LedgerStateRoot::Impl::dropOffers()
+LedgerTxnRoot::Impl::dropOffers()
 {
     throwIfChild();
     mEntryCache.clear();

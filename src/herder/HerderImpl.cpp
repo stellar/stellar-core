@@ -11,9 +11,9 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -336,14 +336,14 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     }
 
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        if (!tx->checkValid(mApp, ls, highSeq))
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        if (!tx->checkValid(mApp, ltx, highSeq))
         {
             return TX_STATUS_ERROR;
         }
 
-        auto sourceAccount = stellar::loadAccount(ls, tx->getSourceID());
-        if (getAvailableBalance(ls.loadHeader(), sourceAccount) < totFee)
+        auto sourceAccount = stellar::loadAccount(ltx, tx->getSourceID());
+        if (getAvailableBalance(ltx.loadHeader(), sourceAccount) < totFee)
         {
             tx->getResult().result.code(txINSUFFICIENT_BALANCE);
             return TX_STATUS_ERROR;

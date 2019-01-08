@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestAccount.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
@@ -30,8 +30,8 @@ TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        auto entry = stellar::loadAccount(ls, getPublicKey());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto entry = stellar::loadAccount(ltx, getPublicKey());
         if (entry)
         {
             mSn = entry.current().data.account().seqNum;
@@ -42,8 +42,8 @@ TestAccount::updateSequenceNumber()
 int64_t
 TestAccount::getBalance() const
 {
-    LedgerState ls(mApp.getLedgerStateRoot());
-    auto entry = stellar::loadAccount(ls, getPublicKey());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto entry = stellar::loadAccount(ltx, getPublicKey());
     return entry.current().data.account().balance;
 }
 
@@ -85,8 +85,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 
     std::unique_ptr<LedgerEntry> destBefore;
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        auto entry = stellar::loadAccount(ls, publicKey);
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto entry = stellar::loadAccount(ltx, publicKey);
         if (entry)
         {
             destBefore = std::make_unique<LedgerEntry>(entry.current());
@@ -99,8 +99,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        auto destAfter = stellar::loadAccount(ls, publicKey);
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto destAfter = stellar::loadAccount(ltx, publicKey);
         // check that the target account didn't change
         REQUIRE(!!destBefore == !!destAfter);
         if (destBefore && destAfter)
@@ -111,8 +111,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
 
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        REQUIRE(stellar::loadAccount(ls, publicKey));
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        REQUIRE(stellar::loadAccount(ltx, publicKey));
     }
     return TestAccount{mApp, secretKey};
 }
@@ -128,9 +128,9 @@ TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({accountMerge(into)}), mApp);
 
-    LedgerState ls(mApp.getLedgerStateRoot());
-    REQUIRE(stellar::loadAccount(ls, into));
-    REQUIRE(!stellar::loadAccount(ls, getPublicKey()));
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    REQUIRE(stellar::loadAccount(ltx, into));
+    REQUIRE(!stellar::loadAccount(ltx, getPublicKey()));
 }
 
 void
@@ -166,21 +166,21 @@ TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 TrustLineEntry
 TestAccount::loadTrustLine(Asset const& asset) const
 {
-    LedgerState ls(mApp.getLedgerStateRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
     key.trustLine().asset = asset;
-    return ls.load(key).current().data.trustLine();
+    return ltx.load(key).current().data.trustLine();
 }
 
 bool
 TestAccount::hasTrustLine(Asset const& asset) const
 {
-    LedgerState ls(mApp.getLedgerStateRoot());
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = getPublicKey();
     key.trustLine().asset = asset;
-    return (bool)ls.load(key);
+    return (bool)ltx.load(key);
 }
 
 void
@@ -194,7 +194,7 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 {
     applyTx(tx({txtest::manageData(name, value)}), mApp);
 
-    LedgerState ls(mApp.getLedgerStateRoot());
+    LedgerTxn ls(mApp.getLedgerTxnRoot());
     auto data = stellar::loadData(ls, getPublicKey(), name);
     if (value)
     {
@@ -238,8 +238,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
     std::unique_ptr<LedgerEntry> toAccount;
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        auto toAccountEntry = stellar::loadAccount(ls, destination);
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto toAccountEntry = stellar::loadAccount(ltx, destination);
         toAccount =
             toAccountEntry
                 ? std::make_unique<LedgerEntry>(toAccountEntry.current())
@@ -250,7 +250,7 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         }
         else
         {
-            REQUIRE(stellar::loadAccount(ls, getPublicKey()));
+            REQUIRE(stellar::loadAccount(ltx, getPublicKey()));
         }
     }
 
@@ -262,8 +262,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
     }
     catch (...)
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
-        auto toAccountAfter = stellar::loadAccount(ls, destination);
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto toAccountAfter = stellar::loadAccount(ltx, destination);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter &&
@@ -275,8 +275,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         throw;
     }
 
-    LedgerState ls(mApp.getLedgerStateRoot());
-    auto toAccountAfter = stellar::loadAccount(ls, destination);
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto toAccountAfter = stellar::loadAccount(ltx, destination);
     REQUIRE(toAccount);
     REQUIRE(toAccountAfter);
 }

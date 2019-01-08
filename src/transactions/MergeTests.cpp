@@ -4,9 +4,9 @@
 
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -444,8 +444,8 @@ TEST_CASE("merge", "[tx][merge]")
                 a1.merge(b1);
 
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
-                    REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!stellar::loadAccount(ltx, a1.getPublicKey()));
                 }
             });
         }
@@ -461,8 +461,8 @@ TEST_CASE("merge", "[tx][merge]")
                 checkTx(1, r, txNO_ACCOUNT);
 
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
-                    REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!stellar::loadAccount(ltx, a1.getPublicKey()));
                 }
 
                 int64 expectedB1Balance =
@@ -553,9 +553,9 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_from(10, *app, [&]() {
             SequenceNumber curStartSeqNum;
             {
-                LedgerState ls(app->getLedgerStateRoot());
-                ++ls.loadHeader().current().ledgerSeq;
-                curStartSeqNum = getStartingSequenceNumber(ls.loadHeader());
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ++ltx.loadHeader().current().ledgerSeq;
+                curStartSeqNum = getStartingSequenceNumber(ltx.loadHeader());
             }
             auto maxSeqNum = curStartSeqNum - 1;
 
@@ -611,9 +611,9 @@ TEST_CASE("merge", "[tx][merge]")
             acc2.merge(acc1);
 
             {
-                LedgerState ls(app->getLedgerStateRoot());
-                auto header = ls.loadHeader();
-                auto account = stellar::loadAccount(ls, acc1.getPublicKey());
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto header = ltx.loadHeader();
+                auto account = stellar::loadAccount(ltx, acc1.getPublicKey());
                 auto const& ae = account.current().data.account();
                 REQUIRE(ae.balance == 2 * minBal);
                 REQUIRE(ae.balance + getBuyingLiabilities(header, account) ==

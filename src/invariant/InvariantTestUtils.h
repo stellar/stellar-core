@@ -11,7 +11,7 @@ namespace stellar
 {
 
 class Application;
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 struct LedgerEntry;
 struct OperationResult;
 
@@ -25,7 +25,7 @@ typedef std::vector<
     UpdateList;
 
 bool store(Application& app, UpdateList const& apply,
-           AbstractLedgerState* lsPtr = nullptr,
+           AbstractLedgerTxn* ltxPtr = nullptr,
            OperationResult const* resPtr = nullptr);
 
 UpdateList makeUpdateList(std::vector<LedgerEntry> const& current,

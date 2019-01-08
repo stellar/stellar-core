@@ -7,8 +7,8 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
-#include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
+#include "ledger/LedgerTxn.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -124,8 +124,8 @@ updateAccountSubEntries(Application& app, LedgerEntry& leCurr,
         auto currPtr = std::make_shared<LedgerEntry>(leCurr);
         auto prevPtr = std::make_shared<LedgerEntry>(lePrev);
         updates.push_back(std::make_tuple(currPtr, prevPtr));
-        LedgerState ls(app.getLedgerStateRoot());
-        REQUIRE(!store(app, updates, &ls));
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        REQUIRE(!store(app, updates, &ltx));
     }
     {
         leCurr.data.account().numSubEntries += deltaNumSubEntries;
@@ -291,8 +291,8 @@ TEST_CASE("Create account then add signers and subentries",
 
         if (le.data.account().numSubEntries != le.data.account().signers.size())
         {
-            LedgerState ls(app->getLedgerStateRoot());
-            REQUIRE(!store(*app, makeUpdateList(nullptr, {le}), &ls));
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!store(*app, makeUpdateList(nullptr, {le}), &ltx));
         }
         {
             UpdateList apply(makeUpdateList(nullptr, {le}));

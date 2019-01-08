@@ -5,9 +5,9 @@
 #include "OfferExchange.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
 #include "transactions/TransactionUtils.h"
@@ -18,7 +18,7 @@ namespace stellar
 // returns the amount of wheat that would be traded
 // while buying as much sheep as possible
 int64_t
-canSellAtMostBasedOnSheep(LedgerStateHeader const& header, Asset const& sheep,
+canSellAtMostBasedOnSheep(LedgerTxnHeader const& header, Asset const& sheep,
                           ConstTrustLineWrapper const& sheepLine,
                           Price const& wheatPrice)
 {
@@ -41,7 +41,7 @@ canSellAtMostBasedOnSheep(LedgerStateHeader const& header, Asset const& sheep,
 }
 
 int64_t
-canSellAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
+canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
               Asset const& asset, TrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -59,9 +59,8 @@ canSellAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
 }
 
 int64_t
-canSellAtMost(LedgerStateHeader const& header,
-              ConstLedgerStateEntry const& account, Asset const& asset,
-              ConstTrustLineWrapper const& trustLine)
+canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
+              Asset const& asset, ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -78,7 +77,7 @@ canSellAtMost(LedgerStateHeader const& header,
 }
 
 int64_t
-canBuyAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
+canBuyAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
              Asset const& asset, TrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -94,9 +93,8 @@ canBuyAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
 }
 
 int64_t
-canBuyAtMost(LedgerStateHeader const& header,
-             ConstLedgerStateEntry const& account, Asset const& asset,
-             ConstTrustLineWrapper const& trustLine)
+canBuyAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
+             Asset const& asset, ConstTrustLineWrapper const& trustLine)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -601,8 +599,8 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
 }
 
 void
-adjustOffer(LedgerStateHeader const& header, LedgerStateEntry& offer,
-            LedgerStateEntry const& account, Asset const& wheat,
+adjustOffer(LedgerTxnHeader const& header, LedgerTxnEntry& offer,
+            LedgerTxnEntry const& account, Asset const& wheat,
             TrustLineWrapper const& wheatLine, Asset const& sheep,
             TrustLineWrapper const& sheepLine)
 {
@@ -747,9 +745,9 @@ adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive)
 }
 
 static ExchangeResultType
-performExchange(LedgerStateHeader const& header,
-                LedgerStateEntry const& sellingWheatOffer,
-                ConstLedgerStateEntry const& accountB,
+performExchange(LedgerTxnHeader const& header,
+                LedgerTxnEntry const& sellingWheatOffer,
+                ConstLedgerTxnEntry const& accountB,
                 ConstTrustLineWrapper const& wheatLineAccountB,
                 ConstTrustLineWrapper const& sheepLineAccountB,
                 int64_t maxWheatReceived, int64_t& numWheatReceived,
@@ -797,7 +795,7 @@ performExchange(LedgerStateHeader const& header,
 }
 
 static CrossOfferResult
-crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
+crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
            int64_t maxWheatReceived, int64_t& numWheatReceived,
            int64_t maxSheepSend, int64_t& numSheepSend,
            std::vector<ClaimOfferAtom>& offerTrail)
@@ -815,7 +813,7 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
     int64_t newAmount = offer.amount;
     {
-        auto accountB = stellar::loadAccountWithoutRecord(ls, accountBID);
+        auto accountB = stellar::loadAccountWithoutRecord(ltx, accountBID);
         if (!accountB)
         {
             throw std::runtime_error(
@@ -823,12 +821,12 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         }
 
         auto sheepLineAccountB =
-            loadTrustLineWithoutRecordIfNotNative(ls, accountBID, sheep);
+            loadTrustLineWithoutRecordIfNotNative(ltx, accountBID, sheep);
         auto wheatLineAccountB =
-            loadTrustLineWithoutRecordIfNotNative(ls, accountBID, wheat);
+            loadTrustLineWithoutRecordIfNotNative(ltx, accountBID, wheat);
 
         auto exchangeResult = performExchange(
-            ls.loadHeader(), sellingWheatOffer, accountB, wheatLineAccountB,
+            ltx.loadHeader(), sellingWheatOffer, accountB, wheatLineAccountB,
             sheepLineAccountB, maxWheatReceived, numWheatReceived, maxSheepSend,
             numSheepSend, newAmount);
         if (exchangeResult == ExchangeResultType::REDUCED_TO_ZERO)
@@ -841,8 +839,8 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     if (newAmount == 0)
     { // entire offer is taken
         sellingWheatOffer.erase();
-        auto accountB = stellar::loadAccount(ls, accountBID);
-        addNumEntries(ls.loadHeader(), accountB, -1);
+        auto accountB = stellar::loadAccount(ltx, accountBID);
+        addNumEntries(ltx.loadHeader(), accountB, -1);
     }
     else
     {
@@ -852,15 +850,15 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     // Adjust balances
     if (numSheepSend != 0)
     {
-        // This LedgerState makes it so that we don't record that we loaded
+        // This LedgerTxn makes it so that we don't record that we loaded
         // accountB or sheepLineAccountB if we return eOfferCantConvert. We need
-        // a LedgerState here since it is possible that changes were already
+        // a LedgerTxn here since it is possible that changes were already
         // stored.
-        LedgerState lsInner(ls);
-        auto header = lsInner.loadHeader();
+        LedgerTxn ltxInner(ltx);
+        auto header = ltxInner.loadHeader();
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            auto accountB = stellar::loadAccount(lsInner, accountBID);
+            auto accountB = stellar::loadAccount(ltxInner, accountBID);
             if (!addBalance(header, accountB, numSheepSend))
             {
                 return CrossOfferResult::eOfferCantConvert;
@@ -869,26 +867,26 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         else
         {
             auto sheepLineAccountB =
-                stellar::loadTrustLine(lsInner, accountBID, sheep);
+                stellar::loadTrustLine(ltxInner, accountBID, sheep);
             if (!sheepLineAccountB.addBalance(header, numSheepSend))
             {
                 return CrossOfferResult::eOfferCantConvert;
             }
         }
-        lsInner.commit();
+        ltxInner.commit();
     }
 
     if (numWheatReceived != 0)
     {
-        // This LedgerState makes it so that we don't record that we loaded
+        // This LedgerTxn makes it so that we don't record that we loaded
         // accountB or wheatLineAccountB if we return eOfferCantConvert. We need
-        // a LedgerState here since it is possible that changes were already
+        // a LedgerTxn here since it is possible that changes were already
         // stored.
-        LedgerState lsInner(ls);
-        auto header = lsInner.loadHeader();
+        LedgerTxn ltxInner(ltx);
+        auto header = ltxInner.loadHeader();
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            auto accountB = stellar::loadAccount(lsInner, accountBID);
+            auto accountB = stellar::loadAccount(ltxInner, accountBID);
             if (!addBalance(header, accountB, -numWheatReceived))
             {
                 return CrossOfferResult::eOfferCantConvert;
@@ -897,13 +895,13 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
         else
         {
             auto wheatLineAccountB =
-                stellar::loadTrustLine(lsInner, accountBID, wheat);
+                stellar::loadTrustLine(ltxInner, accountBID, wheat);
             if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
             {
                 return CrossOfferResult::eOfferCantConvert;
             }
         }
-        lsInner.commit();
+        ltxInner.commit();
     }
 
     offerTrail.push_back(ClaimOfferAtom(accountBID, offerID, wheat,
@@ -913,14 +911,14 @@ crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 }
 
 static CrossOfferResult
-crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
+crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
               int64_t maxWheatReceived, int64_t& numWheatReceived,
               int64_t maxSheepSend, int64_t& numSheepSend, bool& wheatStays,
               bool isPathPayment, std::vector<ClaimOfferAtom>& offerTrail)
 {
     assert(maxWheatReceived > 0);
     assert(maxSheepSend > 0);
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
 
     auto& offer = sellingWheatOffer.current().data.offer();
     Asset sheep = offer.buying;
@@ -928,24 +926,24 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     AccountID accountBID = offer.sellerID;
     uint64_t offerID = offer.offerID;
 
-    if (!stellar::loadAccountWithoutRecord(ls, accountBID))
+    if (!stellar::loadAccountWithoutRecord(ltx, accountBID))
     {
         throw std::runtime_error(
             "invalid database state: offer must have matching account");
     }
 
     // Remove liabilities associated with the offer being crossed.
-    releaseLiabilities(ls, header, sellingWheatOffer);
+    releaseLiabilities(ltx, header, sellingWheatOffer);
 
     // Load necessary accounts and trustlines. Note that any LedgerEntry loaded
     // here was also loaded during releaseLiabilities.
-    LedgerStateEntry accountB;
+    LedgerTxnEntry accountB;
     if (wheat.type() == ASSET_TYPE_NATIVE || sheep.type() == ASSET_TYPE_NATIVE)
     {
-        accountB = stellar::loadAccount(ls, accountBID);
+        accountB = stellar::loadAccount(ltx, accountBID);
     }
-    auto sheepLineAccountB = loadTrustLineIfNotNative(ls, accountBID, sheep);
-    auto wheatLineAccountB = loadTrustLineIfNotNative(ls, accountBID, wheat);
+    auto sheepLineAccountB = loadTrustLineIfNotNative(ltx, accountBID, sheep);
+    auto wheatLineAccountB = loadTrustLineIfNotNative(ltx, accountBID, wheat);
 
     // As of the protocol version 10, this call to adjustOffer should have no
     // effect. We leave it here only as a preventative measure.
@@ -1016,23 +1014,23 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
     auto res = (offer.amount == 0) ? CrossOfferResult::eOfferTaken
                                    : CrossOfferResult::eOfferPartial;
     {
-        LedgerState lsInner(ls);
-        header = lsInner.loadHeader();
-        sellingWheatOffer = loadOffer(lsInner, accountBID, offerID);
+        LedgerTxn ltxInner(ltx);
+        header = ltxInner.loadHeader();
+        sellingWheatOffer = loadOffer(ltxInner, accountBID, offerID);
         if (res == CrossOfferResult::eOfferTaken)
         {
             sellingWheatOffer.erase();
-            accountB = stellar::loadAccount(lsInner, accountBID);
+            accountB = stellar::loadAccount(ltxInner, accountBID);
             addNumEntries(header, accountB, -1);
         }
         else
         {
-            acquireLiabilities(lsInner, header, sellingWheatOffer);
+            acquireLiabilities(ltxInner, header, sellingWheatOffer);
         }
-        lsInner.commit();
+        ltxInner.commit();
     }
 
-    // Note: The previous block creates a nested LedgerState so all entries are
+    // Note: The previous block creates a nested LedgerTxn so all entries are
     // deactivated at this point. Specifically, you cannot use sellingWheatOffer
     // or offer (which is a reference) since it is not active (and may have been
     // erased) at this point.
@@ -1043,10 +1041,10 @@ crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
 
 ConvertResult
 convertWithOffers(
-    AbstractLedgerState& lsOuter, Asset const& sheep, int64_t maxSheepSend,
+    AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, bool isPathPayment,
-    std::function<OfferFilterResult(LedgerStateEntry const&)> filter,
+    std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
     std::vector<ClaimOfferAtom>& offerTrail)
 {
     sheepSend = 0;
@@ -1055,8 +1053,8 @@ convertWithOffers(
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
     while (needMore)
     {
-        LedgerState ls(lsOuter);
-        auto wheatOffer = ls.loadBestOffer(sheep, wheat);
+        LedgerTxn ltx(ltxOuter);
+        auto wheatOffer = ltx.loadBestOffer(sheep, wheat);
         if (!wheatOffer)
         {
             break;
@@ -1069,17 +1067,17 @@ convertWithOffers(
         int64_t numWheatReceived;
         int64_t numSheepSend;
         CrossOfferResult cor;
-        if (ls.loadHeader().current().ledgerVersion >= 10)
+        if (ltx.loadHeader().current().ledgerVersion >= 10)
         {
             bool wheatStays;
-            cor = crossOfferV10(ls, wheatOffer, maxWheatReceive,
+            cor = crossOfferV10(ltx, wheatOffer, maxWheatReceive,
                                 numWheatReceived, maxSheepSend, numSheepSend,
                                 wheatStays, isPathPayment, offerTrail);
             needMore = !wheatStays;
         }
         else
         {
-            cor = crossOffer(ls, wheatOffer, maxWheatReceive, numWheatReceived,
+            cor = crossOffer(ltx, wheatOffer, maxWheatReceive, numWheatReceived,
                              maxSheepSend, numSheepSend, offerTrail);
             needMore = true;
         }
@@ -1093,7 +1091,7 @@ convertWithOffers(
         {
             return ConvertResult::ePartial;
         }
-        ls.commit();
+        ltx.commit();
 
         sheepSend += numSheepSend;
         maxSheepSend -= numSheepSend;
@@ -1111,7 +1109,7 @@ convertWithOffers(
             return ConvertResult::ePartial;
         }
     }
-    if ((lsOuter.loadHeader().current().ledgerVersion < 10) || !needMore)
+    if ((ltxOuter.loadHeader().current().ledgerVersion < 10) || !needMore)
     {
         return ConvertResult::eOK;
     }

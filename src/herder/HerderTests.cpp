@@ -16,8 +16,8 @@
 #include "database/Database.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
@@ -138,8 +138,8 @@ TEST_CASE("standalone", "[herder]")
 
                 bool hasC = false;
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
-                    hasC = ls.loadHeader().current().ledgerVersion >= 10;
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    hasC = ltx.loadHeader().current().ledgerVersion >= 10;
                 }
                 if (hasC)
                 {
@@ -376,8 +376,8 @@ TEST_CASE("surge", "[herder]")
     app->start();
 
     {
-        LedgerState ls(app->getLedgerStateRoot());
-        ls.loadHeader().current().maxTxSetSize =
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().maxTxSetSize =
             cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     }
 
@@ -514,8 +514,8 @@ TEST_CASE("SCP Driver", "[herder]")
     app->start();
 
     {
-        LedgerState ls(app->getLedgerStateRoot());
-        ls.loadHeader().current().maxTxSetSize =
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().maxTxSetSize =
             cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     }
 

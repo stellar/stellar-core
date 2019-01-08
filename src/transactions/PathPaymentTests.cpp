@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
@@ -3927,9 +3927,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             };
             auto validateOffer = [&](const TestAccount& account,
                                      uint64_t offerId, int64_t difference) {
-                LedgerState ls(app->getLedgerStateRoot());
+                LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto offer =
-                    stellar::loadOffer(ls, account.getPublicKey(), offerId);
+                    stellar::loadOffer(ltx, account.getPublicKey(), offerId);
                 auto const& oe = offer.current().data.offer();
                 REQUIRE(oe.amount == offerAmount + difference);
             };

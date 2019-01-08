@@ -9,18 +9,15 @@
 namespace stellar
 {
 
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 
 class ManageOfferOpFrame : public OperationFrame
 {
-    bool checkOfferValid(AbstractLedgerState& lsOuter);
+    bool checkOfferValid(AbstractLedgerTxn& lsOuter);
 
-    bool computeOfferExchangeParameters(Application& app,
-                                        AbstractLedgerState& lsOuter,
-                                        LedgerEntry const& offer,
-                                        bool creatingNewOffer,
-                                        int64_t& maxSheepSend,
-                                        int64_t& maxWheatReceive);
+    bool computeOfferExchangeParameters(
+        Application& app, AbstractLedgerTxn& lsOuter, LedgerEntry const& offer,
+        bool creatingNewOffer, int64_t& maxSheepSend, int64_t& maxWheatReceive);
 
     ManageOfferResult&
     innerResult()
@@ -40,7 +37,7 @@ class ManageOfferOpFrame : public OperationFrame
     ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerState& lsOuter) override;
+    bool doApply(Application& app, AbstractLedgerTxn& lsOuter) override;
     bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static ManageOfferResultCode

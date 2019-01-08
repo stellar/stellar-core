@@ -5,9 +5,9 @@
 #include "herder/Upgrades.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"
 #include "transactions/OfferExchange.h"
@@ -129,21 +129,21 @@ Upgrades::createUpgradesFor(LedgerHeader const& header) const
 }
 
 void
-Upgrades::applyTo(LedgerUpgrade const& upgrade, AbstractLedgerState& ls)
+Upgrades::applyTo(LedgerUpgrade const& upgrade, AbstractLedgerTxn& ltx)
 {
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        applyVersionUpgrade(ls, upgrade.newLedgerVersion());
+        applyVersionUpgrade(ltx, upgrade.newLedgerVersion());
         break;
     case LEDGER_UPGRADE_BASE_FEE:
-        ls.loadHeader().current().baseFee = upgrade.newBaseFee();
+        ltx.loadHeader().current().baseFee = upgrade.newBaseFee();
         break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-        ls.loadHeader().current().maxTxSetSize = upgrade.newMaxTxSetSize();
+        ltx.loadHeader().current().maxTxSetSize = upgrade.newMaxTxSetSize();
         break;
     case LEDGER_UPGRADE_BASE_RESERVE:
-        applyReserveUpgrade(ls, upgrade.newBaseReserve());
+        applyReserveUpgrade(ltx, upgrade.newBaseReserve());
         break;
     default:
     {
@@ -408,7 +408,7 @@ static int64_t
 getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
                                         Asset const& asset,
                                         int64_t balanceAboveReserve,
-                                        AbstractLedgerState& ls)
+                                        AbstractLedgerTxn& ltx)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -421,7 +421,7 @@ getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
     }
     else
     {
-        auto trust = stellar::loadTrustLineWithoutRecord(ls, accountID, asset);
+        auto trust = stellar::loadTrustLineWithoutRecord(ltx, accountID, asset);
         if (trust && trust.isAuthorized())
         {
             return trust.getBalance();
@@ -436,7 +436,7 @@ getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
 static int64_t
 getAvailableLimitExcludingLiabilities(AccountID const& accountID,
                                       Asset const& asset, int64_t balance,
-                                      AbstractLedgerState& ls)
+                                      AbstractLedgerTxn& ltx)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -452,7 +452,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
         LedgerKey key(TRUSTLINE);
         key.trustLine().accountID = accountID;
         key.trustLine().asset = asset;
-        auto trust = ls.loadWithoutRecord(key);
+        auto trust = ltx.loadWithoutRecord(key);
         if (trust && isAuthorized(trust))
         {
             auto const& tl = trust.current().data.trustLine();
@@ -491,20 +491,20 @@ enum class UpdateOfferResult
 
 static UpdateOfferResult
 updateOffer(
-    LedgerStateEntry& offerEntry, int64_t balance, int64_t balanceAboveReserve,
+    LedgerTxnEntry& offerEntry, int64_t balance, int64_t balanceAboveReserve,
     std::map<Asset, Liabilities>& liabilities,
     std::map<Asset, std::unique_ptr<int64_t>> const& initialBuyingLiabilities,
     std::map<Asset, std::unique_ptr<int64_t>> const& initialSellingLiabilities,
-    AbstractLedgerState& ls, LedgerStateHeader const& header)
+    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
 {
     using namespace std::placeholders;
     auto& offer = offerEntry.current().data.offer();
 
     auto availableBalanceBind =
         std::bind(getAvailableBalanceExcludingLiabilities, offer.sellerID, _1,
-                  _2, std::ref(ls));
+                  _2, std::ref(ltx));
     auto availableLimitBind = std::bind(getAvailableLimitExcludingLiabilities,
-                                        offer.sellerID, _1, _2, std::ref(ls));
+                                        offer.sellerID, _1, _2, std::ref(ltx));
 
     bool erase =
         shouldDeleteOffer(offer.selling, balanceAboveReserve,
@@ -581,11 +581,11 @@ updateOffer(
 // using the initial result of step (1), so it does not matter what order the
 // offers are processed.
 static void
-prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
+prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
 {
     CLOG(INFO, "Ledger") << "Starting prepareLiabilities";
 
-    auto offersByAccount = ls.loadAllOffers();
+    auto offersByAccount = ltx.loadAllOffers();
 
     uint64_t nChangedAccounts = 0;
     uint64_t nChangedTrustLines = 0;
@@ -610,7 +610,7 @@ prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
                            getOfferSellingLiabilities(header, offerEntry));
         }
 
-        auto accountEntry = stellar::loadAccount(ls, accountOffers.first);
+        auto accountEntry = stellar::loadAccount(ltx, accountOffers.first);
         if (!accountEntry)
         {
             throw std::runtime_error("account does not exist");
@@ -630,7 +630,7 @@ prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
             auto offerID = offerEntry.current().data.offer().offerID;
             auto res = updateOffer(offerEntry, balance, balanceAboveReserve,
                                    liabilities, initialBuyingLiabilities,
-                                   initialSellingLiabilities, ls, header);
+                                   initialSellingLiabilities, ltx, header);
             if (res == UpdateOfferResult::AdjustedToZero ||
                 res == UpdateOfferResult::Erased)
             {
@@ -684,7 +684,7 @@ prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
             else
             {
                 auto trustEntry =
-                    stellar::loadTrustLine(ls, accountOffers.first, asset);
+                    stellar::loadTrustLine(ltx, accountOffers.first, asset);
                 int64_t deltaSelling =
                     liab.selling - trustEntry.getSellingLiabilities(header);
                 int64_t deltaBuying =
@@ -725,28 +725,28 @@ prepareLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header)
 }
 
 void
-Upgrades::applyVersionUpgrade(AbstractLedgerState& ls, uint32_t newVersion)
+Upgrades::applyVersionUpgrade(AbstractLedgerTxn& ltx, uint32_t newVersion)
 {
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     uint32_t prevVersion = header.current().ledgerVersion;
 
     header.current().ledgerVersion = newVersion;
     if (header.current().ledgerVersion >= 10 && prevVersion < 10)
     {
-        prepareLiabilities(ls, header);
+        prepareLiabilities(ltx, header);
     }
 }
 
 void
-Upgrades::applyReserveUpgrade(AbstractLedgerState& ls, uint32_t newReserve)
+Upgrades::applyReserveUpgrade(AbstractLedgerTxn& ltx, uint32_t newReserve)
 {
-    auto header = ls.loadHeader();
+    auto header = ltx.loadHeader();
     bool didReserveIncrease = newReserve > header.current().baseReserve;
 
     header.current().baseReserve = newReserve;
     if (header.current().ledgerVersion >= 10 && didReserveIncrease)
     {
-        prepareLiabilities(ls, header);
+        prepareLiabilities(ltx, header);
     }
 }
 }

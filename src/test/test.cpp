@@ -6,8 +6,8 @@
 
 #include "util/asio.h"
 
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Config.h"
 #include "main/StellarCoreVersion.h"
 #include "test.h"
@@ -309,8 +309,8 @@ for_versions(std::vector<uint32> const& versions, Application& app,
 {
     uint32_t previousVersion = 0;
     {
-        LedgerState ls(app.getLedgerStateRoot());
-        previousVersion = ls.loadHeader().current().ledgerVersion;
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        previousVersion = ltx.loadHeader().current().ledgerVersion;
     }
 
     for (auto v : versions)
@@ -324,18 +324,18 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         SECTION("protocol version " + std::to_string(v))
         {
             {
-                LedgerState ls(app.getLedgerStateRoot());
-                ls.loadHeader().current().ledgerVersion = v;
-                ls.commit();
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                ltx.loadHeader().current().ledgerVersion = v;
+                ltx.commit();
             }
             f();
         }
     }
 
     {
-        LedgerState ls(app.getLedgerStateRoot());
-        ls.loadHeader().current().ledgerVersion = previousVersion;
-        ls.commit();
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        ltx.loadHeader().current().ledgerVersion = previousVersion;
+        ltx.commit();
     }
 }
 

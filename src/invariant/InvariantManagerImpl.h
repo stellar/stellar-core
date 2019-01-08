@@ -37,10 +37,9 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual std::vector<std::string> getEnabledInvariants() const override;
 
-    virtual void
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& opres,
-                          LedgerStateDelta const& lsDelta) override;
+    virtual void checkOnOperationApply(Operation const& operation,
+                                       OperationResult const& opres,
+                                       LedgerTxnDelta const& ltxDelta) override;
 
     virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                     uint32_t ledger, uint32_t level,

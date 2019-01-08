@@ -5,7 +5,7 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "ledger/LedgerStateImpl.h"
+#include "ledger/LedgerTxnImpl.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 
@@ -13,7 +13,7 @@ namespace stellar
 {
 
 std::shared_ptr<LedgerEntry const>
-LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
+LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
 {
     auto const& asset = key.trustLine().asset;
     if (asset.type() == ASSET_TYPE_NATIVE)
@@ -83,8 +83,8 @@ LedgerStateRoot::Impl::loadTrustLine(LedgerKey const& key) const
 }
 
 void
-LedgerStateRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
-                                               bool isInsert)
+LedgerTxnRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
+                                             bool isInsert)
 {
     auto const& tl = entry.data.trustLine();
 
@@ -158,7 +158,7 @@ LedgerStateRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
 }
 
 void
-LedgerStateRoot::Impl::deleteTrustLine(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteTrustLine(LedgerKey const& key)
 {
     auto const& tl = key.trustLine();
 
@@ -199,7 +199,7 @@ LedgerStateRoot::Impl::deleteTrustLine(LedgerKey const& key)
 }
 
 void
-LedgerStateRoot::Impl::dropTrustLines()
+LedgerTxnRoot::Impl::dropTrustLines()
 {
     throwIfChild();
     mEntryCache.clear();

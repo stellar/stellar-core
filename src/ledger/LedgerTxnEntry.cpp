@@ -2,8 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerState.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxn.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -11,14 +11,14 @@
 namespace stellar
 {
 
-// Implementation of LedgerStateEntry -----------------------------------------
-class LedgerStateEntry::Impl : public EntryImplBase
+// Implementation of LedgerTxnEntry -----------------------------------------
+class LedgerTxnEntry::Impl : public EntryImplBase
 {
-    AbstractLedgerState& mLedgerState;
+    AbstractLedgerTxn& mLedgerTxn;
     LedgerEntry& mCurrent;
 
   public:
-    explicit Impl(AbstractLedgerState& ls, LedgerEntry& current);
+    explicit Impl(AbstractLedgerTxn& ltx, LedgerEntry& current);
 
     ~Impl() override;
 
@@ -38,33 +38,33 @@ class LedgerStateEntry::Impl : public EntryImplBase
     void erase();
 };
 
-std::shared_ptr<LedgerStateEntry::Impl>
-LedgerStateEntry::makeSharedImpl(AbstractLedgerState& ls, LedgerEntry& current)
+std::shared_ptr<LedgerTxnEntry::Impl>
+LedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ltx, LedgerEntry& current)
 {
-    return std::make_shared<Impl>(ls, current);
+    return std::make_shared<Impl>(ltx, current);
 }
 
 std::shared_ptr<EntryImplBase>
-toEntryImplBase(std::shared_ptr<LedgerStateEntry::Impl> const& impl)
+toEntryImplBase(std::shared_ptr<LedgerTxnEntry::Impl> const& impl)
 {
     return impl;
 }
 
-LedgerStateEntry::LedgerStateEntry()
+LedgerTxnEntry::LedgerTxnEntry()
 {
 }
 
-LedgerStateEntry::LedgerStateEntry(std::shared_ptr<Impl> const& impl)
+LedgerTxnEntry::LedgerTxnEntry(std::shared_ptr<Impl> const& impl)
     : mImpl(impl) // Constructing weak_ptr from shared_ptr is noexcept
 {
 }
 
-LedgerStateEntry::Impl::Impl(AbstractLedgerState& ls, LedgerEntry& current)
-    : mLedgerState(ls), mCurrent(current)
+LedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ltx, LedgerEntry& current)
+    : mLedgerTxn(ltx), mCurrent(current)
 {
 }
 
-LedgerStateEntry::~LedgerStateEntry()
+LedgerTxnEntry::~LedgerTxnEntry()
 {
     auto impl = mImpl.lock();
     if (impl)
@@ -73,11 +73,11 @@ LedgerStateEntry::~LedgerStateEntry()
     }
 }
 
-LedgerStateEntry::Impl::~Impl()
+LedgerTxnEntry::Impl::~Impl()
 {
 }
 
-LedgerStateEntry::LedgerStateEntry(LedgerStateEntry&& other)
+LedgerTxnEntry::LedgerTxnEntry(LedgerTxnEntry&& other)
     : mImpl(std::move(other.mImpl))
 {
     // According to https://en.cppreference.com/w/cpp/memory/weak_ptr/weak_ptr
@@ -87,109 +87,109 @@ LedgerStateEntry::LedgerStateEntry(LedgerStateEntry&& other)
 // Copy-and-swap implementation ensures that *this is properly destructed (and
 // deactivated) if this->mImpl != nullptr, but note that self-assignment must
 // still be handled explicitly since the copy would still deactivate the entry.
-LedgerStateEntry&
-LedgerStateEntry::operator=(LedgerStateEntry&& other)
+LedgerTxnEntry&
+LedgerTxnEntry::operator=(LedgerTxnEntry&& other)
 {
     if (this != &other)
     {
-        LedgerStateEntry otherCopy(other.mImpl.lock());
+        LedgerTxnEntry otherCopy(other.mImpl.lock());
         swap(otherCopy);
         other.mImpl.reset();
     }
     return *this;
 }
 
-LedgerStateEntry::operator bool() const
+LedgerTxnEntry::operator bool() const
 {
     return !mImpl.expired();
 }
 
 LedgerEntry&
-LedgerStateEntry::current()
+LedgerTxnEntry::current()
 {
     return getImpl()->current();
 }
 
 LedgerEntry const&
-LedgerStateEntry::current() const
+LedgerTxnEntry::current() const
 {
     return getImpl()->current();
 }
 
 LedgerEntry&
-LedgerStateEntry::Impl::current()
+LedgerTxnEntry::Impl::current()
 {
     return mCurrent;
 }
 
 LedgerEntry const&
-LedgerStateEntry::Impl::current() const
+LedgerTxnEntry::Impl::current() const
 {
     return mCurrent;
 }
 
 void
-LedgerStateEntry::deactivate()
+LedgerTxnEntry::deactivate()
 {
     getImpl()->deactivate();
 }
 
 void
-LedgerStateEntry::Impl::deactivate()
+LedgerTxnEntry::Impl::deactivate()
 {
     auto key = LedgerEntryKey(mCurrent);
-    mLedgerState.deactivate(key);
+    mLedgerTxn.deactivate(key);
 }
 
 void
-LedgerStateEntry::erase()
+LedgerTxnEntry::erase()
 {
     getImpl()->erase();
 }
 
 void
-LedgerStateEntry::Impl::erase()
+LedgerTxnEntry::Impl::erase()
 {
     auto key = LedgerEntryKey(mCurrent);
-    mLedgerState.erase(key);
+    mLedgerTxn.erase(key);
 }
 
-std::shared_ptr<LedgerStateEntry::Impl>
-LedgerStateEntry::getImpl()
+std::shared_ptr<LedgerTxnEntry::Impl>
+LedgerTxnEntry::getImpl()
 {
     auto impl = mImpl.lock();
     if (!impl)
     {
-        throw std::runtime_error("LedgerStateEntry not active");
+        throw std::runtime_error("LedgerTxnEntry not active");
     }
     return impl;
 }
 
-std::shared_ptr<LedgerStateEntry::Impl const>
-LedgerStateEntry::getImpl() const
+std::shared_ptr<LedgerTxnEntry::Impl const>
+LedgerTxnEntry::getImpl() const
 {
     auto impl = mImpl.lock();
     if (!impl)
     {
-        throw std::runtime_error("LedgerStateEntry not active");
+        throw std::runtime_error("LedgerTxnEntry not active");
     }
     return impl;
 }
 
 void
-LedgerStateEntry::swap(LedgerStateEntry& other)
+LedgerTxnEntry::swap(LedgerTxnEntry& other)
 {
     mImpl.swap(other.mImpl);
 }
 
-// Implementation of ConstLedgerStateEntry ------------------------------------
-class ConstLedgerStateEntry::Impl : public EntryImplBase
+// Implementation of ConstLedgerTxnEntry ------------------------------------
+class ConstLedgerTxnEntry::Impl : public EntryImplBase
 {
-    AbstractLedgerState& mLedgerState;
+    AbstractLedgerTxn& mLedgerTxn;
     LedgerEntry const mCurrent;
 
   public:
-    explicit Impl(AbstractLedgerState& ls, LedgerEntry const& current);
+    explicit Impl(AbstractLedgerTxn& ltx, LedgerEntry const& current);
 
     ~Impl() override;
 
@@ -206,35 +206,35 @@ class ConstLedgerStateEntry::Impl : public EntryImplBase
     void deactivate();
 };
 
-std::shared_ptr<ConstLedgerStateEntry::Impl>
-ConstLedgerStateEntry::makeSharedImpl(AbstractLedgerState& ls,
-                                      LedgerEntry const& current)
+std::shared_ptr<ConstLedgerTxnEntry::Impl>
+ConstLedgerTxnEntry::makeSharedImpl(AbstractLedgerTxn& ltx,
+                                    LedgerEntry const& current)
 {
-    return std::make_shared<Impl>(ls, current);
+    return std::make_shared<Impl>(ltx, current);
 }
 
 std::shared_ptr<EntryImplBase>
-toEntryImplBase(std::shared_ptr<ConstLedgerStateEntry::Impl> const& impl)
+toEntryImplBase(std::shared_ptr<ConstLedgerTxnEntry::Impl> const& impl)
 {
     return impl;
 }
 
-ConstLedgerStateEntry::ConstLedgerStateEntry()
+ConstLedgerTxnEntry::ConstLedgerTxnEntry()
 {
 }
 
-ConstLedgerStateEntry::ConstLedgerStateEntry(std::shared_ptr<Impl> const& impl)
+ConstLedgerTxnEntry::ConstLedgerTxnEntry(std::shared_ptr<Impl> const& impl)
     : mImpl(impl) // Constructing weak_ptr from shared_ptr is noexcept
 {
 }
 
-ConstLedgerStateEntry::Impl::Impl(AbstractLedgerState& ls,
-                                  LedgerEntry const& current)
-    : mLedgerState(ls), mCurrent(current)
+ConstLedgerTxnEntry::Impl::Impl(AbstractLedgerTxn& ltx,
+                                LedgerEntry const& current)
+    : mLedgerTxn(ltx), mCurrent(current)
 {
 }
 
-ConstLedgerStateEntry::~ConstLedgerStateEntry()
+ConstLedgerTxnEntry::~ConstLedgerTxnEntry()
 {
     auto impl = mImpl.lock();
     if (impl)
@@ -243,11 +243,11 @@ ConstLedgerStateEntry::~ConstLedgerStateEntry()
     }
 }
 
-ConstLedgerStateEntry::Impl::~Impl()
+ConstLedgerTxnEntry::Impl::~Impl()
 {
 }
 
-ConstLedgerStateEntry::ConstLedgerStateEntry(ConstLedgerStateEntry&& other)
+ConstLedgerTxnEntry::ConstLedgerTxnEntry(ConstLedgerTxnEntry&& other)
     : mImpl(std::move(other.mImpl))
 {
     // According to https://en.cppreference.com/w/cpp/memory/weak_ptr/weak_ptr
@@ -257,72 +257,72 @@ ConstLedgerStateEntry::ConstLedgerStateEntry(ConstLedgerStateEntry&& other)
 // Copy-and-swap implementation ensures that *this is properly destructed (and
 // deactivated) if this->mImpl != nullptr, but note that self-assignment must
 // still be handled explicitly since the copy would still deactivate the entry.
-ConstLedgerStateEntry&
-ConstLedgerStateEntry::operator=(ConstLedgerStateEntry&& other)
+ConstLedgerTxnEntry&
+ConstLedgerTxnEntry::operator=(ConstLedgerTxnEntry&& other)
 {
     if (this != &other)
     {
-        ConstLedgerStateEntry otherCopy(other.mImpl.lock());
+        ConstLedgerTxnEntry otherCopy(other.mImpl.lock());
         swap(otherCopy);
         other.mImpl.reset();
     }
     return *this;
 }
 
-ConstLedgerStateEntry::operator bool() const
+ConstLedgerTxnEntry::operator bool() const
 {
     return !mImpl.expired();
 }
 
 LedgerEntry const&
-ConstLedgerStateEntry::current() const
+ConstLedgerTxnEntry::current() const
 {
     return getImpl()->current();
 }
 
 LedgerEntry const&
-ConstLedgerStateEntry::Impl::current() const
+ConstLedgerTxnEntry::Impl::current() const
 {
     return mCurrent;
 }
 
-std::shared_ptr<ConstLedgerStateEntry::Impl>
-ConstLedgerStateEntry::getImpl()
+std::shared_ptr<ConstLedgerTxnEntry::Impl>
+ConstLedgerTxnEntry::getImpl()
 {
     auto impl = mImpl.lock();
     if (!impl)
     {
-        throw std::runtime_error("ConstLedgerStateEntry not active");
+        throw std::runtime_error("ConstLedgerTxnEntry not active");
     }
     return impl;
 }
 
-std::shared_ptr<ConstLedgerStateEntry::Impl const>
-ConstLedgerStateEntry::getImpl() const
+std::shared_ptr<ConstLedgerTxnEntry::Impl const>
+ConstLedgerTxnEntry::getImpl() const
 {
     auto impl = mImpl.lock();
     if (!impl)
     {
-        throw std::runtime_error("ConstLedgerStateEntry not active");
+        throw std::runtime_error("ConstLedgerTxnEntry not active");
     }
     return impl;
 }
 
 void
-ConstLedgerStateEntry::deactivate()
+ConstLedgerTxnEntry::deactivate()
 {
     getImpl()->deactivate();
 }
 
 void
-ConstLedgerStateEntry::Impl::deactivate()
+ConstLedgerTxnEntry::Impl::deactivate()
 {
     auto key = LedgerEntryKey(mCurrent);
-    mLedgerState.deactivate(key);
+    mLedgerTxn.deactivate(key);
 }
 
 void
-ConstLedgerStateEntry::swap(ConstLedgerStateEntry& other)
+ConstLedgerTxnEntry::swap(ConstLedgerTxnEntry& other)
 {
     mImpl.swap(other.mImpl);
 }

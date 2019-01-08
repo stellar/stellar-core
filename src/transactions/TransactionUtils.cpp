@@ -4,9 +4,9 @@
 
 #include "transactions/TransactionUtils.h"
 #include "crypto/SecretKey.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
 #include "util/XDROperators.h"
@@ -15,68 +15,68 @@
 namespace stellar
 {
 
-LedgerStateEntry
-loadAccount(AbstractLedgerState& ls, AccountID const& accountID)
+LedgerTxnEntry
+loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
-    return ls.load(key);
+    return ltx.load(key);
 }
 
-ConstLedgerStateEntry
-loadAccountWithoutRecord(AbstractLedgerState& ls, AccountID const& accountID)
+ConstLedgerTxnEntry
+loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
-    return ls.loadWithoutRecord(key);
+    return ltx.loadWithoutRecord(key);
 }
 
-LedgerStateEntry
-loadData(AbstractLedgerState& ls, AccountID const& accountID,
+LedgerTxnEntry
+loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
          std::string const& dataName)
 {
     LedgerKey key(DATA);
     key.data().accountID = accountID;
     key.data().dataName = dataName;
-    return ls.load(key);
+    return ltx.load(key);
 }
 
-LedgerStateEntry
-loadOffer(AbstractLedgerState& ls, AccountID const& sellerID, uint64_t offerID)
+LedgerTxnEntry
+loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, uint64_t offerID)
 {
     LedgerKey key(OFFER);
     key.offer().sellerID = sellerID;
     key.offer().offerID = offerID;
-    return ls.load(key);
+    return ltx.load(key);
 }
 
 TrustLineWrapper
-loadTrustLine(AbstractLedgerState& ls, AccountID const& accountID,
+loadTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
               Asset const& asset)
 {
-    return TrustLineWrapper(ls, accountID, asset);
+    return TrustLineWrapper(ltx, accountID, asset);
 }
 
 ConstTrustLineWrapper
-loadTrustLineWithoutRecord(AbstractLedgerState& ls, AccountID const& accountID,
+loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID,
                            Asset const& asset)
 {
-    return ConstTrustLineWrapper(ls, accountID, asset);
+    return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
 TrustLineWrapper
-loadTrustLineIfNotNative(AbstractLedgerState& ls, AccountID const& accountID,
+loadTrustLineIfNotNative(AbstractLedgerTxn& ltx, AccountID const& accountID,
                          Asset const& asset)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return {};
     }
-    return TrustLineWrapper(ls, accountID, asset);
+    return TrustLineWrapper(ltx, accountID, asset);
 }
 
 ConstTrustLineWrapper
-loadTrustLineWithoutRecordIfNotNative(AbstractLedgerState& ls,
+loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
                                       AccountID const& accountID,
                                       Asset const& asset)
 {
@@ -84,13 +84,13 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerState& ls,
     {
         return {};
     }
-    return ConstTrustLineWrapper(ls, accountID, asset);
+    return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
 static void
-acquireOrReleaseLiabilities(AbstractLedgerState& ls,
-                            LedgerStateHeader const& header,
-                            LedgerStateEntry const& offerEntry, bool isAcquire)
+acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
+                            LedgerTxnHeader const& header,
+                            LedgerTxnEntry const& offerEntry, bool isAcquire)
 {
     // This should never happen
     auto const& offer = offerEntry.current().data.offer();
@@ -100,8 +100,8 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
     }
     auto const& sellerID = offer.sellerID;
 
-    auto loadAccountAndValidate = [&ls, &sellerID]() {
-        auto account = stellar::loadAccount(ls, sellerID);
+    auto loadAccountAndValidate = [&ltx, &sellerID]() {
+        auto account = stellar::loadAccount(ltx, sellerID);
         if (!account)
         {
             throw std::runtime_error("account does not exist");
@@ -109,8 +109,8 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
         return account;
     };
 
-    auto loadTrustAndValidate = [&ls, &sellerID](Asset const& asset) {
-        auto trust = stellar::loadTrustLine(ls, sellerID, asset);
+    auto loadTrustAndValidate = [&ltx, &sellerID](Asset const& asset) {
+        auto trust = stellar::loadTrustLine(ltx, sellerID, asset);
         if (!trust)
         {
             throw std::runtime_error("trustline does not exist");
@@ -160,15 +160,14 @@ acquireOrReleaseLiabilities(AbstractLedgerState& ls,
 }
 
 void
-acquireLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header,
-                   LedgerStateEntry const& offer)
+acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                   LedgerTxnEntry const& offer)
 {
-    acquireOrReleaseLiabilities(ls, header, offer, true);
+    acquireOrReleaseLiabilities(ltx, header, offer, true);
 }
 
 bool
-addBalance(LedgerStateHeader const& header, LedgerStateEntry& entry,
-           int64_t delta)
+addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
 {
     if (entry.current().data.type() == ACCOUNT)
     {
@@ -239,7 +238,7 @@ addBalance(LedgerStateHeader const& header, LedgerStateEntry& entry,
 }
 
 bool
-addBuyingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
+addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                      int64_t delta)
 {
     int64_t buyingLiab = getBuyingLiabilities(header, entry);
@@ -295,8 +294,7 @@ addBuyingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
 }
 
 bool
-addNumEntries(LedgerStateHeader const& header, LedgerStateEntry& entry,
-              int count)
+addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
 {
     auto& acc = entry.current().data.account();
     int newEntriesCount = acc.numSubEntries + count;
@@ -322,7 +320,7 @@ addNumEntries(LedgerStateHeader const& header, LedgerStateEntry& entry,
 }
 
 bool
-addSellingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
+addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                       int64_t delta)
 {
     int64_t sellingLiab = getSellingLiabilities(header, entry);
@@ -383,13 +381,13 @@ addSellingLiabilities(LedgerStateHeader const& header, LedgerStateEntry& entry,
 }
 
 uint64_t
-generateID(LedgerStateHeader& header)
+generateID(LedgerTxnHeader& header)
 {
     return ++header.current().idPool;
 }
 
 int64_t
-getAvailableBalance(LedgerStateHeader const& header, LedgerEntry const& le)
+getAvailableBalance(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     int64_t avail = 0;
     if (le.data.type() == ACCOUNT)
@@ -414,21 +412,20 @@ getAvailableBalance(LedgerStateHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getAvailableBalance(LedgerStateHeader const& header,
-                    LedgerStateEntry const& entry)
+getAvailableBalance(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getAvailableBalance(header, entry.current());
 }
 
 int64_t
-getAvailableBalance(LedgerStateHeader const& header,
-                    ConstLedgerStateEntry const& entry)
+getAvailableBalance(LedgerTxnHeader const& header,
+                    ConstLedgerTxnEntry const& entry)
 {
     return getAvailableBalance(header, entry.current());
 }
 
 int64_t
-getBuyingLiabilities(LedgerStateHeader const& header, LedgerEntry const& le)
+getBuyingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     if (header.current().ledgerVersion < 10)
     {
@@ -449,14 +446,13 @@ getBuyingLiabilities(LedgerStateHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getBuyingLiabilities(LedgerStateHeader const& header,
-                     LedgerStateEntry const& entry)
+getBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getBuyingLiabilities(header, entry.current());
 }
 
 int64_t
-getMaxAmountReceive(LedgerStateHeader const& header, LedgerEntry const& le)
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     if (le.data.type() == ACCOUNT)
     {
@@ -489,21 +485,20 @@ getMaxAmountReceive(LedgerStateHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getMaxAmountReceive(LedgerStateHeader const& header,
-                    LedgerStateEntry const& entry)
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getMaxAmountReceive(header, entry.current());
 }
 
 int64_t
-getMaxAmountReceive(LedgerStateHeader const& header,
-                    ConstLedgerStateEntry const& entry)
+getMaxAmountReceive(LedgerTxnHeader const& header,
+                    ConstLedgerTxnEntry const& entry)
 {
     return getMaxAmountReceive(header, entry.current());
 }
 
 int64_t
-getMinBalance(LedgerStateHeader const& header, uint32_t ownerCount)
+getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount)
 {
     auto const& lh = header.current();
     if (lh.ledgerVersion <= 8)
@@ -513,7 +508,7 @@ getMinBalance(LedgerStateHeader const& header, uint32_t ownerCount)
 }
 
 int64_t
-getMinimumLimit(LedgerStateHeader const& header, LedgerEntry const& le)
+getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     auto const& tl = le.data.trustLine();
     int64_t minLimit = tl.balance;
@@ -525,20 +520,19 @@ getMinimumLimit(LedgerStateHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getMinimumLimit(LedgerStateHeader const& header, LedgerStateEntry const& entry)
+getMinimumLimit(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 {
     return getMinimumLimit(header, entry.current());
 }
 
 int64_t
-getMinimumLimit(LedgerStateHeader const& header,
-                ConstLedgerStateEntry const& entry)
+getMinimumLimit(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& entry)
 {
     return getMinimumLimit(header, entry.current());
 }
 
 int64_t
-getOfferBuyingLiabilities(LedgerStateHeader const& header,
+getOfferBuyingLiabilities(LedgerTxnHeader const& header,
                           LedgerEntry const& entry)
 {
     if (header.current().ledgerVersion < 10)
@@ -553,14 +547,14 @@ getOfferBuyingLiabilities(LedgerStateHeader const& header,
 }
 
 int64_t
-getOfferBuyingLiabilities(LedgerStateHeader const& header,
-                          LedgerStateEntry const& entry)
+getOfferBuyingLiabilities(LedgerTxnHeader const& header,
+                          LedgerTxnEntry const& entry)
 {
     return getOfferBuyingLiabilities(header, entry.current());
 }
 
 int64_t
-getOfferSellingLiabilities(LedgerStateHeader const& header,
+getOfferSellingLiabilities(LedgerTxnHeader const& header,
                            LedgerEntry const& entry)
 {
     if (header.current().ledgerVersion < 10)
@@ -575,14 +569,14 @@ getOfferSellingLiabilities(LedgerStateHeader const& header,
 }
 
 int64_t
-getOfferSellingLiabilities(LedgerStateHeader const& header,
-                           LedgerStateEntry const& entry)
+getOfferSellingLiabilities(LedgerTxnHeader const& header,
+                           LedgerTxnEntry const& entry)
 {
     return getOfferSellingLiabilities(header, entry.current());
 }
 
 int64_t
-getSellingLiabilities(LedgerStateHeader const& header, LedgerEntry const& le)
+getSellingLiabilities(LedgerTxnHeader const& header, LedgerEntry const& le)
 {
     if (header.current().ledgerVersion < 10)
     {
@@ -603,14 +597,14 @@ getSellingLiabilities(LedgerStateHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getSellingLiabilities(LedgerStateHeader const& header,
-                      LedgerStateEntry const& entry)
+getSellingLiabilities(LedgerTxnHeader const& header,
+                      LedgerTxnEntry const& entry)
 {
     return getSellingLiabilities(header, entry.current());
 }
 
 uint64_t
-getStartingSequenceNumber(LedgerStateHeader const& header)
+getStartingSequenceNumber(LedgerTxnHeader const& header)
 {
     return static_cast<uint64_t>(header.current().ledgerSeq) << 32;
 }
@@ -622,31 +616,31 @@ isAuthorized(LedgerEntry const& le)
 }
 
 bool
-isAuthorized(LedgerStateEntry const& entry)
+isAuthorized(LedgerTxnEntry const& entry)
 {
     return isAuthorized(entry.current());
 }
 
 bool
-isAuthorized(ConstLedgerStateEntry const& entry)
+isAuthorized(ConstLedgerTxnEntry const& entry)
 {
     return isAuthorized(entry.current());
 }
 
 bool
-isAuthRequired(ConstLedgerStateEntry const& entry)
+isAuthRequired(ConstLedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_REQUIRED_FLAG) != 0;
 }
 
 bool
-isImmutableAuth(LedgerStateEntry const& entry)
+isImmutableAuth(LedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
 }
 
 void
-normalizeSigners(LedgerStateEntry& entry)
+normalizeSigners(LedgerTxnEntry& entry)
 {
     auto& acc = entry.current().data.account();
     std::sort(
@@ -655,14 +649,14 @@ normalizeSigners(LedgerStateEntry& entry)
 }
 
 void
-releaseLiabilities(AbstractLedgerState& ls, LedgerStateHeader const& header,
-                   LedgerStateEntry const& offer)
+releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                   LedgerTxnEntry const& offer)
 {
-    acquireOrReleaseLiabilities(ls, header, offer, false);
+    acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 
 void
-setAuthorized(LedgerStateEntry& entry, bool authorized)
+setAuthorized(LedgerTxnEntry& entry, bool authorized)
 {
     auto& tl = entry.current().data.trustLine();
     if (authorized)

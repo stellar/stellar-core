@@ -6,9 +6,9 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/LiabilitiesMatchOffers.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
 #include "ledger/LedgerTestUtils.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -187,9 +187,10 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
 
         int64_t minBalance = 0;
         {
-            LedgerState ls(app.getLedgerStateRoot());
-            minBalance = getMinBalance(ls.loadHeader(), account.numSubEntries) +
-                         oe.amount;
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            minBalance =
+                getMinBalance(ltx.loadHeader(), account.numSubEntries) +
+                oe.amount;
         }
         account.balance = excess ? std::min(account.balance, minBalance - 1)
                                  : std::max(account.balance, minBalance);

@@ -7,9 +7,9 @@
 #include "herder/Upgrades.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryTestsUtils.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
@@ -597,20 +597,20 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
 
     auto getLiabilities = [&](TestAccount& acc) {
         Liabilities res;
-        LedgerState ls(app->getLedgerStateRoot());
-        auto account = stellar::loadAccount(ls, acc.getPublicKey());
-        res.selling = getSellingLiabilities(ls.loadHeader(), account);
-        res.buying = getBuyingLiabilities(ls.loadHeader(), account);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto account = stellar::loadAccount(ltx, acc.getPublicKey());
+        res.selling = getSellingLiabilities(ltx.loadHeader(), account);
+        res.buying = getBuyingLiabilities(ltx.loadHeader(), account);
         return res;
     };
     auto getAssetLiabilities = [&](TestAccount& acc, Asset const& asset) {
         Liabilities res;
         if (acc.hasTrustLine(asset))
         {
-            LedgerState ls(app->getLedgerStateRoot());
-            auto trust = stellar::loadTrustLine(ls, acc.getPublicKey(), asset);
-            res.selling = trust.getSellingLiabilities(ls.loadHeader());
-            res.buying = trust.getBuyingLiabilities(ls.loadHeader());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto trust = stellar::loadTrustLine(ltx, acc.getPublicKey(), asset);
+            res.selling = trust.getSellingLiabilities(ltx.loadHeader());
+            res.buying = trust.getBuyingLiabilities(ltx.loadHeader());
         }
         return res;
     };
@@ -1441,20 +1441,20 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
 
     auto getLiabilities = [&](TestAccount& acc) {
         Liabilities res;
-        LedgerState ls(app->getLedgerStateRoot());
-        auto account = stellar::loadAccount(ls, acc.getPublicKey());
-        res.selling = getSellingLiabilities(ls.loadHeader(), account);
-        res.buying = getBuyingLiabilities(ls.loadHeader(), account);
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto account = stellar::loadAccount(ltx, acc.getPublicKey());
+        res.selling = getSellingLiabilities(ltx.loadHeader(), account);
+        res.buying = getBuyingLiabilities(ltx.loadHeader(), account);
         return res;
     };
     auto getAssetLiabilities = [&](TestAccount& acc, Asset const& asset) {
         Liabilities res;
         if (acc.hasTrustLine(asset))
         {
-            LedgerState ls(app->getLedgerStateRoot());
-            auto trust = stellar::loadTrustLine(ls, acc.getPublicKey(), asset);
-            res.selling = trust.getSellingLiabilities(ls.loadHeader());
-            res.buying = trust.getBuyingLiabilities(ls.loadHeader());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto trust = stellar::loadTrustLine(ltx, acc.getPublicKey(), asset);
+            res.selling = trust.getSellingLiabilities(ltx.loadHeader());
+            res.buying = trust.getBuyingLiabilities(ltx.loadHeader());
         }
         return res;
     };

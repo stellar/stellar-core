@@ -8,8 +8,8 @@
 #include "crypto/Hex.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerRange.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
@@ -18,9 +18,9 @@ namespace stellar
 {
 
 static std::string
-checkAgainstDatabase(AbstractLedgerState& ls, LedgerEntry const& entry)
+checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
 {
-    auto fromDb = ls.loadWithoutRecord(LedgerEntryKey(entry));
+    auto fromDb = ltx.loadWithoutRecord(LedgerEntryKey(entry));
     if (!fromDb)
     {
         std::string s{
@@ -43,9 +43,9 @@ checkAgainstDatabase(AbstractLedgerState& ls, LedgerEntry const& entry)
 }
 
 static std::string
-checkAgainstDatabase(AbstractLedgerState& ls, LedgerKey const& key)
+checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
 {
-    auto fromDb = ls.loadWithoutRecord(key);
+    auto fromDb = ltx.loadWithoutRecord(key);
     if (!fromDb)
     {
         return {};
@@ -82,7 +82,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 {
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
     {
-        LedgerState ls(mApp.getLedgerStateRoot());
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
 
         bool hasPreviousEntry = false;
         BucketEntry previousEntry;
@@ -137,7 +137,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                 default:
                     abort();
                 }
-                auto s = checkAgainstDatabase(ls, e.liveEntry());
+                auto s = checkAgainstDatabase(ltx, e.liveEntry());
                 if (!s.empty())
                 {
                     return s;
@@ -145,7 +145,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             }
             else if (e.type() == DEADENTRY)
             {
-                auto s = checkAgainstDatabase(ls, e.deadEntry());
+                auto s = checkAgainstDatabase(ltx, e.deadEntry());
                 if (!s.empty())
                 {
                     return s;
@@ -156,24 +156,24 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
 
     LedgerRange range{oldestLedger, newestLedger};
     std::string countFormat = "Incorrect {} count: Bucket = {} Database = {}";
-    auto& lsRoot = mApp.getLedgerStateRoot();
-    uint64_t nAccountsInDb = lsRoot.countObjects(ACCOUNT, range);
+    auto& ltxRoot = mApp.getLedgerTxnRoot();
+    uint64_t nAccountsInDb = ltxRoot.countObjects(ACCOUNT, range);
     if (nAccountsInDb != nAccounts)
     {
         return fmt::format(countFormat, "Account", nAccounts, nAccountsInDb);
     }
-    uint64_t nTrustLinesInDb = lsRoot.countObjects(TRUSTLINE, range);
+    uint64_t nTrustLinesInDb = ltxRoot.countObjects(TRUSTLINE, range);
     if (nTrustLinesInDb != nTrustLines)
     {
         return fmt::format(countFormat, "TrustLine", nTrustLines,
                            nTrustLinesInDb);
     }
-    uint64_t nOffersInDb = lsRoot.countObjects(OFFER, range);
+    uint64_t nOffersInDb = ltxRoot.countObjects(OFFER, range);
     if (nOffersInDb != nOffers)
     {
         return fmt::format(countFormat, "Offer", nOffers, nOffersInDb);
     }
-    uint64_t nDataInDb = lsRoot.countObjects(DATA, range);
+    uint64_t nDataInDb = ltxRoot.countObjects(DATA, range);
     if (nDataInDb != nData)
     {
         return fmt::format(countFormat, "Data", nData, nDataInDb);

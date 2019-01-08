@@ -9,114 +9,111 @@
 namespace stellar
 {
 
-class ConstLedgerStateEntry;
+class ConstLedgerTxnEntry;
 class ConstTrustLineWrapper;
-class AbstractLedgerState;
-class LedgerStateEntry;
-class LedgerStateHeader;
+class AbstractLedgerTxn;
+class LedgerTxnEntry;
+class LedgerTxnHeader;
 class TrustLineWrapper;
 
-LedgerStateEntry loadAccount(AbstractLedgerState& ls,
-                             AccountID const& accountID);
+LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 
-ConstLedgerStateEntry loadAccountWithoutRecord(AbstractLedgerState& ls,
-                                               AccountID const& accountID);
+ConstLedgerTxnEntry loadAccountWithoutRecord(AbstractLedgerTxn& ltx,
+                                             AccountID const& accountID);
 
-LedgerStateEntry loadData(AbstractLedgerState& ls, AccountID const& accountID,
-                          std::string const& dataName);
+LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
+                        std::string const& dataName);
 
-LedgerStateEntry loadOffer(AbstractLedgerState& ls, AccountID const& sellerID,
-                           uint64_t offerID);
+LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
+                         uint64_t offerID);
 
-TrustLineWrapper loadTrustLine(AbstractLedgerState& ls,
+TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
                                AccountID const& accountID, Asset const& asset);
 
-ConstTrustLineWrapper loadTrustLineWithoutRecord(AbstractLedgerState& ls,
+ConstTrustLineWrapper loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx,
                                                  AccountID const& accountID,
                                                  Asset const& asset);
 
-TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerState& ls,
+TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
                                           AccountID const& accountID,
                                           Asset const& asset);
 
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
-    AbstractLedgerState& ls, AccountID const& accountID, Asset const& asset);
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset);
 
-void acquireLiabilities(AbstractLedgerState& ls,
-                        LedgerStateHeader const& header,
-                        LedgerStateEntry const& offer);
+void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                        LedgerTxnEntry const& offer);
 
-bool addBalance(LedgerStateHeader const& header, LedgerStateEntry& entry,
+bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                 int64_t delta);
 
-bool addBuyingLiabilities(LedgerStateHeader const& header,
-                          LedgerStateEntry& entry, int64_t delta);
+bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                          int64_t delta);
 
-bool addNumEntries(LedgerStateHeader const& header, LedgerStateEntry& entry,
+bool addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    int count);
 
-bool addSellingLiabilities(LedgerStateHeader const& header,
-                           LedgerStateEntry& entry, int64_t delta);
+bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                           int64_t delta);
 
-uint64_t generateID(LedgerStateHeader& header);
+uint64_t generateID(LedgerTxnHeader& header);
 
-int64_t getAvailableBalance(LedgerStateHeader const& header,
+int64_t getAvailableBalance(LedgerTxnHeader const& header,
                             LedgerEntry const& le);
-int64_t getAvailableBalance(LedgerStateHeader const& header,
-                            LedgerStateEntry const& entry);
-int64_t getAvailableBalance(LedgerStateHeader const& header,
-                            ConstLedgerStateEntry const& entry);
+int64_t getAvailableBalance(LedgerTxnHeader const& header,
+                            LedgerTxnEntry const& entry);
+int64_t getAvailableBalance(LedgerTxnHeader const& header,
+                            ConstLedgerTxnEntry const& entry);
 
-int64_t getBuyingLiabilities(LedgerStateHeader const& header,
+int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
                              LedgerEntry const& le);
-int64_t getBuyingLiabilities(LedgerStateHeader const& header,
-                             LedgerStateEntry const& offer);
+int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
+                             LedgerTxnEntry const& offer);
 
-int64_t getMaxAmountReceive(LedgerStateHeader const& header,
+int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
                             LedgerEntry const& le);
-int64_t getMaxAmountReceive(LedgerStateHeader const& header,
-                            LedgerStateEntry const& entry);
-int64_t getMaxAmountReceive(LedgerStateHeader const& header,
-                            ConstLedgerStateEntry const& entry);
+int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
+                            LedgerTxnEntry const& entry);
+int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
+                            ConstLedgerTxnEntry const& entry);
 
-int64_t getMinBalance(LedgerStateHeader const& header, uint32_t ownerCount);
+int64_t getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount);
 
-int64_t getMinimumLimit(LedgerStateHeader const& header, LedgerEntry const& le);
-int64_t getMinimumLimit(LedgerStateHeader const& header,
-                        LedgerStateEntry const& entry);
-int64_t getMinimumLimit(LedgerStateHeader const& header,
-                        ConstLedgerStateEntry const& entry);
+int64_t getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le);
+int64_t getMinimumLimit(LedgerTxnHeader const& header,
+                        LedgerTxnEntry const& entry);
+int64_t getMinimumLimit(LedgerTxnHeader const& header,
+                        ConstLedgerTxnEntry const& entry);
 
-int64_t getOfferBuyingLiabilities(LedgerStateHeader const& header,
+int64_t getOfferBuyingLiabilities(LedgerTxnHeader const& header,
                                   LedgerEntry const& entry);
-int64_t getOfferBuyingLiabilities(LedgerStateHeader const& header,
-                                  LedgerStateEntry const& entry);
+int64_t getOfferBuyingLiabilities(LedgerTxnHeader const& header,
+                                  LedgerTxnEntry const& entry);
 
-int64_t getOfferSellingLiabilities(LedgerStateHeader const& header,
+int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
                                    LedgerEntry const& entry);
-int64_t getOfferSellingLiabilities(LedgerStateHeader const& header,
-                                   LedgerStateEntry const& entry);
+int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
+                                   LedgerTxnEntry const& entry);
 
-int64_t getSellingLiabilities(LedgerStateHeader const& header,
+int64_t getSellingLiabilities(LedgerTxnHeader const& header,
                               LedgerEntry const& le);
-int64_t getSellingLiabilities(LedgerStateHeader const& header,
-                              LedgerStateEntry const& offer);
+int64_t getSellingLiabilities(LedgerTxnHeader const& header,
+                              LedgerTxnEntry const& offer);
 
-uint64_t getStartingSequenceNumber(LedgerStateHeader const& header);
+uint64_t getStartingSequenceNumber(LedgerTxnHeader const& header);
 
 bool isAuthorized(LedgerEntry const& le);
-bool isAuthorized(LedgerStateEntry const& entry);
-bool isAuthorized(ConstLedgerStateEntry const& entry);
+bool isAuthorized(LedgerTxnEntry const& entry);
+bool isAuthorized(ConstLedgerTxnEntry const& entry);
 
-bool isAuthRequired(ConstLedgerStateEntry const& entry);
+bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
-bool isImmutableAuth(LedgerStateEntry const& entry);
+bool isImmutableAuth(LedgerTxnEntry const& entry);
 
-void normalizeSigners(LedgerStateEntry& entry);
+void normalizeSigners(LedgerTxnEntry& entry);
 
-void releaseLiabilities(AbstractLedgerState& ls,
-                        LedgerStateHeader const& header,
-                        LedgerStateEntry const& offer);
+void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                        LedgerTxnEntry const& offer);
 
-void setAuthorized(LedgerStateEntry& entry, bool authorized);
+void setAuthorized(LedgerTxnEntry& entry, bool authorized);
 }

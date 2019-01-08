@@ -16,11 +16,11 @@ class MetricsRegistry;
 
 namespace stellar
 {
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 class Application;
 class LedgerManager;
-class LedgerStateEntry;
-class LedgerStateHeader;
+class LedgerTxnEntry;
+class LedgerTxnHeader;
 
 class SignatureChecker;
 class TransactionFrame;
@@ -40,7 +40,7 @@ class OperationFrame
     OperationResult& mResult;
 
     virtual bool doCheckValid(Application& app, uint32_t ledgerVersion) = 0;
-    virtual bool doApply(Application& app, AbstractLedgerState& ls) = 0;
+    virtual bool doApply(Application& app, AbstractLedgerTxn& ltx) = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -48,8 +48,8 @@ class OperationFrame
     // returns true if the operation is supported given a protocol version
     virtual bool isVersionSupported(uint32_t protocolVersion) const;
 
-    LedgerStateEntry loadSourceAccount(AbstractLedgerState& ls,
-                                       LedgerStateHeader const& header);
+    LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
+                                     LedgerTxnHeader const& header);
 
   public:
     static std::shared_ptr<OperationFrame>
@@ -62,7 +62,7 @@ class OperationFrame
     virtual ~OperationFrame() = default;
 
     bool checkSignature(SignatureChecker& signatureChecker, Application& app,
-                        AbstractLedgerState& ls, bool forApply);
+                        AbstractLedgerTxn& ltx, bool forApply);
 
     AccountID const& getSourceID() const;
 
@@ -74,10 +74,10 @@ class OperationFrame
     OperationResultCode getResultCode() const;
 
     bool checkValid(SignatureChecker& signatureChecker, Application& app,
-                    AbstractLedgerState& lsOuter, bool forApply);
+                    AbstractLedgerTxn& ltxOuter, bool forApply);
 
     bool apply(SignatureChecker& signatureChecker, Application& app,
-               AbstractLedgerState& ls);
+               AbstractLedgerTxn& ltx);
 
     Operation const&
     getOperation() const

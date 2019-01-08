@@ -6,8 +6,8 @@
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -59,8 +59,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
         {
             LedgerEntry gen;
             {
-                LedgerState ls(app0->getLedgerStateRoot());
-                gen = stellar::loadAccount(ls, root.getPublicKey()).current();
+                LedgerTxn ltx(app0->getLedgerTxnRoot());
+                gen = stellar::loadAccount(ltx, root.getPublicKey()).current();
             }
 
             for (int i = 0; i < nbTx; i++)
@@ -72,9 +72,9 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 // need to create on all nodes
                 for (auto n : nodes)
                 {
-                    LedgerState ls(n->getLedgerStateRoot(), false);
-                    ls.create(gen);
-                    ls.commit();
+                    LedgerTxn ltx(n->getLedgerTxnRoot(), false);
+                    ltx.create(gen);
+                    ltx.commit();
                 }
             }
         }

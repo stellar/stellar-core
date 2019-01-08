@@ -5,9 +5,9 @@
 #include "util/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
@@ -34,7 +34,7 @@ namespace stellar
 using namespace std;
 
 static int32_t
-getNeededThreshold(LedgerStateEntry const& account, ThresholdLevel const level)
+getNeededThreshold(LedgerTxnEntry const& account, ThresholdLevel const level)
 {
     auto const& acc = account.current().data.account();
     switch (level)
@@ -95,17 +95,17 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(SignatureChecker& signatureChecker, Application& app,
-                      AbstractLedgerState& ls)
+                      AbstractLedgerTxn& ltx)
 {
     bool res;
     if (Logging::logTrace("Tx"))
     {
         CLOG(TRACE, "Tx") << "Operation: " << xdr::xdr_to_string(mOperation);
     }
-    res = checkValid(signatureChecker, app, ls, true);
+    res = checkValid(signatureChecker, app, ltx, true);
     if (res)
     {
-        res = doApply(app, ls);
+        res = doApply(app, ltx);
         if (Logging::logTrace("Tx"))
         {
             CLOG(TRACE, "Tx")
@@ -129,11 +129,11 @@ bool OperationFrame::isVersionSupported(uint32_t) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               Application& app, AbstractLedgerState& ls,
+                               Application& app, AbstractLedgerTxn& ltx,
                                bool forApply)
 {
-    auto header = ls.loadHeader();
-    auto sourceAccount = loadSourceAccount(ls, header);
+    auto header = ltx.loadHeader();
+    auto sourceAccount = loadSourceAccount(ltx, header);
     if (sourceAccount)
     {
         auto neededThreshold =
@@ -183,11 +183,11 @@ OperationFrame::getResultCode() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
-                           AbstractLedgerState& lsOuter, bool forApply)
+                           AbstractLedgerTxn& ltxOuter, bool forApply)
 {
-    // Note: ls is always rolled back so checkValid never modifies the ledger
-    LedgerState ls(lsOuter);
-    auto ledgerVersion = ls.loadHeader().current().ledgerVersion;
+    // Note: ltx is always rolled back so checkValid never modifies the ledger
+    LedgerTxn ltx(ltxOuter);
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     if (!isVersionSupported(ledgerVersion))
     {
         mResult.code(opNOT_SUPPORTED);
@@ -196,7 +196,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
 
     if (!forApply || ledgerVersion < 10)
     {
-        if (!checkSignature(signatureChecker, app, ls, forApply))
+        if (!checkSignature(signatureChecker, app, ltx, forApply))
         {
             return false;
         }
@@ -205,7 +205,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     {
         // for ledger versions >= 10 we need to load account here, as for
         // previous versions it is done in checkSignature call
-        if (!loadSourceAccount(ls, ls.loadHeader()))
+        if (!loadSourceAccount(ltx, ltx.loadHeader()))
         {
             mResult.code(opNO_ACCOUNT);
             return false;
@@ -218,10 +218,10 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     return doCheckValid(app, ledgerVersion);
 }
 
-LedgerStateEntry
-OperationFrame::loadSourceAccount(AbstractLedgerState& ls,
-                                  LedgerStateHeader const& header)
+LedgerTxnEntry
+OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
+                                  LedgerTxnHeader const& header)
 {
-    return mParentTx.loadAccount(ls, header, getSourceID());
+    return mParentTx.loadAccount(ltx, header, getSourceID());
 }
 }

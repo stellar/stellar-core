@@ -8,7 +8,7 @@
 
 namespace stellar
 {
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 
 class ManageDataOpFrame : public OperationFrame
 {
@@ -25,7 +25,7 @@ class ManageDataOpFrame : public OperationFrame
     ManageDataOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerState& ls) override;
+    bool doApply(Application& app, AbstractLedgerTxn& ltx) override;
     bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static ManageDataResultCode

@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateEntry.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
@@ -89,8 +89,8 @@ TEST_CASE("change trust", "[tx][changetrust]")
                 REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
                                   ex_CHANGE_TRUST_NO_ISSUER);
                 {
-                    LedgerState ls(app->getLedgerStateRoot());
-                    REQUIRE(!stellar::loadAccount(ls, gateway));
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    REQUIRE(!stellar::loadAccount(ltx, gateway));
                 }
             });
         }
@@ -98,16 +98,16 @@ TEST_CASE("change trust", "[tx][changetrust]")
     SECTION("trusting self")
     {
         auto validateTrustLineIsConst = [&]() {
-            LedgerState ls(app->getLedgerStateRoot());
+            LedgerTxn ltx(app->getLedgerTxnRoot());
             auto trustLine =
-                stellar::loadTrustLine(ls, gateway.getPublicKey(), idr);
+                stellar::loadTrustLine(ltx, gateway.getPublicKey(), idr);
             REQUIRE(trustLine);
             REQUIRE(trustLine.getBalance() == INT64_MAX);
         };
 
         auto loadAccount = [&](PublicKey const& k) {
-            LedgerState ls(app->getLedgerStateRoot());
-            auto le = stellar::loadAccount(ls, k).current();
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto le = stellar::loadAccount(ltx, k).current();
             return le.data.account();
         };
 

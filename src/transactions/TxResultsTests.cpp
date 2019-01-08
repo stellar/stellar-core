@@ -4,8 +4,8 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerState.h"
-#include "ledger/LedgerStateHeader.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "test/TestAccount.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
@@ -103,14 +103,14 @@ TEST_CASE("txresults", "[tx][txresults]")
     const int64_t startAmount = baseReserve * 100;
 
     {
-        LedgerState ls(app->getLedgerStateRoot());
-        ls.loadHeader().current().scpValue.closeTime = 10;
-        ls.commit();
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.loadHeader().current().scpValue.closeTime = 10;
+        ltx.commit();
     }
 
     auto getCloseTime = [&] {
-        LedgerState ls(app->getLedgerStateRoot());
-        return ls.loadHeader().current().scpValue.closeTime;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        return ltx.loadHeader().current().scpValue.closeTime;
     };
 
     auto amount = [&](PaymentValidity t) {
@@ -540,8 +540,8 @@ TEST_CASE("txresults", "[tx][txresults]")
         for_all_versions(*app, [&] {
             uint32_t ledgerVersion = 0;
             {
-                LedgerState ls(app->getLedgerStateRoot());
-                ledgerVersion = ls.loadHeader().current().ledgerVersion;
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
             auto validationResult =
                 makeValidationResult(signs, ops, ledgerVersion);

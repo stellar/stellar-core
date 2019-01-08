@@ -10,7 +10,7 @@
 namespace stellar
 {
 
-class AbstractLedgerState;
+class AbstractLedgerTxn;
 
 class EntryImplBase
 {
@@ -20,7 +20,7 @@ class EntryImplBase
     }
 };
 
-class LedgerStateEntry
+class LedgerTxnEntry
 {
   public:
     class Impl;
@@ -32,19 +32,19 @@ class LedgerStateEntry
     std::shared_ptr<Impl const> getImpl() const;
 
   public:
-    // LedgerStateEntry constructors do not throw
-    LedgerStateEntry();
-    explicit LedgerStateEntry(std::shared_ptr<Impl> const& impl);
+    // LedgerTxnEntry constructors do not throw
+    LedgerTxnEntry();
+    explicit LedgerTxnEntry(std::shared_ptr<Impl> const& impl);
 
-    ~LedgerStateEntry();
+    ~LedgerTxnEntry();
 
     // Copy construction and copy assignment are forbidden.
-    LedgerStateEntry(LedgerStateEntry const&) = delete;
-    LedgerStateEntry& operator=(LedgerStateEntry const&) = delete;
+    LedgerTxnEntry(LedgerTxnEntry const&) = delete;
+    LedgerTxnEntry& operator=(LedgerTxnEntry const&) = delete;
 
     // Move construction and move assignment are permitted.
-    LedgerStateEntry(LedgerStateEntry&& other);
-    LedgerStateEntry& operator=(LedgerStateEntry&& other);
+    LedgerTxnEntry(LedgerTxnEntry&& other);
+    LedgerTxnEntry& operator=(LedgerTxnEntry&& other);
 
     explicit operator bool() const;
 
@@ -55,13 +55,13 @@ class LedgerStateEntry
 
     void erase();
 
-    void swap(LedgerStateEntry& other);
+    void swap(LedgerTxnEntry& other);
 
-    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerState& ls,
+    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ltx,
                                                 LedgerEntry& current);
 };
 
-class ConstLedgerStateEntry
+class ConstLedgerTxnEntry
 {
   public:
     class Impl;
@@ -73,19 +73,19 @@ class ConstLedgerStateEntry
     std::shared_ptr<Impl const> getImpl() const;
 
   public:
-    // ConstLedgerStateEntry constructors do not throw
-    ConstLedgerStateEntry();
-    explicit ConstLedgerStateEntry(std::shared_ptr<Impl> const& impl);
+    // ConstLedgerTxnEntry constructors do not throw
+    ConstLedgerTxnEntry();
+    explicit ConstLedgerTxnEntry(std::shared_ptr<Impl> const& impl);
 
-    ~ConstLedgerStateEntry();
+    ~ConstLedgerTxnEntry();
 
     // Copy construction and copy assignment are forbidden.
-    ConstLedgerStateEntry(ConstLedgerStateEntry const&) = delete;
-    ConstLedgerStateEntry& operator=(ConstLedgerStateEntry const&) = delete;
+    ConstLedgerTxnEntry(ConstLedgerTxnEntry const&) = delete;
+    ConstLedgerTxnEntry& operator=(ConstLedgerTxnEntry const&) = delete;
 
     // Move construction and move assignment are permitted.
-    ConstLedgerStateEntry(ConstLedgerStateEntry&& other);
-    ConstLedgerStateEntry& operator=(ConstLedgerStateEntry&& other);
+    ConstLedgerTxnEntry(ConstLedgerTxnEntry&& other);
+    ConstLedgerTxnEntry& operator=(ConstLedgerTxnEntry&& other);
 
     explicit operator bool() const;
 
@@ -93,15 +93,15 @@ class ConstLedgerStateEntry
 
     void deactivate();
 
-    void swap(ConstLedgerStateEntry& other);
+    void swap(ConstLedgerTxnEntry& other);
 
-    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerState& ls,
+    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ltx,
                                                 LedgerEntry const& current);
 };
 
 std::shared_ptr<EntryImplBase>
-toEntryImplBase(std::shared_ptr<LedgerStateEntry::Impl> const& impl);
+toEntryImplBase(std::shared_ptr<LedgerTxnEntry::Impl> const& impl);
 
 std::shared_ptr<EntryImplBase>
-toEntryImplBase(std::shared_ptr<ConstLedgerStateEntry::Impl> const& impl);
+toEntryImplBase(std::shared_ptr<ConstLedgerTxnEntry::Impl> const& impl);
 }
