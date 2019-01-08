@@ -13,8 +13,7 @@ class AbstractLedgerState;
 
 class ManageOfferOpFrame : public OperationFrame
 {
-    bool checkOfferValid(medida::MetricsRegistry& metrics,
-                         AbstractLedgerState& lsOuter);
+    bool checkOfferValid(AbstractLedgerState& lsOuter);
 
     bool computeOfferExchangeParameters(Application& app,
                                         AbstractLedgerState& lsOuter,

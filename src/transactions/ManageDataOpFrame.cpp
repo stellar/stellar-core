@@ -9,8 +9,6 @@
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -46,10 +44,6 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerState& ls)
             auto sourceAccount = loadSourceAccount(ls, header);
             if (!addNumEntries(header, sourceAccount, 1))
             {
-                app.getMetrics()
-                    .NewMeter({"op-manage-data", "invalid", "low reserve"},
-                              "operation")
-                    .Mark();
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
                 return false;
             }
@@ -71,10 +65,6 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     { // delete an existing piece of data
         if (!data)
         {
-            app.getMetrics()
-                .NewMeter({"op-manage-data", "invalid", "not-found"},
-                          "operation")
-                .Mark();
             innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
             return false;
         }
@@ -85,9 +75,6 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
     innerResult().code(MANAGE_DATA_SUCCESS);
 
-    app.getMetrics()
-        .NewMeter({"op-manage-data", "success", "apply"}, "operation")
-        .Mark();
     return true;
 }
 
@@ -96,11 +83,6 @@ ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (ledgerVersion < 2)
     {
-        app.getMetrics()
-            .NewMeter(
-                {"op-set-options", "invalid", "invalid-data-old-protocol"},
-                "operation")
-            .Mark();
         innerResult().code(MANAGE_DATA_NOT_SUPPORTED_YET);
         return false;
     }
@@ -108,10 +90,6 @@ ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
     if ((mManageData.dataName.size() < 1) ||
         (!isString32Valid(mManageData.dataName)))
     {
-        app.getMetrics()
-            .NewMeter({"op-set-options", "invalid", "invalid-data-name"},
-                      "operation")
-            .Mark();
         innerResult().code(MANAGE_DATA_INVALID_NAME);
         return false;
     }

@@ -8,8 +8,6 @@
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionUtils.h"
 
@@ -40,9 +38,6 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
     if (closeTime < inflationTime)
     {
-        app.getMetrics()
-            .NewMeter({"op-inflation", "failure", "not-time"}, "operation")
-            .Mark();
         innerResult().code(INFLATION_NOT_TIME);
         return false;
     }
@@ -118,9 +113,6 @@ InflationOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         lh.totalCoins += inflationAmount;
     }
 
-    app.getMetrics()
-        .NewMeter({"op-inflation", "success", "apply"}, "operation")
-        .Mark();
     return true;
 }
 

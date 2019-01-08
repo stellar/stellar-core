@@ -6,8 +6,6 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDROperators.h"
 
@@ -52,9 +50,6 @@ BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 
     // Return successful results
     innerResult().code(BUMP_SEQUENCE_SUCCESS);
-    app.getMetrics()
-        .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
-        .Mark();
     return true;
 }
 
@@ -63,9 +58,6 @@ BumpSequenceOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "invalid", "bad-seq"}, "operation")
-            .Mark();
         innerResult().code(BUMP_SEQUENCE_BAD_SEQ);
         return false;
     }

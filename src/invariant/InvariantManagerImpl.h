@@ -11,6 +11,7 @@
 namespace medida
 {
 class MetricsRegistry;
+class Counter;
 }
 
 namespace stellar
@@ -20,7 +21,7 @@ class InvariantManagerImpl : public InvariantManager
 {
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
-    medida::MetricsRegistry& mMetricsRegistry;
+    medida::Counter& mInvariantFailureCount;
 
     struct InvariantFailureInformation
     {

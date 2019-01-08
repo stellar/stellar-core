@@ -54,9 +54,12 @@ history.download-<X>.success      | meter     | download of <X> completed succes
 history.download-<X>.failure      | meter     | download of <X> failed
 history.verify-<X>.success        | meter     | verification of <X> succeeded
 history.verify-<X>.failure        | meter     | verification of <X> failed
-invariant.does-not-hold.count.<X> | counter   | number of times invariant <X> failed
+ledger.invariant.failure          | counter   | number of times invariants failed
 ledger.transaction.apply          | timer     | time to apply one transaction
 ledger.transaction.count          | histogram | number of transactions per ledger
+ledger.transaction.internal-error | counter   | number of internal errors since start
+ledger.operation.count            | histogram | number of operations per ledger
+ledger.operation.apply            | timer     | time applying an operation
 ledger.ledger.close               | timer     | time to close a ledger (excluding consensus)
 ledger.age.closed                 | timer     | time between ledgers
 ledger.age.current-seconds        | counter   | gap between last close ledger time and current time
@@ -89,9 +92,3 @@ loadgen.payment.native            | meter     | loadgenerator: native payment su
 loadgen.txn.attempted             | meter     | loadgenerator: transaction submitted
 loadgen.txn.rejected              | meter     | loadgenerator: transaction rejected
 loadgen.txn.bytes                 | meter     | loadgenerator: size of transactions submitted
-op-<NAME>.success.apply           | meter     | operation <NAME> succeeded
-op-<NAME>.failure.<ERR>           | meter     | operation <NAME> failed for reason <ERR>
-operation.failure.<ERR>           | meter     | common operation failure for reason <ERR>
-transaction.failure.<ERR>         | meter     | common transaction failure for reason <ERR>
-transaction.op.apply              | timer     | time applying an operation
-

@@ -498,7 +498,7 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
     auto& app = *appPtr;
 
     auto& lg = app.getLoadGenerator();
-    auto& txtime = app.getMetrics().NewTimer({"transaction", "op", "apply"});
+    auto& txtime = app.getMetrics().NewTimer({"ledger", "operation", "apply"});
     uint32_t numItems = 500000;
 
     // Create accounts

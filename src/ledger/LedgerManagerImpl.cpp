@@ -36,6 +36,7 @@
 #include "xdrpp/types.h"
 
 #include <chrono>
+#include <numeric>
 #include <sstream>
 
 /*
@@ -108,6 +109,10 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mTransactionCount(
           app.getMetrics().NewHistogram({"ledger", "transaction", "count"}))
+    , mOperationCount(
+          app.getMetrics().NewHistogram({"ledger", "operation", "count"}))
+    , mInternalErrorCount(app.getMetrics().NewCounter(
+          {"ledger", "transaction", "internal-error"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
     , mLedgerAge(
@@ -969,15 +974,22 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                                      AbstractLedgerState& ls,
                                      TransactionResultSet& txResultSet)
 {
-    CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
-                      << ls.loadHeader().current().ledgerSeq;
     int index = 0;
 
-    // Record tx count
+    // Record counts
     auto numTxs = txs.size();
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
+        size_t numOps =
+            std::accumulate(txs.begin(), txs.end(), size_t(0),
+                            [](size_t s, TransactionFramePtr const& v) {
+                                return s + v->getOperations().size();
+                            });
+        mOperationCount.Update(static_cast<int64_t>(numOps));
+        CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
+                                        ls.loadHeader().current().ledgerSeq,
+                                        numTxs, numOps);
     }
 
     for (auto tx : txs)
@@ -988,22 +1000,31 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         {
             CLOG(DEBUG, "Tx")
                 << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
+                << " ops=" << tx->getOperations().size()
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
             tx->apply(mApp, ls, tm.v1());
         }
         catch (InvariantDoesNotHold&)
         {
+            CLOG(ERROR, "Ledger")
+                << "Invariant failure during tx->apply for tx "
+                << tx->getFullHash();
             throw;
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
+            CLOG(ERROR, "Ledger") << "Exception during tx->apply for tx "
+                                  << tx->getFullHash() << " : " << e.what();
+            mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         catch (...)
         {
-            CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
+            CLOG(ERROR, "Ledger")
+                << "Unknown exception during tx->apply for tx "
+                << tx->getFullHash();
+            mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         auto ledgerSeq = ls.loadHeader().current().ledgerSeq;
