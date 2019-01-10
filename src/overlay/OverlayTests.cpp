@@ -272,15 +272,18 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
     }
 }
 
-TEST_CASE("allow pending peers beyond max", "[overlay][connections]")
+TEST_CASE("allow inbound pending peers up to max pending",
+          "[overlay][connections]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
     Config const& cfg4 = getTestConfig(3);
+    Config const& cfg5 = getTestConfig(4);
 
     cfg2.MAX_PEER_CONNECTIONS = 1;
+    cfg2.MAX_PENDING_CONNECTIONS = 3;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
@@ -288,47 +291,89 @@ TEST_CASE("allow pending peers beyond max", "[overlay][connections]")
     auto app4 = createTestApplication(clock, cfg4);
 
     LoopbackPeerConnection conn1(*app1, *app2);
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CONNECTED);
     conn1.getInitiator()->setCorked(true);
+
     LoopbackPeerConnection conn2(*app3, *app2);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CONNECTED);
     conn2.getInitiator()->setCorked(true);
+
     LoopbackPeerConnection conn3(*app4, *app2);
+    REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
+
+    LoopbackPeerConnection conn4(*app4, *app2);
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
+    conn2.getInitiator()->setCorked(true);
+
     testutil::crankSome(clock);
 
-    REQUIRE(!conn1.getInitiator()->isConnected());
-    REQUIRE(!conn1.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CLOSING);
     REQUIRE(conn3.getInitiator()->isConnected());
     REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                 .count() == 2);
 }
 
-TEST_CASE("reject pending beyond max", "[overlay][connections]")
+TEST_CASE("allow outbound pending peers up to max pending",
+          "[overlay][connections]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
+    Config const& cfg4 = getTestConfig(3);
+    Config const& cfg5 = getTestConfig(4);
 
-    cfg2.MAX_PENDING_CONNECTIONS = 1;
+    cfg2.MAX_PEER_CONNECTIONS = 1;
+    cfg2.MAX_PENDING_CONNECTIONS = 3;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
+    auto app4 = createTestApplication(clock, cfg4);
 
-    LoopbackPeerConnection conn1(*app1, *app2);
-    LoopbackPeerConnection conn2(*app3, *app2);
+    LoopbackPeerConnection conn1(*app2, *app1);
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CONNECTED);
+    conn1.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn2(*app2, *app3);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CONNECTED);
+    conn2.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn3(*app2, *app4);
+    REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
+
+    LoopbackPeerConnection conn4(*app2, *app4);
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
+    conn2.getInitiator()->setCorked(true);
+
     testutil::crankSome(clock);
 
-    REQUIRE(conn1.getInitiator()->isConnected());
-    REQUIRE(conn1.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn3.getInitiator()->isConnected());
+    REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
     REQUIRE(app2->getMetrics()
-                .NewMeter({"overlay", "connection", "reject"}, "connection")
-                .count() == 1);
+                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                .count() == 2);
 }
 
 TEST_CASE("reject peers with differing network passphrases",
