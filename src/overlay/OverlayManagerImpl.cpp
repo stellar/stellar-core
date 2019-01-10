@@ -9,7 +9,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/PeerBareAddress.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"

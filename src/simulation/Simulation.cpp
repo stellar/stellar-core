@@ -8,7 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "scp/LocalNode.h"
 #include "test/test.h"
 #include "util/Logging.h"

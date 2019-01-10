@@ -10,7 +10,7 @@
 #include "medida/metrics_registry.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"

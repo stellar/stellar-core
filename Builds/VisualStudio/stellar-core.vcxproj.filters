@@ -300,7 +300,7 @@
     <ClCompile Include="..\..\src\herder\HerderTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerRecord.cpp">
+    <ClCompile Include="..\..\src\overlay\PeerManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp">
@@ -384,7 +384,7 @@
     <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp">
+    <ClCompile Include="..\..\src\overlay\PeerManagerTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
@@ -1020,7 +1020,7 @@
     <ClInclude Include="..\..\src\util\asio.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\PeerRecord.h">
+    <ClInclude Include="..\..\src\overlay\PeerManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">

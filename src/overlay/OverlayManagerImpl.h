@@ -8,7 +8,7 @@
 #include "Peer.h"
 #include "PeerAuth.h"
 #include "PeerDoor.h"
-#include "PeerRecord.h"
+#include "PeerManager.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/Floodgate.h"
 #include "overlay/ItemFetcher.h"

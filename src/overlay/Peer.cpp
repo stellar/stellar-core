@@ -17,7 +17,7 @@
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
