@@ -356,7 +356,7 @@ OverlayManagerImpl::addPendingPeer(Peer::pointer peer)
         getPendingPeersCount() >= mApp.getConfig().MAX_PENDING_CONNECTIONS)
     {
         mConnectionsRejected.Mark();
-        peer->drop();
+        peer->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
     CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
@@ -447,8 +447,8 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
                     << "Evicting non-preferred peer "
                     << victim.second->toString() << " for preferred peer "
                     << peer->toString();
-                victim.second->drop(ERR_LOAD,
-                                    "preferred peer selected instead");
+                victim.second->drop(ERR_LOAD, "preferred peer selected instead",
+                                    Peer::DropMode::IGNORE_WRITE_QUEUE);
                 return moveToAuthenticated(peer);
             }
         }
@@ -587,12 +587,13 @@ OverlayManagerImpl::shutdown()
     auto pendingPeersToStop = mPendingPeers;
     for (auto& p : pendingPeersToStop)
     {
-        p->drop(ERR_MISC, "peer shutdown");
+        p->drop(ERR_MISC, "peer shutdown", Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
     auto authenticatedPeersToStop = mAuthenticatedPeers;
     for (auto& p : authenticatedPeersToStop)
     {
-        p.second->drop(ERR_MISC, "peer shutdown");
+        p.second->drop(ERR_MISC, "peer shutdown",
+                       Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 

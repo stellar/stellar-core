@@ -219,7 +219,7 @@ Peer::idleTimerExpired(asio::error_code const& error)
         {
             CLOG(WARNING, "Overlay") << "idle timeout";
             mTimeoutIdle.Mark();
-            drop();
+            drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
         else
         {
@@ -243,7 +243,7 @@ Peer::toString()
 }
 
 void
-Peer::drop(ErrorCode err, std::string const& msg)
+Peer::drop(ErrorCode err, std::string const& msg, DropMode dropMode)
 {
     StellarMessage m;
     m.type(ERROR_MSG);
@@ -254,7 +254,7 @@ Peer::drop(ErrorCode err, std::string const& msg)
     // to process read messages.
     // this will try to send all data from send queue if the error is ERR_LOAD
     // - it sends list of peers
-    drop(err != ERR_LOAD);
+    drop(dropMode);
 }
 
 void
@@ -264,7 +264,7 @@ Peer::connectHandler(asio::error_code const& error)
     {
         CLOG(WARNING, "Overlay")
             << " connectHandler error: " << error.message();
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
     else
     {
@@ -510,7 +510,7 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 }
@@ -547,7 +547,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         {
             CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
             ++mRecvMacSeq;
-            drop(ERR_AUTH, "unexpected auth sequence");
+            drop(ERR_AUTH, "unexpected auth sequence",
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
 
@@ -557,7 +558,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
             ++mRecvMacSeq;
-            drop(ERR_AUTH, "unexpected MAC");
+            drop(ERR_AUTH, "unexpected MAC",
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
         ++mRecvMacSeq;
@@ -586,7 +588,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
         CLOG(WARNING, "Overlay")
             << "recv: " << stellarMsg.type() << " before completed handshake";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -828,7 +830,7 @@ Peer::recvError(StellarMessage const& msg)
     }
     CLOG(WARNING, "Overlay")
         << "Received error (" << codeStr << "): " << msg.error().msg;
-    drop();
+    drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
 }
 
 void
@@ -866,7 +868,7 @@ Peer::updatePeerRecordAfterAuthentication()
 
     CLOG(INFO, "Overlay") << "successful handshake with "
                           << mApp.getConfig().toShortString(mPeerID) << "@"
-                          << getAddress().toString();
+                          << toString();
 }
 
 void
@@ -875,7 +877,7 @@ Peer::recvHello(Hello const& elo)
     if (mState >= GOT_HELLO)
     {
         CLOG(ERROR, "Overlay") << "received unexpected HELLO";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -883,14 +885,14 @@ Peer::recvHello(Hello const& elo)
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
     if (mApp.getBanManager().isBanned(elo.peerID))
     {
         CLOG(ERROR, "Overlay") << "Node is banned";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -909,6 +911,7 @@ Peer::recvHello(Hello const& elo)
     mState = GOT_HELLO;
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
 
+    auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)
     {
         // Send a HELLO back, even if it's going to be followed
@@ -916,6 +919,7 @@ Peer::recvHello(Hello const& elo)
         // message type and the caller won't decode it right if
         // still waiting for an unauthenticated HELLO.
         sendHello();
+        dropMode = Peer::DropMode::FLUSH_WRITE_QUEUE;
     }
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
@@ -929,14 +933,14 @@ Peer::recvHello(Hello const& elo)
             << mRemoteOverlayVersion << "] expected: ["
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << ","
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
-        drop(ERR_CONF, "wrong protocol version");
+        drop(ERR_CONF, "wrong protocol version", dropMode);
         return;
     }
 
     if (elo.peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
         CLOG(WARNING, "Overlay") << "connecting to self";
-        drop(ERR_CONF, "connecting to self");
+        drop(ERR_CONF, "connecting to self", dropMode);
         return;
     }
 
@@ -947,7 +951,7 @@ Peer::recvHello(Hello const& elo)
         CLOG(DEBUG, "Overlay")
             << "NetworkID = " << hexAbbrev(elo.networkID)
             << " expected: " << hexAbbrev(mApp.getNetworkID());
-        drop(ERR_CONF, "wrong network passphrase");
+        drop(ERR_CONF, "wrong network passphrase", dropMode);
         return;
     }
 
@@ -955,7 +959,7 @@ Peer::recvHello(Hello const& elo)
     if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
     {
         CLOG(WARNING, "Overlay") << "bad address in recvHello";
-        drop(ERR_CONF, "bad address");
+        drop(ERR_CONF, "bad address", Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -974,7 +978,7 @@ Peer::recvHello(Hello const& elo)
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
                 << mApp.getConfig().toShortString(mPeerID);
-            drop(ERR_CONF, "connecting already-connected peer");
+            drop(ERR_CONF, "connecting already-connected peer", dropMode);
             return;
         }
     }
@@ -990,7 +994,7 @@ Peer::recvHello(Hello const& elo)
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
                 << mApp.getConfig().toShortString(mPeerID);
-            drop(ERR_CONF, "connecting already-connected peer");
+            drop(ERR_CONF, "connecting already-connected peer", dropMode);
             return;
         }
     }
@@ -1007,14 +1011,16 @@ Peer::recvAuth(StellarMessage const& msg)
     if (mState != GOT_HELLO)
     {
         CLOG(INFO, "Overlay") << "Unexpected AUTH message before HELLO";
-        drop(ERR_MISC, "out-of-order AUTH message");
+        drop(ERR_MISC, "out-of-order AUTH message",
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
     if (isAuthenticated())
     {
         CLOG(INFO, "Overlay") << "Unexpected AUTH message";
-        drop(ERR_MISC, "out-of-order AUTH message");
+        drop(ERR_MISC, "out-of-order AUTH message",
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -1032,7 +1038,7 @@ Peer::recvAuth(StellarMessage const& msg)
     if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
-        drop(ERR_LOAD, "peer rejected");
+        drop(ERR_LOAD, "peer rejected", Peer::DropMode::FLUSH_WRITE_QUEUE);
         return;
     }
 
@@ -1088,8 +1094,6 @@ Peer::recvPeers(StellarMessage const& msg)
         }
         else
         {
-            // don't use peer.numFailures here as we may have better luck
-            // (and we don't want to poison our failure count)
             mApp.getOverlayManager().getPeerManager().update(address, {});
         }
     }

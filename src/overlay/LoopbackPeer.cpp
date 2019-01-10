@@ -47,7 +47,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
     if (mRemote.expired())
     {
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -68,17 +68,16 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 }
 
 void
-LoopbackPeer::drop(ErrorCode err, std::string const& msg)
+LoopbackPeer::drop(ErrorCode err, std::string const& msg, DropMode mode)
 {
     if (mState != CLOSING)
     {
         mDropReason = msg;
     }
-    Peer::drop(err, msg);
+    Peer::drop(err, msg, mode);
 }
 
-void
-LoopbackPeer::drop(bool)
+void LoopbackPeer::drop(DropMode)
 {
     if (mState == CLOSING)
     {
@@ -91,7 +90,8 @@ LoopbackPeer::drop(bool)
     auto remote = mRemote.lock();
     if (remote)
     {
-        remote->getApp().postOnMainThread([remote]() { remote->drop(); });
+        remote->getApp().postOnMainThread(
+            [remote]() { remote->drop(Peer::DropMode::IGNORE_WRITE_QUEUE); });
     }
 }
 
@@ -397,7 +397,7 @@ LoopbackPeerConnection::~LoopbackPeerConnection()
 {
     // NB: Dropping the peer from one side will automatically drop the
     // other.
-    mInitiator->drop();
+    mInitiator->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
 }
 
 std::shared_ptr<LoopbackPeer>

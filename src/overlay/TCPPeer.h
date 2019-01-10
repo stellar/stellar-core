@@ -66,7 +66,7 @@ class TCPPeer : public Peer
 
     virtual ~TCPPeer();
 
-    virtual void drop(bool force = true) override;
+    virtual void drop(DropMode dropMode) override;
 
     std::string getIP() const override;
 };

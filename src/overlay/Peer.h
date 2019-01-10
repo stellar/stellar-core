@@ -51,6 +51,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_CALLED_REMOTE
     };
 
+    enum class DropMode
+    {
+        FLUSH_WRITE_QUEUE,
+        IGNORE_WRITE_QUEUE
+    };
+
     static medida::Meter& getByteReadMeter(Application& app);
     static medida::Meter& getByteWriteMeter(Application& app);
 
@@ -229,8 +235,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mPeerID;
     }
 
-    std::string toString();
     virtual std::string getIP() const = 0;
+    std::string toString();
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
@@ -251,11 +257,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    virtual void drop(ErrorCode err, std::string const& msg);
+    virtual void drop(ErrorCode err, std::string const& msg, DropMode dropMode);
 
-    // If force is true, it will drop immediately without waiting for all
-    // outgoing messages to be sent
-    virtual void drop(bool force = true) = 0;
+    virtual void drop(DropMode dropMode) = 0;
     virtual ~Peer()
     {
     }

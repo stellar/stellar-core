@@ -45,8 +45,7 @@ class PeerStub : public Peer
         REQUIRE(false); // should not be called
         return {};
     }
-    virtual void
-    drop(bool) override
+    virtual void drop(DropMode) override
     {
     }
     virtual void

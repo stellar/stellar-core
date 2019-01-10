@@ -291,7 +291,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
         else
         {
             // no delayed shutdown - we can drop normally
-            drop();
+            drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
     }
     else if (bytes_transferred != 0)
@@ -349,7 +349,7 @@ TCPPeer::getIncomingMsgLength()
         CLOG(ERROR, "Overlay")
             << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         length = 0;
     }
     return (length);
@@ -396,7 +396,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
                 << "readHeaderHandler error: " << error.message() << " :"
                 << toString();
         }
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -428,7 +428,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
                 << "readBodyHandler error: " << error.message() << " :"
                 << toString();
         }
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -447,12 +447,13 @@ TCPPeer::recvMessage()
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
-        Peer::drop(ERR_DATA, "received corrupt XDR");
+        Peer::drop(ERR_DATA, "received corrupt XDR",
+                   Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
 void
-TCPPeer::drop(bool force)
+TCPPeer::drop(DropMode dropMode)
 {
     assertThreadIsMain();
     if (shouldAbort())
@@ -469,7 +470,7 @@ TCPPeer::drop(bool force)
     getApp().getOverlayManager().removePeer(this);
 
     // if write queue is not empty, messageSender will take care of shutdown
-    if (force || !mWriting)
+    if ((dropMode == Peer::DropMode::IGNORE_WRITE_QUEUE) || !mWriting)
     {
         self->shutdown();
     }
