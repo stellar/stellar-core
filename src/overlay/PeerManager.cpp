@@ -3,285 +3,417 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerManager.h"
-#include "lib/util/format.h"
+#include "crypto/Random.h"
+#include "database/Database.h"
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/must_use.h"
+
 #include <algorithm>
 #include <cmath>
+#include <lib/util/format.h>
 #include <regex>
 #include <soci.h>
 #include <vector>
 
-#define SECONDS_PER_BACKOFF 10
-#define MAX_BACKOFF_EXPONENT 10
-
 namespace stellar
 {
+
+using namespace soci;
 
 enum PeerRecordFlags
 {
     PEER_RECORD_FLAGS_PREFERRED = 1
 };
 
-static const char* loadPeerRecordSelector =
-    "SELECT ip, port, nextattempt, numfailures, flags FROM peers ";
-
-using namespace std;
-using namespace soci;
-
-PeerRecord::PeerRecord(PeerBareAddress address,
-                       VirtualClock::time_point nextAttempt, int fails)
-    : mAddress(std::move(address))
-    , mIsPreferred(false)
-    , mNextAttempt(nextAttempt)
-    , mNumFailures(fails)
-{
-    if (address.isEmpty())
-    {
-        throw std::runtime_error("Cannot create PeerRecord with empty address");
-    }
-}
-
-void
-PeerRecord::toXdr(PeerAddress& ret) const
-{
-    mAddress.toXdr(ret);
-    ret.numFailures = mNumFailures;
-}
-
-// peerRecordProcessor returns false if we should stop processing entries
-void
-PeerRecord::loadPeerRecords(
-    Database& db, StatementContext& prep,
-    std::function<bool(PeerRecord const&)> peerRecordProcessor)
-{
-    std::string ip;
-    tm nextAttempt;
-    int lport;
-    int numFailures;
-    auto& st = prep.statement();
-    st.exchange(into(ip));
-    st.exchange(into(lport));
-    st.exchange(into(nextAttempt));
-    st.exchange(into(numFailures));
-    int flags;
-    st.exchange(into(flags));
-
-    st.define_and_bind();
-    {
-        auto timer = db.getSelectTimer("peer");
-        st.execute(true);
-    }
-    while (st.got_data())
-    {
-        if (!ip.empty() && lport > 0)
-        {
-            auto address =
-                PeerBareAddress{ip, static_cast<unsigned short>(lport)};
-            auto pr = PeerRecord{address, VirtualClock::tmToPoint(nextAttempt),
-                                 numFailures};
-            pr.setPreferred((flags & PEER_RECORD_FLAGS_PREFERRED) != 0);
-
-            if (!peerRecordProcessor(pr))
-            {
-                return;
-            }
-        }
-        st.fetch();
-    }
-}
-
-optional<PeerRecord>
-PeerRecord::loadPeerRecord(Database& db, PeerBareAddress const& address)
-{
-    std::string sql = loadPeerRecordSelector;
-    sql += "WHERE ip = :v1 AND port = :v2";
-
-    auto prep = db.getPreparedStatement(sql);
-    auto& st = prep.statement();
-
-    auto ip = address.getIP();
-    st.exchange(use(ip));
-    int port32(address.getPort());
-    st.exchange(use(port32));
-
-    optional<PeerRecord> r;
-
-    loadPeerRecords(db, prep, [&r](PeerRecord const& pr) {
-        r = make_optional<PeerRecord>(pr);
-        return false;
-    });
-
-    return r;
-}
-
-void
-PeerRecord::loadPeerRecords(Database& db, int batchSize,
-                            VirtualClock::time_point nextAttemptCutoff,
-                            std::function<bool(PeerRecord const& pr)> pred)
-{
-    try
-    {
-        int offset = 0;
-        bool lastRes;
-        do
-        {
-            tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
-
-            std::string sql = loadPeerRecordSelector;
-            sql += "WHERE nextattempt <= :nextattempt ORDER BY nextattempt "
-                   "ASC, numfailures ASC LIMIT :max OFFSET :o";
-
-            auto prep = db.getPreparedStatement(sql);
-            auto& st = prep.statement();
-
-            st.exchange(use(nextAttemptMax));
-            st.exchange(use(batchSize));
-            st.exchange(use(offset));
-
-            lastRes = false;
-
-            loadPeerRecords(db, prep, [&](PeerRecord const& pr) {
-                offset++;
-                lastRes = pred(pr);
-                return lastRes;
-            });
-        } while (lastRes);
-    }
-    catch (soci_error& err)
-    {
-        LOG(ERROR) << "loadPeers Error: " << err.what();
-    }
-}
-
 bool
-PeerRecord::isPreferred() const
+operator==(PeerRecord const& x, PeerRecord const& y)
 {
-    return mIsPreferred;
-}
-
-void
-PeerRecord::setPreferred(bool p)
-{
-    mIsPreferred = p;
-}
-
-bool
-PeerRecord::insertIfNew(Database& db)
-{
-    auto tm = VirtualClock::pointToTm(mNextAttempt);
-
-    auto other = loadPeerRecord(db, mAddress);
-
-    if (other)
+    if (VirtualClock::tmToPoint(x.mNextAttempt) !=
+        VirtualClock::tmToPoint(y.mNextAttempt))
     {
         return false;
     }
-    else
+    if (x.mNumFailures != y.mNumFailures)
     {
-        auto prep = db.getPreparedStatement(
-            "INSERT INTO peers "
-            "( ip,  port, nextattempt, numfailures, flags) VALUES "
-            "(:v1, :v2,  :v3,         :v4,          :v5)");
-        auto& st = prep.statement();
-        auto ip = mAddress.getIP();
-        st.exchange(use(ip));
-        int port = mAddress.getPort();
-        st.exchange(use(port));
-        st.exchange(use(tm));
-        st.exchange(use(mNumFailures));
-        int flags = (mIsPreferred ? PEER_RECORD_FLAGS_PREFERRED : 0);
-        st.exchange(use(flags));
-
-        st.define_and_bind();
-        {
-            auto timer = db.getInsertTimer("peer");
-            st.execute(true);
-        }
-        return (st.get_affected_rows() == 1);
+        return false;
     }
+    return x.mFlags == y.mFlags;
 }
+
+namespace PeerRecordModifiers
+{
 
 void
-PeerRecord::storePeerRecord(Database& db)
+resetBackOff(Application& app, PeerRecord& peer)
 {
-    if (!insertIfNew(db))
-    {
-        auto tm = VirtualClock::pointToTm(mNextAttempt);
-        auto prep = db.getPreparedStatement("UPDATE peers SET "
-                                            "nextattempt = :v1, "
-                                            "numfailures = :v2, "
-                                            "flags = :v3 "
-                                            "WHERE ip = :v4 AND port = :v5");
-        auto& st = prep.statement();
-        st.exchange(use(tm));
-        st.exchange(use(mNumFailures));
-        int flags = (mIsPreferred ? PEER_RECORD_FLAGS_PREFERRED : 0);
-        st.exchange(use(flags));
-        auto ip = mAddress.getIP();
-        st.exchange(use(ip));
-        int port = mAddress.getPort();
-        st.exchange(use(port));
-        st.define_and_bind();
-        {
-            auto timer = db.getUpdateTimer("peer");
-            st.execute(true);
-            if (st.get_affected_rows() != 1)
-            {
-                throw runtime_error("PeerRecord::storePeerRecord: failed on " +
-                                    toString());
-            }
-        }
-    }
+    peer.mNumFailures = 0;
+    auto nextAttempt = app.getClock().now();
+    peer.mNextAttempt = VirtualClock::pointToTm(nextAttempt);
 }
 
-void
-PeerRecord::resetBackOff(VirtualClock& clock)
+static std::chrono::seconds
+computeBackoff(int numFailures)
 {
-    mNumFailures = 0;
-    mNextAttempt = mIsPreferred ? VirtualClock::time_point() : clock.now();
-    CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString() << " backoff reset";
-}
+    constexpr const auto SECONDS_PER_BACKOFF = 10;
+    constexpr const auto MAX_BACKOFF_EXPONENT = 10;
 
-void
-PeerRecord::backOff(VirtualClock& clock)
-{
-    mNumFailures++;
-
-    auto nsecs = computeBackoff(clock);
-
-    CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString()
-                           << " backoff, set nextAttempt at "
-                           << "+" << nsecs.count() << " secs";
-}
-
-std::chrono::seconds
-PeerRecord::computeBackoff(VirtualClock& clock)
-{
-    int32 backoffCount = std::min<int32>(MAX_BACKOFF_EXPONENT, mNumFailures);
-
+    auto backoffCount = std::min<int32_t>(MAX_BACKOFF_EXPONENT, numFailures);
     auto nsecs = std::chrono::seconds(
         std::rand() % int(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF) + 1);
-    mNextAttempt = clock.now() + nsecs;
     return nsecs;
 }
 
-std::string
-PeerRecord::toString() const
+void
+backOff(Application& app, PeerRecord& peer)
 {
-    return mAddress.toString();
+    peer.mNumFailures++;
+    auto nextAttempt = app.getClock().now() + computeBackoff(peer.mNumFailures);
+    peer.mNextAttempt = VirtualClock::pointToTm(nextAttempt);
 }
 
 void
-PeerRecord::dropAll(Database& db)
+markPreferred(Application&, PeerRecord& peer)
+{
+    peer.mFlags |= PEER_RECORD_FLAGS_PREFERRED;
+}
+
+void
+unmarkPreferred(Application&, PeerRecord& peer)
+{
+    peer.mFlags &= ~PEER_RECORD_FLAGS_PREFERRED;
+}
+}
+
+namespace
+{
+
+void
+ipToXdr(std::string const& ip, xdr::opaque_array<4U>& ret)
+{
+    std::stringstream ss(ip);
+    std::string item;
+    int n = 0;
+    while (getline(ss, item, '.') && n < 4)
+    {
+        ret[n] = static_cast<unsigned char>(atoi(item.c_str()));
+        n++;
+    }
+    if (n != 4)
+        throw std::runtime_error("ipToXdr: failed on `" + ip + "`");
+}
+}
+
+PeerAddress
+toXdr(PeerBareAddress const& address)
+{
+    PeerAddress result;
+
+    result.port = address.getPort();
+    result.ip.type(IPv4);
+    ipToXdr(address.getIP(), result.ip.ipv4());
+
+    result.numFailures = 0;
+    return result;
+}
+
+PeerManager::PeerQuery
+PeerManager::maxFailures(int maxFailures)
+{
+    return {false, maxFailures};
+}
+
+PeerManager::PeerQuery
+PeerManager::nextAttemptCutoff()
+{
+    return {true, -1};
+}
+
+std::vector<PeerBareAddress>
+PeerManager::getRandomPeers(PeerQuery const& query, size_t size,
+                            std::function<bool(PeerBareAddress const&)> pred)
+{
+    auto& peers = mPeerCache[query];
+    if (peers.size() < size)
+    {
+        peers = loadRandomPeers(query, size);
+    }
+
+    auto result = std::vector<PeerBareAddress>{};
+    auto realSize = std::min(size, peers.size());
+
+    auto it = std::begin(peers);
+    auto end = std::end(peers);
+    for (; it != end && result.size() < realSize; it++)
+    {
+        if (pred(*it))
+        {
+            result.push_back(*it);
+        }
+    }
+
+    peers.erase(std::begin(peers), it);
+    return result;
+}
+
+std::vector<PeerBareAddress>
+PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
+{
+    // mBatchSize should always be bigger, so it should win anyway
+    size = std::max(size, mBatchSize);
+
+    // if we ever start removing peers from db, we may need to enable this
+    // soci::transaction sqltx(mApp.getDatabase().getSession());
+    // mApp.getDatabase().setCurrentTransactionReadOnly();
+
+    std::string where;
+    std::string clause = "WHERE";
+    if (query.mNextAttempt)
+    {
+        where += clause + " nextattempt <= :nextattempt ";
+        clause = "AND";
+    }
+    if (query.mMaxNumFailures >= 0)
+    {
+        where += clause + " numfailures <= :maxFailures ";
+    }
+
+    std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
+    int maxNumFailures = query.mMaxNumFailures;
+
+    auto bindToStatement = [&](soci::statement& st) {
+        if (query.mNextAttempt)
+        {
+            st.exchange(soci::use(nextAttempt));
+        }
+        if (query.mMaxNumFailures >= 0)
+        {
+            st.exchange(soci::use(maxNumFailures));
+        }
+    };
+
+    auto result = std::vector<PeerBareAddress>{};
+    auto count = countPeers(where, bindToStatement);
+    if (count == 0)
+    {
+        return result;
+    }
+
+    auto maxOffset = count > size ? count - size : 0;
+    auto offset = rand_uniform<size_t>(0, maxOffset);
+    result = loadPeers(size, offset, where, bindToStatement);
+
+    std::shuffle(std::begin(result), std::end(result), gRandomEngine);
+    return result;
+}
+
+std::pair<PeerRecord, bool>
+PeerManager::load(PeerBareAddress const& address)
+{
+    auto result = PeerRecord{};
+    auto inDatabase = false;
+
+    try
+    {
+        auto prep = mApp.getDatabase().getPreparedStatement(
+            "SELECT numfailures, nextattempt, flags FROM peers "
+            "WHERE ip = :v1 AND port = :v2");
+        auto& st = prep.statement();
+        st.exchange(into(result.mNumFailures));
+        st.exchange(into(result.mNextAttempt));
+        st.exchange(into(result.mFlags));
+        std::string ip = address.getIP();
+        st.exchange(use(ip));
+        int port = address.getPort();
+        st.exchange(use(port));
+        st.define_and_bind();
+        {
+            auto timer = mApp.getDatabase().getSelectTimer("peer");
+            st.execute(true);
+            inDatabase = st.got_data();
+
+            if (!inDatabase)
+            {
+                result.mNextAttempt =
+                    VirtualClock::pointToTm(mApp.getClock().now());
+            }
+        }
+    }
+    catch (soci_error& err)
+    {
+        LOG(ERROR) << "PeerManager::load error: " << err.what() << " on "
+                   << address.toString();
+    }
+
+    return std::make_pair(result, inDatabase);
+}
+
+void
+PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
+                   bool inDatabase)
+{
+    std::string query;
+
+    if (inDatabase)
+    {
+        query = "UPDATE peers SET "
+                "nextattempt = :v1, "
+                "numfailures = :v2, "
+                "flags = :v3 "
+                "WHERE ip = :v4 AND port = :v5";
+    }
+    else
+    {
+        query = "INSERT INTO peers "
+                "(nextattempt, numfailures, flags, ip,  port) "
+                "VALUES "
+                "(:v1,         :v2,         :v3,   :v4, :v5)";
+    }
+
+    try
+    {
+        auto prep = mApp.getDatabase().getPreparedStatement(query);
+        auto& st = prep.statement();
+        st.exchange(use(peerRecord.mNextAttempt));
+        st.exchange(use(peerRecord.mNumFailures));
+        st.exchange(use(peerRecord.mFlags));
+        std::string ip = address.getIP();
+        st.exchange(use(ip));
+        int port = address.getPort();
+        st.exchange(use(port));
+        st.define_and_bind();
+        {
+            auto timer = mApp.getDatabase().getUpdateTimer("peer");
+            st.execute(true);
+            if (st.get_affected_rows() != 1)
+            {
+                LOG(ERROR) << "PeerManager::store failed on " +
+                                  address.toString();
+            }
+        }
+    }
+    catch (soci_error& err)
+    {
+        LOG(ERROR) << "PeerManager::store error: " << err.what() << " on "
+                   << address.toString();
+    }
+}
+
+void
+PeerManager::update(PeerBareAddress const& address,
+                    std::vector<PeerRecordModifier> const& peerModifiers)
+{
+    auto peer = load(address);
+    for (auto& peerModifier : peerModifiers)
+    {
+        peerModifier(mApp, peer.first);
+    }
+    store(address, peer.first, peer.second);
+}
+
+constexpr const auto BATCH_SIZE = 1000;
+
+PeerManager::PeerManager(Application& app) : mApp(app), mBatchSize(BATCH_SIZE)
+{
+}
+
+size_t
+PeerManager::countPeers(std::string const& where,
+                        std::function<void(soci::statement&)> const& bind)
+{
+    size_t count = 0;
+
+    try
+    {
+        std::string sql = "SELECT COUNT(*) FROM peers " + where;
+
+        auto prep = mApp.getDatabase().getPreparedStatement(sql);
+        auto& st = prep.statement();
+
+        bind(st);
+        st.exchange(into(count));
+
+        st.define_and_bind();
+        st.execute(true);
+    }
+    catch (soci_error& err)
+    {
+        LOG(ERROR) << "countPeers error: " << err.what();
+    }
+
+    return count;
+}
+
+std::vector<PeerBareAddress>
+PeerManager::loadPeers(int limit, int offset, std::string const& where,
+                       std::function<void(soci::statement&)> const& bind)
+{
+    auto result = std::vector<PeerBareAddress>{};
+
+    try
+    {
+        std::string sql = "SELECT ip, port "
+                          "FROM peers " +
+                          where + " LIMIT :limit OFFSET :offset";
+
+        auto prep = mApp.getDatabase().getPreparedStatement(sql);
+        auto& st = prep.statement();
+
+        bind(st);
+        st.exchange(use(limit));
+        st.exchange(use(offset));
+
+        std::string ip;
+        int lport;
+        st.exchange(into(ip));
+        st.exchange(into(lport));
+
+        st.define_and_bind();
+        {
+            auto timer = mApp.getDatabase().getSelectTimer("peer");
+            st.execute(true);
+        }
+        while (st.got_data())
+        {
+            if (!ip.empty() && lport > 0)
+            {
+                result.emplace_back(ip, static_cast<unsigned short>(lport));
+            }
+            st.fetch();
+        }
+    }
+    catch (soci_error& err)
+    {
+        LOG(ERROR) << "loadPeers error: " << err.what();
+    }
+
+    return result;
+}
+
+void
+PeerManager::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS peers;";
     db.getSession() << kSQLCreateStatement;
 }
 
-const char* PeerRecord::kSQLCreateStatement =
+bool
+operator<(PeerManager::PeerQuery const& x, PeerManager::PeerQuery const& y)
+{
+    if (x.mNextAttempt < y.mNextAttempt)
+    {
+        return true;
+    }
+    if (x.mNextAttempt > y.mNextAttempt)
+    {
+        return false;
+    }
+    return x.mMaxNumFailures < y.mMaxNumFailures;
+}
+
+const char* PeerManager::kSQLCreateStatement =
     "CREATE TABLE peers ("
     "ip            VARCHAR(15) NOT NULL,"
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"

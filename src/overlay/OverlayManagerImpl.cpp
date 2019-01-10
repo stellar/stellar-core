@@ -60,6 +60,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
     , mDoor(mApp)
     , mAuth(mApp)
+    , mPeerManager(app)
     , mShuttingDown(false)
     , mMessagesBroadcast(app.getMetrics().NewMeter(
           {"overlay", "message", "broadcast"}, "message"))
@@ -107,7 +108,8 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
     try
     {
         auto address = PeerBareAddress::resolve(peerStr, mApp);
-        connectTo(address);
+        getPeerManager().update(address, {});
+        connectToImpl(address);
     }
     catch (const std::runtime_error&)
     {
@@ -116,59 +118,52 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
 }
 
 void
-OverlayManagerImpl::connectTo(PeerBareAddress const& address)
-{
-    auto pr = PeerRecord{address, mApp.getClock().now(), 0};
-    connectTo(pr);
-}
-
-void
-OverlayManagerImpl::connectTo(PeerRecord& pr)
+OverlayManagerImpl::connectToImpl(PeerBareAddress const& address)
 {
     mConnectionsAttempted.Mark();
-    if (!getConnectedPeer(pr.getAddress()))
+
+    auto currentConnection = getConnectedPeer(address);
+    if (!currentConnection)
     {
-        pr.backOff(mApp.getClock());
-        pr.storePeerRecord(mApp.getDatabase());
+        using namespace PeerRecordModifiers;
+        getPeerManager().update(address, {backOff});
 
         if (getPendingPeersCount() < mApp.getConfig().MAX_PENDING_CONNECTIONS)
         {
-            addPendingPeer(TCPPeer::initiate(mApp, pr.getAddress()));
+            addPendingPeer(TCPPeer::initiate(mApp, address));
         }
         else
         {
             CLOG(DEBUG, "Overlay")
                 << "reached maximum number of pending connections, backing off "
-                << pr.toString();
+                << address.toString();
         }
     }
     else
     {
         CLOG(ERROR, "Overlay")
             << "trying to connect to a node we're already connected to "
-            << pr.toString();
+            << address.toString();
     }
 }
 
 void
 OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  bool resetBackOff, bool preferred)
+                                  bool setPreferred)
 {
     for (auto const& peerStr : list)
     {
         try
         {
+            using namespace PeerRecordModifiers;
             auto address = PeerBareAddress::resolve(peerStr, mApp);
-            auto pr = PeerRecord{address, mApp.getClock().now(), 0};
-            pr.setPreferred(preferred);
-            if (resetBackOff)
+            if (setPreferred)
             {
-                pr.resetBackOff(mApp.getClock());
-                pr.storePeerRecord(mApp.getDatabase());
+                getPeerManager().update(address, {markPreferred, resetBackOff});
             }
             else
             {
-                pr.insertIfNew(mApp.getDatabase());
+                getPeerManager().update(address, {resetBackOff});
             }
         }
         catch (std::runtime_error&)
@@ -201,80 +196,59 @@ OverlayManagerImpl::storeConfigPeers()
         }
     }
 
-    storePeerList(mApp.getConfig().KNOWN_PEERS, true, false);
-    storePeerList(ppeers, true, true);
+    storePeerList(mApp.getConfig().KNOWN_PEERS, false);
+    storePeerList(ppeers, true);
 }
 
-std::vector<PeerRecord>
+std::vector<PeerBareAddress>
 OverlayManagerImpl::getPreferredPeersFromConfig()
 {
-    std::vector<PeerRecord> peers;
+    std::vector<PeerBareAddress> peers;
     for (auto& pp : mPreferredPeers)
     {
         auto address = PeerBareAddress::resolve(pp, mApp);
         if (!getConnectedPeer(address))
         {
-            auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), address);
-            if (pr && pr->mNextAttempt <= mApp.getClock().now())
+            auto pr = getPeerManager().load(address);
+            if (VirtualClock::tmToPoint(pr.first.mNextAttempt) <=
+                mApp.getClock().now())
             {
-                peers.emplace_back(*pr);
+                peers.emplace_back(address);
             }
         }
     }
     return peers;
 }
 
-std::vector<PeerRecord>
+std::vector<PeerBareAddress>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum)
 {
+    auto keep = [&](PeerBareAddress const& address) {
+        return !getConnectedPeer(address);
+    };
+
     // don't connect to too many peers at once
-    maxNum = std::min(maxNum, 50);
-
-    // batch is how many peers to load from the database every time
-    const int batchSize = std::max(50, maxNum);
-
-    std::vector<PeerRecord> peers;
-
-    PeerRecord::loadPeerRecords(
-        mApp.getDatabase(), batchSize, mApp.getClock().now(),
-        [&](PeerRecord const& pr) {
-            // skip peers that we're already
-            // connected/connecting to
-            if (!getConnectedPeer(pr.getAddress()))
-            {
-                peers.emplace_back(pr);
-            }
-            return peers.size() < static_cast<size_t>(maxNum);
-        });
+    auto peers = mPeerManager.getRandomPeers(PeerManager::nextAttemptCutoff(),
+                                             std::min(maxNum, 50), keep);
+    orderByPreferredPeers(peers);
     return peers;
 }
 
 void
-OverlayManagerImpl::connectToMorePeers(vector<PeerRecord>& peers)
+OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers)
 {
-    orderByPreferredPeers(peers);
-
-    for (auto& pr : peers)
+    for (auto& address : peers)
     {
-        if (pr.mNextAttempt > mApp.getClock().now())
-        {
-            continue;
-        }
-        // we always try to connect to preferred peers
-        if (!pr.isPreferred() && getAuthenticatedPeersCount() >=
-                                     mApp.getConfig().TARGET_PEER_CONNECTIONS)
-        {
-            break;
-        }
-        connectTo(pr);
+        connectToImpl(address);
     }
 }
 
 void
-OverlayManagerImpl::orderByPreferredPeers(vector<PeerRecord>& peers)
+OverlayManagerImpl::orderByPreferredPeers(std::vector<PeerBareAddress>& peers)
 {
-    auto isPreferredPredicate = [this](PeerRecord& record) -> bool {
-        return mPreferredPeers.find(record.toString()) != mPreferredPeers.end();
+    auto isPreferredPredicate = [this](PeerBareAddress const& address) -> bool {
+        return mPreferredPeers.find(address.toString()) !=
+               mPreferredPeers.end();
     };
     std::stable_partition(peers.begin(), peers.end(), isPreferredPredicate);
 }
@@ -288,8 +262,7 @@ OverlayManagerImpl::tick()
     mLoad.maybeShedExcessLoad(mApp);
 
     // first, see if we should trigger connections to preferred peers
-    auto peers = getPreferredPeersFromConfig();
-    connectToMorePeers(peers);
+    connectTo(getPreferredPeersFromConfig());
 
     if (getAuthenticatedPeersCount() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
@@ -298,10 +271,10 @@ OverlayManagerImpl::tick()
         // preferred_peer we just end up dropping & backing off
         // it during handshake (this allows for preferred_peers
         // to work for both ip based and key based preferred mode)
-        peers = getPeersToConnectTo(
+        auto peers = getPeersToConnectTo(
             static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS -
                              getAuthenticatedPeersCount()));
-        connectToMorePeers(peers);
+        connectTo(peers);
     }
 
     mTimer.expires_from_now(
@@ -546,7 +519,7 @@ OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 void
 OverlayManager::dropAll(Database& db)
 {
-    PeerRecord::dropAll(db);
+    PeerManager::dropAll(db);
 }
 
 std::set<Peer::pointer>
@@ -565,6 +538,12 @@ LoadManager&
 OverlayManagerImpl::getLoadManager()
 {
     return mLoad;
+}
+
+PeerManager&
+OverlayManagerImpl::getPeerManager()
+{
+    return mPeerManager;
 }
 
 void

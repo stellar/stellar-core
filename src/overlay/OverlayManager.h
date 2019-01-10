@@ -46,10 +46,10 @@
 namespace stellar
 {
 
+class LoadManager;
 class PeerAuth;
 class PeerBareAddress;
-class PeerRecord;
-class LoadManager;
+class PeerManager;
 
 class OverlayManager
 {
@@ -118,13 +118,6 @@ class OverlayManager
     // a TCP port number.
     virtual void connectTo(std::string const& addr) = 0;
 
-    // Attempt to connect to a peer identified by peer address.
-    virtual void connectTo(PeerBareAddress const& address) = 0;
-
-    // Attempt to connect to a peer identified by peer record. Can modify back
-    // off value of pr and save it do database.
-    virtual void connectTo(PeerRecord& pr) = 0;
-
     // returns the list of peers that sent us the item with hash `h`
     virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;
 
@@ -133,6 +126,9 @@ class OverlayManager
 
     // Return the persistent peer-load-accounting cache.
     virtual LoadManager& getLoadManager() = 0;
+
+    // Return the persistent peer manager
+    virtual PeerManager& getPeerManager() = 0;
 
     // start up all background tasks for overlay
     virtual void start() = 0;

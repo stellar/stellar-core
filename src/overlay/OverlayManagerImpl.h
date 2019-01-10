@@ -43,6 +43,7 @@ class OverlayManagerImpl : public OverlayManager
     PeerDoor mDoor;
     PeerAuth mAuth;
     LoadManager mLoad;
+    PeerManager mPeerManager;
     bool mShuttingDown;
 
     medida::Meter& mMessagesBroadcast;
@@ -56,8 +57,7 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(std::vector<std::string> const& list, bool resetBackOff,
-                       bool preferred);
+    void storePeerList(std::vector<std::string> const& list, bool setPreferred);
     void storeConfigPeers();
 
     friend class OverlayManagerTests;
@@ -73,8 +73,6 @@ class OverlayManagerImpl : public OverlayManager
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
     void connectTo(std::string const& addr) override;
-    void connectTo(PeerRecord& pr) override;
-    void connectTo(PeerBareAddress const& address) override;
 
     void addPendingPeer(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
@@ -90,7 +88,6 @@ class OverlayManagerImpl : public OverlayManager
     // returns nullptr if the passed peer isn't found
     Peer::pointer getConnectedPeer(PeerBareAddress const& address) override;
 
-    void connectToMorePeers(vector<PeerRecord>& peers);
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
@@ -98,6 +95,7 @@ class OverlayManagerImpl : public OverlayManager
     PeerAuth& getPeerAuth() override;
 
     LoadManager& getLoadManager() override;
+    PeerManager& getPeerManager() override;
 
     void start() override;
     void shutdown() override;
@@ -105,10 +103,12 @@ class OverlayManagerImpl : public OverlayManager
     bool isShuttingDown() const override;
 
   private:
-    std::vector<PeerRecord> getPreferredPeersFromConfig();
-    std::vector<PeerRecord> getPeersToConnectTo(int maxNum);
+    std::vector<PeerBareAddress> getPreferredPeersFromConfig();
+    std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum);
+    virtual void connectToImpl(PeerBareAddress const& address);
+    void connectTo(std::vector<PeerBareAddress> const& peers);
 
-    void orderByPreferredPeers(vector<PeerRecord>& peers);
+    void orderByPreferredPeers(std::vector<PeerBareAddress>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
     void updateSizeCounters();
 };

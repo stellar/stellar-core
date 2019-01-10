@@ -4,89 +4,108 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "database/Database.h"
-#include "main/Config.h"
 #include "overlay/PeerBareAddress.h"
 #include "util/Timer.h"
-#include "util/optional.h"
-#include <string>
+
+#include <functional>
+
+namespace soci
+{
+class statement;
+}
 
 namespace stellar
 {
-using namespace std;
 
-class PeerRecord
+class Database;
+
+/**
+ * Raw database record of peer data. Its key is PeerBareAddress.
+ */
+struct PeerRecord
 {
-  private:
-    PeerBareAddress mAddress;
-    bool mIsPreferred;
+    std::tm mNextAttempt;
+    int mNumFailures{0};
+    int mFlags{0};
+};
 
+bool operator==(PeerRecord const& x, PeerRecord const& y);
+
+using PeerRecordModifier = std::function<void(Application&, PeerRecord&)>;
+
+namespace PeerRecordModifiers
+{
+void resetBackOff(Application& app, PeerRecord& peer);
+void backOff(Application& app, PeerRecord& peer);
+void markPreferred(Application& app, PeerRecord& peer);
+void unmarkPreferred(Application& app, PeerRecord& peer);
+}
+
+PeerAddress toXdr(PeerBareAddress const& address);
+
+/**
+ * Maintain list of know peers in database.
+ */
+class PeerManager
+{
   public:
-    VirtualClock::time_point mNextAttempt;
-    int mNumFailures;
-
-    /**
-     * Create new PeerRecord object. If preconditions are not met - exception
-     * is thrown.
-     *
-     * @pre: !ip.empty()
-     * @pre: port > 0
-     */
-    PeerRecord(PeerBareAddress address, VirtualClock::time_point nextAttempt,
-               int fails = 0);
-
-    bool
-    operator==(PeerRecord const& other) const
+    struct PeerQuery
     {
-        return mAddress == other.mAddress &&
-               mNextAttempt == other.mNextAttempt &&
-               mNumFailures == other.mNumFailures;
-    }
-
-    /**
-     * Load PeerRecord from database. If preconditions are not met - exception
-     * is thrown from PeerRecord constructor.
-     * If given PeerRecord is not found, nullopt is returned.
-     * If @p ip is empty or @ip is set to 0 nullopt is returned.
-     */
-    static optional<PeerRecord> loadPeerRecord(Database& db,
-                                               PeerBareAddress const& address);
-
-    // pred returns false if we should stop processing entries
-    static void loadPeerRecords(Database& db, int batchSize,
-                                VirtualClock::time_point nextAttemptCutoff,
-                                std::function<bool(PeerRecord const& pr)> pred);
-
-    PeerBareAddress const&
-    getAddress() const
-    {
-        return mAddress;
+        bool mNextAttempt;
+        int mMaxNumFailures;
     };
 
-    void setPreferred(bool p);
-    bool isPreferred() const;
-
-    // insert record in database if it's a new record
-    // returns true if inserted
-    bool insertIfNew(Database& db);
-
-    // insert or update record from database
-    void storePeerRecord(Database& db);
-
-    void resetBackOff(VirtualClock& clock);
-    void backOff(VirtualClock& clock);
-
-    void toXdr(PeerAddress& ret) const;
+    static PeerQuery maxFailures(int maxFailures);
+    static PeerQuery nextAttemptCutoff();
 
     static void dropAll(Database& db);
-    std::string toString() const;
+
+    explicit PeerManager(Application& app);
+
+    std::vector<PeerBareAddress>
+    getRandomPeers(PeerQuery const& query, size_t size,
+                   std::function<bool(PeerBareAddress const&)> pred);
+
+    /**
+     * Update or create PeerRecord entry in database with given addrees. If
+     * data for given address is not available, a new default PeerRecord is
+     * created. Before saving data to database again each function in
+     * peerModifiers parameter is called on that PeerRecord.
+     */
+    void update(PeerBareAddress const& address,
+                std::vector<PeerRecordModifier> const& peerModifiers);
+
+    /**
+     * Load PeerRecord data for peer with given address. If not available in
+     * database, create default one. Second value in pair is true when data
+     * was loaded from database, false otherwise.
+     */
+    std::pair<PeerRecord, bool> load(PeerBareAddress const& address);
+
+    /**
+     * Store PeerRecord data into database. If inDatabase is true, uses UPDATE
+     * query, uses INSERT otherwise.
+     */
+    void store(PeerBareAddress const& address, PeerRecord const& PeerRecord,
+               bool inDatabase);
 
   private:
-    // peerRecordProcessor returns false if we should stop processing entries
-    static void
-    loadPeerRecords(Database& db, StatementContext& prep,
-                    std::function<bool(PeerRecord const&)> peerRecordProcessor);
-    std::chrono::seconds computeBackoff(VirtualClock& clock);
     static const char* kSQLCreateStatement;
+
+    Application& mApp;
+    size_t const mBatchSize;
+    std::map<PeerQuery, std::vector<PeerBareAddress>> mPeerCache;
+
+    std::vector<PeerBareAddress> loadRandomPeers(PeerQuery const& query,
+                                                 size_t size);
+
+    size_t countPeers(std::string const& where,
+                      std::function<void(soci::statement&)> const& bind);
+    std::vector<PeerBareAddress>
+    loadPeers(int limit, int offset, std::string const& where,
+              std::function<void(soci::statement&)> const& bind);
 };
+
+bool operator<(PeerManager::PeerQuery const& x,
+               PeerManager::PeerQuery const& y);
 }

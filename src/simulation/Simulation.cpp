@@ -240,8 +240,8 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     {
         throw runtime_error("PEER_PORT cannot be set to 0");
     }
-    auto address = PeerBareAddress{"127.0.0.1", to->getConfig().PEER_PORT};
-    from->getOverlayManager().connectTo(address);
+    from->getOverlayManager().connectTo(
+        fmt::format("127.0.0.1:{}", to->getConfig().PEER_PORT));
 }
 
 void

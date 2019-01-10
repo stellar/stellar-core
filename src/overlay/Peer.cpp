@@ -347,27 +347,21 @@ Peer::sendPeers()
     newMsg.type(PEERS);
     uint32 maxPeerCount = std::min<uint32>(50, newMsg.peers().max_size());
 
+    auto keep = [&](PeerBareAddress const& address) {
+        return !address.isPrivate() && address != mAddress;
+    };
+
+    constexpr const auto MAX_FAILURES = 10;
+
     // send top peers we know about
-    vector<PeerRecord> peerList;
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),
-                                [&](PeerRecord const& pr) {
-                                    bool r = peerList.size() < maxPeerCount;
-                                    if (r)
-                                    {
-                                        if (!pr.getAddress().isPrivate() &&
-                                            pr.getAddress() != mAddress)
-                                        {
-                                            peerList.emplace_back(pr);
-                                        }
-                                    }
-                                    return r;
-                                });
-    newMsg.peers().reserve(peerList.size());
-    for (auto const& pr : peerList)
+    auto peers = mApp.getOverlayManager().getPeerManager().getRandomPeers(
+        PeerManager::maxFailures(MAX_FAILURES), maxPeerCount, keep);
+    assert(peers.size() <= maxPeerCount);
+
+    newMsg.peers().reserve(peers.size());
+    for (auto const& address : peers)
     {
-        PeerAddress pa;
-        pr.toXdr(pa);
-        newMsg.peers().push_back(pa);
+        newMsg.peers().push_back(toXdr(address));
     }
     sendMessage(newMsg);
 }
@@ -838,20 +832,16 @@ Peer::noteHandshakeSuccessInPeerRecord()
         return;
     }
 
-    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getAddress());
-    if (pr)
-    {
-        pr->setPreferred(mApp.getOverlayManager().isPreferred(this));
-        pr->resetBackOff(mApp.getClock());
-    }
-    else
-    {
-        pr = make_optional<PeerRecord>(getAddress(), mApp.getClock().now());
-    }
+    using namespace PeerRecordModifiers;
+    auto setPreferred = mApp.getOverlayManager().isPreferred(this)
+                            ? markPreferred
+                            : unmarkPreferred;
+    mApp.getOverlayManager().getPeerManager().update(
+        getAddress(), {setPreferred, resetBackOff});
+
     CLOG(INFO, "Overlay") << "successful handshake with "
                           << mApp.getConfig().toShortString(mPeerID) << "@"
-                          << pr->toString();
-    pr->storePeerRecord(mApp.getDatabase());
+                          << getAddress().toString();
 }
 
 void
@@ -1034,8 +1024,6 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    const uint32 NEW_PEER_WINDOW_SECONDS = 10;
-
     for (auto const& peer : msg.peers())
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
@@ -1050,11 +1038,6 @@ Peer::recvPeers(StellarMessage const& msg)
                                      << " (not yet supported)";
             continue;
         }
-        // randomize when we'll try to connect to this peer next if we don't
-        // know it
-        auto defaultNextAttempt =
-            mApp.getClock().now() +
-            std::chrono::seconds(std::rand() % NEW_PEER_WINDOW_SECONDS);
 
         assert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
@@ -1079,8 +1062,7 @@ Peer::recvPeers(StellarMessage const& msg)
         {
             // don't use peer.numFailures here as we may have better luck
             // (and we don't want to poison our failure count)
-            PeerRecord pr{address, defaultNextAttempt, 0};
-            pr.insertIfNew(mApp.getDatabase());
+            mApp.getOverlayManager().getPeerManager().update(address, {});
         }
     }
 }
