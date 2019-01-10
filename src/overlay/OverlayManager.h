@@ -86,8 +86,8 @@ class OverlayManager
     // Add new pending inbound connection.
     virtual void addInboundConnection(Peer::pointer peer) = 0;
 
-    // Add new pending outbound connection.
-    virtual void addOutboundConnection(Peer::pointer peer) = 0;
+    // Add new pending outbound connection. Return true if connection was added.
+    virtual bool addOutboundConnection(Peer::pointer peer) = 0;
 
     // Remove peer from the in-memory set of connected peers. Can only be
     // called on peers in Peer::CLOSING state.
@@ -116,7 +116,7 @@ class OverlayManager
     virtual int getAuthenticatedPeersCount() const = 0;
 
     // Attempt to connect to a peer identified by peer address.
-    virtual void connectTo(PeerBareAddress const& address) = 0;
+    virtual bool connectTo(PeerBareAddress const& address) = 0;
 
     // returns the list of peers that sent us the item with hash `h`
     virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;

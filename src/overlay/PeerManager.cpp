@@ -307,6 +307,7 @@ PeerManager::update(PeerBareAddress const& address,
 void
 PeerManager::loadPeers(int batchSize,
                        VirtualClock::time_point nextAttemptCutoff,
+                       PeerTypeFilter peerTypeFilter,
                        std::function<bool(PeerBareAddress const& address)> pred)
 {
     try
@@ -317,15 +318,23 @@ PeerManager::loadPeers(int batchSize,
         {
             tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
 
-            std::string sql = "SELECT ip, port FROM peers "
-                              "WHERE nextattempt <= :nextattempt "
-                              "ORDER BY nextattempt ASC, numfailures ASC "
-                              "LIMIT :max OFFSET :o";
+            std::string sql =
+                peerTypeFilter == PeerTypeFilter::ANY_OUTBOUND
+                    ? "SELECT ip, port FROM peers WHERE nextattempt <= "
+                      ":nextattempt AND type >= :type ORDER BY nextattempt "
+                      "ASC, numfailures ASC LIMIT :max OFFSET :o"
+                    : "SELECT ip, port FROM peers  WHERE nextattempt <= "
+                      ":nextattempt AND type = :type ORDER BY nextattempt "
+                      "ASC, numfailures ASC LIMIT :max OFFSET :o";
 
             auto prep = mApp.getDatabase().getPreparedStatement(sql);
             auto& st = prep.statement();
 
             st.exchange(use(nextAttemptMax));
+            int type = peerTypeFilter == PeerTypeFilter::ANY_OUTBOUND
+                           ? static_cast<int>(PeerType::OUTBOUND)
+                           : static_cast<int>(peerTypeFilter);
+            st.exchange(use(type));
             st.exchange(use(batchSize));
             st.exchange(use(offset));
 

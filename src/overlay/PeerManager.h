@@ -27,6 +27,14 @@ enum class PeerType
     PREFERRED
 };
 
+enum class PeerTypeFilter
+{
+    INBOUND_ONLY,
+    OUTBOUND_ONLY,
+    PREFERRED_ONLY,
+    ANY_OUTBOUND
+};
+
 /**
  * Raw database record of peer data. Its key is PeerBareAddress.
  */
@@ -110,6 +118,7 @@ class PeerManager
 
     // pred returns false if we should stop processing entries
     void loadPeers(int batchSize, VirtualClock::time_point nextAttemptCutoff,
+                   PeerTypeFilter peerTypeFilter,
                    std::function<bool(PeerBareAddress const& address)> pred);
 
   private:

@@ -62,18 +62,19 @@ class OverlayManagerStub : public OverlayManagerImpl
     {
     }
 
-    virtual void
+    virtual bool
     connectTo(PeerBareAddress const& address) override
     {
-        if (!getConnectedPeer(address))
+        if (getConnectedPeer(address))
         {
-            getPeerManager().update(address,
-                                    PeerManager::BackOffUpdate::INCREASE);
-
-            auto peerStub = std::make_shared<PeerStub>(mApp, address);
-            addOutboundConnection(peerStub);
-            REQUIRE(acceptAuthenticatedPeer(peerStub));
+            return false;
         }
+
+        getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
+
+        auto peerStub = std::make_shared<PeerStub>(mApp, address);
+        REQUIRE(addOutboundConnection(peerStub));
+        return acceptAuthenticatedPeer(peerStub);
     }
 };
 

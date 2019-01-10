@@ -70,6 +70,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
 {
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
                     : std::make_shared<Config>(newConfig());
+    cfg->adjust();
     cfg->NODE_SEED = nodeKey;
 
     if (mQuorumSetAdjuster)

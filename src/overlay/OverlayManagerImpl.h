@@ -35,14 +35,15 @@ class OverlayManagerImpl : public OverlayManager
 {
   protected:
     Application& mApp;
-    std::set<PeerBareAddress> mPreferredPeers;
+    std::set<PeerBareAddress> mConfigurationPreferredPeers;
 
     struct PeersList
     {
         explicit PeersList(OverlayManagerImpl& overlayManager,
                            medida::MetricsRegistry& metricsRegistry,
                            std::string directionString,
-                           std::string cancelledName);
+                           std::string cancelledName,
+                           int maxAuthenticatedCount);
 
         medida::Meter& mConnectionsAttempted;
         medida::Meter& mConnectionsEstablished;
@@ -50,6 +51,7 @@ class OverlayManagerImpl : public OverlayManager
         medida::Meter& mConnectionsCancelled;
 
         OverlayManagerImpl& mOverlayManager;
+        int mMaxAuthenticatedCount;
 
         std::vector<Peer::pointer> mPending;
         std::map<NodeID, Peer::pointer> mAuthenticated;
@@ -57,7 +59,7 @@ class OverlayManagerImpl : public OverlayManager
         Peer::pointer byAddress(PeerBareAddress const& address) const;
         void removePeer(Peer* peer);
         bool moveToAuthenticated(Peer::pointer peer);
-        bool acceptAuthenticatedPeer(Peer::pointer peer, bool haveSpace);
+        bool acceptAuthenticatedPeer(Peer::pointer peer);
         void shutdown();
     };
 
@@ -80,7 +82,6 @@ class OverlayManagerImpl : public OverlayManager
     VirtualTimer mTimer;
 
     void storePeerList(std::vector<std::string> const& list, bool setPreferred);
-    void storeConfigPeers();
 
     friend class OverlayManagerTests;
 
@@ -94,11 +95,12 @@ class OverlayManagerImpl : public OverlayManager
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
-    void connectTo(PeerBareAddress const& address) override;
+    bool connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;
-    void addOutboundConnection(Peer::pointer peer) override;
+    bool addOutboundConnection(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
+    void storeConfigPeers();
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) override;
@@ -125,12 +127,17 @@ class OverlayManagerImpl : public OverlayManager
     bool isShuttingDown() const override;
 
   private:
-    std::vector<PeerBareAddress> getPreferredPeersFromConfig();
-    std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum);
-    void connectTo(std::vector<PeerBareAddress> const& peers);
+    int connectTo(int maxNum, PeerTypeFilter peerTypeFilter);
+    std::vector<PeerBareAddress>
+    getPeersToConnectTo(int maxNum, PeerTypeFilter peerTypeFilter);
+    int connectTo(std::vector<PeerBareAddress> const& peers);
 
     void orderByPreferredPeers(std::vector<PeerBareAddress>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
+
+    int availableOutboundPendingSlots() const;
+    int availableOutboundAuthenticatedSlots() const;
+
     void updateSizeCounters();
 };
 }

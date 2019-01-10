@@ -349,18 +349,26 @@ Peer::sendPeers()
 
     // send top peers we know about
     std::vector<PeerBareAddress> peers;
-    mApp.getOverlayManager().getPeerManager().loadPeers(
-        50, mApp.getClock().now(), [&](PeerBareAddress const& address) {
-            bool r = peers.size() < maxPeerCount;
-            if (r)
-            {
-                if (!address.isPrivate() && address != mAddress)
+
+    auto getPeers = [&](PeerTypeFilter peerTypeFilter) {
+        mApp.getOverlayManager().getPeerManager().loadPeers(
+            50, mApp.getClock().now(), peerTypeFilter,
+            [&](PeerBareAddress const& address) {
+                bool r = peers.size() < maxPeerCount;
+                if (r)
                 {
-                    peers.emplace_back(address);
+                    if (!address.isPrivate() && address != mAddress)
+                    {
+                        peers.emplace_back(address);
+                    }
                 }
-            }
-            return r;
-        });
+                return r;
+            });
+    };
+
+    getPeers(PeerTypeFilter::ANY_OUTBOUND);
+    getPeers(PeerTypeFilter::INBOUND_ONLY);
+
     newMsg.peers().reserve(peers.size());
     for (auto const& address : peers)
     {

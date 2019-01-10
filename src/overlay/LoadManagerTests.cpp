@@ -22,6 +22,7 @@ TEST_CASE("disconnect peer when overloaded", "[overlay][LoadManager]")
     cfg2.RUN_STANDALONE = false;
     cfg2.MINIMUM_IDLE_PERCENT = 90;
     cfg2.TARGET_PEER_CONNECTIONS = 0;
+    cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 3;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
