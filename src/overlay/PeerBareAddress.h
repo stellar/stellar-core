@@ -54,7 +54,6 @@ class PeerBareAddress
     }
 
     std::string toString() const;
-    void toXdr(PeerAddress& ret) const;
 
     bool isPrivate() const;
     bool isLocalhost() const;

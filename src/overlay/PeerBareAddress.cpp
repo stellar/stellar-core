@@ -14,25 +14,6 @@
 namespace stellar
 {
 
-namespace
-{
-
-void
-ipToXdr(std::string const& ip, xdr::opaque_array<4U>& ret)
-{
-    std::stringstream ss(ip);
-    std::string item;
-    int n = 0;
-    while (getline(ss, item, '.') && n < 4)
-    {
-        ret[n] = static_cast<unsigned char>(atoi(item.c_str()));
-        n++;
-    }
-    if (n != 4)
-        throw std::runtime_error("ipToXdr: failed on `" + ip + "`");
-}
-}
-
 PeerBareAddress::PeerBareAddress() : mType{Type::EMPTY}
 {
 }
@@ -177,14 +158,6 @@ bool
 PeerBareAddress::isLocalhost() const
 {
     return mIP == "127.0.0.1";
-}
-
-void
-PeerBareAddress::toXdr(PeerAddress& ret) const
-{
-    ret.port = mPort;
-    ret.ip.type(IPv4);
-    ipToXdr(mIP, ret.ip.ipv4());
 }
 
 bool

@@ -63,14 +63,14 @@ class OverlayManagerStub : public OverlayManagerImpl
     }
 
     virtual void
-    connectTo(PeerRecord& pr) override
+    connectTo(PeerBareAddress const& address) override
     {
-        if (!getConnectedPeer(pr.getAddress()))
+        if (!getConnectedPeer(address))
         {
-            pr.backOff(mApp.getClock());
-            pr.storePeerRecord(mApp.getDatabase());
+            getPeerManager().update(address,
+                                    PeerManager::BackOffUpdate::INCREASE);
 
-            auto peerStub = std::make_shared<PeerStub>(mApp, pr.getAddress());
+            auto peerStub = std::make_shared<PeerStub>(mApp, address);
             addPendingPeer(peerStub);
             REQUIRE(acceptAuthenticatedPeer(peerStub));
         }
@@ -125,7 +125,7 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers, false, false);
+        pm.storePeerList(fourPeers, false);
 
         rowset<row> rs = app->getDatabase().getSession().prepare
                          << "SELECT ip,port FROM peers ORDER BY nextattempt";
@@ -151,8 +151,8 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers, false, false);
-        pm.storePeerList(threePeers, false, false);
+        pm.storePeerList(fourPeers, false);
+        pm.storePeerList(threePeers, false);
         // connect to peers, respecting TARGET_PEER_CONNECTIONS
         pm.tick();
         REQUIRE(pm.mAuthenticatedPeers.size() == 5);

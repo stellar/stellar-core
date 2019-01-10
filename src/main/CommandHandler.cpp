@@ -599,7 +599,8 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
         str << peerP->second << ":" << portP->second;
         retStr = "Connect to: ";
         retStr += str.str();
-        mApp.getOverlayManager().connectTo(str.str());
+        mApp.getOverlayManager().connectTo(
+            PeerBareAddress::resolve(str.str(), mApp));
     }
     else
     {
