@@ -138,8 +138,10 @@ class OverlayManagerImpl : public OverlayManager
   private:
     std::vector<PeerBareAddress> getPreferredPeersFromConfig();
     std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum, bool outbound);
-    virtual void connectToImpl(PeerBareAddress const& address);
-    void connectTo(std::vector<PeerBareAddress> const& peers);
+    virtual void connectToImpl(PeerBareAddress const& address,
+                               bool forceoutbound);
+    void connectTo(std::vector<PeerBareAddress> const& peers,
+                   bool forceoutbound);
 
     void orderByPreferredPeers(std::vector<PeerBareAddress>& peers);
     bool moveToAuthenticated(Peer::pointer peer);

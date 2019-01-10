@@ -693,3 +693,112 @@ TEST_CASE("preferred peers always connect", "[overlay][connections]")
     REQUIRE(numberOfAppConnections(*simulation->getNode(vNode2NodeID)) == 1);
     REQUIRE(numberOfAppConnections(*simulation->getNode(vNode3NodeID)) == 1);
 }
+
+TEST_CASE("inbounds nodes can be promoted to ouboundvalid", "[overlay]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+    SIMULATION_CREATE_NODE(Node3);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    auto nodes = std::vector<Application::pointer>{};
+    auto configs = std::vector<Config>{};
+    auto addresses = std::vector<PeerBareAddress>{};
+    for (auto i = 0; i < 3; i++)
+    {
+        configs.push_back(getTestConfig(i + 1));
+        addresses.emplace_back("127.0.0.1", configs[i].PEER_PORT);
+    }
+
+    configs[0].KNOWN_PEERS.emplace_back(
+        fmt::format("127.0.0.1:{}", configs[1].PEER_PORT));
+    configs[2].KNOWN_PEERS.emplace_back(
+        fmt::format("127.0.0.1:{}", configs[0].PEER_PORT));
+
+    nodes.push_back(simulation->addNode(vNode1SecretKey, qSet, &configs[0]));
+    nodes.push_back(simulation->addNode(vNode2SecretKey, qSet, &configs[1]));
+    nodes.push_back(simulation->addNode(vNode3SecretKey, qSet, &configs[2]));
+
+    enum class PeerType
+    {
+        ANY,
+        KNOWN,
+        OUTBOUND
+    };
+
+    auto getPeerType = [&](int i, int j) {
+        auto& node = nodes[i];
+        auto peer =
+            node->getOverlayManager().getPeerManager().load(addresses[j]);
+        return peer.second ? peer.first.mIsOutbound ? PeerType::OUTBOUND
+                                                    : PeerType::KNOWN
+                           : PeerType::ANY;
+    };
+
+    using ExpectedResultType = std::vector<std::vector<PeerType>>;
+    auto peerTypesMatch = [&](ExpectedResultType expected) {
+        for (auto i = 0; i < expected.size(); i++)
+        {
+            auto& node = nodes[i];
+            for (auto j = 0; j < expected[i].size(); j++)
+            {
+                if (expected[i][j] > getPeerType(i, j))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
+
+    simulation->startAllNodes();
+
+    // at first, nodes only know about KNOWN_PEERS
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{PeerType::ANY, PeerType::KNOWN, PeerType::ANY},
+                 {PeerType::ANY, PeerType::ANY, PeerType::ANY},
+                 {PeerType::KNOWN, PeerType::ANY, PeerType::ANY}});
+        },
+        std::chrono::seconds(2), false);
+
+    // then, after connection, some are made OUTBOUND
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{PeerType::ANY, PeerType::OUTBOUND, PeerType::KNOWN},
+                 {PeerType::KNOWN, PeerType::ANY, PeerType::ANY},
+                 {PeerType::OUTBOUND, PeerType::ANY, PeerType::ANY}});
+        },
+        std::chrono::seconds(10), false);
+
+    // then, after promotion, more are made OUTBOUND
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{PeerType::ANY, PeerType::OUTBOUND, PeerType::OUTBOUND},
+                 {PeerType::OUTBOUND, PeerType::ANY, PeerType::ANY},
+                 {PeerType::OUTBOUND, PeerType::ANY, PeerType::ANY}});
+        },
+        std::chrono::seconds(30), false);
+
+    // and when all connections are made, all nodes know about each other
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{PeerType::ANY, PeerType::OUTBOUND, PeerType::OUTBOUND},
+                 {PeerType::OUTBOUND, PeerType::ANY, PeerType::OUTBOUND},
+                 {PeerType::OUTBOUND, PeerType::OUTBOUND, PeerType::ANY}});
+        },
+        std::chrono::seconds(30), false);
+
+    simulation->crankForAtLeast(std::chrono::seconds{3}, true);
+}

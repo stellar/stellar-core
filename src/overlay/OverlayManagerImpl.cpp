@@ -243,7 +243,7 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
     {
         auto address = PeerBareAddress::resolve(peerStr, mApp);
         getPeerManager().update(address, {});
-        connectToImpl(address);
+        connectToImpl(address, false);
     }
     catch (const std::runtime_error&)
     {
@@ -252,12 +252,14 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
 }
 
 void
-OverlayManagerImpl::connectToImpl(PeerBareAddress const& address)
+OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
+                                  bool forceoutbound)
 {
     mConnectionsAttempted.Mark();
 
     auto currentConnection = getConnectedPeer(address);
-    if (!currentConnection)
+    if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
+                                                    Peer::REMOTE_CALLED_US))
     {
         using namespace PeerRecordModifiers;
         getPeerManager().update(address, {backOff});
@@ -342,7 +344,10 @@ std::vector<PeerBareAddress>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum, bool outbound)
 {
     auto keep = [&](PeerBareAddress const& address) {
-        return !getConnectedPeer(address);
+        auto peer = getConnectedPeer(address);
+        auto promote =
+            peer && !outbound && (peer->getRole() == Peer::REMOTE_CALLED_US);
+        return !peer || promote;
     };
 
     // don't connect to too many peers at once
@@ -353,11 +358,12 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum, bool outbound)
 }
 
 void
-OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers)
+OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
+                              bool forceoutbound)
 {
     for (auto& address : peers)
     {
-        connectToImpl(address);
+        connectToImpl(address, forceoutbound);
     }
 }
 
@@ -379,7 +385,7 @@ OverlayManagerImpl::tick()
     mLoad.maybeShedExcessLoad(mApp);
 
     // first, see if we should trigger connections to preferred peers
-    connectTo(getPreferredPeersFromConfig());
+    connectTo(getPreferredPeersFromConfig(), false);
 
     // load best candidates from the database
     // when PREFERRED_PEER_ONLY is set and we connect to a non preferred_peer we
@@ -414,7 +420,7 @@ OverlayManagerImpl::connectToOutboundPeers()
     auto missingCount = missingAuthenticatedCount();
     if (missingCount > 0)
     {
-        connectTo(getPeersToConnectTo(missingCount, true));
+        connectTo(getPeersToConnectTo(missingCount, true), false);
     }
 }
 
@@ -424,7 +430,7 @@ OverlayManagerImpl::connectToNotOutboundPeers()
     auto missingCount = missingAuthenticatedCount();
     if (missingCount > 0)
     {
-        connectTo(getPeersToConnectTo(missingCount, false));
+        connectTo(getPeersToConnectTo(missingCount, false), true);
     }
 }
 
