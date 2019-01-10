@@ -88,7 +88,7 @@ class OverlayManager
 
     // Forget about a peer, removing it from the in-memory set of connected
     // peers. Presumably due to it disconnecting.
-    virtual void dropPeer(Peer* peer) = 0;
+    virtual void removePeer(Peer* peer) = 0;
 
     // Try to move peer from pending to authenticated list. If there is no room
     // for provided peer, it is checked if it is a "preferred" peer (as
