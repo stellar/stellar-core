@@ -127,6 +127,8 @@ Database::applySchemaUpgrade(unsigned long vers)
         mSession << "ALTER TABLE accounts ADD signers TEXT";
         mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
         mSession << "DROP TABLE IF EXISTS signers";
+        mSession << "ALTER TABLE peers ADD outbound INT NOT NULL DEFAULT 0";
+        mSession << "CREATE INDEX outboundindex ON peers(outbound)";
         break;
 
     default:

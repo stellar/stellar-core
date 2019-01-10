@@ -39,8 +39,8 @@ class PeerStub : public Peer
         mState = GOT_AUTH;
         mAddress = addres;
     }
-    virtual PeerBareAddress
-    makeAddress(int) const override
+    virtual std::string
+    getIP() const override
     {
         REQUIRE(false); // should not be called
         return {};

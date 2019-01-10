@@ -40,7 +40,11 @@ operator==(PeerRecord const& x, PeerRecord const& y)
     {
         return false;
     }
-    return x.mFlags == y.mFlags;
+    if (x.mFlags != y.mFlags)
+    {
+        return false;
+    }
+    return x.mIsOutbound == y.mIsOutbound;
 }
 
 namespace PeerRecordModifiers
@@ -78,12 +82,19 @@ void
 markPreferred(Application&, PeerRecord& peer)
 {
     peer.mFlags |= PEER_RECORD_FLAGS_PREFERRED;
+    peer.mIsOutbound = true;
 }
 
 void
 unmarkPreferred(Application&, PeerRecord& peer)
 {
     peer.mFlags &= ~PEER_RECORD_FLAGS_PREFERRED;
+}
+
+void
+markOutbound(Application&, PeerRecord& peer)
+{
+    peer.mIsOutbound = true;
 }
 }
 
@@ -120,15 +131,15 @@ toXdr(PeerBareAddress const& address)
 }
 
 PeerManager::PeerQuery
-PeerManager::maxFailures(int maxFailures)
+PeerManager::maxFailures(int maxFailures, bool outbound)
 {
-    return {false, maxFailures};
+    return {false, maxFailures, outbound};
 }
 
 PeerManager::PeerQuery
-PeerManager::nextAttemptCutoff()
+PeerManager::nextAttemptCutoff(bool outbound)
 {
-    return {true, -1};
+    return {true, -1, outbound};
 }
 
 std::vector<PeerBareAddress>
@@ -178,10 +189,16 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     if (query.mMaxNumFailures >= 0)
     {
         where += clause + " numfailures <= :maxFailures ";
+        clause = "AND";
+    }
+    if (query.mOutbound >= 0)
+    {
+        where += clause + " outbound = :outbound ";
     }
 
     std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
     int maxNumFailures = query.mMaxNumFailures;
+    int outbound = query.mOutbound;
 
     auto bindToStatement = [&](soci::statement& st) {
         if (query.mNextAttempt)
@@ -191,6 +208,10 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
         if (query.mMaxNumFailures >= 0)
         {
             st.exchange(soci::use(maxNumFailures));
+        }
+        if (query.mOutbound >= 0)
+        {
+            st.exchange(soci::use(outbound));
         }
     };
 
@@ -218,12 +239,13 @@ PeerManager::load(PeerBareAddress const& address)
     try
     {
         auto prep = mApp.getDatabase().getPreparedStatement(
-            "SELECT numfailures, nextattempt, flags FROM peers "
+            "SELECT numfailures, nextattempt, flags, outbound FROM peers "
             "WHERE ip = :v1 AND port = :v2");
         auto& st = prep.statement();
         st.exchange(into(result.mNumFailures));
         st.exchange(into(result.mNextAttempt));
         st.exchange(into(result.mFlags));
+        st.exchange(into(result.mIsOutbound));
         std::string ip = address.getIP();
         st.exchange(use(ip));
         int port = address.getPort();
@@ -261,15 +283,16 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
         query = "UPDATE peers SET "
                 "nextattempt = :v1, "
                 "numfailures = :v2, "
-                "flags = :v3 "
-                "WHERE ip = :v4 AND port = :v5";
+                "flags = :v3, "
+                "outbound = :v4 "
+                "WHERE ip = :v5 AND port = :v6";
     }
     else
     {
         query = "INSERT INTO peers "
-                "(nextattempt, numfailures, flags, ip,  port) "
+                "(nextattempt, numfailures, flags, outbound, ip,  port) "
                 "VALUES "
-                "(:v1,         :v2,         :v3,   :v4, :v5)";
+                "(:v1,         :v2,         :v3,   :v4,      :v5, :v6)";
     }
 
     try
@@ -279,6 +302,7 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
         st.exchange(use(peerRecord.mNextAttempt));
         st.exchange(use(peerRecord.mNumFailures));
         st.exchange(use(peerRecord.mFlags));
+        st.exchange(use(peerRecord.mIsOutbound));
         std::string ip = address.getIP();
         st.exchange(use(ip));
         int port = address.getPort();
@@ -410,7 +434,15 @@ operator<(PeerManager::PeerQuery const& x, PeerManager::PeerQuery const& y)
     {
         return false;
     }
-    return x.mMaxNumFailures < y.mMaxNumFailures;
+    if (x.mMaxNumFailures < y.mMaxNumFailures)
+    {
+        return true;
+    }
+    if (x.mMaxNumFailures > y.mMaxNumFailures)
+    {
+        return false;
+    }
+    return x.mOutbound < y.mOutbound;
 }
 
 const char* PeerManager::kSQLCreateStatement =

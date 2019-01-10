@@ -27,6 +27,7 @@ struct PeerRecord
     std::tm mNextAttempt;
     int mNumFailures{0};
     int mFlags{0};
+    int mIsOutbound{0};
 };
 
 bool operator==(PeerRecord const& x, PeerRecord const& y);
@@ -39,6 +40,7 @@ void resetBackOff(Application& app, PeerRecord& peer);
 void backOff(Application& app, PeerRecord& peer);
 void markPreferred(Application& app, PeerRecord& peer);
 void unmarkPreferred(Application& app, PeerRecord& peer);
+void markOutbound(Application& app, PeerRecord& peer);
 }
 
 PeerAddress toXdr(PeerBareAddress const& address);
@@ -53,10 +55,11 @@ class PeerManager
     {
         bool mNextAttempt;
         int mMaxNumFailures;
+        int mOutbound;
     };
 
-    static PeerQuery maxFailures(int maxFailures);
-    static PeerQuery nextAttemptCutoff();
+    static PeerQuery maxFailures(int maxFailures, bool outbound);
+    static PeerQuery nextAttemptCutoff(bool outbound);
 
     static void dropAll(Database& db);
 

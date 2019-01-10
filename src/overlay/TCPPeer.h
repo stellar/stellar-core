@@ -35,8 +35,6 @@ class TCPPeer : public Peer
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};
 
-    PeerBareAddress makeAddress(int remoteListeningPort) const override;
-
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
 
@@ -69,5 +67,7 @@ class TCPPeer : public Peer
     virtual ~TCPPeer();
 
     virtual void drop(bool force = true) override;
+
+    std::string getIP() const override;
 };
 }

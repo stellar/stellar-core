@@ -355,8 +355,17 @@ Peer::sendPeers()
 
     // send top peers we know about
     auto peers = mApp.getOverlayManager().getPeerManager().getRandomPeers(
-        PeerManager::maxFailures(MAX_FAILURES), maxPeerCount, keep);
+        PeerManager::maxFailures(MAX_FAILURES, true), maxPeerCount, keep);
     assert(peers.size() <= maxPeerCount);
+
+    auto inboundCount = maxPeerCount - peers.size();
+    if (inboundCount > 0)
+    {
+        auto inbound = mApp.getOverlayManager().getPeerManager().getRandomPeers(
+            PeerManager::maxFailures(MAX_FAILURES, false), inboundCount, keep);
+        std::copy(std::begin(inbound), std::end(inbound),
+                  std::back_inserter(peers));
+    }
 
     newMsg.peers().reserve(peers.size());
     for (auto const& address : peers)
@@ -823,21 +832,37 @@ Peer::recvError(StellarMessage const& msg)
 }
 
 void
-Peer::noteHandshakeSuccessInPeerRecord()
+Peer::updatePeerRecordAfterEcho()
 {
-    if (getAddress().isEmpty())
-    {
-        CLOG(ERROR, "Overlay") << "unable to handshake with " << toString();
-        drop();
-        return;
-    }
+    assert(!getAddress().isEmpty());
 
     using namespace PeerRecordModifiers;
     auto setPreferred = mApp.getOverlayManager().isPreferred(this)
                             ? markPreferred
                             : unmarkPreferred;
-    mApp.getOverlayManager().getPeerManager().update(
-        getAddress(), {setPreferred, resetBackOff});
+    if (mRole == WE_CALLED_REMOTE)
+    {
+        mApp.getOverlayManager().getPeerManager().update(
+            getAddress(), {setPreferred, markOutbound});
+    }
+    else
+    {
+        mApp.getOverlayManager().getPeerManager().update(getAddress(),
+                                                         {setPreferred});
+    }
+}
+
+void
+Peer::updatePeerRecordAfterAuthentication()
+{
+    assert(!getAddress().isEmpty());
+
+    if (mRole == WE_CALLED_REMOTE)
+    {
+        using namespace PeerRecordModifiers;
+        mApp.getOverlayManager().getPeerManager().update(getAddress(),
+                                                         {resetBackOff});
+    }
 
     CLOG(INFO, "Overlay") << "successful handshake with "
                           << mApp.getConfig().toShortString(mPeerID) << "@"
@@ -926,6 +951,18 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
+    auto ip = getIP();
+    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
+    {
+        CLOG(WARNING, "Overlay") << "bad address in recvHello";
+        drop(ERR_CONF, "bad address");
+        return;
+    }
+
+    mAddress =
+        PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
+    updatePeerRecordAfterEcho();
+
     auto const& authenticated =
         mApp.getOverlayManager().getAuthenticatedPeers();
     auto authenticatedIt = authenticated.find(mPeerID);
@@ -958,14 +995,6 @@ Peer::recvHello(Hello const& elo)
         }
     }
 
-    mAddress = makeAddress(elo.listeningPort);
-    if (mAddress.isEmpty())
-    {
-        CLOG(WARNING, "Overlay") << "bad address in recvHello";
-        drop(ERR_CONF, "bad address");
-        return;
-    }
-
     if (mRole == WE_CALLED_REMOTE)
     {
         sendAuth();
@@ -991,22 +1020,21 @@ Peer::recvAuth(StellarMessage const& msg)
 
     mState = GOT_AUTH;
 
-    auto self = shared_from_this();
-
     if (mRole == REMOTE_CALLED_US)
     {
         sendAuth();
         sendPeers();
     }
 
+    updatePeerRecordAfterAuthentication();
+
+    auto self = shared_from_this();
     if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
         drop(ERR_LOAD, "peer rejected");
         return;
     }
-
-    noteHandshakeSuccessInPeerRecord();
 
     // send SCP State
     // remove when all known peers implements the next line

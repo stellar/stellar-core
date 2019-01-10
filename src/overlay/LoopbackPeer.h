@@ -53,7 +53,6 @@ class LoopbackPeer : public Peer
     Stats mStats;
 
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
-    PeerBareAddress makeAddress(int remoteListeningPort) const override;
     AuthCert getAuthCert() override;
 
     void processInQueue();
@@ -105,6 +104,8 @@ class LoopbackPeer : public Peer
     {
         return mDropReason;
     }
+
+    std::string getIP() const override;
 
     using Peer::sendAuth;
 

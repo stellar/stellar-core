@@ -112,21 +112,19 @@ TCPPeer::~TCPPeer()
     }
 }
 
-PeerBareAddress
-TCPPeer::makeAddress(int remoteListeningPort) const
+std::string
+TCPPeer::getIP() const
 {
+    std::string result;
+
     asio::error_code ec;
     auto ep = mSocket->next_layer().remote_endpoint(ec);
-    if (ec || remoteListeningPort <= 0 || remoteListeningPort > UINT16_MAX)
+    if (!ec)
     {
-        return PeerBareAddress{};
+        result = ep.address().to_string();
     }
-    else
-    {
-        return PeerBareAddress{
-            ep.address().to_string(),
-            static_cast<unsigned short>(remoteListeningPort)};
-    }
+
+    return result;
 }
 
 void

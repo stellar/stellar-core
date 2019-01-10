@@ -221,15 +221,15 @@ OverlayManagerImpl::getPreferredPeersFromConfig()
 }
 
 std::vector<PeerBareAddress>
-OverlayManagerImpl::getPeersToConnectTo(int maxNum)
+OverlayManagerImpl::getPeersToConnectTo(int maxNum, bool outbound)
 {
     auto keep = [&](PeerBareAddress const& address) {
         return !getConnectedPeer(address);
     };
 
     // don't connect to too many peers at once
-    auto peers = mPeerManager.getRandomPeers(PeerManager::nextAttemptCutoff(),
-                                             std::min(maxNum, 50), keep);
+    auto peers = mPeerManager.getRandomPeers(
+        PeerManager::nextAttemptCutoff(outbound), std::min(maxNum, 50), keep);
     orderByPreferredPeers(peers);
     return peers;
 }
@@ -264,22 +264,50 @@ OverlayManagerImpl::tick()
     // first, see if we should trigger connections to preferred peers
     connectTo(getPreferredPeersFromConfig());
 
-    if (getAuthenticatedPeersCount() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
-    {
-        // load best candidates from the database,
-        // when PREFERRED_PEER_ONLY is set and we connect to a non
-        // preferred_peer we just end up dropping & backing off
-        // it during handshake (this allows for preferred_peers
-        // to work for both ip based and key based preferred mode)
-        auto peers = getPeersToConnectTo(
-            static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS -
-                             getAuthenticatedPeersCount()));
-        connectTo(peers);
-    }
+    // load best candidates from the database
+    // when PREFERRED_PEER_ONLY is set and we connect to a non preferred_peer we
+    // just end up dropping & backing off it during handshake (this allows for
+    // preferred_peers to work for both ip based and key based preferred mode)
+    connectToOutboundPeers();
+    connectToNotOutboundPeers();
 
     mTimer.expires_from_now(
         std::chrono::seconds(mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT + 1));
     mTimer.async_wait([this]() { this->tick(); }, VirtualTimer::onFailureNoop);
+}
+
+int
+OverlayManagerImpl::missingAuthenticatedCount() const
+{
+    if (getAuthenticatedPeersCount() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
+    {
+        return mApp.getConfig().TARGET_PEER_CONNECTIONS -
+               getAuthenticatedPeersCount();
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+void
+OverlayManagerImpl::connectToOutboundPeers()
+{
+    auto missingCount = missingAuthenticatedCount();
+    if (missingCount > 0)
+    {
+        connectTo(getPeersToConnectTo(missingCount, true));
+    }
+}
+
+void
+OverlayManagerImpl::connectToNotOutboundPeers()
+{
+    auto missingCount = missingAuthenticatedCount();
+    if (missingCount > 0)
+    {
+        connectTo(getPeersToConnectTo(missingCount, false));
+    }
 }
 
 Peer::pointer

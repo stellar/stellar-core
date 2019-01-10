@@ -104,12 +104,17 @@ class OverlayManagerImpl : public OverlayManager
 
   private:
     std::vector<PeerBareAddress> getPreferredPeersFromConfig();
-    std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum);
+    std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum, bool outbound);
     virtual void connectToImpl(PeerBareAddress const& address);
     void connectTo(std::vector<PeerBareAddress> const& peers);
 
     void orderByPreferredPeers(std::vector<PeerBareAddress>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
+
+    int missingAuthenticatedCount() const;
+    void connectToOutboundPeers();
+    void connectToNotOutboundPeers();
+
     void updateSizeCounters();
 };
 }
