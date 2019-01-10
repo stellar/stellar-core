@@ -12,6 +12,8 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
+#include <algorithm>
+#include <functional>
 #include <map>
 #include <memory>
 #include <queue>
@@ -2017,4 +2019,157 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
             REQUIRE_THROWS_AS(ltx.loadHeader(), std::runtime_error);
         }
     }
+}
+
+TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
+{
+    auto getTimeScope = [](Application& app, size_t numSigners,
+                           std::string const& phase) {
+        std::string benchmarkStr = "benchmark-" + std::to_string(numSigners);
+        return app.getMetrics()
+            .NewTimer({"signers", benchmarkStr, phase})
+            .TimeScope();
+    };
+
+    auto getTimeSpent = [](Application& app, size_t numSigners,
+                           std::string const& phase) {
+        std::string benchmarkStr = "benchmark-" + std::to_string(numSigners);
+        auto time =
+            app.getMetrics().NewTimer({"signers", benchmarkStr, phase}).sum();
+        return phase + ": " + std::to_string(time) + " ms";
+    };
+
+    auto generateEntries = [](size_t numAccounts, size_t numSigners) {
+        std::vector<LedgerEntry> accounts;
+        accounts.reserve(numAccounts);
+        for (size_t i = 0; i < numAccounts; ++i)
+        {
+            LedgerEntry le;
+            le.data.type(ACCOUNT);
+            le.lastModifiedLedgerSeq = 2;
+            le.data.account() = LedgerTestUtils::generateValidAccountEntry();
+
+            auto& signers = le.data.account().signers;
+            if (signers.size() > numSigners)
+            {
+                signers.resize(numSigners);
+            }
+            else if (signers.size() < numSigners)
+            {
+                signers.reserve(numSigners);
+                std::generate_n(std::back_inserter(signers),
+                                numSigners - signers.size(),
+                                std::bind(autocheck::generator<Signer>(), 5));
+                std::sort(signers.begin(), signers.end(),
+                          [](Signer const& lhs, Signer const& rhs) {
+                              return lhs.key < rhs.key;
+                          });
+            }
+
+            accounts.emplace_back(le);
+        }
+        return accounts;
+    };
+
+    auto generateKeys = [](std::vector<LedgerEntry> const& accounts) {
+        std::vector<LedgerKey> keys;
+        keys.reserve(accounts.size());
+        std::transform(
+            accounts.begin(), accounts.end(), std::back_inserter(keys),
+            [](LedgerEntry const& le) { return LedgerEntryKey(le); });
+        return keys;
+    };
+
+    auto writeEntries =
+        [&getTimeScope](Application& app, size_t numSigners,
+                        std::vector<LedgerEntry> const& accounts) {
+            CLOG(WARNING, "Ledger") << "Creating accounts";
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            {
+                auto timer = getTimeScope(app, numSigners, "create");
+                for (auto const& le : accounts)
+                {
+                    ltx.create(le);
+                }
+            }
+
+            CLOG(WARNING, "Ledger") << "Writing accounts";
+            {
+                auto timer = getTimeScope(app, numSigners, "write");
+                ltx.commit();
+            }
+        };
+
+    auto readEntriesAndUpdateLastModified =
+        [&getTimeScope](Application& app, size_t numSigners,
+                        std::vector<LedgerKey> const& accounts) {
+            CLOG(WARNING, "Ledger") << "Reading accounts";
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            {
+                auto timer = getTimeScope(app, numSigners, "read");
+                for (auto const& key : accounts)
+                {
+                    ++ltx.load(key).current().lastModifiedLedgerSeq;
+                }
+            }
+
+            CLOG(WARNING, "Ledger")
+                << "Writing accounts with unchanged signers";
+            {
+                auto timer = getTimeScope(app, numSigners, "rewrite");
+                ltx.commit();
+            }
+        };
+
+    auto runTest = [&](Config::TestDbMode mode, size_t numAccounts,
+                       size_t numSigners) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, mode));
+        cfg.ENTRY_CACHE_SIZE = 0;
+        cfg.BEST_OFFERS_CACHE_SIZE = 0;
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+
+        CLOG(WARNING, "Ledger")
+            << "Generating " << numAccounts << " accounts with " << numSigners
+            << " signers each";
+        auto accounts = generateEntries(numAccounts, numSigners);
+        auto keys = generateKeys(accounts);
+
+        writeEntries(*app, numSigners, accounts);
+        readEntriesAndUpdateLastModified(*app, numSigners, keys);
+
+        CLOG(WARNING, "Ledger")
+            << "Done (" << getTimeSpent(*app, numSigners, "create") << ", "
+            << getTimeSpent(*app, numSigners, "write") << ", "
+            << getTimeSpent(*app, numSigners, "read") << ", "
+            << getTimeSpent(*app, numSigners, "rewrite") << ")";
+    };
+
+    auto runTests = [&](Config::TestDbMode mode) {
+        SECTION("0 signers")
+        {
+            runTest(mode, 100000, 0);
+        }
+        SECTION("10 signers")
+        {
+            runTest(mode, 100000, 10);
+        }
+        SECTION("20 signers")
+        {
+            runTest(mode, 100000, 20);
+        }
+    };
+
+    SECTION("sqlite")
+    {
+        runTests(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTests(Config::TESTDB_POSTGRESQL);
+    }
+#endif
 }
