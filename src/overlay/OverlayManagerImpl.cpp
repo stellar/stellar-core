@@ -461,6 +461,17 @@ OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
 
     auto haveSpace = mInboundPeers.mPending.size() <
                      mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS;
+    if (!haveSpace && mInboundPeers.mPending.size() <
+                          mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS +
+                              Config::POSSIBLY_PREFERRED_EXTRA)
+    {
+        // for peers that are possibly preferred (they have the same IP as some
+        // preferred peer we enocuntered in past), we allow an extra
+        // Config::POSSIBLY_PREFERRED_EXTRA incoming pending connections, that
+        // are not available for non-preferred peers
+        haveSpace = isPossiblyPreferred(peer->getIP());
+    }
+
     if (mShuttingDown || !haveSpace)
     {
         mConnectionsRejected.Mark();
@@ -471,6 +482,14 @@ OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
     mConnectionsEstablished.Mark();
     mInboundPeers.mPending.push_back(peer);
     updateSizeCounters();
+}
+
+bool
+OverlayManagerImpl::isPossiblyPreferred(std::string const& ip)
+{
+    return std::any_of(
+        std::begin(mPreferredPeers), std::end(mPreferredPeers),
+        [&](PeerBareAddress const& address) { return address.getIP() == ip; });
 }
 
 void

@@ -359,6 +359,65 @@ TEST_CASE("allow inbound pending peers up to max", "[overlay][connections]")
                 .count() == 2);
 }
 
+TEST_CASE("allow inbound pending peers over max if possibly preferred",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
+    Config const& cfg4 = getTestConfig(3);
+    Config const& cfg5 = getTestConfig(4);
+
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.PREFERRED_PEERS.emplace_back("127.0.0.1:17");
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
+    auto app4 = createTestApplication(clock, cfg4);
+    auto app5 = createTestApplication(clock, cfg5);
+
+    (static_cast<OverlayManagerImpl&>(app2->getOverlayManager()))
+        .storeConfigPeers();
+
+    LoopbackPeerConnection conn1(*app1, *app2);
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CONNECTED);
+    conn1.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn2(*app3, *app2);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CONNECTED);
+    conn2.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn3(*app4, *app2);
+    REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
+
+    LoopbackPeerConnection conn4(*app5, *app2);
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
+
+    testutil::crankSome(clock);
+
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn3.getInitiator()->isConnected());
+    REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(conn4.getInitiator()->isConnected());
+    REQUIRE(conn4.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                .count() == 2);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "connection", "reject"}, "connection")
+                .count() == 0);
+}
+
 TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
 {
     VirtualClock clock;

@@ -91,7 +91,6 @@ class OverlayManagerImpl : public OverlayManager
     VirtualTimer mTimer;
 
     void storePeerList(std::vector<std::string> const& list, bool setPreferred);
-    void storeConfigPeers();
 
     friend class OverlayManagerTests;
 
@@ -110,6 +109,7 @@ class OverlayManagerImpl : public OverlayManager
     void addInboundConnection(Peer::pointer peer) override;
     void addOutboundConnection(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
+    void storeConfigPeers();
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) override;
@@ -149,6 +149,8 @@ class OverlayManagerImpl : public OverlayManager
     int missingAuthenticatedCount() const;
     void connectToOutboundPeers();
     void connectToNotOutboundPeers();
+
+    bool isPossiblyPreferred(std::string const& ip);
 
     void updateSizeCounters();
 };
