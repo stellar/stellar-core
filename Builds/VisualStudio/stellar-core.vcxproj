@@ -438,8 +438,8 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerAuth.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp" />
-    <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
-    <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\PeerManager.cpp" />
+    <ClCompile Include="..\..\src\overlay\PeerManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Tracker.cpp" />
@@ -673,7 +673,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerDoor.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
-    <ClInclude Include="..\..\src\overlay\PeerRecord.h" />
+    <ClInclude Include="..\..\src\overlay\PeerManager.h" />
     <ClInclude Include="..\..\src\overlay\TCPPeer.h" />
     <ClInclude Include="..\..\src\overlay\Tracker.h" />
     <ClInclude Include="..\..\src\process\ProcessManager.h" />

@@ -10,7 +10,7 @@
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
