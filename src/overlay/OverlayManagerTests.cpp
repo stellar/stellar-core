@@ -71,7 +71,7 @@ class OverlayManagerStub : public OverlayManagerImpl
                                     PeerManager::BackOffUpdate::INCREASE);
 
             auto peerStub = std::make_shared<PeerStub>(mApp, address);
-            addPendingPeer(peerStub);
+            addOutboundConnection(peerStub);
             REQUIRE(acceptAuthenticatedPeer(peerStub));
         }
     }
@@ -141,7 +141,9 @@ class OverlayManagerTests
     sentCounts(OverlayManagerImpl& pm)
     {
         vector<int> result;
-        for (auto p : pm.mAuthenticatedPeers)
+        for (auto p : pm.mInboundPeers.mAuthenticated)
+            result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
+        for (auto p : pm.mOutboundPeers.mAuthenticated)
             result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
         return result;
     }
@@ -155,7 +157,8 @@ class OverlayManagerTests
         pm.storePeerList(threePeers, false);
         // connect to peers, respecting TARGET_PEER_CONNECTIONS
         pm.tick();
-        REQUIRE(pm.mAuthenticatedPeers.size() == 5);
+        REQUIRE(pm.mInboundPeers.mAuthenticated.size() == 0);
+        REQUIRE(pm.mOutboundPeers.mAuthenticated.size() == 5);
         auto a = TestAccount{*app, getAccount("a")};
         auto b = TestAccount{*app, getAccount("b")};
         auto c = TestAccount{*app, getAccount("c")};
@@ -163,7 +166,7 @@ class OverlayManagerTests
 
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
-        for (auto p : pm.mAuthenticatedPeers)
+        for (auto p : pm.mOutboundPeers.mAuthenticated)
             if (i++ == 2)
                 pm.recvFloodedMsg(AtoC, p.second);
         pm.broadcastMessage(AtoC);

@@ -72,10 +72,14 @@ app.post-on-main-thread-with-delay.delay | timer     | time to start task posted
 app.post-on-background-thread.delay      | timer     | time to start task posted to background threadoverlay.memory.flood-known        | counter   | number of known flooded entries
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
 overlay.message.broadcast                | meter     | message broadcasted
-overlay.connection.outbound-start        | meter     | outbound connection initiated
-overlay.connection.establish             | meter     | connection established (pending inbound/outbound)
-overlay.connection.drop                  | meter     | connection dropped
-overlay.connection.reject                | meter     | connection rejected
+overlay.inbound.attempt                  | meter     | inbound connection attempted (accepted on socket)
+overlay.inbound.establish                | meter     | inbound connection established (added to pending)
+overlay.inbound.drop                     | meter     | inbound connection dropped
+overlay.inbound.reject                   | meter     | inbound connection rejected
+overlay.outbound.attempt                 | meter     | outbound connection attempted (socket opened)
+overlay.outbound.establish               | meter     | outbound connection established (added to pending)
+overlay.outbound.drop                    | meter     | outbound connection dropped
+overlay.outbound.cancel                  | meter     | outbound connection cancelled
 overlay.connection.pending               | counter   | number of pending connections
 overlay.connection.authenticated         | counter   | number of authenticated peers
 overlay.byte.read                        | meter     | number of bytes received

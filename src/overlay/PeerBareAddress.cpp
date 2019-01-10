@@ -180,4 +180,19 @@ operator!=(PeerBareAddress const& x, PeerBareAddress const& y)
 {
     return !(x == y);
 }
+
+bool
+operator<(PeerBareAddress const& x, PeerBareAddress const& y)
+{
+    if (x.mPort < y.mPort)
+    {
+        return true;
+    }
+    if (x.mPort > y.mPort)
+    {
+        return false;
+    }
+
+    return x.mIP < y.mIP;
+}
 }

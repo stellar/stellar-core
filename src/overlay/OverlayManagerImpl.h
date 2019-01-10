@@ -15,6 +15,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/Timer.h"
+
 #include <set>
 #include <vector>
 
@@ -34,12 +35,36 @@ class OverlayManagerImpl : public OverlayManager
 {
   protected:
     Application& mApp;
-    std::set<std::string> mPreferredPeers;
+    std::set<PeerBareAddress> mPreferredPeers;
 
-    // pending peers - connected, but not authenticated
-    std::vector<Peer::pointer> mPendingPeers;
-    // authenticated and connected peers
-    std::map<NodeID, Peer::pointer> mAuthenticatedPeers;
+    struct PeersList
+    {
+        explicit PeersList(OverlayManagerImpl& overlayManager,
+                           medida::MetricsRegistry& metricsRegistry,
+                           std::string directionString,
+                           std::string cancelledName);
+
+        medida::Meter& mConnectionsAttempted;
+        medida::Meter& mConnectionsEstablished;
+        medida::Meter& mConnectionsDropped;
+        medida::Meter& mConnectionsCancelled;
+
+        OverlayManagerImpl& mOverlayManager;
+
+        std::vector<Peer::pointer> mPending;
+        std::map<NodeID, Peer::pointer> mAuthenticated;
+
+        Peer::pointer byAddress(PeerBareAddress const& address) const;
+        void removePeer(Peer* peer);
+        bool moveToAuthenticated(Peer::pointer peer);
+        bool acceptAuthenticatedPeer(Peer::pointer peer, bool haveSpace);
+        void shutdown();
+    };
+
+    PeersList mInboundPeers;
+    PeersList mOutboundPeers;
+
+    PeersList& getPeersList(Peer* peer);
 
     PeerManager mPeerManager;
     PeerDoor mDoor;
@@ -48,10 +73,6 @@ class OverlayManagerImpl : public OverlayManager
     bool mShuttingDown;
 
     medida::Meter& mMessagesBroadcast;
-    medida::Meter& mConnectionsAttempted;
-    medida::Meter& mConnectionsEstablished;
-    medida::Meter& mConnectionsDropped;
-    medida::Meter& mConnectionsRejected;
     medida::Counter& mPendingPeersSize;
     medida::Counter& mAuthenticatedPeersSize;
 
@@ -75,15 +96,15 @@ class OverlayManagerImpl : public OverlayManager
                           bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;
 
-    void addPendingPeer(Peer::pointer peer) override;
+    void addInboundConnection(Peer::pointer peer) override;
+    void addOutboundConnection(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) override;
-    std::vector<Peer::pointer> const& getPendingPeers() const override;
+    std::vector<Peer::pointer> getPendingPeers() const override;
     int getPendingPeersCount() const override;
-    std::map<NodeID, Peer::pointer> const&
-    getAuthenticatedPeers() const override;
+    std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const override;
     int getAuthenticatedPeersCount() const override;
 
     // returns nullptr if the passed peer isn't found

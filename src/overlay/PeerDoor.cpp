@@ -76,7 +76,7 @@ PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
     if (peer)
     {
-        mApp.getOverlayManager().addPendingPeer(peer);
+        mApp.getOverlayManager().addInboundConnection(peer);
     }
     acceptNextPeer();
 }
