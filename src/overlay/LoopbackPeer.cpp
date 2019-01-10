@@ -94,7 +94,7 @@ LoopbackPeer::drop(bool)
     }
     mState = CLOSING;
     mIdleTimer.cancel();
-    getApp().getOverlayManager().dropPeer(this);
+    getApp().getOverlayManager().removePeer(this);
 
     auto remote = mRemote.lock();
     if (remote)
@@ -417,6 +417,7 @@ LoopbackPeerConnection::getInitiator() const
 {
     return mInitiator;
 }
+
 std::shared_ptr<LoopbackPeer>
 LoopbackPeerConnection::getAcceptor() const
 {

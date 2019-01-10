@@ -365,7 +365,7 @@ OverlayManagerImpl::addPendingPeer(Peer::pointer peer)
 }
 
 void
-OverlayManagerImpl::dropPeer(Peer* peer)
+OverlayManagerImpl::removePeer(Peer* peer)
 {
     bool dropped = false;
     CLOG(INFO, "Overlay") << "Dropping peer "
@@ -446,7 +446,8 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
                     << "Evicting non-preferred peer "
                     << victim.second->toString() << " for preferred peer "
                     << peer->toString();
-                dropPeer(victim.second.get());
+                victim.second->drop(ERR_LOAD,
+                                    "preferred peer selected instead");
                 return moveToAuthenticated(peer);
             }
         }

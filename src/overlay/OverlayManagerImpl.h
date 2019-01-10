@@ -77,7 +77,8 @@ class OverlayManagerImpl : public OverlayManager
     void connectTo(PeerBareAddress const& address) override;
 
     void addPendingPeer(Peer::pointer peer) override;
-    void dropPeer(Peer* peer) override;
+    void removePeer(Peer* peer) override;
+
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) override;
     std::vector<Peer::pointer> const& getPendingPeers() const override;
