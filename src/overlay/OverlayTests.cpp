@@ -162,14 +162,15 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
 
-    cfg2.MAX_PEER_CONNECTIONS = 1;
-
-    auto app1 = createTestApplication(clock, cfg1);
-    auto app2 = createTestApplication(clock, cfg2);
-    auto app3 = createTestApplication(clock, cfg3);
-
     SECTION("inbound")
     {
+        cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+        cfg2.TARGET_PEER_CONNECTIONS = 0;
+
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+        auto app3 = createTestApplication(clock, cfg3);
+
         LoopbackPeerConnection conn1(*app1, *app2);
         LoopbackPeerConnection conn2(*app3, *app2);
         testutil::crankSome(clock);
@@ -183,6 +184,13 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
 
     SECTION("outbound")
     {
+        cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+        cfg2.TARGET_PEER_CONNECTIONS = 1;
+
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+        auto app3 = createTestApplication(clock, cfg3);
+
         LoopbackPeerConnection conn1(*app2, *app1);
         LoopbackPeerConnection conn2(*app2, *app3);
         testutil::crankSome(clock);
@@ -203,18 +211,19 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
 
-    cfg2.MAX_PEER_CONNECTIONS = 1;
-    cfg2.PREFERRED_PEER_KEYS.push_back(
-        KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
-
-    auto app1 = createTestApplication(clock, cfg1);
-    auto app2 = createTestApplication(clock, cfg2);
-    auto app3 = createTestApplication(clock, cfg3);
-
     SECTION("preferred connects first")
     {
         SECTION("inbound")
         {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+            cfg2.TARGET_PEER_CONNECTIONS = 0;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
             LoopbackPeerConnection conn2(*app3, *app2);
             LoopbackPeerConnection conn1(*app1, *app2);
             testutil::crankSome(clock);
@@ -228,6 +237,15 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
 
         SECTION("outbound")
         {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+            cfg2.TARGET_PEER_CONNECTIONS = 1;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
             LoopbackPeerConnection conn2(*app2, *app3);
             LoopbackPeerConnection conn1(*app2, *app1);
             testutil::crankSome(clock);
@@ -244,6 +262,15 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
     {
         SECTION("inbound")
         {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+            cfg2.TARGET_PEER_CONNECTIONS = 0;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
             LoopbackPeerConnection conn1(*app1, *app2);
             LoopbackPeerConnection conn2(*app3, *app2);
             testutil::crankSome(clock);
@@ -258,6 +285,15 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
 
         SECTION("outbound")
         {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+            cfg2.TARGET_PEER_CONNECTIONS = 1;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
             LoopbackPeerConnection conn1(*app2, *app1);
             LoopbackPeerConnection conn2(*app2, *app3);
             testutil::crankSome(clock);
@@ -272,8 +308,7 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
     }
 }
 
-TEST_CASE("allow inbound pending peers up to max pending",
-          "[overlay][connections]")
+TEST_CASE("allow inbound pending peers up to max", "[overlay][connections]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
@@ -282,13 +317,14 @@ TEST_CASE("allow inbound pending peers up to max pending",
     Config const& cfg4 = getTestConfig(3);
     Config const& cfg5 = getTestConfig(4);
 
-    cfg2.MAX_PEER_CONNECTIONS = 1;
-    cfg2.MAX_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 3;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
     auto app4 = createTestApplication(clock, cfg4);
+    auto app5 = createTestApplication(clock, cfg5);
 
     LoopbackPeerConnection conn1(*app1, *app2);
     REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
@@ -304,10 +340,9 @@ TEST_CASE("allow inbound pending peers up to max pending",
     REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
     REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
 
-    LoopbackPeerConnection conn4(*app4, *app2);
+    LoopbackPeerConnection conn4(*app5, *app2);
     REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
     REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
-    conn2.getInitiator()->setCorked(true);
 
     testutil::crankSome(clock);
 
@@ -324,8 +359,7 @@ TEST_CASE("allow inbound pending peers up to max pending",
                 .count() == 2);
 }
 
-TEST_CASE("allow outbound pending peers up to max pending",
-          "[overlay][connections]")
+TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
@@ -334,13 +368,14 @@ TEST_CASE("allow outbound pending peers up to max pending",
     Config const& cfg4 = getTestConfig(3);
     Config const& cfg5 = getTestConfig(4);
 
-    cfg2.MAX_PEER_CONNECTIONS = 1;
-    cfg2.MAX_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 3;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
     auto app4 = createTestApplication(clock, cfg4);
+    auto app5 = createTestApplication(clock, cfg5);
 
     LoopbackPeerConnection conn1(*app2, *app1);
     REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
@@ -356,7 +391,7 @@ TEST_CASE("allow outbound pending peers up to max pending",
     REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
     REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
 
-    LoopbackPeerConnection conn4(*app2, *app4);
+    LoopbackPeerConnection conn4(*app2, *app5);
     REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
     REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
     conn2.getInitiator()->setCorked(true);
@@ -537,11 +572,11 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
 
-    auto getConfiguration = [](int id, unsigned short peerConnections) {
+    auto getConfiguration = [](int id, unsigned short targetOubdoundConnections,
+                               unsigned short maxInboundConnections) {
         auto cfg = getTestConfig(id);
-        cfg.MAX_PEER_CONNECTIONS = peerConnections;
-        cfg.TARGET_PEER_CONNECTIONS = peerConnections;
-        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+        cfg.TARGET_PEER_CONNECTIONS = targetOubdoundConnections;
+        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInboundConnections;
         return cfg;
     };
 
@@ -557,10 +592,10 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
                                });
     };
 
-    auto headCfg = getConfiguration(1, 1);
-    auto node1Cfg = getConfiguration(2, 2);
-    auto node2Cfg = getConfiguration(3, 2);
-    auto node3Cfg = getConfiguration(4, 2);
+    auto headCfg = getConfiguration(1, 0, 1);
+    auto node1Cfg = getConfiguration(2, 1, 1);
+    auto node2Cfg = getConfiguration(3, 1, 1);
+    auto node3Cfg = getConfiguration(4, 1, 1);
 
     SIMULATION_CREATE_NODE(Head);
     SIMULATION_CREATE_NODE(Node1);
@@ -601,12 +636,11 @@ TEST_CASE("preferred peers always connect", "[overlay][connections]")
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
 
-    auto getConfiguration = [](int id, unsigned short targetConnections,
-                               unsigned short peerConnections) {
+    auto getConfiguration = [](int id, unsigned short targetOubdoundConnections,
+                               unsigned short maxInboundConnections) {
         auto cfg = getTestConfig(id);
-        cfg.MAX_PEER_CONNECTIONS = peerConnections;
-        cfg.TARGET_PEER_CONNECTIONS = targetConnections;
-        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+        cfg.TARGET_PEER_CONNECTIONS = targetOubdoundConnections;
+        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInboundConnections;
         return cfg;
     };
 
@@ -615,10 +649,9 @@ TEST_CASE("preferred peers always connect", "[overlay][connections]")
     };
 
     Config configs[3];
-    for (int i = 0; i < 3; i++)
-    {
-        configs[i] = getConfiguration(i + 1, i == 0 ? 1 : 0, 2);
-    }
+    configs[0] = getConfiguration(1, 1, 1);
+    configs[1] = getConfiguration(2, 1, 1);
+    configs[2] = getConfiguration(3, 1, 0);
 
     SIMULATION_CREATE_NODE(Node1);
     SIMULATION_CREATE_NODE(Node2);

@@ -161,11 +161,12 @@ class Config : public std::enable_shared_from_this<Config>
     // overlay config
     unsigned short PEER_PORT;
     unsigned short TARGET_PEER_CONNECTIONS;
-    int MAX_ADDITIONAL_PEER_CONNECTIONS;
-    unsigned short MAX_PEER_CONNECTIONS;
-    unsigned short MAX_PENDING_CONNECTIONS;
+    unsigned short MAX_ADDITIONAL_PEER_CONNECTIONS;
+    unsigned short MAX_INBOUND_PENDING_CONNECTIONS;
+    unsigned short MAX_OUTBOUND_PENDING_CONNECTIONS;
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
+    static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
 
     // Peers we will always try to stay connected to
     std::vector<std::string> PREFERRED_PEERS;

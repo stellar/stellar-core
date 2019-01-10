@@ -39,9 +39,11 @@ class OverlayManagerImpl : public OverlayManager
 
     struct PeersList
     {
-        explicit PeersList(OverlayManagerImpl& overlayManager);
+        explicit PeersList(OverlayManagerImpl& overlayManager,
+                           unsigned short maxAuthenticatedCount);
 
         OverlayManagerImpl& mOverlayManager;
+        unsigned short mMaxAuthenticatedCount;
 
         std::vector<Peer::pointer> mPending;
         std::map<NodeID, Peer::pointer> mAuthenticated;
@@ -49,7 +51,7 @@ class OverlayManagerImpl : public OverlayManager
         Peer::pointer byAddress(PeerBareAddress const& address) const;
         void removePeer(Peer* peer);
         bool moveToAuthenticated(Peer::pointer peer);
-        bool acceptAuthenticatedPeer(Peer::pointer peer, bool haveSpace);
+        bool acceptAuthenticatedPeer(Peer::pointer peer);
         void shutdown();
     };
 

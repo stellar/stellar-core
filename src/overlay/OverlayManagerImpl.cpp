@@ -51,8 +51,10 @@ namespace stellar
 using namespace soci;
 using namespace std;
 
-OverlayManagerImpl::PeersList::PeersList(OverlayManagerImpl& overlayManager)
+OverlayManagerImpl::PeersList::PeersList(OverlayManagerImpl& overlayManager,
+                                         unsigned short maxAuthenticatedCount)
     : mOverlayManager(overlayManager)
+    , mMaxAuthenticatedCount(maxAuthenticatedCount)
 {
 }
 
@@ -131,12 +133,11 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 }
 
 bool
-OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer,
-                                                       bool haveSpace)
+OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 {
     if (mOverlayManager.isPreferred(peer.get()))
     {
-        if (haveSpace)
+        if (mAuthenticated.size() < mMaxAuthenticatedCount)
         {
             return moveToAuthenticated(peer);
         }
@@ -156,7 +157,8 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer,
         }
     }
 
-    if (!mOverlayManager.mApp.getConfig().PREFERRED_PEERS_ONLY && haveSpace)
+    if (!mOverlayManager.mApp.getConfig().PREFERRED_PEERS_ONLY &&
+        mAuthenticated.size() < mMaxAuthenticatedCount)
     {
         return moveToAuthenticated(peer);
     }
@@ -188,8 +190,8 @@ OverlayManager::create(Application& app)
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
-    , mInboundPeers(*this)
-    , mOutboundPeers(*this)
+    , mInboundPeers(*this, mApp.getConfig().MAX_ADDITIONAL_PEER_CONNECTIONS)
+    , mOutboundPeers(*this, mApp.getConfig().TARGET_PEER_CONNECTIONS)
     , mDoor(mApp)
     , mAuth(mApp)
     , mPeerManager(app)
@@ -451,8 +453,9 @@ OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
 {
     assert(peer->getRole() == Peer::REMOTE_CALLED_US);
 
-    if (mShuttingDown ||
-        getPendingPeersCount() >= mApp.getConfig().MAX_PENDING_CONNECTIONS)
+    auto haveSpace = mInboundPeers.mPending.size() <
+                     mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS;
+    if (mShuttingDown || !haveSpace)
     {
         mConnectionsRejected.Mark();
         peer->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
@@ -469,8 +472,8 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 {
     assert(peer->getRole() == Peer::WE_CALLED_REMOTE);
 
-    if (mShuttingDown ||
-        getPendingPeersCount() >= mApp.getConfig().MAX_PENDING_CONNECTIONS)
+    if (mShuttingDown || mOutboundPeers.mPending.size() >=
+                             mApp.getConfig().MAX_OUTBOUND_PENDING_CONNECTIONS)
     {
         mConnectionsRejected.Mark();
         peer->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
@@ -504,9 +507,7 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
-    auto haveSpace =
-        getAuthenticatedPeersCount() < mApp.getConfig().MAX_PEER_CONNECTIONS;
-    if (!getPeersList(peer).acceptAuthenticatedPeer(peer, haveSpace))
+    if (!getPeersList(peer).acceptAuthenticatedPeer(peer))
     {
         mConnectionsRejected.Mark();
         return false;
