@@ -60,6 +60,7 @@ class PeerBareAddress
 
     friend bool operator==(PeerBareAddress const& x, PeerBareAddress const& y);
     friend bool operator!=(PeerBareAddress const& x, PeerBareAddress const& y);
+    friend bool operator<(PeerBareAddress const& x, PeerBareAddress const& y);
 
   private:
     Type mType;
