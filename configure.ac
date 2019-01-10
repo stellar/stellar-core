@@ -210,9 +210,11 @@ if test yes != "$enable_shared"; then
    ac_configure_args="$ac_configure_args --disable-shared"
 fi
 
-# We use partial indexes, a feature in sqlite 3.8.0. Also even if not using
-# partial indexes, there was a bug concerning ROLLBACK interacting with
-# non-reset prepared statements poorly prior to 3.7.11.
+# We use several features of sqlite that require not just a new version
+# (eg. partial indexes, >=3.8.0; upserts, >= 3.24.0) but also the carray
+# extension, which is compiled-out of most platform sqlites. We therefore
+# always use our own bundled copy, version 3.26.0 at the time of this
+# writing.
 sqlite3_CFLAGS='-isystem $(top_srcdir)/lib/sqlite -DSQLITE_CORE -DSQLITE_OMIT_LOAD_EXTENSION=1'
 sqlite3_LIBS=
 AC_SUBST(sqlite3_CFLAGS)
