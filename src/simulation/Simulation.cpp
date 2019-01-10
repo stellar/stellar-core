@@ -189,7 +189,7 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
                 PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
             if (peer)
             {
-                peer->drop(true);
+                peer->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
             }
         }
     }
