@@ -102,12 +102,25 @@ TEST_CASE("reject non preferred peer", "[overlay][connections]")
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    testutil::crankSome(clock);
+    SECTION("inbound")
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(!conn.getInitiator()->isConnected());
-    REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(conn.getAcceptor()->getDropReason() == "peer rejected");
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(conn.getAcceptor()->getDropReason() == "peer rejected");
+    }
+
+    SECTION("outbound")
+    {
+        LoopbackPeerConnection conn(*app2, *app1);
+        testutil::crankSome(clock);
+
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(conn.getInitiator()->getDropReason() == "peer rejected");
+    }
 }
 
 TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
@@ -123,11 +136,23 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    testutil::crankSome(clock);
+    SECTION("inbound")
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(conn.getInitiator()->isAuthenticated());
-    REQUIRE(conn.getAcceptor()->isAuthenticated());
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+    }
+
+    SECTION("outbound")
+    {
+        LoopbackPeerConnection conn(*app2, *app1);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+    }
 }
 
 TEST_CASE("reject peers beyond max", "[overlay][connections]")
@@ -143,15 +168,108 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
 
-    LoopbackPeerConnection conn1(*app1, *app2);
-    LoopbackPeerConnection conn2(*app3, *app2);
-    testutil::crankSome(clock);
+    SECTION("inbound")
+    {
+        LoopbackPeerConnection conn1(*app1, *app2);
+        LoopbackPeerConnection conn2(*app3, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(conn1.getInitiator()->isConnected());
-    REQUIRE(conn1.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
-    REQUIRE(conn2.getAcceptor()->getDropReason() == "peer rejected");
+        REQUIRE(conn1.getInitiator()->isConnected());
+        REQUIRE(conn1.getAcceptor()->isConnected());
+        REQUIRE(!conn2.getInitiator()->isConnected());
+        REQUIRE(!conn2.getAcceptor()->isConnected());
+        REQUIRE(conn2.getAcceptor()->getDropReason() == "peer rejected");
+    }
+
+    SECTION("outbound")
+    {
+        LoopbackPeerConnection conn1(*app2, *app1);
+        LoopbackPeerConnection conn2(*app2, *app3);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn1.getInitiator()->isConnected());
+        REQUIRE(conn1.getAcceptor()->isConnected());
+        REQUIRE(!conn2.getInitiator()->isConnected());
+        REQUIRE(!conn2.getAcceptor()->isConnected());
+        REQUIRE(conn2.getInitiator()->getDropReason() == "peer rejected");
+    }
+}
+
+TEST_CASE("reject peers beyond max - preferred peer wins",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
+
+    cfg2.MAX_PEER_CONNECTIONS = 1;
+    cfg2.PREFERRED_PEER_KEYS.push_back(
+        KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
+
+    SECTION("preferred connects first")
+    {
+        SECTION("inbound")
+        {
+            LoopbackPeerConnection conn2(*app3, *app2);
+            LoopbackPeerConnection conn1(*app1, *app2);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getAcceptor()->getDropReason() == "peer rejected");
+        }
+
+        SECTION("outbound")
+        {
+            LoopbackPeerConnection conn2(*app2, *app3);
+            LoopbackPeerConnection conn1(*app2, *app1);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getInitiator()->getDropReason() == "peer rejected");
+        }
+    }
+
+    SECTION("preferred connects second")
+    {
+        SECTION("inbound")
+        {
+            LoopbackPeerConnection conn1(*app1, *app2);
+            LoopbackPeerConnection conn2(*app3, *app2);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getAcceptor()->getDropReason() ==
+                    "preferred peer selected instead");
+        }
+
+        SECTION("outbound")
+        {
+            LoopbackPeerConnection conn1(*app2, *app1);
+            LoopbackPeerConnection conn2(*app2, *app3);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getInitiator()->getDropReason() ==
+                    "preferred peer selected instead");
+        }
+    }
 }
 
 TEST_CASE("allow pending peers beyond max", "[overlay][connections]")
