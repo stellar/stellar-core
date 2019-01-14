@@ -35,7 +35,7 @@ class OverlayManagerImpl : public OverlayManager
 {
   protected:
     Application& mApp;
-    std::set<PeerBareAddress> mPreferredPeers;
+    std::set<PeerBareAddress> mConfigurationPreferredPeers;
 
     struct PeersList
     {

@@ -302,14 +302,14 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
 void
 OverlayManagerImpl::storeConfigPeers()
 {
-    // compute normalized mPreferredPeers
+    // compute normalized mConfigurationPreferredPeers
     std::vector<std::string> ppeers;
     for (auto const& s : mApp.getConfig().PREFERRED_PEERS)
     {
         try
         {
             auto pr = PeerBareAddress::resolve(s, mApp);
-            auto r = mPreferredPeers.insert(pr);
+            auto r = mConfigurationPreferredPeers.insert(pr);
             if (r.second)
             {
                 ppeers.push_back(r.first->toString());
@@ -462,7 +462,8 @@ bool
 OverlayManagerImpl::isPossiblyPreferred(std::string const& ip)
 {
     return std::any_of(
-        std::begin(mPreferredPeers), std::end(mPreferredPeers),
+        std::begin(mConfigurationPreferredPeers),
+        std::end(mConfigurationPreferredPeers),
         [&](PeerBareAddress const& address) { return address.getIP() == ip; });
 }
 
@@ -551,7 +552,8 @@ OverlayManagerImpl::isPreferred(Peer* peer)
 {
     std::string pstr = peer->toString();
 
-    if (mPreferredPeers.find(peer->getAddress()) != mPreferredPeers.end())
+    if (mConfigurationPreferredPeers.find(peer->getAddress()) !=
+        mConfigurationPreferredPeers.end())
     {
         CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is preferred";
         return true;
