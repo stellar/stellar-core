@@ -136,19 +136,24 @@ class OverlayManagerImpl : public OverlayManager
     bool isShuttingDown() const override;
 
   private:
-    std::vector<PeerBareAddress> getPreferredPeersFromConfig();
-    std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum, bool outbound);
+    enum class ConnectionType
+    {
+        TO_PROMOTE,
+        OUTBOUND,
+        PREFERRED
+    };
+
+    std::vector<PeerBareAddress>
+    getPeersToConnectTo(int maxNum, ConnectionType connectionType);
     virtual void connectToImpl(PeerBareAddress const& address,
                                bool forceoutbound);
+    void connectTo(int maxNum, ConnectionType connectionType);
     void connectTo(std::vector<PeerBareAddress> const& peers,
                    bool forceoutbound);
 
-    void orderByPreferredPeers(std::vector<PeerBareAddress>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
 
     int missingAuthenticatedCount() const;
-    void connectToOutboundPeers();
-    void connectToNotOutboundPeers();
 
     bool isPossiblyPreferred(std::string const& ip);
 

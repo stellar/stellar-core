@@ -55,11 +55,12 @@ class PeerManager
     {
         bool mNextAttempt;
         int mMaxNumFailures;
+        optional<bool> mPreferred;
         int mOutbound;
     };
 
     static PeerQuery maxFailures(int maxFailures, bool outbound);
-    static PeerQuery nextAttemptCutoff(bool outbound);
+    static PeerQuery nextAttemptCutoff(bool preferred, bool outbound);
 
     static void dropAll(Database& db);
 

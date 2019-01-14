@@ -133,13 +133,13 @@ toXdr(PeerBareAddress const& address)
 PeerManager::PeerQuery
 PeerManager::maxFailures(int maxFailures, bool outbound)
 {
-    return {false, maxFailures, outbound};
+    return {false, maxFailures, nullopt<bool>(), outbound};
 }
 
 PeerManager::PeerQuery
-PeerManager::nextAttemptCutoff(bool outbound)
+PeerManager::nextAttemptCutoff(bool preferred, bool outbound)
 {
-    return {true, -1, outbound};
+    return {true, -1, make_optional<bool>(preferred), outbound};
 }
 
 std::vector<PeerBareAddress>
@@ -191,6 +191,11 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
         where += clause + " numfailures <= :maxFailures ";
         clause = "AND";
     }
+    if (query.mPreferred)
+    {
+        where += clause + " flags = :flags ";
+        clause = "AND";
+    }
     if (query.mOutbound >= 0)
     {
         where += clause + " outbound = :outbound ";
@@ -199,6 +204,9 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
     std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
     int maxNumFailures = query.mMaxNumFailures;
     int outbound = query.mOutbound;
+    int preferred = query.mPreferred
+                        ? *query.mPreferred ? PEER_RECORD_FLAGS_PREFERRED : 0
+                        : 0;
 
     auto bindToStatement = [&](soci::statement& st) {
         if (query.mNextAttempt)
@@ -208,6 +216,10 @@ PeerManager::loadRandomPeers(PeerQuery const& query, size_t size)
         if (query.mMaxNumFailures >= 0)
         {
             st.exchange(soci::use(maxNumFailures));
+        }
+        if (query.mPreferred)
+        {
+            st.exchange(soci::use(preferred));
         }
         if (query.mOutbound >= 0)
         {

@@ -327,22 +327,18 @@ OverlayManagerImpl::storeConfigPeers()
 }
 
 std::vector<PeerBareAddress>
-OverlayManagerImpl::getPreferredPeersFromConfig()
+OverlayManagerImpl::getPeersToConnectTo(int maxNum,
+                                        ConnectionType connectionType)
 {
-    std::vector<PeerBareAddress> peers;
-    for (auto& address : mPreferredPeers)
+    assert(maxNum >= 0);
+    if (maxNum == 0)
     {
-        if (!getConnectedPeer(address))
-        {
-            peers.emplace_back(address);
-        }
+        return {};
     }
-    return peers;
-}
 
-std::vector<PeerBareAddress>
-OverlayManagerImpl::getPeersToConnectTo(int maxNum, bool outbound)
-{
+    auto preferred = connectionType >= ConnectionType::PREFERRED;
+    auto outbound = connectionType >= ConnectionType::OUTBOUND;
+
     auto keep = [&](PeerBareAddress const& address) {
         auto peer = getConnectedPeer(address);
         auto promote =
@@ -351,10 +347,16 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum, bool outbound)
     };
 
     // don't connect to too many peers at once
-    auto peers = mPeerManager.getRandomPeers(
-        PeerManager::nextAttemptCutoff(outbound), std::min(maxNum, 50), keep);
-    orderByPreferredPeers(peers);
-    return peers;
+    return mPeerManager.getRandomPeers(
+        PeerManager::nextAttemptCutoff(preferred, outbound),
+        std::min(maxNum, 50), keep);
+}
+
+void
+OverlayManagerImpl::connectTo(int maxNum, ConnectionType connectionType)
+{
+    connectTo(getPeersToConnectTo(maxNum, connectionType),
+              connectionType == ConnectionType::TO_PROMOTE);
 }
 
 void
@@ -367,15 +369,6 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
     }
 }
 
-void
-OverlayManagerImpl::orderByPreferredPeers(vector<PeerBareAddress>& peers)
-{
-    auto isPreferredPredicate = [this](PeerBareAddress& address) -> bool {
-        return mPreferredPeers.find(address) != mPreferredPeers.end();
-    };
-    std::stable_partition(peers.begin(), peers.end(), isPreferredPredicate);
-}
-
 // called every 2 seconds
 void
 OverlayManagerImpl::tick()
@@ -384,15 +377,16 @@ OverlayManagerImpl::tick()
 
     mLoad.maybeShedExcessLoad(mApp);
 
-    // first, see if we should trigger connections to preferred peers
-    connectTo(getPreferredPeersFromConfig(), false);
+    // try to replace all connections with preferred peers
+    connectTo(mApp.getConfig().TARGET_PEER_CONNECTIONS,
+              ConnectionType::PREFERRED);
 
-    // load best candidates from the database
+    // connect to non-preferred candidates from the database
     // when PREFERRED_PEER_ONLY is set and we connect to a non preferred_peer we
     // just end up dropping & backing off it during handshake (this allows for
     // preferred_peers to work for both ip based and key based preferred mode)
-    connectToOutboundPeers();
-    connectToNotOutboundPeers();
+    connectTo(missingAuthenticatedCount(), ConnectionType::OUTBOUND);
+    connectTo(missingAuthenticatedCount(), ConnectionType::TO_PROMOTE);
 
     mTimer.expires_from_now(
         std::chrono::seconds(mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT + 1));
@@ -411,26 +405,6 @@ OverlayManagerImpl::missingAuthenticatedCount() const
     else
     {
         return 0;
-    }
-}
-
-void
-OverlayManagerImpl::connectToOutboundPeers()
-{
-    auto missingCount = missingAuthenticatedCount();
-    if (missingCount > 0)
-    {
-        connectTo(getPeersToConnectTo(missingCount, true), false);
-    }
-}
-
-void
-OverlayManagerImpl::connectToNotOutboundPeers()
-{
-    auto missingCount = missingAuthenticatedCount();
-    if (missingCount > 0)
-    {
-        connectTo(getPeersToConnectTo(missingCount, false), true);
     }
 }
 
