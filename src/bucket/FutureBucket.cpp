@@ -290,7 +290,8 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
         });
 
     mOutputBucket = task->get_future().share();
-    app.postOnBackgroundThread(bind(&task_t::operator(), task));
+    app.postOnBackgroundThread(bind(&task_t::operator(), task),
+                               "FutureBucket: merge");
     checkState();
 }
 

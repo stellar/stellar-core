@@ -99,7 +99,8 @@ LoopbackPeer::drop(bool)
     auto remote = mRemote.lock();
     if (remote)
     {
-        remote->getApp().postOnMainThread([remote]() { remote->drop(); });
+        remote->getApp().postOnMainThread([remote]() { remote->drop(); },
+                                          "LoopbackPeer: drop");
     }
 }
 
@@ -147,7 +148,8 @@ LoopbackPeer::processInQueue()
         if (!mInQueue.empty())
         {
             auto self = static_pointer_cast<LoopbackPeer>(shared_from_this());
-            mApp.postOnMainThread([self]() { self->processInQueue(); });
+            mApp.postOnMainThread([self]() { self->processInQueue(); },
+                                  "LoopbackPeer: processInQueue");
         }
     }
 }
@@ -213,7 +215,8 @@ LoopbackPeer::deliverOne()
             // move msg to remote's in queue
             remote->mInQueue.emplace(std::move(msg));
             remote->getApp().postOnMainThread(
-                [remote]() { remote->processInQueue(); });
+                [remote]() { remote->processInQueue(); },
+                "LoopbackPeer: processInQueue in deliverOne");
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
@@ -398,7 +401,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
 
     auto init = mInitiator;
     mInitiator->getApp().postOnMainThread(
-        [init]() { init->connectHandler(asio::error_code()); });
+        [init]() { init->connectHandler(asio::error_code()); },
+        "LoopbackPeer: connect");
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()

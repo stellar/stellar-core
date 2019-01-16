@@ -46,37 +46,42 @@ VerifyBucketWork::onStart()
     uint256 hash = mHash;
     Application& app = this->mApp;
     auto handler = callComplete();
-    app.postOnBackgroundThread([&app, filename, handler, hash]() {
-        auto hasher = SHA256::create();
-        asio::error_code ec;
-        char buf[4096];
-        {
-            // ensure that the stream gets its own scope to avoid race with
-            // main thread
-            std::ifstream in(filename, std::ifstream::binary);
-            while (in)
+    app.postOnBackgroundThread(
+        [&app, filename, handler, hash]() {
+            auto hasher = SHA256::create();
+            asio::error_code ec;
+            char buf[4096];
             {
-                in.read(buf, sizeof(buf));
-                hasher->add(ByteSlice(buf, in.gcount()));
+                // ensure that the stream gets its own scope to avoid race with
+                // main thread
+                std::ifstream in(filename, std::ifstream::binary);
+                while (in)
+                {
+                    in.read(buf, sizeof(buf));
+                    hasher->add(ByteSlice(buf, in.gcount()));
+                }
+                uint256 vHash = hasher->finish();
+                if (vHash == hash)
+                {
+                    CLOG(DEBUG, "History")
+                        << "Verified hash (" << hexAbbrev(hash) << ") for "
+                        << filename;
+                }
+                else
+                {
+                    CLOG(WARNING, "History")
+                        << "FAILED verifying hash for " << filename;
+                    CLOG(WARNING, "History")
+                        << "expected hash: " << binToHex(hash);
+                    CLOG(WARNING, "History")
+                        << "computed hash: " << binToHex(vHash);
+                    ec = std::make_error_code(std::errc::io_error);
+                }
             }
-            uint256 vHash = hasher->finish();
-            if (vHash == hash)
-            {
-                CLOG(DEBUG, "History") << "Verified hash (" << hexAbbrev(hash)
-                                       << ") for " << filename;
-            }
-            else
-            {
-                CLOG(WARNING, "History")
-                    << "FAILED verifying hash for " << filename;
-                CLOG(WARNING, "History") << "expected hash: " << binToHex(hash);
-                CLOG(WARNING, "History")
-                    << "computed hash: " << binToHex(vHash);
-                ec = std::make_error_code(std::errc::io_error);
-            }
-        }
-        app.postOnMainThread([ec, handler]() { handler(ec); });
-    });
+            app.postOnMainThread([ec, handler]() { handler(ec); },
+                                 "VerifyBucketWork: handler");
+        },
+        "VerifyBucketWork: verify bucket");
 }
 
 void

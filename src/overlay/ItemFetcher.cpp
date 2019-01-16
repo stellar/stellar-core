@@ -99,7 +99,8 @@ ItemFetcher::stopFetchingBelow(uint64 slotIndex)
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
     mApp.postOnMainThread(
-        [this, slotIndex]() { stopFetchingBelowInternal(slotIndex); });
+        [this, slotIndex]() { stopFetchingBelowInternal(slotIndex); },
+        "ItemFetcher: stopFetchingBelow");
 }
 
 void

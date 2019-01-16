@@ -616,10 +616,12 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                                 << " invalid transactions";
 
         // post to avoid triggering SCP handling code recursively
-        mApp.postOnMainThreadWithDelay([this, bestTxSet]() {
-            mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
-                                        bestTxSet);
-        });
+        mApp.postOnMainThreadWithDelay(
+            [this, bestTxSet]() {
+                mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
+                                            bestTxSet);
+            },
+            "HerderSCPDriver: combineCandidates posts recvTxSet");
     }
 
     return xdr::xdr_to_opaque(comp);

@@ -615,19 +615,21 @@ clearFutures(Application::pointer app, BucketList& bl)
     size_t waiting = 0, finished = 0;
     for (size_t i = 0; i < n; ++i)
     {
-        app->postOnBackgroundThread([&] {
-            std::unique_lock<std::mutex> lock(mutex);
-            if (++waiting == n)
-            {
-                cv.notify_all();
-            }
-            else
-            {
-                cv.wait(lock, [&] { return waiting == n; });
-            }
-            ++finished;
-            cv2.notify_one();
-        });
+        app->postOnBackgroundThread(
+            [&] {
+                std::unique_lock<std::mutex> lock(mutex);
+                if (++waiting == n)
+                {
+                    cv.notify_all();
+                }
+                else
+                {
+                    cv.wait(lock, [&] { return waiting == n; });
+                }
+                ++finished;
+                cv2.notify_one();
+            },
+            "BucketTests: clearFutures");
     }
     {
         std::unique_lock<std::mutex> lock(mutex);

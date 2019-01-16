@@ -691,32 +691,35 @@ LedgerManagerImpl::applyBufferedLedgers()
 {
     assert(mCatchupState == CatchupState::APPLYING_BUFFERED_LEDGERS);
 
-    mApp.postOnMainThreadWithDelay([&] {
-        if (mSyncingLedgers.empty())
-        {
+    mApp.postOnMainThreadWithDelay(
+        [&] {
+            if (mSyncingLedgers.empty())
+            {
+                CLOG(INFO, "Ledger")
+                    << "Caught up to LCL including recent network activity: "
+                    << ledgerAbbrev(mLastClosedLedger)
+                    << "; waiting for closing ledger";
+                setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
+                return;
+            }
+
+            auto lcd = mSyncingLedgers.front();
+            mSyncingLedgers.pop();
+            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+
+            assert(lcd.getLedgerSeq() ==
+                   mLastClosedLedger.header.ledgerSeq + 1);
             CLOG(INFO, "Ledger")
-                << "Caught up to LCL including recent network activity: "
-                << ledgerAbbrev(mLastClosedLedger)
-                << "; waiting for closing ledger";
-            setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
-            return;
-        }
+                << "Replaying buffered ledger-close: "
+                << "[seq=" << lcd.getLedgerSeq()
+                << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
+                << ", tx_count=" << lcd.getTxSet()->size()
+                << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
+            closeLedger(lcd);
 
-        auto lcd = mSyncingLedgers.front();
-        mSyncingLedgers.pop();
-        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-
-        assert(lcd.getLedgerSeq() == mLastClosedLedger.header.ledgerSeq + 1);
-        CLOG(INFO, "Ledger")
-            << "Replaying buffered ledger-close: "
-            << "[seq=" << lcd.getLedgerSeq()
-            << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-            << ", tx_count=" << lcd.getTxSet()->size()
-            << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
-        closeLedger(lcd);
-
-        applyBufferedLedgers();
-    });
+            applyBufferedLedgers();
+        },
+        "LedgerManager: applyBufferedLedgers");
 }
 
 uint64_t

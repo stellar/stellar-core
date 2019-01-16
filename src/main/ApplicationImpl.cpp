@@ -43,6 +43,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "simulation/LoadGenerator.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
 #include "util/StatusManager.h"
 #include "work/WorkManager.h"
 
@@ -69,6 +70,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mStoppingTimer(*this)
     , mMetrics(std::make_unique<medida::MetricsRegistry>())
     , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
+    , mPostOnMainThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
+    , mPostOnMainThreadWithDelayDelay(mMetrics->NewTimer(
+          {"app", "post-on-main-thread-with-delay", "delay"}))
+    , mPostOnBackgroundThreadDelay(
+          mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mStartedOn(clock.now())
 {
 #ifdef SIGQUIT
@@ -735,21 +742,39 @@ ApplicationImpl::getWorkerIOService()
 }
 
 void
-ApplicationImpl::postOnMainThread(std::function<void()>&& f)
+ApplicationImpl::postOnMainThread(std::function<void()>&& f,
+                                  std::string jobName)
 {
-    mVirtualClock.postToCurrentCrank(std::move(f));
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    mVirtualClock.postToCurrentCrank([ this, f = std::move(f), isSlow ]() {
+        mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
 }
 
 void
-ApplicationImpl::postOnMainThreadWithDelay(std::function<void()>&& f)
+ApplicationImpl::postOnMainThreadWithDelay(std::function<void()>&& f,
+                                           std::string jobName)
 {
-    mVirtualClock.postToNextCrank(std::move(f));
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    mVirtualClock.postToNextCrank([ this, f = std::move(f), isSlow ]() {
+        mPostOnMainThreadWithDelayDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
 }
 
 void
-ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f)
+ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
+                                        std::string jobName)
 {
-    getWorkerIOService().post(std::move(f));
+    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+                            "executed after"};
+    getWorkerIOService().post([ this, f = std::move(f), isSlow ]() {
+        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+        f();
+    });
 }
 
 void
