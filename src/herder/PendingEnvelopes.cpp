@@ -70,7 +70,7 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
 
-    SCPQuorumSetPtr qset(new SCPQuorumSet(q));
+    auto qset = std::make_shared<SCPQuorumSet>(q);
     mNodesInQuorum.clear();
     mQsetCache.put(hash, qset);
 
