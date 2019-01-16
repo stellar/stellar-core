@@ -143,7 +143,6 @@ AS_IF([test x != "x$sanitizeopts"], [
 
   # compile our own libraries when sanitizers are enabled
   libsodium_INTERNAL=yes
-  sqlite3_INTERNAL=yes
   xdrpp_INTERNAL=yes
 
 ])
@@ -214,12 +213,8 @@ fi
 # We use partial indexes, a feature in sqlite 3.8.0. Also even if not using
 # partial indexes, there was a bug concerning ROLLBACK interacting with
 # non-reset prepared statements poorly prior to 3.7.11.
-PKG_CHECK_MODULES(sqlite3, [sqlite3 >= 3.8.0], :, sqlite3_INTERNAL=yes)
-AM_CONDITIONAL(SQLITE3_INTERNAL, [test yes = "$sqlite3_INTERNAL"])
-if test yes = "$sqlite3_INTERNAL"; then
-   sqlite3_CFLAGS='-isystem $(top_srcdir)/lib/sqlite'
-   sqlite3_LIBS=
-fi
+sqlite3_CFLAGS='-isystem $(top_srcdir)/lib/sqlite -DSQLITE_CORE -DSQLITE_OMIT_LOAD_EXTENSION=1'
+sqlite3_LIBS=
 AC_SUBST(sqlite3_CFLAGS)
 AC_SUBST(sqlite3_LIBS)
 
