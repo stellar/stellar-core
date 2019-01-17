@@ -30,7 +30,6 @@ class CatchupManagerImpl : public CatchupManager
     void historyCaughtup() override;
 
     void catchupHistory(CatchupConfiguration catchupConfiguration,
-                        bool manualCatchup,
                         CatchupWork::ProgressHandler handler) override;
 
     std::string getStatus() const override;

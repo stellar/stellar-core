@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "catchup/CatchupConfiguration.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerRange.h"
 #include "work/Work.h"
@@ -19,14 +20,24 @@ namespace stellar
 class TmpDir;
 struct LedgerHeaderHistoryEntry;
 
+// This class verifies ledger chain of a given range by checking the hashes.
+// Note that verification is done starting with the latest checkpoint in the
+// range, and working its way backwards to the beginning of the range.
 class VerifyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;
-    LedgerRange mRange;
+    LedgerRange const mRange;
     uint32_t mCurrCheckpoint;
-    bool mManualCatchup;
-    LedgerHeaderHistoryEntry& mFirstVerified;
-    LedgerHeaderHistoryEntry& mLastVerified;
+    LedgerNumHashPair const& mLastClosed;
+    LedgerNumHashPair const mTrustedEndLedger;
+
+    // First ledger of last verified checkpoint. Needed for a checkpoint that
+    // is being verified: last ledger in current checkpoint must agree with
+    // mVerifiedAhead
+    LedgerNumHashPair mVerifiedAhead;
+
+    // First ledger in the range
+    LedgerHeaderHistoryEntry mVerifiedLedgerRangeStart{};
 
     medida::Meter& mVerifyLedgerSuccess;
     medida::Meter& mVerifyLedgerChainSuccess;
@@ -37,12 +48,17 @@ class VerifyLedgerChainWork : public Work
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, LedgerRange range,
-                          bool manualCatchup,
-                          LedgerHeaderHistoryEntry& firstVerified,
-                          LedgerHeaderHistoryEntry& lastVerified);
-    ~VerifyLedgerChainWork();
+                          LedgerNumHashPair const& lastClosedLedger,
+                          LedgerNumHashPair ledgerRangeEnd);
+    ~VerifyLedgerChainWork() override;
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
+
+    LedgerHeaderHistoryEntry
+    getVerifiedLedgerRangeStart()
+    {
+        return mVerifiedLedgerRangeStart;
+    }
 };
 }

@@ -12,6 +12,7 @@
 #include "ledger/CheckpointRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/LedgerRange.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"

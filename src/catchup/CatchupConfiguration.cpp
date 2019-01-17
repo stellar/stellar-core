@@ -10,18 +10,25 @@
 namespace stellar
 {
 
+CatchupConfiguration::CatchupConfiguration(LedgerNumHashPair ledgerHashPair,
+                                           uint32_t count)
+    : mCount{count}, mLedgerHashPair{ledgerHashPair}
+{
+}
+
 CatchupConfiguration::CatchupConfiguration(uint32_t toLedger, uint32_t count)
-    : mToLedger{toLedger}, mCount{count}
+    : mCount{count}, mLedgerHashPair{toLedger, nullptr}
 {
 }
 
 CatchupConfiguration
 CatchupConfiguration::resolve(uint32_t remoteCheckpoint) const
 {
-    auto resolvedToLedger = (toLedger() == CatchupConfiguration::CURRENT)
-                                ? remoteCheckpoint
-                                : toLedger();
-    return CatchupConfiguration{resolvedToLedger, count()};
+    if (toLedger() == CatchupConfiguration::CURRENT)
+    {
+        return CatchupConfiguration{remoteCheckpoint, count()};
+    }
+    return CatchupConfiguration{LedgerNumHashPair(toLedger(), hash()), count()};
 }
 
 uint32_t

@@ -18,6 +18,7 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -590,7 +591,10 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
         // to verify history consistency - compare previousLedgerHash of
         // buffered ledger with last one downloaded from history
         auto firstBufferedLedgerSeq = mSyncingLedgers.front().getLedgerSeq();
-        startCatchup({firstBufferedLedgerSeq - 1, getCatchupCount(mApp)},
+        auto hash = make_optional<Hash>(
+            mSyncingLedgers.front().getTxSet()->previousLedgerHash());
+        startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
+                      getCatchupCount(mApp)},
                      false);
     }
     else
@@ -616,9 +620,10 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
     }
 
     setCatchupState(CatchupState::APPLYING_HISTORY);
+    assert(manualCatchup == mSyncingLedgers.empty());
 
     mApp.getCatchupManager().catchupHistory(
-        configuration, manualCatchup,
+        configuration,
         std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
 }
 

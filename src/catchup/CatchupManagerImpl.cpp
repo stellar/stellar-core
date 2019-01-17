@@ -44,7 +44,6 @@ CatchupManagerImpl::historyCaughtup()
 
 void
 CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
-                                   bool manualCatchup,
                                    CatchupWork::ProgressHandler handler)
 {
     if (mCatchupWork)
@@ -53,7 +52,7 @@ CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
     }
 
     mCatchupWork = mApp.getWorkManager().addWork<CatchupWork>(
-        catchupConfiguration, manualCatchup, handler, Work::RETRY_NEVER);
+        catchupConfiguration, handler, Work::RETRY_NEVER);
     mApp.getWorkManager().advanceChildren();
 }
 

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "catchup/CatchupConfiguration.h"
+#include "catchup/VerifyLedgerChainWork.h"
 #include "historywork/BucketDownloadWork.h"
 #include "ledger/LedgerRange.h"
 
@@ -98,7 +99,7 @@ class CatchupWork : public BucketDownloadWork
                      HistoryManager const& historyManager);
 
     CatchupWork(Application& app, WorkParent& parent,
-                CatchupConfiguration catchupConfiguration, bool manualCatchup,
+                CatchupConfiguration catchupConfiguration,
                 ProgressHandler progressHandler, size_t maxRetries);
     std::string getStatus() const override;
     void onReset() override;
@@ -110,26 +111,24 @@ class CatchupWork : public BucketDownloadWork
   private:
     HistoryArchiveState mRemoteState;
     HistoryArchiveState mApplyBucketsRemoteState;
-    uint32_t mLastClosedLedgerAtReset;
+    LedgerNumHashPair mLastClosedLedgerHashPair;
     CatchupConfiguration const mCatchupConfiguration;
-    bool const mManualCatchup;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;
     std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mVerifyLedgersWork;
+    std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgersWork;
     std::shared_ptr<Work> mGetBucketsHistoryArchiveStateWork;
     std::shared_ptr<Work> mDownloadBucketsWork;
     std::shared_ptr<Work> mApplyBucketsWork;
     std::shared_ptr<Work> mDownloadTransactionsWork;
     std::shared_ptr<Work> mApplyTransactionsWork;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
+    LedgerHeaderHistoryEntry mVerifiedLedgerRangeStart;
     LedgerHeaderHistoryEntry mLastApplied;
     ProgressHandler mProgressHandler;
     bool mBucketsAppliedEmitted;
 
     bool hasAnyLedgersToCatchupTo() const;
     bool downloadLedgers(CheckpointRange const& range);
-    bool verifyLedgers(LedgerRange const& range);
+    bool verifyLedgers(LedgerRange const& range, LedgerNumHashPair rangeEnd);
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     bool downloadBucketsHistoryArchiveState(uint32_t atCheckpoint);
     bool downloadBuckets();
