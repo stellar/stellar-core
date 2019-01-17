@@ -496,7 +496,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
 bool
 CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
                                       bool manual, Application::pointer app2,
-                                      bool doStart, uint32_t gap)
+                                      uint32_t gap)
 {
     auto startCatchupMetrics = getCatchupMetrics(app2);
 
@@ -506,15 +506,19 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
-    if (doStart)
+    auto catchupConfiguration = CatchupConfiguration(initLedger, count);
+    auto recent = count != std::numeric_limits<uint32_t>::max();
+
+    if (manual)
     {
         // Normally Herder calls LedgerManager.externalizeValue(initLedger + 1)
-        // and this _triggers_ catchup within the LM. However, we do this
-        // out-of-order because we want to control the catchup mode rather than
-        // let the LM pick it, and because we want to simulate a 1-ledger skew
-        // between the publishing side and the catchup side so that the catchup
-        // has "heard" exactly 1 consensus LedgerCloseData broadcast after the
-        // event that triggered its catchup to begin.
+        // and this _triggers_ catchup within the LM. However, for catchup
+        // manual and recent, we do this out-of-order because we want to control
+        // the catchup mode rather than let the LM pick it, and because we want
+        // to simulate a 1-ledger skew between the publishing side and the
+        // catchup side so that the catchup has "heard" exactly 1 consensus
+        // LedgerCloseData broadcast after the event that triggered its catchup
+        // to begin.
         //
         // For example: we want initLedger to be (say) 191-or-less, so that it
         // catches up using block 3, but we want the publisher to advance past
@@ -524,7 +528,18 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
         CLOG(INFO, "History")
             << "force-starting catchup at initLedger=" << initLedger;
 
-        lm.startCatchup({initLedger, count}, manual);
+        lm.startCatchup(catchupConfiguration, true);
+    }
+    else if (recent)
+    {
+        CLOG(INFO, "History")
+            << "force-starting catchup recent at initLedger=" << initLedger;
+        auto hash = mLedgerHashes.at(
+            std::find(mLedgerSeqs.begin(), mLedgerSeqs.end(), initLedger) -
+            mLedgerSeqs.begin());
+        catchupConfiguration = {
+                LedgerNumHashPair(initLedger, make_optional<Hash>(hash)), count};
+        lm.startCatchup(catchupConfiguration, true);
     }
 
     // Push publishing side forward one-ledger into a history block if it's
@@ -574,7 +589,6 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     }
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
-    auto catchupConfiguration = CatchupConfiguration(initLedger, count);
 
     REQUIRE(!app2->getClock().getIOService().stopped());
     crankUntil(
