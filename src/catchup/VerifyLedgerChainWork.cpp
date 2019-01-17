@@ -55,6 +55,7 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
 {
     // When last ledger in the checkpoint is reached, verify its hash against
     // the next checkpoint.
+    assert(ledger.header.ledgerSeq == verifiedAhead.first);
     auto trustedHash = verifiedAhead.second;
     if (!trustedHash)
     {
@@ -150,14 +151,13 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     {
         if (curr.header.ledgerVersion > Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
-            mVerifyLedgerChainFailure.Mark();
             return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
         }
 
         // Verify ledger with local state by comparing to LCL
-        if (curr.header.ledgerSeq == mLastClosed.first + 1)
+        if (curr.header.ledgerSeq == mLastClosed.first)
         {
-            if (curr.header.previousLedgerHash != *mLastClosed.second)
+            if (sha256(xdr::xdr_to_opaque(curr.header)) != *mLastClosed.second)
             {
                 CLOG(ERROR, "History")
                     << "Bad ledger-header history entry: claimed ledger "
@@ -165,8 +165,22 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                     << " does not agree with LCL "
                     << LedgerManager::ledgerAbbrev(mLastClosed.first,
                                                    *mLastClosed.second);
-                mVerifyLedgerChainFailure.Mark();
                 return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
+            }
+        }
+        // Verify LCL that is just before the first ledger in range
+        else if (curr.header.ledgerSeq == mLastClosed.first + 1)
+        {
+            auto lclResult = verifyLedgerHistoryLink(*mLastClosed.second, curr);
+            if (lclResult != HistoryManager::VERIFY_STATUS_OK)
+            {
+                CLOG(ERROR, "History")
+                    << "Bad ledger-header history entry: claimed ledger "
+                    << LedgerManager::ledgerAbbrev(curr)
+                    << " previous hash does not agree with LCL: "
+                    << LedgerManager::ledgerAbbrev(mLastClosed.first,
+                                                   *mLastClosed.second);
+                return lclResult;
             }
         }
 
@@ -178,7 +192,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             auto hashResult = verifyLedgerHistoryEntry(curr);
             if (hashResult != HistoryManager::VERIFY_STATUS_OK)
             {
-                mVerifyLedgerChainFailure.Mark();
                 return hashResult;
             }
 
@@ -197,7 +210,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                     << "History chain undershot expected ledger seq "
                     << expectedSeq << ", got " << curr.header.ledgerSeq
                     << " instead";
-                mVerifyLedgerChainFailure.Mark();
                 return HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT;
             }
             else if (curr.header.ledgerSeq > expectedSeq)
@@ -206,13 +218,11 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                     << "History chain overshot expected ledger seq "
                     << expectedSeq << ", got " << curr.header.ledgerSeq
                     << " instead";
-                mVerifyLedgerChainFailure.Mark();
                 return HistoryManager::VERIFY_STATUS_ERR_OVERSHOT;
             }
             auto linkResult = verifyLedgerHistoryLink(prev.hash, curr);
             if (linkResult != HistoryManager::VERIFY_STATUS_OK)
             {
-                mVerifyLedgerChainFailure.Mark();
                 return linkResult;
             }
         }
@@ -230,13 +240,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     if (curr.header.ledgerSeq != mCurrCheckpoint &&
         curr.header.ledgerSeq != mRange.last())
     {
-        // We can end at mCurrCheckpoint if history chain file was valid
-        // Or we can end at mRange.last() if history chain file was valid and we
-        // reached last ledger that we should check.
-        // Any other ledger here means that file is corrupted.
+        // We can end at mCurrCheckpoint if checkpoint was valid
+        // or at mRange.last() if history chain file was valid and we
+        // reached last ledger in the range. Any other ledger here means
+        // that file is corrupted.
         CLOG(ERROR, "History") << "History chain did not end with "
                                << mCurrCheckpoint << " or " << mRange.last();
-        mVerifyLedgerChainFailure.Mark();
         return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 
@@ -245,18 +254,15 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         assert(nextCheckpointFirstLedger.first == 0);
         nextCheckpointFirstLedger = mTrustedEndLedger;
         CLOG(INFO, "History")
-            << "Verifying ledger " << LedgerManager::ledgerAbbrev(curr)
+            << (mTrustedEndLedger.second ? "Verifying"
+                                         : "Skipping verification for")
+            << "ledger " << LedgerManager::ledgerAbbrev(curr)
             << " against SCP hash";
     }
     else
     {
         assert(nextCheckpointFirstLedger.second);
         assert(nextCheckpointFirstLedger.first != 0);
-        CLOG(INFO, "History")
-            << "Verifying ledger " << LedgerManager::ledgerAbbrev(curr)
-            << " against previously verified "
-            << LedgerManager::ledgerAbbrev(nextCheckpointFirstLedger.first,
-                                           *nextCheckpointFirstLedger.second);
     }
 
     // Last ledger in the checkpoint needs to agree with first ledger of a
@@ -265,7 +271,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         verifyLastLedgerInCheckpoint(curr, nextCheckpointFirstLedger);
     if (verifyTrustedHash != HistoryManager::VERIFY_STATUS_OK)
     {
-        mVerifyLedgerChainFailure.Mark();
+        assert(nextCheckpointFirstLedger.second);
+        CLOG(ERROR, "History")
+            << "Checkpoint does not agree with checkpoint ahead: "
+            << "current " << LedgerManager::ledgerAbbrev(curr) << ", verified: "
+            << LedgerManager::ledgerAbbrev(nextCheckpointFirstLedger.first,
+                                           *(nextCheckpointFirstLedger.second));
         return verifyTrustedHash;
     }
 
@@ -299,6 +310,7 @@ VerifyLedgerChainWork::onSuccess()
         {
             CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
                                   << mRange.last() << "] verified";
+            mVerifyLedgerChainSuccess.Mark();
             return WORK_SUCCESS;
         }
 
@@ -308,22 +320,27 @@ VerifyLedgerChainWork::onSuccess()
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "unsupported ledger version, propagating "
                                   "failure";
+        mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
         CLOG(ERROR, "History") << "Catchup material failed verification - hash "
                                   "mismatch, propagating failure";
+        mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "overshot, propagating failure";
+        mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "undershot, propagating failure";
+        mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "missing entries, propagating failure";
+        mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     default:
         assert(false);
