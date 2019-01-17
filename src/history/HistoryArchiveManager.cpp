@@ -12,7 +12,6 @@
 #include "util/Math.h"
 #include "work/WorkManager.h"
 
-#include <lib/json/json.h>
 #include <vector>
 
 namespace stellar
@@ -22,7 +21,7 @@ HistoryArchiveManager::HistoryArchiveManager(Application& app) : mApp{app}
 {
     for (auto const& archiveConfiguration : mApp.getConfig().HISTORY)
         mArchives.push_back(
-            std::make_shared<HistoryArchive>(archiveConfiguration.second));
+            std::make_shared<HistoryArchive>(app, archiveConfiguration.second));
 }
 
 bool
@@ -234,16 +233,26 @@ HistoryArchiveManager::getWritableHistoryArchives() const
     return result;
 }
 
-Json::Value
-HistoryArchiveManager::getJsonInfo() const
+double
+HistoryArchiveManager::getFailureRate() const
 {
-    auto info = Json::Value{};
+    uint64_t successCount{0};
+    uint64_t failureCount{0};
 
     for (auto archive : mArchives)
     {
-        info[archive->getName()] = archive->getJsonInfo();
+        successCount += archive->getSuccessCount();
+        failureCount += archive->getFailureCount();
     }
 
-    return info;
+    auto total = successCount + failureCount;
+    if (total == 0)
+    {
+        return 0.0;
+    }
+    else
+    {
+        return static_cast<double>(failureCount) / total;
+    }
 }
 }

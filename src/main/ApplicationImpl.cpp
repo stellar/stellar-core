@@ -261,11 +261,8 @@ ApplicationImpl::getJsonInfo()
         info["invariant_failures"] = invariantFailures;
     }
 
-    auto historyArchiveInfo = getHistoryArchiveManager().getJsonInfo();
-    if (!historyArchiveInfo.empty())
-    {
-        info["history"] = historyArchiveInfo;
-    }
+    info["history_failure_rate"] =
+        fmt::format("{:.2}", getHistoryArchiveManager().getFailureRate());
 
     return root;
 }
