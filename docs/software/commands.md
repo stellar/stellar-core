@@ -7,7 +7,7 @@ stellar-core can be controlled via the following commands.
 ## Common options
 * **--conf <FILE-NAME>**: Specify a config file to use. You can use '-' and
   provide the config file via STDIN. *default 'stellar-core.cfg'*
-* **--ll <LEVEL>**: Set the log level. It is redundant with `htpp-command ll`
+* **--ll <LEVEL>**: Set the log level. It is redundant with `http-command ll`
   but we need this form if you want to change the log level during test runs.
 * **--metric <METRIC-NAME>**: Report metric METRIC on exit. Used for gathering
   a metric cumulatively during a test run.
