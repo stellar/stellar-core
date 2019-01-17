@@ -10,9 +10,9 @@
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
+#include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "ledger/LedgerRange.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -179,6 +179,90 @@ TestBucketGenerator::generateBucket(TestBucketState state)
     }
 
     return binToHex(hash);
+}
+
+TestLedgerChainGenerator::TestLedgerChainGenerator(
+    Application& app, std::shared_ptr<HistoryArchive> archive,
+    CheckpointRange range, TmpDir const& tmpDir)
+    : mApp{app}, mArchive{archive}, mCheckpointRange{range}, mTmpDir{tmpDir}
+{
+}
+
+void
+TestLedgerChainGenerator::createHistoryFiles(
+    std::vector<LedgerHeaderHistoryEntry> const& lhv,
+    LedgerHeaderHistoryEntry& first, LedgerHeaderHistoryEntry& last,
+    uint32_t checkpoint)
+{
+    FileTransferInfo ft{mTmpDir, HISTORY_FILE_TYPE_LEDGER, checkpoint};
+    XDROutputFileStream ledgerOut;
+    ledgerOut.open(ft.localPath_nogz());
+
+    for (auto& ledger : lhv)
+    {
+        if (first.header.ledgerSeq == 0)
+        {
+            first = ledger;
+        }
+        REQUIRE(ledgerOut.writeOne(ledger));
+        last = ledger;
+    }
+    ledgerOut.close();
+}
+
+TestLedgerChainGenerator::CheckpointEnds
+TestLedgerChainGenerator::makeOneLedgerFile(
+    uint32_t currCheckpoint, Hash prevHash,
+    HistoryManager::LedgerVerificationStatus state)
+{
+    auto initLedger =
+        mApp.getHistoryManager().prevCheckpointLedger(currCheckpoint);
+    auto frequency = mApp.getHistoryManager().getCheckpointFrequency();
+    if (initLedger == 0)
+    {
+        initLedger = LedgerManager::GENESIS_LEDGER_SEQ;
+        frequency -= 1;
+    }
+
+    LedgerHeaderHistoryEntry first, last, lcl;
+    lcl.header.ledgerSeq = initLedger;
+    lcl.header.previousLedgerHash = prevHash;
+
+    std::vector<LedgerHeaderHistoryEntry> ledgerChain =
+        LedgerTestUtils::generateLedgerHeadersForCheckpoint(lcl, frequency,
+                                                            state);
+
+    createHistoryFiles(ledgerChain, first, last, currCheckpoint);
+    return CheckpointEnds(first, last);
+}
+
+TestLedgerChainGenerator::CheckpointEnds
+TestLedgerChainGenerator::makeLedgerChainFiles(
+    HistoryManager::LedgerVerificationStatus state)
+{
+    Hash hash = HashUtils::random();
+    LedgerHeaderHistoryEntry beginRange;
+
+    LedgerHeaderHistoryEntry first, last;
+    for (auto i = mCheckpointRange.first(); i <= mCheckpointRange.last();
+         i += mApp.getHistoryManager().getCheckpointFrequency())
+    {
+        // Only corrupt first checkpoint (last to be verified)
+        if (i != mCheckpointRange.first())
+        {
+            state = HistoryManager::VERIFY_STATUS_OK;
+        }
+
+        std::tie(first, last) = makeOneLedgerFile(i, hash, state);
+        hash = last.hash;
+
+        if (beginRange.header.ledgerSeq == 0)
+        {
+            beginRange = first;
+        }
+    }
+
+    return CheckpointEnds(beginRange, last);
 }
 
 CatchupMetrics::CatchupMetrics()
@@ -538,7 +622,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
             std::find(mLedgerSeqs.begin(), mLedgerSeqs.end(), initLedger) -
             mLedgerSeqs.begin());
         catchupConfiguration = {
-                LedgerNumHashPair(initLedger, make_optional<Hash>(hash)), count};
+            LedgerNumHashPair(initLedger, make_optional<Hash>(hash)), count};
         lm.startCatchup(catchupConfiguration, true);
     }
 

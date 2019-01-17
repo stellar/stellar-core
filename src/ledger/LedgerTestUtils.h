@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "history/HistoryManager.h"
 #include "overlay/StellarXDR.h"
 
 namespace stellar
@@ -23,6 +24,9 @@ void makeValid(AccountEntry& a);
 void makeValid(TrustLineEntry& tl);
 void makeValid(OfferEntry& o);
 void makeValid(DataEntry& d);
+void makeValid(LedgerHeaderHistoryEntry& lh,
+               LedgerHeaderHistoryEntry firstLedger,
+               HistoryManager::LedgerVerificationStatus state);
 
 LedgerEntry generateValidLedgerEntry(size_t b = 3);
 std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);
@@ -38,5 +42,10 @@ std::vector<OfferEntry> generateValidOfferEntries(size_t n);
 
 DataEntry generateValidDataEntry(size_t b = 3);
 std::vector<DataEntry> generateValidDataEntries(size_t n);
+
+std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
+    LedgerHeaderHistoryEntry firstLedger, uint32_t freq,
+    HistoryManager::LedgerVerificationStatus state =
+        HistoryManager::VERIFY_STATUS_OK);
 }
 }
