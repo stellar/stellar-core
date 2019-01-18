@@ -44,6 +44,23 @@ ApplyBucketsWork::~ApplyBucketsWork()
 {
 }
 
+BucketLevel&
+ApplyBucketsWork::getBucketLevel(uint32_t level) const
+{
+    return mApp.getBucketManager().getBucketList().getLevel(level);
+}
+
+std::shared_ptr<Bucket const>
+ApplyBucketsWork::getBucket(std::string const& hash) const
+{
+    auto i = mBuckets.find(hash);
+    auto b = (i != mBuckets.end())
+                 ? i->second
+                 : mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+    assert(b);
+    return b;
+}
+
 void
 ApplyBucketsWork::onReset()
 {
@@ -53,6 +70,48 @@ ApplyBucketsWork::onReset()
     mCurrBucket.reset();
     mSnapApplicator.reset();
     mCurrApplicator.reset();
+}
+
+void
+ApplyBucketsWork::startLevel()
+{
+    assert(isLevelComplete());
+
+    CLOG(DEBUG, "History") << "ApplyBuckets : starting level " << mLevel;
+    auto& level = getBucketLevel(mLevel);
+    HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
+
+    bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
+    bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
+    if (!mApplying && (applySnap || applyCurr))
+    {
+        uint32_t oldestLedger = applySnap
+                                    ? BucketList::oldestLedgerInSnap(
+                                          mApplyState.currentLedger, mLevel)
+                                    : BucketList::oldestLedgerInCurr(
+                                          mApplyState.currentLedger, mLevel);
+        auto& lsRoot = mApp.getLedgerStateRoot();
+        lsRoot.deleteObjectsModifiedOnOrAfterLedger(oldestLedger);
+    }
+
+    if (mApplying || applySnap)
+    {
+        mSnapBucket = getBucket(i.snap);
+        mSnapApplicator = std::make_unique<BucketApplicator>(mApp, mSnapBucket);
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
+                               << "].snap = " << i.snap;
+        mApplying = true;
+        mBucketApplyStart.Mark();
+    }
+    if (mApplying || applyCurr)
+    {
+        mCurrBucket = getBucket(i.curr);
+        mCurrApplicator = std::make_unique<BucketApplicator>(mApp, mCurrBucket);
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
+                               << "].curr = " << i.curr;
+        mApplying = true;
+        mBucketApplyStart.Mark();
+    }
 }
 
 BasicWork::State
@@ -111,69 +170,10 @@ ApplyBucketsWork::onRun()
     return State::WORK_SUCCESS;
 }
 
-BucketLevel&
-ApplyBucketsWork::getBucketLevel(uint32_t level) const
-{
-    return mApp.getBucketManager().getBucketList().getLevel(level);
-}
-
-std::shared_ptr<Bucket const>
-ApplyBucketsWork::getBucket(std::string const& hash) const
-{
-    auto i = mBuckets.find(hash);
-    auto b = (i != mBuckets.end())
-                 ? i->second
-                 : mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
-    assert(b);
-    return b;
-}
-
 bool
 ApplyBucketsWork::isLevelComplete()
 {
     return !(mApplying) || !(mSnapApplicator || mCurrApplicator);
-}
-
-void
-ApplyBucketsWork::startLevel()
-{
-    assert(isLevelComplete());
-
-    CLOG(DEBUG, "History") << "ApplyBuckets : starting level " << mLevel;
-    auto& level = getBucketLevel(mLevel);
-    HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
-
-    bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
-    bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
-    if (!mApplying && (applySnap || applyCurr))
-    {
-        uint32_t oldestLedger = applySnap
-                                    ? BucketList::oldestLedgerInSnap(
-                                          mApplyState.currentLedger, mLevel)
-                                    : BucketList::oldestLedgerInCurr(
-                                          mApplyState.currentLedger, mLevel);
-        auto& lsRoot = mApp.getLedgerStateRoot();
-        lsRoot.deleteObjectsModifiedOnOrAfterLedger(oldestLedger);
-    }
-
-    if (mApplying || applySnap)
-    {
-        mSnapBucket = getBucket(i.snap);
-        mSnapApplicator = std::make_unique<BucketApplicator>(mApp, mSnapBucket);
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
-                               << "].snap = " << i.snap;
-        mApplying = true;
-        mBucketApplyStart.Mark();
-    }
-    if (mApplying || applyCurr)
-    {
-        mCurrBucket = getBucket(i.curr);
-        mCurrApplicator = std::make_unique<BucketApplicator>(mApp, mCurrBucket);
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
-                               << "].curr = " << i.curr;
-        mApplying = true;
-        mBucketApplyStart.Mark();
-    }
 }
 
 void

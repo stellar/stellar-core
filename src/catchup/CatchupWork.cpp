@@ -41,6 +41,16 @@ CatchupWork::~CatchupWork()
 {
 }
 
+std::string
+CatchupWork::getStatus() const
+{
+    if (mCatchupSeq)
+    {
+        return mCatchupSeq->getStatus();
+    }
+    return BasicWork::getStatus();
+}
+
 void
 CatchupWork::doReset()
 {
@@ -56,16 +66,6 @@ CatchupWork::doReset()
     mRemoteState = {};
     mApplyBucketsRemoteState = {};
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
-}
-
-std::string
-CatchupWork::getStatus() const
-{
-    if (mCatchupSeq)
-    {
-        return mCatchupSeq->getStatus();
-    }
-    return BasicWork::getStatus();
 }
 
 bool
@@ -87,10 +87,100 @@ CatchupWork::hasAnyLedgersToCatchupTo() const
     return false;
 }
 
+WorkSeqPtr
+CatchupWork::downloadVerifyLedgerChain(CatchupRange catchupRange)
+{
+    auto ledgerRange = catchupRange.first;
+    auto checkpointRange =
+        CheckpointRange{ledgerRange, mApp.getHistoryManager()};
+    CLOG(INFO, "History")
+        << "Catchup downloading ledger chain for checkpointRange ["
+        << checkpointRange.first() << ".." << checkpointRange.last() << "]";
+    auto getLedgers = std::make_shared<BatchDownloadWork>(
+        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+
+    CLOG(INFO, "History")
+        << "Catchup verifying ledger chain for checkpointRange ["
+        << checkpointRange.first() << ".." << checkpointRange.last() << "]";
+    auto verifyLedgers = std::make_shared<VerifyLedgerChainWork>(
+        mApp, *mDownloadDir, ledgerRange, mManualCatchup, mFirstVerified,
+        mLastVerified);
+
+    std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, verifyLedgers};
+    return std::make_shared<WorkSequence>(mApp, "download-verify-ledgers-seq",
+                                          seq);
+}
+
 bool
 CatchupWork::alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const
 {
     return atCheckpoint == mRemoteState.currentLedger;
+}
+
+WorkSeqPtr
+CatchupWork::downloadApplyBuckets()
+{
+    CLOG(INFO, "History")
+        << "Catchup queued up downloading, verifying and applying of buckets";
+
+    std::vector<std::string> hashes =
+        mApplyBucketsRemoteState.differingBuckets(mLocalState);
+    auto getBuckets = std::make_shared<DownloadBucketsWork>(
+        mApp, mBuckets, hashes, *mDownloadDir);
+
+    auto applyBuckets = std::make_shared<ApplyBucketsWork>(
+        mApp, mBuckets, mApplyBucketsRemoteState);
+
+    std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
+    return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
+                                          seq, RETRY_NEVER);
+}
+
+void
+CatchupWork::assertBucketState()
+{
+    // Consistency check: mRemoteState and mFirstVerified should
+    // point to the same ledger and the same BucketList.
+    assert(mApplyBucketsRemoteState.currentLedger ==
+           mFirstVerified.header.ledgerSeq);
+    assert(mApplyBucketsRemoteState.getBucketListHash() ==
+           mFirstVerified.header.bucketListHash);
+
+    // Consistency check: LCL should be in the _past_ from
+    // firstVerified, since we're about to clobber a bunch of DB
+    // state with new buckets held in firstVerified's state.
+    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (mFirstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
+    {
+        throw std::runtime_error(
+            fmt::format("Catchup MINIMAL applying ledger earlier than local "
+                        "LCL: {:s} < {:s}",
+                        LedgerManager::ledgerAbbrev(mFirstVerified),
+                        LedgerManager::ledgerAbbrev(lcl)));
+    }
+}
+
+WorkSeqPtr
+CatchupWork::downloadApplyTransactions(CatchupRange catchupRange)
+{
+    auto range = catchupRange.first;
+    auto checkpointRange = CheckpointRange{range, mApp.getHistoryManager()};
+
+    CLOG(INFO, "History") << "Catchup downloading transactions for range ["
+                          << checkpointRange.first() << ".."
+                          << checkpointRange.last() << "]";
+
+    auto getTxs = std::make_shared<BatchDownloadWork>(
+        mApp, checkpointRange, HISTORY_FILE_TYPE_TRANSACTIONS, *mDownloadDir);
+
+    CLOG(INFO, "History") << "Catchup applying transactions for range ["
+                          << range.first() << ".." << range.last() << "]";
+    auto applyLedgers = std::make_shared<ApplyLedgerChainWork>(
+        mApp, *mDownloadDir, range, mLastApplied);
+
+    std::vector<std::shared_ptr<BasicWork>> seq{getTxs, applyLedgers};
+    return std::make_shared<WorkSequence>(mApp, "download-apply-transactions",
+                                          seq, RETRY_NEVER);
 }
 
 BasicWork::State
@@ -99,6 +189,16 @@ CatchupWork::doWork()
     // Step 1: Get history archive state
     if (!mGetHistoryArchiveStateWork)
     {
+        auto toLedger = mCatchupConfiguration.toLedger() == 0
+                        ? "CURRENT"
+                        : std::to_string(mCatchupConfiguration.toLedger());
+        CLOG(INFO, "History") << "Starting catchup with configuration:\n"
+                              << "  lastClosedLedger: "
+                              << mApp.getLedgerManager().getLastClosedLedgerNum()
+                              << "\n"
+                              << "  toLedger: " << toLedger << "\n"
+                              << "  count: " << mCatchupConfiguration.count();
+
         auto toCheckpoint =
             mCatchupConfiguration.toLedger() == CatchupConfiguration::CURRENT
                 ? CatchupConfiguration::CURRENT
@@ -185,16 +285,6 @@ CatchupWork::doWork()
     }
 
     // Step 4: Perform catchup in 3 phases
-    auto toLedger = mCatchupConfiguration.toLedger() == 0
-                        ? "CURRENT"
-                        : std::to_string(mCatchupConfiguration.toLedger());
-    CLOG(INFO, "History") << "Starting catchup with configuration:\n"
-                          << "  lastClosedLedger: "
-                          << mApp.getLedgerManager().getLastClosedLedgerNum()
-                          << "\n"
-                          << "  toLedger: " << toLedger << "\n"
-                          << "  count: " << mCatchupConfiguration.count();
-
     std::vector<std::shared_ptr<BasicWork>> seq;
 
     // Phase 1: Download and verify ledger chain
@@ -214,72 +304,6 @@ CatchupWork::doWork()
 
     mCatchupSeq = addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
     return State::WORK_RUNNING;
-}
-
-WorkSeqPtr
-CatchupWork::downloadVerifyLedgerChain(CatchupRange catchupRange)
-{
-    auto ledgerRange = catchupRange.first;
-    auto checkpointRange =
-        CheckpointRange{ledgerRange, mApp.getHistoryManager()};
-    CLOG(INFO, "History")
-        << "Catchup downloading ledger chain for checkpointRange ["
-        << checkpointRange.first() << ".." << checkpointRange.last() << "]";
-    auto getLedgers = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
-
-    CLOG(INFO, "History")
-        << "Catchup verifying ledger chain for checkpointRange ["
-        << checkpointRange.first() << ".." << checkpointRange.last() << "]";
-    auto verifyLedgers = std::make_shared<VerifyLedgerChainWork>(
-        mApp, *mDownloadDir, ledgerRange, mManualCatchup, mFirstVerified,
-        mLastVerified);
-
-    std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, verifyLedgers};
-    return std::make_shared<WorkSequence>(mApp, "download-verify-ledgers-seq",
-                                          seq);
-}
-
-WorkSeqPtr
-CatchupWork::downloadApplyBuckets()
-{
-    CLOG(INFO, "History")
-        << "Catchup queued up downloading, verifying and applying of buckets";
-
-    std::vector<std::string> hashes =
-        mApplyBucketsRemoteState.differingBuckets(mLocalState);
-    auto getBuckets = std::make_shared<DownloadBucketsWork>(
-        mApp, mBuckets, hashes, *mDownloadDir);
-
-    auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, mApplyBucketsRemoteState);
-
-    std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
-    return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
-                                          seq, RETRY_NEVER);
-}
-
-WorkSeqPtr
-CatchupWork::downloadApplyTransactions(CatchupRange catchupRange)
-{
-    auto range = catchupRange.first;
-    auto checkpointRange = CheckpointRange{range, mApp.getHistoryManager()};
-
-    CLOG(INFO, "History") << "Catchup downloading transactions for range ["
-                          << checkpointRange.first() << ".."
-                          << checkpointRange.last() << "]";
-
-    auto getTxs = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_TRANSACTIONS, *mDownloadDir);
-
-    CLOG(INFO, "History") << "Catchup applying transactions for range ["
-                          << range.first() << ".." << range.last() << "]";
-    auto applyLedgers = std::make_shared<ApplyLedgerChainWork>(
-        mApp, *mDownloadDir, range, mLastApplied);
-
-    std::vector<std::shared_ptr<BasicWork>> seq{getTxs, applyLedgers};
-    return std::make_shared<WorkSequence>(mApp, "download-apply-transactions",
-                                          seq, RETRY_NEVER);
 }
 
 void
@@ -411,29 +435,5 @@ CatchupWork::makeCatchupRange(uint32_t lastClosedLedger,
 
     return {{catchupStart.second, configuration.toLedger()},
             catchupStart.first};
-}
-
-void
-CatchupWork::assertBucketState()
-{
-    // Consistency check: mRemoteState and mFirstVerified should
-    // point to the same ledger and the same BucketList.
-    assert(mApplyBucketsRemoteState.currentLedger ==
-           mFirstVerified.header.ledgerSeq);
-    assert(mApplyBucketsRemoteState.getBucketListHash() ==
-           mFirstVerified.header.bucketListHash);
-
-    // Consistency check: LCL should be in the _past_ from
-    // firstVerified, since we're about to clobber a bunch of DB
-    // state with new buckets held in firstVerified's state.
-    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mFirstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
-    {
-        throw std::runtime_error(
-            fmt::format("Catchup MINIMAL applying ledger earlier than local "
-                        "LCL: {:s} < {:s}",
-                        LedgerManager::ledgerAbbrev(mFirstVerified),
-                        LedgerManager::ledgerAbbrev(lcl)));
-    }
 }
 }

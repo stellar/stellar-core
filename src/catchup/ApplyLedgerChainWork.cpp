@@ -56,6 +56,25 @@ ApplyLedgerChainWork::getStatus() const
 }
 
 void
+ApplyLedgerChainWork::onReset()
+{
+    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    auto& lm = mApp.getLedgerManager();
+    auto& hm = mApp.getHistoryManager();
+
+    CLOG(INFO, "History") << "Replaying contents of "
+                          << CheckpointRange{mRange, hm}.count()
+                          << " transaction-history files from LCL "
+                          << LedgerManager::ledgerAbbrev(
+                                 lm.getLastClosedLedgerHeader());
+    mCurrSeq =
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
+    mHdrIn.close();
+    mTxIn.close();
+    mFilesOpen = false;
+}
+
+void
 ApplyLedgerChainWork::openCurrentInputFiles()
 {
     mHdrIn.close();
@@ -70,6 +89,40 @@ ApplyLedgerChainWork::openCurrentInputFiles()
     mTxIn.open(ti.localPath_nogz());
     mTxHistoryEntry = TransactionHistoryEntry();
     mFilesOpen = true;
+}
+
+TxSetFramePtr
+ApplyLedgerChainWork::getCurrentTxSet()
+{
+    auto& lm = mApp.getLedgerManager();
+    auto seq = lm.getLastClosedLedgerNum() + 1;
+
+    // Check mTxHistoryEntry prior to loading next history entry.
+    // This order is important because it accounts for ledger "gaps"
+    // in the history archives (which are caused by ledgers with empty tx
+    // sets, as those are not uploaded).
+    do
+    {
+        if (mTxHistoryEntry.ledgerSeq < seq)
+        {
+            CLOG(DEBUG, "History")
+                << "Skipping txset for ledger " << mTxHistoryEntry.ledgerSeq;
+        }
+        else if (mTxHistoryEntry.ledgerSeq > seq)
+        {
+            break;
+        }
+        else
+        {
+            assert(mTxHistoryEntry.ledgerSeq == seq);
+            CLOG(DEBUG, "History") << "Loaded txset for ledger " << seq;
+            return std::make_shared<TxSetFrame>(mApp.getNetworkID(),
+                                                mTxHistoryEntry.txSet);
+        }
+    } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
+
+    CLOG(DEBUG, "History") << "Using empty txset for ledger " << seq;
+    return std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 }
 
 bool
@@ -191,59 +244,6 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     mApplyLedgerSuccess.Mark();
     mLastApplied = hHeader;
     return true;
-}
-
-TxSetFramePtr
-ApplyLedgerChainWork::getCurrentTxSet()
-{
-    auto& lm = mApp.getLedgerManager();
-    auto seq = lm.getLastClosedLedgerNum() + 1;
-
-    // Check mTxHistoryEntry prior to loading next history entry.
-    // This order is important because it accounts for ledger "gaps"
-    // in the history archives (which are caused by ledgers with empty tx
-    // sets, as those are not uploaded).
-    do
-    {
-        if (mTxHistoryEntry.ledgerSeq < seq)
-        {
-            CLOG(DEBUG, "History")
-                << "Skipping txset for ledger " << mTxHistoryEntry.ledgerSeq;
-        }
-        else if (mTxHistoryEntry.ledgerSeq > seq)
-        {
-            break;
-        }
-        else
-        {
-            assert(mTxHistoryEntry.ledgerSeq == seq);
-            CLOG(DEBUG, "History") << "Loaded txset for ledger " << seq;
-            return std::make_shared<TxSetFrame>(mApp.getNetworkID(),
-                                                mTxHistoryEntry.txSet);
-        }
-    } while (mTxIn && mTxIn.readOne(mTxHistoryEntry));
-
-    CLOG(DEBUG, "History") << "Using empty txset for ledger " << seq;
-    return std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
-}
-
-void
-ApplyLedgerChainWork::onReset()
-{
-    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    auto& lm = mApp.getLedgerManager();
-    auto& hm = mApp.getHistoryManager();
-
-    CLOG(INFO, "History") << "Replaying contents of "
-                          << CheckpointRange{mRange, hm}.count()
-                          << " transaction-history files from LCL "
-                          << LedgerManager::ledgerAbbrev(
-                                 lm.getLastClosedLedgerHeader());
-    mCurrSeq =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
-    mHdrIn.close();
-    mTxIn.close();
-    mFilesOpen = false;
 }
 
 BasicWork::State
