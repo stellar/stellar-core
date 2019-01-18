@@ -222,6 +222,8 @@ TEST_CASE("History publish queueing", "[history][historydelay][historycatchup]")
     // One more ledger is needed to close as stellar-core only publishes to
     // just-before-LCL
     catchupSimulation.generateRandomLedger();
+    // And one more to trigger catchup
+    catchupSimulation.generateRandomLedger();
 
     while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
     {
@@ -231,7 +233,7 @@ TEST_CASE("History publish queueing", "[history][historydelay][historycatchup]")
 
     auto initLedger =
         catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum() -
-        1;
+        2;
     auto app2 = catchupSimulation.catchupNewApplication(
         initLedger, std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE,
@@ -342,6 +344,113 @@ TEST_CASE("Work batching", "[batching]")
                 app->getConfig().MAX_CONCURRENT_SUBPROCESSES);
     }
     REQUIRE(verify->getState() == Work::WORK_SUCCESS);
+}
+
+TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
+{
+    Config cfg(getTestConfig(0));
+    VirtualClock clock;
+    auto cg = std::make_shared<TmpDirHistoryConfigurator>();
+    cg->configure(cfg, true);
+    Application::pointer app = createTestApplication(clock, cfg);
+    CHECK(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+
+    auto tmpDir = app->getTmpDirManager().tmpDir("tmp-chain-test");
+    auto& wm = app->getWorkManager();
+
+    LedgerHeaderHistoryEntry firstVerified{};
+    LedgerHeaderHistoryEntry verifiedAhead{};
+
+    uint32_t initLedger = 127;
+    LedgerRange ledgerRange{
+        initLedger,
+        initLedger + app->getHistoryManager().getCheckpointFrequency() * 10};
+    CheckpointRange checkpointRange{ledgerRange, app->getHistoryManager()};
+    auto ledgerChainGenerator = TestLedgerChainGenerator{
+        *app, app->getHistoryArchiveManager().getHistoryArchive("test"),
+        checkpointRange, tmpDir};
+
+    auto checkExpectedBehavior = [&](Work::State expectedState,
+                                     LedgerHeaderHistoryEntry lcl,
+                                     LedgerHeaderHistoryEntry last) {
+        auto lclPair = LedgerNumHashPair(lcl.header.ledgerSeq,
+                                         make_optional<Hash>(lcl.hash));
+        auto ledgerRangeEnd = LedgerNumHashPair(last.header.ledgerSeq,
+                                                make_optional<Hash>(last.hash));
+        auto w = wm.executeWork<VerifyLedgerChainWork>(tmpDir, ledgerRange,
+                                                       lclPair, ledgerRangeEnd);
+        REQUIRE(expectedState == w->getState());
+    };
+
+    LedgerHeaderHistoryEntry lcl, last;
+    SECTION("fully valid")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        checkExpectedBehavior(Work::WORK_SUCCESS, lcl, last);
+    }
+    SECTION("invalid link due to bad hash")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_BAD_HASH);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("invalid ledger version")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("overshot")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_OVERSHOT);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("undershot")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("missing entries")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("chain does not agree with LCL")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        lcl.hash = HashUtils::random();
+
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("chain does not agree with LCL on checkpoint boundary")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        lcl.header.ledgerSeq +=
+            app->getHistoryManager().getCheckpointFrequency() - 1;
+        lcl.hash = HashUtils::random();
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("chain does not agree with LCL outside of range")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        lcl.header.ledgerSeq -= 1;
+        lcl.hash = HashUtils::random();
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
+    SECTION("chain does not agree with trusted hash")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        last.hash = HashUtils::random();
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+    }
 }
 
 TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
@@ -629,8 +738,7 @@ TEST_CASE("too far behind catchup restart", "[history][catchupstall]")
     // Now start a catchup on that catchups as far as it can due to gap
     LOG(INFO) << "Starting catchup (with gap) from " << init;
     REQUIRE(catchupSimulation.catchupApplication(
-        init, std::numeric_limits<uint32_t>::max(), false, app2, true,
-        init + 10));
+        init, std::numeric_limits<uint32_t>::max(), false, app2, init + 10));
     REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 76);
 
     app2->getWorkManager().clearChildren();
@@ -691,7 +799,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent]")
         REQUIRE(catchupSimulation.catchupApplication(initLedger, 80, false, a));
     }
 
-    // Now push network along a _lot_ futher along see that they can all
+    // Now push network along a _lot_ further along see that they can all
     // still catch up properly.
     catchupSimulation.generateAndPublishHistory(25);
     initLedger =

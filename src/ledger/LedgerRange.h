@@ -4,10 +4,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/optional.h"
+#include "xdr/Stellar-types.h"
 #include <cstdint>
 
 namespace stellar
 {
+// Ledger seq num + hash pair, a lightweight substitute of ledger
+// history entry, useful for catchup and ledger verification purposes.
+using LedgerNumHashPair = std::pair<uint32_t, optional<Hash>>;
 
 class LedgerRange final
 {

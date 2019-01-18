@@ -10,6 +10,7 @@
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
+#include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
@@ -178,6 +179,90 @@ TestBucketGenerator::generateBucket(TestBucketState state)
     }
 
     return binToHex(hash);
+}
+
+TestLedgerChainGenerator::TestLedgerChainGenerator(
+    Application& app, std::shared_ptr<HistoryArchive> archive,
+    CheckpointRange range, TmpDir const& tmpDir)
+    : mApp{app}, mArchive{archive}, mCheckpointRange{range}, mTmpDir{tmpDir}
+{
+}
+
+void
+TestLedgerChainGenerator::createHistoryFiles(
+    std::vector<LedgerHeaderHistoryEntry> const& lhv,
+    LedgerHeaderHistoryEntry& first, LedgerHeaderHistoryEntry& last,
+    uint32_t checkpoint)
+{
+    FileTransferInfo ft{mTmpDir, HISTORY_FILE_TYPE_LEDGER, checkpoint};
+    XDROutputFileStream ledgerOut;
+    ledgerOut.open(ft.localPath_nogz());
+
+    for (auto& ledger : lhv)
+    {
+        if (first.header.ledgerSeq == 0)
+        {
+            first = ledger;
+        }
+        REQUIRE(ledgerOut.writeOne(ledger));
+        last = ledger;
+    }
+    ledgerOut.close();
+}
+
+TestLedgerChainGenerator::CheckpointEnds
+TestLedgerChainGenerator::makeOneLedgerFile(
+    uint32_t currCheckpoint, Hash prevHash,
+    HistoryManager::LedgerVerificationStatus state)
+{
+    auto initLedger =
+        mApp.getHistoryManager().prevCheckpointLedger(currCheckpoint);
+    auto frequency = mApp.getHistoryManager().getCheckpointFrequency();
+    if (initLedger == 0)
+    {
+        initLedger = LedgerManager::GENESIS_LEDGER_SEQ;
+        frequency -= 1;
+    }
+
+    LedgerHeaderHistoryEntry first, last, lcl;
+    lcl.header.ledgerSeq = initLedger;
+    lcl.header.previousLedgerHash = prevHash;
+
+    std::vector<LedgerHeaderHistoryEntry> ledgerChain =
+        LedgerTestUtils::generateLedgerHeadersForCheckpoint(lcl, frequency,
+                                                            state);
+
+    createHistoryFiles(ledgerChain, first, last, currCheckpoint);
+    return CheckpointEnds(first, last);
+}
+
+TestLedgerChainGenerator::CheckpointEnds
+TestLedgerChainGenerator::makeLedgerChainFiles(
+    HistoryManager::LedgerVerificationStatus state)
+{
+    Hash hash = HashUtils::random();
+    LedgerHeaderHistoryEntry beginRange;
+
+    LedgerHeaderHistoryEntry first, last;
+    for (auto i = mCheckpointRange.first(); i <= mCheckpointRange.last();
+         i += mApp.getHistoryManager().getCheckpointFrequency())
+    {
+        // Only corrupt first checkpoint (last to be verified)
+        if (i != mCheckpointRange.first())
+        {
+            state = HistoryManager::VERIFY_STATUS_OK;
+        }
+
+        std::tie(first, last) = makeOneLedgerFile(i, hash, state);
+        hash = last.hash;
+
+        if (beginRange.header.ledgerSeq == 0)
+        {
+            beginRange = first;
+        }
+    }
+
+    return CheckpointEnds(beginRange, last);
 }
 
 CatchupMetrics::CatchupMetrics()
@@ -495,7 +580,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
 bool
 CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
                                       bool manual, Application::pointer app2,
-                                      bool doStart, uint32_t gap)
+                                      uint32_t gap)
 {
     auto startCatchupMetrics = getCatchupMetrics(app2);
 
@@ -505,15 +590,19 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
-    if (doStart)
+    auto catchupConfiguration = CatchupConfiguration(initLedger, count);
+    auto recent = count != std::numeric_limits<uint32_t>::max();
+
+    if (manual)
     {
         // Normally Herder calls LedgerManager.externalizeValue(initLedger + 1)
-        // and this _triggers_ catchup within the LM. However, we do this
-        // out-of-order because we want to control the catchup mode rather than
-        // let the LM pick it, and because we want to simulate a 1-ledger skew
-        // between the publishing side and the catchup side so that the catchup
-        // has "heard" exactly 1 consensus LedgerCloseData broadcast after the
-        // event that triggered its catchup to begin.
+        // and this _triggers_ catchup within the LM. However, for catchup
+        // manual and recent, we do this out-of-order because we want to control
+        // the catchup mode rather than let the LM pick it, and because we want
+        // to simulate a 1-ledger skew between the publishing side and the
+        // catchup side so that the catchup has "heard" exactly 1 consensus
+        // LedgerCloseData broadcast after the event that triggered its catchup
+        // to begin.
         //
         // For example: we want initLedger to be (say) 191-or-less, so that it
         // catches up using block 3, but we want the publisher to advance past
@@ -523,7 +612,18 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
         CLOG(INFO, "History")
             << "force-starting catchup at initLedger=" << initLedger;
 
-        lm.startCatchup({initLedger, count}, manual);
+        lm.startCatchup(catchupConfiguration, true);
+    }
+    else if (recent)
+    {
+        CLOG(INFO, "History")
+            << "force-starting catchup recent at initLedger=" << initLedger;
+        auto hash = mLedgerHashes.at(
+            std::find(mLedgerSeqs.begin(), mLedgerSeqs.end(), initLedger) -
+            mLedgerSeqs.begin());
+        catchupConfiguration = {
+            LedgerNumHashPair(initLedger, make_optional<Hash>(hash)), count};
+        lm.startCatchup(catchupConfiguration, true);
     }
 
     // Push publishing side forward one-ledger into a history block if it's
@@ -573,7 +673,6 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     }
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
-    auto catchupConfiguration = CatchupConfiguration(initLedger, count);
 
     REQUIRE(!app2->getClock().getIOService().stopped());
     crankUntil(

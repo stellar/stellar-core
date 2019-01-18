@@ -4,14 +4,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerRange.h"
 #include <cstdint>
 #include <string>
 
 namespace stellar
 {
 
-// Each catchup can be configured by two parameters destination ledger and count
-// of ledgers to apply.
+// Each catchup can be configured by two parameters destination ledger
+// (and its hash, if known) and count of ledgers to apply.
 // Value of count can be adjusted in different ways during catchup. If applying
 // count ledgers would mean going before the last closed ledger - it is
 // reduced. Otherwise it can be slightly enlarged (by at most checkpoint
@@ -33,6 +34,7 @@ class CatchupConfiguration
     static const uint32_t CURRENT = 0;
 
     CatchupConfiguration(uint32_t toLedger, uint32_t count);
+    CatchupConfiguration(LedgerNumHashPair ledgerHashPair, uint32_t count);
 
     /**
      * If toLedger() == CatchupConfiguration::CURRENT it replaces it with
@@ -43,7 +45,7 @@ class CatchupConfiguration
     uint32_t
     toLedger() const
     {
-        return mToLedger;
+        return mLedgerHashPair.first;
     }
 
     uint32_t
@@ -52,9 +54,15 @@ class CatchupConfiguration
         return mCount;
     }
 
+    optional<Hash>
+    hash() const
+    {
+        return mLedgerHashPair.second;
+    }
+
   private:
-    uint32_t mToLedger;
     uint32_t mCount;
+    LedgerNumHashPair mLedgerHashPair;
 };
 
 uint32_t parseLedger(std::string const& str);
