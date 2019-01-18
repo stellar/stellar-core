@@ -18,14 +18,16 @@
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
-
 #include <chrono>
 #include <fstream>
 #include <future>
 #include <iostream>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 #include <set>
 #include <sstream>
 
@@ -293,8 +295,13 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
     }
 }
 
-HistoryArchive::HistoryArchive(HistoryArchiveConfiguration const& config)
+HistoryArchive::HistoryArchive(Application& app,
+                               HistoryArchiveConfiguration const& config)
     : mConfig(config)
+    , mSuccessMeter(app.getMetrics().NewMeter(
+          {"history-archive", config.mName, "success"}, "event"))
+    , mFailureMeter(app.getMetrics().NewMeter(
+          {"history-archive", config.mName, "failure"}, "event"))
 {
 }
 
@@ -355,21 +362,24 @@ HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 void
 HistoryArchive::markSuccess()
 {
-    mSuccess++;
+    mSuccessMeter.Mark();
 }
 
 void
 HistoryArchive::markFailure()
 {
-    mFailure++;
+    mFailureMeter.Mark();
 }
 
-Json::Value
-HistoryArchive::getJsonInfo() const
+uint64_t
+HistoryArchive::getSuccessCount() const
 {
-    Json::Value result;
-    result["success"] = mSuccess;
-    result["failure"] = mFailure;
-    return result;
+    return mSuccessMeter.count();
+}
+
+uint64_t
+HistoryArchive::getFailureCount() const
+{
+    return mFailureMeter.count();
 }
 }

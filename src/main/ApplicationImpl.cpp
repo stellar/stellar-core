@@ -222,8 +222,6 @@ ApplicationImpl::getJsonInfo()
 
     auto& info = root["info"];
 
-    if (getConfig().UNSAFE_QUORUM)
-        info["UNSAFE_QUORUM"] = "UNSAFE QUORUM ALLOWED";
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
@@ -263,11 +261,8 @@ ApplicationImpl::getJsonInfo()
         info["invariant_failures"] = invariantFailures;
     }
 
-    auto historyArchiveInfo = getHistoryArchiveManager().getJsonInfo();
-    if (!historyArchiveInfo.empty())
-    {
-        info["history"] = historyArchiveInfo;
-    }
+    info["history_failure_rate"] =
+        fmt::format("{:.2}", getHistoryArchiveManager().getFailureRate());
 
     return root;
 }
