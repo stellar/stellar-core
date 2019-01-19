@@ -37,7 +37,6 @@ Threshold: med
 Result: CreateAccountResult
 
 */
-
 struct CreateAccountOp
 {
     AccountID destination; // account to create
@@ -126,7 +125,6 @@ struct CreatePassiveOfferOp
 
     Result: SetOptionsResult
 */
-
 struct SetOptionsOp
 {
     AccountID* inflationDest; // sets the inflation destination
@@ -215,7 +213,6 @@ Result: InflationResult
 
     Result: ManageDataResult
 */
-
 struct ManageDataOp
 {
     string64 dataName;
@@ -230,7 +227,6 @@ struct ManageDataOp
 
     Result: BumpSequenceResult
 */
-
 struct BumpSequenceOp
 {
     SequenceNumber bumpTo;
@@ -299,8 +295,8 @@ case MEMO_RETURN:
 
 struct TimeBounds
 {
-    uint64 minTime;
-    uint64 maxTime; // 0 here means no maxTime
+    TimePoint minTime;
+    TimePoint maxTime; // 0 here means no maxTime
 };
 
 /* a transaction is a container for a set of operations
@@ -310,7 +306,6 @@ struct TimeBounds
           either all operations are applied or none are
           if any returns a failing code
 */
-
 struct Transaction
 {
     // account used to run the transaction

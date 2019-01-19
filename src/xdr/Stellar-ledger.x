@@ -15,7 +15,7 @@ typedef opaque UpgradeType<128>;
 struct StellarValue
 {
     Hash txSetHash;   // transaction set to apply to previous ledger
-    uint64 closeTime; // network close time
+    TimePoint closeTime; // network close time
 
     // upgrades to apply to the previous ledger (usually empty)
     // this is a vector of encoded 'LedgerUpgrade' so that nodes can drop
