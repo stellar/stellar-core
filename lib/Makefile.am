@@ -22,10 +22,7 @@ if USE_POSTGRES
 libsoci_a_SOURCES += $(SOCI_PG_FILES)
 endif # USE_POSTGRES
 
-lib3rdparty_a_SOURCES = $(UTIL_FILES) $(ASIO_CXX_FILES) $(JSON_FILES)
-if SQLITE3_INTERNAL
-lib3rdparty_a_SOURCES += $(SQLITE3_FILES)
-endif # SQLITE3_INTERNAL
+lib3rdparty_a_SOURCES = $(UTIL_FILES) $(ASIO_CXX_FILES) $(JSON_FILES) $(SQLITE3_FILES)
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
 
 # Suppress any installation of SUBDIRS, which may be distributed separately
