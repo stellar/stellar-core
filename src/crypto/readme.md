@@ -1,9 +1,9 @@
 # Crypto wrappers
 
 This directory contains minor convenience wrappers around
-[libsodium](http://libsodium.org), a copy of which is stored in the
-[src/lib/libsodium](../lib/libsodium) submodule of the `stellar-core`
-distribution, and compiled along with it.
+[libsodium](http://libsodium.org). The fork used is stored in
+[another repository](https://github.com/stellar/libsodium)
+and used as a submodule by `stellar-core`.
 
 The crypto module also contains a small implementation to turn public/private
 keys into human manageable strings (StrKey).
