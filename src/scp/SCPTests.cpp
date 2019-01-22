@@ -12,19 +12,35 @@
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include "util/format.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
 {
 
-#define CREATE_VALUE(X) \
-    static const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X); \
-    static const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
+// x < y
+// k can be anything
+static Value xValue, yValue, kValue;
 
-CREATE_VALUE(x);
-CREATE_VALUE(y);
-CREATE_VALUE(z);
+static void
+setupValues()
+{
+    std::vector<Value> v;
+    std::string d = fmt::format("SEED_VALUE_DATA_{}", std::rand());
+    for (int i = 0; i < 2; i++)
+    {
+        auto h = sha256(fmt::format("{}/{}", d, i));
+        v.emplace_back(xdr::xdr_to_opaque(h));
+    }
+    std::sort(v.begin(), v.end());
+    xValue = v[0];
+    yValue = v[1];
+
+    // kValue is independent
+    auto kHash = sha256(d);
+    kValue = xdr::xdr_to_opaque(kHash);
+}
 
 class TestSCP : public SCPDriver
 {
@@ -389,6 +405,7 @@ verifyNominate(SCPEnvelope const& actual, SecretKey const& secretKey,
 
 TEST_CASE("vblocking and quorum", "[scp]")
 {
+    setupValues();
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
     SIMULATION_CREATE_NODE(2);
@@ -423,6 +440,7 @@ TEST_CASE("vblocking and quorum", "[scp]")
 
 TEST_CASE("v blocking distance", "[scp]")
 {
+    setupValues();
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
     SIMULATION_CREATE_NODE(2);
@@ -542,6 +560,7 @@ makeExternalizeGen(Hash const& qSetHash, SCPBallot const& commitBallot,
 
 TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 {
+    setupValues();
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
     SIMULATION_CREATE_NODE(2);
@@ -2178,6 +2197,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
 TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
 {
+    setupValues();
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
     SIMULATION_CREATE_NODE(2);
@@ -2313,6 +2333,7 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
 
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 {
+    setupValues();
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
     SIMULATION_CREATE_NODE(2);
@@ -2430,13 +2451,13 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                                votes2);
 
                 scp.mExpectedCandidates.insert(yValue);
-                scp.mCompositeValue = zValue;
+                scp.mCompositeValue = kValue;
                 // this updates the composite value to use next time
                 // but does not prepare it
                 scp.receiveEnvelope(acc3_2);
                 REQUIRE(scp.mEnvs.size() == 4);
 
-                REQUIRE(scp.getLatestCompositeCandidate(0) == zValue);
+                REQUIRE(scp.getLatestCompositeCandidate(0) == kValue);
 
                 scp.receiveEnvelope(acc4_2);
                 REQUIRE(scp.mEnvs.size() == 4);
@@ -2495,13 +2516,13 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     verifyPrepare(scp2.mEnvs[1], v0SecretKey, qSetHash0, 0,
                                   SCPBallot(1, xValue));
                 }
-                SECTION("ballot protocol started (on value z)")
+                SECTION("ballot protocol started (on value k)")
                 {
                     scp2.mSCP.setStateFromEnvelope(
                         0, makePrepare(v0SecretKey, qSetHash0, 0,
-                                       SCPBallot(1, zValue)));
+                                       SCPBallot(1, kValue)));
                     nominationRestore();
-                    // nomination didn't do anything (already working on z)
+                    // nomination didn't do anything (already working on k)
                     REQUIRE(scp2.mEnvs.size() == 1);
                 }
             }
@@ -2597,25 +2618,28 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             return (n == v1NodeID) ? 1000 : 1;
         };
 
-        std::vector<Value> votesX, votesY, votesZ, votesXY, votesYZ, votesXZ,
+        std::vector<Value> votesX, votesY, votesK, votesXY, votesYK, votesXK,
             emptyV;
         votesX.emplace_back(xValue);
         votesY.emplace_back(yValue);
-        votesZ.emplace_back(zValue);
+        votesK.emplace_back(kValue);
 
         votesXY.emplace_back(xValue);
         votesXY.emplace_back(yValue);
 
-        votesYZ.emplace_back(yValue);
-        votesYZ.emplace_back(zValue);
+        votesYK.emplace_back(yValue);
+        votesYK.emplace_back(kValue);
+        std::sort(votesYK.begin(), votesYK.end());
 
-        votesXZ.emplace_back(xValue);
-        votesXZ.emplace_back(zValue);
+        votesXK.emplace_back(xValue);
+        votesXK.emplace_back(kValue);
+        std::sort(votesXK.begin(), votesXK.end());
 
         std::vector<Value> valuesHash;
         valuesHash.emplace_back(xValue);
         valuesHash.emplace_back(yValue);
-        valuesHash.emplace_back(zValue);
+        valuesHash.emplace_back(kValue);
+        std::sort(valuesHash.begin(), valuesHash.end());
 
         scp.mHashValueCalculator = [&](Value const& v) {
             auto pos = std::find(valuesHash.begin(), valuesHash.end(), v);
@@ -2629,7 +2653,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         SCPEnvelope nom1 =
             makeNominate(v1SecretKey, qSetHash, 0, votesXY, emptyV);
         SCPEnvelope nom2 =
-            makeNominate(v2SecretKey, qSetHash, 0, votesXZ, emptyV);
+            makeNominate(v2SecretKey, qSetHash, 0, votesXK, emptyV);
 
         SECTION("nomination waits for v1")
         {
@@ -2638,9 +2662,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             REQUIRE(scp.mEnvs.size() == 0);
 
             SCPEnvelope nom3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votesYZ, emptyV);
+                makeNominate(v3SecretKey, qSetHash, 0, votesYK, emptyV);
             SCPEnvelope nom4 =
-                makeNominate(v4SecretKey, qSetHash, 0, votesXZ, emptyV);
+                makeNominate(v4SecretKey, qSetHash, 0, votesXK, emptyV);
 
             // nothing happens with non top nodes
             scp.receiveEnvelope(nom2);
@@ -2661,7 +2685,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 scp.mCompositeValue = xValue;
 
                 // note: value passed in here should be ignored
-                REQUIRE(scp.nominate(0, zValue, true));
+                REQUIRE(scp.nominate(0, kValue, true));
                 // picks up 'x' from v1 (as we already have 'y')
                 // which also happens to causes 'x' to be accepted
                 REQUIRE(scp.mEnvs.size() == 2);
@@ -2697,7 +2721,10 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
                 REQUIRE(scp.nominate(0, xValue, true));
                 REQUIRE(scp.mEnvs.size() == 1);
-                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesZ,
+                // v2 votes for XK, but nomination only picks the highest value
+                std::vector<Value> v2Top;
+                v2Top.emplace_back(std::max(xValue, kValue));
+                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, v2Top,
                                emptyV);
             }
             SECTION("v3 is new top node")
