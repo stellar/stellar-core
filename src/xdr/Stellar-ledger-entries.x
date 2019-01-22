@@ -12,6 +12,7 @@ typedef opaque Thresholds[4];
 typedef string string32<32>;
 typedef string string64<64>;
 typedef int64 SequenceNumber;
+typedef uint64 TimePoint;
 typedef opaque DataValue<64>;
 
 enum AssetType
@@ -105,7 +106,6 @@ const MASK_ACCOUNT_FLAGS = 0x7;
     Other ledger entries created require an account.
 
 */
-
 struct AccountEntry
 {
     AccountID accountID;      // master public key for this account
