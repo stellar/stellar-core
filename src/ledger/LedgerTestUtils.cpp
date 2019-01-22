@@ -45,7 +45,7 @@ template <typename T>
 void
 replaceControlCharacters(T& s, int minSize)
 {
-    std::locale loc("C");
+    auto& loc = std::locale::classic();
     if (static_cast<int>(s.size()) < minSize)
     {
         s.resize(minSize);
@@ -53,7 +53,7 @@ replaceControlCharacters(T& s, int minSize)
     for (auto it = s.begin(); it != s.end(); it++)
     {
         char c = static_cast<char>(*it);
-        if (c < 0 || std::iscntrl(c))
+        if (c < 0 || std::iscntrl(c, loc))
         {
             auto b = autocheck::generator<char>{}(autocheck::detail::nalnums);
             *it = b;
