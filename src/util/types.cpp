@@ -12,7 +12,6 @@
 
 namespace stellar
 {
-static std::locale cLocale("C");
 
 LedgerKey
 LedgerEntryKey(LedgerEntry const& e)
@@ -84,7 +83,7 @@ isString32Valid(std::string const& str)
 {
     for (auto c : str)
     {
-        if (c < 0 || std::iscntrl(c, cLocale))
+        if (c < 0 || std::iscntrl(c, std::locale::classic()))
         {
             return false;
         }
@@ -116,7 +115,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, cLocale))
+                if (b > 0x7F || !std::isalnum((char)b, std::locale::classic()))
                 {
                     return false;
                 }
@@ -144,7 +143,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, cLocale))
+                if (b > 0x7F || !std::isalnum((char)b, std::locale::classic()))
                 {
                     return false;
                 }
