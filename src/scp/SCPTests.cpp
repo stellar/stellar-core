@@ -19,16 +19,16 @@
 namespace stellar
 {
 
-// x < y
+// x < y < z
 // k can be anything
-static Value xValue, yValue, kValue;
+static Value xValue, yValue, zValue, kValue;
 
 static void
 setupValues()
 {
     std::vector<Value> v;
     std::string d = fmt::format("SEED_VALUE_DATA_{}", std::rand());
-    for (int i = 0; i < 2; i++)
+    for (int i = 0; i < 3; i++)
     {
         auto h = sha256(fmt::format("{}/{}", d, i));
         v.emplace_back(xdr::xdr_to_opaque(h));
@@ -36,6 +36,7 @@ setupValues()
     std::sort(v.begin(), v.end());
     xValue = v[0];
     yValue = v[1];
+    zValue = v[2];
 
     // kValue is independent
     auto kHash = sha256(d);
@@ -586,6 +587,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
 
     REQUIRE(xValue < yValue);
+    REQUIRE(yValue < zValue);
 
     CLOG(INFO, "SCP") << "";
     CLOG(INFO, "SCP") << "BEGIN TEST";
@@ -721,7 +723,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         REQUIRE(!scp.hasBallotTimer());
 
         Value const& aValue = xValue;
-        Value const& bValue = yValue;
+        Value const& bValue = zValue;
 
         SCPBallot A1(1, aValue);
         SCPBallot B1(1, bValue);
@@ -1175,14 +1177,14 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     }
 
     // this is the same test suite than "start <1,x>" with the exception that
-    // some transitions are not possible as x < y - so instead we verify that
+    // some transitions are not possible as x < z - so instead we verify that
     // nothing happens
-    SECTION("start <1,y>")
+    SECTION("start <1,z>")
     {
         // no timer is set
         REQUIRE(!scp.hasBallotTimer());
 
-        Value const& aValue = yValue;
+        Value const& aValue = zValue;
         Value const& bValue = xValue;
 
         SCPBallot A1(1, aValue);
@@ -1625,7 +1627,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     SECTION("start from pristine")
     {
         Value const& aValue = xValue;
-        Value const& bValue = yValue;
+        Value const& bValue = zValue;
 
         SCPBallot A1(1, aValue);
         SCPBallot B1(1, bValue);
@@ -1909,7 +1911,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             SCPBallot b2;
             SECTION("bumpToBallot prevented once committed (by value)")
             {
-                b2 = SCPBallot(1, yValue);
+                b2 = SCPBallot(1, zValue);
             }
             SECTION("bumpToBallot prevented once committed (by counter)")
             {
@@ -1918,7 +1920,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             SECTION(
                 "bumpToBallot prevented once committed (by value and counter)")
             {
-                b2 = SCPBallot(2, yValue);
+                b2 = SCPBallot(2, zValue);
             }
 
             SCPEnvelope confirm1b2, confirm2b2, confirm3b2, confirm4b2;
@@ -2219,6 +2221,7 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
     uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
 
     REQUIRE(xValue < yValue);
+    REQUIRE(yValue < zValue);
 
     auto recvQuorumChecksEx2 = [&](genEnvelope gen, bool withChecks,
                                    bool delayedQuorum, bool checkUpcoming,
@@ -2258,7 +2261,7 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
     // no timer is set
     REQUIRE(!scp.hasBallotTimer());
 
-    Value const& aValue = yValue;
+    Value const& aValue = zValue;
     Value const& bValue = xValue;
 
     SCPBallot A1(1, aValue);
@@ -2354,6 +2357,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
 
     REQUIRE(xValue < yValue);
+    REQUIRE(yValue < zValue);
 
     SECTION("nomination - v0 is top")
     {
