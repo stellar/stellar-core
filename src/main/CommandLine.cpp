@@ -38,6 +38,9 @@ class CommandLine
   public:
     struct ConfigOption
     {
+        using Common = std::pair<std::string, bool>;
+        static const std::vector<Common> COMMON_OPTIONS;
+
         el::Level mLogLevel{el::Level::Info};
         std::vector<std::string> mMetrics;
         std::string mConfigFile;
@@ -64,13 +67,21 @@ class CommandLine
 
     explicit CommandLine(std::vector<Command> const& commands);
 
-    optional<Command> selectCommand(int argc, char* const* argv);
-    int executeCommand(Command const& command, int argc, char* const* argv);
+    using AdjustedCommandLine =
+        std::pair<std::string, std::vector<std::string>>;
+    AdjustedCommandLine adjustCommandLine(clara::detail::Args const& args);
+    optional<Command> selectCommand(std::string const& commandName);
     void writeToStream(std::string const& exeName, std::ostream& os) const;
 
   private:
     std::vector<Command> mCommands;
 };
+
+const std::vector<std::pair<std::string, bool>>
+    CommandLine::ConfigOption::COMMON_OPTIONS{{"--conf", true},
+                                              {"--ll", true},
+                                              {"--metric", true},
+                                              {"--help", false}};
 
 class ParserWithValidation
 {
@@ -323,33 +334,76 @@ CommandLine::CommandLine(std::vector<Command> const& commands)
         [](Command const& x, Command const& y) { return x.name() < y.name(); });
 }
 
-optional<CommandLine::Command>
-CommandLine::selectCommand(int argc, char* const* argv)
+CommandLine::AdjustedCommandLine
+CommandLine::adjustCommandLine(clara::detail::Args const& args)
 {
-    if (argc < 2)
+    auto tokens = clara::detail::TokenStream{args};
+    auto command = std::string{};
+    auto remainingTokens = std::vector<std::string>{};
+    auto found = false;
+    auto optionValue = false;
+
+    while (tokens)
+    {
+        auto token = *tokens;
+        if (found || optionValue)
+        {
+            remainingTokens.push_back(token.token);
+            optionValue = false;
+        }
+        else if (token.type == clara::detail::TokenType::Argument)
+        {
+            command = token.token;
+            found = true;
+        }
+        else // clara::detail::TokenType::Option
+        {
+            auto commonIt =
+                std::find_if(std::begin(ConfigOption::COMMON_OPTIONS),
+                             std::end(ConfigOption::COMMON_OPTIONS),
+                             [&](ConfigOption::Common const& option) {
+                                 return token.token == option.first;
+                             });
+            if (commonIt != std::end(ConfigOption::COMMON_OPTIONS))
+            {
+                remainingTokens.push_back(token.token);
+                optionValue = commonIt->second;
+            }
+            else
+            {
+                return {}; // fallback to deprecated command line syntax
+            }
+        }
+        ++tokens;
+    }
+
+    return CommandLine::AdjustedCommandLine{command, remainingTokens};
+}
+
+optional<CommandLine::Command>
+CommandLine::selectCommand(std::string const& commandName)
+{
+    if (commandName.empty())
     {
         return nullopt<Command>();
     }
 
     auto command = std::find_if(
         std::begin(mCommands), std::end(mCommands),
-        [&](Command const& command) { return command.name() == argv[1]; });
-    if (command == std::end(mCommands))
+        [&](Command const& command) { return command.name() == commandName; });
+    if (command != std::end(mCommands))
     {
-        return nullopt<Command>();
+        return make_optional<Command>(*command);
     }
 
-    return make_optional<Command>(*command);
-}
-
-int
-CommandLine::executeCommand(Command const& command, int argc, char* const* argv)
-{
-    auto args = CommandLineArgs{argv[0],
-                                fmt::format("{0} {1}", argv[0], command.name()),
-                                command.description(),
-                                {argv + 2, argv + argc}};
-    return command.run(args);
+    command = std::find_if(
+        std::begin(mCommands), std::end(mCommands),
+        [&](Command const& command) { return command.name() == "help"; });
+    if (command != std::end(mCommands))
+    {
+        return make_optional<Command>(*command);
+    }
+    return nullopt<Command>();
 }
 
 void
@@ -763,23 +817,26 @@ handleCommandLine(int argc, char* const* argv)
           runWriteQuorum},
          {"version", "print version information", runVersion}}};
 
-    auto command = commandLine.selectCommand(argc, argv);
+    auto ajustedCommandLine = commandLine.adjustCommandLine({argc, argv});
+    auto command = commandLine.selectCommand(ajustedCommandLine.first);
     if (!command)
     {
         return nullopt<int>();
     }
 
+    auto exeName = "stellar-core";
+    auto commandName = fmt::format("{0} {1}", exeName, command->name());
+    auto args = CommandLineArgs{exeName, commandName, command->description(),
+                                ajustedCommandLine.second};
     if (command->name() == "run")
     {
         // run outside of catch block so that we properly capture crashes
-        return make_optional<int>(
-            commandLine.executeCommand(*command, argc, argv));
+        return make_optional<int>(command->run(args));
     }
 
     try
     {
-        return make_optional<int>(
-            commandLine.executeCommand(*command, argc, argv));
+        return make_optional<int>(command->run(args));
     }
     catch (std::exception& e)
     {

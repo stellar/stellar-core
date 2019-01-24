@@ -14,7 +14,9 @@
 #include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
+
 #include <cstdlib>
+#include <lib/util/format.h>
 #include <numeric>
 #include <time.h>
 
