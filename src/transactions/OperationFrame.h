@@ -17,7 +17,6 @@ class MetricsRegistry;
 namespace stellar
 {
 class AbstractLedgerTxn;
-class Application;
 class LedgerManager;
 class LedgerTxnEntry;
 class LedgerTxnHeader;
@@ -39,8 +38,8 @@ class OperationFrame
     TransactionFrame& mParentTx;
     OperationResult& mResult;
 
-    virtual bool doCheckValid(Application& app, uint32_t ledgerVersion) = 0;
-    virtual bool doApply(Application& app, AbstractLedgerTxn& ltx) = 0;
+    virtual bool doCheckValid(uint32_t ledgerVersion) = 0;
+    virtual bool doApply(AbstractLedgerTxn& ltx) = 0;
 
     // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
@@ -61,7 +60,7 @@ class OperationFrame
     OperationFrame(OperationFrame const&) = delete;
     virtual ~OperationFrame() = default;
 
-    bool checkSignature(SignatureChecker& signatureChecker, Application& app,
+    bool checkSignature(SignatureChecker& signatureChecker,
                         AbstractLedgerTxn& ltx, bool forApply);
 
     AccountID const& getSourceID() const;
@@ -73,11 +72,10 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(SignatureChecker& signatureChecker, Application& app,
+    bool checkValid(SignatureChecker& signatureChecker,
                     AbstractLedgerTxn& ltxOuter, bool forApply);
 
-    bool apply(SignatureChecker& signatureChecker, Application& app,
-               AbstractLedgerTxn& ltx);
+    bool apply(SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx);
 
     Operation const&
     getOperation() const

@@ -101,9 +101,8 @@ ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& ltxOuter)
 
 bool
 ManageOfferOpFrame::computeOfferExchangeParameters(
-    Application& app, AbstractLedgerTxn& ltxOuter,
-    LedgerEntry const& offerEntry, bool creatingNewOffer, int64_t& maxSheepSend,
-    int64_t& maxWheatReceive)
+    AbstractLedgerTxn& ltxOuter, LedgerEntry const& offerEntry,
+    bool creatingNewOffer, int64_t& maxSheepSend, int64_t& maxWheatReceive)
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
@@ -182,7 +181,7 @@ ManageOfferOpFrame::computeOfferExchangeParameters(
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& ltxOuter)
+ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
     if (!checkOfferValid(ltx))
@@ -244,9 +243,8 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& ltxOuter)
                             newOffer.data.offer().price.n);
         int64_t maxSheepSend = 0;
         int64_t maxWheatReceive = 0;
-        if (!computeOfferExchangeParameters(app, ltx, newOffer,
-                                            creatingNewOffer, maxSheepSend,
-                                            maxWheatReceive))
+        if (!computeOfferExchangeParameters(ltx, newOffer, creatingNewOffer,
+                                            maxSheepSend, maxWheatReceive))
         {
             return false;
         }
@@ -425,7 +423,7 @@ ManageOfferOpFrame::doApply(Application& app, AbstractLedgerTxn& ltxOuter)
 
 // makes sure the currencies are different
 bool
-ManageOfferOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+ManageOfferOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;

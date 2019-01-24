@@ -2,13 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
-#include "OperationFrame.h"
-#include "database/Database.h"
-#include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnHeader.h"
-#include "main/Application.h"
+#include "transactions/OperationFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -22,11 +16,9 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
-#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
-#include <string>
+
+#include <xdrpp/printer.h>
 
 namespace stellar
 {
@@ -94,7 +86,7 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-OperationFrame::apply(SignatureChecker& signatureChecker, Application& app,
+OperationFrame::apply(SignatureChecker& signatureChecker,
                       AbstractLedgerTxn& ltx)
 {
     bool res;
@@ -102,10 +94,10 @@ OperationFrame::apply(SignatureChecker& signatureChecker, Application& app,
     {
         CLOG(TRACE, "Tx") << "Operation: " << xdr::xdr_to_string(mOperation);
     }
-    res = checkValid(signatureChecker, app, ltx, true);
+    res = checkValid(signatureChecker, ltx, true);
     if (res)
     {
-        res = doApply(app, ltx);
+        res = doApply(ltx);
         if (Logging::logTrace("Tx"))
         {
             CLOG(TRACE, "Tx")
@@ -129,8 +121,7 @@ bool OperationFrame::isVersionSupported(uint32_t) const
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
-                               Application& app, AbstractLedgerTxn& ltx,
-                               bool forApply)
+                               AbstractLedgerTxn& ltx, bool forApply)
 {
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -182,7 +173,7 @@ OperationFrame::getResultCode() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
+OperationFrame::checkValid(SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter, bool forApply)
 {
     // Note: ltx is always rolled back so checkValid never modifies the ledger
@@ -196,7 +187,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
 
     if (!forApply || ledgerVersion < 10)
     {
-        if (!checkSignature(signatureChecker, app, ltx, forApply))
+        if (!checkSignature(signatureChecker, ltx, forApply))
         {
             return false;
         }
@@ -215,7 +206,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
 
-    return doCheckValid(app, ledgerVersion);
+    return doCheckValid(ledgerVersion);
 }
 
 LedgerTxnEntry

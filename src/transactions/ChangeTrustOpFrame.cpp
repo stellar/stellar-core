@@ -24,7 +24,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     auto issuerID = getIssuer(mChangeTrust.line);
@@ -131,7 +131,7 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mChangeTrust.limit < 0)
     {
