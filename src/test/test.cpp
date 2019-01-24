@@ -218,9 +218,8 @@ runTest(CommandLineArgs const& args)
     session.cli(parser);
 
     auto result = session.cli().parse(
-        fmt::format("{0} {1}", args.mExeName, args.mCommandName),
-        Catch::clara::detail::TokenStream{std::begin(args.mArgs),
-                                          std::end(args.mArgs)});
+        args.mCommandName, Catch::clara::detail::TokenStream{
+                               std::begin(args.mArgs), std::end(args.mArgs)});
     if (!result)
     {
         writeWithTextFlow(std::cerr, result.errorMessage());

@@ -824,8 +824,8 @@ handleCommandLine(int argc, char* const* argv)
         return nullopt<int>();
     }
 
-    auto exeName = argv[0];
-    auto commandName = fmt::format("{0} {1}", argv[0], command->name());
+    auto exeName = "stellar-core";
+    auto commandName = fmt::format("{0} {1}", exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
                                 ajustedCommandLine.second};
     if (command->name() == "run")
