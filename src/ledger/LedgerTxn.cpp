@@ -1726,4 +1726,16 @@ LedgerTxnRoot::writeSignersTableIntoAccountsTable()
 {
     mImpl->writeSignersTableIntoAccountsTable();
 }
+
+void
+LedgerTxnRoot::encodeDataNamesBase64()
+{
+    mImpl->encodeDataNamesBase64();
+}
+
+void
+LedgerTxnRoot::encodeHomeDomainsBase64()
+{
+    mImpl->encodeHomeDomainsBase64();
+}
 }

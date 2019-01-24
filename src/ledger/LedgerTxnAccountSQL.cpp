@@ -61,7 +61,7 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
     }
 
     account.accountID = key.account().accountID;
-    account.homeDomain = homeDomain;
+    decoder::decode_b64(homeDomain, account.homeDomain);
 
     bn::decode_b64(thresholds.begin(), thresholds.end(),
                    account.thresholds.begin());
@@ -160,12 +160,12 @@ LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
     }
 
     size_t numAccountsUpdated = 0;
-    for (auto const& kv : signersByAccount)
+    for (auto& kv : signersByAccount)
     {
-        assert(std::adjacent_find(kv.second.begin(), kv.second.end(),
-                                  [](Signer const& lhs, Signer const& rhs) {
-                                      return !(lhs.key < rhs.key);
-                                  }) == kv.second.end());
+        std::sort(kv.second.begin(), kv.second.end(),
+                  [](Signer const& lhs, Signer const& rhs) {
+                      return lhs.key < rhs.key;
+                  });
         std::string signers(decoder::encode_b64(xdr::xdr_to_opaque(kv.second)));
 
         auto prep = mDatabase.getPreparedStatement(
@@ -219,7 +219,7 @@ LedgerTxnRoot::Impl::insertOrUpdateAccount(LedgerEntry const& entry,
     }
 
     std::string thresholds(decoder::encode_b64(account.thresholds));
-    std::string homeDomain(account.homeDomain);
+    std::string homeDomain(decoder::encode_b64(account.homeDomain));
 
     soci::indicator signersInd = soci::i_null;
     std::string signers;
@@ -329,5 +329,81 @@ LedgerTxnRoot::Impl::dropAccounts()
     mDatabase.getSession()
         << "CREATE INDEX accountbalances ON accounts (balance) WHERE "
            "balance >= 1000000000";
+}
+
+static std::vector<std::pair<std::string, std::string>>
+loadHomeDomainsToEncode(Database& db)
+{
+    std::string accountID, homeDomain;
+
+    std::string sql = "SELECT accountid, homedomain FROM accounts "
+                      "WHERE length(homedomain) > 0";
+
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(soci::into(accountID));
+    st.exchange(soci::into(homeDomain));
+    st.define_and_bind();
+    st.execute(true);
+
+    std::vector<std::pair<std::string, std::string>> res;
+    while (st.got_data())
+    {
+        res.emplace_back(accountID, homeDomain);
+        st.fetch();
+    }
+    return res;
+}
+
+static void
+writeEncodedHomeDomain(Database& db, std::string const& accountID,
+                       std::string const& homeDomain)
+{
+    std::string encodedHomeDomain = decoder::encode_b64(homeDomain);
+
+    std::string sql =
+        "UPDATE accounts SET homedomain = :v1 WHERE accountid = :v2";
+
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(soci::use(encodedHomeDomain));
+    st.exchange(soci::use(accountID));
+    st.define_and_bind();
+    st.execute(true);
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("could not update SQL");
+    }
+}
+
+void
+LedgerTxnRoot::Impl::encodeHomeDomainsBase64()
+{
+    throwIfChild();
+    mEntryCache.clear();
+    mBestOffersCache.clear();
+
+    CLOG(INFO, "Ledger") << "Loading all home domains from accounts table";
+    auto homeDomainsToEncode = loadHomeDomainsToEncode(mDatabase);
+
+    if (!mDatabase.isSqlite())
+    {
+        auto& session = mDatabase.getSession();
+        session << "ALTER TABLE accounts ALTER COLUMN homedomain "
+                   "SET DATA TYPE VARCHAR(44)";
+    }
+
+    size_t numUpdated = 0;
+    for (auto const& kv : homeDomainsToEncode)
+    {
+        writeEncodedHomeDomain(mDatabase, kv.first, kv.second);
+
+        if ((++numUpdated & 0xfff) == 0xfff ||
+            (numUpdated == homeDomainsToEncode.size()))
+        {
+            CLOG(INFO, "Ledger")
+                << "Wrote home domains for " << numUpdated << " accounts";
+        }
+    }
 }
 }
