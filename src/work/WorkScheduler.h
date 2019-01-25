@@ -45,6 +45,8 @@ class WorkScheduler : public Work
     {
         std::weak_ptr<WorkScheduler> weak(
             std::static_pointer_cast<WorkScheduler>(shared_from_this()));
+        // Callback to schedule next crank that will only run if WorkScheduler
+        // is in non-aborting state.
         auto innerCallback = [weak]() { scheduleOne(weak); };
         return addWorkWithCallback<T>(innerCallback,
                                       std::forward<Args>(args)...);

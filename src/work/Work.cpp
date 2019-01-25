@@ -66,7 +66,7 @@ Work::onRun()
         }
         else if (state == State::WORK_FAILURE && !allChildrenDone())
         {
-            CLOG(DEBUG, "History")
+            CLOG(DEBUG, "Work")
                 << "A child of " << getName()
                 << " failed: aborting remaining children before failure.";
             shutdownChildren();
@@ -89,7 +89,7 @@ Work::onAbort()
     }
     else
     {
-        CLOG(DEBUG, "Work") << "Aborting " << getName();
+        CLOG(TRACE, "Work") << getName() << ": waiting for children to abort.";
         return allChildrenDone();
     }
 }

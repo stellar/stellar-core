@@ -33,7 +33,7 @@ BatchWork::doWork()
     {
         if (childIt->second->getState() == State::WORK_SUCCESS)
         {
-            CLOG(DEBUG, "History") << "Finished child work " << childIt->first;
+            CLOG(DEBUG, "Work") << "Finished child work " << childIt->first;
             childIt = mBatch.erase(childIt);
         }
         else

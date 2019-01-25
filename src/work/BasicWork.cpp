@@ -49,6 +49,7 @@ BasicWork::~BasicWork()
 void
 BasicWork::shutdown()
 {
+    CLOG(TRACE, "Work") << "Shutting down: " << getName();
     if (!isDone())
     {
         setState(InternalState::ABORTING);
@@ -129,7 +130,7 @@ BasicWork::stateName(InternalState st)
 void
 BasicWork::reset()
 {
-    CLOG(DEBUG, "Work") << "resetting " << getName();
+    CLOG(TRACE, "Work") << "resetting " << getName();
 
     if (mRetryTimer)
     {
@@ -143,6 +144,8 @@ BasicWork::reset()
 void
 BasicWork::startWork(std::function<void()> notificationCallback)
 {
+    CLOG(TRACE, "Work") << "Starting " << getName();
+
     if (mState != InternalState::PENDING)
     {
         // Only restart if work is in terminal state
@@ -167,7 +170,7 @@ BasicWork::waitForRetry()
     std::weak_ptr<BasicWork> weak = shared_from_this();
     auto t = getRetryDelay();
     mRetryTimer->expires_from_now(t);
-    CLOG(WARNING, "Work")
+    CLOG(DEBUG, "Work")
         << "Scheduling retry #" << (mRetries + 1) << "/" << mMaxRetries
         << " in " << std::chrono::duration_cast<std::chrono::seconds>(t).count()
         << " sec, for " << getName();
@@ -284,7 +287,7 @@ BasicWork::setState(InternalState st)
 }
 
 void
-BasicWork::wakeUp()
+BasicWork::wakeUp(std::function<void()> innerCallback)
 {
     // Work should not be waking up in terminal state
     // Work should not be interrupted when retrying or destructing
@@ -292,7 +295,17 @@ BasicWork::wakeUp()
     {
         return;
     }
+
+    CLOG(TRACE, "Work") << "Waking up: " << getName();
     setState(InternalState::RUNNING);
+
+    if (innerCallback)
+    {
+        CLOG(TRACE, "Work")
+            << getName() << " woke up and is executing its callback";
+        innerCallback();
+    }
+
     if (mNotifyCallback)
     {
         mNotifyCallback();
@@ -310,11 +323,7 @@ BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
             return;
         }
 
-        self->wakeUp();
-        if (innerCallback && !self->isAborting())
-        {
-            innerCallback();
-        }
+        self->wakeUp(innerCallback);
     };
     return callback;
 }
@@ -327,8 +336,11 @@ BasicWork::crankWork()
     InternalState nextState;
     if (mState == InternalState::ABORTING)
     {
+        auto doneAborting = onAbort();
         nextState =
-            onAbort() ? InternalState::ABORTED : InternalState::ABORTING;
+            doneAborting ? InternalState::ABORTED : InternalState::ABORTING;
+        CLOG(TRACE, "Work") << "Abort progress for " << getName()
+                            << (doneAborting ? ": done" : ": still aborting");
     }
     else
     {
