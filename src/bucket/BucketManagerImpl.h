@@ -27,7 +27,7 @@ namespace stellar
 class TmpDir;
 class Application;
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 class BucketList;
 struct HistoryArchiveState;
 
@@ -39,7 +39,7 @@ class BucketManagerImpl : public BucketManager
     BucketList mBucketList;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
-    std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
+    std::map<Hash, Bucket> mSharedBuckets;
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsertBatch;
@@ -66,11 +66,9 @@ class BucketManagerImpl : public BucketManager
     BucketList& getBucketList() override;
     medida::Timer& getMergeTimer() override;
     TmpDirManager& getTmpDirManager() override;
-    std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
-                                              uint256 const& hash,
-                                              size_t nObjects,
-                                              size_t nBytes) override;
-    std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
+    Bucket adoptFileAsBucket(std::string const& filename, uint256 const& hash,
+                             size_t nObjects, size_t nBytes) override;
+    Bucket getBucketByHash(uint256 const& hash) override;
 
     void forgetUnreferencedBuckets() override;
     void addBatch(Application& app, uint32_t currLedger,
@@ -82,15 +80,11 @@ class BucketManagerImpl : public BucketManager
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has) override;
 
-    std::shared_ptr<Bucket>
-    fresh(std::vector<LedgerEntry> const& liveEntries,
-          std::vector<LedgerKey> const& deadEntries) override;
-    std::shared_ptr<Bucket>
-    merge(std::shared_ptr<Bucket> const& oldBucket,
-          std::shared_ptr<Bucket> const& newBucket,
-          std::vector<std::shared_ptr<Bucket>> const& shadows =
-              std::vector<std::shared_ptr<Bucket>>(),
-          bool keepDeadEntries = true) override;
+    Bucket fresh(std::vector<LedgerEntry> const& liveEntries,
+                 std::vector<LedgerKey> const& deadEntries) override;
+    Bucket merge(Bucket const& oldBucket, Bucket const& newBucket,
+                 std::vector<Bucket> const& shadows = std::vector<Bucket>(),
+                 bool keepDeadEntries = true) override;
     void shutdown() override;
 };
 

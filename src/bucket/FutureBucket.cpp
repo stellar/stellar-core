@@ -20,10 +20,9 @@
 namespace stellar
 {
 
-FutureBucket::FutureBucket(Application& app,
-                           std::shared_ptr<Bucket> const& curr,
-                           std::shared_ptr<Bucket> const& snap,
-                           std::vector<std::shared_ptr<Bucket>> const& shadows,
+FutureBucket::FutureBucket(Application& app, Bucket const& curr,
+                           Bucket const& snap,
+                           std::vector<Bucket> const& shadows,
                            bool keepDeadEntries)
     : mState(FB_LIVE_INPUTS)
     , mInputCurrBucket(curr)
@@ -45,20 +44,20 @@ FutureBucket::FutureBucket(Application& app,
 }
 
 void
-FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
+FutureBucket::setLiveOutput(Bucket output)
 {
     mState = FB_LIVE_OUTPUT;
     mOutputBucketHash = binToHex(output->getHash());
     // Given an output bucket, fake-up a promise for it connected to
     // the future so that it can be immediately retrieved.
-    std::promise<std::shared_ptr<Bucket>> promise;
+    std::promise<Bucket> promise;
     mOutputBucket = promise.get_future().share();
     promise.set_value(output);
     checkState();
 }
 
 static void
-checkHashEq(std::shared_ptr<Bucket> b, std::string const& h)
+checkHashEq(Bucket b, std::string const& h)
 {
     assert(b->getHash() == hexToBin256(h));
 }
@@ -167,7 +166,7 @@ FutureBucket::clearOutput()
 {
     // NB: MSVC future<> implementation doesn't purge the task lambda (and
     // its captures) on invalidation (due to get()); must explicitly reset.
-    mOutputBucket = std::shared_future<std::shared_ptr<Bucket>>();
+    mOutputBucket = std::shared_future<Bucket>();
     mOutputBucketHash.clear();
 }
 
@@ -205,13 +204,13 @@ FutureBucket::mergeComplete() const
     return status == std::future_status::ready;
 }
 
-std::shared_ptr<Bucket>
+Bucket
 FutureBucket::resolve()
 {
     checkState();
     assert(isLive());
     clearInputs();
-    std::shared_ptr<Bucket> bucket;
+    Bucket bucket;
 
     {
         auto timer = LogSlowExecution("Resolving bucket");
@@ -259,9 +258,9 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
 
     assert(mState == FB_LIVE_INPUTS);
 
-    std::shared_ptr<Bucket> curr = mInputCurrBucket;
-    std::shared_ptr<Bucket> snap = mInputSnapBucket;
-    std::vector<std::shared_ptr<Bucket>> shadows = mInputShadowBuckets;
+    Bucket curr = mInputCurrBucket;
+    Bucket snap = mInputSnapBucket;
+    std::vector<Bucket> shadows = mInputShadowBuckets;
 
     assert(curr);
     assert(snap);
@@ -273,7 +272,7 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
 
     BucketManager& bm = app.getBucketManager();
 
-    using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
+    using task_t = std::packaged_task<Bucket()>;
     std::shared_ptr<task_t> task =
         std::make_shared<task_t>([curr, snap, &bm, shadows, keepDeadEntries]() {
             CLOG(TRACE, "Bucket")

@@ -11,7 +11,7 @@ namespace stellar
 {
 
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 class TmpDir;
 
 class BucketDownloadWork : public Work
@@ -19,7 +19,7 @@ class BucketDownloadWork : public Work
   protected:
     HistoryArchiveState mLocalState;
     std::unique_ptr<TmpDir> mDownloadDir;
-    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    std::map<std::string, Bucket> mBuckets;
 
   public:
     BucketDownloadWork(Application& app, WorkParent& parent,

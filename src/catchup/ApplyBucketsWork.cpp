@@ -22,10 +22,9 @@
 namespace stellar
 {
 
-ApplyBucketsWork::ApplyBucketsWork(
-    Application& app, WorkParent& parent,
-    std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-    HistoryArchiveState const& applyState)
+ApplyBucketsWork::ApplyBucketsWork(Application& app, WorkParent& parent,
+                                   std::map<std::string, Bucket> const& buckets,
+                                   HistoryArchiveState const& applyState)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
@@ -52,7 +51,7 @@ ApplyBucketsWork::getBucketLevel(uint32_t level)
     return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
-std::shared_ptr<Bucket>
+Bucket
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
     auto i = mBuckets.find(hash);
@@ -74,7 +73,7 @@ ApplyBucketsWork::onReset()
     mLastAppliedSizeMb = 0;
     mLastPos = 0;
 
-    auto addBucket = [this](std::shared_ptr<Bucket> const& bucket) {
+    auto addBucket = [this](Bucket const& bucket) {
         if (bucket->getSize() > 0)
         {
             mTotalBuckets++;

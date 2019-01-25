@@ -76,7 +76,7 @@ BucketOutputIterator::put(BucketEntry const& e)
     *mBuf = e;
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketOutputIterator::getBucket(BucketManager& bucketManager)
 {
     assert(mOut);
@@ -94,7 +94,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager)
         assert(mBytesPut == 0);
         CLOG(DEBUG, "Bucket") << "Deleting empty bucket file " << mFilename;
         std::remove(mFilename.c_str());
-        return std::make_shared<Bucket>();
+        return std::make_shared<RawBucket const>();
     }
     return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),
                                            mObjectsPut, mBytesPut);

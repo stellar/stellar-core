@@ -46,7 +46,7 @@ BucketEntry const& BucketInputIterator::operator*()
     return *mEntryPtr;
 }
 
-BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket> bucket)
+BucketInputIterator::BucketInputIterator(Bucket bucket)
     : mBucket(bucket), mEntryPtr(nullptr)
 {
     if (!mBucket->getFilename().empty())

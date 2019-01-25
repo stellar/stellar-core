@@ -16,11 +16,11 @@ namespace stellar
 {
 
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 
 class VerifyBucketWork : public Work
 {
-    std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
+    std::map<std::string, Bucket>& mBuckets;
     std::string mBucketFile;
     uint256 mHash;
 
@@ -29,7 +29,7 @@ class VerifyBucketWork : public Work
 
   public:
     VerifyBucketWork(Application& app, WorkParent& parent,
-                     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+                     std::map<std::string, Bucket>& buckets,
                      std::string const& bucketFile, uint256 const& hash);
     ~VerifyBucketWork();
     void onRun() override;

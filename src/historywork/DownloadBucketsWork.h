@@ -16,7 +16,7 @@ class DownloadBucketsWork : public BatchWork
 {
   public:
     DownloadBucketsWork(Application& app, WorkParent& parent,
-                        std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+                        std::map<std::string, Bucket>& buckets,
                         std::vector<std::string> hashes,
                         TmpDir const& downloadDir);
     ~DownloadBucketsWork() override;
@@ -29,7 +29,7 @@ class DownloadBucketsWork : public BatchWork
     void resetIter() override;
 
   private:
-    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    std::map<std::string, Bucket> mBuckets;
     std::vector<std::string> const mHashes;
     std::vector<std::string>::const_iterator mNextBucketIter;
 

@@ -69,7 +69,7 @@ PutSnapshotFilesWork::onSuccess()
         {
             auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
             assert(b);
-            files.push_back(std::make_shared<FileTransferInfo>(*b));
+            files.push_back(std::make_shared<FileTransferInfo>(b));
         }
         for (auto f : files)
         {

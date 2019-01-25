@@ -175,7 +175,7 @@ namespace stellar
 {
 class Application;
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 class BucketList;
 class Config;
 class Database;

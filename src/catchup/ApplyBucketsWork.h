@@ -18,13 +18,13 @@ class BucketApplicator;
 class BucketLevel;
 class BucketList;
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
 class ApplyBucketsWork : public Work
 {
-    std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
+    std::map<std::string, Bucket> const& mBuckets;
     const HistoryArchiveState& mApplyState;
 
     bool mApplying;
@@ -36,8 +36,8 @@ class ApplyBucketsWork : public Work
     size_t mLastAppliedSizeMb;
     size_t mLastPos;
     uint32_t mLevel;
-    std::shared_ptr<Bucket> mSnapBucket;
-    std::shared_ptr<Bucket> mCurrBucket;
+    Bucket mSnapBucket;
+    Bucket mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;
     std::unique_ptr<BucketApplicator> mCurrApplicator;
 
@@ -45,15 +45,14 @@ class ApplyBucketsWork : public Work
     medida::Meter& mBucketApplySuccess;
     medida::Meter& mBucketApplyFailure;
 
-    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
+    Bucket getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
     void advance(BucketApplicator& applicator);
 
   public:
-    ApplyBucketsWork(
-        Application& app, WorkParent& parent,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState);
+    ApplyBucketsWork(Application& app, WorkParent& parent,
+                     std::map<std::string, Bucket> const& buckets,
+                     HistoryArchiveState const& applyState);
     ~ApplyBucketsWork();
 
     void onReset() override;

@@ -186,14 +186,14 @@ BucketManagerImpl::getMergeTimer()
     return mBucketSnapMerge;
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, size_t nObjects,
                                      size_t nBytes)
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     // Check to see if we have an existing bucket (either in-memory or on-disk)
-    std::shared_ptr<Bucket> b = getBucketByHash(hash);
+    Bucket b = getBucketByHash(hash);
     if (b)
     {
         CLOG(DEBUG, "Bucket") << "Deleting bucket file " << filename
@@ -222,7 +222,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
             }
         }
 
-        b = std::make_shared<Bucket>(canonicalName, hash);
+        b = std::make_shared<RawBucket>(canonicalName, hash);
         {
             mSharedBuckets.insert(std::make_pair(hash, b));
             mSharedBucketsSize.set_count(mSharedBuckets.size());
@@ -232,13 +232,13 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     return b;
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     if (isZero(hash))
     {
-        return std::make_shared<Bucket>();
+        return std::make_shared<RawBucket>();
     }
     auto i = mSharedBuckets.find(hash);
     if (i != mSharedBuckets.end())
@@ -254,12 +254,12 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
         CLOG(TRACE, "Bucket")
             << "BucketManager::getBucketByHash(" << binToHex(hash)
             << ") found no bucket, making new one";
-        auto p = std::make_shared<Bucket>(canonicalName, hash);
+        auto p = std::make_shared<RawBucket>(canonicalName, hash);
         mSharedBuckets.insert(std::make_pair(hash, p));
         mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
     }
-    return std::shared_ptr<Bucket>();
+    return Bucket();
 }
 
 std::set<Hash>
@@ -332,9 +332,7 @@ BucketManagerImpl::cleanupStaleFiles()
     auto referenced = getReferencedBuckets();
     std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
                    std::inserter(referenced, std::end(referenced)),
-                   [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
-                       return p.first;
-                   });
+                   [](std::pair<Hash, Bucket> const& p) { return p.first; });
 
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
     {
@@ -473,7 +471,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
     cleanupStaleFiles();
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketManagerImpl::fresh(std::vector<LedgerEntry> const& liveEntries,
                          std::vector<LedgerKey> const& deadEntries)
 {
@@ -515,7 +513,7 @@ BucketManagerImpl::fresh(std::vector<LedgerEntry> const& liveEntries,
     auto liveBucket = liveOut.getBucket(*this);
     auto deadBucket = deadOut.getBucket(*this);
 
-    std::shared_ptr<Bucket> bucket;
+    Bucket bucket;
     {
         auto timer = LogSlowExecution("Bucket merge");
         bucket = merge(liveBucket, deadBucket);
@@ -551,10 +549,9 @@ maybePut(BucketOutputIterator& out, BucketEntry const& entry,
     out.put(entry);
 }
 
-std::shared_ptr<Bucket>
-BucketManagerImpl::merge(std::shared_ptr<Bucket> const& oldBucket,
-                         std::shared_ptr<Bucket> const& newBucket,
-                         std::vector<std::shared_ptr<Bucket>> const& shadows,
+Bucket
+BucketManagerImpl::merge(Bucket const& oldBucket, Bucket const& newBucket,
+                         std::vector<Bucket> const& shadows,
                          bool keepDeadEntries)
 {
     // This is the key operation in the scheme: merging two (read-only)

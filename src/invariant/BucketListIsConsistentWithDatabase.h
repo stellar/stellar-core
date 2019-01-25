@@ -33,8 +33,7 @@ class BucketListIsConsistentWithDatabase : public Invariant
 
     virtual std::string getName() const override;
 
-    virtual std::string checkOnBucketApply(std::shared_ptr<Bucket> bucket,
-                                           uint32_t oldestLedger,
+    virtual std::string checkOnBucketApply(Bucket bucket, uint32_t oldestLedger,
                                            uint32_t newestLedger) override;
 
   private:

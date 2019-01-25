@@ -30,8 +30,8 @@ class FileTransferInfo
   public:
     FileTransferInfo(Bucket& bucket)
         : mType(HISTORY_FILE_TYPE_BUCKET)
-        , mHexDigits(binToHex(bucket.getHash()))
-        , mLocalPath(bucket.getFilename())
+        , mHexDigits(binToHex(bucket->getHash()))
+        , mLocalPath(bucket->getFilename())
     {
     }
 

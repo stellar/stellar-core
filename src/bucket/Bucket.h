@@ -31,7 +31,7 @@ class BucketList;
 class Database;
 
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 
 class RawBucket : public std::enable_shared_from_this<RawBucket>,
                   public NonMovableOrCopyable

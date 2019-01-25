@@ -20,8 +20,8 @@ namespace stellar
 
 BucketLevel::BucketLevel(uint32_t i)
     : mLevel(i)
-    , mCurr(std::make_shared<Bucket>())
-    , mSnap(std::make_shared<Bucket>())
+    , mCurr(std::make_shared<RawBucket>())
+    , mSnap(std::make_shared<RawBucket>())
 {
 }
 
@@ -52,27 +52,27 @@ BucketLevel::setNext(FutureBucket const& fb)
     mNextCurr = fb;
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketLevel::getCurr() const
 {
     return mCurr;
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketLevel::getSnap() const
 {
     return mSnap;
 }
 
 void
-BucketLevel::setCurr(std::shared_ptr<Bucket> b)
+BucketLevel::setCurr(Bucket b)
 {
     mNextCurr.clear();
     mCurr = b;
 }
 
 void
-BucketLevel::setSnap(std::shared_ptr<Bucket> b)
+BucketLevel::setSnap(Bucket b)
 {
     mSnap = b;
 }
@@ -90,9 +90,8 @@ BucketLevel::commit()
 }
 
 void
-BucketLevel::prepare(Application& app, uint32_t currLedger,
-                     std::shared_ptr<Bucket> snap,
-                     std::vector<std::shared_ptr<Bucket>> const& shadows)
+BucketLevel::prepare(Application& app, uint32_t currLedger, Bucket snap,
+                     std::vector<Bucket> const& shadows)
 {
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
@@ -115,7 +114,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         {
             // CLOG(DEBUG, "Bucket") << "level " << mLevel
             //            << " skipping pending-snapshot curr";
-            curr = std::make_shared<Bucket>();
+            curr = std::make_shared<RawBucket>();
         }
     }
 
@@ -124,11 +123,11 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     assert(mNextCurr.isMerging());
 }
 
-std::shared_ptr<Bucket>
+Bucket
 BucketLevel::snap()
 {
     mSnap = mCurr;
-    mCurr = std::make_shared<Bucket>();
+    mCurr = std::make_shared<RawBucket>();
     // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mSnap to "
     //            << mSnap->getEntries().size() << " elements";
     // CLOG(DEBUG, "Bucket") << "level " << mLevel << " reset mCurr to "
@@ -332,7 +331,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 {
     assert(currLedger > 0);
 
-    std::vector<std::shared_ptr<Bucket>> shadows;
+    std::vector<Bucket> shadows;
     for (auto& level : mLevels)
     {
         shadows.push_back(level.getCurr());

@@ -70,12 +70,12 @@ class BucketManager : NonMovableOrCopyable
     // This method is mostly-threadsafe -- assuming you don't destruct the
     // BucketManager mid-call -- and is intended to be called from both main and
     // worker threads. Very carefully.
-    virtual std::shared_ptr<Bucket>
-    adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects = 0, size_t nBytes = 0) = 0;
+    virtual Bucket adoptFileAsBucket(std::string const& filename,
+                                     uint256 const& hash, size_t nObjects = 0,
+                                     size_t nBytes = 0) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
-    virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
+    virtual Bucket getBucketByHash(uint256 const& hash) = 0;
 
     // Forget any buckets not referenced by the current BucketList. This will
     // not immediately cause the buckets to delete themselves, if someone else
@@ -103,19 +103,16 @@ class BucketManager : NonMovableOrCopyable
 
     // Create and store a fresh bucket from a given vector of live LedgerEntries
     // and dead LedgerEntryKeys.
-    virtual std::shared_ptr<Bucket>
-    fresh(std::vector<LedgerEntry> const& liveEntries,
-          std::vector<LedgerKey> const& deadEntries) = 0;
+    virtual Bucket fresh(std::vector<LedgerEntry> const& liveEntries,
+                         std::vector<LedgerKey> const& deadEntries) = 0;
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
     // are overridden in the fresh bucket by keywise-equal entries in
     // `newBucket`. Entries are inhibited from the fresh bucket by keywise-equal
     // entries in any of the buckets in the provided `shadows` vector.
-    virtual std::shared_ptr<Bucket>
-    merge(std::shared_ptr<Bucket> const& oldBucket,
-          std::shared_ptr<Bucket> const& newBucket,
-          std::vector<std::shared_ptr<Bucket>> const& shadows =
-              std::vector<std::shared_ptr<Bucket>>(),
+    virtual Bucket
+    merge(Bucket const& oldBucket, Bucket const& newBucket,
+          std::vector<Bucket> const& shadows = std::vector<Bucket>(),
           bool keepDeadEntries = true) = 0;
 
     // Ensure all needed buckets are retained

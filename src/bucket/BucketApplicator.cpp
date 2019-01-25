@@ -14,8 +14,7 @@
 namespace stellar
 {
 
-BucketApplicator::BucketApplicator(Application& app,
-                                   std::shared_ptr<Bucket> bucket)
+BucketApplicator::BucketApplicator(Application& app, Bucket bucket)
     : mApp(app), mBucketIter(bucket)
 {
 }

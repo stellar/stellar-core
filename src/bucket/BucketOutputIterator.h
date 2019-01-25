@@ -15,7 +15,7 @@ namespace stellar
 {
 
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 class BucketManager;
 
 // Helper class that writes new elements to a file and returns a bucket
@@ -37,6 +37,6 @@ class BucketOutputIterator
 
     void put(BucketEntry const& e);
 
-    std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager);
+    Bucket getBucket(BucketManager& bucketManager);
 };
 }

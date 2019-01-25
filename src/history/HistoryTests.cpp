@@ -260,7 +260,7 @@ TEST_CASE("History bucket verification",
         *app, app->getHistoryArchiveManager().getHistoryArchive("test")};
     std::vector<std::string> hashes;
     auto& wm = app->getWorkManager();
-    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    std::map<std::string, Bucket> mBuckets;
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
 

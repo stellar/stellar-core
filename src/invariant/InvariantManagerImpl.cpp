@@ -68,9 +68,8 @@ InvariantManagerImpl::getEnabledInvariants() const
 }
 
 void
-InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket> bucket,
-                                         uint32_t ledger, uint32_t level,
-                                         bool isCurr)
+InvariantManagerImpl::checkOnBucketApply(Bucket bucket, uint32_t ledger,
+                                         uint32_t level, bool isCurr)
 {
     uint32_t oldestLedger = isCurr
                                 ? BucketList::oldestLedgerInCurr(ledger, level)

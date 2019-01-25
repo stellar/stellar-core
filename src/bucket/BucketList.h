@@ -235,7 +235,7 @@ namespace stellar
 
 class Application;
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 
 namespace testutil
 {
@@ -246,24 +246,23 @@ class BucketLevel
 {
     uint32_t mLevel;
     FutureBucket mNextCurr;
-    std::shared_ptr<Bucket> mCurr;
-    std::shared_ptr<Bucket> mSnap;
+    Bucket mCurr;
+    Bucket mSnap;
 
   public:
     BucketLevel(uint32_t i);
     uint256 getHash() const;
     FutureBucket const& getNext() const;
     FutureBucket& getNext();
-    std::shared_ptr<Bucket> getCurr() const;
-    std::shared_ptr<Bucket> getSnap() const;
+    Bucket getCurr() const;
+    Bucket getSnap() const;
     void setNext(FutureBucket const& fb);
-    void setCurr(std::shared_ptr<Bucket>);
-    void setSnap(std::shared_ptr<Bucket>);
+    void setCurr(Bucket);
+    void setSnap(Bucket);
     void commit();
-    void prepare(Application& app, uint32_t currLedger,
-                 std::shared_ptr<Bucket> snap,
-                 std::vector<std::shared_ptr<Bucket>> const& shadows);
-    std::shared_ptr<Bucket> snap();
+    void prepare(Application& app, uint32_t currLedger, Bucket snap,
+                 std::vector<Bucket> const& shadows);
+    Bucket snap();
 };
 
 // NOTE: The access specifications for this class have been carefully chosen to

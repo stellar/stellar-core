@@ -104,7 +104,7 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
 {
     auto ledgerEntries =
         LedgerTestUtils::generateValidLedgerEntries(NUM_ITEMS_PER_BUCKET);
-    auto bucketEntries = Bucket::convertToBucketEntry(ledgerEntries);
+    auto bucketEntries = RawBucket::convertToBucketEntry(ledgerEntries);
 
     for (auto const& bucketEntry : bucketEntries)
     {

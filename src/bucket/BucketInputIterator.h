@@ -14,12 +14,12 @@ namespace stellar
 {
 
 class RawBucket;
-using Bucket = RawBucket const;
+using Bucket = std::shared_ptr<RawBucket const>;
 
 // Helper class that reads through the entries in a bucket.
 class BucketInputIterator
 {
-    std::shared_ptr<Bucket> mBucket;
+    Bucket mBucket;
 
     // Validity and current-value of the iterator is funneled into a
     // pointer. If
@@ -35,7 +35,7 @@ class BucketInputIterator
 
     BucketEntry const& operator*();
 
-    BucketInputIterator(std::shared_ptr<Bucket> bucket);
+    BucketInputIterator(Bucket bucket);
 
     ~BucketInputIterator();
 

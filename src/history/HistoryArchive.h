@@ -29,7 +29,7 @@ namespace stellar
 class Application;
 class BucketList;
 class RawBucket;
-using Bucket = const RawBucket;
+using Bucket = std::shared_ptr<const RawBucket>;
 
 struct HistoryStateBucket
 {

@@ -60,7 +60,7 @@ struct BucketListGenerator
     void
     applyBuckets(Args&&... args)
     {
-        std::map<std::string, std::shared_ptr<Bucket>> buckets;
+        std::map<std::string, Bucket> buckets;
         auto has = getHistoryArchiveState();
         auto& wm = mAppApply->getWorkManager();
         wm.executeWork<T>(buckets, has, std::forward<Args>(args)...);
@@ -175,7 +175,7 @@ struct BucketListGenerator
 };
 
 bool
-doesBucketContain(std::shared_ptr<Bucket> bucket, const BucketEntry& be)
+doesBucketContain(Bucket bucket, const BucketEntry& be)
 {
     for (BucketInputIterator iter(bucket); iter; ++iter)
     {
@@ -264,10 +264,10 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
     bool mAdded;
 
   public:
-    ApplyBucketsWorkAddEntry(
-        Application& app, WorkParent& parent,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState, LedgerEntry const& entry)
+    ApplyBucketsWorkAddEntry(Application& app, WorkParent& parent,
+                             std::map<std::string, Bucket> const& buckets,
+                             HistoryArchiveState const& applyState,
+                             LedgerEntry const& entry)
         : ApplyBucketsWork(app, parent, buckets, applyState)
         , mEntry(entry)
         , mAdded{false}
@@ -314,10 +314,10 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     bool mDeleted;
 
   public:
-    ApplyBucketsWorkDeleteEntry(
-        Application& app, WorkParent& parent,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState, LedgerEntry const& target)
+    ApplyBucketsWorkDeleteEntry(Application& app, WorkParent& parent,
+                                std::map<std::string, Bucket> const& buckets,
+                                HistoryArchiveState const& applyState,
+                                LedgerEntry const& target)
         : ApplyBucketsWork(app, parent, buckets, applyState)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
@@ -399,10 +399,10 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     }
 
   public:
-    ApplyBucketsWorkModifyEntry(
-        Application& app, WorkParent& parent,
-        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState, LedgerEntry const& target)
+    ApplyBucketsWorkModifyEntry(Application& app, WorkParent& parent,
+                                std::map<std::string, Bucket> const& buckets,
+                                HistoryArchiveState const& applyState,
+                                LedgerEntry const& target)
         : ApplyBucketsWork(app, parent, buckets, applyState)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)

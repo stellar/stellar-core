@@ -152,7 +152,7 @@ loadXdr(Config cfg, std::string const& bucketFile)
     if (checkInitialized(app))
     {
         uint256 zero;
-        Bucket bucket(bucketFile, zero);
+        RawBucket bucket(bucketFile, zero);
         bucket.apply(*app);
     }
     else

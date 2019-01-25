@@ -11,10 +11,10 @@
 namespace stellar
 {
 
-DownloadBucketsWork::DownloadBucketsWork(
-    Application& app, WorkParent& parent,
-    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    std::vector<std::string> hashes, TmpDir const& downloadDir)
+DownloadBucketsWork::DownloadBucketsWork(Application& app, WorkParent& parent,
+                                         std::map<std::string, Bucket>& buckets,
+                                         std::vector<std::string> hashes,
+                                         TmpDir const& downloadDir)
     : BatchWork{app, parent, "download-verify-buckets"}
     , mBuckets{buckets}
     , mHashes{hashes}
