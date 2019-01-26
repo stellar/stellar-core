@@ -8,6 +8,7 @@
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
 #include "work/Work.h"
+#include "work/WorkSequence.h"
 
 namespace stellar
 {

@@ -5,7 +5,7 @@
 #pragma once
 
 #include "history/HistoryArchive.h"
-#include "work/Work.h"
+#include "work/WorkSequence.h"
 
 namespace stellar
 {

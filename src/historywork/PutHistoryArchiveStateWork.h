@@ -5,6 +5,7 @@
 #pragma once
 
 #include "work/Work.h"
+#include "work/WorkSequence.h"
 
 namespace stellar
 {

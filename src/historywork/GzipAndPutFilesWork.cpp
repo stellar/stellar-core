@@ -7,6 +7,7 @@
 #include "historywork/GzipFileWork.h"
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
+#include "work/WorkSequence.h"
 
 namespace stellar
 {

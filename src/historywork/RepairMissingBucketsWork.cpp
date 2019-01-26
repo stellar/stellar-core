@@ -10,6 +10,7 @@
 #include "historywork/VerifyBucketWork.h"
 #include "main/Application.h"
 #include "util/TmpDir.h"
+#include "work/WorkSequence.h"
 
 namespace stellar
 {
