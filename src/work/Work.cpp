@@ -60,8 +60,6 @@ Work::onRun()
         auto state = doWork();
         if (state == State::WORK_SUCCESS)
         {
-            assert(allChildrenDone());
-            mDoneChildren += mChildren.size();
             clearChildren();
         }
         else if (state == State::WORK_FAILURE && !allChildrenDone())
@@ -134,6 +132,7 @@ void
 Work::clearChildren()
 {
     assert(allChildrenDone());
+    mDoneChildren += mChildren.size();
     mChildren.clear();
     mNextChild = mChildren.begin();
 }
