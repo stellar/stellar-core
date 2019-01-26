@@ -282,14 +282,7 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
-    if (mWorkScheduler)
-    {
-        mWorkScheduler->shutdown();
-        while (mWorkScheduler->getState() != BasicWork::State::WORK_ABORTED)
-        {
-            mVirtualClock.crank();
-        }
-    }
+    shutdownWorkScheduler();
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -407,15 +400,7 @@ ApplicationImpl::gracefulStop()
     {
         mOverlayManager->shutdown();
     }
-    if (mWorkScheduler)
-    {
-        mWorkScheduler->shutdown();
-
-        while (mWorkScheduler->getState() != BasicWork::State::WORK_ABORTED)
-        {
-            mVirtualClock.crank();
-        }
-    }
+    shutdownWorkScheduler();
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -442,6 +427,20 @@ ApplicationImpl::shutdownMainIOService()
         while (mVirtualClock.cancelAllEvents())
             ;
         mVirtualClock.getIOService().stop();
+    }
+}
+
+void
+ApplicationImpl::shutdownWorkScheduler()
+{
+    if (mWorkScheduler)
+    {
+        mWorkScheduler->shutdown();
+
+        while (mWorkScheduler->getState() != BasicWork::State::WORK_ABORTED)
+        {
+            mVirtualClock.crank();
+        }
     }
 }
 
