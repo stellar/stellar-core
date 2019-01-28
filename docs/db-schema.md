@@ -21,7 +21,7 @@ STRKEY | Custom encoding for public/private keys. See [`src/crypto/readme.md`](/
 
 ## ledgerheaders
 
-Defined in [`src/ledger/LedgerHeaderFrame.cpp`](/src/ledger/LedgerHeaderFrame.cpp)
+Defined in [`src/ledger/LedgerHeaderUtils.cpp`](/src/ledger/LedgerHeaderUtils.cpp)
 
 Equivalent to _LedgerHeader_
 
@@ -37,7 +37,7 @@ data | TEXT NOT NULL | Entire LedgerHeader (XDR)
 
 ## accounts
 
-Defined in [`src/ledger/AccountFrame.cpp`](/src/ledger/AccountFrame.cpp)
+Defined in [`src/ledger/LedgerTxnAccountSQL.cpp`](/src/ledger/LedgerTxnAccountSQL.cpp)
 
 Equivalent to _AccountEntry_
 
@@ -57,7 +57,7 @@ sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
 ## offers
 
-Defined in [`src/ledger/OfferFrame.cpp`](/src/ledger/OfferFrame.cpp)
+Defined in [`src/ledger/LedgerTxnOfferSQL.cpp.cpp`](/src/ledger/LedgerTxnOfferSQL.cpp.cpp)
 
 Equivalent to _OfferEntry_
 
@@ -81,7 +81,7 @@ lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## trustlines
 
-Defined in [`src/ledger/TrustFrame.cpp`](/src/ledger/TrustFrame.cpp)
+Defined in [`src/ledger/LedgerTxnTrustLineSQL.cpp`](/src/ledger/LedgerTxnTrustLineSQL.cpp)
 
 Equivalent to _TrustLineEntry_
 
