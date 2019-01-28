@@ -35,14 +35,15 @@ WriteSnapshotWork::onStart()
         {
             ec = std::make_error_code(std::errc::io_error);
         }
-        snap->mApp.postOnMainThread([handler, ec]() { handler(ec); });
+        snap->mApp.postOnMainThread([handler, ec]() { handler(ec); },
+                                    "WriteSnapshotWork: handler");
     };
 
     // Throw the work over to a worker thread if we can use DB pools,
     // otherwise run on main thread.
     if (mApp.getDatabase().canUsePool())
     {
-        mApp.postOnBackgroundThread(work);
+        mApp.postOnBackgroundThread(work, "WriteSnapshotWork: write snapshot");
     }
     else
     {

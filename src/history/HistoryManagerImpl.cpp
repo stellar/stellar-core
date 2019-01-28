@@ -401,7 +401,8 @@ HistoryManagerImpl::historyPublished(
         this->mPublishFailure.Mark();
     }
     mPublishWork.reset();
-    mApp.postOnMainThread([this]() { this->publishQueuedHistory(); });
+    mApp.postOnMainThread([this]() { this->publishQueuedHistory(); },
+                          "HistoryManagerImpl: publishQueuedHistory");
 }
 
 void

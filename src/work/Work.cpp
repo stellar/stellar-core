@@ -153,15 +153,17 @@ Work::scheduleRun()
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
     mScheduled = true;
-    mApp.postOnMainThreadWithDelay([weak]() {
-        auto self = weak.lock();
-        if (!self)
-        {
-            return;
-        }
-        self->mScheduled = false;
-        self->run();
-    });
+    mApp.postOnMainThreadWithDelay(
+        [weak]() {
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
+            self->mScheduled = false;
+            self->run();
+        },
+        "Work: scheduleRun");
 }
 
 void
@@ -176,15 +178,17 @@ Work::scheduleComplete(CompleteResult result)
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
     mScheduled = true;
-    mApp.postOnMainThreadWithDelay([weak, result]() {
-        auto self = weak.lock();
-        if (!self)
-        {
-            return;
-        }
-        self->mScheduled = false;
-        self->complete(result);
-    });
+    mApp.postOnMainThreadWithDelay(
+        [weak, result]() {
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
+            self->mScheduled = false;
+            self->complete(result);
+        },
+        "Work: scheduleComplete");
 }
 
 void
