@@ -81,9 +81,10 @@ lessThanXored(Hash const& l, Hash const& r, Hash const& x)
 bool
 isString32Valid(std::string const& str)
 {
+    auto& loc = std::locale::classic();
     for (auto c : str)
     {
-        if (c < 0 || std::iscntrl(c, std::locale::classic()))
+        if (c < 0 || std::iscntrl(c, loc))
         {
             return false;
         }
@@ -97,6 +98,7 @@ isAssetValid(Asset const& cur)
     if (cur.type() == ASSET_TYPE_NATIVE)
         return true;
 
+    auto& loc = std::locale::classic();
     if (cur.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         auto const& code = cur.alphaNum4().assetCode;
@@ -115,7 +117,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, std::locale::classic()))
+                if (b > 0x7F || !std::isalnum((char)b, loc))
                 {
                     return false;
                 }
@@ -143,7 +145,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, std::locale::classic()))
+                if (b > 0x7F || !std::isalnum((char)b, loc))
                 {
                     return false;
                 }
