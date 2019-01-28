@@ -537,6 +537,5 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void rollbackChild() override;
 
     void writeSignersTableIntoAccountsTable();
-    void encodeDataNamesBase64();
 };
 }

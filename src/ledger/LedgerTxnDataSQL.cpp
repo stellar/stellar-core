@@ -7,7 +7,6 @@
 #include "database/Database.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
-#include "util/Logging.h"
 
 namespace stellar
 {
@@ -16,7 +15,7 @@ std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
 {
     std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
-    std::string dataName = decoder::encode_b64(key.data().dataName);
+    std::string const& dataName = key.data().dataName;
 
     std::string dataValue;
     soci::indicator dataValueIndicator;
@@ -42,7 +41,7 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
     }
 
     de.accountID = key.data().accountID;
-    de.dataName = key.data().dataName;
+    de.dataName = dataName;
 
     if (dataValueIndicator != soci::i_ok)
     {
@@ -58,7 +57,7 @@ LedgerTxnRoot::Impl::insertOrUpdateData(LedgerEntry const& entry, bool isInsert)
 {
     auto const& data = entry.data.data();
     std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
-    std::string dataName = decoder::encode_b64(data.dataName);
+    std::string const& dataName = data.dataName;
     std::string dataValue = decoder::encode_b64(data.dataValue);
 
     std::string sql;
@@ -93,7 +92,7 @@ LedgerTxnRoot::Impl::deleteData(LedgerKey const& key)
 {
     auto const& data = key.data();
     std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
-    std::string dataName = decoder::encode_b64(data.dataName);
+    std::string const& dataName = data.dataName;
 
     auto prep = mDatabase.getPreparedStatement(
         "DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
@@ -127,75 +126,5 @@ LedgerTxnRoot::Impl::dropData()
                               "lastmodified INT          NOT NULL,"
                               "PRIMARY KEY  (accountid, dataname)"
                               ");";
-}
-
-static std::vector<LedgerEntry>
-loadDataToEncode(Database& db)
-{
-    std::string accountID, dataName, dataValue;
-    uint32_t lastModified;
-
-    std::string sql = "SELECT accountid, dataname, datavalue, lastmodified "
-                      "FROM accountdata";
-
-    auto prep = db.getPreparedStatement(sql);
-    auto& st = prep.statement();
-    st.exchange(soci::into(accountID));
-    st.exchange(soci::into(dataName));
-    st.exchange(soci::into(dataValue));
-    st.exchange(soci::into(lastModified));
-    st.define_and_bind();
-    st.execute(true);
-
-    std::vector<LedgerEntry> res;
-    while (st.got_data())
-    {
-        res.emplace_back();
-        auto& le = res.back();
-        le.data.type(DATA);
-
-        auto& de = le.data.data();
-        de.accountID = KeyUtils::fromStrKey<PublicKey>(accountID);
-        de.dataName = dataName;
-        decoder::decode_b64(dataValue, de.dataValue);
-        le.lastModifiedLedgerSeq = lastModified;
-
-        st.fetch();
-    }
-    return res;
-}
-
-void
-LedgerTxnRoot::Impl::encodeDataNamesBase64()
-{
-    throwIfChild();
-    mEntryCache.clear();
-    mBestOffersCache.clear();
-
-    CLOG(INFO, "Ledger")
-        << "Loading all data entries from the accountdata table";
-    auto dataToEncode = loadDataToEncode(mDatabase);
-
-    // Note: The table must be recreated since dataname is part of the primary
-    // key, so there could be a collision when updating it
-    dropData();
-    if (!mDatabase.isSqlite())
-    {
-        auto& session = mDatabase.getSession();
-        session << "ALTER TABLE accountdata ALTER COLUMN dataname "
-                   "SET DATA TYPE VARCHAR(88)";
-    }
-
-    size_t numUpdated = 0;
-    for (auto const& le : dataToEncode)
-    {
-        insertOrUpdateData(le, true);
-
-        if ((++numUpdated & 0xfff) == 0xfff ||
-            (numUpdated == dataToEncode.size()))
-        {
-            CLOG(INFO, "Ledger") << "Wrote " << numUpdated << " data entries";
-        }
-    }
 }
 }
