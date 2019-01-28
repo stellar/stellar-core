@@ -18,9 +18,15 @@
     <ClCompile Include="..\..\..\lib\sqlite\sqlite3.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\lib\sqlite\carray.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\lib\sqlite\sqlite3.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\lib\sqlite\sqlite3ext.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
