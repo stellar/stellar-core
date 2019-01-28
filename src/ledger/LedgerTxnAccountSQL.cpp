@@ -160,12 +160,12 @@ LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
     }
 
     size_t numAccountsUpdated = 0;
-    for (auto& kv : signersByAccount)
+    for (auto const& kv : signersByAccount)
     {
-        std::sort(kv.second.begin(), kv.second.end(),
-                  [](Signer const& lhs, Signer const& rhs) {
-                      return lhs.key < rhs.key;
-                  });
+        assert(std::adjacent_find(kv.second.begin(), kv.second.end(),
+                                  [](Signer const& lhs, Signer const& rhs) {
+                                      return !(lhs.key < rhs.key);
+                                  }) == kv.second.end());
         std::string signers(decoder::encode_b64(xdr::xdr_to_opaque(kv.second)));
 
         auto prep = mDatabase.getPreparedStatement(
