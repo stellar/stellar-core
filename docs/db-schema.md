@@ -99,6 +99,18 @@ lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
 sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
+## accountdata
+
+Defined in [`src/ledger/LedgerTxnDataSQL.cpp`](/src/ledger/LedgerTxnDataSQL.cpp)
+
+Equivalent to _DataEntry_
+
+Field | Type | Description
+------|------|---------------
+accountid | VARCHAR(56) NOT NULL | (STRKEY)
+dataname | VARCHAR(88) NOT NULL | (BASE64)
+datavalue | VARCHAR(112) NOT NULL | (BASE64)
+lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## txhistory
 
