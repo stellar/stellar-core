@@ -55,7 +55,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 8;
+static unsigned long const SCHEMA_VERSION = 7;
 
 static void
 setSerializable(soci::session& sess)
@@ -130,12 +130,6 @@ Database::applySchemaUpgrade(unsigned long vers)
                     "CHECK (buyingliabilities >= 0)";
         mSession << "ALTER TABLE trustlines ADD sellingliabilities BIGINT "
                     "CHECK (sellingliabilities >= 0)";
-        break;
-
-    case 8:
-        mSession << "ALTER TABLE accounts ADD signers TEXT";
-        mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
-        mSession << "DROP TABLE IF EXISTS signers";
         break;
 
     default:
