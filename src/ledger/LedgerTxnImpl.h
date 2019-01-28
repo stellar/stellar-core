@@ -427,11 +427,5 @@ class LedgerTxnRoot::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     void encodeDataNamesBase64();
-
-    // encodedHomeDomainsBase64 has the basic exception safety guarantee. If it
-    // throws an exception, then
-    // - the prepared statement cache may be, but is not guaranteed to be,
-    //   modified
-    void encodeHomeDomainsBase64();
 };
 }
