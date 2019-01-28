@@ -48,12 +48,13 @@ balance | BIGINT NOT NULL CHECK (balance >= 0) |
 seqnum | BIGINT NOT NULL |
 numsubentries | INT NOT NULL CHECK (numsubentries >= 0) |
 inflationdest | VARCHAR(56) | (STRKEY)
-homedomain | VARCHAR(32) |
+homedomain | VARCHAR(44) | (BASE64)
 thresholds | TEXT | (BASE64)
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
-sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0) |
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0) |
+signers | TEXT | (XDR)
 
 ## offers
 
