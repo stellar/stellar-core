@@ -931,14 +931,16 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    mAddress = makeAddress(elo.listeningPort);
-    if (mAddress.isEmpty())
+    auto ip = getIP();
+    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
     {
         CLOG(WARNING, "Overlay") << "bad address in recvHello";
         drop(ERR_CONF, "bad address", Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
+    mAddress =
+        PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
     updatePeerRecordAfterEcho();
 
     auto const& authenticated =

@@ -142,6 +142,8 @@ class OverlayManagerImpl : public OverlayManager
     int availableOutboundPendingSlots() const;
     int availableOutboundAuthenticatedSlots() const;
 
+    bool isPossiblyPreferred(std::string const& ip);
+
     void updateSizeCounters();
 };
 }

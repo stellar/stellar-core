@@ -166,7 +166,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     virtual AuthCert getAuthCert();
-    virtual PeerBareAddress makeAddress(int remoteListeningPort) const = 0;
 
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);
@@ -237,6 +236,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     std::string toString();
+    virtual std::string getIP() const = 0;
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
