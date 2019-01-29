@@ -22,7 +22,8 @@ class StatementContext;
 
 enum class PeerType
 {
-    NORMAL,
+    INBOUND,
+    OUTBOUND,
     PREFERRED
 };
 
@@ -49,8 +50,10 @@ class PeerManager
     enum class TypeUpdate
     {
         KEEP,
-        SET_NORMAL,
-        SET_PREFERRED
+        SET_INBOUND,
+        SET_OUTBOUND,
+        SET_PREFERRED,
+        REMOVE_PREFERRED
     };
 
     enum class BackOffUpdate

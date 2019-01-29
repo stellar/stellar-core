@@ -839,7 +839,7 @@ Peer::noteHandshakeSuccessInPeerRecord()
 
     auto peerTypeUpdate = mApp.getOverlayManager().isPreferred(this)
                               ? PeerManager::TypeUpdate::SET_PREFERRED
-                              : PeerManager::TypeUpdate::SET_NORMAL;
+                              : PeerManager::TypeUpdate::REMOVE_PREFERRED;
     mApp.getOverlayManager().getPeerManager().update(
         getAddress(), peerTypeUpdate, PeerManager::BackOffUpdate::RESET);
 

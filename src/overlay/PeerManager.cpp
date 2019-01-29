@@ -88,7 +88,7 @@ PeerManager::load(PeerBareAddress const& address)
     try
     {
         auto prep = mApp.getDatabase().getPreparedStatement(
-            "SELECT numfailures, nextattempt, flags FROM peers "
+            "SELECT numfailures, nextattempt, type FROM peers "
             "WHERE ip = :v1 AND port = :v2");
         auto& st = prep.statement();
         st.exchange(into(result.mNumFailures));
@@ -108,6 +108,7 @@ PeerManager::load(PeerBareAddress const& address)
             {
                 result.mNextAttempt =
                     VirtualClock::pointToTm(mApp.getClock().now());
+                result.mType = static_cast<int>(PeerType::INBOUND);
             }
         }
     }
@@ -131,15 +132,15 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
         query = "UPDATE peers SET "
                 "nextattempt = :v1, "
                 "numfailures = :v2, "
-                "flags = :v3 "
+                "type = :v3 "
                 "WHERE ip = :v4 AND port = :v5";
     }
     else
     {
         query = "INSERT INTO peers "
-                "(nextattempt, numfailures, flags, ip,  port) "
+                "(nextattempt, numfailures, type, ip,  port) "
                 "VALUES "
-                "(:v1,         :v2,         :v3,   :v4, :v5)";
+                "(:v1,         :v2,        :v3,  :v4, :v5)";
     }
 
     try
@@ -170,6 +171,7 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
                                << " on " << address.toString();
     }
 }
+
 void
 PeerManager::update(PeerRecord& peer, TypeUpdate type)
 {
@@ -179,14 +181,27 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
     {
         break;
     }
-    case TypeUpdate::SET_NORMAL:
+    case TypeUpdate::SET_INBOUND:
     {
-        peer.mType = static_cast<int>(PeerType::NORMAL);
+        peer.mType = static_cast<int>(PeerType::INBOUND);
+        break;
+    }
+    case TypeUpdate::SET_OUTBOUND:
+    {
+        peer.mType = static_cast<int>(PeerType::OUTBOUND);
         break;
     }
     case TypeUpdate::SET_PREFERRED:
     {
         peer.mType = static_cast<int>(PeerType::PREFERRED);
+        break;
+    }
+    case TypeUpdate::REMOVE_PREFERRED:
+    {
+        if (peer.mType == static_cast<int>(PeerType::PREFERRED))
+        {
+            peer.mType = static_cast<int>(PeerType::OUTBOUND);
+        }
         break;
     }
     default:

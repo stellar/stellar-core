@@ -54,9 +54,14 @@ TEST_CASE("toXdr", "[overlay][PeerManager]")
             REQUIRE(actualPR.first == storedPr);
         };
 
-        SECTION("normal")
+        SECTION("inbound")
         {
-            test(PeerType::NORMAL);
+            test(PeerType::INBOUND);
+        }
+
+        SECTION("outbound")
+        {
+            test(PeerType::OUTBOUND);
         }
 
         SECTION("preferred")

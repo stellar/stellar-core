@@ -23,6 +23,7 @@
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PeerManager.h"
 #include "transactions/TransactionFrame.h"
 
 #include "medida/counter.h"
@@ -54,7 +55,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 7;
+static unsigned long const SCHEMA_VERSION = 8;
 
 static void
 setSerializable(soci::session& sess)
@@ -129,6 +130,11 @@ Database::applySchemaUpgrade(unsigned long vers)
                     "CHECK (buyingliabilities >= 0)";
         mSession << "ALTER TABLE trustlines ADD sellingliabilities BIGINT "
                     "CHECK (sellingliabilities >= 0)";
+        break;
+
+    case 8:
+        mSession << "ALTER TABLE peers RENAME flags TO type";
+        mSession << "UPDATE peers SET type = 2*type";
         break;
 
     default:
