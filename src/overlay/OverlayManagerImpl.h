@@ -95,7 +95,7 @@ class OverlayManagerImpl : public OverlayManager
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
-    bool connectTo(PeerBareAddress const& address) override;
+    void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;
     bool addOutboundConnection(Peer::pointer peer) override;
@@ -129,10 +129,13 @@ class OverlayManagerImpl : public OverlayManager
   private:
     std::map<PeerType, std::unique_ptr<RandomPeerSource>> mPeerSources;
 
+    virtual bool connectToImpl(PeerBareAddress const& address,
+                               bool forceoutbound);
     int connectTo(int maxNum, PeerType peerType);
+    int connectTo(std::vector<PeerBareAddress> const& peers,
+                  bool forceoutbound);
     std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum,
                                                      PeerType peerType);
-    int connectTo(std::vector<PeerBareAddress> const& peers);
 
     bool moveToAuthenticated(Peer::pointer peer);
 

@@ -130,8 +130,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);
-    // returns false if we should drop this peer
-    void noteHandshakeSuccessInPeerRecord();
+    void updatePeerRecordAfterEcho();
+    void updatePeerRecordAfterAuthentication();
     void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
     void recvGetPeers(StellarMessage const& msg);

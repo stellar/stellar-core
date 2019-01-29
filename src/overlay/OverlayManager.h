@@ -116,7 +116,7 @@ class OverlayManager
     virtual int getAuthenticatedPeersCount() const = 0;
 
     // Attempt to connect to a peer identified by peer address.
-    virtual bool connectTo(PeerBareAddress const& address) = 0;
+    virtual void connectTo(PeerBareAddress const& address) = 0;
 
     // returns the list of peers that sent us the item with hash `h`
     virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;

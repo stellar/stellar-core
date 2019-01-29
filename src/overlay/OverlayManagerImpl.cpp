@@ -260,11 +260,19 @@ OverlayManagerImpl::start()
     }
 }
 
-bool
+void
 OverlayManagerImpl::connectTo(PeerBareAddress const& address)
 {
+    connectToImpl(address, false);
+}
+
+bool
+OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
+                                  bool forceoutbound)
+{
     auto currentConnection = getConnectedPeer(address);
-    if (!currentConnection)
+    if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
+                                                    Peer::REMOTE_CALLED_US))
     {
         getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
         return addOutboundConnection(TCPPeer::initiate(mApp, address));
@@ -344,8 +352,17 @@ OverlayManagerImpl::storeConfigPeers()
 std::vector<PeerBareAddress>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 {
+    assert(maxNum >= 0);
+    if (maxNum == 0)
+    {
+        return {};
+    }
+
     auto keep = [&](PeerBareAddress const& address) {
-        return !getConnectedPeer(address);
+        auto peer = getConnectedPeer(address);
+        auto promote = peer && (peerType == PeerType::INBOUND) &&
+                       (peer->getRole() == Peer::REMOTE_CALLED_US);
+        return !peer || promote;
     };
 
     // don't connect to too many peers at once
@@ -355,16 +372,18 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 int
 OverlayManagerImpl::connectTo(int maxNum, PeerType peerType)
 {
-    return connectTo(getPeersToConnectTo(maxNum, peerType));
+    return connectTo(getPeersToConnectTo(maxNum, peerType),
+                     peerType == PeerType::INBOUND);
 }
 
 int
-OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers)
+OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
+                              bool forceoutbound)
 {
     auto count = 0;
     for (auto& address : peers)
     {
-        if (connectTo(address))
+        if (connectToImpl(address, forceoutbound))
         {
             count++;
         }

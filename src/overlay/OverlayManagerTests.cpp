@@ -63,7 +63,7 @@ class OverlayManagerStub : public OverlayManagerImpl
     }
 
     virtual bool
-    connectTo(PeerBareAddress const& address) override
+    connectToImpl(PeerBareAddress const& address, bool) override
     {
         if (getConnectedPeer(address))
         {
