@@ -9,7 +9,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
-#include <cctype>
+#include <locale>
 #include <string>
 #include <xdrpp/autocheck.h>
 #include <xdrpp/xdrpp/marshal.h>

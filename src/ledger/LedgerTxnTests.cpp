@@ -2023,7 +2023,7 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
 
 TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
 {
-    auto getTimeScope = [](Application& app, size_t numSigners,
+    auto getTimeScope = [](Application& app, uint32_t numSigners,
                            std::string const& phase) {
         std::string benchmarkStr = "benchmark-" + std::to_string(numSigners);
         return app.getMetrics()
@@ -2031,7 +2031,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
             .TimeScope();
     };
 
-    auto getTimeSpent = [](Application& app, size_t numSigners,
+    auto getTimeSpent = [](Application& app, uint32_t numSigners,
                            std::string const& phase) {
         std::string benchmarkStr = "benchmark-" + std::to_string(numSigners);
         auto time =
@@ -2039,7 +2039,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
         return phase + ": " + std::to_string(time) + " ms";
     };
 
-    auto generateEntries = [](size_t numAccounts, size_t numSigners) {
+    auto generateEntries = [](size_t numAccounts, uint32_t numSigners) {
         std::vector<LedgerEntry> accounts;
         accounts.reserve(numAccounts);
         for (size_t i = 0; i < numAccounts; ++i)
@@ -2081,7 +2081,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
     };
 
     auto writeEntries =
-        [&getTimeScope](Application& app, size_t numSigners,
+        [&getTimeScope](Application& app, uint32_t numSigners,
                         std::vector<LedgerEntry> const& accounts) {
             CLOG(WARNING, "Ledger") << "Creating accounts";
             LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -2101,7 +2101,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
         };
 
     auto readEntriesAndUpdateLastModified =
-        [&getTimeScope](Application& app, size_t numSigners,
+        [&getTimeScope](Application& app, uint32_t numSigners,
                         std::vector<LedgerKey> const& accounts) {
             CLOG(WARNING, "Ledger") << "Reading accounts";
             LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -2122,7 +2122,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
         };
 
     auto runTest = [&](Config::TestDbMode mode, size_t numAccounts,
-                       size_t numSigners) {
+                       uint32_t numSigners) {
         VirtualClock clock;
         Config cfg(getTestConfig(0, mode));
         cfg.ENTRY_CACHE_SIZE = 0;

@@ -29,7 +29,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
 
-#include <soci-sqlite3.h>
+#include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -38,7 +38,6 @@
 extern "C" int
 sqlite3_carray_init(sqlite_api::sqlite3* db, char** pzErrMsg,
                     const sqlite_api::sqlite3_api_routines* pApi);
-extern "C" void register_factory_sqlite3();
 
 #ifdef USE_POSTGRES
 extern "C" void register_factory_postgresql();
@@ -55,7 +54,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 8;
+static unsigned long const SCHEMA_VERSION = 7;
 
 static void
 setSerializable(soci::session& sess)
@@ -102,9 +101,9 @@ Database::Database(Application& app)
         mSession << "PRAGMA busy_timeout = 10000";
 
         // Register the sqlite carray() extension we use for bulk operations.
-        auto sqlite3 = dynamic_cast<soci::sqlite3_session_backend*>(
+        auto besqlite3 = dynamic_cast<soci::sqlite3_session_backend*>(
             mSession.get_backend());
-        sqlite3_carray_init(sqlite3->conn_, nullptr, nullptr);
+        sqlite3_carray_init(besqlite3->conn_, nullptr, nullptr);
     }
     else
     {
@@ -130,17 +129,6 @@ Database::applySchemaUpgrade(unsigned long vers)
                     "CHECK (buyingliabilities >= 0)";
         mSession << "ALTER TABLE trustlines ADD sellingliabilities BIGINT "
                     "CHECK (sellingliabilities >= 0)";
-        break;
-
-    case 8:
-        // Update schema for signers
-        mSession << "ALTER TABLE accounts ADD signers TEXT";
-        mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
-        mSession << "DROP TABLE IF EXISTS signers";
-
-        // Update schema for base-64 encoding
-        mApp.getLedgerTxnRoot().encodeDataNamesBase64();
-        mApp.getLedgerTxnRoot().encodeHomeDomainsBase64();
         break;
 
     default:

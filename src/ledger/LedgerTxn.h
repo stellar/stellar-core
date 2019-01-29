@@ -535,9 +535,5 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     getNewestVersion(LedgerKey const& key) const override;
 
     void rollbackChild() override;
-
-    void writeSignersTableIntoAccountsTable();
-    void encodeDataNamesBase64();
-    void encodeHomeDomainsBase64();
 };
 }

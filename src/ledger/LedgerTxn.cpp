@@ -1317,6 +1317,13 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
     mEntryCache.clear();
     mBestOffersCache.clear();
 
+    {
+        std::string query =
+            "DELETE FROM signers WHERE accountid IN"
+            " (SELECT accountid FROM accounts WHERE lastmodified >= :v1)";
+        mDatabase.getSession() << query, use(ledger);
+    }
+
     for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER})
     {
         std::string query = "DELETE FROM " + tableFromLedgerEntryType(let) +
@@ -1612,6 +1619,7 @@ LedgerTxnRoot::Impl::storeAccount(EntryIterator const& iter)
     {
         auto const previous = getNewestVersion(iter.key());
         insertOrUpdateAccount(iter.entry(), !previous);
+        storeSigners(iter.entry(), previous);
     }
     else
     {
@@ -1719,23 +1727,5 @@ LedgerTxnRoot::Impl::getFromBestOffersCache(
         mBestOffersCache.clear();
         throw;
     }
-}
-
-void
-LedgerTxnRoot::writeSignersTableIntoAccountsTable()
-{
-    mImpl->writeSignersTableIntoAccountsTable();
-}
-
-void
-LedgerTxnRoot::encodeDataNamesBase64()
-{
-    mImpl->encodeDataNamesBase64();
-}
-
-void
-LedgerTxnRoot::encodeHomeDomainsBase64()
-{
-    mImpl->encodeHomeDomainsBase64();
 }
 }
