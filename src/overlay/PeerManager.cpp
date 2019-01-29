@@ -6,6 +6,7 @@
 #include "crypto/Random.h"
 #include "database/Database.h"
 #include "main/Application.h"
+#include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -75,8 +76,108 @@ toXdr(PeerBareAddress const& address)
     return result;
 }
 
-PeerManager::PeerManager(Application& app) : mApp(app)
+constexpr const auto BATCH_SIZE = 1000;
+constexpr const auto MAX_FAILURES = 10;
+
+PeerManager::PeerManager(Application& app)
+    : mApp(app)
+    , mOutboundPeersToSend(std::make_unique<RandomPeerSource>(
+          *this, RandomPeerSource::maxFailures(MAX_FAILURES, true)))
+    , mInboundPeersToSend(std::make_unique<RandomPeerSource>(
+          *this, RandomPeerSource::maxFailures(MAX_FAILURES, false)))
 {
+}
+
+std::vector<PeerBareAddress>
+PeerManager::loadRandomPeers(PeerQuery const& query, int size)
+{
+    // BATCH_SIZE should always be bigger, so it should win anyway
+    size = std::max(size, BATCH_SIZE);
+
+    // if we ever start removing peers from db, we may need to enable this
+    // soci::transaction sqltx(mApp.getDatabase().getSession());
+    // mApp.getDatabase().setCurrentTransactionReadOnly();
+
+    std::vector<std::string> conditions;
+    if (query.mUseNextAttempt)
+    {
+        conditions.push_back("nextattempt <= :nextattempt");
+    }
+    if (query.mMaxNumFailures >= 0)
+    {
+        conditions.push_back("numfailures <= :maxFailures");
+    }
+    if (query.mTypeFilter == PeerTypeFilter::ANY_OUTBOUND)
+    {
+        conditions.push_back("type != :inboundType");
+    }
+    else
+    {
+        conditions.push_back("type = :type");
+    }
+    assert(!conditions.empty());
+    std::string where = conditions[0];
+    for (auto i = 1; i < conditions.size(); i++)
+    {
+        where += " AND " + conditions[i];
+    }
+
+    std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
+    int maxNumFailures = query.mMaxNumFailures;
+    int exactType = static_cast<int>(query.mTypeFilter);
+    int inboundType = static_cast<int>(PeerType::INBOUND);
+
+    auto bindToStatement = [&](soci::statement& st) {
+        if (query.mUseNextAttempt)
+        {
+            st.exchange(soci::use(nextAttempt));
+        }
+        if (query.mMaxNumFailures >= 0)
+        {
+            st.exchange(soci::use(maxNumFailures));
+        }
+        if (query.mTypeFilter == PeerTypeFilter::ANY_OUTBOUND)
+        {
+            st.exchange(soci::use(inboundType));
+        }
+        else
+        {
+            st.exchange(soci::use(exactType));
+        }
+    };
+
+    auto result = std::vector<PeerBareAddress>{};
+    auto count = countPeers(where, bindToStatement);
+    if (count == 0)
+    {
+        return result;
+    }
+
+    auto maxOffset = count > size ? count - size : 0;
+    auto offset = rand_uniform<int>(0, maxOffset);
+    result = loadPeers(size, offset, where, bindToStatement);
+
+    std::shuffle(std::begin(result), std::end(result), gRandomEngine);
+    return result;
+}
+
+std::vector<PeerBareAddress>
+PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
+{
+    auto keep = [&](PeerBareAddress const& pba) {
+        return !pba.isPrivate() && pba != address;
+    };
+
+    auto peers = mOutboundPeersToSend->getRandomPeers(size, keep);
+    if (peers.size() < size)
+    {
+        auto inbound =
+            mInboundPeersToSend->getRandomPeers(peers.size() - size, keep);
+        std::copy(std::begin(inbound), std::end(inbound),
+                  std::back_inserter(peers));
+    }
+
+    return peers;
 }
 
 std::pair<PeerRecord, bool>
@@ -294,95 +395,77 @@ PeerManager::update(PeerBareAddress const& address, TypeUpdate type,
     store(address, peer.first, peer.second);
 }
 
-void
-PeerManager::update(PeerBareAddress const& address,
-                    std::chrono::seconds seconds)
+int
+PeerManager::countPeers(std::string const& where,
+                        std::function<void(soci::statement&)> const& bind)
 {
-    auto peer = load(address);
-    peer.first.mNextAttempt =
-        VirtualClock::pointToTm(mApp.getClock().now() + seconds);
-    store(address, peer.first, peer.second);
-}
+    int count = 0;
 
-void
-PeerManager::loadPeers(int batchSize,
-                       VirtualClock::time_point nextAttemptCutoff,
-                       PeerTypeFilter peerTypeFilter,
-                       std::function<bool(PeerBareAddress const& address)> pred)
-{
     try
     {
-        int offset = 0;
-        bool lastRes;
-        do
-        {
-            tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
+        std::string sql = "SELECT COUNT(*) FROM peers WHERE " + where;
 
-            std::string sql =
-                peerTypeFilter == PeerTypeFilter::ANY_OUTBOUND
-                    ? "SELECT ip, port FROM peers WHERE nextattempt <= "
-                      ":nextattempt AND type >= :type ORDER BY nextattempt "
-                      "ASC, numfailures ASC LIMIT :max OFFSET :o"
-                    : "SELECT ip, port FROM peers  WHERE nextattempt <= "
-                      ":nextattempt AND type = :type ORDER BY nextattempt "
-                      "ASC, numfailures ASC LIMIT :max OFFSET :o";
+        auto prep = mApp.getDatabase().getPreparedStatement(sql);
+        auto& st = prep.statement();
 
-            auto prep = mApp.getDatabase().getPreparedStatement(sql);
-            auto& st = prep.statement();
+        bind(st);
+        st.exchange(into(count));
 
-            st.exchange(use(nextAttemptMax));
-            int type = peerTypeFilter == PeerTypeFilter::ANY_OUTBOUND
-                           ? static_cast<int>(PeerType::OUTBOUND)
-                           : static_cast<int>(peerTypeFilter);
-            st.exchange(use(type));
-            st.exchange(use(batchSize));
-            st.exchange(use(offset));
-
-            lastRes = false;
-
-            loadPeers(prep, [&](PeerBareAddress const& address) {
-                offset++;
-                lastRes = pred(address);
-                return lastRes;
-            });
-        } while (lastRes);
+        st.define_and_bind();
+        st.execute(true);
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "loadPeers Error: " << err.what();
+        CLOG(ERROR, "Overlay") << "countPeers error: " << err.what();
     }
+
+    return count;
 }
 
-void
-PeerManager::loadPeers(
-    StatementContext& prep,
-    std::function<bool(PeerBareAddress const& address)> peerRecordProcessor)
+std::vector<PeerBareAddress>
+PeerManager::loadPeers(int limit, int offset, std::string const& where,
+                       std::function<void(soci::statement&)> const& bind)
 {
-    std::string ip;
-    int lport;
+    auto result = std::vector<PeerBareAddress>{};
 
-    auto& st = prep.statement();
-    st.exchange(into(ip));
-    st.exchange(into(lport));
+    try
+    {
+        std::string sql = "SELECT ip, port "
+                          "FROM peers WHERE " +
+                          where + " LIMIT :limit OFFSET :offset";
 
-    st.define_and_bind();
-    {
-        auto timer = mApp.getDatabase().getSelectTimer("peer");
-        st.execute(true);
-    }
-    while (st.got_data())
-    {
-        if (!ip.empty() && lport > 0)
+        auto prep = mApp.getDatabase().getPreparedStatement(sql);
+        auto& st = prep.statement();
+
+        bind(st);
+        st.exchange(use(limit));
+        st.exchange(use(offset));
+
+        std::string ip;
+        int lport;
+        st.exchange(into(ip));
+        st.exchange(into(lport));
+
+        st.define_and_bind();
         {
-            auto address =
-                PeerBareAddress{ip, static_cast<unsigned short>(lport)};
-            if (!peerRecordProcessor(address))
-            {
-                return;
-            }
+            auto timer = mApp.getDatabase().getSelectTimer("peer");
+            st.execute(true);
         }
-        st.fetch();
+        while (st.got_data())
+        {
+            if (!ip.empty() && lport > 0)
+            {
+                result.emplace_back(ip, static_cast<unsigned short>(lport));
+            }
+            st.fetch();
+        }
     }
+    catch (soci_error& err)
+    {
+        CLOG(ERROR, "Overlay") << "loadPeers error: " << err.what();
+    }
+
+    return result;
 }
 
 void

@@ -348,26 +348,9 @@ Peer::sendPeers()
     uint32 maxPeerCount = std::min<uint32>(50, newMsg.peers().max_size());
 
     // send top peers we know about
-    std::vector<PeerBareAddress> peers;
-
-    auto getPeers = [&](PeerTypeFilter peerTypeFilter) {
-        mApp.getOverlayManager().getPeerManager().loadPeers(
-            50, mApp.getClock().now(), peerTypeFilter,
-            [&](PeerBareAddress const& address) {
-                bool r = peers.size() < maxPeerCount;
-                if (r)
-                {
-                    if (!address.isPrivate() && address != mAddress)
-                    {
-                        peers.emplace_back(address);
-                    }
-                }
-                return r;
-            });
-    };
-
-    getPeers(PeerTypeFilter::ANY_OUTBOUND);
-    getPeers(PeerTypeFilter::INBOUND_ONLY);
+    auto peers = mApp.getOverlayManager().getPeerManager().getPeersToSend(
+        maxPeerCount, mAddress);
+    assert(peers.size() <= maxPeerCount);
 
     newMsg.peers().reserve(peers.size());
     for (auto const& address : peers)
@@ -1040,8 +1023,6 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    const uint32 NEW_PEER_WINDOW_SECONDS = 10;
-
     for (auto const& peer : msg.peers())
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
@@ -1056,10 +1037,6 @@ Peer::recvPeers(StellarMessage const& msg)
                                      << " (not yet supported)";
             continue;
         }
-        // randomize when we'll try to connect to this peer next if we don't
-        // know it
-        auto nextAttemptAfter =
-            std::chrono::seconds(std::rand() % NEW_PEER_WINDOW_SECONDS);
 
         assert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
@@ -1084,8 +1061,7 @@ Peer::recvPeers(StellarMessage const& msg)
         {
             // don't use peer.numFailures here as we may have better luck
             // (and we don't want to poison our failure count)
-            mApp.getOverlayManager().getPeerManager().update(address,
-                                                             nextAttemptAfter);
+            mApp.getOverlayManager().getPeerManager().ensureExists(address);
         }
     }
 }

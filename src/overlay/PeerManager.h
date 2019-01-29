@@ -18,7 +18,7 @@ namespace stellar
 {
 
 class Database;
-class StatementContext;
+class RandomPeerSource;
 
 enum class PeerType
 {
@@ -46,6 +46,13 @@ struct PeerRecord
 };
 
 bool operator==(PeerRecord const& x, PeerRecord const& y);
+
+struct PeerQuery
+{
+    bool mUseNextAttempt;
+    int mMaxNumFailures;
+    PeerTypeFilter mTypeFilter;
+};
 
 PeerAddress toXdr(PeerBareAddress const& address);
 
@@ -98,11 +105,6 @@ class PeerManager
                 BackOffUpdate backOff);
 
     /**
-     * Update back off to now() + seconds.
-     */
-    void update(PeerBareAddress const& address, std::chrono::seconds seconds);
-
-    /**
      * Load PeerRecord data for peer with given address. If not available in
      * database, create default one. Second value in pair is true when data
      * was loaded from database, false otherwise.
@@ -116,19 +118,30 @@ class PeerManager
     void store(PeerBareAddress const& address, PeerRecord const& PeerRecord,
                bool inDatabase);
 
-    // pred returns false if we should stop processing entries
-    void loadPeers(int batchSize, VirtualClock::time_point nextAttemptCutoff,
-                   PeerTypeFilter peerTypeFilter,
-                   std::function<bool(PeerBareAddress const& address)> pred);
+    /**
+     * Load size random peers matching query from database.
+     */
+    std::vector<PeerBareAddress> loadRandomPeers(PeerQuery const& query,
+                                                 int size);
+
+    /**
+     * Get list of peers to send to peer with given address.
+     */
+    std::vector<PeerBareAddress> getPeersToSend(int size,
+                                                PeerBareAddress const& address);
 
   private:
     static const char* kSQLCreateStatement;
 
     Application& mApp;
+    std::unique_ptr<RandomPeerSource> mOutboundPeersToSend;
+    std::unique_ptr<RandomPeerSource> mInboundPeersToSend;
 
-    void loadPeers(StatementContext& prep,
-                   std::function<bool(PeerBareAddress const& address)>
-                       peerRecordProcessor);
+    int countPeers(std::string const& where,
+                   std::function<void(soci::statement&)> const& bind);
+    std::vector<PeerBareAddress>
+    loadPeers(int limit, int offset, std::string const& where,
+              std::function<void(soci::statement&)> const& bind);
 
     void update(PeerRecord& peer, TypeUpdate type);
     void update(PeerRecord& peer, BackOffUpdate backOff, Application& app);

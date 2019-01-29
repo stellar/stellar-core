@@ -303,6 +303,9 @@
     <ClCompile Include="..\..\src\overlay\PeerManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\RandomPeerSource.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
@@ -1011,6 +1014,9 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\RandomPeerSource.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">

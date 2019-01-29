@@ -10,6 +10,7 @@
 #include "main/Config.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerManager.h"
+#include "overlay/RandomPeerSource.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -230,6 +231,12 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mFloodGate(app)
 {
+    mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
+        mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
+    mPeerSources[PeerType::OUTBOUND] = std::make_unique<RandomPeerSource>(
+        mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND));
+    mPeerSources[PeerType::PREFERRED] = std::make_unique<RandomPeerSource>(
+        mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::PREFERRED));
 }
 
 OverlayManagerImpl::~OverlayManagerImpl()
@@ -335,36 +342,20 @@ OverlayManagerImpl::storeConfigPeers()
 }
 
 std::vector<PeerBareAddress>
-OverlayManagerImpl::getPeersToConnectTo(int maxNum,
-                                        PeerTypeFilter peerTypeFilter)
+OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 {
+    auto keep = [&](PeerBareAddress const& address) {
+        return !getConnectedPeer(address);
+    };
+
     // don't connect to too many peers at once
-    maxNum = std::min(maxNum, 50);
-
-    // batch is how many peers to load from the database every time
-    const int batchSize = std::max(50, maxNum);
-
-    std::vector<PeerBareAddress> peers;
-
-    getPeerManager().loadPeers(batchSize, mApp.getClock().now(), peerTypeFilter,
-                               [&](PeerBareAddress const& address) {
-                                   // skip peers that we're already
-                                   // connected/connecting to
-                                   if (!getConnectedPeer(address))
-                                   {
-                                       peers.emplace_back(address);
-                                   }
-                                   return peers.size() <
-                                          static_cast<size_t>(maxNum);
-                               });
-    orderByPreferredPeers(peers);
-    return peers;
+    return mPeerSources[peerType]->getRandomPeers(std::min(maxNum, 50), keep);
 }
 
 int
-OverlayManagerImpl::connectTo(int maxNum, PeerTypeFilter peerTypeFilter)
+OverlayManagerImpl::connectTo(int maxNum, PeerType peerType)
 {
-    return connectTo(getPeersToConnectTo(maxNum, peerTypeFilter));
+    return connectTo(getPeersToConnectTo(maxNum, peerType));
 }
 
 int
@@ -381,16 +372,6 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers)
     return count;
 }
 
-void
-OverlayManagerImpl::orderByPreferredPeers(vector<PeerBareAddress>& peers)
-{
-    auto isPreferredPredicate = [this](PeerBareAddress& address) -> bool {
-        return mConfigurationPreferredPeers.find(address) !=
-               mConfigurationPreferredPeers.end();
-    };
-    std::stable_partition(peers.begin(), peers.end(), isPreferredPredicate);
-}
-
 // called every 2 seconds
 void
 OverlayManagerImpl::tick()
@@ -403,9 +384,8 @@ OverlayManagerImpl::tick()
     auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
 
     // try to replace all connections with preferred peers
-    auto pendingUsedByPreferred =
-        connectTo(mApp.getConfig().TARGET_PEER_CONNECTIONS,
-                  PeerTypeFilter::PREFERRED_ONLY);
+    auto pendingUsedByPreferred = connectTo(
+        mApp.getConfig().TARGET_PEER_CONNECTIONS, PeerType::PREFERRED);
 
     assert(pendingUsedByPreferred <= availablePendingSlots);
     availablePendingSlots -= pendingUsedByPreferred;
@@ -424,7 +404,7 @@ OverlayManagerImpl::tick()
                            availableAuthenticatedSlots)
                 : RESERVED_FOR_PROMOTION;
         auto pendingUsedByOutbound =
-            connectTo(outboundToConnect, PeerTypeFilter::OUTBOUND_ONLY);
+            connectTo(outboundToConnect, PeerType::OUTBOUND);
         assert(pendingUsedByOutbound <= availablePendingSlots);
         availablePendingSlots -= pendingUsedByOutbound;
     }
@@ -432,7 +412,7 @@ OverlayManagerImpl::tick()
     // try to promote some peers from inbound to outbound state
     if (availablePendingSlots > 0)
     {
-        connectTo(availablePendingSlots, PeerTypeFilter::INBOUND_ONLY);
+        connectTo(availablePendingSlots, PeerType::INBOUND);
     }
 
     mTimer.expires_from_now(

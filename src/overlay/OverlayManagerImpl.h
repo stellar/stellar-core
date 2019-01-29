@@ -127,12 +127,13 @@ class OverlayManagerImpl : public OverlayManager
     bool isShuttingDown() const override;
 
   private:
-    int connectTo(int maxNum, PeerTypeFilter peerTypeFilter);
-    std::vector<PeerBareAddress>
-    getPeersToConnectTo(int maxNum, PeerTypeFilter peerTypeFilter);
+    std::map<PeerType, std::unique_ptr<RandomPeerSource>> mPeerSources;
+
+    int connectTo(int maxNum, PeerType peerType);
+    std::vector<PeerBareAddress> getPeersToConnectTo(int maxNum,
+                                                     PeerType peerType);
     int connectTo(std::vector<PeerBareAddress> const& peers);
 
-    void orderByPreferredPeers(std::vector<PeerBareAddress>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
 
     int availableOutboundPendingSlots() const;
