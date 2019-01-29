@@ -29,6 +29,9 @@ bool
 AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
+    innerResult().code(ALLOW_TRUST_MALFORMED);
+    return false;
+
     if (ledgerManager.getCurrentLedgerVersion() > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
@@ -107,6 +110,9 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 AllowTrustOpFrame::doCheckValid(Application& app)
 {
+    innerResult().code(ALLOW_TRUST_MALFORMED);
+    return false;
+
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {
         app.getMetrics()

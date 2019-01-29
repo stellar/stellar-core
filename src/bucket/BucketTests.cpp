@@ -1054,8 +1054,10 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
             clock.crank(false);
         }
         REQUIRE(
+            // Dropping metric to 5, as disabling CHANGE_TRUST diminishes the number
+            // of valid txs created.
             m.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison")
-                .count() >= 10);
+                .count() >= 5);
     }
 
     SECTION("failing checkdb")

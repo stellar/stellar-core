@@ -32,190 +32,21 @@ TEST_CASE("change trust", "[tx][changetrust]")
     auto gateway = root.create("gw", minBalance2);
     Asset idr = makeAsset(gateway, "IDR");
 
-    SECTION("crust tests")
-    {
-        SECTION("create+trust") {
-            for_all_versions(*app, [&] {
-                auto sk = getAccount("crust1");
-
-                auto ca = createAccount(sk.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
-                auto ct = changeTrust(idr, 10000, sk.getPublicKey());
-
-                REQUIRE_NOTHROW(applyTx(root.tx({ca, ct}),
-                                        *app));
-
-                auto af = loadAccount(sk.getPublicKey(), *app, false);
-
-                auto a1 = TestAccount(*app, sk);
-
-                REQUIRE_NOTHROW(gateway.pay(a1, idr, 1)); 
-            });
-        }
-        SECTION("create+trust (multiple)") {
-            for_all_versions(*app, [&] {
-                auto sk1 = getAccount("crust1");
-                auto sk2 = getAccount("crust2");
-
-                auto ca1 = createAccount(sk1.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
-                auto ct1 = changeTrust(idr, 10000, sk1.getPublicKey());
-
-                auto ca2 = createAccount(sk2.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
-                auto ct2 = changeTrust(idr, 10000, sk2.getPublicKey());
-
-                REQUIRE_NOTHROW(applyTx(root.tx({ca1, ct1, ca2, ct2}),
-                                        *app));
-
-                auto af1 = loadAccount(sk1.getPublicKey(), *app, false);
-                auto af2 = loadAccount(sk2.getPublicKey(), *app, false);
-
-                auto a1 = TestAccount(*app, sk1);
-                auto a2 = TestAccount(*app, sk2);
-
-                REQUIRE_NOTHROW(gateway.pay(a1, idr, 1));
-                REQUIRE_NOTHROW(a2.changeTrust(idr, 0));
-            });
-        }
-        SECTION("create, then trust (separate tx) should fail") {
-            for_all_versions(*app, [&] {
-                auto sk = getAccount("crust2");
-
-                auto ca = createAccount(sk.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
-                auto ct = changeTrust(idr, 10000, sk.getPublicKey());
-
-                applyTx(root.tx({ca}), *app);
-
-                REQUIRE_THROWS_AS(applyTx(root.tx({ct}),
-                                          *app), xdr::xdr_wrong_union);
-
-                auto a2 = TestAccount(*app, sk);
-
-                REQUIRE_THROWS_AS(gateway.pay(a2, idr, 1), ex_PAYMENT_NO_TRUST);
-            });
-        }
-    }
-    SECTION("basic tests")
+    SECTION("disabled CHANGE_TRUST check")
     {
         for_all_versions(*app, [&] {
             // create a trustline with a limit of 0
-            REQUIRE_THROWS_AS(root.changeTrust(idr, 0),
-                              ex_CHANGE_TRUST_INVALID_LIMIT);
-
-            // create a trustline with a limit of 100
-            root.changeTrust(idr, 100);
-
-            // fill it to 90
-            gateway.pay(root, idr, 90);
-
-            // can't lower the limit below balance
-            REQUIRE_THROWS_AS(root.changeTrust(idr, 89),
-                              ex_CHANGE_TRUST_INVALID_LIMIT);
-
-            // can't delete if there is a balance
-            REQUIRE_THROWS_AS(root.changeTrust(idr, 0),
-                              ex_CHANGE_TRUST_INVALID_LIMIT);
-
-            // lower the limit at the balance
-            root.changeTrust(idr, 90);
-
-            // clear the balance
-            root.pay(gateway, idr, 90);
-
-            // delete the trust line
-            root.changeTrust(idr, 0);
-            REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idr, db)));
+            REQUIRE_THROWS_AS(root.changeTrust(idr, 100),
+                              ex_CHANGE_TRUST_MALFORMED);
         });
     }
-    SECTION("issuer does not exist")
+
+    SECTION("disabled ALLOW_TRUST check")
     {
-        SECTION("new trust line")
-        {
-            for_all_versions(*app, [&] {
-                Asset usd = makeAsset(getAccount("non-existing"), "IDR");
-                REQUIRE_THROWS_AS(root.changeTrust(usd, 100),
-                                  ex_CHANGE_TRUST_NO_ISSUER);
-            });
-        }
-        SECTION("edit existing")
-        {
-            for_all_versions(*app, [&] {
-                root.changeTrust(idr, 100);
-                // Merge gateway back into root (the trustline still exists)
-                gateway.merge(root);
-
-                REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
-                                  ex_CHANGE_TRUST_NO_ISSUER);
-                REQUIRE(!loadAccount(gateway, *app, false));
-            });
-        }
-    }
-    SECTION("trusting self")
-    {
-        auto loadTrustLine = [&]() {
-            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr, db);
-        };
-        auto validateTrustLineIsConst = [&]() {
-            auto trustLine = loadTrustLine();
-            REQUIRE(trustLine);
-            REQUIRE(trustLine->getBalance() == INT64_MAX);
-        };
-
-        validateTrustLineIsConst();
-
-        for_versions_to(2, *app, [&] {
-            // create a trustline with a limit of INT64_MAX - 1 wil lfail
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX - 1),
-                              ex_CHANGE_TRUST_INVALID_LIMIT);
-            validateTrustLineIsConst();
-
-            // create a trustline with a limit of INT64_MAX
-            gateway.changeTrust(idr, INT64_MAX);
-            validateTrustLineIsConst();
-
-            auto gatewayAccountBefore = loadAccount(gateway, *app);
-            gateway.pay(gateway, idr, 50);
-            validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, *app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
-                     app->getLedgerManager().getTxFee()));
-
-            // lower the limit will fail, because it is still INT64_MAX
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
-                              ex_CHANGE_TRUST_INVALID_LIMIT);
-            validateTrustLineIsConst();
-
-            // delete the trust line will fail
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, 0),
-                              ex_CHANGE_TRUST_INVALID_LIMIT);
-            validateTrustLineIsConst();
-        });
-
-        for_versions_from(3, *app, [&] {
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX - 1),
-                              ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
-            validateTrustLineIsConst();
-
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX),
-                              ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
-            validateTrustLineIsConst();
-
-            auto gatewayAccountBefore = loadAccount(gateway, *app);
-            gateway.pay(gateway, idr, 50);
-            validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, *app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
-                     app->getLedgerManager().getTxFee()));
-
-            // lower the limit will fail, because it is still INT64_MAX
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
-                              ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
-            validateTrustLineIsConst();
-
-            // delete the trust line will fail
-            REQUIRE_THROWS_AS(gateway.changeTrust(idr, 0),
-                              ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
-            validateTrustLineIsConst();
+        for_all_versions(*app, [&] {
+            // create a trustline with a limit of 0
+            REQUIRE_THROWS_AS(root.allowTrust(idr, gateway),
+                              ex_ALLOW_TRUST_MALFORMED);
         });
     }
 }

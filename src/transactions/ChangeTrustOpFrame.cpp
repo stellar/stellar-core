@@ -24,6 +24,9 @@ bool
 ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                             LedgerManager& ledgerManager)
 {
+    innerResult().code(CHANGE_TRUST_MALFORMED);
+    return false;
+
     Database& db = ledgerManager.getDatabase();
 
     auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), mChangeTrust.line,
@@ -141,6 +144,9 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 ChangeTrustOpFrame::doCheckValid(Application& app)
 {
+    innerResult().code(CHANGE_TRUST_MALFORMED);
+    return false;
+
     if (mChangeTrust.limit < 0)
     {
         app.getMetrics()
