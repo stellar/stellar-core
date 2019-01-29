@@ -420,12 +420,6 @@
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\util\NtpClient.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\NtpWork.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\StatusManager.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -888,9 +882,6 @@
     <ClCompile Include="..\..\src\main\Maintainer.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\PersistentState.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1153,12 +1144,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h">
       <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\NtpClient.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\NtpWork.h">
-      <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\StatusManager.h">
       <Filter>util</Filter>
@@ -1539,9 +1524,6 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Maintainer.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\PersistentState.h">

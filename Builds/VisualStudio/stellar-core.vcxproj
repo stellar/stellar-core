@@ -428,7 +428,6 @@ exit /b 0
     <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
     <ClCompile Include="..\..\src\main\Maintainer.cpp" />
-    <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
@@ -506,8 +505,6 @@ exit /b 0
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp" />
     <ClCompile Include="..\..\src\util\HashOfHash.cpp" />
     <ClCompile Include="..\..\src\util\Math.cpp" />
-    <ClCompile Include="..\..\src\util\NtpClient.cpp" />
-    <ClCompile Include="..\..\src\util\NtpWork.cpp" />
     <ClCompile Include="..\..\src\util\numeric.cpp" />
     <ClCompile Include="..\..\src\util\SecretValue.cpp" />
     <ClCompile Include="..\..\src\util\StatusManager.cpp" />
@@ -643,7 +640,6 @@ exit /b 0
     <ClInclude Include="..\..\src\main\dumpxdr.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
     <ClInclude Include="..\..\src\main\Maintainer.h" />
-    <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h" />
     <ClInclude Include="..\..\src\main\PersistentState.h" />
     <ClInclude Include="..\..\src\main\StellarCoreVersion.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
@@ -732,8 +728,6 @@ exit /b 0
     <ClInclude Include="..\..\src\util\Math.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
     <ClInclude Include="..\..\src\util\NonCopyable.h" />
-    <ClInclude Include="..\..\src\util\NtpClient.h" />
-    <ClInclude Include="..\..\src\util\NtpWork.h" />
     <ClInclude Include="..\..\src\util\numeric.h" />
     <ClInclude Include="..\..\src\util\optional.h" />
     <ClInclude Include="..\..\src\util\SecretValue.h" />

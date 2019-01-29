@@ -91,7 +91,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     NODE_IS_VALIDATOR = false;
 
     DATABASE = SecretValue{"sqlite3://:memory:"};
-    NTP_SERVER = "pool.ntp.org";
 
     ENTRY_CACHE_SIZE = 4096;
     BEST_OFFERS_CACHE_SIZE = 64;
@@ -507,10 +506,6 @@ Config::load(std::string const& filename)
             else if (item.first == "NETWORK_PASSPHRASE")
             {
                 NETWORK_PASSPHRASE = readString(item);
-            }
-            else if (item.first == "NTP_SERVER")
-            {
-                NTP_SERVER = readString(item);
             }
             else if (item.first == "INVARIANT_CHECKS")
             {
