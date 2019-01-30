@@ -1339,35 +1339,41 @@ BallotProtocol::attemptBump()
 {
     if (mPhase == SCP_PHASE_PREPARE || mPhase == SCP_PHASE_CONFIRM)
     {
-        // find all counters
+        uint32 targetCounter = mCurrentBallot ? mCurrentBallot->counter : 0;
+
+        // find all counters greater than targetCounter
         std::set<uint32> allCounters;
         for (auto const& e : mLatestEnvelopes)
         {
             auto const& st = e.second.statement;
+            uint32 eCounter;
             switch (st.pledges.type())
             {
             case SCP_ST_PREPARE:
             {
                 auto const& p = st.pledges.prepare();
-                allCounters.insert(p.ballot.counter);
+                eCounter = p.ballot.counter;
             }
             break;
             case SCP_ST_CONFIRM:
             {
                 auto const& c = st.pledges.confirm();
-                allCounters.insert(c.ballot.counter);
+                eCounter = c.ballot.counter;
             }
             break;
             case SCP_ST_EXTERNALIZE:
             {
-                allCounters.insert(UINT32_MAX);
+                eCounter = UINT32_MAX;
             }
             break;
             default:
                 abort();
             };
+            if (eCounter >= targetCounter)
+            {
+                allCounters.insert(eCounter);
+            }
         }
-        uint32 targetCounter = mCurrentBallot ? mCurrentBallot->counter : 0;
 
         // uses 0 as a way to track if a v-blocking set is at a higher counter
         // if so, we move to that smallest counter
@@ -1377,10 +1383,6 @@ BallotProtocol::attemptBump()
         for (auto it = allCounters.begin(); it != allCounters.end(); it++)
         {
             uint32 n = *it;
-            if (n < targetCounter)
-            {
-                break;
-            }
 
             bool vBlocking = LocalNode::isVBlocking(
                 getLocalNode()->getQuorumSet(), mLatestEnvelopes,

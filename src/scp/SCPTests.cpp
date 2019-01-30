@@ -1134,6 +1134,19 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                               0, 0, &A1);
                 REQUIRE(!scp.hasBallotTimerUpcoming());
             }
+            SECTION("prepare higher counter (v-blocking)")
+            {
+                recvVBlocking(makePrepareGen(qSetHash, B2));
+                REQUIRE(scp.mEnvs.size() == 3);
+                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2, &A1);
+                REQUIRE(!scp.hasBallotTimer());
+
+                // more timeout from vBlocking set
+                recvVBlocking(makePrepareGen(qSetHash, B3));
+                REQUIRE(scp.mEnvs.size() == 4);
+                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A3, &A1);
+                REQUIRE(!scp.hasBallotTimer());
+            }
         }
         SECTION("prepared B (v-blocking)")
         {
@@ -1585,6 +1598,19 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                  false);
                 REQUIRE(scp.mEnvs.size() == 2);
                 REQUIRE(!scp.hasBallotTimerUpcoming());
+            }
+            SECTION("prepare higher counter (v-blocking)")
+            {
+                recvVBlocking(makePrepareGen(qSetHash, B2));
+                REQUIRE(scp.mEnvs.size() == 3);
+                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A2, &A1);
+                REQUIRE(!scp.hasBallotTimer());
+
+                // more timeout from vBlocking set
+                recvVBlocking(makePrepareGen(qSetHash, B3));
+                REQUIRE(scp.mEnvs.size() == 4);
+                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A3, &A1);
+                REQUIRE(!scp.hasBallotTimer());
             }
         }
         SECTION("prepared B (v-blocking)")
