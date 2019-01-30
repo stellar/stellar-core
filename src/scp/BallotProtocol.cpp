@@ -1607,11 +1607,13 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
 {
     bool didWork = false;
 
+    // p and p' are the two higest prepared and incompatible ballots
     if (mPrepared)
     {
         int comp = compareBallots(*mPrepared, ballot);
         if (comp < 0)
         {
+            // as we're replacing p, we see if we should also replace p'
             if (!areBallotsCompatible(*mPrepared, ballot))
             {
                 mPreparedPrime = std::make_unique<SCPBallot>(*mPrepared);
@@ -1621,8 +1623,16 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
         }
         else if (comp > 0)
         {
-            // check if we should update only p'
-            if (!mPreparedPrime || compareBallots(*mPreparedPrime, ballot) < 0)
+            // check if we should update only p', this happens
+            // either p' was NULL
+            // or p' gets replaced by ballot
+            //      (p' < ballot and ballot is incompatible with p)
+            // note, the later check is here out of paranoia as this function is
+            // not called with a value that would not allow us to make progress
+
+            if (!mPreparedPrime ||
+                ((compareBallots(*mPreparedPrime, ballot) < 0) &&
+                 !areBallotsCompatible(*mPrepared, ballot)))
             {
                 mPreparedPrime = std::make_unique<SCPBallot>(ballot);
                 didWork = true;

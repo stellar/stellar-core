@@ -19,16 +19,16 @@
 namespace stellar
 {
 
-// x < y < z
+// x < y < z < zz
 // k can be anything
-static Value xValue, yValue, zValue, kValue;
+static Value xValue, yValue, zValue, zzValue, kValue;
 
 static void
 setupValues()
 {
     std::vector<Value> v;
     std::string d = fmt::format("SEED_VALUE_DATA_{}", std::rand());
-    for (int i = 0; i < 3; i++)
+    for (int i = 0; i < 4; i++)
     {
         auto h = sha256(fmt::format("{}/{}", d, i));
         v.emplace_back(xdr::xdr_to_opaque(h));
@@ -37,6 +37,7 @@ setupValues()
     xValue = v[0];
     yValue = v[1];
     zValue = v[2];
+    zzValue = v[3];
 
     // kValue is independent
     auto kHash = sha256(d);
@@ -588,6 +589,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     REQUIRE(xValue < yValue);
     REQUIRE(yValue < zValue);
+    REQUIRE(zValue < zzValue);
 
     CLOG(INFO, "SCP") << "";
     CLOG(INFO, "SCP") << "BEGIN TEST";
@@ -724,9 +726,13 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         Value const& aValue = xValue;
         Value const& bValue = zValue;
+        Value const& midValue = yValue;
+        Value const& bigValue = zzValue;
 
         SCPBallot A1(1, aValue);
         SCPBallot B1(1, bValue);
+        SCPBallot Mid1(1, midValue);
+        SCPBallot Big1(1, bigValue);
 
         SCPBallot A2 = A1;
         A2.counter++;
@@ -747,6 +753,12 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         SCPBallot B3 = B2;
         B3.counter++;
+
+        SCPBallot Mid2 = Mid1;
+        Mid2.counter++;
+
+        SCPBallot Big2 = Big1;
+        Big2.counter++;
 
         REQUIRE(scp.bumpState(0, aValue));
         REQUIRE(scp.mEnvs.size() == 1);
@@ -1118,13 +1130,67 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                     }
                 }
             }
-            SECTION("switch prepared B1")
+            SECTION("switch prepared B1 from A1")
             {
+                // (p,p') = (B1, A1) [ from (A1, null) ]
                 recvVBlocking(makePrepareGen(qSetHash, B1, &B1));
                 REQUIRE(scp.mEnvs.size() == 3);
                 verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &B1,
                               0, 0, &A1);
                 REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                // v-blocking with n=2 -> bump n
+                recvVBlocking(makePrepareGen(qSetHash, B2));
+                REQUIRE(scp.mEnvs.size() == 4);
+                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A2, &B1,
+                              0, 0, &A1);
+
+                // move to (p,p') = (B2, A1) [update p from B1 -> B2]
+                recvVBlocking(makePrepareGen(qSetHash, B2, &B2));
+                REQUIRE(scp.mEnvs.size() == 5);
+                verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2, &B2,
+                              0, 0, &A1);
+                REQUIRE(
+                    !scp.hasBallotTimer()); // no quorum (other nodes on (A,1))
+
+                SECTION("v-blocking switches to previous value of p")
+                {
+                    // v-blocking with n=3 -> bump n
+                    recvVBlocking(makePrepareGen(qSetHash, B3));
+                    REQUIRE(scp.mEnvs.size() == 6);
+                    verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, A3,
+                                  &B2, 0, 0, &A1);
+                    REQUIRE(!scp.hasBallotTimer()); // no quorum (other nodes on
+                                                    // (A,1))
+
+                    // vBlocking set says "B1" is prepared - but we already have
+                    // p=B2
+                    recvVBlockingChecks(makePrepareGen(qSetHash, B3, &B1),
+                                        false);
+                    REQUIRE(scp.mEnvs.size() == 6);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+                SECTION("switch p' to Mid2")
+                {
+                    // (p,p') = (B2, Mid2)
+                    recvVBlocking(
+                        makePrepareGen(qSetHash, B2, &B2, 0, 0, &Mid2));
+                    REQUIRE(scp.mEnvs.size() == 6);
+                    verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, A2,
+                                  &B2, 0, 0, &Mid2);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
+                SECTION("switch again Big2")
+                {
+                    // both p and p' get updated
+                    // (p,p') = (Big2, B2)
+                    recvVBlocking(
+                        makePrepareGen(qSetHash, B2, &Big2, 0, 0, &B2));
+                    REQUIRE(scp.mEnvs.size() == 6);
+                    verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, A2,
+                                  &Big2, 0, 0, &B2);
+                    REQUIRE(!scp.hasBallotTimer());
+                }
             }
             SECTION("switch prepare B1")
             {
@@ -1591,11 +1657,18 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                     }
                 }
             }
-            SECTION("switch prepared B1")
+            SECTION("switch prepared B1 from A1")
             {
                 // can't switch to B1
                 recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false,
                                  false);
+                REQUIRE(scp.mEnvs.size() == 2);
+                REQUIRE(!scp.hasBallotTimerUpcoming());
+            }
+            SECTION("switch prepare B1")
+            {
+                // doesn't switch as B1 < A1
+                recvQuorumChecks(makePrepareGen(qSetHash, B1), false, false);
                 REQUIRE(scp.mEnvs.size() == 2);
                 REQUIRE(!scp.hasBallotTimerUpcoming());
             }
