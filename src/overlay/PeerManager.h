@@ -74,6 +74,7 @@ class PeerManager
     enum class BackOffUpdate
     {
         KEEP,
+        HARD_RESET,
         RESET,
         INCREASE
     };

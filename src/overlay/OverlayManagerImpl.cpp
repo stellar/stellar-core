@@ -313,7 +313,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         {
             auto address = PeerBareAddress::resolve(peerStr, mApp);
             getPeerManager().update(address, typeUpgrade,
-                                    PeerManager::BackOffUpdate::RESET);
+                                    PeerManager::BackOffUpdate::HARD_RESET);
         }
         catch (std::runtime_error&)
         {

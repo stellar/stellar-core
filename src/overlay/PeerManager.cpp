@@ -337,16 +337,18 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
     {
         break;
     }
-    case BackOffUpdate::RESET:
+    case BackOffUpdate::HARD_RESET:
     {
         peer.mNumFailures = 0;
         auto nextAttempt = app.getClock().now();
         peer.mNextAttempt = VirtualClock::pointToTm(nextAttempt);
         break;
     }
+    case BackOffUpdate::RESET:
     case BackOffUpdate::INCREASE:
     {
-        peer.mNumFailures++;
+        peer.mNumFailures =
+            backOff == BackOffUpdate::RESET ? 0 : peer.mNumFailures + 1;
         auto nextAttempt =
             app.getClock().now() + computeBackoff(peer.mNumFailures);
         peer.mNextAttempt = VirtualClock::pointToTm(nextAttempt);
