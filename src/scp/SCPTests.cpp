@@ -1693,6 +1693,12 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
             REQUIRE(!scp.hasBallotTimer());
         }
+        SECTION("prepare B (quorum)")
+        {
+            recvQuorumChecksEx(makePrepareGen(qSetHash, B1), true, true, true);
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+        }
         SECTION("confirm (v-blocking)")
         {
             SECTION("via CONFIRM")
