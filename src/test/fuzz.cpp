@@ -17,7 +17,7 @@
 #include "util/Timer.h"
 #include "util/XDRStream.h"
 
-#include "main/fuzz.h"
+#include "test/fuzz.h"
 
 #include <signal.h>
 #include <xdrpp/autocheck.h>

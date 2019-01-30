@@ -4,17 +4,17 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "FileTransferInfo.h"
 #include "bucket/BucketList.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "crypto/Hex.h"
 #include "herder/LedgerCloseData.h"
+#include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GzipFileWork.h"
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
 #include "ledger/LedgerRange.h"
-#include "ledger/LedgerTestUtils.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Timer.h"

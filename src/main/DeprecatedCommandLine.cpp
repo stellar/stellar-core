@@ -16,7 +16,7 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "main/fuzz.h"
+#include "test/fuzz.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
