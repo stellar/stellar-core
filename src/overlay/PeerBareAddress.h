@@ -54,13 +54,13 @@ class PeerBareAddress
     }
 
     std::string toString() const;
-    void toXdr(PeerAddress& ret) const;
 
     bool isPrivate() const;
     bool isLocalhost() const;
 
     friend bool operator==(PeerBareAddress const& x, PeerBareAddress const& y);
     friend bool operator!=(PeerBareAddress const& x, PeerBareAddress const& y);
+    friend bool operator<(PeerBareAddress const& x, PeerBareAddress const& y);
 
   private:
     Type mType;

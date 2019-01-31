@@ -10,7 +10,7 @@
 #include "medida/metrics_registry.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -112,21 +112,19 @@ TCPPeer::~TCPPeer()
     }
 }
 
-PeerBareAddress
-TCPPeer::makeAddress(int remoteListeningPort) const
+std::string
+TCPPeer::getIP() const
 {
+    std::string result;
+
     asio::error_code ec;
     auto ep = mSocket->next_layer().remote_endpoint(ec);
-    if (ec || remoteListeningPort <= 0 || remoteListeningPort > UINT16_MAX)
+    if (!ec)
     {
-        return PeerBareAddress{};
+        result = ep.address().to_string();
     }
-    else
-    {
-        return PeerBareAddress{
-            ep.address().to_string(),
-            static_cast<unsigned short>(remoteListeningPort)};
-    }
+
+    return result;
 }
 
 void
@@ -298,7 +296,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
         else
         {
             // no delayed shutdown - we can drop normally
-            drop();
+            drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
     }
     else if (bytes_transferred != 0)
@@ -356,7 +354,7 @@ TCPPeer::getIncomingMsgLength()
         CLOG(ERROR, "Overlay")
             << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         length = 0;
     }
     return (length);
@@ -403,7 +401,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
                 << "readHeaderHandler error: " << error.message() << " :"
                 << toString();
         }
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -435,7 +433,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
                 << "readBodyHandler error: " << error.message() << " :"
                 << toString();
         }
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -454,12 +452,13 @@ TCPPeer::recvMessage()
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
-        Peer::drop(ERR_DATA, "received corrupt XDR");
+        Peer::drop(ERR_DATA, "received corrupt XDR",
+                   Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
 void
-TCPPeer::drop(bool force)
+TCPPeer::drop(DropMode dropMode)
 {
     assertThreadIsMain();
     if (shouldAbort())
@@ -473,10 +472,10 @@ TCPPeer::drop(bool force)
     mState = CLOSING;
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    getApp().getOverlayManager().dropPeer(this);
+    getApp().getOverlayManager().removePeer(this);
 
     // if write queue is not empty, messageSender will take care of shutdown
-    if (force || !mWriting)
+    if ((dropMode == Peer::DropMode::IGNORE_WRITE_QUEUE) || !mWriting)
     {
         self->shutdown();
     }

@@ -46,10 +46,10 @@
 namespace stellar
 {
 
+class LoadManager;
 class PeerAuth;
 class PeerBareAddress;
-class PeerRecord;
-class LoadManager;
+class PeerManager;
 
 class OverlayManager
 {
@@ -83,12 +83,15 @@ class OverlayManager
     // `nullptr`-valued pointer if no such connected peer exists.
     virtual Peer::pointer getConnectedPeer(PeerBareAddress const& address) = 0;
 
-    // Add a peer to the in-memory set of pending peers.
-    virtual void addPendingPeer(Peer::pointer peer) = 0;
+    // Add new pending inbound connection.
+    virtual void addInboundConnection(Peer::pointer peer) = 0;
 
-    // Forget about a peer, removing it from the in-memory set of connected
-    // peers. Presumably due to it disconnecting.
-    virtual void dropPeer(Peer* peer) = 0;
+    // Add new pending outbound connection. Return true if connection was added.
+    virtual bool addOutboundConnection(Peer::pointer peer) = 0;
+
+    // Remove peer from the in-memory set of connected peers. Can only be
+    // called on peers in Peer::CLOSING state.
+    virtual void removePeer(Peer* peer) = 0;
 
     // Try to move peer from pending to authenticated list. If there is no room
     // for provided peer, it is checked if it is a "preferred" peer (as
@@ -101,29 +104,19 @@ class OverlayManager
     virtual bool isPreferred(Peer* peer) = 0;
 
     // Return the current in-memory set of pending peers.
-    virtual std::vector<Peer::pointer> const& getPendingPeers() const = 0;
+    virtual std::vector<Peer::pointer> getPendingPeers() const = 0;
 
     // Return number of pending peers
     virtual int getPendingPeersCount() const = 0;
 
     // Return the current in-memory set of authenticated peers.
-    virtual std::map<NodeID, Peer::pointer> const&
-    getAuthenticatedPeers() const = 0;
+    virtual std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const = 0;
 
     // Return number of authenticated peers
     virtual int getAuthenticatedPeersCount() const = 0;
 
-    // Attempt to connect to a peer identified by string. The form of the string
-    // should be an IP address or hostname, optionally followed by a colon and
-    // a TCP port number.
-    virtual void connectTo(std::string const& addr) = 0;
-
     // Attempt to connect to a peer identified by peer address.
     virtual void connectTo(PeerBareAddress const& address) = 0;
-
-    // Attempt to connect to a peer identified by peer record. Can modify back
-    // off value of pr and save it do database.
-    virtual void connectTo(PeerRecord& pr) = 0;
 
     // returns the list of peers that sent us the item with hash `h`
     virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;
@@ -133,6 +126,9 @@ class OverlayManager
 
     // Return the persistent peer-load-accounting cache.
     virtual LoadManager& getLoadManager() = 0;
+
+    // Return the persistent peer manager
+    virtual PeerManager& getPeerManager() = 0;
 
     // start up all background tasks for overlay
     virtual void start() = 0;

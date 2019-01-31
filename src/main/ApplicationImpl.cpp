@@ -340,6 +340,8 @@ ApplicationImpl::start()
         throw std::invalid_argument(err);
     }
 
+    mConfig.logBasicInfo();
+
     bool done = false;
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec) {

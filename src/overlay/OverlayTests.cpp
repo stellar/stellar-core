@@ -10,7 +10,7 @@
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
@@ -102,12 +102,25 @@ TEST_CASE("reject non preferred peer", "[overlay][connections]")
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    testutil::crankSome(clock);
+    SECTION("inbound")
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(!conn.getInitiator()->isConnected());
-    REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(conn.getAcceptor()->getDropReason() == "peer rejected");
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(conn.getAcceptor()->getDropReason() == "peer rejected");
+    }
+
+    SECTION("outbound")
+    {
+        LoopbackPeerConnection conn(*app2, *app1);
+        testutil::crankSome(clock);
+
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(conn.getInitiator()->getDropReason() == "peer rejected");
+    }
 }
 
 TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
@@ -123,11 +136,23 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    testutil::crankSome(clock);
+    SECTION("inbound")
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(conn.getInitiator()->isAuthenticated());
-    REQUIRE(conn.getAcceptor()->isAuthenticated());
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+    }
+
+    SECTION("outbound")
+    {
+        LoopbackPeerConnection conn(*app2, *app1);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+    }
 }
 
 TEST_CASE("reject peers beyond max", "[overlay][connections]")
@@ -137,80 +162,312 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
 
-    cfg2.MAX_PEER_CONNECTIONS = 1;
+    SECTION("inbound")
+    {
+        cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+        cfg2.TARGET_PEER_CONNECTIONS = 0;
 
-    auto app1 = createTestApplication(clock, cfg1);
-    auto app2 = createTestApplication(clock, cfg2);
-    auto app3 = createTestApplication(clock, cfg3);
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+        auto app3 = createTestApplication(clock, cfg3);
 
-    LoopbackPeerConnection conn1(*app1, *app2);
-    LoopbackPeerConnection conn2(*app3, *app2);
-    testutil::crankSome(clock);
+        LoopbackPeerConnection conn1(*app1, *app2);
+        LoopbackPeerConnection conn2(*app3, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(conn1.getInitiator()->isConnected());
-    REQUIRE(conn1.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
-    REQUIRE(conn2.getAcceptor()->getDropReason() == "peer rejected");
+        REQUIRE(conn1.getInitiator()->isConnected());
+        REQUIRE(conn1.getAcceptor()->isConnected());
+        REQUIRE(!conn2.getInitiator()->isConnected());
+        REQUIRE(!conn2.getAcceptor()->isConnected());
+        REQUIRE(conn2.getAcceptor()->getDropReason() == "peer rejected");
+    }
+
+    SECTION("outbound")
+    {
+        cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+        cfg2.TARGET_PEER_CONNECTIONS = 1;
+
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+        auto app3 = createTestApplication(clock, cfg3);
+
+        LoopbackPeerConnection conn1(*app2, *app1);
+        LoopbackPeerConnection conn2(*app2, *app3);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn1.getInitiator()->isConnected());
+        REQUIRE(conn1.getAcceptor()->isConnected());
+        REQUIRE(!conn2.getInitiator()->isConnected());
+        REQUIRE(!conn2.getAcceptor()->isConnected());
+        REQUIRE(conn2.getInitiator()->getDropReason() == "peer rejected");
+    }
 }
 
-TEST_CASE("allow pending peers beyond max", "[overlay][connections]")
+TEST_CASE("reject peers beyond max - preferred peer wins",
+          "[overlay][connections]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
+
+    SECTION("preferred connects first")
+    {
+        SECTION("inbound")
+        {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+            cfg2.TARGET_PEER_CONNECTIONS = 0;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
+            LoopbackPeerConnection conn2(*app3, *app2);
+            LoopbackPeerConnection conn1(*app1, *app2);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getAcceptor()->getDropReason() == "peer rejected");
+        }
+
+        SECTION("outbound")
+        {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+            cfg2.TARGET_PEER_CONNECTIONS = 1;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
+            LoopbackPeerConnection conn2(*app2, *app3);
+            LoopbackPeerConnection conn1(*app2, *app1);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getInitiator()->getDropReason() == "peer rejected");
+        }
+    }
+
+    SECTION("preferred connects second")
+    {
+        SECTION("inbound")
+        {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
+            cfg2.TARGET_PEER_CONNECTIONS = 0;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
+            LoopbackPeerConnection conn1(*app1, *app2);
+            LoopbackPeerConnection conn2(*app3, *app2);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getAcceptor()->getDropReason() ==
+                    "preferred peer selected instead");
+        }
+
+        SECTION("outbound")
+        {
+            cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+            cfg2.TARGET_PEER_CONNECTIONS = 1;
+            cfg2.PREFERRED_PEER_KEYS.push_back(
+                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+
+            auto app1 = createTestApplication(clock, cfg1);
+            auto app2 = createTestApplication(clock, cfg2);
+            auto app3 = createTestApplication(clock, cfg3);
+
+            LoopbackPeerConnection conn1(*app2, *app1);
+            LoopbackPeerConnection conn2(*app2, *app3);
+            testutil::crankSome(clock);
+
+            REQUIRE(!conn1.getInitiator()->isConnected());
+            REQUIRE(!conn1.getAcceptor()->isConnected());
+            REQUIRE(conn2.getInitiator()->isConnected());
+            REQUIRE(conn2.getAcceptor()->isConnected());
+            REQUIRE(conn1.getInitiator()->getDropReason() ==
+                    "preferred peer selected instead");
+        }
+    }
+}
+
+TEST_CASE("allow inbound pending peers up to max", "[overlay][connections]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
     Config const& cfg4 = getTestConfig(3);
+    Config const& cfg5 = getTestConfig(4);
 
-    cfg2.MAX_PEER_CONNECTIONS = 1;
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 3;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
     auto app4 = createTestApplication(clock, cfg4);
+    auto app5 = createTestApplication(clock, cfg5);
 
     LoopbackPeerConnection conn1(*app1, *app2);
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CONNECTED);
     conn1.getInitiator()->setCorked(true);
+
     LoopbackPeerConnection conn2(*app3, *app2);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CONNECTED);
     conn2.getInitiator()->setCorked(true);
+
     LoopbackPeerConnection conn3(*app4, *app2);
+    REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
+
+    LoopbackPeerConnection conn4(*app5, *app2);
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
+
     testutil::crankSome(clock);
 
-    REQUIRE(!conn1.getInitiator()->isConnected());
-    REQUIRE(!conn1.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CLOSING);
     REQUIRE(conn3.getInitiator()->isConnected());
     REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                 .count() == 2);
 }
 
-TEST_CASE("reject pending beyond max", "[overlay][connections]")
+TEST_CASE("allow inbound pending peers over max if possibly preferred",
+          "[overlay][connections]")
 {
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
     Config const& cfg3 = getTestConfig(2);
+    Config const& cfg4 = getTestConfig(3);
+    Config const& cfg5 = getTestConfig(4);
 
-    cfg2.MAX_PENDING_CONNECTIONS = 1;
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.PREFERRED_PEERS.emplace_back("127.0.0.1:17");
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
+    auto app4 = createTestApplication(clock, cfg4);
+    auto app5 = createTestApplication(clock, cfg5);
+
+    (static_cast<OverlayManagerImpl&>(app2->getOverlayManager()))
+        .storeConfigPeers();
 
     LoopbackPeerConnection conn1(*app1, *app2);
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CONNECTED);
+    conn1.getInitiator()->setCorked(true);
+
     LoopbackPeerConnection conn2(*app3, *app2);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CONNECTED);
+    conn2.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn3(*app4, *app2);
+    REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
+
+    LoopbackPeerConnection conn4(*app5, *app2);
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
+
     testutil::crankSome(clock);
 
-    REQUIRE(conn1.getInitiator()->isConnected());
-    REQUIRE(conn1.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn3.getInitiator()->isConnected());
+    REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(conn4.getInitiator()->isConnected());
+    REQUIRE(conn4.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                .count() == 2);
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "connection", "reject"}, "connection")
-                .count() == 1);
+                .count() == 0);
+}
+
+TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
+    Config const& cfg4 = getTestConfig(3);
+    Config const& cfg5 = getTestConfig(4);
+
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 3;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 3;
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
+    auto app4 = createTestApplication(clock, cfg4);
+    auto app5 = createTestApplication(clock, cfg5);
+
+    LoopbackPeerConnection conn1(*app2, *app1);
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CONNECTED);
+    conn1.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn2(*app2, *app3);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CONNECTED);
+    conn2.getInitiator()->setCorked(true);
+
+    LoopbackPeerConnection conn3(*app2, *app4);
+    REQUIRE(conn3.getInitiator()->getState() == Peer::CONNECTED);
+    REQUIRE(conn3.getAcceptor()->getState() == Peer::CONNECTED);
+
+    LoopbackPeerConnection conn4(*app2, *app5);
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CONNECTED);
+    conn2.getInitiator()->setCorked(true);
+
+    testutil::crankSome(clock);
+
+    REQUIRE(conn1.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn1.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn2.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(conn3.getInitiator()->isConnected());
+    REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(conn4.getInitiator()->getState() == Peer::CLOSING);
+    REQUIRE(conn4.getAcceptor()->getState() == Peer::CLOSING);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                .count() == 2);
 }
 
 TEST_CASE("reject peers with differing network passphrases",
@@ -374,11 +631,11 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
 
-    auto getConfiguration = [](int id, unsigned short peerConnections) {
+    auto getConfiguration = [](int id, unsigned short targetOutboundConnections,
+                               unsigned short maxInboundConnections) {
         auto cfg = getTestConfig(id);
-        cfg.MAX_PEER_CONNECTIONS = peerConnections;
-        cfg.TARGET_PEER_CONNECTIONS = peerConnections;
-        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+        cfg.TARGET_PEER_CONNECTIONS = targetOutboundConnections;
+        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = maxInboundConnections;
         return cfg;
     };
 
@@ -394,10 +651,10 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
                                });
     };
 
-    auto headCfg = getConfiguration(1, 1);
-    auto node1Cfg = getConfiguration(2, 2);
-    auto node2Cfg = getConfiguration(3, 2);
-    auto node3Cfg = getConfiguration(4, 2);
+    auto headCfg = getConfiguration(1, 0, 1);
+    auto node1Cfg = getConfiguration(2, 1, 1);
+    auto node2Cfg = getConfiguration(3, 1, 1);
+    auto node3Cfg = getConfiguration(4, 1, 1);
 
     SIMULATION_CREATE_NODE(Head);
     SIMULATION_CREATE_NODE(Node1);
@@ -432,68 +689,122 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
     simulation->crankForAtLeast(std::chrono::seconds{1}, true);
 }
 
-TEST_CASE("preferred peers always connect", "[overlay][connections]")
+TEST_CASE("inbounds nodes can be promoted to ouboundvalid", "[overlay]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
-
-    auto getConfiguration = [](int id, unsigned short targetConnections,
-                               unsigned short peerConnections) {
-        auto cfg = getTestConfig(id);
-        cfg.MAX_PEER_CONNECTIONS = peerConnections;
-        cfg.TARGET_PEER_CONNECTIONS = targetConnections;
-        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
-        return cfg;
-    };
-
-    auto numberOfAppConnections = [](Application& app) {
-        return app.getOverlayManager().getAuthenticatedPeersCount();
-    };
-
-    Config configs[3];
-    for (int i = 0; i < 3; i++)
-    {
-        configs[i] = getConfiguration(i + 1, i == 0 ? 1 : 0, 2);
-    }
 
     SIMULATION_CREATE_NODE(Node1);
     SIMULATION_CREATE_NODE(Node2);
     SIMULATION_CREATE_NODE(Node3);
 
     SCPQuorumSet qSet;
-    qSet.threshold = 2;
+    qSet.threshold = 1;
     qSet.validators.push_back(vNode1NodeID);
-    qSet.validators.push_back(vNode2NodeID);
-    qSet.validators.push_back(vNode3NodeID);
 
-    // node1 has node2 as preferred peer
-    configs[0].PREFERRED_PEERS.emplace_back(
-        fmt::format("localhost:{}", configs[1].PEER_PORT));
+    auto nodes = std::vector<Application::pointer>{};
+    auto configs = std::vector<Config>{};
+    auto addresses = std::vector<PeerBareAddress>{};
+    for (auto i = 0; i < 3; i++)
+    {
+        configs.push_back(getTestConfig(i + 1));
+        addresses.emplace_back("127.0.0.1", configs[i].PEER_PORT);
+    }
 
-    simulation->addNode(vNode1SecretKey, qSet, &configs[0]);
-    simulation->addNode(vNode2SecretKey, qSet, &configs[1]);
-    simulation->addNode(vNode3SecretKey, qSet, &configs[2]);
+    configs[0].KNOWN_PEERS.emplace_back(
+        fmt::format("127.0.0.1:{}", configs[1].PEER_PORT));
+    configs[2].KNOWN_PEERS.emplace_back(
+        fmt::format("127.0.0.1:{}", configs[0].PEER_PORT));
+
+    nodes.push_back(simulation->addNode(vNode1SecretKey, qSet, &configs[0]));
+    nodes.push_back(simulation->addNode(vNode2SecretKey, qSet, &configs[1]));
+    nodes.push_back(simulation->addNode(vNode3SecretKey, qSet, &configs[2]));
+
+    enum class TestPeerType
+    {
+        ANY,
+        KNOWN,
+        OUTBOUND
+    };
+
+    auto getTestPeerType = [&](int i, int j) {
+        auto& node = nodes[i];
+        auto peer =
+            node->getOverlayManager().getPeerManager().load(addresses[j]);
+        if (!peer.second)
+        {
+            return TestPeerType::ANY;
+        }
+
+        return peer.first.mType == static_cast<int>(PeerType::INBOUND)
+                   ? TestPeerType::KNOWN
+                   : TestPeerType::OUTBOUND;
+    };
+
+    using ExpectedResultType = std::vector<std::vector<TestPeerType>>;
+    auto peerTypesMatch = [&](ExpectedResultType expected) {
+        for (auto i = 0; i < expected.size(); i++)
+        {
+            for (auto j = 0; j < expected[i].size(); j++)
+            {
+                if (expected[i][j] > getTestPeerType(i, j))
+                {
+                    return false;
+                }
+            }
+        }
+        return true;
+    };
 
     simulation->startAllNodes();
-    simulation->crankForAtLeast(std::chrono::seconds{3}, false);
-    // node1 connected to node2 (counted from both apps)
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode1NodeID)) == 1);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode2NodeID)) == 1);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode3NodeID)) == 0);
 
-    // disconnect node1 and node2
-    simulation->dropConnection(vNode1NodeID, vNode2NodeID);
-    // and connect node 3 to node1 (to take the slot)
-    simulation->addConnection(vNode3NodeID, vNode1NodeID);
-    simulation->crankForAtLeast(std::chrono::seconds{1}, false);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode1NodeID)) == 1);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode2NodeID)) == 0);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode3NodeID)) == 1);
+    // at first, nodes only know about KNOWN_PEERS
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{TestPeerType::ANY, TestPeerType::KNOWN, TestPeerType::ANY},
+                 {TestPeerType::ANY, TestPeerType::ANY, TestPeerType::ANY},
+                 {TestPeerType::KNOWN, TestPeerType::ANY, TestPeerType::ANY}});
+        },
+        std::chrono::seconds(2), false);
 
-    // wait a bit more, node1 connects to its preferred peer
+    // then, after connection, some are made OUTBOUND
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{TestPeerType::ANY, TestPeerType::OUTBOUND,
+                  TestPeerType::KNOWN},
+                 {TestPeerType::KNOWN, TestPeerType::ANY, TestPeerType::ANY},
+                 {TestPeerType::OUTBOUND, TestPeerType::ANY,
+                  TestPeerType::ANY}});
+        },
+        std::chrono::seconds(10), false);
+
+    // then, after promotion, more are made OUTBOUND
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{TestPeerType::ANY, TestPeerType::OUTBOUND,
+                  TestPeerType::OUTBOUND},
+                 {TestPeerType::OUTBOUND, TestPeerType::ANY, TestPeerType::ANY},
+                 {TestPeerType::OUTBOUND, TestPeerType::ANY,
+                  TestPeerType::ANY}});
+        },
+        std::chrono::seconds(30), false);
+
+    // and when all connections are made, all nodes know about each other
+    simulation->crankUntil(
+        [&] {
+            return peerTypesMatch(
+                {{TestPeerType::ANY, TestPeerType::OUTBOUND,
+                  TestPeerType::OUTBOUND},
+                 {TestPeerType::OUTBOUND, TestPeerType::ANY,
+                  TestPeerType::OUTBOUND},
+                 {TestPeerType::OUTBOUND, TestPeerType::OUTBOUND,
+                  TestPeerType::ANY}});
+        },
+        std::chrono::seconds(30), false);
+
     simulation->crankForAtLeast(std::chrono::seconds{3}, true);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode1NodeID)) == 2);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode2NodeID)) == 1);
-    REQUIRE(numberOfAppConnections(*simulation->getNode(vNode3NodeID)) == 1);
 }

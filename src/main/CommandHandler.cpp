@@ -599,7 +599,8 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
         str << peerP->second << ":" << portP->second;
         retStr = "Connect to: ";
         retStr += str.str();
-        mApp.getOverlayManager().connectTo(str.str());
+        mApp.getOverlayManager().connectTo(
+            PeerBareAddress::resolve(str.str(), mApp));
     }
     else
     {
@@ -625,7 +626,8 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
             auto peer = peers.find(n);
             if (peer != peers.end())
             {
-                mApp.getOverlayManager().dropPeer(peer->second.get());
+                peer->second->drop(ERR_MISC, "dropped by user",
+                                   Peer::DropMode::IGNORE_WRITE_QUEUE);
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";

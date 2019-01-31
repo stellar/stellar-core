@@ -39,14 +39,13 @@ class PeerStub : public Peer
         mState = GOT_AUTH;
         mAddress = addres;
     }
-    virtual PeerBareAddress
-    makeAddress(int) const override
+    virtual std::string
+    getIP() const override
     {
         REQUIRE(false); // should not be called
         return {};
     }
-    virtual void
-    drop(bool) override
+    virtual void drop(DropMode) override
     {
     }
     virtual void
@@ -63,18 +62,19 @@ class OverlayManagerStub : public OverlayManagerImpl
     {
     }
 
-    virtual void
-    connectTo(PeerRecord& pr) override
+    virtual bool
+    connectToImpl(PeerBareAddress const& address, bool) override
     {
-        if (!getConnectedPeer(pr.getAddress()))
+        if (getConnectedPeer(address))
         {
-            pr.backOff(mApp.getClock());
-            pr.storePeerRecord(mApp.getDatabase());
-
-            auto peerStub = std::make_shared<PeerStub>(mApp, pr.getAddress());
-            addPendingPeer(peerStub);
-            REQUIRE(acceptAuthenticatedPeer(peerStub));
+            return false;
         }
+
+        getPeerManager().update(address, PeerManager::BackOffUpdate::INCREASE);
+
+        auto peerStub = std::make_shared<PeerStub>(mApp, address);
+        REQUIRE(addOutboundConnection(peerStub));
+        return acceptAuthenticatedPeer(peerStub);
     }
 };
 
@@ -126,7 +126,7 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers, false, false);
+        pm.storePeerList(fourPeers, false);
 
         rowset<row> rs = app->getDatabase().getSession().prepare
                          << "SELECT ip,port FROM peers ORDER BY nextattempt";
@@ -142,7 +142,9 @@ class OverlayManagerTests
     sentCounts(OverlayManagerImpl& pm)
     {
         vector<int> result;
-        for (auto p : pm.mAuthenticatedPeers)
+        for (auto p : pm.mInboundPeers.mAuthenticated)
+            result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
+        for (auto p : pm.mOutboundPeers.mAuthenticated)
             result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
         return result;
     }
@@ -152,11 +154,12 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers, false, false);
-        pm.storePeerList(threePeers, false, false);
+        pm.storePeerList(fourPeers, false);
+        pm.storePeerList(threePeers, false);
         // connect to peers, respecting TARGET_PEER_CONNECTIONS
         pm.tick();
-        REQUIRE(pm.mAuthenticatedPeers.size() == 5);
+        REQUIRE(pm.mInboundPeers.mAuthenticated.size() == 0);
+        REQUIRE(pm.mOutboundPeers.mAuthenticated.size() == 5);
         auto a = TestAccount{*app, getAccount("a")};
         auto b = TestAccount{*app, getAccount("b")};
         auto c = TestAccount{*app, getAccount("c")};
@@ -164,7 +167,7 @@ class OverlayManagerTests
 
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
-        for (auto p : pm.mAuthenticatedPeers)
+        for (auto p : pm.mOutboundPeers.mAuthenticated)
             if (i++ == 2)
                 pm.recvFloodedMsg(AtoC, p.second);
         pm.broadcastMessage(AtoC);

@@ -61,6 +61,7 @@ std::shared_ptr<T>
 createTestApplication(VirtualClock& clock, Config const& cfg)
 {
     Config c2(cfg);
+    c2.adjust();
     auto app = Application::create<T>(clock, c2);
     return app;
 }

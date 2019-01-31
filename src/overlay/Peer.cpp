@@ -17,7 +17,7 @@
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -219,7 +219,7 @@ Peer::idleTimerExpired(asio::error_code const& error)
         {
             CLOG(WARNING, "Overlay") << "idle timeout";
             mTimeoutIdle.Mark();
-            drop();
+            drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
         else
         {
@@ -243,7 +243,7 @@ Peer::toString()
 }
 
 void
-Peer::drop(ErrorCode err, std::string const& msg)
+Peer::drop(ErrorCode err, std::string const& msg, DropMode dropMode)
 {
     StellarMessage m;
     m.type(ERROR_MSG);
@@ -254,7 +254,7 @@ Peer::drop(ErrorCode err, std::string const& msg)
     // to process read messages.
     // this will try to send all data from send queue if the error is ERR_LOAD
     // - it sends list of peers
-    drop(err != ERR_LOAD);
+    drop(dropMode);
 }
 
 void
@@ -264,7 +264,7 @@ Peer::connectHandler(asio::error_code const& error)
     {
         CLOG(WARNING, "Overlay")
             << " connectHandler error: " << error.message();
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
     else
     {
@@ -348,26 +348,14 @@ Peer::sendPeers()
     uint32 maxPeerCount = std::min<uint32>(50, newMsg.peers().max_size());
 
     // send top peers we know about
-    vector<PeerRecord> peerList;
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),
-                                [&](PeerRecord const& pr) {
-                                    bool r = peerList.size() < maxPeerCount;
-                                    if (r)
-                                    {
-                                        if (!pr.getAddress().isPrivate() &&
-                                            pr.getAddress() != mAddress)
-                                        {
-                                            peerList.emplace_back(pr);
-                                        }
-                                    }
-                                    return r;
-                                });
-    newMsg.peers().reserve(peerList.size());
-    for (auto const& pr : peerList)
+    auto peers = mApp.getOverlayManager().getPeerManager().getPeersToSend(
+        maxPeerCount, mAddress);
+    assert(peers.size() <= maxPeerCount);
+
+    newMsg.peers().reserve(peers.size());
+    for (auto const& address : peers)
     {
-        PeerAddress pa;
-        pr.toXdr(pa);
-        newMsg.peers().push_back(pa);
+        newMsg.peers().push_back(toXdr(address));
     }
     sendMessage(newMsg);
 }
@@ -507,7 +495,7 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 }
@@ -544,7 +532,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         {
             CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
             ++mRecvMacSeq;
-            drop(ERR_AUTH, "unexpected auth sequence");
+            drop(ERR_AUTH, "unexpected auth sequence",
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
 
@@ -554,7 +543,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
             ++mRecvMacSeq;
-            drop(ERR_AUTH, "unexpected MAC");
+            drop(ERR_AUTH, "unexpected MAC",
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
             return;
         }
         ++mRecvMacSeq;
@@ -583,7 +573,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
         CLOG(WARNING, "Overlay")
             << "recv: " << stellarMsg.type() << " before completed handshake";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -825,33 +815,36 @@ Peer::recvError(StellarMessage const& msg)
     }
     CLOG(WARNING, "Overlay")
         << "Received error (" << codeStr << "): " << msg.error().msg;
-    drop();
+    drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
 }
 
 void
-Peer::noteHandshakeSuccessInPeerRecord()
+Peer::updatePeerRecordAfterEcho()
 {
-    if (getAddress().isEmpty())
+    assert(!getAddress().isEmpty());
+
+    auto type = mApp.getOverlayManager().isPreferred(this)
+                    ? PeerManager::TypeUpdate::SET_PREFERRED
+                    : mRole == WE_CALLED_REMOTE
+                          ? PeerManager::TypeUpdate::SET_OUTBOUND
+                          : PeerManager::TypeUpdate::REMOVE_PREFERRED;
+    mApp.getOverlayManager().getPeerManager().update(getAddress(), type);
+}
+
+void
+Peer::updatePeerRecordAfterAuthentication()
+{
+    assert(!getAddress().isEmpty());
+
+    if (mRole == WE_CALLED_REMOTE)
     {
-        CLOG(ERROR, "Overlay") << "unable to handshake with " << toString();
-        drop();
-        return;
+        mApp.getOverlayManager().getPeerManager().update(
+            getAddress(), PeerManager::BackOffUpdate::RESET);
     }
 
-    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getAddress());
-    if (pr)
-    {
-        pr->setPreferred(mApp.getOverlayManager().isPreferred(this));
-        pr->resetBackOff(mApp.getClock());
-    }
-    else
-    {
-        pr = make_optional<PeerRecord>(getAddress(), mApp.getClock().now());
-    }
     CLOG(INFO, "Overlay") << "successful handshake with "
                           << mApp.getConfig().toShortString(mPeerID) << "@"
-                          << pr->toString();
-    pr->storePeerRecord(mApp.getDatabase());
+                          << getAddress().toString();
 }
 
 void
@@ -860,7 +853,7 @@ Peer::recvHello(Hello const& elo)
     if (mState >= GOT_HELLO)
     {
         CLOG(ERROR, "Overlay") << "received unexpected HELLO";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -868,14 +861,14 @@ Peer::recvHello(Hello const& elo)
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
     if (mApp.getBanManager().isBanned(elo.peerID))
     {
         CLOG(ERROR, "Overlay") << "Node is banned";
-        drop();
+        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -894,6 +887,7 @@ Peer::recvHello(Hello const& elo)
     mState = GOT_HELLO;
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
 
+    auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)
     {
         // Send a HELLO back, even if it's going to be followed
@@ -901,6 +895,7 @@ Peer::recvHello(Hello const& elo)
         // message type and the caller won't decode it right if
         // still waiting for an unauthenticated HELLO.
         sendHello();
+        dropMode = Peer::DropMode::FLUSH_WRITE_QUEUE;
     }
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
@@ -914,14 +909,14 @@ Peer::recvHello(Hello const& elo)
             << mRemoteOverlayVersion << "] expected: ["
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << ","
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
-        drop(ERR_CONF, "wrong protocol version");
+        drop(ERR_CONF, "wrong protocol version", dropMode);
         return;
     }
 
     if (elo.peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
         CLOG(WARNING, "Overlay") << "connecting to self";
-        drop(ERR_CONF, "connecting to self");
+        drop(ERR_CONF, "connecting to self", dropMode);
         return;
     }
 
@@ -932,9 +927,21 @@ Peer::recvHello(Hello const& elo)
         CLOG(DEBUG, "Overlay")
             << "NetworkID = " << hexAbbrev(elo.networkID)
             << " expected: " << hexAbbrev(mApp.getNetworkID());
-        drop(ERR_CONF, "wrong network passphrase");
+        drop(ERR_CONF, "wrong network passphrase", dropMode);
         return;
     }
+
+    auto ip = getIP();
+    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
+    {
+        CLOG(WARNING, "Overlay") << "bad address in recvHello";
+        drop(ERR_CONF, "bad address", Peer::DropMode::IGNORE_WRITE_QUEUE);
+        return;
+    }
+
+    mAddress =
+        PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
+    updatePeerRecordAfterEcho();
 
     auto const& authenticated =
         mApp.getOverlayManager().getAuthenticatedPeers();
@@ -947,7 +954,7 @@ Peer::recvHello(Hello const& elo)
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
                 << mApp.getConfig().toShortString(mPeerID);
-            drop(ERR_CONF, "connecting already-connected peer");
+            drop(ERR_CONF, "connecting already-connected peer", dropMode);
             return;
         }
     }
@@ -963,17 +970,9 @@ Peer::recvHello(Hello const& elo)
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
                 << mApp.getConfig().toShortString(mPeerID);
-            drop(ERR_CONF, "connecting already-connected peer");
+            drop(ERR_CONF, "connecting already-connected peer", dropMode);
             return;
         }
-    }
-
-    mAddress = makeAddress(elo.listeningPort);
-    if (mAddress.isEmpty())
-    {
-        CLOG(WARNING, "Overlay") << "bad address in recvHello";
-        drop(ERR_CONF, "bad address");
-        return;
     }
 
     if (mRole == WE_CALLED_REMOTE)
@@ -988,20 +987,20 @@ Peer::recvAuth(StellarMessage const& msg)
     if (mState != GOT_HELLO)
     {
         CLOG(INFO, "Overlay") << "Unexpected AUTH message before HELLO";
-        drop(ERR_MISC, "out-of-order AUTH message");
+        drop(ERR_MISC, "out-of-order AUTH message",
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
     if (isAuthenticated())
     {
         CLOG(INFO, "Overlay") << "Unexpected AUTH message";
-        drop(ERR_MISC, "out-of-order AUTH message");
+        drop(ERR_MISC, "out-of-order AUTH message",
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
     mState = GOT_AUTH;
-
-    auto self = shared_from_this();
 
     if (mRole == REMOTE_CALLED_US)
     {
@@ -1009,14 +1008,15 @@ Peer::recvAuth(StellarMessage const& msg)
         sendPeers();
     }
 
+    updatePeerRecordAfterAuthentication();
+
+    auto self = shared_from_this();
     if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
-        drop(ERR_LOAD, "peer rejected");
+        drop(ERR_LOAD, "peer rejected", Peer::DropMode::FLUSH_WRITE_QUEUE);
         return;
     }
-
-    noteHandshakeSuccessInPeerRecord();
 
     // send SCP State
     // remove when all known peers implements the next line
@@ -1034,8 +1034,6 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    const uint32 NEW_PEER_WINDOW_SECONDS = 10;
-
     for (auto const& peer : msg.peers())
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
@@ -1050,11 +1048,6 @@ Peer::recvPeers(StellarMessage const& msg)
                                      << " (not yet supported)";
             continue;
         }
-        // randomize when we'll try to connect to this peer next if we don't
-        // know it
-        auto defaultNextAttempt =
-            mApp.getClock().now() +
-            std::chrono::seconds(std::rand() % NEW_PEER_WINDOW_SECONDS);
 
         assert(peer.ip.type() == IPv4);
         auto address = PeerBareAddress{peer};
@@ -1079,8 +1072,7 @@ Peer::recvPeers(StellarMessage const& msg)
         {
             // don't use peer.numFailures here as we may have better luck
             // (and we don't want to poison our failure count)
-            PeerRecord pr{address, defaultNextAttempt, 0};
-            pr.insertIfNew(mApp.getDatabase());
+            mApp.getOverlayManager().getPeerManager().ensureExists(address);
         }
     }
 }

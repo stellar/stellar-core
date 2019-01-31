@@ -51,6 +51,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_CALLED_REMOTE
     };
 
+    enum class DropMode
+    {
+        FLUSH_WRITE_QUEUE,
+        IGNORE_WRITE_QUEUE
+    };
+
     static medida::Meter& getByteReadMeter(Application& app);
     static medida::Meter& getByteWriteMeter(Application& app);
 
@@ -124,8 +130,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);
-    // returns false if we should drop this peer
-    void noteHandshakeSuccessInPeerRecord();
+    void updatePeerRecordAfterEcho();
+    void updatePeerRecordAfterAuthentication();
     void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
     void recvGetPeers(StellarMessage const& msg);
@@ -160,7 +166,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     virtual AuthCert getAuthCert();
-    virtual PeerBareAddress makeAddress(int remoteListeningPort) const = 0;
 
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);
@@ -231,6 +236,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     std::string toString();
+    virtual std::string getIP() const = 0;
 
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
@@ -251,11 +257,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    virtual void drop(ErrorCode err, std::string const& msg);
+    virtual void drop(ErrorCode err, std::string const& msg, DropMode dropMode);
 
-    // If force is true, it will drop immediately without waiting for all
-    // outgoing messages to be sent
-    virtual void drop(bool force = true) = 0;
+    virtual void drop(DropMode dropMode) = 0;
     virtual ~Peer()
     {
     }

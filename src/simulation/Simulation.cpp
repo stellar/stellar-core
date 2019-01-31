@@ -8,7 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/PeerManager.h"
 #include "scp/LocalNode.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -70,6 +70,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
 {
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
                     : std::make_shared<Config>(newConfig());
+    cfg->adjust();
     cfg->NODE_SEED = nodeKey;
 
     if (mQuorumSetAdjuster)
@@ -189,7 +190,7 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
                 PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
             if (peer)
             {
-                peer->drop(true);
+                peer->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
             }
         }
     }
