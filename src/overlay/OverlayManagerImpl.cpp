@@ -52,6 +52,8 @@ namespace stellar
 using namespace soci;
 using namespace std;
 
+constexpr std::chrono::seconds PEER_IP_RESOLVE_DELAY(600);
+
 OverlayManagerImpl::PeersList::PeersList(
     OverlayManagerImpl& overlayManager,
     medida::MetricsRegistry& metricsRegistry, std::string directionString,
@@ -229,6 +231,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
     , mTimer(app)
+    , mPeerIPTimer(app)
     , mFloodGate(app)
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
@@ -253,7 +256,8 @@ OverlayManagerImpl::start()
     {
         mTimer.async_wait(
             [this]() {
-                storeConfigPeers();
+                this->storeConfigPeers();
+                this->triggerPeerResolution();
                 this->tick();
             },
             VirtualTimer::onFailureNoop);
@@ -301,24 +305,35 @@ OverlayManagerImpl::getPeersList(Peer* peer)
 }
 
 void
-OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  bool setPreferred)
+OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
+                                  bool setPreferred, bool startup)
 {
     auto typeUpgrade = setPreferred
                            ? PeerManager::TypeUpdate::SET_PREFERRED
                            : PeerManager::TypeUpdate::UPDATE_TO_OUTBOUND;
-
-    for (auto const& peerStr : list)
+    if (setPreferred)
     {
-        try
+        mConfigurationPreferredPeers.clear();
+    }
+
+    for (auto const& peer : addresses)
+    {
+        if (setPreferred)
         {
-            auto address = PeerBareAddress::resolve(peerStr, mApp);
-            getPeerManager().update(address, typeUpgrade,
+            mConfigurationPreferredPeers.insert(peer);
+        }
+
+        if (startup)
+        {
+            getPeerManager().update(peer, typeUpgrade,
                                     PeerManager::BackOffUpdate::HARD_RESET);
         }
-        catch (std::runtime_error&)
+        else
         {
-            CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
+            // If address is present in the DB, `update` will ensure
+            // type is correctly updated. Otherwise, a new entry is created.
+            // Note that this won't downgrade preferred peers back to outbound.
+            getPeerManager().update(peer, typeUpgrade);
         }
     }
 }
@@ -326,28 +341,51 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
 void
 OverlayManagerImpl::storeConfigPeers()
 {
-    // compute normalized mConfigurationPreferredPeers
-    std::vector<std::string> ppeers;
-    for (auto const& s : mApp.getConfig().PREFERRED_PEERS)
+    // Synchronously resolve and store peers from the config
+    storePeerList(resolvePeers(mApp.getConfig().KNOWN_PEERS), false, true);
+    storePeerList(resolvePeers(mApp.getConfig().PREFERRED_PEERS), true, true);
+}
+
+void
+OverlayManagerImpl::triggerPeerResolution()
+{
+    assert(!mResolvedPeers.valid());
+
+    // Trigger DNS resolution on the background thread
+    using task_t = std::packaged_task<ResolvedPeers()>;
+    std::shared_ptr<task_t> task = std::make_shared<task_t>([this]() {
+        if (!this->mShuttingDown)
+        {
+            auto known = resolvePeers(this->mApp.getConfig().KNOWN_PEERS);
+            auto preferred =
+                resolvePeers(this->mApp.getConfig().PREFERRED_PEERS);
+            return ResolvedPeers{known, preferred};
+        }
+        return ResolvedPeers{};
+    });
+
+    mResolvedPeers = task->get_future();
+    mApp.postOnBackgroundThread(bind(&task_t::operator(), task),
+                                "OverlayManager: resolve peer IPs");
+}
+
+std::vector<PeerBareAddress>
+OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
+{
+    std::vector<PeerBareAddress> addresses;
+    for (auto const& peer : peers)
     {
         try
         {
-            auto pr = PeerBareAddress::resolve(s, mApp);
-            auto r = mConfigurationPreferredPeers.insert(pr);
-            if (r.second)
-            {
-                ppeers.push_back(r.first->toString());
-            }
+            addresses.push_back(PeerBareAddress::resolve(peer, mApp));
         }
-        catch (std::runtime_error&)
+        catch (std::runtime_error& e)
         {
             CLOG(ERROR, "Overlay")
-                << "Unable to add preferred peer '" << s << "'";
+                << "Unable to resolve peer '" << peer << "': " << e.what();
         }
     }
-
-    storePeerList(mApp.getConfig().KNOWN_PEERS, false);
-    storePeerList(ppeers, true);
+    return addresses;
 }
 
 std::vector<PeerBareAddress>
@@ -399,6 +437,19 @@ OverlayManagerImpl::tick()
     CLOG(TRACE, "Overlay") << "OverlayManagerImpl tick";
 
     mLoad.maybeShedExcessLoad(mApp);
+
+    if (mResolvedPeers.valid() &&
+        mResolvedPeers.wait_for(std::chrono::nanoseconds(1)) ==
+            std::future_status::ready)
+    {
+        CLOG(TRACE, "Overlay") << "Resolved peers are ready";
+        auto res = mResolvedPeers.get();
+        storePeerList(res.known, false, false);
+        storePeerList(res.preferred, true, false);
+        mPeerIPTimer.expires_from_now(PEER_IP_RESOLVE_DELAY);
+        mPeerIPTimer.async_wait([this]() { this->triggerPeerResolution(); },
+                                VirtualTimer::onFailureNoop);
+    }
 
     auto availablePendingSlots = availableOutboundPendingSlots();
     auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
@@ -745,6 +796,10 @@ OverlayManagerImpl::shutdown()
     mFloodGate.shutdown();
     mInboundPeers.shutdown();
     mOutboundPeers.shutdown();
+
+    // Stop ticking and resolving peers
+    mTimer.cancel();
+    mPeerIPTimer.cancel();
 }
 
 bool

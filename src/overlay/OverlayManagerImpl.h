@@ -16,6 +16,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/Timer.h"
 
+#include <future>
 #include <set>
 #include <vector>
 
@@ -80,8 +81,7 @@ class OverlayManagerImpl : public OverlayManager
 
     void tick();
     VirtualTimer mTimer;
-
-    void storePeerList(std::vector<std::string> const& list, bool setPreferred);
+    VirtualTimer mPeerIPTimer;
 
     friend class OverlayManagerTests;
 
@@ -127,7 +127,20 @@ class OverlayManagerImpl : public OverlayManager
     bool isShuttingDown() const override;
 
   private:
+    struct ResolvedPeers
+    {
+        std::vector<PeerBareAddress> known;
+        std::vector<PeerBareAddress> preferred;
+    };
+
     std::map<PeerType, std::unique_ptr<RandomPeerSource>> mPeerSources;
+    std::future<ResolvedPeers> mResolvedPeers;
+
+    void triggerPeerResolution();
+    std::vector<PeerBareAddress>
+    resolvePeers(std::vector<std::string> const& peers);
+    void storePeerList(std::vector<PeerBareAddress> const& addresses,
+                       bool setPreferred, bool startup);
 
     virtual bool connectToImpl(PeerBareAddress const& address,
                                bool forceoutbound);

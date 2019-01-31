@@ -107,41 +107,117 @@ class OverlayManagerTests
     VirtualClock clock;
     std::shared_ptr<ApplicationStub> app;
 
-    vector<string> fourPeers;
-    vector<string> threePeers;
+    std::vector<string> fourPeers;
+    std::vector<string> threePeers;
 
     OverlayManagerTests()
-        : fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
-                                   "127.0.0.1:2013", "127.0.0.1:2014"})
-        , threePeers(vector<string>{"127.0.0.1:64000", "127.0.0.1:64001",
-                                    "127.0.0.1:64002"})
+        : fourPeers(std::vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
+                                        "127.0.0.1:2013", "127.0.0.1:2014"})
+        , threePeers(std::vector<string>{"127.0.0.1:64000", "127.0.0.1:64001",
+                                         "127.0.0.1:64002"})
     {
         auto cfg = getTestConfig();
         cfg.TARGET_PEER_CONNECTIONS = 5;
+        cfg.KNOWN_PEERS = threePeers;
+        cfg.PREFERRED_PEERS = fourPeers;
         app = createTestApplication<ApplicationStub>(clock, cfg);
     }
 
     void
-    test_addPeerList()
+    testAddPeerList(bool async = false)
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers, false);
+        if (async)
+        {
+            pm.triggerPeerResolution();
+            REQUIRE(pm.mResolvedPeers.valid());
+            pm.mResolvedPeers.wait();
+
+            // Start ticking to store resolved peers
+            pm.tick();
+        }
+        else
+        {
+            pm.storeConfigPeers();
+        }
 
         rowset<row> rs = app->getDatabase().getSession().prepare
-                         << "SELECT ip,port FROM peers ORDER BY nextattempt";
-        vector<string> actual;
-        for (auto it = rs.begin(); it != rs.end(); ++it)
-            actual.push_back(it->get<string>(0) + ":" +
-                             to_string(it->get<int>(1)));
+                         << "SELECT ip,port,type FROM peers ORDER BY ip, port";
 
-        REQUIRE(actual == fourPeers);
+        auto& ppeers = pm.mConfigurationPreferredPeers;
+        int i = 0;
+        for (auto it = rs.begin(); it != rs.end(); ++it, ++i)
+        {
+
+            PeerBareAddress pba{it->get<std::string>(0),
+                                static_cast<unsigned short>(it->get<int>(1))};
+            auto type = it->get<int>(2);
+            if (i < fourPeers.size())
+            {
+                REQUIRE(fourPeers[i] == pba.toString());
+                REQUIRE(ppeers.find(pba) != ppeers.end());
+                REQUIRE(type == static_cast<int>(PeerType::PREFERRED));
+            }
+            else
+            {
+                REQUIRE(threePeers[i - fourPeers.size()] == pba.toString());
+                REQUIRE(type == static_cast<int>(PeerType::OUTBOUND));
+            }
+        }
+        REQUIRE(i == (threePeers.size() + fourPeers.size()));
     }
 
-    vector<int>
+    void
+    testAddPeerListUpdateType()
+    {
+        // This test case assumes peer was discovered prior to
+        // resolution, and makes sure peer type is properly updated
+        // (from INBOUND to OUTBOUND)
+
+        OverlayManagerStub& pm = app->getOverlayManager();
+        PeerBareAddress prefPba{"127.0.0.1", 2011};
+        PeerBareAddress pba{"127.0.0.1", 64000};
+
+        auto prefPr = pm.getPeerManager().load(prefPba);
+        auto pr = pm.getPeerManager().load(pba);
+
+        REQUIRE(prefPr.first.mType == static_cast<int>(PeerType::INBOUND));
+        REQUIRE(pr.first.mType == static_cast<int>(PeerType::INBOUND));
+
+        pm.triggerPeerResolution();
+        REQUIRE(pm.mResolvedPeers.valid());
+        pm.mResolvedPeers.wait();
+        pm.tick();
+
+        rowset<row> rs = app->getDatabase().getSession().prepare
+                         << "SELECT ip,port,type FROM peers ORDER BY ip, port";
+
+        int found = 0;
+        for (auto it = rs.begin(); it != rs.end(); ++it)
+        {
+            PeerBareAddress storedPba{
+                it->get<std::string>(0),
+                static_cast<unsigned short>(it->get<int>(1))};
+            auto type = it->get<int>(2);
+            if (storedPba == pba)
+            {
+                ++found;
+                REQUIRE(type == static_cast<int>(PeerType::OUTBOUND));
+            }
+            else if (storedPba == prefPba)
+            {
+                ++found;
+                REQUIRE(type == static_cast<int>(PeerType::PREFERRED));
+            }
+        }
+        REQUIRE(found == 2);
+    }
+
+    std::vector<int>
     sentCounts(OverlayManagerImpl& pm)
     {
-        vector<int> result;
+        std::vector<int> result;
         for (auto p : pm.mInboundPeers.mAuthenticated)
             result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
         for (auto p : pm.mOutboundPeers.mAuthenticated)
@@ -150,12 +226,15 @@ class OverlayManagerTests
     }
 
     void
-    test_broadcast()
+    testBroadcast()
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers, false);
-        pm.storePeerList(threePeers, false);
+        auto fourPeersAddresses = pm.resolvePeers(fourPeers);
+        auto threePeersAddresses = pm.resolvePeers(threePeers);
+        pm.storePeerList(fourPeersAddresses, false, true);
+        pm.storePeerList(threePeersAddresses, false, true);
+
         // connect to peers, respecting TARGET_PEER_CONNECTIONS
         pm.tick();
         REQUIRE(pm.mInboundPeers.mAuthenticated.size() == 0);
@@ -171,24 +250,36 @@ class OverlayManagerTests
             if (i++ == 2)
                 pm.recvFloodedMsg(AtoC, p.second);
         pm.broadcastMessage(AtoC);
-        vector<int> expected{1, 1, 0, 1, 1};
+        std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
         pm.broadcastMessage(AtoC);
         REQUIRE(sentCounts(pm) == expected);
         StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
         pm.broadcastMessage(CtoD);
-        vector<int> expectedFinal{2, 2, 1, 2, 2};
+        std::vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);
     }
 };
 
-TEST_CASE_METHOD(OverlayManagerTests, "addPeerList() adds", "[overlay]")
+TEST_CASE_METHOD(OverlayManagerTests, "storeConfigPeers() adds", "[overlay]")
 {
-    test_addPeerList();
+    testAddPeerList(false);
+}
+
+TEST_CASE_METHOD(OverlayManagerTests,
+                 "triggerPeerResolution() async resolution", "[overlay]")
+{
+    testAddPeerList(true);
+}
+
+TEST_CASE_METHOD(OverlayManagerTests, "storeConfigPeers() update type",
+                 "[overlay]")
+{
+    testAddPeerListUpdateType();
 }
 
 TEST_CASE_METHOD(OverlayManagerTests, "broadcast() broadcasts", "[overlay]")
 {
-    test_broadcast();
+    testBroadcast();
 }
 }
