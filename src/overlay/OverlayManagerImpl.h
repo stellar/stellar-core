@@ -103,7 +103,7 @@ class OverlayManagerImpl : public OverlayManager
     void storeConfigPeers();
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
-    bool isPreferred(Peer* peer) override;
+    bool isPreferred(Peer* peer) const override;
     std::vector<Peer::pointer> getPendingPeers() const override;
     int getPendingPeersCount() const override;
     std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const override;
@@ -141,6 +141,7 @@ class OverlayManagerImpl : public OverlayManager
 
     int availableOutboundPendingSlots() const;
     int availableOutboundAuthenticatedSlots() const;
+    int nonPreferredAuthenticatedCount() const;
 
     bool isPossiblyPreferred(std::string const& ip);
 
