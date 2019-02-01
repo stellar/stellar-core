@@ -628,8 +628,21 @@ Config::adjust()
         if (MAX_OUTBOUND_PENDING_CONNECTIONS == 0 &&
             MAX_INBOUND_PENDING_CONNECTIONS == 0)
         {
-            MAX_OUTBOUND_PENDING_CONNECTIONS = doubleToNonzeroUnsignedShort(
-                MAX_PENDING_CONNECTIONS * outboundPendingRate);
+            if (TARGET_PEER_CONNECTIONS <=
+                std::numeric_limits<unsigned short>::max() / 2)
+            {
+                MAX_OUTBOUND_PENDING_CONNECTIONS = TARGET_PEER_CONNECTIONS * 2;
+            }
+            else
+            {
+                MAX_OUTBOUND_PENDING_CONNECTIONS =
+                    std::numeric_limits<unsigned short>::max();
+            }
+
+            MAX_OUTBOUND_PENDING_CONNECTIONS =
+                std::min(MAX_OUTBOUND_PENDING_CONNECTIONS,
+                         doubleToNonzeroUnsignedShort(MAX_PENDING_CONNECTIONS *
+                                                      outboundPendingRate));
             MAX_INBOUND_PENDING_CONNECTIONS = std::max<unsigned short>(
                 1, MAX_PENDING_CONNECTIONS - MAX_OUTBOUND_PENDING_CONNECTIONS);
         }

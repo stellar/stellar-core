@@ -401,31 +401,38 @@ OverlayManagerImpl::tick()
 
     auto availablePendingSlots = availableOutboundPendingSlots();
     auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
+    auto nonPreferredCount = nonPreferredAuthenticatedCount();
 
-    // try to replace all connections with preferred peers
-    auto pendingUsedByPreferred = connectTo(
-        mApp.getConfig().TARGET_PEER_CONNECTIONS, PeerType::PREFERRED);
-
-    assert(pendingUsedByPreferred <= availablePendingSlots);
-    availablePendingSlots -= pendingUsedByPreferred;
-
-    // connect to non-preferred candidates from the database
-    // when PREFERRED_PEER_ONLY is set and we connect to a non preferred_peer we
-    // just end up dropping & backing off it during handshake (this allows for
-    // preferred_peers to work for both ip based and key based preferred mode)
-    if (availablePendingSlots > 0 && availableAuthenticatedSlots > 0)
+    // if all of our outbound peers are preferred, we don't need to try any
+    // longer
+    if (availableAuthenticatedSlots > 0 || nonPreferredCount > 0)
     {
-        // try to leave at least some pending slots for peer promotion
-        constexpr const auto RESERVED_FOR_PROMOTION = 1;
-        auto outboundToConnect =
-            availablePendingSlots > RESERVED_FOR_PROMOTION
-                ? std::min(availablePendingSlots - RESERVED_FOR_PROMOTION,
-                           availableAuthenticatedSlots)
-                : RESERVED_FOR_PROMOTION;
-        auto pendingUsedByOutbound =
-            connectTo(outboundToConnect, PeerType::OUTBOUND);
-        assert(pendingUsedByOutbound <= availablePendingSlots);
-        availablePendingSlots -= pendingUsedByOutbound;
+        // try to replace all connections with preferred peers
+        auto pendingUsedByPreferred = connectTo(
+            mApp.getConfig().TARGET_PEER_CONNECTIONS, PeerType::PREFERRED);
+
+        assert(pendingUsedByPreferred <= availablePendingSlots);
+        availablePendingSlots -= pendingUsedByPreferred;
+
+        // connect to non-preferred candidates from the database when
+        // PREFERRED_PEER_ONLY is set and we connect to a non preferred_peer we
+        // just end up dropping & backing off it during handshake (this allows
+        // for preferred_peers to work for both ip based and key based preferred
+        // mode)
+        if (availablePendingSlots > 0 && availableAuthenticatedSlots > 0)
+        {
+            // try to leave at least some pending slots for peer promotion
+            constexpr const auto RESERVED_FOR_PROMOTION = 1;
+            auto outboundToConnect =
+                availablePendingSlots > RESERVED_FOR_PROMOTION
+                    ? std::min(availablePendingSlots - RESERVED_FOR_PROMOTION,
+                               availableAuthenticatedSlots)
+                    : RESERVED_FOR_PROMOTION;
+            auto pendingUsedByOutbound =
+                connectTo(outboundToConnect, PeerType::OUTBOUND);
+            assert(pendingUsedByOutbound <= availablePendingSlots);
+            availablePendingSlots -= pendingUsedByOutbound;
+        }
     }
 
     // try to promote some peers from inbound to outbound state
@@ -468,6 +475,22 @@ OverlayManagerImpl::availableOutboundAuthenticatedSlots() const
     {
         return 0;
     }
+}
+
+int
+OverlayManagerImpl::nonPreferredAuthenticatedCount() const
+{
+    unsigned short nonPreferredCount{0};
+    for (auto const& p : mOutboundPeers.mAuthenticated)
+    {
+        if (!isPreferred(p.second.get()))
+        {
+            nonPreferredCount++;
+        }
+    }
+
+    assert(nonPreferredCount <= mApp.getConfig().TARGET_PEER_CONNECTIONS);
+    return nonPreferredCount;
 }
 
 Peer::pointer
@@ -619,7 +642,7 @@ OverlayManagerImpl::getAuthenticatedPeersCount() const
 }
 
 bool
-OverlayManagerImpl::isPreferred(Peer* peer)
+OverlayManagerImpl::isPreferred(Peer* peer) const
 {
     std::string pstr = peer->toString();
 
