@@ -22,8 +22,6 @@
 using namespace stellar;
 using namespace std;
 
-typedef std::unique_ptr<Application> appPtr;
-
 TEST_CASE("genesisledger", "[ledger]")
 {
     VirtualClock clock{};

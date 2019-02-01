@@ -29,8 +29,6 @@
 
 using namespace stellar;
 
-typedef std::unique_ptr<Application> appPtr;
-
 // Simulation tests. Some of the tests in this suite are long.
 // They are marked with [long][!hide]. Run the day-to-day tests with
 //
