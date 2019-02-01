@@ -40,17 +40,20 @@
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
-#include "simulation/LoadGenerator.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
+#include "util/Logging.h"
 #include "util/StatusManager.h"
+#include "util/TmpDir.h"
 #include "work/WorkManager.h"
 
-#include "util/Logging.h"
-#include "util/TmpDir.h"
+#ifdef BUILD_TESTS
+#include "simulation/LoadGenerator.h"
+#endif
 
 #include <set>
 #include <string>
+#include <util/format.h>
 
 static const int SHUTDOWN_DELAY_SECONDS = 1;
 
@@ -466,6 +469,7 @@ ApplicationImpl::manualClose()
     return false;
 }
 
+#ifdef BUILD_TESTS
 void
 ApplicationImpl::generateLoad(bool isCreate, uint32_t nAccounts,
                               uint32_t offset, uint32_t nTxs, uint32_t txRate,
@@ -485,6 +489,7 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
+#endif
 
 void
 ApplicationImpl::applyCfgCommands()

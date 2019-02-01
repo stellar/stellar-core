@@ -36,12 +36,15 @@ class InvariantManager;
 class OverlayManager;
 class Database;
 class PersistentState;
-class LoadGenerator;
 class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
 class LedgerTxnRoot;
+
+#ifdef BUILD_TESTS
+class LoadGenerator;
+#endif
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -241,6 +244,7 @@ class Application
     // true. Otherwise return false. This method exists only for testing.
     virtual bool manualClose() = 0;
 
+#ifdef BUILD_TESTS
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load
     // against the current application.
     virtual void generateLoad(bool isCreate, uint32_t nAccounts,
@@ -249,6 +253,7 @@ class Application
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
+#endif
 
     // Execute any administrative commands written in the Config.COMMANDS
     // variable of the config file. This permits scripting certain actions to

@@ -11,10 +11,13 @@
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "scp/QuorumSetUtils.h"
-#include "test/fuzz.h"
-#include "test/test.h"
 #include "util/Logging.h"
 #include "util/optional.h"
+
+#ifdef BUILD_TESTS
+#include "test/fuzz.h"
+#include "test/test.h"
+#endif
 
 #include <iostream>
 #include <lib/clara.hpp>
@@ -545,33 +548,6 @@ runForceSCP(CommandLineArgs const& args)
 }
 
 int
-runFuzz(CommandLineArgs const& args)
-{
-    el::Level logLevel{el::Level::Info};
-    std::vector<std::string> metrics;
-    std::string fileName;
-
-    return runWithHelp(args,
-                       {logLevelParser(logLevel), metricsParser(metrics),
-                        fileNameParser(fileName)},
-                       [&] {
-                           fuzz(fileName, logLevel, metrics);
-                           return 0;
-                       });
-}
-
-int
-runGenFuzz(CommandLineArgs const& args)
-{
-    std::string fileName;
-
-    return runWithHelp(args, {fileNameParser(fileName)}, [&] {
-        genfuzz(fileName);
-        return 0;
-    });
-}
-
-int
 runGenSeed(CommandLineArgs const& args)
 {
     return runWithHelp(args, {}, [&] {
@@ -766,6 +742,35 @@ runWriteQuorum(CommandLineArgs const& args)
         });
 }
 
+#ifdef BUILD_TESTS
+int
+runFuzz(CommandLineArgs const& args)
+{
+    el::Level logLevel{el::Level::Info};
+    std::vector<std::string> metrics;
+    std::string fileName;
+
+    return runWithHelp(args,
+                       {logLevelParser(logLevel), metricsParser(metrics),
+                        fileNameParser(fileName)},
+                       [&] {
+                           fuzz(fileName, logLevel, metrics);
+                           return 0;
+                       });
+}
+
+int
+runGenFuzz(CommandLineArgs const& args)
+{
+    std::string fileName;
+
+    return runWithHelp(args, {fileNameParser(fileName)}, [&] {
+        genfuzz(fileName);
+        return 0;
+    });
+}
+#endif
+
 optional<int>
 handleCommandLine(int argc, char* const* argv)
 {
@@ -783,8 +788,6 @@ handleCommandLine(int argc, char* const* argv)
           "the local ledger rather than waiting to hear from the "
           "network",
           runForceSCP},
-         {"fuzz", "run a single fuzz input and exit", runFuzz},
-         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"gen-seed", "generate and print a random node seed", runGenSeed},
          {"http-command", "send a command to local stellar-core",
           runHttpCommand},
@@ -812,7 +815,11 @@ handleCommandLine(int argc, char* const* argv)
          {"sign-transaction",
           "add signature to transaction envelope, then quit",
           runSignTransaction},
+#ifdef BUILD_TESTS
+         {"fuzz", "run a single fuzz input and exit", runFuzz},
+         {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
+#endif
          {"write-quorum", "print a quorum set graph from history",
           runWriteQuorum},
          {"version", "print version information", runVersion}}};

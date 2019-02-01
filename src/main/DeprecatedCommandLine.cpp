@@ -16,12 +16,15 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
-#include "test/fuzz.h"
-#include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/optional.h"
 #include "work/WorkManager.h"
+
+#ifdef BUILD_TESTS
+#include "test/fuzz.h"
+#include "test/test.h"
+#endif
 
 #include <lib/util/format.h>
 #include <lib/util/getopt.h>
@@ -47,8 +50,6 @@ enum opttag
     OPT_DUMPXDR,
     OPT_LOADXDR,
     OPT_FORCESCP,
-    OPT_FUZZ,
-    OPT_GENFUZZ,
     OPT_GENSEED,
     OPT_GRAPHQUORUM,
     OPT_HELP,
@@ -64,7 +65,11 @@ enum opttag
     OPT_SEC2PUB,
     OPT_SIGNTXN,
     OPT_NETID,
+#ifdef BUILD_TESTS
+    OPT_FUZZ,
+    OPT_GENFUZZ,
     OPT_TEST,
+#endif
     OPT_FILETYPE,
     OPT_VERSION
 };
@@ -85,8 +90,6 @@ const struct option stellar_core_options[] = {
     {"netid", required_argument, nullptr, OPT_NETID},
     {"loadxdr", required_argument, nullptr, OPT_LOADXDR},
     {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
-    {"fuzz", required_argument, nullptr, OPT_FUZZ},
-    {"genfuzz", required_argument, nullptr, OPT_GENFUZZ},
     {"genseed", no_argument, nullptr, OPT_GENSEED},
     {"graphquorum", optional_argument, nullptr, OPT_GRAPHQUORUM},
     {"help", no_argument, nullptr, OPT_HELP},
@@ -100,7 +103,11 @@ const struct option stellar_core_options[] = {
     {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
     {"newhist", required_argument, nullptr, OPT_NEWHIST},
+#ifdef BUILD_TESTS
+    {"fuzz", required_argument, nullptr, OPT_FUZZ},
+    {"genfuzz", required_argument, nullptr, OPT_GENFUZZ},
     {"test", no_argument, nullptr, OPT_TEST},
+#endif
     {"version", no_argument, nullptr, OPT_VERSION},
     {nullptr, 0, nullptr, 0}};
 
@@ -132,8 +139,10 @@ usage(int err = 1)
           "start "
           "with the local ledger rather than waiting to hear from the "
           "network.\n"
+#ifdef BUILD_TESTS
           "      --fuzz FILE          Run a single fuzz input and exit\n"
           "      --genfuzz FILE       Generate a random fuzzer input file\n"
+#endif
           "      --genseed            Generate and print a random node seed\n"
           "      --help               Display this string\n"
           "      --inferquorum        Print a quorum set inferred from "
@@ -174,7 +183,9 @@ usage(int err = 1)
           "signtxn\n"
           "                           (Default is STELLAR_NETWORK_ID "
           "environment variable)\n"
+#ifdef BUILD_TESTS
           "      --test               Run self-tests\n"
+#endif
           "      --version            Print version information\n";
     exit(err);
 }
@@ -307,12 +318,6 @@ handleDeprecatedCommandLine(int argc, char* const* argv)
             forceSCP = make_optional<bool>(optarg == nullptr ||
                                            std::string(optarg) == "true");
             break;
-        case OPT_FUZZ:
-            fuzz(std::string(optarg), logLevel, metrics);
-            return 0;
-        case OPT_GENFUZZ:
-            genfuzz(std::string(optarg));
-            return 0;
         case OPT_GENSEED:
         {
             genSeed();
@@ -348,6 +353,13 @@ handleDeprecatedCommandLine(int argc, char* const* argv)
         case OPT_REPORT_LAST_HISTORY_CHECKPOINT:
             doReportLastHistoryCheckpoint = true;
             break;
+#ifdef BUILD_TESTS
+        case OPT_FUZZ:
+            fuzz(std::string(optarg), logLevel, metrics);
+            return 0;
+        case OPT_GENFUZZ:
+            genfuzz(std::string(optarg));
+            return 0;
         case OPT_TEST:
         {
             rest.push_back(*argv);
@@ -355,6 +367,7 @@ handleDeprecatedCommandLine(int argc, char* const* argv)
             return test(static_cast<int>(rest.size()), &rest[0], logLevel,
                         metrics);
         }
+#endif
         case OPT_VERSION:
             std::cout << STELLAR_CORE_VERSION << std::endl;
             return 0;

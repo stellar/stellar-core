@@ -29,7 +29,6 @@ class HistoryManager;
 class ProcessManager;
 class CommandHandler;
 class Database;
-class LoadGenerator;
 class LedgerTxnRoot;
 
 class ApplicationImpl : public Application
@@ -96,11 +95,13 @@ class ApplicationImpl : public Application
 
     virtual bool manualClose() override;
 
+#ifdef BUILD_TESTS
     virtual void generateLoad(bool isCreate, uint32_t nAccounts,
                               uint32_t offset, uint32_t nTxs, uint32_t txRate,
                               uint32_t batchSize, bool autoRate) override;
 
     virtual LoadGenerator& getLoadGenerator() override;
+#endif
 
     virtual void applyCfgCommands() override;
 
@@ -150,10 +151,13 @@ class ApplicationImpl : public Application
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::shared_ptr<WorkManager> mWorkManager;
     std::unique_ptr<PersistentState> mPersistentState;
-    std::unique_ptr<LoadGenerator> mLoadGenerator;
     std::unique_ptr<BanManager> mBanManager;
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<LedgerTxnRoot> mLedgerTxnRoot;
+
+#ifdef BUILD_TESTS
+    std::unique_ptr<LoadGenerator> mLoadGenerator;
+#endif
 
     std::vector<std::thread> mWorkerThreads;
 

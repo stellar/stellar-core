@@ -12,3 +12,6 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"			\
 if USE_POSTGRES
 AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)
 endif # USE_POSTGRES
+if BUILD_TESTS
+AM_CPPFLAGS += -DBUILD_TESTS=1
+endif # BUILD_TESTS
