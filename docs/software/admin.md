@@ -481,11 +481,12 @@ Until the node sees a quorum, it will say
 After observing consensus, a new field `quorum` will be set with information on what the network decided on, at this point the node will switch to "*Catching up*":
 ```json
       "quorum" : {
-         "7667384" : {
-            "agree" : 3,
+         "22267866" : {
+            "agree" : 5,
+            "delayed" : 0,
             "disagree" : 0,
-            "fail_at" : 2,
-            "hash" : "273af2",
+            "fail_at" : 3,
+            "hash" : "980a24",
             "missing" : 0,
             "phase" : "EXTERNALIZE"
          }
@@ -548,37 +549,39 @@ Information provided here can be used for both human operators and programmatic 
 Run `$ stellar-core http-command 'info'`
 The output will look something like
 ```json
- {
-   "info" : {
-      "UNSAFE_QUORUM" : "UNSAFE QUORUM ALLOWED",
-      "build" : "v9.2.0",
+{
+      "build" : "v10.2.0",
+      "history_failure_rate" : "0",
       "ledger" : {
-         "age" : 1,
+         "age" : 1549052313,
          "baseFee" : 100,
-         "baseReserve" : 5000000,
-         "closeTime" : 1519857801,
-         "hash" : "c8e484c665cdb8280cc2923d1ead5277f6c31f5baab382f54b22c801e2c50a66",
-         "num" : 7667629,
-         "version" : 9
+         "baseReserve" : 100000000,
+         "closeTime" : 0,
+         "hash" : "39c2a3cd4141b2853e70d84601faa44744660334b48f3228e0309342e3f4eb48",
+         "maxTxSetSize" : 100,
+         "num" : 1,
+         "version" : 0
       },
-      "network" : "Test SDF Network ; September 2015",
+      "network" : "Public Global Stellar Network ; September 2015",
       "peers" : {
-         "authenticated_count" : 3,
-         "pending_count" : 5
+         "authenticated_count" : 5,
+         "pending_count" : 0
       },
-      "protocol_version" : 9,
+      "protocol_version" : 10,
       "quorum" : {
-         "7667628" : {
-            "agree" : 3,
+         "22267866" : {
+            "agree" : 5,
+            "delayed" : 0,
             "disagree" : 0,
-            "fail_at" : 2,
-            "hash" : "273af2",
+            "fail_at" : 3,
+            "hash" : "980a24",
             "missing" : 0,
             "phase" : "EXTERNALIZE"
          }
       },
-      "startedOn" : "2018-02-28T22:38:20Z",
-      "state" : "Synced!"
+      "startedOn" : "2019-02-01T20:13:43Z",
+      "state" : "Catching up",
+      "status" : [ "Catching up: downloading and verifying buckets: 30/30 (100%)" ]
    }
 }
 ```
@@ -667,6 +670,7 @@ The output looks something like:
 ```json
 "474313" : {
          "agree" : 6,
+         "delayed" : null,
          "disagree" : null,
          "fail_at" : 2,
          "fail_with" : [ "lab1", "lab2" ],
@@ -681,6 +685,7 @@ The output looks something like:
 
 Entries to watch for are:
   * `agree` : the number of nodes in the quorum set that agree with this instance.
+  * `delayed` : the nodes that are participating to consensus but seem to be behind.
   * `disagree`: the nodes that were participating but disagreed with this instance.
   * `fail_at` : the number of failed nodes that *would* cause this instance to halt.
   * `fail_with`: an example of such potential failure.
