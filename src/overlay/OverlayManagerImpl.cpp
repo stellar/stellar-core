@@ -610,6 +610,18 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
     return getPeersList(peer.get()).acceptAuthenticatedPeer(peer);
 }
 
+std::vector<Peer::pointer> const&
+OverlayManagerImpl::getInboundPendingPeers() const
+{
+    return mInboundPeers.mPending;
+}
+
+std::vector<Peer::pointer> const&
+OverlayManagerImpl::getOutboundPendingPeers() const
+{
+    return mOutboundPeers.mPending;
+}
+
 std::vector<Peer::pointer>
 OverlayManagerImpl::getPendingPeers() const
 {
@@ -617,6 +629,18 @@ OverlayManagerImpl::getPendingPeers() const
     result.insert(std::end(result), std::begin(mInboundPeers.mPending),
                   std::end(mInboundPeers.mPending));
     return result;
+}
+
+std::map<NodeID, Peer::pointer> const&
+OverlayManagerImpl::getInboundAuthenticatedPeers() const
+{
+    return mInboundPeers.mAuthenticated;
+}
+
+std::map<NodeID, Peer::pointer> const&
+OverlayManagerImpl::getOutboundAuthenticatedPeers() const
+{
+    return mOutboundPeers.mAuthenticated;
 }
 
 std::map<NodeID, Peer::pointer>
