@@ -64,16 +64,14 @@ class PeerManager
   public:
     enum class TypeUpdate
     {
-        KEEP,
-        SET_INBOUND,
         SET_OUTBOUND,
         SET_PREFERRED,
-        REMOVE_PREFERRED
+        REMOVE_PREFERRED,
+        UPDATE_TO_OUTBOUND
     };
 
     enum class BackOffUpdate
     {
-        KEEP,
         HARD_RESET,
         RESET,
         INCREASE

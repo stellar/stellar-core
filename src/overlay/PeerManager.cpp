@@ -278,15 +278,6 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
 {
     switch (type)
     {
-    case TypeUpdate::KEEP:
-    {
-        break;
-    }
-    case TypeUpdate::SET_INBOUND:
-    {
-        peer.mType = static_cast<int>(PeerType::INBOUND);
-        break;
-    }
     case TypeUpdate::SET_OUTBOUND:
     {
         peer.mType = static_cast<int>(PeerType::OUTBOUND);
@@ -300,6 +291,14 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
     case TypeUpdate::REMOVE_PREFERRED:
     {
         if (peer.mType == static_cast<int>(PeerType::PREFERRED))
+        {
+            peer.mType = static_cast<int>(PeerType::OUTBOUND);
+        }
+        break;
+    }
+    case TypeUpdate::UPDATE_TO_OUTBOUND:
+    {
+        if (peer.mType == static_cast<int>(PeerType::INBOUND))
         {
             peer.mType = static_cast<int>(PeerType::OUTBOUND);
         }
@@ -333,10 +332,6 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
 {
     switch (backOff)
     {
-    case BackOffUpdate::KEEP:
-    {
-        break;
-    }
     case BackOffUpdate::HARD_RESET:
     {
         peer.mNumFailures = 0;

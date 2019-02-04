@@ -304,8 +304,9 @@ void
 OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
                                   bool setPreferred)
 {
-    auto typeUpgrade = setPreferred ? PeerManager::TypeUpdate::SET_PREFERRED
-                                    : PeerManager::TypeUpdate::KEEP;
+    auto typeUpgrade = setPreferred
+                           ? PeerManager::TypeUpdate::SET_PREFERRED
+                           : PeerManager::TypeUpdate::UPDATE_TO_OUTBOUND;
 
     for (auto const& peerStr : list)
     {
