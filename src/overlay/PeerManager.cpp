@@ -172,7 +172,7 @@ PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
     if (peers.size() < size)
     {
         auto inbound =
-            mInboundPeersToSend->getRandomPeers(peers.size() - size, keep);
+            mInboundPeersToSend->getRandomPeers(size - peers.size(), keep);
         std::copy(std::begin(inbound), std::end(inbound),
                   std::back_inserter(peers));
     }
