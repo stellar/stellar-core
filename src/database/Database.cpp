@@ -214,6 +214,9 @@ Database::applySchemaUpgrade(unsigned long vers)
         // Update schema for base-64 encoding
         mApp.getLedgerTxnRoot().encodeDataNamesBase64();
         mApp.getLedgerTxnRoot().encodeHomeDomainsBase64();
+
+        // Update schema for simplified offers table
+        mApp.getLedgerTxnRoot().writeOffersIntoSimplifiedOffersTable();
         break;
 
     default:

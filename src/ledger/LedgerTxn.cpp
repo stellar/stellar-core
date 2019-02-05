@@ -1896,4 +1896,10 @@ LedgerTxnRoot::encodeHomeDomainsBase64()
 {
     mImpl->encodeHomeDomainsBase64();
 }
+
+void
+LedgerTxnRoot::writeOffersIntoSimplifiedOffersTable()
+{
+    mImpl->writeOffersIntoSimplifiedOffersTable();
+}
 }
