@@ -2434,3 +2434,175 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
     }
 #endif
 }
+
+TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
+{
+    auto getTimeScope = [](Application& app, std::string const& phase) {
+        return app.getMetrics()
+            .NewTimer({"bestoffers", "benchmark", phase})
+            .TimeScope();
+    };
+
+    auto getTimeSpent = [](Application& app, std::string const& phase) {
+        auto time =
+            app.getMetrics().NewTimer({"bestoffers", "benchmark", phase}).sum();
+        return phase + ": " + std::to_string(time) + " ms";
+    };
+
+    auto generateAssets = [](size_t numAssets, size_t numIssuers) {
+        CLOG(WARNING, "Ledger") << "Generating issuers";
+        REQUIRE(numIssuers >= 1);
+        std::vector<AccountID> issuers;
+        for (size_t i = 1; i < numIssuers; ++i)
+        {
+            issuers.emplace_back(autocheck::generator<AccountID>()(5));
+        }
+
+        CLOG(WARNING, "Ledger") << "Generating assets";
+        REQUIRE(numAssets >= 2);
+        std::vector<Asset> assets;
+        assets.emplace_back(ASSET_TYPE_NATIVE);
+        for (size_t i = 1; i < numAssets; ++i)
+        {
+            size_t issuerIndex =
+                autocheck::generator<size_t>()(issuers.size() - 1);
+            REQUIRE(issuerIndex < issuers.size());
+
+            Asset a(ASSET_TYPE_CREDIT_ALPHANUM4);
+            strToAssetCode(a.alphaNum4().assetCode, "A" + std::to_string(i));
+            a.alphaNum4().issuer = issuers[issuerIndex];
+            assets.emplace_back(a);
+        }
+        return assets;
+    };
+
+    auto selectAssetPair = [](std::vector<Asset> const& assets) {
+        REQUIRE(assets.size() >= 2);
+        size_t maxIndex = assets.size() - 1;
+
+        size_t firstIndex = autocheck::generator<size_t>()(maxIndex);
+        size_t secondIndex;
+        do
+        {
+            secondIndex = autocheck::generator<size_t>()(maxIndex);
+        } while (firstIndex == secondIndex);
+
+        return std::make_pair(assets[firstIndex], assets[secondIndex]);
+    };
+
+    auto generateEntries = [&](size_t numOffers,
+                               std::vector<Asset> const& assets) {
+        CLOG(WARNING, "Ledger") << "Generating offers";
+        std::vector<LedgerEntry> offers;
+        offers.reserve(numOffers);
+        for (size_t i = 0; i < numOffers; ++i)
+        {
+            LedgerEntry le;
+            le.data.type(OFFER);
+            le.lastModifiedLedgerSeq = 1;
+            le.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+
+            auto& oe = le.data.offer();
+            auto assetPair = selectAssetPair(assets);
+            oe.selling = assetPair.first;
+            oe.buying = assetPair.second;
+
+            offers.emplace_back(le);
+        }
+        return offers;
+    };
+
+    auto writeEntries = [&](Application& app,
+                            std::vector<LedgerEntry> const& offers) {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        {
+            CLOG(WARNING, "Ledger") << "Creating offers";
+            auto timer = getTimeScope(app, "create");
+            for (auto const& le : offers)
+            {
+                ltx.create(le);
+            }
+        }
+
+        {
+            CLOG(WARNING, "Ledger") << "Writing offers";
+            auto timer = getTimeScope(app, "write");
+            ltx.commit();
+        }
+    };
+
+    auto loadBestOffers = [&](Application& app, Asset const& buying,
+                              Asset const& selling,
+                              std::vector<LedgerEntry> const& sortedOffers) {
+        auto timer = getTimeScope(app, "load");
+
+        size_t numOffers = 0;
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        while (auto le = ltx.loadBestOffer(buying, selling))
+        {
+            REQUIRE(le.current() == sortedOffers[numOffers]);
+            ++numOffers;
+            le.erase();
+        }
+    };
+
+    auto runTest = [&](Config::TestDbMode mode, size_t numAssets,
+                       size_t numIssuers, size_t numOffers) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, mode));
+        cfg.ENTRY_CACHE_SIZE = 100000;
+        cfg.BEST_OFFERS_CACHE_SIZE = 1000;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        CLOG(WARNING, "Ledger")
+            << "Generating " << numOffers << " offers buying and selling "
+            << numAssets << " assets with " << numIssuers << " issuers";
+        auto assets = generateAssets(numAssets, numIssuers);
+        auto offers = generateEntries(numOffers, assets);
+
+        std::map<std::pair<Asset, Asset>, std::vector<LedgerEntry>>
+            sortedOffers;
+        for (auto const& offer : offers)
+        {
+            auto const& oe = offer.data.offer();
+            auto& vec = sortedOffers[std::make_pair(oe.buying, oe.selling)];
+            vec.emplace_back(offer);
+        }
+        for (auto& kv : sortedOffers)
+        {
+            std::sort(kv.second.begin(), kv.second.end(), isBetterOffer);
+        }
+
+        writeEntries(*app, offers);
+
+        CLOG(WARNING, "Ledger") << "Loading best offers";
+        for (auto const& buying : assets)
+        {
+            for (auto const& selling : assets)
+            {
+                if (!(buying == selling))
+                {
+                    loadBestOffers(
+                        *app, buying, selling,
+                        sortedOffers[std::make_pair(buying, selling)]);
+                }
+            }
+        }
+
+        CLOG(WARNING, "Ledger") << "Done (" << getTimeSpent(*app, "create")
+                                << ", " << getTimeSpent(*app, "write") << ", "
+                                << getTimeSpent(*app, "load") << ")";
+    };
+
+#ifdef USE_POSTGRES
+    SECTION("postgres")
+    {
+        runTest(Config::TESTDB_POSTGRESQL, 10, 5, 25000);
+    }
+#endif
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE, 10, 5, 25000);
+    }
+}
