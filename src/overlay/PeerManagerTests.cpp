@@ -242,4 +242,93 @@ TEST_CASE("parse peer rercord", "[overlay][PeerManager]")
         REQUIRE(pr.getPort() == 65535);
     }
 }
+
+TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+    auto myAddress = PeerBareAddress("127.0.0.255", 1);
+    auto getSize = [&](int requestedSize) {
+        return peerManager.getPeersToSend(requestedSize, myAddress).size();
+    };
+    auto createPeers = [&](int inboundCount, int outboundCount) {
+        for (auto i = 1; i <= inboundCount; i++)
+        {
+            peerManager.ensureExists(PeerBareAddress("127.0.0.1", i));
+        }
+        for (auto i = inboundCount + 1; i <= inboundCount + outboundCount; i++)
+        {
+            peerManager.update(PeerBareAddress("127.0.0.1", i),
+                               PeerManager::TypeUpdate::SET_OUTBOUND);
+        }
+    };
+
+    SECTION("no peers in database")
+    {
+        REQUIRE(getSize(0) == 0);
+        REQUIRE(getSize(10) == 0);
+        REQUIRE(getSize(50) == 0);
+    }
+
+    SECTION("less peers in database than requested")
+    {
+        SECTION("only inbound peers")
+        {
+            createPeers(8, 0);
+            REQUIRE(getSize(10) == 8);
+            REQUIRE(getSize(50) == 8);
+        }
+        SECTION("only outbound peers")
+        {
+            createPeers(0, 8);
+            REQUIRE(getSize(10) == 8);
+            REQUIRE(getSize(50) == 8);
+        }
+        SECTION("mixed peers")
+        {
+            createPeers(4, 4);
+            REQUIRE(getSize(10) == 8);
+            REQUIRE(getSize(50) == 8);
+        }
+    }
+
+    SECTION("as many peers in database as requested")
+    {
+        SECTION("only inbound peers")
+        {
+            createPeers(8, 0);
+            REQUIRE(getSize(8) == 8);
+        }
+        SECTION("only outbound peers")
+        {
+            createPeers(0, 8);
+            REQUIRE(getSize(58) == 8);
+        }
+        SECTION("mixed peers")
+        {
+            createPeers(4, 4);
+            REQUIRE(getSize(8) == 8);
+        }
+    }
+
+    SECTION("more peers in database than requested")
+    {
+        SECTION("only inbound peers")
+        {
+            createPeers(50, 0);
+            REQUIRE(getSize(30) == 30);
+        }
+        SECTION("only outbound peers")
+        {
+            createPeers(0, 50);
+            REQUIRE(getSize(30) == 30);
+        }
+        SECTION("mixed peers")
+        {
+            createPeers(25, 25);
+            REQUIRE(getSize(30) == 30);
+        }
+    }
+}
 }
