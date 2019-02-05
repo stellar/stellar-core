@@ -1657,6 +1657,11 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         }
         res = findIncludedOffer(newOfferIter, offers.cend(), exclude);
     }
+
+    if (res)
+    {
+        putInEntryCache(getEntryCacheKey(LedgerEntryKey(*res)), res);
+    }
     return res;
 }
 
