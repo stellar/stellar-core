@@ -1334,97 +1334,90 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
     return didWork;
 }
 
+static uint32
+statementBallotCounter(SCPStatement const& st)
+{
+    switch (st.pledges.type())
+    {
+    case SCP_ST_PREPARE:
+        return st.pledges.prepare().ballot.counter;
+    case SCP_ST_CONFIRM:
+        return st.pledges.confirm().ballot.counter;
+    case SCP_ST_EXTERNALIZE:
+        return UINT32_MAX;
+    default:
+        // Should never be called with SCP_ST_NOMINATE.
+        abort();
+    }
+}
+
+static bool
+hasVBlockingSubsetStrictlyAheadOf(std::shared_ptr<LocalNode> localNode,
+                                  std::map<NodeID, SCPEnvelope> const& map,
+                                  uint32_t n)
+{
+    return LocalNode::isVBlocking(
+        localNode->getQuorumSet(), map,
+        [&](SCPStatement const& st) { return statementBallotCounter(st) > n; });
+}
+
+// Step 9 from the paper (Feb 2016):
+//
+//   If ∃ S ⊆ M such that the set of senders {v_m | m ∈ S} is v-blocking
+//   and ∀m ∈ S, b_m.n > b_v.n, then set b <- <n, z> where n is the lowest
+//   counter for which no such S exists.
+//
+// a.k.a 4th rule for setting ballot.counter in the internet-draft (v03):
+//
+//   If nodes forming a blocking threshold all have ballot.counter values
+//   greater than the local ballot.counter, then the local node immediately
+//   cancels any pending timer, increases ballot.counter to the lowest
+//   value such that this is no longer the case, and if appropriate
+//   according to the rules above arms a new timer. Note that the blocking
+//   threshold may include ballots from SCPCommit messages as well as
+//   SCPExternalize messages, which implicitly have an infinite ballot
+//   counter.
+
 bool
 BallotProtocol::attemptBump()
 {
     if (mPhase == SCP_PHASE_PREPARE || mPhase == SCP_PHASE_CONFIRM)
     {
-        // find all counters
+
+        // First check to see if this condition applies at all. If there
+        // is no v-blocking set ahead of the local node, there's nothing
+        // to do, return early.
+        auto localNode = getLocalNode();
+        uint32 localCounter = mCurrentBallot ? mCurrentBallot->counter : 0;
+        if (!hasVBlockingSubsetStrictlyAheadOf(localNode, mLatestEnvelopes,
+                                               localCounter))
+        {
+            return false;
+        }
+
+        // Collect all possible counters we might need to advance to.
         std::set<uint32> allCounters;
         for (auto const& e : mLatestEnvelopes)
         {
-            auto const& st = e.second.statement;
-            switch (st.pledges.type())
-            {
-            case SCP_ST_PREPARE:
-            {
-                auto const& p = st.pledges.prepare();
-                allCounters.insert(p.ballot.counter);
-            }
-            break;
-            case SCP_ST_CONFIRM:
-            {
-                auto const& c = st.pledges.confirm();
-                allCounters.insert(c.ballot.counter);
-            }
-            break;
-            case SCP_ST_EXTERNALIZE:
-            {
-                allCounters.insert(UINT32_MAX);
-            }
-            break;
-            default:
-                abort();
-            };
+            uint32_t c = statementBallotCounter(e.second.statement);
+            if (c > localCounter)
+                allCounters.insert(c);
         }
-        uint32 targetCounter = mCurrentBallot ? mCurrentBallot->counter : 0;
 
-        // uses 0 as a way to track if a v-blocking set is at a higher counter
-        // if so, we move to that smallest counter
-        allCounters.insert(targetCounter);
-
-        // go through the counters, find the smallest not v-blocking
-        for (auto it = allCounters.begin(); it != allCounters.end(); it++)
+        // If we got to here, implicitly there _was_ a v-blocking subset
+        // with counters above the local counter; we just need to find a
+        // minimal n at which that's no longer true. So check them in
+        // order, starting from the smallest.
+        for (uint32_t n : allCounters)
         {
-            uint32 n = *it;
-            if (n < targetCounter)
+            if (!hasVBlockingSubsetStrictlyAheadOf(localNode, mLatestEnvelopes,
+                                                   n))
             {
-                break;
-            }
-
-            bool vBlocking = LocalNode::isVBlocking(
-                getLocalNode()->getQuorumSet(), mLatestEnvelopes,
-                [&](SCPStatement const& st) {
-                    bool res;
-                    auto const& pl = st.pledges;
-                    if (pl.type() == SCP_ST_PREPARE)
-                    {
-                        auto const& p = pl.prepare();
-                        res = n < p.ballot.counter;
-                    }
-                    else
-                    {
-                        if (pl.type() == SCP_ST_CONFIRM)
-                        {
-                            res = n < pl.confirm().ballot.counter;
-                        }
-                        else
-                        {
-                            res = n != UINT32_MAX;
-                        }
-                    }
-                    return res;
-                });
-
-            if (n == targetCounter)
-            {
-                // if current counter is not behind, don't do anything
-                if (!vBlocking)
-                {
-                    break;
-                }
-            }
-            else
-            {
-                if (!vBlocking)
-                {
-                    // move to n
-                    return abandonBallot(n);
-                }
+                // Move to n.
+                return abandonBallot(n);
             }
         }
     }
-
     return false;
 }
 
@@ -1605,11 +1598,13 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
 {
     bool didWork = false;
 
+    // p and p' are the two higest prepared and incompatible ballots
     if (mPrepared)
     {
         int comp = compareBallots(*mPrepared, ballot);
         if (comp < 0)
         {
+            // as we're replacing p, we see if we should also replace p'
             if (!areBallotsCompatible(*mPrepared, ballot))
             {
                 mPreparedPrime = std::make_unique<SCPBallot>(*mPrepared);
@@ -1619,8 +1614,16 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
         }
         else if (comp > 0)
         {
-            // check if we should update only p'
-            if (!mPreparedPrime || compareBallots(*mPreparedPrime, ballot) < 0)
+            // check if we should update only p', this happens
+            // either p' was NULL
+            // or p' gets replaced by ballot
+            //      (p' < ballot and ballot is incompatible with p)
+            // note, the later check is here out of paranoia as this function is
+            // not called with a value that would not allow us to make progress
+
+            if (!mPreparedPrime ||
+                ((compareBallots(*mPreparedPrime, ballot) < 0) &&
+                 !areBallotsCompatible(*mPrepared, ballot)))
             {
                 mPreparedPrime = std::make_unique<SCPBallot>(ballot);
                 didWork = true;
