@@ -1400,7 +1400,7 @@ BallotProtocol::attemptBump()
         for (auto const& e : mLatestEnvelopes)
         {
             uint32_t c = statementBallotCounter(e.second.statement);
-            if (c >= localCounter)
+            if (c > localCounter)
                 allCounters.insert(c);
         }
 
@@ -1417,12 +1417,6 @@ BallotProtocol::attemptBump()
                 return abandonBallot(n);
             }
         }
-
-        // We should only have got here if allCounters was empty; otherwise
-        // there should at worst have been some _maximal_ counter in the set to
-        // advance to, that by definition no v-blocking subset was "strictly
-        // ahead of".
-        assert(allCounters.empty());
     }
     return false;
 }
