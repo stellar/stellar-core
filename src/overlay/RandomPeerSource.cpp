@@ -73,6 +73,12 @@ std::vector<PeerBareAddress>
 RandomPeerSource::getRandomPeers(
     int size, std::function<bool(PeerBareAddress const&)> pred)
 {
+    assert(size >= 0);
+    if (size == 0)
+    {
+        return {};
+    }
+
     if (mPeerCache.size() < size)
     {
         mPeerCache = mPeerManager.loadRandomPeers(mPeerQuery, size);
