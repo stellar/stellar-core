@@ -103,11 +103,27 @@ class OverlayManager
 
     virtual bool isPreferred(Peer* peer) const = 0;
 
+    // Return the current in-memory set of inbound pending peers.
+    virtual std::vector<Peer::pointer> const&
+    getInboundPendingPeers() const = 0;
+
+    // Return the current in-memory set of outbound pending peers.
+    virtual std::vector<Peer::pointer> const&
+    getOutboundPendingPeers() const = 0;
+
     // Return the current in-memory set of pending peers.
     virtual std::vector<Peer::pointer> getPendingPeers() const = 0;
 
     // Return number of pending peers
     virtual int getPendingPeersCount() const = 0;
+
+    // Return the current in-memory set of inbound authenticated peers.
+    virtual std::map<NodeID, Peer::pointer> const&
+    getInboundAuthenticatedPeers() const = 0;
+
+    // Return the current in-memory set of outbound authenticated peers.
+    virtual std::map<NodeID, Peer::pointer> const&
+    getOutboundAuthenticatedPeers() const = 0;
 
     // Return the current in-memory set of authenticated peers.
     virtual std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const = 0;

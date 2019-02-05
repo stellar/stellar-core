@@ -628,30 +628,34 @@ This list is the result of both inbound connections from other peers and outboun
 
 ```json
 {
-   "authenticated_peers" : [
-      {
-         "id" : "sdf2",
-         "ip" : "54.211.174.177",
-         "olver" : 5,
-         "port" : 11625,
-         "ver" : "v9.1.0"
-      },
-      {
-         "id" : "sdf3",
-         "ip" : "54.160.175.7",
-         "olver" : 5,
-         "port" : 11625,
-         "ver" : "v9.1.0"
-      },
-      {
-         "id" : "sdf1",
-         "ip" : "54.161.82.181",
-         "olver" : 5,
-         "port" : 11625,
-         "ver" : "v9.1.0"
-      }
-   ],
-   "pending_peers" : null
+   "authenticated_peers" : {
+     "inbound" : [
+        {
+           "address" : "54.161.82.181:11625",
+           "id" : "sdf1",
+           "olver" : 5,
+           "ver" : "v9.1.0"
+        }
+     ],
+     "outbound" : [
+       {
+          "address" : "54.211.174.177:11625",
+          "id" : "sdf2",
+          "olver" : 5,
+          "ver" : "v9.1.0"
+       },
+       {
+          "address" : "54.160.175.7:11625",
+          "id" : "sdf3",
+          "olver" : 5,
+          "ver" : "v9.1.0"
+        }
+     ]
+   },
+   "pending_peers" : {
+      "inbound" : [ "211.249.63.74:11625", "45.77.5.118:11625" ],
+      "outbound" : [ "178.21.47.226:11625", "178.131.109.241:11625" ]
+   }
 }
 ```
 
