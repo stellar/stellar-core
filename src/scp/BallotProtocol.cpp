@@ -2008,8 +2008,9 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary)
 
     Json::Value& disagree = ret["disagree"];
     Json::Value& missing = ret["missing"];
+    Json::Value& delayed = ret["delayed"];
 
-    int n_missing = 0, n_disagree = 0;
+    int n_missing = 0, n_disagree = 0, n_delayed = 0;
 
     int agree = 0;
     auto qSet = mSlot.getSCPDriver().getQSet(qSetHash);
@@ -2028,24 +2029,39 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary)
             }
             n_missing++;
         }
-        else if (areBallotsCompatible(getWorkingBallot(it->second.statement),
-                                      b))
-        {
-            agree++;
-        }
         else
         {
-            if (!summary)
+            auto& st = it->second.statement;
+            if (areBallotsCompatible(getWorkingBallot(st), b))
             {
-                disagree.append(mSlot.getSCPDriver().toShortString(n));
+                agree++;
+                auto t = st.pledges.type();
+                if (!(t == SCPStatementType::SCP_ST_EXTERNALIZE ||
+                      (t == SCPStatementType::SCP_ST_CONFIRM &&
+                       st.pledges.confirm().ballot.counter == UINT32_MAX)))
+                {
+                    if (!summary)
+                    {
+                        delayed.append(mSlot.getSCPDriver().toShortString(n));
+                    }
+                    n_delayed++;
+                }
             }
-            n_disagree++;
+            else
+            {
+                if (!summary)
+                {
+                    disagree.append(mSlot.getSCPDriver().toShortString(n));
+                }
+                n_disagree++;
+            }
         }
     });
     if (summary)
     {
         missing = n_missing;
         disagree = n_disagree;
+        delayed = n_delayed;
     }
 
     auto f = LocalNode::findClosestVBlocking(*qSet, mLatestEnvelopes,
