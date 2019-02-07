@@ -25,6 +25,16 @@ Code formatting wise, we have a `.clang-format` config file that you should use 
 
 Try to separate logically distinct changes into separate commits and thematically distinct commits into separate pull requests.
 
+# Code style conventions
+
+- Names of structs and classes are camel case with the first letter capital, eg. `class MyClassName`
+- Names of functions and local variables are camel case with the first letter lowercase, eg. `void myFunctionName()` or `int myLocalInt`
+- Names of member variables are camel case with the first letter "m", eg. `int mMyMemberInt`
+- Names of compile-time constants are macro case, eg. `int const MY_CONST_INT`
+- Braces appear on their own line
+- Braces are not omitted for a control statement with only a single statement in its scope
+- const appears to the right of the type, eg. `int const` or `int const&`
+
 # Performance impacting changes
 
 When submitting changes that may impact performance, you need to also provide some evidence of the improvement (which also implies no regression). See the [performance evaluation](../performance-eval/performance-eval.md) document for more details.
