@@ -377,12 +377,6 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
             << " i:" << envelope.statement.slotIndex
             << " a:" << mApp.getStateHuman();
 
-    if (envelope.statement.nodeID == getSCP().getLocalNode()->getNodeID())
-    {
-        CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
-    }
-
     mSCPMetrics.mEnvelopeReceive.Mark();
 
     uint32_t minLedgerSeq = getCurrentLedgerSeq();
@@ -414,6 +408,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
                               << envelope.statement.slotIndex << "( "
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
         return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
+    if (envelope.statement.nodeID == getSCP().getLocalNode()->getNodeID())
+    {
+        CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
+        return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
 
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);

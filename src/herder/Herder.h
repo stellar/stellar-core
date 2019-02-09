@@ -80,6 +80,8 @@ class Herder
         // for some reason this envelope was discarded - either is was invalid,
         // used unsane qset or was coming from node that is not in quorum
         ENVELOPE_STATUS_DISCARDED,
+        // envelope was skipped as it's from this validator
+        ENVELOPE_STATUS_SKIPPED_SELF,
         // envelope data is currently being fetched
         ENVELOPE_STATUS_FETCHING,
         // current call to recvSCPEnvelope() was the first when the envelope
