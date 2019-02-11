@@ -278,7 +278,7 @@ VirtualClock::crank(bool block)
         // Pick up some work off the IO queue.
         // Calling mIOService.poll() here may introduce unbounded delays
         // to trigger timers.
-        const size_t WORK_BATCH_SIZE = 100;
+        const size_t WORK_CHECK_INTERVAL = 100;
         size_t lastPoll;
         size_t i = 0;
         do
@@ -286,7 +286,15 @@ VirtualClock::crank(bool block)
             // May add work to mDelayedExecutionQueue.
             lastPoll = mIOService.poll_one();
             nWorkDone += lastPoll;
-        } while (lastPoll != 0 && ++i < WORK_BATCH_SIZE);
+            i++;
+
+            // If we have something else to do, lets do it.
+            if ((i % WORK_CHECK_INTERVAL == 0) &&
+                (haveEventAtOrBefore(now()) || !mDelayedExecutionQueue.empty()))
+            {
+                break;
+            }
+        } while (lastPoll != 0);
 
         nWorkDone -= nRealTimerCancelEvents;
 
@@ -425,6 +433,12 @@ VirtualClock::~VirtualClock()
     cancelAllEvents();
 }
 
+bool
+VirtualClock::haveEventAtOrBefore(time_point n) const
+{
+    return !mEvents.empty() && mEvents.top()->mWhen <= n;
+}
+
 size_t
 VirtualClock::advanceTo(time_point n)
 {
@@ -438,10 +452,8 @@ VirtualClock::advanceTo(time_point n)
     //            << n.time_since_epoch().count() << ")";
     mNow = n;
     vector<shared_ptr<VirtualClockEvent>> toDispatch;
-    while (!mEvents.empty())
+    while (haveEventAtOrBefore(mNow))
     {
-        if (mEvents.top()->mWhen > mNow)
-            break;
         toDispatch.push_back(mEvents.top());
         mEvents.pop();
     }

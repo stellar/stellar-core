@@ -127,6 +127,7 @@ class VirtualClock
     bool mDestructing{false};
 
     void maybeSetRealtimer();
+    bool haveEventAtOrBefore(time_point n) const;
     size_t advanceTo(time_point n);
     size_t advanceToNext();
     size_t advanceToNow();
