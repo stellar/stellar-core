@@ -767,8 +767,6 @@ Peer::recvSCPMessage(StellarMessage const& msg)
             << "recvSCPMessage node: "
             << mApp.getConfig().toShortString(msg.envelope().statement.nodeID);
 
-    mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
-
     auto type = msg.envelope().statement.pledges.type();
     auto t = (type == SCP_ST_PREPARE
                   ? mRecvSCPPrepareTimer.TimeScope()
@@ -778,7 +776,11 @@ Peer::recvSCPMessage(StellarMessage const& msg)
                                 ? mRecvSCPExternalizeTimer.TimeScope()
                                 : (mRecvSCPNominateTimer.TimeScope()))));
 
-    mApp.getHerder().recvSCPEnvelope(envelope);
+    auto res = mApp.getHerder().recvSCPEnvelope(envelope);
+    if (res != Herder::ENVELOPE_STATUS_DISCARDED)
+    {
+        mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
+    }
 }
 
 void
@@ -1018,10 +1020,8 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    // send SCP State
-    // remove when all known peers implements the next line
-    mApp.getHerder().sendSCPStateToPeer(0, self);
     // ask for SCP state if not synced
+    // this requests data for slots lcl+1 ... latest consensus (if possible)
     sendGetScpState(mApp.getLedgerManager().getLastClosedLedgerNum() + 1);
 }
 

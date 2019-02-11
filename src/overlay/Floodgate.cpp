@@ -21,7 +21,7 @@ Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
     : mLedgerSeq(ledger), mMessage(msg)
 {
     if (peer)
-        mPeersTold.insert(peer);
+        mPeersTold.insert(peer->toString());
 }
 
 Floodgate::Floodgate(Application& app)
@@ -71,7 +71,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     }
     else
     {
-        result->second->mPeersTold.insert(peer);
+        result->second->mPeersTold.insert(peer->toString());
         return false;
     }
 }
@@ -96,7 +96,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         mFloodMapSize.set_count(mFloodMap.size());
     }
     // send it to people that haven't sent it to us
-    std::set<Peer::pointer>& peersTold = result->second->mPeersTold;
+    auto& peersTold = result->second->mPeersTold;
 
     // make a copy, in case peers gets modified
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
@@ -104,11 +104,11 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     for (auto peer : peers)
     {
         assert(peer.second->isAuthenticated());
-        if (peersTold.find(peer.second) == peersTold.end())
+        if (peersTold.find(peer.second->toString()) == peersTold.end())
         {
             mSendFromBroadcast.Mark();
             peer.second->sendMessage(msg);
-            peersTold.insert(peer.second);
+            peersTold.insert(peer.second->toString());
         }
     }
     CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told "
@@ -122,7 +122,15 @@ Floodgate::getPeersKnows(Hash const& h)
     auto record = mFloodMap.find(h);
     if (record != mFloodMap.end())
     {
-        res = record->second->mPeersTold;
+        auto& ids = record->second->mPeersTold;
+        auto const& peers = mApp.getOverlayManager().getAuthenticatedPeers();
+        for (auto& p : peers)
+        {
+            if (ids.find(p.second->toString()) != ids.end())
+            {
+                res.insert(p.second);
+            }
+        }
     }
     return res;
 }

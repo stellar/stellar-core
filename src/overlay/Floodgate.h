@@ -38,7 +38,7 @@ class Floodgate
 
         uint32_t mLedgerSeq;
         StellarMessage mMessage;
-        std::set<Peer::pointer> mPeersTold;
+        std::set<std::string> mPeersTold;
 
         FloodRecord(StellarMessage const& msg, uint32_t ledger,
                     Peer::pointer peer);
