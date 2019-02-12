@@ -5,6 +5,7 @@
 #include "database/Database.h"
 #include "crypto/Hex.h"
 #include "database/DatabaseConnectionString.h"
+#include "database/DatabaseTypeSpecificOperation.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -31,6 +32,9 @@
 #include "medida/timer.h"
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
+#ifdef USE_POSTGRES
+#include <lib/soci/src/backends/postgresql/soci-postgresql.h>
+#endif
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -273,6 +277,27 @@ Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3:") !=
            std::string::npos;
+}
+
+void
+Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation& op)
+{
+    auto b = getSession().get_backend();
+    if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
+    {
+        op.doSqliteSpecificOperation(sq);
+#ifdef USE_POSTGRES
+    }
+    else if (auto pg = dynamic_cast<soci::postgresql_session_backend*>(b))
+    {
+        op.doPostgresSpecificOperation(pg);
+#endif
+    }
+    else
+    {
+        // Extend this with other cases if we support more databases.
+        abort();
+    }
 }
 
 bool

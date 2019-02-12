@@ -22,6 +22,7 @@ namespace stellar
 {
 class Application;
 class SQLLogContext;
+class DatabaseTypeSpecificOperation;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -156,6 +157,9 @@ class Database : NonMovableOrCopyable
 
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
+
+    // Call `op` back with the specific database backend subtype in use.
+    void doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation& op);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
