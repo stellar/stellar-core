@@ -137,9 +137,14 @@ Database::applySchemaUpgrade(unsigned long vers)
         mSession << "UPDATE peers SET type = 2*type";
         break;
     case 9:
+        // Update schema for signers
         mSession << "ALTER TABLE accounts ADD signers TEXT";
         mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
         mSession << "DROP TABLE IF EXISTS signers";
+
+        // Update schema for base-64 encoding
+        mApp.getLedgerTxnRoot().encodeDataNamesBase64();
+        mApp.getLedgerTxnRoot().encodeHomeDomainsBase64();
         break;
 
     default:
