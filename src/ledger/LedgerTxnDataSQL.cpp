@@ -55,64 +55,6 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
-void
-LedgerTxnRoot::Impl::insertOrUpdateData(LedgerEntry const& entry, bool isInsert)
-{
-    auto const& data = entry.data.data();
-    std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
-    std::string dataName = decoder::encode_b64(data.dataName);
-    std::string dataValue = decoder::encode_b64(data.dataValue);
-
-    std::string sql;
-    if (isInsert)
-    {
-        sql = "INSERT INTO accountdata "
-              "(accountid,dataname,datavalue,lastmodified)"
-              " VALUES (:aid,:dn,:dv,:lm)";
-    }
-    else
-    {
-        sql = "UPDATE accountdata SET datavalue=:dv,lastmodified=:lm "
-              " WHERE accountid=:aid AND dataname=:dn";
-    }
-
-    auto prep = mDatabase.getPreparedStatement(sql);
-    auto& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey, "aid"));
-    st.exchange(soci::use(dataName, "dn"));
-    st.exchange(soci::use(dataValue, "dv"));
-    st.exchange(soci::use(entry.lastModifiedLedgerSeq, "lm"));
-    st.define_and_bind();
-    st.execute(true);
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("could not update SQL");
-    }
-}
-
-void
-LedgerTxnRoot::Impl::deleteData(LedgerKey const& key, LedgerTxnConsistency cons)
-{
-    auto const& data = key.data();
-    std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
-    std::string dataName = decoder::encode_b64(data.dataName);
-
-    auto prep = mDatabase.getPreparedStatement(
-        "DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
-    auto& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey));
-    st.exchange(soci::use(dataName));
-    st.define_and_bind();
-    {
-        auto timer = mDatabase.getDeleteTimer("data");
-        st.execute(true);
-    }
-    if (st.get_affected_rows() != 1 && cons == LedgerTxnConsistency::EXACT)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-}
-
 class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation
 {
     Database& mDB;
@@ -405,17 +347,12 @@ LedgerTxnRoot::Impl::encodeDataNamesBase64()
         session << "ALTER TABLE accountdata ALTER COLUMN dataname "
                    "SET DATA TYPE VARCHAR(88)";
     }
-
-    size_t numUpdated = 0;
-    for (auto const& le : dataToEncode)
+    if (!dataToEncode.empty())
     {
-        insertOrUpdateData(le, true);
-
-        if ((++numUpdated & 0xfff) == 0xfff ||
-            (numUpdated == dataToEncode.size()))
-        {
-            CLOG(INFO, "Ledger") << "Wrote " << numUpdated << " data entries";
-        }
+        BulkUpsertDataOperation op(mDatabase, dataToEncode);
+        mDatabase.doDatabaseTypeSpecificOperation(op);
+        CLOG(INFO, "Ledger")
+            << "Wrote " << dataToEncode.size() << " data entries";
     }
 }
 }

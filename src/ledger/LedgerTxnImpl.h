@@ -411,21 +411,6 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
 
-    void storeAccount(EntryIterator const& iter, LedgerTxnConsistency cons);
-    void storeData(EntryIterator const& iter, LedgerTxnConsistency cons);
-    void storeOffer(EntryIterator const& iter, LedgerTxnConsistency cons);
-    void storeTrustLine(EntryIterator const& iter, LedgerTxnConsistency cons);
-
-    void deleteAccount(LedgerKey const& key, LedgerTxnConsistency cons);
-    void deleteData(LedgerKey const& key, LedgerTxnConsistency cons);
-    void deleteOffer(LedgerKey const& key, LedgerTxnConsistency cons);
-    void deleteTrustLine(LedgerKey const& key, LedgerTxnConsistency cons);
-
-    void insertOrUpdateAccount(LedgerEntry const& entry, bool isInsert);
-    void insertOrUpdateData(LedgerEntry const& entry, bool isInsert);
-    void insertOrUpdateOffer(LedgerEntry const& entry, bool isInsert);
-    void insertOrUpdateTrustLine(LedgerEntry const& entry, bool isInsert);
-
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
     void bulkUpsertAccounts(std::vector<EntryIterator> const& entries);

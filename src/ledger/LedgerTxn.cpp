@@ -1781,66 +1781,6 @@ LedgerTxnRoot::Impl::rollbackChild()
     mChild = nullptr;
 }
 
-void
-LedgerTxnRoot::Impl::storeAccount(EntryIterator const& iter,
-                                  LedgerTxnConsistency cons)
-{
-    if (iter.entryExists())
-    {
-        auto const previous = getNewestVersion(iter.key());
-        insertOrUpdateAccount(iter.entry(), !previous);
-    }
-    else
-    {
-        deleteAccount(iter.key(), cons);
-    }
-}
-
-void
-LedgerTxnRoot::Impl::storeData(EntryIterator const& iter,
-                               LedgerTxnConsistency cons)
-{
-    if (iter.entryExists())
-    {
-        auto const previous = getNewestVersion(iter.key());
-        insertOrUpdateData(iter.entry(), !previous);
-    }
-    else
-    {
-        deleteData(iter.key(), cons);
-    }
-}
-
-void
-LedgerTxnRoot::Impl::storeOffer(EntryIterator const& iter,
-                                LedgerTxnConsistency cons)
-{
-    if (iter.entryExists())
-    {
-        auto const previous = getNewestVersion(iter.key());
-        insertOrUpdateOffer(iter.entry(), !previous);
-    }
-    else
-    {
-        deleteOffer(iter.key(), cons);
-    }
-}
-
-void
-LedgerTxnRoot::Impl::storeTrustLine(EntryIterator const& iter,
-                                    LedgerTxnConsistency cons)
-{
-    if (iter.entryExists())
-    {
-        auto const previous = getNewestVersion(iter.key());
-        insertOrUpdateTrustLine(iter.entry(), !previous);
-    }
-    else
-    {
-        deleteTrustLine(iter.key(), cons);
-    }
-}
-
 LedgerTxnRoot::Impl::EntryCacheKey
 LedgerTxnRoot::Impl::getEntryCacheKey(LedgerKey const& key) const
 {
