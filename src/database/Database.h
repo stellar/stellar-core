@@ -149,6 +149,7 @@ class Database : NonMovableOrCopyable
     medida::TimerContext getSelectTimer(std::string const& entityName);
     medida::TimerContext getDeleteTimer(std::string const& entityName);
     medida::TimerContext getUpdateTimer(std::string const& entityName);
+    medida::TimerContext getUpsertTimer(std::string const& entityName);
 
     // If possible (i.e. "on postgres") issue an SQL pragma that marks
     // the current transaction as read-only. The effects of this last

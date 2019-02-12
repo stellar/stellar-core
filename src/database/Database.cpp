@@ -260,6 +260,16 @@ Database::getUpdateTimer(std::string const& entityName)
         .TimeScope();
 }
 
+medida::TimerContext
+Database::getUpsertTimer(std::string const& entityName)
+{
+    mEntityTypes.insert(entityName);
+    mQueryMeter.Mark();
+    return mApp.getMetrics()
+        .NewTimer({"database", "upsert", entityName})
+        .TimeScope();
+}
+
 void
 Database::setCurrentTransactionReadOnly()
 {
