@@ -333,6 +333,19 @@ class LedgerTxnRoot::Impl
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
+    // The entry cache maintains relatively strong invariants:
+    //
+    //  - It is only ever populated during a database operation, at root.
+    //
+    //  - Until the (bulk) LedgerTxnRoot::commitChild operation, the only
+    //    database operations are SELECTs, which only populate the cache
+    //    with fresh data from the DB.
+    //
+    //  - On LedgerTxnRoot::commitChild, the cache is cleared.
+    //
+    //  - It is therefore always kept in exact correspondence with the
+    //    database for the keyset that it has entries for. It's a precise
+    //    image of a subset of the database.
     EntryCacheKey getEntryCacheKey(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     getFromEntryCache(EntryCacheKey const& key) const;
