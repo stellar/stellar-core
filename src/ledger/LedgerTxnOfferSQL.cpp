@@ -91,7 +91,8 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(actIDStrKey));
-    st.exchange(soci::use(offerID));
+    int64_t signedOfferID = unsignedToSigned(offerID);
+    st.exchange(soci::use(signedOfferID));
 
     std::vector<LedgerEntry> offers;
     {
