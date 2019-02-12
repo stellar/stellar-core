@@ -60,7 +60,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     historytestutils::TmpDirHistoryConfigurator configurator{};
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
-    simulation->setCurrentTime(genesis(0, 0));
+    simulation->setCurrentVirtualTime(genesis(0, 0));
 
     // configure nodes
     auto keys = std::vector<SecretKey>{};
