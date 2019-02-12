@@ -219,6 +219,8 @@ class EntryIterator
   public:
     EntryIterator(std::unique_ptr<AbstractImpl>&& impl);
 
+    EntryIterator(EntryIterator const& other);
+
     EntryIterator(EntryIterator&& other);
 
     EntryIterator& operator++();

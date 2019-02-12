@@ -37,6 +37,11 @@ EntryIterator::EntryIterator(EntryIterator&& other)
 {
 }
 
+EntryIterator::EntryIterator(EntryIterator const& other)
+    : mImpl(other.mImpl->clone())
+{
+}
+
 std::unique_ptr<EntryIterator::AbstractImpl> const&
 EntryIterator::getImpl() const
 {
@@ -1122,6 +1127,12 @@ LedgerKey const&
 LedgerTxn::Impl::EntryIteratorImpl::key() const
 {
     return mIter->first;
+}
+
+std::unique_ptr<EntryIterator::AbstractImpl>
+LedgerTxn::Impl::EntryIteratorImpl::clone() const
+{
+    return std::make_unique<EntryIteratorImpl>(mIter, mEnd);
 }
 
 // Implementation of LedgerTxnRoot ------------------------------------------

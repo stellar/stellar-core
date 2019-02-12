@@ -25,6 +25,8 @@ class EntryIterator::AbstractImpl
     virtual bool entryExists() const = 0;
 
     virtual LedgerKey const& key() const = 0;
+
+    virtual std::unique_ptr<AbstractImpl> clone() const = 0;
 };
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety
@@ -263,6 +265,8 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     bool entryExists() const override;
 
     LedgerKey const& key() const override;
+
+    std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
 };
 
 // Many functions in LedgerTxnRoot::Impl provide a basic exception safety
