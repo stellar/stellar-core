@@ -42,7 +42,7 @@ class Simulation
     ~Simulation();
 
     // updates all clocks in the simulation to the same time_point
-    void setCurrentTime(VirtualClock::time_point t);
+    void setCurrentVirtualTime(VirtualClock::time_point t);
 
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
                                  Config const* cfg = nullptr,

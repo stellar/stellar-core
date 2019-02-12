@@ -20,10 +20,6 @@ static const uint32_t RECENT_CRANK_WINDOW = 1024;
 VirtualClock::VirtualClock(Mode mode) : mRealTimer(mIOService), mMode(mode)
 {
     resetIdleCrankPercent();
-    if (mMode == REAL_TIME)
-    {
-        mNow = std::chrono::system_clock::now();
-    }
 }
 
 VirtualClock::time_point
@@ -31,9 +27,12 @@ VirtualClock::now() noexcept
 {
     if (mMode == REAL_TIME)
     {
-        mNow = std::chrono::system_clock::now();
+        return std::chrono::system_clock::now();
     }
-    return mNow;
+    else
+    {
+        return mVirtualNow;
+    }
 }
 
 void
@@ -233,21 +232,10 @@ VirtualClock::cancelAllEvents()
 }
 
 void
-VirtualClock::setCurrentTime(time_point t)
+VirtualClock::setCurrentVirtualTime(time_point t)
 {
     assert(mMode == VIRTUAL_TIME);
-    mNow = t;
-}
-
-size_t
-VirtualClock::advanceToNow()
-{
-    if (mDestructing)
-    {
-        return 0;
-    }
-    assert(mMode == REAL_TIME);
-    return advanceTo(now());
+    mVirtualNow = t;
 }
 
 size_t
@@ -426,7 +414,7 @@ VirtualClock::~VirtualClock()
 }
 
 size_t
-VirtualClock::advanceTo(time_point n)
+VirtualClock::advanceToNow()
 {
     if (mDestructing)
     {
@@ -436,11 +424,11 @@ VirtualClock::advanceTo(time_point n)
 
     // LOG(DEBUG) << "VirtualClock::advanceTo("
     //            << n.time_since_epoch().count() << ")";
-    mNow = n;
+    auto n = now();
     vector<shared_ptr<VirtualClockEvent>> toDispatch;
     while (!mEvents.empty())
     {
-        if (mEvents.top()->mWhen > mNow)
+        if (mEvents.top()->mWhen > n)
             break;
         toDispatch.push_back(mEvents.top());
         mEvents.pop();
@@ -470,7 +458,9 @@ VirtualClock::advanceToNext()
     {
         return 0;
     }
-    return advanceTo(next());
+
+    mVirtualNow = next();
+    return advanceToNow();
 }
 
 VirtualClockEvent::VirtualClockEvent(

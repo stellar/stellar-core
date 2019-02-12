@@ -55,12 +55,12 @@ Simulation::~Simulation()
 }
 
 void
-Simulation::setCurrentTime(VirtualClock::time_point t)
+Simulation::setCurrentVirtualTime(VirtualClock::time_point t)
 {
-    mClock.setCurrentTime(t);
+    mClock.setCurrentVirtualTime(t);
     for (auto& p : mNodes)
     {
-        p.second.mClock->setCurrentTime(t);
+        p.second.mClock->setCurrentVirtualTime(t);
     }
 }
 
@@ -89,7 +89,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
                                                     : VirtualClock::REAL_TIME);
     if (mVirtualClockMode)
     {
-        clock->setCurrentTime(mClock.now());
+        clock->setCurrentVirtualTime(mClock.now());
     }
 
     auto app = Application::create(*clock, *cfg, newDB);
