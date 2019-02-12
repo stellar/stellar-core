@@ -105,9 +105,10 @@ void
 Bucket::apply(Application& app) const
 {
     BucketApplicator applicator(app, shared_from_this());
+    BucketApplicator::Counters counters(std::chrono::system_clock::now());
     while (applicator)
     {
-        applicator.advance();
+        applicator.advance(counters);
     }
 }
 
