@@ -311,7 +311,6 @@ class LedgerTxnRoot::Impl
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;
     std::vector<LedgerEntry> loadOffers(StatementContext& prep) const;
-    std::vector<Signer> loadSigners(LedgerKey const& key) const;
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
                                                       int64_t minBalance) const;
     std::shared_ptr<LedgerEntry const>
@@ -321,9 +320,6 @@ class LedgerTxnRoot::Impl
     void storeData(EntryIterator const& iter);
     void storeOffer(EntryIterator const& iter);
     void storeTrustLine(EntryIterator const& iter);
-
-    void storeSigners(LedgerEntry const& entry,
-                      std::shared_ptr<LedgerEntry const> const& previous);
 
     void deleteAccount(LedgerKey const& key);
     void deleteData(LedgerKey const& key);
@@ -419,5 +415,11 @@ class LedgerTxnRoot::Impl
 
     // rollbackChild has the strong exception safety guarantee.
     void rollbackChild();
+
+    // writeSignersTableIntoAccountsTable has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    void writeSignersTableIntoAccountsTable();
 };
 }

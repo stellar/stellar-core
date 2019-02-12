@@ -55,7 +55,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 8;
+static unsigned long const SCHEMA_VERSION = 9;
 
 static void
 setSerializable(soci::session& sess)
@@ -135,6 +135,11 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 8:
         mSession << "ALTER TABLE peers RENAME flags TO type";
         mSession << "UPDATE peers SET type = 2*type";
+        break;
+    case 9:
+        mSession << "ALTER TABLE accounts ADD signers TEXT";
+        mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
+        mSession << "DROP TABLE IF EXISTS signers";
         break;
 
     default:
