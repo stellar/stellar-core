@@ -105,6 +105,7 @@ LedgerTxn::Impl::Impl(LedgerTxn& self, AbstractLedgerTxnParent& parent,
     , mHeader(std::make_unique<LedgerHeader>(mParent.getHeader()))
     , mShouldUpdateLastModified(shouldUpdateLastModified)
     , mIsSealed(false)
+    , mConsistency(LedgerTxnConsistency::EXACT)
 {
     mParent.addChild(self);
 }
@@ -167,6 +168,15 @@ LedgerTxn::Impl::throwIfSealed() const
 }
 
 void
+LedgerTxn::Impl::throwIfNotExactConsistency() const
+{
+    if (mConsistency != LedgerTxnConsistency::EXACT)
+    {
+        throw std::runtime_error("LedgerTxn consistency level is not exact");
+    }
+}
+
+void
 LedgerTxn::commit()
 {
     getImpl()->commit();
@@ -179,22 +189,36 @@ LedgerTxn::Impl::commit()
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         // getEntryIterator has the strong exception safety guarantee
         // commitChild has the strong exception safety guarantee
-        mParent.commitChild(getEntryIterator(entries));
+        mParent.commitChild(getEntryIterator(entries), mConsistency);
     });
 }
 
 void
-LedgerTxn::commitChild(EntryIterator iter)
+LedgerTxn::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 {
-    getImpl()->commitChild(std::move(iter));
+    getImpl()->commitChild(std::move(iter), cons);
+}
+
+static LedgerTxnConsistency
+joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
+{
+    switch (c1)
+    {
+    case LedgerTxnConsistency::EXACT:
+        return c2;
+    case LedgerTxnConsistency::EXTRA_DELETES:
+        return LedgerTxnConsistency::EXTRA_DELETES;
+    }
 }
 
 void
-LedgerTxn::Impl::commitChild(EntryIterator iter)
+LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 {
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
+
+    mConsistency = joinConsistencyLevels(mConsistency, cons);
 
     try
     {
@@ -261,6 +285,31 @@ LedgerTxn::Impl::create(LedgerTxn& self, LedgerEntry const& entry)
     // std::shared_ptr assignment is noexcept
     mEntry[key] = current;
     return ltxe;
+}
+
+void
+LedgerTxn::createOrUpdateWithoutLoading(LedgerEntry const& entry)
+{
+    return getImpl()->createOrUpdateWithoutLoading(*this, entry);
+}
+
+void
+LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
+                                              LedgerEntry const& entry)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    auto key = LedgerEntryKey(entry);
+    auto iter = mActive.find(key);
+    if (iter != mActive.end())
+    {
+        throw std::runtime_error("Key is already active");
+    }
+
+    // std::shared_ptr assignment is noexcept, and map
+    // index on a single key is strong-guarantee.
+    mEntry[key] = std::make_shared<LedgerEntry>(entry);
 }
 
 void
@@ -345,6 +394,45 @@ LedgerTxn::Impl::erase(LedgerKey const& key)
         // erase(iter) does not throw
         mActive.erase(activeIter);
     }
+}
+
+void
+LedgerTxn::eraseWithoutLoading(LedgerKey const& key)
+{
+    getImpl()->eraseWithoutLoading(key);
+}
+
+void
+LedgerTxn::Impl::eraseWithoutLoading(LedgerKey const& key)
+{
+    throwIfSealed();
+    throwIfChild();
+
+    auto activeIter = mActive.find(key);
+    bool isActive = activeIter != mActive.end();
+
+    auto iter = mEntry.find(key);
+    if (iter != mEntry.end())
+    {
+        iter->second.reset();
+    }
+    else
+    {
+        // C++14 requirements for exception safety of associative containers
+        // guarantee that if emplace throws when inserting a single element
+        // then the insertion has no effect
+        mEntry.emplace(key, nullptr);
+    }
+    // Note: Cannot throw after this point because the entry will not be
+    // deactivated in that case
+
+    if (isActive)
+    {
+        // C++14 requirements for exception safety of containers guarantee that
+        // erase(iter) does not throw
+        mActive.erase(activeIter);
+    }
+    mConsistency = LedgerTxnConsistency::EXTRA_DELETES;
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>
@@ -449,6 +537,7 @@ LedgerTxn::getChanges()
 LedgerEntryChanges
 LedgerTxn::Impl::getChanges()
 {
+    throwIfNotExactConsistency();
     LedgerEntryChanges changes;
     changes.reserve(mEntry.size() * 2);
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
@@ -497,6 +586,7 @@ LedgerTxn::getDeadEntries()
 std::vector<LedgerKey>
 LedgerTxn::Impl::getDeadEntries()
 {
+    throwIfNotExactConsistency();
     std::vector<LedgerKey> res;
     res.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
@@ -522,6 +612,7 @@ LedgerTxn::getDelta()
 LedgerTxnDelta
 LedgerTxn::Impl::getDelta()
 {
+    throwIfNotExactConsistency();
     LedgerTxnDelta delta;
     delta.entry.reserve(mEntry.size());
     maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
@@ -1191,13 +1282,13 @@ LedgerTxnRoot::Impl::throwIfChild() const
 }
 
 void
-LedgerTxnRoot::commitChild(EntryIterator iter)
+LedgerTxnRoot::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 {
-    mImpl->commitChild(std::move(iter));
+    mImpl->commitChild(std::move(iter), cons);
 }
 
 void
-LedgerTxnRoot::Impl::commitChild(EntryIterator iter)
+LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 {
     // Assignment of xdrpp objects does not have the strong exception safety
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
@@ -1211,16 +1302,16 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter)
             switch (key.type())
             {
             case ACCOUNT:
-                storeAccount(iter);
+                storeAccount(iter, cons);
                 break;
             case DATA:
-                storeData(iter);
+                storeData(iter, cons);
                 break;
             case OFFER:
-                storeOffer(iter);
+                storeOffer(iter, cons);
                 break;
             case TRUSTLINE:
-                storeTrustLine(iter);
+                storeTrustLine(iter, cons);
                 break;
             default:
                 throw std::runtime_error("Unknown key type");
@@ -1617,7 +1708,8 @@ LedgerTxnRoot::Impl::rollbackChild()
 }
 
 void
-LedgerTxnRoot::Impl::storeAccount(EntryIterator const& iter)
+LedgerTxnRoot::Impl::storeAccount(EntryIterator const& iter,
+                                  LedgerTxnConsistency cons)
 {
     if (iter.entryExists())
     {
@@ -1626,12 +1718,13 @@ LedgerTxnRoot::Impl::storeAccount(EntryIterator const& iter)
     }
     else
     {
-        deleteAccount(iter.key());
+        deleteAccount(iter.key(), cons);
     }
 }
 
 void
-LedgerTxnRoot::Impl::storeData(EntryIterator const& iter)
+LedgerTxnRoot::Impl::storeData(EntryIterator const& iter,
+                               LedgerTxnConsistency cons)
 {
     if (iter.entryExists())
     {
@@ -1640,12 +1733,13 @@ LedgerTxnRoot::Impl::storeData(EntryIterator const& iter)
     }
     else
     {
-        deleteData(iter.key());
+        deleteData(iter.key(), cons);
     }
 }
 
 void
-LedgerTxnRoot::Impl::storeOffer(EntryIterator const& iter)
+LedgerTxnRoot::Impl::storeOffer(EntryIterator const& iter,
+                                LedgerTxnConsistency cons)
 {
     if (iter.entryExists())
     {
@@ -1654,12 +1748,13 @@ LedgerTxnRoot::Impl::storeOffer(EntryIterator const& iter)
     }
     else
     {
-        deleteOffer(iter.key());
+        deleteOffer(iter.key(), cons);
     }
 }
 
 void
-LedgerTxnRoot::Impl::storeTrustLine(EntryIterator const& iter)
+LedgerTxnRoot::Impl::storeTrustLine(EntryIterator const& iter,
+                                    LedgerTxnConsistency cons)
 {
     if (iter.entryExists())
     {
@@ -1668,7 +1763,7 @@ LedgerTxnRoot::Impl::storeTrustLine(EntryIterator const& iter)
     }
     else
     {
-        deleteTrustLine(iter.key());
+        deleteTrustLine(iter.key(), cons);
     }
 }
 

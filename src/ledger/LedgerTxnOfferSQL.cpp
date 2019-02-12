@@ -455,7 +455,8 @@ LedgerTxnRoot::Impl::insertOrUpdateOffer(LedgerEntry const& entry,
 }
 
 void
-LedgerTxnRoot::Impl::deleteOffer(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteOffer(LedgerKey const& key,
+                                 LedgerTxnConsistency cons)
 {
     auto const& offer = key.offer();
 
@@ -468,7 +469,7 @@ LedgerTxnRoot::Impl::deleteOffer(LedgerKey const& key)
         auto timer = mDatabase.getDeleteTimer("offer");
         st.execute(true);
     }
-    if (st.get_affected_rows() != 1)
+    if (st.get_affected_rows() != 1 && cons == LedgerTxnConsistency::EXACT)
     {
         throw std::runtime_error("Could not update data in SQL");
     }

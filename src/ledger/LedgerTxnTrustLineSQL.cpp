@@ -156,7 +156,8 @@ LedgerTxnRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
 }
 
 void
-LedgerTxnRoot::Impl::deleteTrustLine(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteTrustLine(LedgerKey const& key,
+                                     LedgerTxnConsistency cons)
 {
     auto const& tl = key.trustLine();
 
@@ -176,7 +177,7 @@ LedgerTxnRoot::Impl::deleteTrustLine(LedgerKey const& key)
         auto timer = mDatabase.getDeleteTimer("trust");
         st.execute(true);
     }
-    if (st.get_affected_rows() != 1)
+    if (st.get_affected_rows() != 1 && cons == LedgerTxnConsistency::EXACT)
     {
         throw std::runtime_error("Could not update data in SQL");
     }

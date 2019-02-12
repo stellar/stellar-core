@@ -54,9 +54,11 @@ class LedgerTxn::Impl
     std::unordered_map<LedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
+    LedgerTxnConsistency mConsistency;
 
     void throwIfChild() const;
     void throwIfSealed() const;
+    void throwIfNotExactConsistency() const;
 
     // getDeltaVotes has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -99,7 +101,7 @@ class LedgerTxn::Impl
     void commit();
 
     // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
 
     // create has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -197,6 +199,17 @@ class LedgerTxn::Impl
     //   modified
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry load(LedgerTxn& self, LedgerKey const& key);
+
+    // createOrUpdateWithoutLoading has the strong exception safety guarantee.
+    // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
+    void createOrUpdateWithoutLoading(LedgerTxn& self,
+                                      LedgerEntry const& entry);
+
+    // eraseWithoutLoading has the basic exception safety guarantee. If it
+    // throws an exception, then
+    // - the current LedgerTxn::Impl may, but is not guaranteed to, have
+    //   the entry associated with the given key removed.
+    void eraseWithoutLoading(LedgerKey const& key);
 
     // loadAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -320,15 +333,15 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
 
-    void storeAccount(EntryIterator const& iter);
-    void storeData(EntryIterator const& iter);
-    void storeOffer(EntryIterator const& iter);
-    void storeTrustLine(EntryIterator const& iter);
+    void storeAccount(EntryIterator const& iter, LedgerTxnConsistency cons);
+    void storeData(EntryIterator const& iter, LedgerTxnConsistency cons);
+    void storeOffer(EntryIterator const& iter, LedgerTxnConsistency cons);
+    void storeTrustLine(EntryIterator const& iter, LedgerTxnConsistency cons);
 
-    void deleteAccount(LedgerKey const& key);
-    void deleteData(LedgerKey const& key);
-    void deleteOffer(LedgerKey const& key);
-    void deleteTrustLine(LedgerKey const& key);
+    void deleteAccount(LedgerKey const& key, LedgerTxnConsistency cons);
+    void deleteData(LedgerKey const& key, LedgerTxnConsistency cons);
+    void deleteOffer(LedgerKey const& key, LedgerTxnConsistency cons);
+    void deleteTrustLine(LedgerKey const& key, LedgerTxnConsistency cons);
 
     void insertOrUpdateAccount(LedgerEntry const& entry, bool isInsert);
     void insertOrUpdateData(LedgerEntry const& entry, bool isInsert);
@@ -370,7 +383,7 @@ class LedgerTxnRoot::Impl
     void addChild(AbstractLedgerTxn& child);
 
     // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
 
     // countObjects has the strong exception safety guarantee.
     uint64_t countObjects(LedgerEntryType let) const;

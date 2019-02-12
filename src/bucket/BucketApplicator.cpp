@@ -47,25 +47,11 @@ BucketApplicator::advance()
     {
         if ((*mBucketIter).type() == LIVEENTRY)
         {
-            auto const& bucketEntry = (*mBucketIter).liveEntry();
-            auto key = LedgerEntryKey(bucketEntry);
-            auto entry = ltx.load(key);
-            if (entry)
-            {
-                entry.current() = bucketEntry;
-            }
-            else
-            {
-                ltx.create(bucketEntry);
-            }
+            ltx.createOrUpdateWithoutLoading((*mBucketIter).liveEntry());
         }
         else
         {
-            auto entry = ltx.load((*mBucketIter).deadEntry());
-            if (entry)
-            {
-                entry.erase();
-            }
+            ltx.eraseWithoutLoading((*mBucketIter).deadEntry());
         }
 
         if ((++count & 0xff) == 0xff)

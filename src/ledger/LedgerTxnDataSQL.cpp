@@ -89,7 +89,7 @@ LedgerTxnRoot::Impl::insertOrUpdateData(LedgerEntry const& entry, bool isInsert)
 }
 
 void
-LedgerTxnRoot::Impl::deleteData(LedgerKey const& key)
+LedgerTxnRoot::Impl::deleteData(LedgerKey const& key, LedgerTxnConsistency cons)
 {
     auto const& data = key.data();
     std::string actIDStrKey = KeyUtils::toStrKey(data.accountID);
@@ -105,7 +105,7 @@ LedgerTxnRoot::Impl::deleteData(LedgerKey const& key)
         auto timer = mDatabase.getDeleteTimer("data");
         st.execute(true);
     }
-    if (st.get_affected_rows() != 1)
+    if (st.get_affected_rows() != 1 && cons == LedgerTxnConsistency::EXACT)
     {
         throw std::runtime_error("Could not update data in SQL");
     }
