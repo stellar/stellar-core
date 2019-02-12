@@ -12,31 +12,43 @@
 namespace stellar
 {
 
-std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
+static void
+getTrustLineStrings(AccountID const& accountID, Asset const& asset,
+                    std::string& accountIDStr, std::string& issuerStr,
+                    std::string& assetCodeStr)
 {
-    auto const& asset = key.trustLine().asset;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         throw std::runtime_error("XLM TrustLine?");
     }
-    else if (key.trustLine().accountID == getIssuer(asset))
+    else if (accountID == getIssuer(asset))
     {
         throw std::runtime_error("TrustLine accountID is issuer");
     }
 
-    std::string actIDStrKey = KeyUtils::toStrKey(key.trustLine().accountID);
-    std::string issuerStr, assetStr;
+    accountIDStr = KeyUtils::toStrKey(accountID);
     if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
-        assetCodeToStr(asset.alphaNum4().assetCode, assetStr);
+        assetCodeToStr(asset.alphaNum4().assetCode, assetCodeStr);
         issuerStr = KeyUtils::toStrKey(asset.alphaNum4().issuer);
     }
     else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
-        assetCodeToStr(asset.alphaNum12().assetCode, assetStr);
+        assetCodeToStr(asset.alphaNum12().assetCode, assetCodeStr);
         issuerStr = KeyUtils::toStrKey(asset.alphaNum12().issuer);
     }
+    else
+    {
+        throw std::runtime_error("Unknown asset type");
+    }
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
+{
+    std::string accountIDStr, issuerStr, assetStr;
+    getTrustLineStrings(key.trustLine().accountID, key.trustLine().asset,
+                        accountIDStr, issuerStr, assetStr);
 
     Liabilities liabilities;
     soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
@@ -56,7 +68,7 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     st.exchange(soci::into(le.lastModifiedLedgerSeq));
     st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
     st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
-    st.exchange(soci::use(actIDStrKey));
+    st.exchange(soci::use(accountIDStr));
     st.exchange(soci::use(issuerStr));
     st.exchange(soci::use(assetStr));
     st.define_and_bind();
@@ -88,25 +100,11 @@ LedgerTxnRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
 {
     auto const& tl = entry.data.trustLine();
 
-    std::string actIDStrKey = KeyUtils::toStrKey(tl.accountID);
-    unsigned int assetType = tl.asset.type();
-    std::string issuerStr, assetCode;
-    if (tl.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        issuerStr = KeyUtils::toStrKey(tl.asset.alphaNum4().issuer);
-        assetCodeToStr(tl.asset.alphaNum4().assetCode, assetCode);
-    }
-    else if (tl.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        issuerStr = KeyUtils::toStrKey(tl.asset.alphaNum12().issuer);
-        assetCodeToStr(tl.asset.alphaNum12().assetCode, assetCode);
-    }
-    if (actIDStrKey == issuerStr)
-    {
-        throw std::runtime_error("Issuer's own trustline should not be used "
-                                 "outside of OperationFrame");
-    }
+    std::string accountIDStr, issuerStr, assetCodeStr;
+    getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
+                        assetCodeStr);
 
+    unsigned int assetType = tl.asset.type();
     Liabilities liabilities;
     soci::indicator liabilitiesInd = soci::i_null;
     if (tl.ext.v() == 1)
@@ -132,13 +130,13 @@ LedgerTxnRoot::Impl::insertOrUpdateTrustLine(LedgerEntry const& entry,
     }
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey, "id"));
+    st.exchange(soci::use(accountIDStr, "id"));
     if (isInsert)
     {
         st.exchange(soci::use(assetType, "at"));
     }
     st.exchange(soci::use(issuerStr, "iss"));
-    st.exchange(soci::use(assetCode, "ac"));
+    st.exchange(soci::use(assetCodeStr, "ac"));
     st.exchange(soci::use(tl.balance, "b"));
     st.exchange(soci::use(tl.limit, "tl"));
     st.exchange(soci::use(tl.flags, "f"));
@@ -162,31 +160,17 @@ LedgerTxnRoot::Impl::deleteTrustLine(LedgerKey const& key)
 {
     auto const& tl = key.trustLine();
 
-    std::string actIDStrKey = KeyUtils::toStrKey(tl.accountID);
-    std::string issuerStr, assetCode;
-    if (tl.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        issuerStr = KeyUtils::toStrKey(tl.asset.alphaNum4().issuer);
-        assetCodeToStr(tl.asset.alphaNum4().assetCode, assetCode);
-    }
-    else if (tl.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        issuerStr = KeyUtils::toStrKey(tl.asset.alphaNum12().issuer);
-        assetCodeToStr(tl.asset.alphaNum12().assetCode, assetCode);
-    }
-    if (actIDStrKey == issuerStr)
-    {
-        throw std::runtime_error("Issuer's own trustline should not be used "
-                                 "outside of OperationFrame");
-    }
+    std::string accountIDStr, issuerStr, assetCodeStr;
+    getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
+                        assetCodeStr);
 
     auto prep = mDatabase.getPreparedStatement(
         "DELETE FROM trustlines "
         "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3");
     auto& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey));
+    st.exchange(soci::use(accountIDStr));
     st.exchange(soci::use(issuerStr));
-    st.exchange(soci::use(assetCode));
+    st.exchange(soci::use(assetCodeStr));
     st.define_and_bind();
     {
         auto timer = mDatabase.getDeleteTimer("trust");
