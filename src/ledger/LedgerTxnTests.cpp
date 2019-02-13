@@ -2021,6 +2021,114 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
     }
 }
 
+TEST_CASE("Create performance benchmark", "[!hide][createbench]")
+{
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, mode));
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+        size_t n = 0xffff, batch = 0xfff;
+
+        std::vector<LedgerEntry> entries;
+        for (auto i = 0; i < 10; ++i)
+        {
+            // First add some bulking entries so we're not using a
+            // totally empty database.
+            entries = LedgerTestUtils::generateValidLedgerEntries(n);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (auto e : entries) {
+                ltx.create(e);
+            }
+            ltx.commit();
+        }
+
+
+        // Then do some precise timed creates.
+        entries = LedgerTestUtils::generateValidLedgerEntries(n);
+        auto &m = app->getMetrics().NewMeter({"ledger", "create", "commit"},
+                                             "entry");
+        while (!entries.empty())
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (size_t i = 0; !entries.empty() && i < batch; ++i)
+            {
+                ltx.create(entries.back());
+                entries.pop_back();
+            }
+            ltx.commit();
+            m.Mark(batch);
+            CLOG(INFO, "Ledger") << "benchmark create rate: "
+                                 << m.mean_rate() << " entries/sec";
+        }
+    };
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
+}
+
+TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
+{
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, mode));
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+        size_t n = 0xffff, batch = 0xfff;
+
+        std::vector<LedgerEntry> entries;
+        for (auto i = 0; i < 10; ++i)
+        {
+            // First add some bulking entries so we're not using a
+            // totally empty database.
+            entries = LedgerTestUtils::generateValidLedgerEntries(n);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (auto e : entries) {
+                ltx.create(e);
+            }
+            ltx.commit();
+        }
+
+        // Then do some precise timed erases.
+        auto &m = app->getMetrics().NewMeter({"ledger", "erase", "commit"},
+                                             "entry");
+        while (!entries.empty())
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (size_t i = 0; !entries.empty() && i < batch; ++i)
+            {
+                ltx.erase(LedgerEntryKey(entries.back()));
+                entries.pop_back();
+            }
+            ltx.commit();
+            m.Mark(batch);
+            CLOG(INFO, "Ledger") << "benchmark erase rate: "
+                                 << m.mean_rate() << " entries/sec";
+        }
+    };
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
+}
+
 TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
 {
     auto getTimeScope = [](Application& app, uint32_t numSigners,
