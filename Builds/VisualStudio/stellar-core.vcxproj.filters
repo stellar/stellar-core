@@ -189,6 +189,9 @@
     <ClCompile Include="..\..\src\util\Logging.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\LogSlowExecution.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\Timer.cpp">
       <Filter>util</Filter>
     </ClCompile>

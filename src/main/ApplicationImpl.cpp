@@ -725,10 +725,12 @@ void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f,
                                   std::string jobName)
 {
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
-                            "executed after"};
-    mVirtualClock.postToCurrentCrank([ this, f = std::move(f), isSlow ]() {
-        mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
+    mVirtualClock.postToCurrentCrank([
+        this, f = std::move(f), start = std::chrono::system_clock::now(),
+        jobName
+    ]() {
+        mPostOnMainThreadDelay.Update(
+            logSlowExecution(start, std::move(jobName), "executed after"));
         f();
     });
 }
@@ -737,10 +739,12 @@ void
 ApplicationImpl::postOnMainThreadWithDelay(std::function<void()>&& f,
                                            std::string jobName)
 {
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
-                            "executed after"};
-    mVirtualClock.postToNextCrank([ this, f = std::move(f), isSlow ]() {
-        mPostOnMainThreadWithDelayDelay.Update(isSlow.checkElapsedTime());
+    mVirtualClock.postToNextCrank([
+        this, f = std::move(f), start = std::chrono::system_clock::now(),
+        jobName
+    ]() {
+        mPostOnMainThreadWithDelayDelay.Update(
+            logSlowExecution(start, std::move(jobName), "executed after"));
         f();
     });
 }
@@ -749,10 +753,12 @@ void
 ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName)
 {
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
-                            "executed after"};
-    getWorkerIOService().post([ this, f = std::move(f), isSlow ]() {
-        mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
+    getWorkerIOService().post([
+        this, f = std::move(f), start = std::chrono::system_clock::now(),
+        jobName
+    ]() {
+        mPostOnBackgroundThreadDelay.Update(
+            logSlowExecution(start, std::move(jobName), "executed after"));
         f();
     });
 }

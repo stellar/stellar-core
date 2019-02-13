@@ -528,6 +528,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
+    <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp" />
     <ClCompile Include="..\..\src\work\Work.cpp" />
     <ClCompile Include="..\..\src\work\WorkManagerImpl.cpp" />
