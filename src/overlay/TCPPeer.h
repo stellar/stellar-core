@@ -30,7 +30,10 @@ class TCPPeer : public Peer
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
-    std::queue<std::shared_ptr<xdr::msg_ptr>> mWriteQueue;
+    using MessageWithTimestamp =
+        std::pair<std::shared_ptr<xdr::msg_ptr>,
+                  std::chrono::system_clock::time_point>;
+    std::queue<MessageWithTimestamp> mWriteQueue;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};

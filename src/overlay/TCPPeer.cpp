@@ -13,8 +13,11 @@
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
+
+#include <lib/util/format.h>
 
 using namespace soci;
 
@@ -146,7 +149,8 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-    self->mWriteQueue.emplace(buf);
+    self->mWriteQueue.emplace(
+        std::make_pair(buf, std::chrono::system_clock::now()));
 
     if (!self->mWriting)
     {
@@ -255,20 +259,36 @@ TCPPeer::messageSender()
     // peek the buffer from the queue
     // do not remove it yet as we need the buffer for the duration of the
     // write operation
-    auto buf = mWriteQueue.front();
+    auto buf = mWriteQueue.front().first;
+    auto start = mWriteQueue.front().second;
 
-    asio::async_write(*(mSocket.get()),
-                      asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-                      [self](asio::error_code const& ec, std::size_t length) {
-                          self->writeHandler(ec, length);
-                          self->mWriteQueue.pop(); // done with front element
+    asio::async_write(
+        *(mSocket.get()), asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
+        [self, start](asio::error_code const& ec, std::size_t length) {
+            using namespace std::chrono;
+            auto slowTimeout =
+                duration_cast<milliseconds>(self->getIOTimeout()) / 3;
+            auto elapsed = logSlowExecution(
+                start,
+                fmt::format("TCPPeer::messageSender on {}", self->toString()),
+                "sent after", slowTimeout);
+            if (elapsed >= self->getIOTimeout())
+            {
+                CLOG(ERROR, "Overlay")
+                    << "Peer " << self->toString() << " is very slow, dropping";
+                self->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+                return;
+            }
 
-                          // continue processing the queue/flush
-                          if (!ec)
-                          {
-                              self->messageSender();
-                          }
-                      });
+            self->writeHandler(ec, length);
+            self->mWriteQueue.pop(); // done with front element
+
+            // continue processing the queue/flush
+            if (!ec)
+            {
+                self->messageSender();
+            }
+        });
 }
 
 void
