@@ -1287,6 +1287,93 @@ LedgerTxnRoot::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     mImpl->commitChild(std::move(iter), cons);
 }
 
+static void
+accum(EntryIterator const& iter, std::vector<EntryIterator>& upsertBuffer,
+      std::vector<EntryIterator>& deleteBuffer)
+{
+    if (iter.entryExists())
+        upsertBuffer.emplace_back(iter);
+    else
+        deleteBuffer.emplace_back(iter);
+}
+
+void
+BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
+{
+    switch (iter.key().type())
+    {
+    case ACCOUNT:
+        accum(iter, mAccountsToUpsert, mAccountsToDelete);
+        break;
+    case TRUSTLINE:
+        accum(iter, mTrustLinesToUpsert, mTrustLinesToDelete);
+        break;
+    case OFFER:
+        accum(iter, mOffersToUpsert, mOffersToDelete);
+        break;
+    case DATA:
+        accum(iter, mAccountDataToUpsert, mAccountDataToDelete);
+        break;
+    default:
+        abort();
+    }
+}
+
+void
+LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
+                               size_t bufferThreshold,
+                               LedgerTxnConsistency cons)
+{
+    auto& upsertAccounts = bleca.getAccountsToUpsert();
+    if (upsertAccounts.size() > bufferThreshold)
+    {
+        bulkUpsertAccounts(upsertAccounts);
+        upsertAccounts.clear();
+    }
+    auto& deleteAccounts = bleca.getAccountsToDelete();
+    if (deleteAccounts.size() > bufferThreshold)
+    {
+        bulkDeleteAccounts(deleteAccounts, cons);
+        deleteAccounts.clear();
+    }
+    auto& upsertTrustLines = bleca.getTrustLinesToUpsert();
+    if (upsertTrustLines.size() > bufferThreshold)
+    {
+        bulkUpsertTrustLines(upsertTrustLines);
+        upsertTrustLines.clear();
+    }
+    auto& deleteTrustLines = bleca.getTrustLinesToDelete();
+    if (deleteTrustLines.size() > bufferThreshold)
+    {
+        bulkDeleteTrustLines(deleteTrustLines, cons);
+        deleteTrustLines.clear();
+    }
+    auto& upsertOffers = bleca.getOffersToUpsert();
+    if (upsertOffers.size() > bufferThreshold)
+    {
+        bulkUpsertOffers(upsertOffers);
+        upsertOffers.clear();
+    }
+    auto& deleteOffers = bleca.getOffersToDelete();
+    if (deleteOffers.size() > bufferThreshold)
+    {
+        bulkDeleteOffers(deleteOffers, cons);
+        deleteOffers.clear();
+    }
+    auto& upsertAccountData = bleca.getAccountDataToUpsert();
+    if (upsertAccountData.size() > bufferThreshold)
+    {
+        bulkUpsertAccountData(upsertAccountData);
+        upsertAccountData.clear();
+    }
+    auto& deleteAccountData = bleca.getAccountDataToDelete();
+    if (deleteAccountData.size() > bufferThreshold)
+    {
+        bulkDeleteAccountData(deleteAccountData, cons);
+        deleteAccountData.clear();
+    }
+}
+
 void
 LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 {
@@ -1294,30 +1381,17 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // guarantee, so use std::unique_ptr<...>::swap to achieve it
     auto childHeader = std::make_unique<LedgerHeader>(mChild->getHeader());
 
+    auto bleca = BulkLedgerEntryChangeAccumulator();
     try
     {
-        for (; (bool)iter; ++iter)
+        while ((bool)iter)
         {
-            auto const& key = iter.key();
-            switch (key.type())
-            {
-            case ACCOUNT:
-                storeAccount(iter, cons);
-                break;
-            case DATA:
-                storeData(iter, cons);
-                break;
-            case OFFER:
-                storeOffer(iter, cons);
-                break;
-            case TRUSTLINE:
-                storeTrustLine(iter, cons);
-                break;
-            default:
-                throw std::runtime_error("Unknown key type");
-            }
+            bleca.accumulate(iter);
+            ++iter;
+            size_t bufferThreshold =
+                (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
+            bulkApply(bleca, bufferThreshold, cons);
         }
-
         mTransaction->commit();
         mDatabase.clearPreparedStatementCache();
     }

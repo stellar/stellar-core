@@ -5,9 +5,11 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
+#include "util/types.h"
 
 namespace stellar
 {
@@ -109,6 +111,224 @@ LedgerTxnRoot::Impl::deleteData(LedgerKey const& key, LedgerTxnConsistency cons)
     {
         throw std::runtime_error("Could not update data in SQL");
     }
+}
+
+class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation
+{
+    Database& mDB;
+    std::vector<std::string> mAccountIDs;
+    std::vector<std::string> mDataNames;
+    std::vector<std::string> mDataValues;
+    std::vector<int32_t> mLastModifieds;
+
+    void
+    accumulateEntry(LedgerEntry const& entry)
+    {
+        assert(entry.data.type() == DATA);
+        DataEntry const& data = entry.data.data();
+        mAccountIDs.emplace_back(KeyUtils::toStrKey(data.accountID));
+        mDataNames.emplace_back(decoder::encode_b64(data.dataName));
+        mDataValues.emplace_back(decoder::encode_b64(data.dataValue));
+        mLastModifieds.emplace_back(
+            unsignedToSigned(entry.lastModifiedLedgerSeq));
+    }
+
+  public:
+    BulkUpsertDataOperation(Database& DB,
+                            std::vector<LedgerEntry> const& entries)
+        : mDB(DB)
+    {
+        for (auto const& e : entries)
+        {
+            accumulateEntry(e);
+        }
+    }
+
+    BulkUpsertDataOperation(Database& DB,
+                            std::vector<EntryIterator> const& entryIter)
+        : mDB(DB)
+    {
+        std::vector<LedgerEntry> entries;
+        entries.reserve(entries.size());
+        for (auto const& e : entryIter)
+        {
+            assert(e.entryExists());
+            accumulateEntry(e.entry());
+        }
+    }
+
+    void
+    doSociGenericOperation()
+    {
+        std::string sql = "INSERT INTO accountdata ( "
+                          "accountid, dataname, datavalue, lastmodified "
+                          ") VALUES ( "
+                          ":id, :v1, :v2, :v3 "
+                          ") ON CONFLICT (accountid, dataname) DO UPDATE SET "
+                          "datavalue = excluded.datavalue, "
+                          "lastmodified = excluded.lastmodified ";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(mAccountIDs));
+        st.exchange(soci::use(mDataNames));
+        st.exchange(soci::use(mDataValues));
+        st.exchange(soci::use(mLastModifieds));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getUpsertTimer("data");
+            st.execute(true);
+        }
+        if (st.get_affected_rows() != mAccountIDs.size())
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+
+    void
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        doSociGenericOperation();
+    }
+#ifdef USE_POSTGRES
+    void
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        std::string strAccountIDs, strDataNames, strDataValues,
+            strLastModifieds;
+
+        PGconn* conn = pg->conn_;
+        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+        marshalToPGArray(conn, strDataNames, mDataNames);
+        marshalToPGArray(conn, strDataValues, mDataValues);
+        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
+        std::string sql = "WITH r AS (SELECT "
+                          "unnest(:ids::TEXT[]), "
+                          "unnest(:v1::TEXT[]), "
+                          "unnest(:v2::TEXT[]), "
+                          "unnest(:v3::INT[]) "
+                          ")"
+                          "INSERT INTO accountdata ( "
+                          "accountid, dataname, datavalue, lastmodified "
+                          ") SELECT * FROM r "
+                          "ON CONFLICT (accountid, dataname) DO UPDATE SET "
+                          "datavalue = excluded.datavalue, "
+                          "lastmodified = excluded.lastmodified ";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(strAccountIDs));
+        st.exchange(soci::use(strDataNames));
+        st.exchange(soci::use(strDataValues));
+        st.exchange(soci::use(strLastModifieds));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getUpsertTimer("data");
+            st.execute(true);
+        }
+        if (st.get_affected_rows() != mAccountIDs.size())
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+#endif
+};
+
+class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation
+{
+    Database& mDB;
+    LedgerTxnConsistency mCons;
+    std::vector<std::string> mAccountIDs;
+    std::vector<std::string> mDataNames;
+
+  public:
+    BulkDeleteDataOperation(Database& DB, LedgerTxnConsistency cons,
+                            std::vector<EntryIterator> const& entries)
+        : mDB(DB), mCons(cons)
+    {
+        for (auto const& e : entries)
+        {
+            assert(!e.entryExists());
+            assert(e.key().type() == DATA);
+            auto const& data = e.key().data();
+            mAccountIDs.emplace_back(KeyUtils::toStrKey(data.accountID));
+            mDataNames.emplace_back(decoder::encode_b64(data.dataName));
+        }
+    }
+
+    void
+    doSociGenericOperation()
+    {
+        std::string sql = "DELETE FROM accountdata WHERE accountid = :id AND "
+                          " dataname = :v1 ";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(mAccountIDs));
+        st.exchange(soci::use(mDataNames));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getDeleteTimer("data");
+            st.execute(true);
+        }
+        if (st.get_affected_rows() != mAccountIDs.size() &&
+            mCons == LedgerTxnConsistency::EXACT)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+
+    void
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        doSociGenericOperation();
+    }
+
+#ifdef USE_POSTGRES
+    void
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        std::string strAccountIDs;
+        std::string strDataNames;
+        PGconn* conn = pg->conn_;
+        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+        marshalToPGArray(conn, strDataNames, mDataNames);
+        std::string sql =
+            "WITH r AS ( SELECT "
+            "unnest(:ids::TEXT[]),"
+            "unnest(:v1::TEXT[])"
+            " ) "
+            "DELETE FROM accountdata WHERE (accountid, dataname) IN "
+            "(SELECT * FROM r)";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(strAccountIDs));
+        st.exchange(soci::use(strDataNames));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getDeleteTimer("data");
+            st.execute(true);
+        }
+        if (st.get_affected_rows() != mAccountIDs.size() &&
+            mCons == LedgerTxnConsistency::EXACT)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+#endif
+};
+
+void
+LedgerTxnRoot::Impl::bulkUpsertAccountData(
+    std::vector<EntryIterator> const& entries)
+{
+    BulkUpsertDataOperation op(mDatabase, entries);
+    mDatabase.doDatabaseTypeSpecificOperation(op);
+}
+
+void
+LedgerTxnRoot::Impl::bulkDeleteAccountData(
+    std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
+{
+    BulkDeleteDataOperation op(mDatabase, cons, entries);
+    mDatabase.doDatabaseTypeSpecificOperation(op);
 }
 
 void

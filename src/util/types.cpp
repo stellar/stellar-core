@@ -8,6 +8,7 @@
 #include "util/XDROperators.h"
 
 #include <algorithm>
+#include <limits>
 #include <locale>
 
 namespace stellar
@@ -188,6 +189,14 @@ compareAsset(Asset const& first, Asset const& second)
             return true;
     }
     return false;
+}
+
+int32_t
+unsignedToSigned(uint32_t v)
+{
+    if (v > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()))
+        throw std::runtime_error("unsigned-to-signed overflow");
+    return static_cast<int32_t>(v);
 }
 
 std::string

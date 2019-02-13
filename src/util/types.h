@@ -36,6 +36,10 @@ AccountID getIssuer(Asset const& asset);
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 
+// returns the int32_t of a non-negative uint32_t if it fits,
+// otherwise throws.
+int32_t unsignedToSigned(uint32_t v);
+
 std::string formatSize(size_t size);
 
 template <uint32_t N>
