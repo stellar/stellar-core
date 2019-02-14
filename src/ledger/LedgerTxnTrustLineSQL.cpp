@@ -95,7 +95,7 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     return std::make_shared<LedgerEntry>(std::move(le));
 }
 
-class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation
+class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     std::vector<std::string> mAccountIDs;
@@ -284,7 +284,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation
 #endif
 };
 
-class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation
+class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     LedgerTxnConsistency mCons;

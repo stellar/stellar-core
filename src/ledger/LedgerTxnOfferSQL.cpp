@@ -392,7 +392,7 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
     return iterNext;
 }
 
-class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation
+class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     std::vector<std::string> mSellerIDs;
@@ -635,7 +635,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation
 #endif
 };
 
-class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation
+class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     LedgerTxnConsistency mCons;

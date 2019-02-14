@@ -196,7 +196,7 @@ LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
     mBestOffersCache.clear();
 }
 
-class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
+class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     std::vector<std::string> mAccountIDs;
@@ -429,7 +429,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
 #endif
 };
 
-class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation
+class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     LedgerTxnConsistency mCons;

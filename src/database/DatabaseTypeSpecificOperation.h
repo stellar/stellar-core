@@ -13,13 +13,12 @@
 // See Database::doDatabaseTypeSpecificOperation.
 namespace stellar
 {
-class DatabaseTypeSpecificOperation
+template <typename T = void> class DatabaseTypeSpecificOperation
 {
   public:
-    virtual void
-    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) = 0;
+    virtual T doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) = 0;
 #ifdef USE_POSTGRES
-    virtual void
+    virtual T
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) = 0;
 #endif
 };

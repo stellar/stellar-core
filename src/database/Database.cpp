@@ -117,7 +117,7 @@ Database::registerDrivers()
 
 // Helper class that confirms that we're running on a new-enough version
 // of each database type and tweaks some per-backend settings.
-class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation
+class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
 {
     soci::session& mSession;
 
@@ -350,27 +350,6 @@ Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3:") !=
            std::string::npos;
-}
-
-void
-Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation& op)
-{
-    auto b = mSession.get_backend();
-    if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
-    {
-        op.doSqliteSpecificOperation(sq);
-#ifdef USE_POSTGRES
-    }
-    else if (auto pg = dynamic_cast<soci::postgresql_session_backend*>(b))
-    {
-        op.doPostgresSpecificOperation(pg);
-#endif
-    }
-    else
-    {
-        // Extend this with other cases if we support more databases.
-        abort();
-    }
 }
 
 bool

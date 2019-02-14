@@ -55,7 +55,7 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
-class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation
+class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     std::vector<std::string> mAccountIDs;
@@ -172,7 +172,7 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation
 #endif
 };
 
-class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation
+class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     LedgerTxnConsistency mCons;
