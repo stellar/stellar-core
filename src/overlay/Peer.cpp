@@ -161,20 +161,21 @@ Peer::getAuthCert()
     return mApp.getOverlayManager().getPeerAuth().getAuthCert();
 }
 
-size_t
-Peer::getIOTimeoutSeconds() const
+std::chrono::seconds
+Peer::getIOTimeout() const
 {
     if (isAuthenticated())
     {
         // Normally willing to wait 30s to hear anything
         // from an authenticated peer.
-        return mApp.getConfig().PEER_TIMEOUT;
+        return std::chrono::seconds(mApp.getConfig().PEER_TIMEOUT);
     }
     else
     {
         // We give peers much less timing leeway while
         // performing handshake.
-        return mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT;
+        return std::chrono::seconds(
+            mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT);
     }
 }
 
@@ -202,7 +203,7 @@ Peer::startIdleTimer()
     }
 
     auto self = shared_from_this();
-    mIdleTimer.expires_from_now(std::chrono::seconds(getIOTimeoutSeconds()));
+    mIdleTimer.expires_from_now(getIOTimeout());
     mIdleTimer.async_wait([self](asio::error_code const& error) {
         self->idleTimerExpired(error);
     });
@@ -214,7 +215,7 @@ Peer::idleTimerExpired(asio::error_code const& error)
     if (!error)
     {
         auto now = mApp.getClock().now();
-        auto timeout = std::chrono::seconds(getIOTimeoutSeconds());
+        auto timeout = getIOTimeout();
         if (((now - mLastRead) >= timeout) && ((now - mLastWrite) >= timeout))
         {
             CLOG(WARNING, "Overlay") << "idle timeout";

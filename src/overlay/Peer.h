@@ -169,7 +169,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);
-    size_t getIOTimeoutSeconds() const;
+    std::chrono::seconds getIOTimeout() const;
 
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
