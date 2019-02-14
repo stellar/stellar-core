@@ -17,13 +17,15 @@ class LogSlowExecution
                // elapsed time
     };
 
-    LogSlowExecution(std::string eventName, Mode mode = Mode::AUTOMATIC_RAII,
-                     std::string message = "hung for", int ms = 1000)
+    LogSlowExecution(
+        std::string eventName, Mode mode = Mode::AUTOMATIC_RAII,
+        std::string message = "hung for",
+        std::chrono::milliseconds threshold = std::chrono::seconds(1))
         : mStart(std::chrono::system_clock::now())
         , mName(std::move(eventName))
         , mMode(mode)
         , mMessage(std::move(message))
-        , mThresholdInMs(ms){};
+        , mThreshold(threshold){};
 
     ~LogSlowExecution()
     {
@@ -39,7 +41,7 @@ class LogSlowExecution
         auto finish = std::chrono::system_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
             finish - mStart);
-        auto tooSlow = elapsed.count() > mThresholdInMs;
+        auto tooSlow = elapsed > mThreshold;
 
         LOG_IF(tooSlow, INFO)
             << "'" << mName << "' " << mMessage << " "
@@ -52,5 +54,5 @@ class LogSlowExecution
     std::string mName;
     Mode mMode;
     std::string mMessage;
-    int mThresholdInMs;
+    std::chrono::milliseconds mThreshold;
 };
