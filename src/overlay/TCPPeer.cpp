@@ -11,6 +11,7 @@
 #include "medida/metrics_registry.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
@@ -288,7 +289,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
-            mErrorWrite.Mark();
+            getOverlayMetrics().mErrorWrite.Mark();
             CLOG(ERROR, "Overlay")
                 << "Error during sending message to " << toString();
         }
@@ -307,8 +308,8 @@ TCPPeer::writeHandler(asio::error_code const& error,
     else if (bytes_transferred != 0)
     {
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        mMessageWrite.Mark();
-        mByteWrite.Mark(bytes_transferred);
+        getOverlayMetrics().mMessageWrite.Mark();
+        getOverlayMetrics().mByteWrite.Mark(bytes_transferred);
     }
 }
 
@@ -355,7 +356,7 @@ TCPPeer::getIncomingMsgLength()
         (!isAuthenticated() && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
         length > MAX_MESSAGE_SIZE)
     {
-        mErrorRead.Mark();
+        getOverlayMetrics().mErrorRead.Mark();
         CLOG(ERROR, "Overlay")
             << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
@@ -402,7 +403,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
-            mErrorRead.Mark();
+            getOverlayMetrics().mErrorRead.Mark();
             CLOG(DEBUG, "Overlay")
                 << "readHeaderHandler error: " << error.message() << ": "
                 << toString();
@@ -435,7 +436,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
-            mErrorRead.Mark();
+            getOverlayMetrics().mErrorRead.Mark();
             CLOG(ERROR, "Overlay")
                 << "readBodyHandler error: " << error.message() << " :"
                 << toString();

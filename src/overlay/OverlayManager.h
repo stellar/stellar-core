@@ -137,6 +137,9 @@ class OverlayManager
     // returns the list of peers that sent us the item with hash `h`
     virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;
 
+    // Return the persistent overlay metrics structure.
+    virtual OverlayMetrics& getOverlayMetrics() = 0;
+
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;
 

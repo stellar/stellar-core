@@ -71,7 +71,7 @@ class LoadManager
     class PeerContext
     {
         Application& mApp;
-        NodeID mNode;
+        NodeID const& mNode;
 
         VirtualClock::time_point mWorkStart;
         std::uint64_t mBytesSendStart;

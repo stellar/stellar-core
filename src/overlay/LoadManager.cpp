@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -171,8 +172,10 @@ LoadManager::PeerContext::PeerContext(Application& app, NodeID const& node)
     : mApp(app)
     , mNode(node)
     , mWorkStart(app.getClock().now())
-    , mBytesSendStart(Peer::getByteWriteMeter(app).count())
-    , mBytesRecvStart(Peer::getByteReadMeter(app).count())
+    , mBytesSendStart(
+          app.getOverlayManager().getOverlayMetrics().mByteWrite.count())
+    , mBytesRecvStart(
+          app.getOverlayManager().getOverlayMetrics().mByteRead.count())
     , mSQLQueriesStart(app.getDatabase().getQueryMeter().count())
 {
 }
@@ -184,8 +187,12 @@ LoadManager::PeerContext::~PeerContext()
         auto pc = mApp.getOverlayManager().getLoadManager().getPeerCosts(mNode);
         auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(
             mApp.getClock().now() - mWorkStart);
-        auto send = Peer::getByteWriteMeter(mApp).count() - mBytesSendStart;
-        auto recv = Peer::getByteReadMeter(mApp).count() - mBytesRecvStart;
+        auto send =
+            mApp.getOverlayManager().getOverlayMetrics().mByteWrite.count() -
+            mBytesSendStart;
+        auto recv =
+            mApp.getOverlayManager().getOverlayMetrics().mByteRead.count() -
+            mBytesRecvStart;
         auto query =
             (mApp.getDatabase().getQueryMeter().count() - mSQLQueriesStart);
         if (Logging::logTrace("Overlay"))

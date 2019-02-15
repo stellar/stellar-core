@@ -13,6 +13,7 @@
 #include "overlay/Floodgate.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
 #include "util/Timer.h"
 
@@ -76,9 +77,7 @@ class OverlayManagerImpl : public OverlayManager
     LoadManager mLoad;
     bool mShuttingDown;
 
-    medida::Meter& mMessagesBroadcast;
-    medida::Counter& mPendingPeersSize;
-    medida::Counter& mAuthenticatedPeersSize;
+    OverlayMetrics mOverlayMetrics;
 
     void tick();
     VirtualTimer mTimer;
@@ -124,6 +123,7 @@ class OverlayManagerImpl : public OverlayManager
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
+    OverlayMetrics& getOverlayMetrics() override;
     PeerAuth& getPeerAuth() override;
 
     LoadManager& getLoadManager() override;
