@@ -15,6 +15,12 @@
 namespace stellar
 {
 
+// Precondition: The keys associated with entries are unique and consitute a
+// subset of keys
+std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
+                      std::vector<LedgerEntry> const& entries);
+
 class EntryIterator::AbstractImpl
 {
   public:
@@ -448,6 +454,15 @@ class LedgerTxnRoot::Impl
     BestOffersCacheEntry&
     getFromBestOffersCache(Asset const& buying, Asset const& selling,
                            BestOffersCacheEntry& defaultValue) const;
+
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadAccounts(std::unordered_set<LedgerKey> const& keys) const;
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadTrustLines(std::unordered_set<LedgerKey> const& keys) const;
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadOffers(std::unordered_set<LedgerKey> const& keys) const;
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadData(std::unordered_set<LedgerKey> const& keys) const;
 
   public:
     // Constructor has the strong exception safety guarantee

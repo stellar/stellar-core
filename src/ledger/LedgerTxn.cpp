@@ -21,6 +21,37 @@
 namespace stellar
 {
 
+std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
+                      std::vector<LedgerEntry> const& entries)
+{
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
+
+    for (auto const& le : entries)
+    {
+        auto key = LedgerEntryKey(le);
+
+        // Check that the key associated to this entry
+        // - appears in keys
+        // - does not appear in res (which implies it has not already appeared
+        //   in entries)
+        // These conditions imply that the keys associated with entries are
+        // unique and constitute a subset of keys
+        assert(keys.find(key) != keys.end());
+        assert(res.find(key) == res.end());
+        res.emplace(key, std::make_shared<LedgerEntry const>(le));
+    }
+
+    for (auto const& key : keys)
+    {
+        if (res.find(key) == res.end())
+        {
+            res.emplace(key, nullptr);
+        }
+    }
+    return res;
+}
+
 // Implementation of AbstractLedgerTxnParent --------------------------------
 AbstractLedgerTxnParent::~AbstractLedgerTxnParent()
 {

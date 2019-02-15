@@ -415,4 +415,199 @@ LedgerTxnRoot::Impl::dropTrustLines()
            "PRIMARY KEY  (accountid, issuer, assetcode)"
            ");";
 }
+
+class BulkLoadTrustLinesOperation
+    : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
+{
+    Database& mDb;
+    std::vector<std::string> mAccountIDs;
+    std::vector<std::string> mIssuers;
+    std::vector<std::string> mAssetCodes;
+
+    std::vector<LedgerEntry>
+    executeAndFetch(soci::statement& st)
+    {
+        std::string accountID, assetCode, issuer;
+        int64_t balance, limit;
+        uint32_t assetType, flags, lastModified;
+        Liabilities liabilities;
+        soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+        st.exchange(soci::into(accountID));
+        st.exchange(soci::into(assetType));
+        st.exchange(soci::into(assetCode));
+        st.exchange(soci::into(issuer));
+        st.exchange(soci::into(limit));
+        st.exchange(soci::into(balance));
+        st.exchange(soci::into(flags));
+        st.exchange(soci::into(lastModified));
+        st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
+        st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+        st.define_and_bind();
+        {
+            auto timer = mDb.getSelectTimer("trust");
+            st.execute(true);
+        }
+
+        std::vector<LedgerEntry> res;
+        while (st.got_data())
+        {
+            res.emplace_back();
+            auto& le = res.back();
+            le.data.type(TRUSTLINE);
+            auto& tl = le.data.trustLine();
+
+            tl.accountID = KeyUtils::fromStrKey<PublicKey>(accountID);
+
+            assert(assetType != ASSET_TYPE_NATIVE);
+            tl.asset.type(static_cast<AssetType>(assetType));
+            if (assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
+            {
+                tl.asset.alphaNum4().issuer =
+                    KeyUtils::fromStrKey<PublicKey>(issuer);
+                strToAssetCode(tl.asset.alphaNum4().assetCode, assetCode);
+            }
+            else
+            {
+                tl.asset.alphaNum12().issuer =
+                    KeyUtils::fromStrKey<PublicKey>(issuer);
+                strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
+            }
+
+            tl.limit = limit;
+            tl.balance = balance;
+            tl.flags = flags;
+            le.lastModifiedLedgerSeq = lastModified;
+
+            assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
+            if (buyingLiabilitiesInd == soci::i_ok)
+            {
+                tl.ext.v(1);
+                tl.ext.v1().liabilities = liabilities;
+            }
+
+            st.fetch();
+        }
+        return res;
+    }
+
+  public:
+    BulkLoadTrustLinesOperation(Database& db,
+                                std::unordered_set<LedgerKey> const& keys)
+        : mDb(db)
+    {
+        mAccountIDs.reserve(keys.size());
+        mIssuers.reserve(keys.size());
+        mAssetCodes.reserve(keys.size());
+        for (auto const& k : keys)
+        {
+            assert(k.type() == TRUSTLINE);
+            mAccountIDs.emplace_back(
+                KeyUtils::toStrKey(k.trustLine().accountID));
+
+            auto const& asset = k.trustLine().asset;
+            assert(asset.type() != ASSET_TYPE_NATIVE);
+            mAssetCodes.emplace_back();
+            if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+            {
+                assetCodeToStr(asset.alphaNum4().assetCode, mAssetCodes.back());
+                mIssuers.emplace_back(
+                    KeyUtils::toStrKey(asset.alphaNum4().issuer));
+            }
+            else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+            {
+                assetCodeToStr(asset.alphaNum12().assetCode,
+                               mAssetCodes.back());
+                mIssuers.emplace_back(
+                    KeyUtils::toStrKey(asset.alphaNum12().issuer));
+            }
+        }
+    }
+
+    virtual std::vector<LedgerEntry>
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        assert(mAccountIDs.size() == mIssuers.size());
+        assert(mAccountIDs.size() == mAssetCodes.size());
+
+        std::vector<char const*> cstrAccountIDs;
+        std::vector<char const*> cstrIssuers;
+        std::vector<char const*> cstrAssetCodes;
+        cstrAccountIDs.reserve(mAccountIDs.size());
+        cstrIssuers.reserve(mIssuers.size());
+        cstrAssetCodes.reserve(mAssetCodes.size());
+        for (size_t i = 0; i < mAccountIDs.size(); ++i)
+        {
+            cstrAccountIDs.emplace_back(mAccountIDs[i].c_str());
+            cstrIssuers.emplace_back(mIssuers[i].c_str());
+            cstrAssetCodes.emplace_back(mAssetCodes[i].c_str());
+        }
+
+        std::string sqlJoin =
+            "SELECT x.value, y.value, z.value FROM "
+            "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
+            "AS x "
+            "INNER JOIN (SELECT rowid, value FROM carray(?, ?, 'char*') ORDER "
+            "BY rowid) AS y ON x.rowid = y.rowid "
+            "INNER JOIN (SELECT rowid, value FROM carray(?, ?, 'char*') ORDER "
+            "BY rowid) AS z ON x.rowid = z.rowid";
+        std::string sql =
+            "WITH r AS (" + sqlJoin +
+            ") SELECT accountid, assettype, assetcode, issuer, tlimit, "
+            "balance, flags, lastmodified, buyingliabilities, "
+            "sellingliabilities "
+            "FROM trustlines WHERE (accountid, issuer, assetcode) IN r";
+
+        auto prep = mDb.getPreparedStatement(sql);
+        auto sqliteStatement = dynamic_cast<soci::sqlite3_statement_backend*>(
+            prep.statement().get_backend());
+        auto st = sqliteStatement->stmt_;
+
+        sqlite3_reset(st);
+        sqlite3_bind_pointer(st, 1, cstrAccountIDs.data(), "carray", 0);
+        sqlite3_bind_int(st, 2, cstrAccountIDs.size());
+        sqlite3_bind_pointer(st, 3, cstrIssuers.data(), "carray", 0);
+        sqlite3_bind_int(st, 4, cstrIssuers.size());
+        sqlite3_bind_pointer(st, 5, cstrAssetCodes.data(), "carray", 0);
+        sqlite3_bind_int(st, 6, cstrAssetCodes.size());
+        return executeAndFetch(prep.statement());
+    }
+
+#ifdef USE_POSTGRES
+    virtual std::vector<LedgerEntry>
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        assert(mAccountIDs.size() == mIssuers.size());
+        assert(mAccountIDs.size() == mAssetCodes.size());
+
+        std::string strAccountIDs;
+        std::string strIssuers;
+        std::string strAssetCodes;
+        marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
+        marshalToPGArray(pg->conn_, strIssuers, mIssuers);
+        marshalToPGArray(pg->conn_, strAssetCodes, mAssetCodes);
+
+        auto prep = mDb.getPreparedStatement(
+            "WITH r AS (SELECT unnest(:v1::TEXT[]), unnest(:v2::TEXT[]), "
+            "unnest(:v3::TEXT[])) SELECT accountid, assettype, assetcode, "
+            "issuer, tlimit, balance, flags, lastmodified, buyingliabilities, "
+            "sellingliabilities FROM trustlines "
+            "WHERE (accountid, issuer, assetcode) IN (SELECT * FROM r)");
+        auto& st = prep.statement();
+        st.exchange(soci::use(strAccountIDs));
+        st.exchange(soci::use(strIssuers));
+        st.exchange(soci::use(strAssetCodes));
+        return executeAndFetch(st);
+    }
+#endif
+};
+
+std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+LedgerTxnRoot::Impl::bulkLoadTrustLines(
+    std::unordered_set<LedgerKey> const& keys) const
+{
+    BulkLoadTrustLinesOperation op(mDatabase, keys);
+    return populateLoadedEntries(keys,
+                                 mDatabase.doDatabaseTypeSpecificOperation(op));
+}
 }

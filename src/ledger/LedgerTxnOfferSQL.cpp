@@ -757,4 +757,142 @@ LedgerTxnRoot::Impl::dropOffers()
         << "CREATE INDEX buyingissuerindex ON offers (buyingissuer);";
     mDatabase.getSession() << "CREATE INDEX priceindex ON offers (price);";
 }
+
+class BulkLoadOffersOperation
+    : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
+{
+    Database& mDb;
+    std::vector<AccountID> mSellerIDs;
+    std::vector<int64_t> mOfferIDs;
+    std::unordered_map<uint64_t, AccountID> mSellerIDsByOfferID;
+
+    std::vector<LedgerEntry>
+    executeAndFetch(soci::statement& st)
+    {
+        std::string sellerID, sellingAssetCode, sellingIssuer, buyingAssetCode,
+            buyingIssuer;
+        int64_t amount;
+        uint64_t offerID;
+        uint32_t sellingAssetType, buyingAssetType, flags, lastModified;
+        Price price;
+        soci::indicator sellingAssetCodeIndicator, buyingAssetCodeIndicator,
+            sellingIssuerIndicator, buyingIssuerIndicator;
+
+        st.exchange(soci::into(sellerID));
+        st.exchange(soci::into(offerID));
+        st.exchange(soci::into(sellingAssetType));
+        st.exchange(soci::into(sellingAssetCode, sellingAssetCodeIndicator));
+        st.exchange(soci::into(sellingIssuer, sellingIssuerIndicator));
+        st.exchange(soci::into(buyingAssetType));
+        st.exchange(soci::into(buyingAssetCode, buyingAssetCodeIndicator));
+        st.exchange(soci::into(buyingIssuer, buyingIssuerIndicator));
+        st.exchange(soci::into(amount));
+        st.exchange(soci::into(price.n));
+        st.exchange(soci::into(price.d));
+        st.exchange(soci::into(flags));
+        st.exchange(soci::into(lastModified));
+        st.define_and_bind();
+        {
+            auto timer = mDb.getSelectTimer("offer");
+            st.execute(true);
+        }
+
+        std::vector<LedgerEntry> res;
+        while (st.got_data())
+        {
+            res.emplace_back();
+            auto& le = res.back();
+            le.data.type(OFFER);
+            auto& oe = le.data.offer();
+
+            oe.sellerID = KeyUtils::fromStrKey<PublicKey>(sellerID);
+            oe.offerID = offerID;
+            assert(mSellerIDsByOfferID[oe.offerID] == oe.sellerID);
+
+            processAsset(oe.selling, (AssetType)sellingAssetType, sellingIssuer,
+                         sellingIssuerIndicator, sellingAssetCode,
+                         sellingAssetCodeIndicator);
+            processAsset(oe.buying, (AssetType)buyingAssetType, buyingIssuer,
+                         buyingIssuerIndicator, buyingAssetCode,
+                         buyingAssetCodeIndicator);
+
+            oe.amount = amount;
+            oe.price = price;
+            oe.flags = flags;
+            le.lastModifiedLedgerSeq = lastModified;
+
+            st.fetch();
+        }
+        return res;
+    }
+
+  public:
+    BulkLoadOffersOperation(Database& db,
+                            std::unordered_set<LedgerKey> const& keys)
+        : mDb(db)
+    {
+        mSellerIDs.reserve(keys.size());
+        mOfferIDs.reserve(keys.size());
+        for (auto const& k : keys)
+        {
+            assert(k.type() == OFFER);
+            mSellerIDs.emplace_back(k.offer().sellerID);
+            mOfferIDs.emplace_back(unsignedToSigned(k.offer().offerID));
+        }
+
+        for (size_t i = 0; i < mSellerIDs.size(); ++i)
+        {
+            mSellerIDsByOfferID[mOfferIDs[i]] = mSellerIDs[i];
+        }
+    }
+
+    virtual std::vector<LedgerEntry>
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        std::string sql =
+            "SELECT sellerid, offerid, sellingassettype, sellingassetcode, "
+            "sellingissuer, buyingassettype, buyingassetcode, buyingissuer, "
+            "amount, pricen, priced, flags, lastmodified "
+            "FROM offers WHERE offerid IN carray(?, ?, 'int64')";
+
+        auto prep = mDb.getPreparedStatement(sql);
+        auto sqliteStatement = dynamic_cast<soci::sqlite3_statement_backend*>(
+            prep.statement().get_backend());
+        auto st = sqliteStatement->stmt_;
+
+        sqlite3_reset(st);
+        sqlite3_bind_pointer(st, 1, (void*)mOfferIDs.data(), "carray", 0);
+        sqlite3_bind_int(st, 2, mOfferIDs.size());
+        return executeAndFetch(prep.statement());
+    }
+
+#ifdef USE_POSTGRES
+    std::vector<LedgerEntry>
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        std::string strOfferIDs;
+        marshalToPGArray(pg->conn_, strOfferIDs, mOfferIDs);
+
+        std::string sql =
+            "WITH r AS (SELECT unnest(:v1::BIGINT[])) "
+            "SELECT sellerid, offerid, sellingassettype, sellingassetcode, "
+            "sellingissuer, buyingassettype, buyingassetcode, buyingissuer, "
+            "amount, pricen, priced, flags, lastmodified "
+            "FROM offers WHERE offerid IN (SELECT * FROM r)";
+        auto prep = mDb.getPreparedStatement(sql);
+        auto& st = prep.statement();
+        st.exchange(soci::use(strOfferIDs));
+        return executeAndFetch(st);
+    }
+#endif
+};
+
+std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+LedgerTxnRoot::Impl::bulkLoadOffers(
+    std::unordered_set<LedgerKey> const& keys) const
+{
+    BulkLoadOffersOperation op(mDatabase, keys);
+    return populateLoadedEntries(keys,
+                                 mDatabase.doDatabaseTypeSpecificOperation(op));
+}
 }
