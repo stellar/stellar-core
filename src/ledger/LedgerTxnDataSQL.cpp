@@ -90,8 +90,6 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation
                             std::vector<EntryIterator> const& entryIter)
         : mDB(DB)
     {
-        std::vector<LedgerEntry> entries;
-        entries.reserve(entries.size());
         for (auto const& e : entryIter)
         {
             assert(e.entryExists());
