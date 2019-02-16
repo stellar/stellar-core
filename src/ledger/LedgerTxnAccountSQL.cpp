@@ -176,7 +176,7 @@ LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
         st.exchange(soci::use(kv.first, "id"));
         st.define_and_bind();
         st.execute(true);
-        if (st.get_affected_rows() != 1)
+        if (static_cast<size_t>(st.get_affected_rows()) != 1)
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -332,7 +332,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getUpsertTimer("account");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -421,7 +421,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getUpsertTimer("account");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -461,7 +461,7 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getDeleteTimer("account");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -492,7 +492,7 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getDeleteTimer("account");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -593,7 +593,7 @@ writeEncodedHomeDomain(Database& db, std::string const& accountID,
     st.exchange(soci::use(accountID));
     st.define_and_bind();
     st.execute(true);
-    if (st.get_affected_rows() != 1)
+    if (static_cast<size_t>(st.get_affected_rows()) != 1)
     {
         throw std::runtime_error("could not update SQL");
     }

@@ -44,10 +44,6 @@ extern "C" int
 sqlite3_carray_init(sqlite_api::sqlite3* db, char** pzErrMsg,
                     const sqlite_api::sqlite3_api_routines* pApi);
 
-#ifdef USE_POSTGRES
-extern "C" void register_factory_postgresql();
-#endif
-
 // NOTE: soci will just crash and not throw
 //  if you misname a column in a query. yay!
 

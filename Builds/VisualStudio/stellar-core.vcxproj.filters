@@ -1535,6 +1535,9 @@
     <ClInclude Include="..\..\src\main\PersistentState.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\database\DatabaseTypeSpecificOperation.h">
+      <Filter>database</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

@@ -252,12 +252,14 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
     auto getSize = [&](int requestedSize) {
         return peerManager.getPeersToSend(requestedSize, myAddress).size();
     };
-    auto createPeers = [&](int inboundCount, int outboundCount) {
-        for (auto i = 1; i <= inboundCount; i++)
+    auto createPeers = [&](unsigned short inboundCount,
+                           unsigned short outboundCount) {
+        for (unsigned short i = 1; i <= inboundCount; i++)
         {
             peerManager.ensureExists(PeerBareAddress("127.0.0.1", i));
         }
-        for (auto i = inboundCount + 1; i <= inboundCount + outboundCount; i++)
+        for (unsigned short i = inboundCount + 1;
+             i <= inboundCount + outboundCount; i++)
         {
             peerManager.update(PeerBareAddress("127.0.0.1", i),
                                PeerManager::TypeUpdate::SET_OUTBOUND);

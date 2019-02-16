@@ -208,6 +208,8 @@ joinConsistencyLevels(LedgerTxnConsistency c1, LedgerTxnConsistency c2)
         return c2;
     case LedgerTxnConsistency::EXTRA_DELETES:
         return LedgerTxnConsistency::EXTRA_DELETES;
+    default:
+        abort();
     }
 }
 

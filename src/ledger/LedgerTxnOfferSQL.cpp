@@ -525,7 +525,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getUpsertTimer("offer");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mOfferIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -627,7 +627,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getUpsertTimer("offer");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mOfferIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -667,7 +667,7 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getDeleteTimer("offer");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mOfferIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -700,7 +700,7 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getDeleteTimer("offer");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mOfferIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mOfferIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");

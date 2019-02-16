@@ -198,7 +198,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getUpsertTimer("trustline");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -276,7 +276,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getUpsertTimer("trustline");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size())
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
@@ -329,7 +329,7 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getDeleteTimer("trustline");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
@@ -368,7 +368,7 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation
             auto timer = mDB.getDeleteTimer("trustline");
             st.execute(true);
         }
-        if (st.get_affected_rows() != mAccountIDs.size() &&
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
             mCons == LedgerTxnConsistency::EXACT)
         {
             throw std::runtime_error("Could not update data in SQL");
