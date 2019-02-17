@@ -36,7 +36,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-typedef std::unique_ptr<Application> appPtr;
 namespace stellar
 {
 namespace txtest

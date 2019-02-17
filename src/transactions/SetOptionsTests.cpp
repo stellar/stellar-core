@@ -23,8 +23,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-typedef std::unique_ptr<Application> appPtr;
-
 // Try setting each option to make sure it works
 // try setting all at once
 // try setting high threshold ones without the correct sigs
