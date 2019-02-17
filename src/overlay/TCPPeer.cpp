@@ -229,6 +229,7 @@ TCPPeer::messageSender()
     // if nothing to do, flush and return
     if (mWriteQueue.empty())
     {
+        mLastEmpty = mApp.getClock().now();
         mSocket->async_flush([self](asio::error_code const& ec, std::size_t) {
             self->writeHandler(ec, 0);
             if (!ec)

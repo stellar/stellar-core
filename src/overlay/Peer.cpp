@@ -60,6 +60,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mIdleTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
+    , mLastEmpty(app.getClock().now())
 
     , mMessageRead(
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
@@ -217,7 +218,14 @@ Peer::idleTimerExpired(asio::error_code const& error)
         auto timeout = std::chrono::seconds(getIOTimeoutSeconds());
         if (((now - mLastRead) >= timeout) && ((now - mLastWrite) >= timeout))
         {
-            CLOG(WARNING, "Overlay") << "idle timeout";
+            CLOG(WARNING, "Overlay") << "idle timeout for peer " << toString();
+            mTimeoutIdle.Mark();
+            drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+        }
+        else if (((now - mLastEmpty) >= timeout))
+        {
+            CLOG(WARNING, "Overlay")
+                << "peer " << toString() << " cannot keep up";
             mTimeoutIdle.Mark();
             drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
