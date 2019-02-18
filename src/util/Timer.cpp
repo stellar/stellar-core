@@ -17,7 +17,7 @@ using namespace std;
 
 static const uint32_t RECENT_CRANK_WINDOW = 1024;
 
-VirtualClock::VirtualClock(Mode mode) : mRealTimer(mIOService), mMode(mode)
+VirtualClock::VirtualClock(Mode mode) : mMode(mode), mRealTimer(mIOService)
 {
     resetIdleCrankPercent();
 }
