@@ -560,7 +560,8 @@ marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
 {
     std::vector<char> buf(item.size() * 2 + 1, '\0');
     int err = 0;
-    size_t len = PQescapeStringConn(conn, buf.data(), item.c_str(), item.size(), &err);
+    size_t len =
+        PQescapeStringConn(conn, buf.data(), item.c_str(), item.size(), &err);
     if (err != 0)
     {
         throw std::runtime_error("Could not escape string in SQL");
