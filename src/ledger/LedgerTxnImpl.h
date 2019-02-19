@@ -5,6 +5,12 @@
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
 #include "util/lrucache.hpp"
+#ifdef USE_POSTGRES
+#include <iomanip>
+#include <libpq-fe.h>
+#include <limits>
+#include <sstream>
+#endif
 
 namespace stellar
 {
@@ -25,6 +31,80 @@ class EntryIterator::AbstractImpl
     virtual bool entryExists() const = 0;
 
     virtual LedgerKey const& key() const = 0;
+
+    virtual std::unique_ptr<AbstractImpl> clone() const = 0;
+};
+
+// Helper struct to accumulate common cases that we can sift out of the
+// commit stream and perform in bulk (as single SQL statements per-type)
+// rather than making each insert/update/delete individually. This uses the
+// postgres and sqlite-supported "ON CONFLICT"-style upserts, and uses
+// soci's bulk operations where it can (i.e. for sqlite, or potentially
+// others), and manually-crafted postgres unnest([array]) calls where it
+// can't. This is not great, but it appears to be less work than
+// reorganizing the relevant parts of soci.
+class BulkLedgerEntryChangeAccumulator
+{
+
+    std::vector<EntryIterator> mAccountsToUpsert;
+    std::vector<EntryIterator> mAccountsToDelete;
+    std::vector<EntryIterator> mAccountDataToUpsert;
+    std::vector<EntryIterator> mAccountDataToDelete;
+    std::vector<EntryIterator> mOffersToUpsert;
+    std::vector<EntryIterator> mOffersToDelete;
+    std::vector<EntryIterator> mTrustLinesToUpsert;
+    std::vector<EntryIterator> mTrustLinesToDelete;
+
+  public:
+    std::vector<EntryIterator>&
+    getAccountsToUpsert()
+    {
+        return mAccountsToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getAccountsToDelete()
+    {
+        return mAccountsToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getTrustLinesToUpsert()
+    {
+        return mTrustLinesToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getTrustLinesToDelete()
+    {
+        return mTrustLinesToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getOffersToUpsert()
+    {
+        return mOffersToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getOffersToDelete()
+    {
+        return mOffersToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getAccountDataToUpsert()
+    {
+        return mAccountDataToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getAccountDataToDelete()
+    {
+        return mAccountDataToDelete;
+    }
+
+    void accumulate(EntryIterator const& iter);
 };
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety
@@ -52,9 +132,11 @@ class LedgerTxn::Impl
     std::unordered_map<LedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
+    LedgerTxnConsistency mConsistency;
 
     void throwIfChild() const;
     void throwIfSealed() const;
+    void throwIfNotExactConsistency() const;
 
     // getDeltaVotes has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -97,7 +179,7 @@ class LedgerTxn::Impl
     void commit();
 
     // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
 
     // create has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -196,6 +278,15 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerTxnEntry load(LedgerTxn& self, LedgerKey const& key);
 
+    // createOrUpdateWithoutLoading has the strong exception safety guarantee.
+    // If it throws an exception, then the current LedgerTxn::Impl is unchanged.
+    void createOrUpdateWithoutLoading(LedgerTxn& self,
+                                      LedgerEntry const& entry);
+
+    // eraseWithoutLoading has the strong exception safety guarantee. If it
+    // throws an exception, then the current LedgerTxn::Impl is unchanged.
+    void eraseWithoutLoading(LedgerKey const& key);
+
     // loadAllOffers has the basic exception safety guarantee. If it throws an
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -263,6 +354,8 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     bool entryExists() const override;
 
     LedgerKey const& key() const override;
+
+    std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
 };
 
 // Many functions in LedgerTxnRoot::Impl provide a basic exception safety
@@ -311,32 +404,41 @@ class LedgerTxnRoot::Impl
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;
     std::vector<LedgerEntry> loadOffers(StatementContext& prep) const;
-    std::vector<Signer> loadSigners(LedgerKey const& key) const;
     std::vector<InflationWinner> loadInflationWinners(size_t maxWinners,
                                                       int64_t minBalance) const;
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
 
-    void storeAccount(EntryIterator const& iter);
-    void storeData(EntryIterator const& iter);
-    void storeOffer(EntryIterator const& iter);
-    void storeTrustLine(EntryIterator const& iter);
-
-    void storeSigners(LedgerEntry const& entry,
-                      std::shared_ptr<LedgerEntry const> const& previous);
-
-    void deleteAccount(LedgerKey const& key);
-    void deleteData(LedgerKey const& key);
-    void deleteOffer(LedgerKey const& key);
-    void deleteTrustLine(LedgerKey const& key);
-
-    void insertOrUpdateAccount(LedgerEntry const& entry, bool isInsert);
-    void insertOrUpdateData(LedgerEntry const& entry, bool isInsert);
-    void insertOrUpdateOffer(LedgerEntry const& entry, bool isInsert);
-    void insertOrUpdateTrustLine(LedgerEntry const& entry, bool isInsert);
+    void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
+                   size_t bufferThreshold, LedgerTxnConsistency cons);
+    void bulkUpsertAccounts(std::vector<EntryIterator> const& entries);
+    void bulkDeleteAccounts(std::vector<EntryIterator> const& entries,
+                            LedgerTxnConsistency cons);
+    void bulkUpsertTrustLines(std::vector<EntryIterator> const& entries);
+    void bulkDeleteTrustLines(std::vector<EntryIterator> const& entries,
+                              LedgerTxnConsistency cons);
+    void bulkUpsertOffers(std::vector<EntryIterator> const& entries);
+    void bulkDeleteOffers(std::vector<EntryIterator> const& entries,
+                          LedgerTxnConsistency cons);
+    void bulkUpsertAccountData(std::vector<EntryIterator> const& entries);
+    void bulkDeleteAccountData(std::vector<EntryIterator> const& entries,
+                               LedgerTxnConsistency cons);
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
+    // The entry cache maintains relatively strong invariants:
+    //
+    //  - It is only ever populated during a database operation, at root.
+    //
+    //  - Until the (bulk) LedgerTxnRoot::commitChild operation, the only
+    //    database operations are SELECTs, which only populate the cache
+    //    with fresh data from the DB.
+    //
+    //  - On LedgerTxnRoot::commitChild, the cache is cleared.
+    //
+    //  - It is therefore always kept in exact correspondence with the
+    //    database for the keyset that it has entries for. It's a precise
+    //    image of a subset of the database.
     EntryCacheKey getEntryCacheKey(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
     getFromEntryCache(EntryCacheKey const& key) const;
@@ -357,7 +459,7 @@ class LedgerTxnRoot::Impl
     void addChild(AbstractLedgerTxn& child);
 
     // commitChild has the strong exception safety guarantee.
-    void commitChild(EntryIterator iter);
+    void commitChild(EntryIterator iter, LedgerTxnConsistency cons);
 
     // countObjects has the strong exception safety guarantee.
     uint64_t countObjects(LedgerEntryType let) const;
@@ -419,5 +521,80 @@ class LedgerTxnRoot::Impl
 
     // rollbackChild has the strong exception safety guarantee.
     void rollbackChild();
+
+    // writeSignersTableIntoAccountsTable has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    void writeSignersTableIntoAccountsTable();
+
+    // encodedDataNamesBase64 has the basic exception safety guarantee. If it
+    // throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    void encodeDataNamesBase64();
+
+    // encodedHomeDomainsBase64 has the basic exception safety guarantee. If it
+    // throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    void encodeHomeDomainsBase64();
 };
+
+#ifdef USE_POSTGRES
+template <typename T>
+inline void
+marshalToPGArrayItem(PGconn* conn, std::ostringstream& oss, const T& item)
+{
+    // NB: This setprecision is very important to ensuring that a double
+    // gets marshaled to enough decimal digits to reconstruct exactly the
+    // same double on the postgres side (that precision-level is exactly
+    // what max_digits10 is defined as). Do not remove it!
+    oss << std::setprecision(std::numeric_limits<T>::max_digits10) << item;
+}
+
+template <>
+inline void
+marshalToPGArrayItem<std::string>(PGconn* conn, std::ostringstream& oss,
+                                  const std::string& item)
+{
+    std::vector<char> buf(item.size() * 2 + 1, '\0');
+    int err = 0;
+    size_t len =
+        PQescapeStringConn(conn, buf.data(), item.c_str(), item.size(), &err);
+    if (err != 0)
+    {
+        throw std::runtime_error("Could not escape string in SQL");
+    }
+    oss << '"';
+    oss.write(buf.data(), len);
+    oss << '"';
+}
+
+template <typename T>
+inline void
+marshalToPGArray(PGconn* conn, std::string& out, const std::vector<T>& v,
+                 const std::vector<soci::indicator>* ind = nullptr)
+{
+    std::ostringstream oss;
+    oss << '{';
+    for (size_t i = 0; i < v.size(); ++i)
+    {
+        if (i > 0)
+        {
+            oss << ',';
+        }
+        if (ind && (*ind)[i] == soci::i_null)
+        {
+            oss << "NULL";
+        }
+        else
+        {
+            marshalToPGArrayItem(conn, oss, v[i]);
+        }
+    }
+    oss << '}';
+    out = oss.str();
+}
+#endif
 }

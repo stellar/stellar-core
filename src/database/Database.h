@@ -22,6 +22,7 @@ namespace stellar
 {
 class Application;
 class SQLLogContext;
+class DatabaseTypeSpecificOperation;
 
 /**
  * Helper class for borrowing a SOCI prepared statement handle into a local
@@ -148,6 +149,7 @@ class Database : NonMovableOrCopyable
     medida::TimerContext getSelectTimer(std::string const& entityName);
     medida::TimerContext getDeleteTimer(std::string const& entityName);
     medida::TimerContext getUpdateTimer(std::string const& entityName);
+    medida::TimerContext getUpsertTimer(std::string const& entityName);
 
     // If possible (i.e. "on postgres") issue an SQL pragma that marks
     // the current transaction as read-only. The effects of this last
@@ -156,6 +158,9 @@ class Database : NonMovableOrCopyable
 
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
+
+    // Call `op` back with the specific database backend subtype in use.
+    void doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation& op);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.

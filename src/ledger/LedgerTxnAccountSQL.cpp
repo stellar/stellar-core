@@ -6,10 +6,13 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
+#include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
+#include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
@@ -19,8 +22,8 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
 {
     std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
 
-    std::string inflationDest, homeDomain, thresholds;
-    soci::indicator inflationDestInd;
+    std::string inflationDest, homeDomain, thresholds, signers;
+    soci::indicator inflationDestInd, signersInd;
     Liabilities liabilities;
     soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
 
@@ -32,7 +35,8 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
         mDatabase.getPreparedStatement("SELECT balance, seqnum, numsubentries, "
                                        "inflationdest, homedomain, thresholds, "
                                        "flags, lastmodified, "
-                                       "buyingliabilities, sellingliabilities "
+                                       "buyingliabilities, sellingliabilities, "
+                                       "signers "
                                        "FROM accounts WHERE accountid=:v1");
     auto& st = prep.statement();
     st.exchange(soci::into(account.balance));
@@ -45,6 +49,7 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
     st.exchange(soci::into(le.lastModifiedLedgerSeq));
     st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
     st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+    st.exchange(soci::into(signers, signersInd));
     st.exchange(soci::use(actIDStrKey));
     st.define_and_bind();
     {
@@ -57,7 +62,7 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
     }
 
     account.accountID = key.account().accountID;
-    account.homeDomain = homeDomain;
+    decoder::decode_b64(homeDomain, account.homeDomain);
 
     bn::decode_b64(thresholds.begin(), thresholds.end(),
                    account.thresholds.begin());
@@ -68,12 +73,16 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
             KeyUtils::fromStrKey<PublicKey>(inflationDest);
     }
 
-    account.signers.clear();
-    if (account.numSubEntries != 0)
+    if (signersInd == soci::i_ok)
     {
-        auto signers = loadSigners(key);
-        account.signers.insert(account.signers.begin(), signers.begin(),
-                               signers.end());
+        std::vector<uint8_t> signersOpaque;
+        decoder::decode_b64(signers, signersOpaque);
+        xdr::xdr_from_opaque(signersOpaque, account.signers);
+        assert(std::adjacent_find(account.signers.begin(),
+                                  account.signers.end(),
+                                  [](Signer const& lhs, Signer const& rhs) {
+                                      return !(lhs.key < rhs.key);
+                                  }) == account.signers.end());
     }
 
     assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
@@ -84,40 +93,6 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
     }
 
     return std::make_shared<LedgerEntry const>(std::move(le));
-}
-
-std::vector<Signer>
-LedgerTxnRoot::Impl::loadSigners(LedgerKey const& key) const
-{
-    std::vector<Signer> res;
-
-    std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
-
-    std::string pubKey;
-    Signer signer;
-
-    auto prep = mDatabase.getPreparedStatement(
-        "SELECT publickey, weight FROM signers WHERE accountid =:id");
-    auto& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey));
-    st.exchange(soci::into(pubKey));
-    st.exchange(soci::into(signer.weight));
-    st.define_and_bind();
-    {
-        auto timer = mDatabase.getSelectTimer("signer");
-        st.execute(true);
-    }
-    while (st.got_data())
-    {
-        signer.key = KeyUtils::fromStrKey<SignerKey>(pubKey);
-        res.push_back(signer);
-        st.fetch();
-    }
-
-    std::sort(res.begin(), res.end(), [](Signer const& lhs, Signer const& rhs) {
-        return lhs.key < rhs.key;
-    });
-    return res;
 }
 
 std::vector<InflationWinner>
@@ -154,217 +129,392 @@ LedgerTxnRoot::Impl::loadInflationWinners(size_t maxWinners,
 }
 
 void
-LedgerTxnRoot::Impl::insertOrUpdateAccount(LedgerEntry const& entry,
-                                           bool isInsert)
+LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
 {
-    auto const& account = entry.data.account();
-    std::string actIDStrKey = KeyUtils::toStrKey(account.accountID);
+    throwIfChild();
+    soci::transaction sqlTx(mDatabase.getSession());
 
-    soci::indicator inflation_ind = soci::i_null;
-    std::string inflationDestStrKey;
-    if (account.inflationDest)
-    {
-        inflationDestStrKey = KeyUtils::toStrKey(*account.inflationDest);
-        inflation_ind = soci::i_ok;
-    }
-
-    Liabilities liabilities;
-    soci::indicator liabilitiesInd = soci::i_null;
-    if (account.ext.v() == 1)
-    {
-        liabilities = account.ext.v1().liabilities;
-        liabilitiesInd = soci::i_ok;
-    }
-
-    std::string thresholds(decoder::encode_b64(account.thresholds));
-    std::string homeDomain(account.homeDomain);
-
-    std::string sql;
-    if (isInsert)
-    {
-        sql = "INSERT INTO accounts ( accountid, balance, seqnum, "
-              "numsubentries, inflationdest, homedomain, thresholds, flags, "
-              "lastmodified, buyingliabilities, sellingliabilities ) "
-              "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10 "
-              ")";
-    }
-    else
-    {
-        sql = "UPDATE accounts SET balance = :v1, seqnum = :v2, "
-              "numsubentries = :v3, inflationdest = :v4, homedomain = :v5, "
-              "thresholds = :v6, flags = :v7, lastmodified = :v8, "
-              "buyingliabilities = :v9, sellingliabilities = :v10 "
-              "WHERE accountid = :id";
-    }
-    auto prep = mDatabase.getPreparedStatement(sql);
-    soci::statement& st = prep.statement();
-    st.exchange(soci::use(actIDStrKey, "id"));
-    st.exchange(soci::use(account.balance, "v1"));
-    st.exchange(soci::use(account.seqNum, "v2"));
-    st.exchange(soci::use(account.numSubEntries, "v3"));
-    st.exchange(soci::use(inflationDestStrKey, inflation_ind, "v4"));
-    st.exchange(soci::use(homeDomain, "v5"));
-    st.exchange(soci::use(thresholds, "v6"));
-    st.exchange(soci::use(account.flags, "v7"));
-    st.exchange(soci::use(entry.lastModifiedLedgerSeq, "v8"));
-    st.exchange(soci::use(liabilities.buying, liabilitiesInd, "v9"));
-    st.exchange(soci::use(liabilities.selling, liabilitiesInd, "v10"));
-    st.define_and_bind();
-    {
-        auto timer = isInsert ? mDatabase.getInsertTimer("account")
-                              : mDatabase.getUpdateTimer("account");
-        st.execute(true);
-    }
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-}
-
-void
-LedgerTxnRoot::Impl::storeSigners(
-    LedgerEntry const& entry,
-    std::shared_ptr<LedgerEntry const> const& previous)
-{
-    auto const& account = entry.data.account();
-    std::string actIDStrKey = KeyUtils::toStrKey(account.accountID);
-    assert(std::adjacent_find(account.signers.begin(), account.signers.end(),
-                              [](Signer const& lhs, Signer const& rhs) {
-                                  return !(lhs.key < rhs.key);
-                              }) == account.signers.end());
-
-    std::vector<Signer> signers;
-    if (previous)
-    {
-        signers = previous->data.account().signers;
-        assert(std::adjacent_find(signers.begin(), signers.end(),
-                                  [](Signer const& lhs, Signer const& rhs) {
-                                      return !(lhs.key < rhs.key);
-                                  }) == signers.end());
-    }
-
-    auto it_new = account.signers.begin();
-    auto it_old = signers.begin();
-    while (it_new != account.signers.end() || it_old != signers.end())
-    {
-        bool updated = false, added = false;
-
-        if (it_old == signers.end())
-        {
-            added = true;
-        }
-        else if (it_new != account.signers.end())
-        {
-            updated = (it_new->key == it_old->key);
-            if (!updated)
-            {
-                added = (it_new->key < it_old->key);
-            }
-        }
-        else
-        {
-            // deleted
-        }
-
-        if (updated)
-        {
-            if (it_new->weight != it_old->weight)
-            {
-                std::string signerStrKey = KeyUtils::toStrKey(it_new->key);
-                auto timer = mDatabase.getUpdateTimer("signer");
-                auto prep = mDatabase.getPreparedStatement(
-                    "UPDATE signers set weight=:v1 WHERE "
-                    "accountid=:v2 AND publickey=:v3");
-                auto& st = prep.statement();
-                st.exchange(soci::use(it_new->weight));
-                st.exchange(soci::use(actIDStrKey));
-                st.exchange(soci::use(signerStrKey));
-                st.define_and_bind();
-                st.execute(true);
-                if (st.get_affected_rows() != 1)
-                {
-                    throw std::runtime_error("Could not update data in SQL");
-                }
-            }
-            it_new++;
-            it_old++;
-        }
-        else if (added)
-        {
-            // signer was added
-            std::string signerStrKey = KeyUtils::toStrKey(it_new->key);
-
-            auto prep = mDatabase.getPreparedStatement(
-                "INSERT INTO signers (accountid,publickey,weight) "
-                "VALUES (:v1,:v2,:v3)");
-            auto& st = prep.statement();
-            st.exchange(soci::use(actIDStrKey));
-            st.exchange(soci::use(signerStrKey));
-            st.exchange(soci::use(it_new->weight));
-            st.define_and_bind();
-            st.execute(true);
-            if (st.get_affected_rows() != 1)
-            {
-                throw std::runtime_error("Could not update data in SQL");
-            }
-            it_new++;
-        }
-        else
-        {
-            // signer was deleted
-            std::string signerStrKey = KeyUtils::toStrKey(it_old->key);
-
-            auto prep = mDatabase.getPreparedStatement(
-                "DELETE from signers WHERE accountid=:v2 AND publickey=:v3");
-            auto& st = prep.statement();
-            st.exchange(soci::use(actIDStrKey));
-            st.exchange(soci::use(signerStrKey));
-            st.define_and_bind();
-            {
-                auto timer = mDatabase.getDeleteTimer("signer");
-                st.execute(true);
-            }
-            if (st.get_affected_rows() != 1)
-            {
-                throw std::runtime_error("Could not update data in SQL");
-            }
-            it_old++;
-        }
-    }
-}
-
-void
-LedgerTxnRoot::Impl::deleteAccount(LedgerKey const& key)
-{
-    std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
+    CLOG(INFO, "Ledger") << "Loading all signers from signers table";
+    std::map<std::string, xdr::xvector<Signer, 20>> signersByAccount;
 
     {
+        std::string accountIDStrKey, pubKey;
+        Signer signer;
+
         auto prep = mDatabase.getPreparedStatement(
-            "DELETE FROM accounts WHERE accountid= :v1");
+            "SELECT accountid, publickey, weight FROM signers");
         auto& st = prep.statement();
-        st.exchange(soci::use(actIDStrKey));
+        st.exchange(soci::into(accountIDStrKey));
+        st.exchange(soci::into(pubKey));
+        st.exchange(soci::into(signer.weight));
         st.define_and_bind();
         {
-            auto timer = mDatabase.getDeleteTimer("account");
+            auto timer = mDatabase.getSelectTimer("signer");
             st.execute(true);
         }
-        if (st.get_affected_rows() != 1)
+        while (st.got_data())
+        {
+            signer.key = KeyUtils::fromStrKey<SignerKey>(pubKey);
+            signersByAccount[accountIDStrKey].emplace_back(signer);
+            st.fetch();
+        }
+    }
+
+    size_t numAccountsUpdated = 0;
+    for (auto& kv : signersByAccount)
+    {
+        std::sort(kv.second.begin(), kv.second.end(),
+                  [](Signer const& lhs, Signer const& rhs) {
+                      return lhs.key < rhs.key;
+                  });
+        std::string signers(decoder::encode_b64(xdr::xdr_to_opaque(kv.second)));
+
+        auto prep = mDatabase.getPreparedStatement(
+            "UPDATE accounts SET signers = :v1 WHERE accountID = :id");
+        auto& st = prep.statement();
+        st.exchange(soci::use(signers, "v1"));
+        st.exchange(soci::use(kv.first, "id"));
+        st.define_and_bind();
+        st.execute(true);
+        if (static_cast<size_t>(st.get_affected_rows()) != 1)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+
+        if ((++numAccountsUpdated & 0xfff) == 0xfff ||
+            (numAccountsUpdated == signersByAccount.size()))
+        {
+            CLOG(INFO, "Ledger")
+                << "Wrote signers for " << numAccountsUpdated << " accounts";
+        }
+    }
+
+    sqlTx.commit();
+
+    // Clearing the cache does not throw
+    mEntryCache.clear();
+    mBestOffersCache.clear();
+}
+
+class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
+{
+    Database& mDB;
+    std::vector<std::string> mAccountIDs;
+    std::vector<int64_t> mBalances;
+    std::vector<int64_t> mSeqNums;
+    std::vector<int32_t> mSubEntryNums;
+    std::vector<std::string> mInflationDests;
+    std::vector<soci::indicator> mInflationDestInds;
+    std::vector<int32_t> mFlags;
+    std::vector<std::string> mHomeDomains;
+    std::vector<std::string> mThresholds;
+    std::vector<std::string> mSigners;
+    std::vector<soci::indicator> mSignerInds;
+    std::vector<int32_t> mLastModifieds;
+    std::vector<int64_t> mBuyingLiabilities;
+    std::vector<int64_t> mSellingLiabilities;
+    std::vector<soci::indicator> mLiabilitiesInds;
+
+  public:
+    BulkUpsertAccountsOperation(Database& DB,
+                                std::vector<EntryIterator> const& entries)
+        : mDB(DB)
+    {
+        mAccountIDs.reserve(entries.size());
+        mBalances.reserve(entries.size());
+        mSeqNums.reserve(entries.size());
+        mSubEntryNums.reserve(entries.size());
+        mInflationDests.reserve(entries.size());
+        mInflationDestInds.reserve(entries.size());
+        mFlags.reserve(entries.size());
+        mHomeDomains.reserve(entries.size());
+        mThresholds.reserve(entries.size());
+        mSigners.reserve(entries.size());
+        mSignerInds.reserve(entries.size());
+        mLastModifieds.reserve(entries.size());
+        mBuyingLiabilities.reserve(entries.size());
+        mSellingLiabilities.reserve(entries.size());
+        mLiabilitiesInds.reserve(entries.size());
+
+        for (auto const& e : entries)
+        {
+            assert(e.entryExists());
+            assert(e.entry().data.type() == ACCOUNT);
+            auto const& account = e.entry().data.account();
+            mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
+            mBalances.emplace_back(account.balance);
+            mSeqNums.emplace_back(account.seqNum);
+            mSubEntryNums.emplace_back(unsignedToSigned(account.numSubEntries));
+
+            if (account.inflationDest)
+            {
+                mInflationDests.emplace_back(
+                    KeyUtils::toStrKey(*account.inflationDest));
+                mInflationDestInds.emplace_back(soci::i_ok);
+            }
+            else
+            {
+                mInflationDests.emplace_back("");
+                mInflationDestInds.emplace_back(soci::i_null);
+            }
+            mFlags.emplace_back(unsignedToSigned(account.flags));
+            mHomeDomains.emplace_back(decoder::encode_b64(account.homeDomain));
+            mThresholds.emplace_back(decoder::encode_b64(account.thresholds));
+            if (account.signers.empty())
+            {
+                mSigners.emplace_back("");
+                mSignerInds.emplace_back(soci::i_null);
+            }
+            else
+            {
+                mSigners.emplace_back(
+                    decoder::encode_b64(xdr::xdr_to_opaque(account.signers)));
+                mSignerInds.emplace_back(soci::i_ok);
+            }
+            mLastModifieds.emplace_back(
+                unsignedToSigned(e.entry().lastModifiedLedgerSeq));
+
+            if (account.ext.v() >= 1)
+            {
+                mBuyingLiabilities.emplace_back(
+                    account.ext.v1().liabilities.buying);
+                mSellingLiabilities.emplace_back(
+                    account.ext.v1().liabilities.selling);
+                mLiabilitiesInds.emplace_back(soci::i_ok);
+            }
+            else
+            {
+                mBuyingLiabilities.emplace_back(0);
+                mSellingLiabilities.emplace_back(0);
+                mLiabilitiesInds.emplace_back(soci::i_null);
+            }
+        }
+    }
+
+    void
+    doSociGenericOperation()
+    {
+        std::string sql =
+            "INSERT INTO accounts ( "
+            "accountid, balance, seqnum, numsubentries, inflationdest,"
+            "homedomain, thresholds, signers, flags, lastmodified, "
+            "buyingliabilities, sellingliabilities "
+            ") VALUES ( "
+            ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, :v11 "
+            ") ON CONFLICT (accountid) DO UPDATE SET "
+            "balance = excluded.balance, "
+            "seqnum = excluded.seqnum, "
+            "numsubentries = excluded.numsubentries, "
+            "inflationdest = excluded.inflationdest, "
+            "homedomain = excluded.homedomain, "
+            "thresholds = excluded.thresholds, "
+            "signers = excluded.signers, "
+            "flags = excluded.flags, "
+            "lastmodified = excluded.lastmodified, "
+            "buyingliabilities = excluded.buyingliabilities, "
+            "sellingliabilities = excluded.sellingliabilities";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(mAccountIDs));
+        st.exchange(soci::use(mBalances));
+        st.exchange(soci::use(mSeqNums));
+        st.exchange(soci::use(mSubEntryNums));
+        st.exchange(soci::use(mInflationDests, mInflationDestInds));
+        st.exchange(soci::use(mHomeDomains));
+        st.exchange(soci::use(mThresholds));
+        st.exchange(soci::use(mSigners, mSignerInds));
+        st.exchange(soci::use(mFlags));
+        st.exchange(soci::use(mLastModifieds));
+        st.exchange(soci::use(mBuyingLiabilities, mLiabilitiesInds));
+        st.exchange(soci::use(mSellingLiabilities, mLiabilitiesInds));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getUpsertTimer("account");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
         {
             throw std::runtime_error("Could not update data in SQL");
         }
     }
 
+    void
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
-        auto prep = mDatabase.getPreparedStatement(
-            "DELETE FROM signers WHERE accountid= :v1");
-        auto& st = prep.statement();
-        st.exchange(soci::use(actIDStrKey));
+        doSociGenericOperation();
+    }
+
+#ifdef USE_POSTGRES
+    void
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        std::string strAccountIDs, strBalances, strSeqNums, strSubEntryNums,
+            strInflationDests, strFlags, strHomeDomains, strThresholds,
+            strSigners, strLastModifieds, strBuyingLiabilities,
+            strSellingLiabilities;
+
+        PGconn* conn = pg->conn_;
+        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+        marshalToPGArray(conn, strBalances, mBalances);
+        marshalToPGArray(conn, strSeqNums, mSeqNums);
+        marshalToPGArray(conn, strSubEntryNums, mSubEntryNums);
+        marshalToPGArray(conn, strInflationDests, mInflationDests,
+                         &mInflationDestInds);
+        marshalToPGArray(conn, strFlags, mFlags);
+        marshalToPGArray(conn, strHomeDomains, mHomeDomains);
+        marshalToPGArray(conn, strThresholds, mThresholds);
+        marshalToPGArray(conn, strSigners, mSigners, &mSignerInds);
+        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
+        marshalToPGArray(conn, strBuyingLiabilities, mBuyingLiabilities,
+                         &mLiabilitiesInds);
+        marshalToPGArray(conn, strSellingLiabilities, mSellingLiabilities,
+                         &mLiabilitiesInds);
+
+        std::string sql =
+            "WITH r AS (SELECT "
+            "unnest(:ids::TEXT[]), "
+            "unnest(:v1::BIGINT[]), "
+            "unnest(:v2::BIGINT[]), "
+            "unnest(:v3::INT[]), "
+            "unnest(:v4::TEXT[]), "
+            "unnest(:v5::TEXT[]), "
+            "unnest(:v6::TEXT[]), "
+            "unnest(:v7::TEXT[]), "
+            "unnest(:v8::INT[]), "
+            "unnest(:v9::INT[]), "
+            "unnest(:v10::BIGINT[]), "
+            "unnest(:v11::BIGINT[]) "
+            ")"
+            "INSERT INTO accounts ( "
+            "accountid, balance, seqnum, "
+            "numsubentries, inflationdest, homedomain, thresholds, signers, "
+            "flags, lastmodified, buyingliabilities, sellingliabilities "
+            ") SELECT * FROM r "
+            "ON CONFLICT (accountid) DO UPDATE SET "
+            "balance = excluded.balance, "
+            "seqnum = excluded.seqnum, "
+            "numsubentries = excluded.numsubentries, "
+            "inflationdest = excluded.inflationdest, "
+            "homedomain = excluded.homedomain, "
+            "thresholds = excluded.thresholds, "
+            "signers = excluded.signers, "
+            "flags = excluded.flags, "
+            "lastmodified = excluded.lastmodified, "
+            "buyingliabilities = excluded.buyingliabilities, "
+            "sellingliabilities = excluded.sellingliabilities";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(strAccountIDs));
+        st.exchange(soci::use(strBalances));
+        st.exchange(soci::use(strSeqNums));
+        st.exchange(soci::use(strSubEntryNums));
+        st.exchange(soci::use(strInflationDests));
+        st.exchange(soci::use(strHomeDomains));
+        st.exchange(soci::use(strThresholds));
+        st.exchange(soci::use(strSigners));
+        st.exchange(soci::use(strFlags));
+        st.exchange(soci::use(strLastModifieds));
+        st.exchange(soci::use(strBuyingLiabilities));
+        st.exchange(soci::use(strSellingLiabilities));
         st.define_and_bind();
         {
-            auto timer = mDatabase.getDeleteTimer("signer");
+            auto timer = mDB.getUpsertTimer("account");
             st.execute(true);
         }
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
     }
+#endif
+};
+
+class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation
+{
+    Database& mDB;
+    LedgerTxnConsistency mCons;
+    std::vector<std::string> mAccountIDs;
+
+  public:
+    BulkDeleteAccountsOperation(Database& DB, LedgerTxnConsistency cons,
+                                std::vector<EntryIterator> const& entries)
+        : mDB(DB), mCons(cons)
+    {
+        for (auto const& e : entries)
+        {
+            assert(!e.entryExists());
+            assert(e.key().type() == ACCOUNT);
+            auto const& account = e.key().account();
+            mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
+        }
+    }
+
+    void
+    doSociGenericOperation()
+    {
+        std::string sql = "DELETE FROM accounts WHERE accountid = :id";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(mAccountIDs));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getDeleteTimer("account");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
+            mCons == LedgerTxnConsistency::EXACT)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+
+    void
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        doSociGenericOperation();
+    }
+
+#ifdef USE_POSTGRES
+    void
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+        PGconn* conn = pg->conn_;
+        std::string strAccountIDs;
+        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+        std::string sql =
+            "WITH r AS (SELECT unnest(:ids::TEXT[])) "
+            "DELETE FROM accounts WHERE accountid IN (SELECT * FROM r)";
+        auto prep = mDB.getPreparedStatement(sql);
+        soci::statement& st = prep.statement();
+        st.exchange(soci::use(strAccountIDs));
+        st.define_and_bind();
+        {
+            auto timer = mDB.getDeleteTimer("account");
+            st.execute(true);
+        }
+        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
+            mCons == LedgerTxnConsistency::EXACT)
+        {
+            throw std::runtime_error("Could not update data in SQL");
+        }
+    }
+#endif
+};
+
+void
+LedgerTxnRoot::Impl::bulkUpsertAccounts(
+    std::vector<EntryIterator> const& entries)
+{
+    BulkUpsertAccountsOperation op(mDatabase, entries);
+    mDatabase.doDatabaseTypeSpecificOperation(op);
+}
+
+void
+LedgerTxnRoot::Impl::bulkDeleteAccounts(
+    std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
+{
+    BulkDeleteAccountsOperation op(mDatabase, cons, entries);
+    mDatabase.doDatabaseTypeSpecificOperation(op);
 }
 
 void
@@ -402,5 +552,81 @@ LedgerTxnRoot::Impl::dropAccounts()
     mDatabase.getSession()
         << "CREATE INDEX accountbalances ON accounts (balance) WHERE "
            "balance >= 1000000000";
+}
+
+static std::vector<std::pair<std::string, std::string>>
+loadHomeDomainsToEncode(Database& db)
+{
+    std::string accountID, homeDomain;
+
+    std::string sql = "SELECT accountid, homedomain FROM accounts "
+                      "WHERE length(homedomain) > 0";
+
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(soci::into(accountID));
+    st.exchange(soci::into(homeDomain));
+    st.define_and_bind();
+    st.execute(true);
+
+    std::vector<std::pair<std::string, std::string>> res;
+    while (st.got_data())
+    {
+        res.emplace_back(accountID, homeDomain);
+        st.fetch();
+    }
+    return res;
+}
+
+static void
+writeEncodedHomeDomain(Database& db, std::string const& accountID,
+                       std::string const& homeDomain)
+{
+    std::string encodedHomeDomain = decoder::encode_b64(homeDomain);
+
+    std::string sql =
+        "UPDATE accounts SET homedomain = :v1 WHERE accountid = :v2";
+
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(soci::use(encodedHomeDomain));
+    st.exchange(soci::use(accountID));
+    st.define_and_bind();
+    st.execute(true);
+    if (static_cast<size_t>(st.get_affected_rows()) != 1)
+    {
+        throw std::runtime_error("could not update SQL");
+    }
+}
+
+void
+LedgerTxnRoot::Impl::encodeHomeDomainsBase64()
+{
+    throwIfChild();
+    mEntryCache.clear();
+    mBestOffersCache.clear();
+
+    CLOG(INFO, "Ledger") << "Loading all home domains from accounts table";
+    auto homeDomainsToEncode = loadHomeDomainsToEncode(mDatabase);
+
+    if (!mDatabase.isSqlite())
+    {
+        auto& session = mDatabase.getSession();
+        session << "ALTER TABLE accounts ALTER COLUMN homedomain "
+                   "SET DATA TYPE VARCHAR(44)";
+    }
+
+    size_t numUpdated = 0;
+    for (auto const& kv : homeDomainsToEncode)
+    {
+        writeEncodedHomeDomain(mDatabase, kv.first, kv.second);
+
+        if ((++numUpdated & 0xfff) == 0xfff ||
+            (numUpdated == homeDomainsToEncode.size()))
+        {
+            CLOG(INFO, "Ledger")
+                << "Wrote home domains for " << numUpdated << " accounts";
+        }
+    }
 }
 }

@@ -5,6 +5,7 @@
 #include "database/Database.h"
 #include "crypto/Hex.h"
 #include "database/DatabaseConnectionString.h"
+#include "database/DatabaseTypeSpecificOperation.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -31,6 +32,9 @@
 #include "medida/timer.h"
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
+#ifdef USE_POSTGRES
+#include <lib/soci/src/backends/postgresql/soci-postgresql.h>
+#endif
 #include <sstream>
 #include <stdexcept>
 #include <thread>
@@ -39,10 +43,6 @@
 extern "C" int
 sqlite3_carray_init(sqlite_api::sqlite3* db, char** pzErrMsg,
                     const sqlite_api::sqlite3_api_routines* pApi);
-
-#ifdef USE_POSTGRES
-extern "C" void register_factory_postgresql();
-#endif
 
 // NOTE: soci will just crash and not throw
 //  if you misname a column in a query. yay!
@@ -55,7 +55,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 8;
+static unsigned long const SCHEMA_VERSION = 9;
 
 static void
 setSerializable(soci::session& sess)
@@ -135,6 +135,16 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 8:
         mSession << "ALTER TABLE peers RENAME flags TO type";
         mSession << "UPDATE peers SET type = 2*type";
+        break;
+    case 9:
+        // Update schema for signers
+        mSession << "ALTER TABLE accounts ADD signers TEXT";
+        mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
+        mSession << "DROP TABLE IF EXISTS signers";
+
+        // Update schema for base-64 encoding
+        mApp.getLedgerTxnRoot().encodeDataNamesBase64();
+        mApp.getLedgerTxnRoot().encodeHomeDomainsBase64();
         break;
 
     default:
@@ -246,6 +256,16 @@ Database::getUpdateTimer(std::string const& entityName)
         .TimeScope();
 }
 
+medida::TimerContext
+Database::getUpsertTimer(std::string const& entityName)
+{
+    mEntityTypes.insert(entityName);
+    mQueryMeter.Mark();
+    return mApp.getMetrics()
+        .NewTimer({"database", "upsert", entityName})
+        .TimeScope();
+}
+
 void
 Database::setCurrentTransactionReadOnly()
 {
@@ -263,6 +283,27 @@ Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3:") !=
            std::string::npos;
+}
+
+void
+Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation& op)
+{
+    auto b = getSession().get_backend();
+    if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
+    {
+        op.doSqliteSpecificOperation(sq);
+#ifdef USE_POSTGRES
+    }
+    else if (auto pg = dynamic_cast<soci::postgresql_session_backend*>(b))
+    {
+        op.doPostgresSpecificOperation(pg);
+#endif
+    }
+    else
+    {
+        // Extend this with other cases if we support more databases.
+        abort();
+    }
 }
 
 bool

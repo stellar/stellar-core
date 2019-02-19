@@ -529,6 +529,77 @@ TEST_CASE("LedgerTxn create", "[ledgerstate]")
     }
 }
 
+TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgerstate]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+    le.lastModifiedLedgerSeq = 1;
+    LedgerKey key = LedgerEntryKey(le);
+
+    SECTION("fails with children")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+                          std::runtime_error);
+    }
+
+    SECTION("fails if sealed")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        ltx1.getDelta();
+        REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+                          std::runtime_error);
+    }
+
+    SECTION("when key does not exist")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
+        validate(ltx1,
+                 {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
+    }
+
+    SECTION("when key exists in self or parent")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+        REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
+
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.createOrUpdateWithoutLoading(le));
+        validate(ltx2, {{key,
+                         {std::make_shared<LedgerEntry const>(le),
+                          std::make_shared<LedgerEntry const>(le)}}});
+    }
+
+    SECTION("when key is active during overwrite")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        auto ltxe = ltx1.create(le);
+        REQUIRE(ltxe);
+        REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+                          std::runtime_error);
+    }
+
+    SECTION("when key exists in grandparent, erased in parent")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
+
+        LedgerTxn ltx3(ltx2);
+        REQUIRE_NOTHROW(ltx3.createOrUpdateWithoutLoading(le));
+        validate(ltx3,
+                 {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
+    }
+}
+
 TEST_CASE("LedgerTxn erase", "[ledgerstate]")
 {
     VirtualClock clock;
@@ -585,6 +656,67 @@ TEST_CASE("LedgerTxn erase", "[ledgerstate]")
         LedgerTxn ltx3(ltx2);
         REQUIRE_THROWS_AS(ltx3.erase(key), std::runtime_error);
         validate(ltx3, {});
+    }
+}
+
+TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgerstate]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+    le.lastModifiedLedgerSeq = 1;
+    LedgerKey key = LedgerEntryKey(le);
+
+    SECTION("fails with children")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key), std::runtime_error);
+    }
+
+    SECTION("fails if sealed")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+        ltx1.getLiveEntries();
+        REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key), std::runtime_error);
+    }
+
+    SECTION("when key does not exist")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE_NOTHROW(ltx1.eraseWithoutLoading(key));
+        REQUIRE_THROWS_AS(ltx1.getDelta(), std::runtime_error);
+        REQUIRE(ltx1.getNewestVersion(key).get() == nullptr);
+    }
+
+    SECTION("when key exists in parent")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.eraseWithoutLoading(key));
+        REQUIRE_THROWS_AS(ltx2.getDelta(), std::runtime_error);
+        REQUIRE(ltx2.getNewestVersion(key).get() == nullptr);
+    }
+
+    SECTION("when key exists in grandparent, erased in parent")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        REQUIRE(ltx1.create(le));
+
+        LedgerTxn ltx2(ltx1);
+        REQUIRE_NOTHROW(ltx2.erase(key));
+
+        LedgerTxn ltx3(ltx2);
+        REQUIRE_NOTHROW(ltx3.eraseWithoutLoading(key));
+        REQUIRE_THROWS_AS(ltx3.getDelta(), std::runtime_error);
+        REQUIRE(ltx3.getNewestVersion(key).get() == nullptr);
     }
 }
 
@@ -2019,6 +2151,135 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
             REQUIRE_THROWS_AS(ltx.loadHeader(), std::runtime_error);
         }
     }
+}
+
+TEST_CASE("Create performance benchmark", "[!hide][createbench]")
+{
+    auto runTest = [&](Config::TestDbMode mode, bool loading) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, mode));
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+        size_t n = 0xffff, batch = 0xfff;
+
+        std::vector<LedgerEntry> entries;
+        for (auto i = 0; i < 10; ++i)
+        {
+            // First add some bulking entries so we're not using a
+            // totally empty database.
+            entries = LedgerTestUtils::generateValidLedgerEntries(n);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (auto e : entries)
+            {
+                ltx.createOrUpdateWithoutLoading(e);
+            }
+            ltx.commit();
+        }
+
+        // Then do some precise timed creates.
+        entries = LedgerTestUtils::generateValidLedgerEntries(n);
+        auto& m =
+            app->getMetrics().NewMeter({"ledger", "create", "commit"}, "entry");
+        while (!entries.empty())
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (size_t i = 0; !entries.empty() && i < batch; ++i)
+            {
+                if (loading)
+                {
+                    ltx.create(entries.back());
+                }
+                else
+                {
+                    ltx.createOrUpdateWithoutLoading(entries.back());
+                }
+                entries.pop_back();
+            }
+            ltx.commit();
+            m.Mark(batch);
+            CLOG(INFO, "Ledger")
+                << "benchmark create rate: " << m.mean_rate() << " entries/sec "
+                << (loading ? "(loading)" : "(non-loading)");
+        }
+    };
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE, true);
+        runTest(Config::TESTDB_ON_DISK_SQLITE, false);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL, true);
+        runTest(Config::TESTDB_POSTGRESQL, false);
+    }
+#endif
+}
+
+TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
+{
+    auto runTest = [&](Config::TestDbMode mode, bool loading) {
+        VirtualClock clock;
+        Config cfg(getTestConfig(0, mode));
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+        size_t n = 0xffff, batch = 0xfff;
+
+        std::vector<LedgerEntry> entries;
+        for (auto i = 0; i < 10; ++i)
+        {
+            // First add some bulking entries so we're not using a
+            // totally empty database.
+            entries = LedgerTestUtils::generateValidLedgerEntries(n);
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (auto e : entries)
+            {
+                ltx.createOrUpdateWithoutLoading(e);
+            }
+            ltx.commit();
+        }
+
+        // Then do some precise timed erases.
+        auto& m =
+            app->getMetrics().NewMeter({"ledger", "erase", "commit"}, "entry");
+        while (!entries.empty())
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            for (size_t i = 0; !entries.empty() && i < batch; ++i)
+            {
+                if (loading)
+                {
+                    ltx.erase(LedgerEntryKey(entries.back()));
+                }
+                else
+                {
+                    ltx.eraseWithoutLoading(LedgerEntryKey(entries.back()));
+                }
+                entries.pop_back();
+            }
+            ltx.commit();
+            m.Mark(batch);
+            CLOG(INFO, "Ledger")
+                << "benchmark erase rate: " << m.mean_rate() << " entries/sec "
+                << (loading ? "(loading)" : "(non-loading)");
+        }
+    };
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE, true);
+        runTest(Config::TESTDB_ON_DISK_SQLITE, false);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL, true);
+        runTest(Config::TESTDB_POSTGRESQL, false);
+    }
+#endif
 }
 
 TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
