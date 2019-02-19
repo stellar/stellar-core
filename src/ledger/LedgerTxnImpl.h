@@ -283,10 +283,8 @@ class LedgerTxn::Impl
     void createOrUpdateWithoutLoading(LedgerTxn& self,
                                       LedgerEntry const& entry);
 
-    // eraseWithoutLoading has the basic exception safety guarantee. If it
-    // throws an exception, then
-    // - the current LedgerTxn::Impl may, but is not guaranteed to, have
-    //   the entry associated with the given key removed.
+    // eraseWithoutLoading has the strong exception safety guarantee. If it
+    // throws an exception, then the current LedgerTxn::Impl is unchanged.
     void eraseWithoutLoading(LedgerKey const& key);
 
     // loadAllOffers has the basic exception safety guarantee. If it throws an
