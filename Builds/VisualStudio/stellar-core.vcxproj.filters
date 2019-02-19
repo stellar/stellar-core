@@ -273,6 +273,9 @@
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\XDRStreamTests.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
