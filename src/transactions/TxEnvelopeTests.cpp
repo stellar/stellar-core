@@ -1121,7 +1121,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     time_t start = getTestDate(1, 7, 2014);
                     ledgerTime = VirtualClock::from_time_t(start);
 
-                    clock.setCurrentTime(ledgerTime);
+                    clock.setCurrentVirtualTime(ledgerTime);
 
                     SECTION("too early")
                     {
