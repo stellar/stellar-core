@@ -13,10 +13,11 @@ class AbstractLedgerTxn;
 
 class ManageOfferOpFrame : public OperationFrame
 {
+    ManageOfferOp const& mManageOffer;
+
     bool checkOfferValid(AbstractLedgerTxn& lsOuter);
 
-    bool computeOfferExchangeParameters(AbstractLedgerTxn& lsOuter,
-                                        LedgerEntry const& offer,
+    bool computeOfferExchangeParameters(AbstractLedgerTxn& ltxOuter,
                                         bool creatingNewOffer,
                                         int64_t& maxSheepSend,
                                         int64_t& maxWheatReceive);
@@ -27,10 +28,7 @@ class ManageOfferOpFrame : public OperationFrame
         return mResult.tr().manageOfferResult();
     }
 
-    ManageOfferOp const& mManageOffer;
-
-    OfferEntry buildOffer(AccountID const& account, ManageOfferOp const& op,
-                          uint32 flags);
+    LedgerEntry buildOffer(int64_t amount, uint32_t flags) const;
 
   protected:
     bool mPassive;
