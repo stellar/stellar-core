@@ -18,7 +18,7 @@
 
 Note: if you do not want to use postgres you can select `DebugNoPostgres` as the build target.
 
-Get version 9.4.8 from https://www.enterprisedb.com/download-postgresql-binaries
+Get version 9.5 from https://www.enterprisedb.com/download-postgresql-binaries
 
 The default project file defines USE_POSTGRES and links against it.
 * Pick a directory for the database
@@ -26,7 +26,7 @@ The default project file defines USE_POSTGRES and links against it.
 * Accept the default port (5432)
 * Accept `default` for the locale (not clear if anything depends on this. The `default` locale will
 presumably depend on your operating system's setting might cause inconsistencies)
-* Add `c:\Program Files\PostgreSQL\9.4\bin` to your PATH (else the binary will fail to start,
+* Add `c:\Program Files\PostgreSQL\9.5\bin` to your PATH (else the binary will fail to start,
     not finding `libpq.dll`)
 * If you install postgres in a different folder, you will have to update the project file in two places:
     * "additional include locations" and
