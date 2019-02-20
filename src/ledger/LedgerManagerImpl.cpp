@@ -536,6 +536,10 @@ LedgerManagerImpl::finalizeCatchup(LedgerCloseData const& ledgerData)
 void
 LedgerManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
 {
+    assert(mState == LM_CATCHING_UP_STATE);
+    assert(mCatchupState != CatchupState::NONE);
+    assert(mCatchupState != CatchupState::WAITING_FOR_CLOSING_LEDGER);
+
     switch (mSyncingLedgers.push(ledgerData))
     {
     case SyncingLedgerChainAddResult::CONTIGUOUS:

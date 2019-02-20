@@ -48,14 +48,9 @@ class LedgerManagerImpl : public LedgerManager
     VirtualClock::time_point mLastClose;
 
     medida::Counter& mSyncingLedgersSize;
-    SyncingLedgerChain mSyncingLedgers;
     uint32_t mCatchupTriggerLedger{0};
 
     CatchupState mCatchupState{CatchupState::NONE};
-
-    void initializeCatchup(LedgerCloseData const& ledgerData);
-    void continueCatchup(LedgerCloseData const& ledgerData);
-    void finalizeCatchup(LedgerCloseData const& ledgerData);
 
     void addToSyncingLedgers(LedgerCloseData const& ledgerData);
     void startCatchupIf(uint32_t lastReceivedLedgerSeq);
@@ -63,7 +58,6 @@ class LedgerManagerImpl : public LedgerManager
     void historyCaughtup(asio::error_code const& ec,
                          CatchupWork::ProgressState progressState,
                          LedgerHeaderHistoryEntry const& lastClosed);
-    void applyBufferedLedgers();
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
                             AbstractLedgerTxn& ltxOuter);
@@ -75,7 +69,6 @@ class LedgerManagerImpl : public LedgerManager
     void ledgerClosed(AbstractLedgerTxn& ltx);
 
     void storeCurrentLedger(LedgerHeader const& header);
-    void advanceLedgerPointers(LedgerHeader const& header);
 
     enum class CloseLedgerIfResult
     {
@@ -87,7 +80,17 @@ class LedgerManagerImpl : public LedgerManager
 
     State mState;
     void setState(State s);
+
+  protected:
+    SyncingLedgerChain mSyncingLedgers;
+
+    void applyBufferedLedgers();
     void setCatchupState(CatchupState s);
+    void advanceLedgerPointers(LedgerHeader const& header);
+
+    void initializeCatchup(LedgerCloseData const& ledgerData);
+    void continueCatchup(LedgerCloseData const& ledgerData);
+    void finalizeCatchup(LedgerCloseData const& ledgerData);
 
   public:
     LedgerManagerImpl(Application& app);
