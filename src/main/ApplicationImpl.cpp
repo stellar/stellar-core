@@ -111,7 +111,7 @@ ApplicationImpl::initialize()
     mDatabase = std::make_unique<Database>(*this);
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
-    mLedgerManager = LedgerManager::create(*this);
+    mLedgerManager = createLedgerManager();
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
     mBucketManager = BucketManager::create(*this);
@@ -787,6 +787,12 @@ std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
+}
+
+std::unique_ptr<LedgerManager>
+ApplicationImpl::createLedgerManager()
+{
+    return LedgerManager::create(*this);
 }
 
 LedgerTxnRoot&
