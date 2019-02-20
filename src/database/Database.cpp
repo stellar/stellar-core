@@ -288,7 +288,7 @@ Database::isSqlite() const
 void
 Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation& op)
 {
-    auto b = getSession().get_backend();
+    auto b = mSession.get_backend();
     if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
     {
         op.doSqliteSpecificOperation(sq);
