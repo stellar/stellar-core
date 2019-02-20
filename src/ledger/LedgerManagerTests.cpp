@@ -18,6 +18,7 @@ class LedgerManagerForTests : public LedgerManagerImpl
   public:
     using LedgerManagerImpl::applyBufferedLedgers;
     using LedgerManagerImpl::continueCatchup;
+    using LedgerManagerImpl::finalizeCatchup;
     using LedgerManagerImpl::initializeCatchup;
     using LedgerManagerImpl::setCatchupState;
 
@@ -92,14 +93,14 @@ TEST_CASE("new ledger comes from network after last applyBufferedLedgers is "
         if (ledgerManager.syncingLedgersEmpty())
         {
             REQUIRE(ledgerManager.getCatchupState() ==
-                    LedgerManager::CatchupState::APPLYING_BUFFERED_LEDGERS);
+                    LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER);
             break;
         }
     }
 
-    ledgerManager.continueCatchup(ledgerCloseData(5));
+    // there is gap, so new catchup is starting
+    ledgerManager.finalizeCatchup(ledgerCloseData(5));
+    REQUIRE(!ledgerManager.syncingLedgersEmpty());
     REQUIRE(ledgerManager.getCatchupState() ==
-            LedgerManager::CatchupState::APPLYING_BUFFERED_LEDGERS);
-
-    clock.crank(); // crash
+            LedgerManager::CatchupState::WAITING_FOR_TRIGGER_LEDGER);
 }

@@ -694,19 +694,18 @@ void
 LedgerManagerImpl::applyBufferedLedgers()
 {
     assert(mCatchupState == CatchupState::APPLYING_BUFFERED_LEDGERS);
+    if (mSyncingLedgers.empty())
+    {
+        CLOG(INFO, "Ledger")
+            << "Caught up to LCL including recent network activity: "
+            << ledgerAbbrev(mLastClosedLedger)
+            << "; waiting for closing ledger";
+        setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
+        return;
+    }
 
     mApp.postOnMainThreadWithDelay(
         [&] {
-            if (mSyncingLedgers.empty())
-            {
-                CLOG(INFO, "Ledger")
-                    << "Caught up to LCL including recent network activity: "
-                    << ledgerAbbrev(mLastClosedLedger)
-                    << "; waiting for closing ledger";
-                setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
-                return;
-            }
-
             auto lcd = mSyncingLedgers.front();
             mSyncingLedgers.pop();
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
