@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <cstddef>
+#include <cstdint>
 #include <list>
 #include <queue>
 
@@ -31,11 +32,13 @@ class SyncingLedgerChain final
     LedgerCloseData const& back() const;
     void pop();
     SyncingLedgerChainAddResult push(LedgerCloseData lcd);
+    void reset();
 
     size_t size() const;
     bool empty() const;
 
   private:
     std::queue<LedgerCloseData, std::list<LedgerCloseData>> mChain;
+    uint32_t mLastLedgerSeq{0};
 };
 }

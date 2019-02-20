@@ -33,19 +33,26 @@ SyncingLedgerChain::pop()
 SyncingLedgerChainAddResult
 SyncingLedgerChain::push(LedgerCloseData lcd)
 {
-    if (mChain.empty() ||
-        mChain.back().getLedgerSeq() + 1 == lcd.getLedgerSeq())
+    if (mLastLedgerSeq == 0 || mLastLedgerSeq + 1 == lcd.getLedgerSeq())
     {
         mChain.emplace(lcd);
+        mLastLedgerSeq = lcd.getLedgerSeq();
         return SyncingLedgerChainAddResult::CONTIGUOUS;
     }
 
-    if (lcd.getLedgerSeq() <= mChain.back().getLedgerSeq())
+    if (lcd.getLedgerSeq() <= mLastLedgerSeq)
     {
         return SyncingLedgerChainAddResult::TOO_OLD;
     }
 
     return SyncingLedgerChainAddResult::TOO_NEW;
+}
+
+void
+SyncingLedgerChain::reset()
+{
+    assert(empty());
+    mLastLedgerSeq = 0;
 }
 
 size_t

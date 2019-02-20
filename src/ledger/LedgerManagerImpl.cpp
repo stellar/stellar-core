@@ -511,6 +511,7 @@ LedgerManagerImpl::finalizeCatchup(LedgerCloseData const& ledgerData)
     assert(mState == LM_CATCHING_UP_STATE);
     assert(mCatchupState == CatchupState::WAITING_FOR_CLOSING_LEDGER);
     assert(mSyncingLedgers.empty());
+    mSyncingLedgers.reset();
 
     switch (closeLedgerIf(ledgerData))
     {
@@ -623,9 +624,23 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
         throw std::invalid_argument("Target ledger is not newer than LCL");
     }
 
-    setCatchupState(CatchupState::APPLYING_HISTORY);
-    assert(manualCatchup == mSyncingLedgers.empty());
+    if (manualCatchup)
+    {
+        if (getState() == LM_CATCHING_UP_STATE &&
+            mCatchupState != CatchupState::WAITING_FOR_CLOSING_LEDGER)
+        {
+            throw std::runtime_error(
+                "Unable to perform second catchup before first one finishes");
+        }
+        assert(mSyncingLedgers.empty());
+        mSyncingLedgers.reset();
+    }
+    else
+    {
+        assert(!mSyncingLedgers.empty());
+    }
 
+    setCatchupState(CatchupState::APPLYING_HISTORY);
     mApp.getCatchupManager().catchupHistory(
         configuration,
         std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
