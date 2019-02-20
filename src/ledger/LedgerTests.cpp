@@ -2,22 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "LedgerTestUtils.h"
-#include "database/Database.h"
-#include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
-#include "ledger/LedgerTxnEntry.h"
-#include "ledger/LedgerTxnHeader.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
-#include "main/Config.h"
-#include "test/TestUtils.h"
 #include "test/test.h"
-#include "util/Logging.h"
-#include "util/Timer.h"
-#include "util/types.h"
-#include <xdrpp/autocheck.h>
+
+#include <lib/catch.hpp>
 
 using namespace stellar;
 
