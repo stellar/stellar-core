@@ -95,6 +95,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     ENTRY_CACHE_SIZE = 4096;
     BEST_OFFERS_CACHE_SIZE = 64;
+    PREFETCH_BATCH_SIZE = 100;
 }
 
 namespace
@@ -517,6 +518,10 @@ Config::load(std::string const& filename)
             else if (item.first == "BEST_OFFERS_CACHE_SIZE")
             {
                 BEST_OFFERS_CACHE_SIZE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "PREFETCH_BATCH_SIZE")
+            {
+                PREFETCH_BATCH_SIZE = readInt<uint32_t>(item);
             }
             else
             {
