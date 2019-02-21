@@ -281,6 +281,11 @@ Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
     auto p = mNodes[id];
     auto clock = p.mClock;
     auto app = p.mApp;
+    if (app->getState() == Application::APP_CREATED_STATE)
+    {
+        throw std::runtime_error("Can't crank node that is not started");
+    }
+
     size_t quantumClicks = 0;
     bool doneWithQuantum = false;
     VirtualTimer quantumTimer(*app);
