@@ -286,4 +286,37 @@ PathPaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
     }
     return true;
 }
+
+std::unordered_set<LedgerKey>
+PathPaymentOpFrame::getLedgerKeysToPrefetch(Application& app)
+{
+    std::unordered_set<LedgerKey> keys;
+    keys.insert(stellar::getLedgerKey(mPathPayment.destination));
+
+    std::vector<Asset> allAssets{mPathPayment.sendAsset,
+                                 mPathPayment.destAsset};
+    allAssets.insert(allAssets.end(), mPathPayment.path.begin(),
+                     mPathPayment.path.end());
+
+    for (auto const& asset : allAssets)
+    {
+        if (asset.type() == ASSET_TYPE_NATIVE)
+        {
+            continue;
+        }
+
+        auto issuer = getIssuer(asset);
+        keys.insert(stellar::getLedgerKey(issuer));
+
+        if (asset == mPathPayment.destAsset)
+        {
+            keys.insert(stellar::getLedgerKey(mPathPayment.destination,
+                                              mPathPayment.destAsset));
+            keys.insert(
+                stellar::getLedgerKey(getSourceID(), mPathPayment.destAsset));
+        }
+    }
+
+    return keys;
+}
 }

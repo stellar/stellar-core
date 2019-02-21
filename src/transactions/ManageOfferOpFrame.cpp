@@ -472,4 +472,36 @@ ManageOfferOpFrame::buildOffer(AccountID const& account,
     o.flags = flags;
     return o;
 }
+
+std::unordered_set<LedgerKey>
+ManageOfferOpFrame::getLedgerKeysToPrefetch(Application& app)
+{
+    // TODO (mlo) will need to deal with best offers as well
+
+    std::unordered_set<LedgerKey> keys;
+    if (mManageOffer.amount == 0)
+    {
+        return keys;
+    }
+
+    // Prefetch existing offer
+    if (mManageOffer.offerID)
+    {
+        keys.insert(stellar::getLedgerKey(getSourceID(), mManageOffer.offerID));
+    }
+
+    auto addIssuerAndTrustline = [&](Asset const& asset) {
+        if (asset.type() != ASSET_TYPE_NATIVE)
+        {
+            auto issuer = getIssuer(asset);
+            keys.insert(stellar::getLedgerKey(issuer));
+            keys.insert(stellar::getLedgerKey(this->getSourceID(), asset));
+        }
+    };
+
+    addIssuerAndTrustline(mManageOffer.selling);
+    addIssuerAndTrustline(mManageOffer.buying);
+
+    return keys;
+}
 }

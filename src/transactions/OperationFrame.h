@@ -84,5 +84,8 @@ class OperationFrame
     {
         return mOperation;
     }
+
+    virtual std::unordered_set<LedgerKey>
+    getLedgerKeysToPrefetch(Application& app);
 };
 }

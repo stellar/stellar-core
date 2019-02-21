@@ -224,4 +224,11 @@ OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
 {
     return mParentTx.loadAccount(ltx, header, getSourceID());
 }
+
+std::unordered_set<LedgerKey>
+OperationFrame::getLedgerKeysToPrefetch(Application& app)
+{
+    // Do nothing by default
+    return {};
+}
 }

@@ -96,4 +96,12 @@ ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 
     return true;
 }
+
+std::unordered_set<LedgerKey>
+ManageDataOpFrame::getLedgerKeysToPrefetch(Application& app)
+{
+    std::unordered_set<LedgerKey> keys;
+    keys.insert(stellar::getLedgerKey(getSourceID(), mManageData.dataName));
+    return keys;
+}
 }
