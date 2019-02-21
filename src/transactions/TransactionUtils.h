@@ -14,7 +14,22 @@ class ConstTrustLineWrapper;
 class AbstractLedgerTxn;
 class LedgerTxnEntry;
 class LedgerTxnHeader;
+class LedgerTxnRoot;
 class TrustLineWrapper;
+struct LedgerKey;
+
+LedgerKey getLedgerKey(AccountID const& accountID);
+LedgerKey getLedgerKey(AccountID const& accountID, Asset const& asset);
+LedgerKey getLedgerKey(AccountID const& sellerID, uint64_t offerID);
+LedgerKey getLedgerKey(AccountID const& accountID, std::string const& dataName);
+
+void prefetchAccount(LedgerTxnRoot& root, AccountID const& accountID);
+void prefetchOffer(LedgerTxnRoot& root, AccountID const& sellerID,
+                   uint64_t offerID);
+void prefetchTrustLine(LedgerTxnRoot& root, AccountID const& accountID,
+                       Asset const& asset);
+void prefetchData(LedgerTxnRoot& root, AccountID const& accountID,
+                  std::string const& dataName);
 
 LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 

@@ -15,39 +15,97 @@
 namespace stellar
 {
 
+LedgerKey
+getLedgerKey(AccountID const& accountID)
+{
+    LedgerKey key(ACCOUNT);
+    key.account().accountID = accountID;
+    return key;
+}
+
+LedgerKey
+getLedgerKey(AccountID const& accountID, Asset const& asset)
+{
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset = asset;
+    return key;
+}
+
+LedgerKey
+getLedgerKey(AccountID const& sellerID, uint64_t offerID)
+{
+    LedgerKey key(OFFER);
+    key.offer().sellerID = sellerID;
+    key.offer().offerID = offerID;
+    return key;
+}
+
+LedgerKey
+getLedgerKey(AccountID const& accountID, std::string const& dataName)
+{
+    LedgerKey key(DATA);
+    key.data().accountID = accountID;
+    key.data().dataName = dataName;
+    return key;
+}
+
+void
+prefetchAccount(LedgerTxnRoot& root, AccountID const& accountID)
+{
+    root.prefetch(getLedgerKey(accountID));
+}
+
+void
+prefetchOffer(LedgerTxnRoot& root, AccountID const& sellerID, uint64_t offerID)
+{
+    root.prefetch(getLedgerKey(sellerID, offerID));
+}
+
+void
+prefetchTrustLine(LedgerTxnRoot& root, AccountID const& accountID,
+                  Asset const& asset)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        throw std::runtime_error("Asset must be non-native");
+    }
+    if (getIssuer(asset) == accountID)
+    {
+        throw std::runtime_error("Issuer is accountID");
+    }
+    root.prefetch(getLedgerKey(accountID, asset));
+}
+
+void
+prefetchData(LedgerTxnRoot& root, AccountID const& accountID,
+             std::string const& dataName)
+{
+    root.prefetch(getLedgerKey(accountID, dataName));
+}
+
 LedgerTxnEntry
 loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
-    LedgerKey key(ACCOUNT);
-    key.account().accountID = accountID;
-    return ltx.load(key);
+    return ltx.load(getLedgerKey(accountID));
 }
-
 ConstLedgerTxnEntry
 loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
-    LedgerKey key(ACCOUNT);
-    key.account().accountID = accountID;
-    return ltx.loadWithoutRecord(key);
+    return ltx.loadWithoutRecord(getLedgerKey(accountID));
 }
 
 LedgerTxnEntry
 loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
          std::string const& dataName)
 {
-    LedgerKey key(DATA);
-    key.data().accountID = accountID;
-    key.data().dataName = dataName;
-    return ltx.load(key);
+    return ltx.load(getLedgerKey(accountID, dataName));
 }
 
 LedgerTxnEntry
 loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, uint64_t offerID)
 {
-    LedgerKey key(OFFER);
-    key.offer().sellerID = sellerID;
-    key.offer().offerID = offerID;
-    return ltx.load(key);
+    return ltx.load(getLedgerKey(sellerID, offerID));
 }
 
 TrustLineWrapper
