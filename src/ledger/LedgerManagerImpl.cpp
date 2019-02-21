@@ -25,6 +25,8 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/OperationFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/format.h"
@@ -803,6 +805,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // sorted such that sequence numbers are respected
     vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
 
+    // Prefetch all tx source accounts
+    if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
+    {
+        auto& root = mApp.getLedgerTxnRoot();
+        for (auto const& tx : txs)
+        {
+            stellar::prefetchAccount(root, tx->getSourceID());
+        }
+    }
+
     // first, charge fees
     processFeesSeqNums(txs, ltx);
 
@@ -942,6 +954,30 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 }
 
 void
+LedgerManagerImpl::prefetchTransactionData(
+    std::vector<TransactionFramePtr>& txs)
+{
+    if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
+    {
+        auto& root = mApp.getLedgerTxnRoot();
+        for (auto const& tx : txs)
+        {
+            for (auto const& op : tx->getOperations())
+            {
+                if (!(tx->getSourceID() == op->getSourceID()))
+                {
+                    stellar::prefetchAccount(root, op->getSourceID());
+                }
+                for (auto const& key : op->getLedgerKeysToPrefetch(mApp))
+                {
+                    root.prefetch(key);
+                }
+            }
+        }
+    }
+}
+
+void
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                                      AbstractLedgerTxn& ltx,
                                      TransactionResultSet& txResultSet)
@@ -950,19 +986,22 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
 
     // Record counts
     auto numTxs = txs.size();
+    size_t numOps = 0;
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
-        size_t numOps =
-            std::accumulate(txs.begin(), txs.end(), size_t(0),
-                            [](size_t s, TransactionFramePtr const& v) {
-                                return s + v->getOperations().size();
-                            });
+        numOps = std::accumulate(txs.begin(), txs.end(), size_t(0),
+                                 [](size_t s, TransactionFramePtr const& v) {
+                                     return s + v->getOperations().size();
+                                 });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
                                         ltx.loadHeader().current().ledgerSeq,
                                         numTxs, numOps);
     }
+
+    // Request some prefetches
+    prefetchTransactionData(txs);
 
     for (auto tx : txs)
     {
@@ -1003,6 +1042,27 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, ++index,
                              txResultSet);
     }
+
+    logTxApplyMetrics(ltx, numTxs, numOps);
+}
+
+void
+LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
+                                     size_t numOps)
+{
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+
+    CLOG(DEBUG, "Ledger") << "Ledger: " << ledgerSeq << " txs: " << numTxs
+                          << ", ops: " << numOps
+                          << ", AVG application time per tx: "
+                          << mTransactionApply.mean() << " ± "
+                          << mTransactionApply.std_dev();
+
+    CLOG(DEBUG, "Ledger")
+        << "Ledger: " << ledgerSeq << " txs: " << numTxs << ", ops: " << numOps
+        << ", MIN application time per tx: " << mTransactionApply.min()
+        << ", MAX " << mTransactionApply.max() << ", 75th percentile: "
+        << mTransactionApply.GetSnapshot().get75thPercentile();
 }
 
 void

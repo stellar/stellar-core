@@ -276,6 +276,25 @@ class EntryIterator
     LedgerKey const& key() const;
 };
 
+class AbstractPrefetcher
+{
+  public:
+    virtual ~AbstractPrefetcher();
+
+    virtual void queueForPrefetch(LedgerKey const& key, bool immediate) = 0;
+
+    virtual void cancelPrefetch(LedgerKey const& key) = 0;
+
+    virtual void cancelAllPrefetches() = 0;
+
+    // `getPrefetched` provides information on the state of prefetched key
+    // Boolean value indicates whether the key been has been prefetched.
+    // If so, then shared pointer is either a valid pointer to LedgerEntry,
+    // or a nullptr, meaning entry does not exist in the database.
+    virtual std::pair<bool, std::shared_ptr<LedgerEntry const>>
+    getPrefetched(LedgerKey const& key) = 0;
+};
+
 // An abstraction for an object that can be the parent of an AbstractLedgerTxn
 // (discussed below). Allows children to commit atomically to the parent. Has no
 // notion of a LedgerTxnEntry or LedgerTxnHeader (discussed respectively in
@@ -556,7 +575,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
   public:
     explicit LedgerTxnRoot(Database& db, size_t entryCacheSize = 4096,
-                           size_t bestOfferCacheSize = 64);
+                           size_t bestOfferCacheSize = 64,
+                           size_t prefetchBatchSize = 100);
 
     virtual ~LedgerTxnRoot();
 
@@ -598,5 +618,10 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void writeSignersTableIntoAccountsTable();
     void encodeDataNamesBase64();
     void encodeHomeDomainsBase64();
+
+    void prefetch(LedgerKey const& key);
+    void prefetchNow(LedgerKey const& key);
+    void cancelPrefetch(LedgerKey const& key);
+    void cancelAllPrefetches();
 };
 }

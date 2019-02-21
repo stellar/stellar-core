@@ -76,6 +76,7 @@ class LedgerManagerImpl : public LedgerManager
 
     void storeCurrentLedger(LedgerHeader const& header);
     void advanceLedgerPointers(LedgerHeader const& header);
+    void prefetchTransactionData(std::vector<TransactionFramePtr>& txs);
 
     enum class CloseLedgerIfResult
     {
@@ -88,6 +89,8 @@ class LedgerManagerImpl : public LedgerManager
     State mState;
     void setState(State s);
     void setCatchupState(CatchupState s);
+    void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
+                           size_t numOps);
 
   public:
     LedgerManagerImpl(Application& app);

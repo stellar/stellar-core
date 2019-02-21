@@ -21,6 +21,7 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
+// TODO remove asio commit
 class EntryIterator::AbstractImpl
 {
   public:
@@ -376,6 +377,8 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 // been lost.
 class LedgerTxnRoot::Impl
 {
+    class Prefetcher;
+
     typedef std::string EntryCacheKey;
     typedef cache::lru_cache<EntryCacheKey, std::shared_ptr<LedgerEntry const>>
         EntryCache;
@@ -394,6 +397,7 @@ class LedgerTxnRoot::Impl
     mutable BestOffersCache mBestOffersCache;
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
+    std::unique_ptr<Prefetcher> mPrefetcher;
 
     void throwIfChild() const;
 
@@ -464,9 +468,15 @@ class LedgerTxnRoot::Impl
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadData(std::unordered_set<LedgerKey> const& keys) const;
 
+    std::shared_ptr<LedgerEntry const> updatePrefetcherCache(
+        std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+            loaded,
+        LedgerKey key) const;
+
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Database& db, size_t entryCacheSize, size_t bestOfferCacheSize);
+    Impl(Database& db, size_t entryCacheSize, size_t bestOfferCacheSize,
+         size_t prefetchBatchSize);
 
     ~Impl();
 
@@ -554,6 +564,60 @@ class LedgerTxnRoot::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     void encodeHomeDomainsBase64();
+
+    // Synchronously issue a request to prefetch LedgerKey. This function
+    // enqueues LedgerKey using an internal prefetch queue. Note that actual
+    // loading occurs in `load` function, which uses the prefetch queue to
+    // utilize bulk loads.
+    void prefetch(LedgerKey const& key);
+    void prefetchNow(LedgerKey const& key);
+    void cancelPrefetch(LedgerKey const& key);
+    void cancelAllPrefetches();
+};
+
+class LedgerTxnRoot::Impl::Prefetcher : public AbstractPrefetcher
+{
+  public:
+    explicit Prefetcher(size_t batchSize);
+
+    virtual ~Prefetcher();
+
+    void queueForPrefetch(LedgerKey const& key, bool immediate) override;
+
+    void cancelPrefetch(LedgerKey const& key) override;
+
+    void cancelAllPrefetches() override;
+
+    std::pair<bool, std::shared_ptr<LedgerEntry const>>
+    getPrefetched(LedgerKey const& key) override;
+
+    // The following methods are to be used by LedgerRoot
+    bool hasNextToPrefetch(LedgerEntryType type);
+
+    LedgerKey getNextToPrefetch(LedgerEntryType type);
+
+    std::unordered_set<LedgerKey> getBatchToPrefetch(LedgerEntryType type);
+
+    void insertPrefetched(LedgerKey const& key,
+                          std::shared_ptr<LedgerEntry const> entry);
+
+    void clearAllPrefetched();
+
+  private:
+    std::list<LedgerKey const> mAccountsQueue;
+    std::list<LedgerKey const> mTrustlinesQueue;
+    std::list<LedgerKey const> mOffersQueue;
+    std::list<LedgerKey const> mDataQueue;
+
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>> mCache;
+    size_t mBatchSize;
+
+    std::unordered_map<LedgerKey, uint32_t> mPrefetchAccesses;
+    std::unordered_map<LedgerKey, uint32_t> mPrefetchMisses;
+    uint32_t mTotalHits{0};
+    uint32_t mTotalMisses{0};
+
+    std::list<LedgerKey const>& getQueueByType(LedgerEntryType let);
 };
 
 #ifdef USE_POSTGRES
