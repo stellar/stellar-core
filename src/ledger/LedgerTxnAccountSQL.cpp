@@ -196,7 +196,7 @@ LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
     mBestOffersCache.clear();
 }
 
-class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
+class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     std::vector<std::string> mAccountIDs;
@@ -429,7 +429,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation
 #endif
 };
 
-class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation
+class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
     LedgerTxnConsistency mCons;
@@ -628,5 +628,169 @@ LedgerTxnRoot::Impl::encodeHomeDomainsBase64()
                 << "Wrote home domains for " << numUpdated << " accounts";
         }
     }
+}
+
+class BulkLoadAccountsOperation
+    : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
+{
+    Database& mDb;
+    std::vector<std::string> mAccountIDs;
+
+    std::vector<LedgerEntry>
+    executeAndFetch(soci::statement& st)
+    {
+        std::string accountID, inflationDest, homeDomain, thresholds, signers;
+        int64_t balance;
+        uint64_t seqNum;
+        uint32_t numSubEntries, flags, lastModified;
+        Liabilities liabilities;
+        soci::indicator inflationDestInd, signersInd, buyingLiabilitiesInd,
+            sellingLiabilitiesInd;
+
+        st.exchange(soci::into(accountID));
+        st.exchange(soci::into(balance));
+        st.exchange(soci::into(seqNum));
+        st.exchange(soci::into(numSubEntries));
+        st.exchange(soci::into(inflationDest, inflationDestInd));
+        st.exchange(soci::into(homeDomain));
+        st.exchange(soci::into(thresholds));
+        st.exchange(soci::into(flags));
+        st.exchange(soci::into(lastModified));
+        st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
+        st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+        st.exchange(soci::into(signers, signersInd));
+        st.define_and_bind();
+        {
+            auto timer = mDb.getSelectTimer("account");
+            st.execute(true);
+        }
+
+        std::vector<LedgerEntry> res;
+        while (st.got_data())
+        {
+            res.emplace_back();
+            auto& le = res.back();
+            le.data.type(ACCOUNT);
+            auto& ae = le.data.account();
+
+            ae.accountID = KeyUtils::fromStrKey<PublicKey>(accountID);
+            ae.balance = balance;
+            ae.seqNum = seqNum;
+            ae.numSubEntries = numSubEntries;
+
+            if (inflationDestInd == soci::i_ok)
+            {
+                ae.inflationDest.activate() =
+                    KeyUtils::fromStrKey<PublicKey>(inflationDest);
+            }
+
+            decoder::decode_b64(homeDomain, ae.homeDomain);
+
+            bn::decode_b64(thresholds.begin(), thresholds.end(),
+                           ae.thresholds.begin());
+
+            if (inflationDestInd == soci::i_ok)
+            {
+                ae.inflationDest.activate() =
+                    KeyUtils::fromStrKey<PublicKey>(inflationDest);
+            }
+
+            ae.flags = flags;
+            le.lastModifiedLedgerSeq = lastModified;
+
+            assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
+            if (buyingLiabilitiesInd == soci::i_ok)
+            {
+                ae.ext.v(1);
+                ae.ext.v1().liabilities = liabilities;
+            }
+
+            if (signersInd == soci::i_ok)
+            {
+                std::vector<uint8_t> signersOpaque;
+                decoder::decode_b64(signers, signersOpaque);
+                xdr::xdr_from_opaque(signersOpaque, ae.signers);
+                assert(std::adjacent_find(
+                           ae.signers.begin(), ae.signers.end(),
+                           [](Signer const& lhs, Signer const& rhs) {
+                               return !(lhs.key < rhs.key);
+                           }) == ae.signers.end());
+            }
+
+            st.fetch();
+        }
+        return res;
+    }
+
+  public:
+    BulkLoadAccountsOperation(Database& db,
+                              std::unordered_set<LedgerKey> const& keys)
+        : mDb(db)
+    {
+        mAccountIDs.reserve(keys.size());
+        for (auto const& k : keys)
+        {
+            assert(k.type() == ACCOUNT);
+            mAccountIDs.emplace_back(KeyUtils::toStrKey(k.account().accountID));
+        }
+    }
+
+    virtual std::vector<LedgerEntry>
+    doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
+    {
+        std::vector<char const*> accountIDcstrs;
+        accountIDcstrs.reserve(mAccountIDs.size());
+        for (auto const& acc : mAccountIDs)
+        {
+            accountIDcstrs.emplace_back(acc.c_str());
+        }
+
+        std::string sql =
+            "SELECT accountid, balance, seqnum, numsubentries, "
+            "inflationdest, homedomain, thresholds, flags, lastmodified, "
+            "buyingliabilities, sellingliabilities, signers FROM accounts "
+            "WHERE accountid IN carray(?, ?, 'char*')";
+
+        auto prep = mDb.getPreparedStatement(sql);
+        auto sqliteStatement = dynamic_cast<soci::sqlite3_statement_backend*>(
+            prep.statement().get_backend());
+        auto st = sqliteStatement->stmt_;
+
+        sqlite3_reset(st);
+        sqlite3_bind_pointer(st, 1, accountIDcstrs.data(), "carray", 0);
+        sqlite3_bind_int(st, 2, accountIDcstrs.size());
+        return executeAndFetch(prep.statement());
+    }
+
+#ifdef USE_POSTGRES
+    virtual std::vector<LedgerEntry>
+    doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
+    {
+
+        std::string strAccountIDs;
+        marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
+
+        std::string sql =
+            "WITH r AS (SELECT unnest(:v1::TEXT[])) "
+            "SELECT accountid, balance, seqnum, numsubentries, "
+            "inflationdest, homedomain, thresholds, flags, lastmodified, "
+            "buyingliabilities, sellingliabilities, signers FROM accounts "
+            "WHERE accountid IN (SELECT * FROM r)";
+
+        auto prep = mDb.getPreparedStatement(sql);
+        auto& st = prep.statement();
+        st.exchange(soci::use(strAccountIDs));
+        return executeAndFetch(st);
+    }
+#endif
+};
+
+std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+LedgerTxnRoot::Impl::bulkLoadAccounts(
+    std::unordered_set<LedgerKey> const& keys) const
+{
+    BulkLoadAccountsOperation op(mDatabase, keys);
+    return populateLoadedEntries(keys,
+                                 mDatabase.doDatabaseTypeSpecificOperation(op));
 }
 }
