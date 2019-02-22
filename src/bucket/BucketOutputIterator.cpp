@@ -41,6 +41,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
 {
     CLOG(TRACE, "Bucket") << "BucketOutputIterator opening file to write: "
                           << mFilename;
+    // Will throw if unable to open the file
     mOut.open(mFilename);
 }
 
@@ -79,7 +80,6 @@ BucketOutputIterator::put(BucketEntry const& e)
 std::shared_ptr<Bucket>
 BucketOutputIterator::getBucket(BucketManager& bucketManager)
 {
-    assert(mOut);
     if (mBuf)
     {
         mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
