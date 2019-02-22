@@ -9,6 +9,7 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreatePassiveOfferOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/ManageBuyOfferOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
@@ -72,6 +73,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
     case BUMP_SEQUENCE:
         return std::make_shared<BumpSequenceOpFrame>(op, res, tx);
+    case MANAGE_BUY_OFFER:
+        return std::make_shared<ManageBuyOfferOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
