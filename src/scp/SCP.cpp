@@ -134,7 +134,8 @@ SCP::getJsonInfo(size_t limit, bool fullKeys)
 }
 
 Json::Value
-SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys, uint64 index)
+SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
+                       uint64 index)
 {
     Json::Value ret;
     if (index == 0)
@@ -151,7 +152,8 @@ SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys, uint64 ind
         auto s = getSlot(index, false);
         if (s)
         {
-            ret[std::to_string(index)] = s->getJsonQuorumInfo(id, summary, fullKeys);
+            ret[std::to_string(index)] =
+                s->getJsonQuorumInfo(id, summary, fullKeys);
         }
     }
     return ret;

@@ -791,9 +791,8 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
         }
     }
 
-    auto root =
-        mApp.getHerder().getJsonQuorumInfo(n, retMap["compact"] == "true",
-                                           retMap["fullkeys"] == "true");
+    auto root = mApp.getHerder().getJsonQuorumInfo(
+        n, retMap["compact"] == "true", retMap["fullkeys"] == "true");
     retStr = root.toStyledString();
 }
 
