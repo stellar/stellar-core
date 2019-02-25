@@ -76,11 +76,12 @@ class SCP
     // returns the local node descriptor
     std::shared_ptr<LocalNode> getLocalNode();
 
-    Json::Value getJsonInfo(size_t limit);
+    Json::Value getJsonInfo(size_t limit, bool fullKeys = false);
 
     // summary: only return object counts
     // index = 0 for returning information for all slots
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
+                                  bool fullKeys = false,
                                   uint64 index = 0);
 
     // Purges all data relative to all the slots whose slotIndex is smaller
@@ -130,8 +131,8 @@ class SCP
     std::string getValueString(Value const& v) const;
     std::string ballotToStr(SCPBallot const& ballot) const;
     std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
-    std::string envToStr(SCPEnvelope const& envelope) const;
-    std::string envToStr(SCPStatement const& st) const;
+    std::string envToStr(SCPEnvelope const& envelope, bool fullKeys = false) const;
+    std::string envToStr(SCPStatement const& st, bool fullKeys = false) const;
 
   protected:
     std::shared_ptr<LocalNode> mLocalNode;

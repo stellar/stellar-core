@@ -1962,7 +1962,7 @@ BallotProtocol::getJsonInfo()
 }
 
 Json::Value
-BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary)
+BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
 {
     Json::Value ret;
     auto& phase = ret["phase"];
@@ -2079,7 +2079,7 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary)
         {
             f_ex.append(mSlot.getSCPDriver().toShortString(n));
         }
-        ret["value"] = getLocalNode()->toJson(*qSet);
+        ret["value"] = getLocalNode()->toJson(*qSet, fullKeys);
     }
 
     ret["hash"] = hexAbbrev(qSetHash);

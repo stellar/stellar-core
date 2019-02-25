@@ -86,9 +86,10 @@ class HerderImpl : public Herder
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
-    Json::Value getJsonInfo(size_t limit) override;
+    Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
-                                  uint64 index) override;
+                                  bool fullKeys = false,
+                                  uint64 index = 0) override;
 
     struct TxMap
     {
