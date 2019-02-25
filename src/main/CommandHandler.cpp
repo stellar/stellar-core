@@ -291,14 +291,16 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "clear all metrics (for testing purposes)"
         "</p><p><h1> /peers</h1>"
         "returns the list of known peers in JSON format"
-        "</p><p><h1> /quorum?[node=NODE_ID][&compact=true]</h1>"
+        "</p><p><h1> /quorum?[node=NODE_ID][&compact=true][&fullkeys=true]</h1>"
         "returns information about the quorum for node NODE_ID (this node by"
         " default). NODE_ID is either a full key (`GABCD...`), an alias "
         "(`$name`) or an abbreviated ID(`@GABCD`)."
         "If compact is set, only returns a summary version."
-        "</p><p><h1> /scp?[limit=n]</h1>"
+        "Outputs unshortened public keys if fullkeys is set."
+        "</p><p><h1> /scp?[limit=n][&fullkeys=true]</h1>"
         "returns a JSON object with the internal state of the SCP engine for "
         "the last n (default 2) ledgers."
+        "Outputs unshortened public keys if fullkeys is set."
         "</p><p><h1> /tx?blob=BASE64</h1>"
         "submit a transaction to the network.<br>"
         "blob is a base64 encoded XDR serialized 'TransactionEnvelope'<br>"
@@ -789,8 +791,8 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
         }
     }
 
-    auto root =
-        mApp.getHerder().getJsonQuorumInfo(n, retMap["compact"] == "true");
+    auto root = mApp.getHerder().getJsonQuorumInfo(
+        n, retMap["compact"] == "true", retMap["fullkeys"] == "true");
     retStr = root.toStyledString();
 }
 
@@ -799,11 +801,10 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
-
     size_t lim = 2;
     maybeParseParam(retMap, "limit", lim);
 
-    auto root = mApp.getHerder().getJsonInfo(lim);
+    auto root = mApp.getHerder().getJsonInfo(lim, retMap["fullkeys"] == "true");
     retStr = root.toStyledString();
 }
 

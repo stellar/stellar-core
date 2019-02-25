@@ -88,6 +88,9 @@ class SCPDriver
     virtual std::string getValueString(Value const& v) const;
 
     // `toShortString` converts to the common name of a key if found
+    virtual std::string toStrKey(PublicKey const& pk) const;
+
+    // `toShortString` converts to the common name of a key if found
     virtual std::string toShortString(PublicKey const& pk) const;
 
     // `computeHashNode` is used by the nomination protocol to
