@@ -332,7 +332,6 @@ SCP::envToStr(SCPStatement const& st, bool fullKeys) const
     std::string nodeId = fullKeys ? mDriver.toStrKey(st.nodeID)
                                   : mDriver.toShortString(st.nodeID);
 
-    //oss << "{ENV@" << mDriver.toShortString(st.nodeID) << " | "
     oss << "{ENV@" << nodeId << " | "
         << " i: " << st.slotIndex;
     switch (st.pledges.type())
