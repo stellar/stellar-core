@@ -665,7 +665,7 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\lib\util\format.h" />
     <ClInclude Include="..\..\lib\util\getopt.h" />
-    <ClInclude Include="..\..\lib\util\lrucache.hpp" />
+    <ClInclude Include="..\..\src\util\CacheTable.h" />
     <ClInclude Include="..\..\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\fuzz.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />

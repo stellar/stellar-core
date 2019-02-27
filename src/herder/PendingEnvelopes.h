@@ -2,8 +2,8 @@
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "lib/json/json.h"
-#include "lib/util/lrucache.hpp"
 #include "overlay/ItemFetcher.h"
+#include "util/CacheTable.h"
 #include <autocheck/function.hpp>
 #include <map>
 #include <medida/medida.h>
@@ -42,17 +42,17 @@ class PendingEnvelopes
     std::map<uint64, SlotEnvelopes> mEnvelopes;
 
     // all the quorum sets we have learned about
-    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
+    CacheTable<Hash, SCPQuorumSetPtr> mQsetCache;
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
     // all the txsets we have learned about per ledger#
-    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
+    CacheTable<Hash, TxSetFramCacheItem> mTxSetCache;
 
     // NodeIDs that are in quorum
-    cache::lru_cache<NodeID, bool> mNodesInQuorum;
+    CacheTable<NodeID, bool> mNodesInQuorum;
 
     medida::Counter& mProcessedCount;
     medida::Counter& mDiscardedCount;

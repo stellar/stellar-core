@@ -3,7 +3,7 @@
 #include "crypto/ECDH.h"
 #include "overlay/Peer.h"
 #include "overlay/PeerSharedKeyId.h"
-#include "util/lrucache.hpp"
+#include "util/CacheTable.h"
 #include "xdr/Stellar-types.h"
 
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
@@ -30,7 +30,7 @@ class PeerAuth
     Curve25519Public mECDHPublicKey;
     AuthCert mCert;
 
-    cache::lru_cache<PeerSharedKeyId, HmacSha256Key> mSharedKeyCache;
+    CacheTable<PeerSharedKeyId, HmacSha256Key> mSharedKeyCache;
 
     HmacSha256Key getSharedKey(Curve25519Public const& remotePublic,
                                Peer::PeerRole role);

@@ -147,14 +147,6 @@ lib/util/uint128_t.{cpp,h}
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-lib/util/lrucache.hpp
-
-  The LRUCache libary
-  Copyright 2014 Alexander Ponomarev
-  (https://github.com/lamerman/cpp-lru-cache)
-  Licensed under the 3-clause BSD license
-  (http://opensource.org/licenses/BSD-3-Clause)
-
 lib/util/basen.h
 
   The Base-n library

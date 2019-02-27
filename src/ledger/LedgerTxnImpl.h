@@ -4,11 +4,12 @@
 
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
-#include "util/lrucache.hpp"
+#include "util/CacheTable.h"
 #ifdef USE_POSTGRES
 #include <iomanip>
 #include <libpq-fe.h>
 #include <limits>
+#include <list>
 #include <sstream>
 #endif
 
@@ -371,7 +372,7 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 class LedgerTxnRoot::Impl
 {
     typedef std::string EntryCacheKey;
-    typedef cache::lru_cache<EntryCacheKey, std::shared_ptr<LedgerEntry const>>
+    typedef CacheTable<EntryCacheKey, std::shared_ptr<LedgerEntry const>>
         EntryCache;
 
     typedef std::string BestOffersCacheKey;
@@ -380,7 +381,7 @@ class LedgerTxnRoot::Impl
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef cache::lru_cache<std::string, BestOffersCacheEntry> BestOffersCache;
+    typedef CacheTable<std::string, BestOffersCacheEntry> BestOffersCache;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;

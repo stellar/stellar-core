@@ -51,8 +51,6 @@ printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
     LOG(INFO) << sim->metricsSummary("scp");
 }
 
-#include "lib/util/lrucache.hpp"
-
 TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;

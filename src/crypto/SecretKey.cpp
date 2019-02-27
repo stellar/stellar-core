@@ -9,8 +9,8 @@
 #include "crypto/StrKey.h"
 #include "main/Config.h"
 #include "transactions/SignatureUtils.h"
+#include "util/CacheTable.h"
 #include "util/HashOfHash.h"
-#include "util/lrucache.hpp"
 #include <memory>
 #include <mutex>
 #include <sodium.h>
@@ -31,7 +31,7 @@ namespace stellar
 // has no effect on correctness.
 
 static std::mutex gVerifySigCacheMutex;
-static cache::lru_cache<Hash, bool> gVerifySigCache(0xffff);
+static CacheTable<Hash, bool> gVerifySigCache(0xffff);
 static std::unique_ptr<SHA256> gHasher = SHA256::create();
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;

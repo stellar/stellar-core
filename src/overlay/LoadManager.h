@@ -6,8 +6,8 @@
 
 #include "crypto/SecretKey.h"
 #include "overlay/Peer.h"
+#include "util/CacheTable.h"
 #include "util/HashOfHash.h"
-#include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
 
 #include "medida/meter.h"
@@ -57,7 +57,7 @@ class LoadManager
     std::shared_ptr<PeerCosts> getPeerCosts(NodeID const& peer);
 
   private:
-    cache::lru_cache<NodeID, std::shared_ptr<PeerCosts>> mPeerCosts;
+    CacheTable<NodeID, std::shared_ptr<PeerCosts>> mPeerCosts;
 
   public:
     // Measure recent load on the system and, if the system appears
