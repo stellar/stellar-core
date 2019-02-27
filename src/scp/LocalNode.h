@@ -110,7 +110,5 @@ class LocalNode
                                       std::vector<NodeID> const& nodeSet);
     static bool isVBlockingInternal(SCPQuorumSet const& qset,
                                     std::vector<NodeID> const& nodeSet);
-    static void forAllNodesInternal(SCPQuorumSet const& qset,
-                                    std::function<void(NodeID const&)> proc);
 };
 }
