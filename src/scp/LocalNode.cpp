@@ -66,9 +66,10 @@ LocalNode::getSingletonQSet(NodeID const& nodeID)
 {
     return std::make_shared<SCPQuorumSet>(buildSingletonQSet(nodeID));
 }
+
 void
-LocalNode::forAllNodesInternal(SCPQuorumSet const& qset,
-                               std::function<void(NodeID const&)> proc)
+LocalNode::forAllNodes(SCPQuorumSet const& qset,
+                       std::function<void(NodeID const&)> proc)
 {
     for (auto const& n : qset.validators)
     {
@@ -76,23 +77,8 @@ LocalNode::forAllNodesInternal(SCPQuorumSet const& qset,
     }
     for (auto const& q : qset.innerSets)
     {
-        forAllNodesInternal(q, proc);
+        forAllNodes(q, proc);
     }
-}
-
-// runs proc over all nodes contained in qset
-void
-LocalNode::forAllNodes(SCPQuorumSet const& qset,
-                       std::function<void(NodeID const&)> proc)
-{
-    std::set<NodeID> done;
-    forAllNodesInternal(qset, [&](NodeID const& n) {
-        auto ins = done.insert(n);
-        if (ins.second)
-        {
-            proc(n);
-        }
-    });
 }
 
 // if a validator is repeated multiple times its weight is only the
