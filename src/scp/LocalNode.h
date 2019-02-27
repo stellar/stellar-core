@@ -40,7 +40,6 @@ class LocalNode
 
     SCPQuorumSet const& getQuorumSet();
     Hash const& getQuorumSetHash();
-    SecretKey const& getSecretKey();
     bool isValidator();
 
     SCP::TriBool isNodeInQuorum(
