@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "database/DatabaseTypeSpecificOperation.h"
 #include "medida/timer_context.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
@@ -148,6 +149,7 @@ class Database : NonMovableOrCopyable
     medida::TimerContext getSelectTimer(std::string const& entityName);
     medida::TimerContext getDeleteTimer(std::string const& entityName);
     medida::TimerContext getUpdateTimer(std::string const& entityName);
+    medida::TimerContext getUpsertTimer(std::string const& entityName);
 
     // If possible (i.e. "on postgres") issue an SQL pragma that marks
     // the current transaction as read-only. The effects of this last
@@ -156,6 +158,10 @@ class Database : NonMovableOrCopyable
 
     // Return true if the Database target is SQLite, otherwise false.
     bool isSqlite() const;
+
+    // Call `op` back with the specific database backend subtype in use.
+    template <typename T>
+    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -184,6 +190,28 @@ class Database : NonMovableOrCopyable
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
 };
+
+template <typename T>
+T
+Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
+{
+    auto b = mSession.get_backend();
+    if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
+    {
+        return op.doSqliteSpecificOperation(sq);
+#ifdef USE_POSTGRES
+    }
+    else if (auto pg = dynamic_cast<soci::postgresql_session_backend*>(b))
+    {
+        return op.doPostgresSpecificOperation(pg);
+#endif
+    }
+    else
+    {
+        // Extend this with other cases if we support more databases.
+        abort();
+    }
+}
 
 class DBTimeExcluder : NonCopyable
 {

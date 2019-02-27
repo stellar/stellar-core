@@ -21,7 +21,7 @@ STRKEY | Custom encoding for public/private keys. See [`src/crypto/readme.md`](/
 
 ## ledgerheaders
 
-Defined in [`src/ledger/LedgerHeaderFrame.cpp`](/src/ledger/LedgerHeaderFrame.cpp)
+Defined in [`src/ledger/LedgerHeaderUtils.cpp`](/src/ledger/LedgerHeaderUtils.cpp)
 
 Equivalent to _LedgerHeader_
 
@@ -37,7 +37,7 @@ data | TEXT NOT NULL | Entire LedgerHeader (XDR)
 
 ## accounts
 
-Defined in [`src/ledger/AccountFrame.cpp`](/src/ledger/AccountFrame.cpp)
+Defined in [`src/ledger/LedgerTxnAccountSQL.cpp`](/src/ledger/LedgerTxnAccountSQL.cpp)
 
 Equivalent to _AccountEntry_
 
@@ -48,16 +48,17 @@ balance | BIGINT NOT NULL CHECK (balance >= 0) |
 seqnum | BIGINT NOT NULL |
 numsubentries | INT NOT NULL CHECK (numsubentries >= 0) |
 inflationdest | VARCHAR(56) | (STRKEY)
-homedomain | VARCHAR(32) |
+homedomain | VARCHAR(44) | (BASE64)
 thresholds | TEXT | (BASE64)
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
-sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0) |
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0) |
+signers | TEXT | (XDR)
 
 ## offers
 
-Defined in [`src/ledger/OfferFrame.cpp`](/src/ledger/OfferFrame.cpp)
+Defined in [`src/ledger/LedgerTxnOfferSQL.cpp.cpp`](/src/ledger/LedgerTxnOfferSQL.cpp.cpp)
 
 Equivalent to _OfferEntry_
 
@@ -81,7 +82,7 @@ lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## trustlines
 
-Defined in [`src/ledger/TrustFrame.cpp`](/src/ledger/TrustFrame.cpp)
+Defined in [`src/ledger/LedgerTxnTrustLineSQL.cpp`](/src/ledger/LedgerTxnTrustLineSQL.cpp)
 
 Equivalent to _TrustLineEntry_
 
@@ -98,6 +99,18 @@ lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
 sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
+## accountdata
+
+Defined in [`src/ledger/LedgerTxnDataSQL.cpp`](/src/ledger/LedgerTxnDataSQL.cpp)
+
+Equivalent to _DataEntry_
+
+Field | Type | Description
+------|------|---------------
+accountid | VARCHAR(56) NOT NULL | (STRKEY)
+dataname | VARCHAR(88) NOT NULL | (BASE64)
+datavalue | VARCHAR(112) NOT NULL | (BASE64)
+lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## txhistory
 

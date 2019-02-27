@@ -38,6 +38,7 @@ ApplyBucketsWork::ApplyBucketsWork(
           {"history", "bucket-apply", "success"}, "event"))
     , mBucketApplyFailure(app.getMetrics().NewMeter(
           {"history", "bucket-apply", "failure"}, "event"))
+    , mCounters(app.getClock().now())
 {
 }
 
@@ -146,17 +147,18 @@ ApplyBucketsWork::onRun()
     //    if there is nothing to be applied.
     if (mSnapApplicator)
     {
-        advance(*mSnapApplicator);
+        advance("snap", *mSnapApplicator);
     }
     else if (mCurrApplicator)
     {
-        advance(*mCurrApplicator);
+        advance("curr", *mCurrApplicator);
     }
     scheduleSuccess();
 }
 
 void
-ApplyBucketsWork::advance(BucketApplicator& applicator)
+ApplyBucketsWork::advance(std::string const& bucketName,
+                          BucketApplicator& applicator)
 {
     if (!applicator)
     {
@@ -164,7 +166,9 @@ ApplyBucketsWork::advance(BucketApplicator& applicator)
     }
 
     assert(mTotalSize != 0);
-    mAppliedEntries += applicator.advance();
+    auto sz = applicator.advance(mCounters);
+    mAppliedEntries += sz;
+    mCounters.logDebug(bucketName, mLevel, mApp.getClock().now());
 
     auto log = false;
     if (applicator)
@@ -178,6 +182,8 @@ ApplyBucketsWork::advance(BucketApplicator& applicator)
         mAppliedBuckets++;
         mLastPos = 0;
         log = true;
+        mCounters.logInfo(bucketName, mLevel, mApp.getClock().now());
+        mCounters.reset(mApp.getClock().now());
     }
 
     auto appliedSizeMb = mAppliedSize / 1024 / 1024;

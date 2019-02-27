@@ -40,7 +40,6 @@ class LocalNode
 
     SCPQuorumSet const& getQuorumSet();
     Hash const& getQuorumSetHash();
-    SecretKey const& getSecretKey();
     bool isValidator();
 
     SCP::TriBool isNodeInQuorum(
@@ -111,7 +110,5 @@ class LocalNode
                                       std::vector<NodeID> const& nodeSet);
     static bool isVBlockingInternal(SCPQuorumSet const& qset,
                                     std::vector<NodeID> const& nodeSet);
-    static void forAllNodesInternal(SCPQuorumSet const& qset,
-                                    std::function<void(NodeID const&)> proc);
 };
 }

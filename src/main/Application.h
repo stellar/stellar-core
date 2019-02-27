@@ -129,8 +129,8 @@ class Application
     // certain subsystem responses to IO events, timers etc.
     enum State
     {
-        // Loading state from database, not yet active. SCP is inhibited.
-        APP_BOOTING_STATE,
+        // Application created, but not started
+        APP_CREATED_STATE,
 
         // Out of sync with SCP peers
         APP_ACQUIRING_CONSENSUS_STATE,

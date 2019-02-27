@@ -204,7 +204,7 @@ TestLedgerChainGenerator::createHistoryFiles(
         {
             first = ledger;
         }
-        REQUIRE(ledgerOut.writeOne(ledger));
+        REQUIRE_NOTHROW(ledgerOut.writeOne(ledger));
         last = ledger;
     }
     ledgerOut.close();

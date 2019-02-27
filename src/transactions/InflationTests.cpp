@@ -292,7 +292,7 @@ TEST_CASE("inflation", "[tx][inflation]")
     inflationStart = VirtualClock::from_time_t(start);
 
     VirtualClock clock;
-    clock.setCurrentTime(inflationStart);
+    clock.setCurrentVirtualTime(inflationStart);
 
     auto app = createTestApplication(clock, cfg);
 

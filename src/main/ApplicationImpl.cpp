@@ -506,7 +506,12 @@ Application::State
 ApplicationImpl::getState() const
 {
     State s;
-    if (mStopping)
+
+    if (!mStarted)
+    {
+        s = APP_CREATED_STATE;
+    }
+    else if (mStopping)
     {
         s = APP_STOPPING_STATE;
     }

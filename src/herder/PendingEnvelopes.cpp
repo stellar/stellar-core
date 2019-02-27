@@ -66,9 +66,8 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 void
 PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
-    assert(isQuorumSetSane(q, false));
-
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
+    assert(isQuorumSetSane(q, false));
 
     auto qset = std::make_shared<SCPQuorumSet>(q);
     mNodesInQuorum.clear();

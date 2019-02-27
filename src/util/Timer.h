@@ -111,7 +111,7 @@ class VirtualClock
     uint32_t mRecentIdleCrankCount;
 
     size_t nRealTimerCancelEvents;
-    time_point mNow;
+    time_point mVirtualNow;
 
     bool mDelayExecution{true};
     std::recursive_mutex mDelayExecutionMutex;
@@ -127,7 +127,6 @@ class VirtualClock
     bool mDestructing{false};
 
     void maybeSetRealtimer();
-    size_t advanceTo(time_point n);
     size_t advanceToNext();
     size_t advanceToNow();
 
@@ -159,7 +158,7 @@ class VirtualClock
 
     // only valid with VIRTUAL_TIME: sets the current value
     // of the clock
-    void setCurrentTime(time_point t);
+    void setCurrentVirtualTime(time_point t);
 
     // returns the time of the next scheduled event
     time_point next();
