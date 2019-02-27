@@ -800,14 +800,21 @@ class BulkLoadOffersOperation
         std::vector<LedgerEntry> res;
         while (st.got_data())
         {
+            // Exclude offers where sellerID in LedgerKey doesn't match sellerID
+            // in LedgerEntry
+            auto pubKey = KeyUtils::fromStrKey<PublicKey>(sellerID);
+            if (mSellerIDsByOfferID[offerID] == pubKey)
+            {
+                continue;
+            }
+
             res.emplace_back();
             auto& le = res.back();
             le.data.type(OFFER);
             auto& oe = le.data.offer();
 
-            oe.sellerID = KeyUtils::fromStrKey<PublicKey>(sellerID);
+            oe.sellerID = pubKey;
             oe.offerID = offerID;
-            assert(mSellerIDsByOfferID[oe.offerID] == oe.sellerID);
 
             processAsset(oe.selling, (AssetType)sellingAssetType, sellingIssuer,
                          sellingIssuerIndicator, sellingAssetCode,
