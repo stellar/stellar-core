@@ -211,11 +211,11 @@ NominationProtocol::updateRoundLeaders()
     SCPQuorumSet myQSet = mSlot.getLocalNode()->getQuorumSet();
 
     // initialize priority with value derived from self
-    mRoundLeaders.clear();
+    std::set<NodeID> newRoundLeaders;
     auto localID = mSlot.getLocalNode()->getNodeID();
     normalizeQSet(myQSet, &localID);
 
-    mRoundLeaders.insert(localID);
+    newRoundLeaders.insert(localID);
     uint64 topPriority = getNodePriority(localID, myQSet);
 
     LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
@@ -223,20 +223,25 @@ NominationProtocol::updateRoundLeaders()
         if (w > topPriority)
         {
             topPriority = w;
-            mRoundLeaders.clear();
+            newRoundLeaders.clear();
         }
         if (w == topPriority && w > 0)
         {
-            mRoundLeaders.insert(cur);
+            newRoundLeaders.insert(cur);
         }
     });
-    CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
+    // expand mRoundLeaders with the newly computed leaders
+    mRoundLeaders.insert(newRoundLeaders.begin(), newRoundLeaders.end());
+    CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << newRoundLeaders.size()
+                       << " -> " << mRoundLeaders.size();
     if (Logging::logDebug("SCP"))
+    {
         for (auto const& rl : mRoundLeaders)
         {
             CLOG(DEBUG, "SCP")
                 << "    leader " << mSlot.getSCPDriver().toShortString(rl);
         }
+    }
 }
 
 uint64

@@ -272,6 +272,12 @@ class TestSCP : public SCPDriver
         }
         throw std::runtime_error("not found");
     }
+
+    std::set<NodeID>
+    getNominationLeaders(uint64 slotIndex)
+    {
+        return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
+    }
 };
 
 static SCPEnvelope
@@ -2464,6 +2470,12 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
     REQUIRE(xValue < yValue);
     REQUIRE(yValue < zValue);
 
+    auto checkLeaders = [&](TestSCP& scp, std::set<NodeID> expectedLeaders) {
+        auto l = scp.getNominationLeaders(0);
+        REQUIRE(std::equal(l.begin(), l.end(), expectedLeaders.begin(),
+                           expectedLeaders.end()));
+    };
+
     SECTION("nomination - v0 is top")
     {
         TestSCP scp(v0SecretKey.getPublicKey(), qSet);
@@ -2473,6 +2485,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         SECTION("others nominate what v0 says (x) -> prepare x")
         {
             REQUIRE(scp.nominate(0, xValue, false));
+
+            checkLeaders(scp, {v0SecretKey.getPublicKey()});
 
             std::vector<Value> votes, accepted;
             votes.emplace_back(xValue);
@@ -2589,6 +2603,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                                         accepted));
                     // tries to start nomination with yValue
                     REQUIRE(scp2.nominate(0, yValue, false));
+
+                    checkLeaders(scp2, {v0SecretKey.getPublicKey()});
 
                     REQUIRE(scp2.mEnvs.size() == 1);
                     verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
@@ -2768,6 +2784,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         {
             REQUIRE(!scp.nominate(0, xValue, false));
 
+            checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
             REQUIRE(scp.mEnvs.size() == 0);
 
             SCPEnvelope nom3 =
@@ -2811,6 +2829,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             scp.receiveEnvelope(nom2);
             REQUIRE(scp.mEnvs.size() == 0);
 
+            checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
             SECTION("v0 is new top node")
             {
                 scp.mPriorityLookup = [&](NodeID const& n) {
@@ -2818,6 +2838,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 };
 
                 REQUIRE(scp.nominate(0, xValue, true));
+                checkLeaders(scp, {v0SecretKey.getPublicKey(),
+                                   v1SecretKey.getPublicKey()});
+
                 REQUIRE(scp.mEnvs.size() == 1);
                 verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesX,
                                emptyV);
@@ -2829,6 +2852,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 };
 
                 REQUIRE(scp.nominate(0, xValue, true));
+                checkLeaders(scp, {v1SecretKey.getPublicKey(),
+                                   v2SecretKey.getPublicKey()});
+
                 REQUIRE(scp.mEnvs.size() == 1);
                 // v2 votes for XK, but nomination only picks the highest value
                 std::vector<Value> v2Top;
@@ -2843,6 +2869,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 };
                 // nothing happens, we don't have any message for v3
                 REQUIRE(!scp.nominate(0, xValue, true));
+                checkLeaders(scp, {v1SecretKey.getPublicKey(),
+                                   v3SecretKey.getPublicKey()});
+
                 REQUIRE(scp.mEnvs.size() == 0);
             }
         }
