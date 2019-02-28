@@ -537,6 +537,12 @@ NominationProtocol::stopNomination()
     mNominationStarted = false;
 }
 
+std::set<NodeID> const&
+NominationProtocol::getLeaders() const
+{
+    return mRoundLeaders;
+}
+
 Json::Value
 NominationProtocol::getJsonInfo()
 {

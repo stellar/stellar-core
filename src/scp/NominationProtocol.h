@@ -96,6 +96,9 @@ class NominationProtocol
     // stops the nomination protocol
     void stopNomination();
 
+    // return the current leaders
+    std::set<NodeID> const& getLeaders() const;
+
     Value const&
     getLatestCompositeCandidate() const
     {
