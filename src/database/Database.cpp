@@ -78,6 +78,7 @@ static int const MIN_POSTGRESQL_VERSION =
     (10000 * MIN_POSTGRESQL_MAJOR_VERSION) +
     (100 * MIN_POSTGRESQL_MINOR_VERSION);
 
+#ifdef USE_POSTGRES
 static std::string
 badPgVersion(int vers)
 {
@@ -89,6 +90,7 @@ badPgVersion(int vers)
         << '.' << MIN_POSTGRESQL_MINOR_VERSION;
     return msg.str();
 }
+#endif
 
 static std::string
 badSqliteVersion(int vers)

@@ -565,11 +565,11 @@ class BulkLoadTrustLinesOperation
 
         sqlite3_reset(st);
         sqlite3_bind_pointer(st, 1, cstrAccountIDs.data(), "carray", 0);
-        sqlite3_bind_int(st, 2, cstrAccountIDs.size());
+        sqlite3_bind_int(st, 2, static_cast<int>(cstrAccountIDs.size()));
         sqlite3_bind_pointer(st, 3, cstrIssuers.data(), "carray", 0);
-        sqlite3_bind_int(st, 4, cstrIssuers.size());
+        sqlite3_bind_int(st, 4, static_cast<int>(cstrIssuers.size()));
         sqlite3_bind_pointer(st, 5, cstrAssetCodes.data(), "carray", 0);
-        sqlite3_bind_int(st, 6, cstrAssetCodes.size());
+        sqlite3_bind_int(st, 6, static_cast<int>(cstrAssetCodes.size()));
         return executeAndFetch(prep.statement());
     }
 

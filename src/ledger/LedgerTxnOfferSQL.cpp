@@ -869,7 +869,7 @@ class BulkLoadOffersOperation
 
         sqlite3_reset(st);
         sqlite3_bind_pointer(st, 1, (void*)mOfferIDs.data(), "carray", 0);
-        sqlite3_bind_int(st, 2, mOfferIDs.size());
+        sqlite3_bind_int(st, 2, static_cast<int>(mOfferIDs.size()));
         return executeAndFetch(prep.statement());
     }
 
