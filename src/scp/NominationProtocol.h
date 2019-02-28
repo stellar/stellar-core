@@ -16,6 +16,7 @@ namespace stellar
 {
 class NominationProtocol
 {
+  protected:
     Slot& mSlot;
 
     int32 mRoundNumber;

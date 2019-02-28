@@ -81,6 +81,15 @@ LocalNode::forAllNodes(SCPQuorumSet const& qset,
     }
 }
 
+uint64
+LocalNode::computeWeight(uint64 m, uint64 total, uint64 threshold)
+{
+    uint64 res;
+    assert(threshold <= total);
+    bigDivide(res, m, threshold, total, ROUND_UP);
+    return res;
+}
+
 // if a validator is repeated multiple times its weight is only the
 // weight of the first occurrence
 uint64
@@ -94,7 +103,7 @@ LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
     {
         if (qsetNode == nodeID)
         {
-            bigDivide(res, UINT64_MAX, n, d, ROUND_UP);
+            res = computeWeight(UINT64_MAX, d, n);
             return res;
         }
     }
@@ -104,7 +113,7 @@ LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
         uint64 leafW = getNodeWeight(nodeID, q);
         if (leafW)
         {
-            bigDivide(res, leafW, n, d, ROUND_UP);
+            res = computeWeight(leafW, d, n);
             return res;
         }
     }
