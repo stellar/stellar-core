@@ -4,6 +4,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include <stdint.h>
+#include <cmath>
 #include <unordered_map>
 
 namespace stellar
@@ -76,7 +77,7 @@ void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
 size_t
 Whitelist::unwhitelistedReserve(size_t setSize)
 {
-    size_t reserve = size_t(std::trunc(mReserve * setSize)); 
+    size_t reserve = size_t(trunc(mReserve * setSize)); 
 	
 	// reserve at least 1 entry for non-whitelisted txs
 	reserve = std::max((size_t)1, reserve);
