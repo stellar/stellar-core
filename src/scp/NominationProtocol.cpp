@@ -272,7 +272,9 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
         w = LocalNode::getNodeWeight(nodeID, qset);
     }
 
-    if (hashNode(false, nodeID) < w)
+    // if w > 0; w is inclusive here as
+    // 0 <= hashNode <= UINT64_MAX
+    if (w > 0 && hashNode(false, nodeID) <= w)
     {
         res = hashNode(true, nodeID);
     }
