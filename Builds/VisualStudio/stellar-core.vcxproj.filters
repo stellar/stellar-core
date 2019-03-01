@@ -312,6 +312,9 @@
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerManagerTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp">
       <Filter>main</Filter>
     </ClCompile>
