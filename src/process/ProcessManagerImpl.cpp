@@ -24,7 +24,9 @@
 #include <regex>
 #include <string>
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <Windows.h>
+#else
 #include <errno.h>
 #include <fcntl.h>
 #endif
@@ -178,6 +180,60 @@ ProcessManagerImpl::handleSignalWait()
 {
     // No-op on windows, uses waitable object handles
 }
+namespace
+{
+struct InfoHelper
+{
+    STARTUPINFOEX mStartupInfo;
+    std::vector<uint8_t> mBuffer;
+    std::vector<HANDLE> mHandles;
+    bool mInitialized{false};
+    InfoHelper()
+    {
+        ZeroMemory(&mStartupInfo, sizeof(mStartupInfo));
+        mStartupInfo.StartupInfo.cb = sizeof(mStartupInfo);
+    }
+    void
+    prepare()
+    {
+        if (mInitialized)
+        {
+            throw std::runtime_error(
+                "InfoHelper::prepare: already initialized");
+        }
+        SIZE_T atSize;
+        InitializeProcThreadAttributeList(NULL, 1, 0, &atSize);
+        mBuffer.resize(atSize);
+        mStartupInfo.lpAttributeList =
+            reinterpret_cast<PPROC_THREAD_ATTRIBUTE_LIST>(mBuffer.data());
+
+        if (!InitializeProcThreadAttributeList(mStartupInfo.lpAttributeList, 1,
+                                               0, &atSize))
+        {
+            CLOG(ERROR, "Process")
+                << "InfoHelper::prepare() failed: " << GetLastError();
+            throw std::runtime_error("InfoHelper::prepare() failed");
+        }
+        mInitialized = true;
+        if (!UpdateProcThreadAttribute(
+                mStartupInfo.lpAttributeList, 0,
+                PROC_THREAD_ATTRIBUTE_HANDLE_LIST, mHandles.data(),
+                mHandles.size() * sizeof(HANDLE), NULL, NULL))
+        {
+            CLOG(ERROR, "Process")
+                << "InfoHelper::prepare() failed: " << GetLastError();
+            throw std::runtime_error("InfoHelper::prepare() failed");
+        }
+    }
+    ~InfoHelper()
+    {
+        if (mInitialized)
+        {
+            DeleteProcThreadAttributeList(mStartupInfo.lpAttributeList);
+        }
+    }
+};
+}
 
 void
 ProcessExitEvent::Impl::run()
@@ -190,12 +246,13 @@ ProcessExitEvent::Impl::run()
         throw std::runtime_error("ProcessExitEvent::Impl already running");
     }
 
-    STARTUPINFO si;
     PROCESS_INFORMATION pi;
-    ZeroMemory(&si, sizeof(si));
     ZeroMemory(&pi, sizeof(pi));
-    si.cb = sizeof(si);
+
     LPSTR cmd = (LPSTR)mCmdLine.data();
+
+    InfoHelper iH;
+    auto& si = iH.mStartupInfo.StartupInfo;
 
     if (!mOutFile.empty())
     {
@@ -204,7 +261,6 @@ ProcessExitEvent::Impl::run()
         sa.lpSecurityDescriptor = NULL;
         sa.bInheritHandle = TRUE;
 
-        si.cb = sizeof(STARTUPINFO);
         si.dwFlags = STARTF_USESTDHANDLES;
         si.hStdOutput =
             CreateFile((LPCTSTR)mOutFile.c_str(),          // name of the file
@@ -219,6 +275,9 @@ ProcessExitEvent::Impl::run()
             CLOG(ERROR, "Process") << "CreateFile() failed: " << GetLastError();
             throw std::runtime_error("CreateFile() failed");
         }
+        // only inherit si.hStdOutput
+        iH.mHandles.push_back(si.hStdOutput);
+        iH.prepare();
     }
 
     if (!CreateProcess(NULL,    // No module name (use command line)
@@ -226,7 +285,8 @@ ProcessExitEvent::Impl::run()
                        nullptr, // Process handle not inheritable
                        nullptr, // Thread handle not inheritable
                        TRUE,    // Inherit file handles
-                       CREATE_NEW_PROCESS_GROUP, // Create a new process group
+                       CREATE_NEW_PROCESS_GROUP | // Create a new process group
+                           EXTENDED_STARTUPINFO_PRESENT, // use STARTUPINFOEX
                        nullptr, // Use parent's environment block
                        nullptr, // Use parent's starting directory
                        &si,     // Pointer to STARTUPINFO structure
