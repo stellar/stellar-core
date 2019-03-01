@@ -307,7 +307,8 @@ CatchupWork::onSuccess()
         mApp.getCatchupManager().historyCaughtup();
         asio::error_code ec = std::make_error_code(std::errc::invalid_argument);
         mProgressHandler(ec, ProgressState::FINISHED,
-                         LedgerHeaderHistoryEntry{});
+                         LedgerHeaderHistoryEntry{},
+                         mCatchupConfiguration.mode());
         return WORK_SUCCESS;
     }
 
@@ -359,7 +360,8 @@ CatchupWork::onSuccess()
         if (!mBucketsAppliedEmitted)
         {
             mProgressHandler({}, ProgressState::APPLIED_BUCKETS,
-                             mVerifiedLedgerRangeStart);
+                             mVerifiedLedgerRangeStart,
+                             mCatchupConfiguration.mode());
             mBucketsAppliedEmitted = true;
         }
     }
@@ -380,8 +382,10 @@ CatchupWork::onSuccess()
         return WORK_PENDING;
     }
 
-    mProgressHandler({}, ProgressState::APPLIED_TRANSACTIONS, mLastApplied);
-    mProgressHandler({}, ProgressState::FINISHED, mLastApplied);
+    mProgressHandler({}, ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
+                     mCatchupConfiguration.mode());
+    mProgressHandler({}, ProgressState::FINISHED, mLastApplied,
+                     mCatchupConfiguration.mode());
     mApp.getCatchupManager().historyCaughtup();
     return WORK_SUCCESS;
 }
@@ -391,7 +395,8 @@ CatchupWork::onFailureRaise()
 {
     mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{});
+    mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{},
+                     mCatchupConfiguration.mode());
 }
 
 namespace

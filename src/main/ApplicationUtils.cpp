@@ -345,7 +345,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, true);
+        app->getLedgerManager().startCatchup(cc);
     }
     catch (std::invalid_argument const&)
     {
@@ -375,27 +375,16 @@ catchup(Application::pointer app, CatchupConfiguration cc,
         }
         case LedgerManager::LM_SYNCED_STATE:
         {
+            done = true;
+            synced = true;
             break;
         }
         case LedgerManager::LM_CATCHING_UP_STATE:
         {
-            switch (app->getLedgerManager().getCatchupState())
+            if (app->getLedgerManager().getCatchupState() ==
+                LedgerManager::CatchupState::NONE)
             {
-            case LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER:
-            {
-                done = true;
-                synced = true;
-                break;
-            }
-            case LedgerManager::CatchupState::NONE:
-            {
-                done = true;
-                break;
-            }
-            default:
-            {
-                break;
-            }
+                abort();
             }
             break;
         }

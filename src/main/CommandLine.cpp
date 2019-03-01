@@ -264,7 +264,8 @@ parseCatchup(std::string const& catchup)
     try
     {
         return {parseLedger(catchup.substr(0, separatorIndex)),
-                parseLedgerCount(catchup.substr(separatorIndex + 1))};
+                parseLedgerCount(catchup.substr(separatorIndex + 1)),
+                CatchupConfiguration::Mode::OFFLINE};
     }
     catch (std::exception&)
     {

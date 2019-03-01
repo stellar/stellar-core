@@ -84,7 +84,8 @@ class CatchupWork : public BucketDownloadWork
     // the rest of them does not matter.
     using ProgressHandler = std::function<void(
         asio::error_code const& ec, ProgressState progressState,
-        LedgerHeaderHistoryEntry const& lastClosed)>;
+        LedgerHeaderHistoryEntry const& lastClosed,
+        CatchupConfiguration::Mode catchupMode)>;
 
   public:
     /**

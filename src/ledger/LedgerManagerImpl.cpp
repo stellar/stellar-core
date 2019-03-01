@@ -61,6 +61,7 @@ catching up to network:
 using std::placeholders::_1;
 using std::placeholders::_2;
 using std::placeholders::_3;
+using std::placeholders::_4;
 using namespace std;
 
 namespace stellar
@@ -598,8 +599,8 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
         auto hash = make_optional<Hash>(
             mSyncingLedgers.front().getTxSet()->previousLedgerHash());
         startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
-                      getCatchupCount(mApp)},
-                     false);
+                      getCatchupCount(mApp),
+                      CatchupConfiguration::Mode::ONLINE});
     }
     else
     {
@@ -613,8 +614,7 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
 }
 
 void
-LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                bool manualCatchup)
+LedgerManagerImpl::startCatchup(CatchupConfiguration configuration)
 {
     auto lastClosedLedger = getLastClosedLedgerNum();
     if ((configuration.toLedger() != CatchupConfiguration::CURRENT) &&
@@ -624,17 +624,20 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
     }
 
     setCatchupState(CatchupState::APPLYING_HISTORY);
-    assert(manualCatchup == mSyncingLedgers.empty());
+    auto offlineCatchup =
+        configuration.mode() == CatchupConfiguration::Mode::OFFLINE;
+    assert(offlineCatchup == mSyncingLedgers.empty());
 
     mApp.getCatchupManager().catchupHistory(
         configuration,
-        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
+        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3, _4));
 }
 
 void
 LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                                    CatchupWork::ProgressState progressState,
-                                   LedgerHeaderHistoryEntry const& lastClosed)
+                                   LedgerHeaderHistoryEntry const& lastClosed,
+                                   CatchupConfiguration::Mode catchupMode)
 {
     assert(mCatchupState == CatchupState::APPLYING_HISTORY);
 
@@ -685,8 +688,17 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                              << ledgerAbbrev(mLastClosedLedger);
         mApp.getCatchupManager().historyCaughtup();
 
-        setCatchupState(CatchupState::APPLYING_BUFFERED_LEDGERS);
-        applyBufferedLedgers();
+        if (catchupMode == CatchupConfiguration::Mode::ONLINE)
+        {
+            CLOG(INFO, "Ledger") << "Catchup will apply buffered ledgers";
+            setCatchupState(CatchupState::APPLYING_BUFFERED_LEDGERS);
+            applyBufferedLedgers();
+        }
+        else
+        {
+            CLOG(INFO, "Ledger") << "Catchup finished";
+            setState(LM_SYNCED_STATE);
+        }
     }
 }
 
