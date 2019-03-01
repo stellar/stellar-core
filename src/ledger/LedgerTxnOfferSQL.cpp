@@ -800,33 +800,32 @@ class BulkLoadOffersOperation
         std::vector<LedgerEntry> res;
         while (st.got_data())
         {
+            auto pubKey = KeyUtils::fromStrKey<PublicKey>(sellerID);
+
             // Exclude offers where sellerID in LedgerKey doesn't match sellerID
             // in LedgerEntry
-            auto pubKey = KeyUtils::fromStrKey<PublicKey>(sellerID);
             if (mSellerIDsByOfferID[offerID] == pubKey)
             {
-                continue;
+                res.emplace_back();
+                auto& le = res.back();
+                le.data.type(OFFER);
+                auto& oe = le.data.offer();
+
+                oe.sellerID = pubKey;
+                oe.offerID = offerID;
+
+                processAsset(oe.selling, (AssetType)sellingAssetType,
+                             sellingIssuer, sellingIssuerIndicator,
+                             sellingAssetCode, sellingAssetCodeIndicator);
+                processAsset(oe.buying, (AssetType)buyingAssetType,
+                             buyingIssuer, buyingIssuerIndicator,
+                             buyingAssetCode, buyingAssetCodeIndicator);
+
+                oe.amount = amount;
+                oe.price = price;
+                oe.flags = flags;
+                le.lastModifiedLedgerSeq = lastModified;
             }
-
-            res.emplace_back();
-            auto& le = res.back();
-            le.data.type(OFFER);
-            auto& oe = le.data.offer();
-
-            oe.sellerID = pubKey;
-            oe.offerID = offerID;
-
-            processAsset(oe.selling, (AssetType)sellingAssetType, sellingIssuer,
-                         sellingIssuerIndicator, sellingAssetCode,
-                         sellingAssetCodeIndicator);
-            processAsset(oe.buying, (AssetType)buyingAssetType, buyingIssuer,
-                         buyingIssuerIndicator, buyingAssetCode,
-                         buyingAssetCodeIndicator);
-
-            oe.amount = amount;
-            oe.price = price;
-            oe.flags = flags;
-            le.lastModifiedLedgerSeq = lastModified;
 
             st.fetch();
         }
