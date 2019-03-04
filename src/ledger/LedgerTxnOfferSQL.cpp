@@ -20,6 +20,11 @@ std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
 {
     uint64_t offerID = key.offer().offerID;
+    if (offerID > INT64_MAX)
+    {
+        return nullptr;
+    }
+
     std::string actIDStrKey = KeyUtils::toStrKey(key.offer().sellerID);
 
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
@@ -645,8 +650,11 @@ class BulkLoadOffersOperation
         for (auto const& k : keys)
         {
             assert(k.type() == OFFER);
-            mSellerIDs.emplace_back(k.offer().sellerID);
-            mOfferIDs.emplace_back(unsignedToSigned(k.offer().offerID));
+            if (k.offer().offerID <= INT64_MAX)
+            {
+                mSellerIDs.emplace_back(k.offer().sellerID);
+                mOfferIDs.emplace_back(unsignedToSigned(k.offer().offerID));
+            }
         }
 
         for (size_t i = 0; i < mSellerIDs.size(); ++i)
