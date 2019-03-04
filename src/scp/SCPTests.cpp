@@ -2656,6 +2656,34 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     }
                 }
             }
+            SECTION(
+                "receive more messages, then v0 switches to a different leader")
+            {
+                SCPEnvelope nom1 =
+                    makeNominate(v1SecretKey, qSetHash, 0, {kValue}, {});
+                SCPEnvelope nom2 =
+                    makeNominate(v2SecretKey, qSetHash, 0, {yValue}, {});
+
+                // nothing more happens
+                scp.receiveEnvelope(nom1);
+                scp.receiveEnvelope(nom2);
+                REQUIRE(scp.mEnvs.size() == 1);
+
+                // switch leader to v1
+                scp.mPriorityLookup = [&](NodeID const& n) {
+                    return (n == v1NodeID) ? 1000 : 1;
+                };
+                REQUIRE(scp.nominate(0, xValue, true));
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                std::vector<Value> votesXK;
+                votesXK.emplace_back(xValue);
+                votesXK.emplace_back(kValue);
+                std::sort(votesXK.begin(), votesXK.end());
+
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXK,
+                               {});
+            }
         }
         SECTION("self nominates 'x', others nominate y -> prepare y")
         {

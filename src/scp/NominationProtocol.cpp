@@ -484,6 +484,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
 
     Value nominatingValue;
 
+    // if we're leader, add our value
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
         mRoundLeaders.end())
     {
@@ -494,20 +495,18 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
         }
         nominatingValue = value;
     }
-    else
+    // add a few more values from other leaders
+    for (auto const& leader : mRoundLeaders)
     {
-        for (auto const& leader : mRoundLeaders)
+        auto it = mLatestNominations.find(leader);
+        if (it != mLatestNominations.end())
         {
-            auto it = mLatestNominations.find(leader);
-            if (it != mLatestNominations.end())
+            nominatingValue = getNewValueFromNomination(
+                it->second.statement.pledges.nominate());
+            if (!nominatingValue.empty())
             {
-                nominatingValue = getNewValueFromNomination(
-                    it->second.statement.pledges.nominate());
-                if (!nominatingValue.empty())
-                {
-                    mVotes.insert(nominatingValue);
-                    updated = true;
-                }
+                mVotes.insert(nominatingValue);
+                updated = true;
             }
         }
     }
