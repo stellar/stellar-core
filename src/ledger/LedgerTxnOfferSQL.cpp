@@ -581,7 +581,6 @@ class BulkLoadOffersOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
-    std::vector<AccountID> mSellerIDs;
     std::vector<int64_t> mOfferIDs;
     std::unordered_map<uint64_t, AccountID> mSellerIDsByOfferID;
 
@@ -645,21 +644,15 @@ class BulkLoadOffersOperation
                             std::unordered_set<LedgerKey> const& keys)
         : mDb(db)
     {
-        mSellerIDs.reserve(keys.size());
         mOfferIDs.reserve(keys.size());
         for (auto const& k : keys)
         {
             assert(k.type() == OFFER);
             if (k.offer().offerID <= INT64_MAX)
             {
-                mSellerIDs.emplace_back(k.offer().sellerID);
                 mOfferIDs.emplace_back(unsignedToSigned(k.offer().offerID));
+                mSellerIDsByOfferID[mOfferIDs.back()] = k.offer().sellerID;
             }
-        }
-
-        for (size_t i = 0; i < mSellerIDs.size(); ++i)
-        {
-            mSellerIDsByOfferID[mOfferIDs[i]] = mSellerIDs[i];
         }
     }
 
