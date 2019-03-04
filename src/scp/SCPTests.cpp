@@ -272,6 +272,12 @@ class TestSCP : public SCPDriver
         }
         throw std::runtime_error("not found");
     }
+
+    std::set<NodeID>
+    getNominationLeaders(uint64 slotIndex)
+    {
+        return mSCP.getSlot(slotIndex, false)->getNominationLeaders();
+    }
 };
 
 static SCPEnvelope
@@ -2464,176 +2470,219 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
     REQUIRE(xValue < yValue);
     REQUIRE(yValue < zValue);
 
+    auto checkLeaders = [&](TestSCP& scp, std::set<NodeID> expectedLeaders) {
+        auto l = scp.getNominationLeaders(0);
+        REQUIRE(std::equal(l.begin(), l.end(), expectedLeaders.begin(),
+                           expectedLeaders.end()));
+    };
+
     SECTION("nomination - v0 is top")
     {
         TestSCP scp(v0SecretKey.getPublicKey(), qSet);
         uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-        SECTION("others nominate what v0 says (x) -> prepare x")
+        SECTION("v0 starts to nominates xValue")
         {
             REQUIRE(scp.nominate(0, xValue, false));
 
-            std::vector<Value> votes, accepted;
-            votes.emplace_back(xValue);
+            checkLeaders(scp, {v0SecretKey.getPublicKey()});
 
-            REQUIRE(scp.mEnvs.size() == 1);
-            verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
-                           accepted);
-
-            SCPEnvelope nom1 =
-                makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-            SCPEnvelope nom2 =
-                makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-            SCPEnvelope nom3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-            SCPEnvelope nom4 =
-                makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
-
-            // nothing happens yet
-            scp.receiveEnvelope(nom1);
-            scp.receiveEnvelope(nom2);
-            REQUIRE(scp.mEnvs.size() == 1);
-
-            // this causes 'x' to be accepted (quorum)
-            scp.receiveEnvelope(nom3);
-            REQUIRE(scp.mEnvs.size() == 2);
-
-            scp.mExpectedCandidates.emplace(xValue);
-            scp.mCompositeValue = xValue;
-
-            accepted.emplace_back(xValue);
-            verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votes,
-                           accepted);
-
-            // extra message doesn't do anything
-            scp.receiveEnvelope(nom4);
-            REQUIRE(scp.mEnvs.size() == 2);
-
-            SCPEnvelope acc1 =
-                makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
-            SCPEnvelope acc2 =
-                makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
-            SCPEnvelope acc3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
-            SCPEnvelope acc4 =
-                makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
-
-            // nothing happens yet
-            scp.receiveEnvelope(acc1);
-            scp.receiveEnvelope(acc2);
-            REQUIRE(scp.mEnvs.size() == 2);
-
-            scp.mCompositeValue = xValue;
-            // this causes the node to send a prepare message (quorum)
-            scp.receiveEnvelope(acc3);
-            REQUIRE(scp.mEnvs.size() == 3);
-
-            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
-                          SCPBallot(1, xValue));
-
-            scp.receiveEnvelope(acc4);
-            REQUIRE(scp.mEnvs.size() == 3);
-
-            std::vector<Value> votes2 = votes;
-            votes2.emplace_back(yValue);
-
-            SECTION("nominate x -> accept x -> prepare (x) ; others accepted y "
-                    "-> update latest to (z=x+y)")
+            SECTION("others nominate what v0 says (x) -> prepare x")
             {
-                SCPEnvelope acc1_2 =
-                    makeNominate(v1SecretKey, qSetHash, 0, votes2, votes2);
-                SCPEnvelope acc2_2 =
-                    makeNominate(v2SecretKey, qSetHash, 0, votes2, votes2);
-                SCPEnvelope acc3_2 =
-                    makeNominate(v3SecretKey, qSetHash, 0, votes2, votes2);
-                SCPEnvelope acc4_2 =
-                    makeNominate(v4SecretKey, qSetHash, 0, votes2, votes2);
+                std::vector<Value> votes, accepted;
+                votes.emplace_back(xValue);
 
-                scp.receiveEnvelope(acc1_2);
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votes,
+                               accepted);
+
+                SCPEnvelope nom1 =
+                    makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope nom2 =
+                    makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope nom3 =
+                    makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope nom4 =
+                    makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+                // nothing happens yet
+                scp.receiveEnvelope(nom1);
+                scp.receiveEnvelope(nom2);
+                REQUIRE(scp.mEnvs.size() == 1);
+
+                // this causes 'x' to be accepted (quorum)
+                scp.receiveEnvelope(nom3);
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                scp.mExpectedCandidates.emplace(xValue);
+                scp.mCompositeValue = xValue;
+
+                accepted.emplace_back(xValue);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votes,
+                               accepted);
+
+                // extra message doesn't do anything
+                scp.receiveEnvelope(nom4);
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                SCPEnvelope acc1 =
+                    makeNominate(v1SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope acc2 =
+                    makeNominate(v2SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope acc3 =
+                    makeNominate(v3SecretKey, qSetHash, 0, votes, accepted);
+                SCPEnvelope acc4 =
+                    makeNominate(v4SecretKey, qSetHash, 0, votes, accepted);
+
+                // nothing happens yet
+                scp.receiveEnvelope(acc1);
+                scp.receiveEnvelope(acc2);
+                REQUIRE(scp.mEnvs.size() == 2);
+
+                scp.mCompositeValue = xValue;
+                // this causes the node to send a prepare message (quorum)
+                scp.receiveEnvelope(acc3);
                 REQUIRE(scp.mEnvs.size() == 3);
 
-                // v-blocking
-                scp.receiveEnvelope(acc2_2);
-                REQUIRE(scp.mEnvs.size() == 4);
-                verifyNominate(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, votes2,
-                               votes2);
+                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0,
+                              SCPBallot(1, xValue));
 
-                scp.mExpectedCandidates.insert(yValue);
-                scp.mCompositeValue = kValue;
-                // this updates the composite value to use next time
-                // but does not prepare it
-                scp.receiveEnvelope(acc3_2);
-                REQUIRE(scp.mEnvs.size() == 4);
+                scp.receiveEnvelope(acc4);
+                REQUIRE(scp.mEnvs.size() == 3);
 
-                REQUIRE(scp.getLatestCompositeCandidate(0) == kValue);
+                std::vector<Value> votes2 = votes;
+                votes2.emplace_back(yValue);
 
-                scp.receiveEnvelope(acc4_2);
-                REQUIRE(scp.mEnvs.size() == 4);
+                SECTION(
+                    "nominate x -> accept x -> prepare (x) ; others accepted y "
+                    "-> update latest to (z=x+y)")
+                {
+                    SCPEnvelope acc1_2 =
+                        makeNominate(v1SecretKey, qSetHash, 0, votes2, votes2);
+                    SCPEnvelope acc2_2 =
+                        makeNominate(v2SecretKey, qSetHash, 0, votes2, votes2);
+                    SCPEnvelope acc3_2 =
+                        makeNominate(v3SecretKey, qSetHash, 0, votes2, votes2);
+                    SCPEnvelope acc4_2 =
+                        makeNominate(v4SecretKey, qSetHash, 0, votes2, votes2);
+
+                    scp.receiveEnvelope(acc1_2);
+                    REQUIRE(scp.mEnvs.size() == 3);
+
+                    // v-blocking
+                    scp.receiveEnvelope(acc2_2);
+                    REQUIRE(scp.mEnvs.size() == 4);
+                    verifyNominate(scp.mEnvs[3], v0SecretKey, qSetHash0, 0,
+                                   votes2, votes2);
+
+                    scp.mExpectedCandidates.insert(yValue);
+                    scp.mCompositeValue = kValue;
+                    // this updates the composite value to use next time
+                    // but does not prepare it
+                    scp.receiveEnvelope(acc3_2);
+                    REQUIRE(scp.mEnvs.size() == 4);
+
+                    REQUIRE(scp.getLatestCompositeCandidate(0) == kValue);
+
+                    scp.receiveEnvelope(acc4_2);
+                    REQUIRE(scp.mEnvs.size() == 4);
+                }
+                SECTION("nomination - restored state")
+                {
+                    TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
+                    scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+                    // at this point
+                    // votes = { x }
+                    // accepted = { x }
+
+                    // tests if nomination proceeds like normal
+                    // nominates x
+                    auto nominationRestore = [&]() {
+                        // restores from the previous state
+                        scp2.mSCP.setStateFromEnvelope(
+                            0, makeNominate(v0SecretKey, qSetHash0, 0, votes,
+                                            accepted));
+                        // tries to start nomination with yValue
+                        REQUIRE(scp2.nominate(0, yValue, false));
+
+                        checkLeaders(scp2, {v0SecretKey.getPublicKey()});
+
+                        REQUIRE(scp2.mEnvs.size() == 1);
+                        verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                       votes2, accepted);
+
+                        // other nodes vote for 'x'
+                        scp2.receiveEnvelope(nom1);
+                        scp2.receiveEnvelope(nom2);
+                        REQUIRE(scp2.mEnvs.size() == 1);
+                        // 'x' is accepted (quorum)
+                        // but because the restored state already included
+                        // 'x' in the accepted set, no new message is emitted
+                        scp2.receiveEnvelope(nom3);
+
+                        scp2.mExpectedCandidates.emplace(xValue);
+                        scp2.mCompositeValue = xValue;
+
+                        // other nodes not emit 'x' as accepted
+                        scp2.receiveEnvelope(acc1);
+                        scp2.receiveEnvelope(acc2);
+                        REQUIRE(scp2.mEnvs.size() == 1);
+
+                        scp2.mCompositeValue = xValue;
+                        // this causes the node to update its composite value to
+                        // x
+                        scp2.receiveEnvelope(acc3);
+                    };
+
+                    SECTION("ballot protocol not started")
+                    {
+                        nominationRestore();
+                        // nomination ended up starting the ballot protocol
+                        REQUIRE(scp2.mEnvs.size() == 2);
+
+                        verifyPrepare(scp2.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                                      SCPBallot(1, xValue));
+                    }
+                    SECTION("ballot protocol started (on value k)")
+                    {
+                        scp2.mSCP.setStateFromEnvelope(
+                            0, makePrepare(v0SecretKey, qSetHash0, 0,
+                                           SCPBallot(1, kValue)));
+                        nominationRestore();
+                        // nomination didn't do anything (already working on k)
+                        REQUIRE(scp2.mEnvs.size() == 1);
+                    }
+                }
             }
-            SECTION("nomination - restored state")
+            SECTION(
+                "receive more messages, then v0 switches to a different leader")
             {
-                TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
-                scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+                SCPEnvelope nom1 =
+                    makeNominate(v1SecretKey, qSetHash, 0, {kValue}, {});
+                SCPEnvelope nom2 =
+                    makeNominate(v2SecretKey, qSetHash, 0, {yValue}, {});
 
-                // at this point
-                // votes = { x }
-                // accepted = { x }
+                // nothing more happens
+                scp.receiveEnvelope(nom1);
+                scp.receiveEnvelope(nom2);
+                REQUIRE(scp.mEnvs.size() == 1);
 
-                // tests if nomination proceeds like normal
-                // nominates x
-                auto nominationRestore = [&]() {
-                    // restores from the previous state
-                    scp2.mSCP.setStateFromEnvelope(
-                        0, makeNominate(v0SecretKey, qSetHash0, 0, votes,
-                                        accepted));
-                    // tries to start nomination with yValue
-                    REQUIRE(scp2.nominate(0, yValue, false));
-
-                    REQUIRE(scp2.mEnvs.size() == 1);
-                    verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
-                                   votes2, accepted);
-
-                    // other nodes vote for 'x'
-                    scp2.receiveEnvelope(nom1);
-                    scp2.receiveEnvelope(nom2);
-                    REQUIRE(scp2.mEnvs.size() == 1);
-                    // 'x' is accepted (quorum)
-                    // but because the restored state already included
-                    // 'x' in the accepted set, no new message is emitted
-                    scp2.receiveEnvelope(nom3);
-
-                    scp2.mExpectedCandidates.emplace(xValue);
-                    scp2.mCompositeValue = xValue;
-
-                    // other nodes not emit 'x' as accepted
-                    scp2.receiveEnvelope(acc1);
-                    scp2.receiveEnvelope(acc2);
-                    REQUIRE(scp2.mEnvs.size() == 1);
-
-                    scp2.mCompositeValue = xValue;
-                    // this causes the node to update its composite value to x
-                    scp2.receiveEnvelope(acc3);
+                // switch leader to v1
+                scp.mPriorityLookup = [&](NodeID const& n) {
+                    return (n == v1NodeID) ? 1000 : 1;
                 };
+                REQUIRE(scp.nominate(0, xValue, true));
+                REQUIRE(scp.mEnvs.size() == 2);
 
-                SECTION("ballot protocol not started")
-                {
-                    nominationRestore();
-                    // nomination ended up starting the ballot protocol
-                    REQUIRE(scp2.mEnvs.size() == 2);
+                std::vector<Value> votesXK;
+                votesXK.emplace_back(xValue);
+                votesXK.emplace_back(kValue);
+                std::sort(votesXK.begin(), votesXK.end());
 
-                    verifyPrepare(scp2.mEnvs[1], v0SecretKey, qSetHash0, 0,
-                                  SCPBallot(1, xValue));
-                }
-                SECTION("ballot protocol started (on value k)")
-                {
-                    scp2.mSCP.setStateFromEnvelope(
-                        0, makePrepare(v0SecretKey, qSetHash0, 0,
-                                       SCPBallot(1, kValue)));
-                    nominationRestore();
-                    // nomination didn't do anything (already working on k)
-                    REQUIRE(scp2.mEnvs.size() == 1);
-                }
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXK,
+                               {});
             }
         }
         SECTION("self nominates 'x', others nominate y -> prepare y")
@@ -2768,6 +2817,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         {
             REQUIRE(!scp.nominate(0, xValue, false));
 
+            checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
             REQUIRE(scp.mEnvs.size() == 0);
 
             SCPEnvelope nom3 =
@@ -2811,6 +2862,8 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             scp.receiveEnvelope(nom2);
             REQUIRE(scp.mEnvs.size() == 0);
 
+            checkLeaders(scp, {v1SecretKey.getPublicKey()});
+
             SECTION("v0 is new top node")
             {
                 scp.mPriorityLookup = [&](NodeID const& n) {
@@ -2818,6 +2871,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 };
 
                 REQUIRE(scp.nominate(0, xValue, true));
+                checkLeaders(scp, {v0SecretKey.getPublicKey(),
+                                   v1SecretKey.getPublicKey()});
+
                 REQUIRE(scp.mEnvs.size() == 1);
                 verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesX,
                                emptyV);
@@ -2829,6 +2885,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 };
 
                 REQUIRE(scp.nominate(0, xValue, true));
+                checkLeaders(scp, {v1SecretKey.getPublicKey(),
+                                   v2SecretKey.getPublicKey()});
+
                 REQUIRE(scp.mEnvs.size() == 1);
                 // v2 votes for XK, but nomination only picks the highest value
                 std::vector<Value> v2Top;
@@ -2843,6 +2902,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 };
                 // nothing happens, we don't have any message for v3
                 REQUIRE(!scp.nominate(0, xValue, true));
+                checkLeaders(scp, {v1SecretKey.getPublicKey(),
+                                   v3SecretKey.getPublicKey()});
+
                 REQUIRE(scp.mEnvs.size() == 0);
             }
         }

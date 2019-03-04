@@ -758,7 +758,7 @@ class BulkLoadAccountsOperation
 
         sqlite3_reset(st);
         sqlite3_bind_pointer(st, 1, accountIDcstrs.data(), "carray", 0);
-        sqlite3_bind_int(st, 2, accountIDcstrs.size());
+        sqlite3_bind_int(st, 2, static_cast<int>(accountIDcstrs.size()));
         return executeAndFetch(prep.statement());
     }
 

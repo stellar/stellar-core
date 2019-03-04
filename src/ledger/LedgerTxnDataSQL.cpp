@@ -443,9 +443,9 @@ class BulkLoadDataOperation
 
         sqlite3_reset(st);
         sqlite3_bind_pointer(st, 1, cstrAccountIDs.data(), "carray", 0);
-        sqlite3_bind_int(st, 2, cstrAccountIDs.size());
+        sqlite3_bind_int(st, 2, static_cast<int>(cstrAccountIDs.size()));
         sqlite3_bind_pointer(st, 3, cstrDataNames.data(), "carray", 0);
-        sqlite3_bind_int(st, 4, cstrDataNames.size());
+        sqlite3_bind_int(st, 4, static_cast<int>(cstrDataNames.size()));
         return executeAndFetch(prep.statement());
     }
 

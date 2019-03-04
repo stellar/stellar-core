@@ -165,6 +165,12 @@ Slot::stopNomination()
     mNominationProtocol.stopNomination();
 }
 
+std::set<NodeID>
+Slot::getNominationLeaders() const
+{
+    return mNominationProtocol.getLeaders();
+}
+
 bool
 Slot::isFullyValidated() const
 {

@@ -117,6 +117,9 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     void stopNomination();
 
+    // returns the current nomination leaders
+    std::set<NodeID> getNominationLeaders() const;
+
     bool isFullyValidated() const;
     void setFullyValidated(bool fullyValidated);
 
