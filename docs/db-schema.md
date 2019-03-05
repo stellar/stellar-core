@@ -66,12 +66,8 @@ Field | Type | Description
 ------|------|---------------
 sellerid | VARCHAR(56) NOT NULL | (STRKEY)
 offerid | BIGINT NOT NULL CHECK (offerid >= 0) |
-sellingassettype | INT | selling.type
-sellingassetcode | VARCHAR(12) | selling.*.assetCode
-sellingissuer | VARCHAR(56) | selling.*.issuer
-buyingassettype | INT | buying.type
-buyingassetcode | VARCHAR(12) | buying.*.assetCode
-buyingissuer | VARCHAR(56) | buying.*.issuer
+sellingasset | TEXT NOT NULL | selling (BASE64)
+buyingasset | TEXT NOT NULL | buying (BASE64)
 amount | BIGINT NOT NULL CHECK (amount >= 0) |
 pricen | INT NOT NULL | Price.n
 priced | INT NOT NULL | Price.d

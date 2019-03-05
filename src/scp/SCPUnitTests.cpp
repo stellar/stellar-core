@@ -120,7 +120,8 @@ class TestNominationSCP : public SCPDriver
     Value const&
     getLatestCompositeCandidate(uint64 slotIndex)
     {
-        return {};
+        static Value const emptyValue{};
+        return emptyValue;
     }
 };
 

@@ -2799,6 +2799,67 @@ TEST_CASE("create offer", "[tx][offers]")
             });
         }
     }
+
+    SECTION("large offer id")
+    {
+        SECTION("modify")
+        {
+            for_all_versions(*app, [&] {
+                auto const minBalance =
+                    app->getLedgerManager().getLastMinBalance(3);
+                auto acc1 = root.create("acc1", minBalance + 10000);
+
+                acc1.changeTrust(usd, INT64_MAX);
+                acc1.changeTrust(idr, INT64_MAX);
+                issuer.pay(acc1, usd, 1000);
+                issuer.pay(acc1, idr, 1000);
+
+                TestMarket market(*app);
+                REQUIRE_THROWS_AS(
+                    market.updateOffer(acc1, INT64_MAX,
+                                       {usd, idr, Price{1, 1}, 1}),
+                    ex_MANAGE_OFFER_NOT_FOUND);
+                REQUIRE_THROWS_AS(
+                    market.updateOffer(acc1,
+                                       static_cast<uint64_t>(INT64_MAX) + 1,
+                                       {usd, idr, Price{1, 1}, 1}),
+                    ex_MANAGE_OFFER_NOT_FOUND);
+                REQUIRE_THROWS_AS(
+                    market.updateOffer(acc1, UINT64_MAX,
+                                       {usd, idr, Price{1, 1}, 1}),
+                    ex_MANAGE_OFFER_NOT_FOUND);
+            });
+        }
+
+        SECTION("erase")
+        {
+            for_all_versions(*app, [&] {
+                auto const minBalance =
+                    app->getLedgerManager().getLastMinBalance(3);
+                auto acc1 = root.create("acc1", minBalance + 10000);
+
+                acc1.changeTrust(usd, INT64_MAX);
+                acc1.changeTrust(idr, INT64_MAX);
+                issuer.pay(acc1, usd, 1000);
+                issuer.pay(acc1, idr, 1000);
+
+                TestMarket market(*app);
+                REQUIRE_THROWS_AS(
+                    market.updateOffer(acc1, INT64_MAX,
+                                       {usd, idr, Price{1, 1}, 0}),
+                    ex_MANAGE_OFFER_NOT_FOUND);
+                REQUIRE_THROWS_AS(
+                    market.updateOffer(acc1,
+                                       static_cast<uint64_t>(INT64_MAX) + 1,
+                                       {usd, idr, Price{1, 1}, 0}),
+                    ex_MANAGE_OFFER_NOT_FOUND);
+                REQUIRE_THROWS_AS(
+                    market.updateOffer(acc1, UINT64_MAX,
+                                       {usd, idr, Price{1, 1}, 0}),
+                    ex_MANAGE_OFFER_NOT_FOUND);
+            });
+        }
+    }
 }
 
 TEST_CASE("liabilities match created offer", "[tx][offers]")
