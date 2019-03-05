@@ -8,10 +8,10 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/RandomPeerSource.h"
 #include "overlay/StellarXDR.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
-#include <soci.h>
 
 namespace stellar
 {
@@ -243,6 +243,114 @@ TEST_CASE("parse peer rercord", "[overlay][PeerManager]")
     }
 }
 
+TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+
+    auto getPorts = [&](PeerQuery const& query) {
+        auto peers = peerManager.loadRandomPeers(query, 1000);
+        auto result = std::set<int>{};
+        std::transform(
+            std::begin(peers), std::end(peers),
+            std::inserter(result, std::end(result)),
+            [](PeerBareAddress const& address) { return address.getPort(); });
+        return result;
+    };
+
+    auto now = clock.now();
+    auto past = clock.now() - std::chrono::seconds(1);
+    auto future = clock.now() + std::chrono::seconds(1);
+
+    auto port = 1;
+    auto peerRecords = std::map<int, PeerRecord>{};
+    for (auto time : {past, now, future})
+    {
+        for (auto numFailures : {0, 1})
+        {
+            for (auto type :
+                 {PeerType::INBOUND, PeerType::OUTBOUND, PeerType::PREFERRED})
+            {
+                auto peerRecord =
+                    PeerRecord{VirtualClock::pointToTm(time), numFailures,
+                               static_cast<int>(type)};
+                peerRecords[port] = peerRecord;
+                peerManager.store(PeerBareAddress("127.0.0.1", port),
+                                  peerRecord, false);
+                port++;
+            }
+        }
+    }
+
+    auto valid = [&](PeerQuery const& peerQuery, PeerRecord const& peerRecord) {
+        if (peerQuery.mUseNextAttempt)
+        {
+            if (VirtualClock::tmToPoint(peerRecord.mNextAttempt) > now)
+            {
+                return false;
+            }
+        }
+        if (peerQuery.mMaxNumFailures >= 0)
+        {
+            if (peerRecord.mNumFailures > peerQuery.mMaxNumFailures)
+            {
+                return false;
+            }
+        }
+        switch (peerQuery.mTypeFilter)
+        {
+        case PeerTypeFilter::INBOUND_ONLY:
+        {
+            return peerRecord.mType == static_cast<int>(PeerType::INBOUND);
+        }
+        case PeerTypeFilter::OUTBOUND_ONLY:
+        {
+            return peerRecord.mType == static_cast<int>(PeerType::OUTBOUND);
+        }
+        case PeerTypeFilter::PREFERRED_ONLY:
+        {
+            return peerRecord.mType == static_cast<int>(PeerType::PREFERRED);
+        }
+        case PeerTypeFilter::ANY_OUTBOUND:
+        {
+            return peerRecord.mType == static_cast<int>(PeerType::OUTBOUND) ||
+                   peerRecord.mType == static_cast<int>(PeerType::PREFERRED);
+        }
+        default:
+        {
+            abort();
+        }
+        }
+    };
+
+    auto count = port - 1;
+    for (auto useNextAttempt : {false, true})
+    {
+        for (auto numFailures : {-1, 0})
+        {
+            for (auto filter :
+                 {PeerTypeFilter::INBOUND_ONLY, PeerTypeFilter::OUTBOUND_ONLY,
+                  PeerTypeFilter::PREFERRED_ONLY, PeerTypeFilter::ANY_OUTBOUND})
+            {
+                auto query = PeerQuery{useNextAttempt, numFailures, filter};
+                auto ports = getPorts(query);
+                for (auto record : peerRecords)
+                {
+                    if (ports.find(record.first) != std::end(ports))
+                    {
+                        REQUIRE(valid(query, record.second));
+                    }
+                    else
+                    {
+                        REQUIRE(!valid(query, record.second));
+                    }
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
 {
     VirtualClock clock;
@@ -252,17 +360,32 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
     auto getSize = [&](int requestedSize) {
         return peerManager.getPeersToSend(requestedSize, myAddress).size();
     };
-    auto createPeers = [&](unsigned short inboundCount,
-                           unsigned short outboundCount) {
-        for (unsigned short i = 1; i <= inboundCount; i++)
+    auto createPeers = [&](unsigned short normalInboundCount,
+                           unsigned short failedInboundCount,
+                           unsigned short normalOutboundCount,
+                           unsigned short failedOutboundCount) {
+        unsigned short port = 1;
+        for (auto i = 0; i < normalInboundCount; i++)
         {
-            peerManager.ensureExists(PeerBareAddress("127.0.0.1", i));
+            peerManager.ensureExists(PeerBareAddress("127.0.0.1", port++));
         }
-        for (unsigned short i = inboundCount + 1;
-             i <= inboundCount + outboundCount; i++)
+        for (auto i = 0; i < failedInboundCount; i++)
         {
-            peerManager.update(PeerBareAddress("127.0.0.1", i),
+            peerManager.store(
+                PeerBareAddress("127.0.0.1", port++),
+                PeerRecord{{}, 11, static_cast<int>(PeerType::INBOUND)}, false);
+        }
+        for (auto i = 0; i < normalOutboundCount; i++)
+        {
+            peerManager.update(PeerBareAddress("127.0.0.1", port++),
                                PeerManager::TypeUpdate::SET_OUTBOUND);
+        }
+        for (auto i = 0; i < failedOutboundCount; i++)
+        {
+            peerManager.store(
+                PeerBareAddress("127.0.0.1", port++),
+                PeerRecord{{}, 11, static_cast<int>(PeerType::OUTBOUND)},
+                false);
         }
     };
 
@@ -277,19 +400,19 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
     {
         SECTION("only inbound peers")
         {
-            createPeers(8, 0);
+            createPeers(8, 0, 0, 0);
             REQUIRE(getSize(10) == 8);
             REQUIRE(getSize(50) == 8);
         }
         SECTION("only outbound peers")
         {
-            createPeers(0, 8);
+            createPeers(0, 0, 8, 0);
             REQUIRE(getSize(10) == 8);
             REQUIRE(getSize(50) == 8);
         }
         SECTION("mixed peers")
         {
-            createPeers(4, 4);
+            createPeers(4, 0, 4, 0);
             REQUIRE(getSize(10) == 8);
             REQUIRE(getSize(50) == 8);
         }
@@ -299,17 +422,17 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
     {
         SECTION("only inbound peers")
         {
-            createPeers(8, 0);
+            createPeers(8, 0, 0, 0);
             REQUIRE(getSize(8) == 8);
         }
         SECTION("only outbound peers")
         {
-            createPeers(0, 8);
-            REQUIRE(getSize(58) == 8);
+            createPeers(0, 0, 8, 0);
+            REQUIRE(getSize(8) == 8);
         }
         SECTION("mixed peers")
         {
-            createPeers(4, 4);
+            createPeers(4, 0, 4, 0);
             REQUIRE(getSize(8) == 8);
         }
     }
@@ -318,19 +441,70 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
     {
         SECTION("only inbound peers")
         {
-            createPeers(50, 0);
+            createPeers(50, 0, 0, 0);
             REQUIRE(getSize(30) == 30);
         }
         SECTION("only outbound peers")
         {
-            createPeers(0, 50);
+            createPeers(0, 0, 50, 0);
             REQUIRE(getSize(30) == 30);
         }
         SECTION("mixed peers")
         {
-            createPeers(25, 25);
+            createPeers(25, 0, 25, 0);
             REQUIRE(getSize(30) == 30);
         }
     }
+
+    SECTION("more peers in database than requested, but half failed")
+    {
+        SECTION("only inbound peers")
+        {
+            createPeers(25, 25, 0, 0);
+            REQUIRE(getSize(30) == 25);
+        }
+        SECTION("only outbound peers")
+        {
+            createPeers(0, 0, 25, 25);
+            REQUIRE(getSize(30) == 25);
+        }
+        SECTION("mixed peers")
+        {
+            createPeers(13, 12, 13, 12);
+            REQUIRE(getSize(30) == 26);
+        }
+    }
+}
+
+TEST_CASE("RandomPeerSource::nextAttemptCutoff also limits maxFailures",
+          "[overlay][PeerManager]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+    auto randomPeerSource = RandomPeerSource{
+        peerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND)};
+
+    auto now = VirtualClock::pointToTm(clock.now());
+    peerManager.store(PeerBareAddress("127.0.0.1", 1),
+                      {now, 0, static_cast<int>(PeerType::INBOUND)}, false);
+    peerManager.store(PeerBareAddress("127.0.0.1", 2),
+                      {now, 0, static_cast<int>(PeerType::OUTBOUND)}, false);
+    peerManager.store(PeerBareAddress("127.0.0.1", 3),
+                      {now, 120, static_cast<int>(PeerType::INBOUND)}, false);
+    peerManager.store(PeerBareAddress("127.0.0.1", 4),
+                      {now, 120, static_cast<int>(PeerType::OUTBOUND)}, false);
+    peerManager.store(PeerBareAddress("127.0.0.1", 5),
+                      {now, 121, static_cast<int>(PeerType::INBOUND)}, false);
+    peerManager.store(PeerBareAddress("127.0.0.1", 6),
+                      {now, 121, static_cast<int>(PeerType::OUTBOUND)}, false);
+
+    auto peers = randomPeerSource.getRandomPeers(
+        50, [](PeerBareAddress const&) { return true; });
+    REQUIRE(peers.size() == 2);
+    REQUIRE(std::find(std::begin(peers), std::end(peers),
+                      PeerBareAddress("127.0.0.1", 2)) != std::end(peers));
+    REQUIRE(std::find(std::begin(peers), std::end(peers),
+                      PeerBareAddress("127.0.0.1", 4)) != std::end(peers));
 }
 }
