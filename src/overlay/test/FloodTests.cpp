@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TCPPeer.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerManager.h"
@@ -13,6 +12,7 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerDoor.h"
+#include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"

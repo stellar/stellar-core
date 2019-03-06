@@ -11,7 +11,7 @@
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/LedgerTestUtils.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "lib/util/format.h"
 #include "main/Application.h"

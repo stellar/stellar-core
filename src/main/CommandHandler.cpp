@@ -29,11 +29,11 @@
 
 #include "ExternalQueue.h"
 
+#ifdef BUILD_TESTS
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#endif
 #include <regex>
-
-using namespace stellar::txtest;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -75,7 +75,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("connect", &CommandHandler::connect);
     addRoute("dropcursor", &CommandHandler::dropcursor);
     addRoute("droppeer", &CommandHandler::dropPeer);
-    addRoute("generateload", &CommandHandler::generateLoad);
     addRoute("getcursor", &CommandHandler::getcursor);
     addRoute("info", &CommandHandler::info);
     addRoute("ll", &CommandHandler::ll);
@@ -88,11 +87,15 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("quorum", &CommandHandler::quorum);
     addRoute("setcursor", &CommandHandler::setcursor);
     addRoute("scp", &CommandHandler::scpInfo);
-    addRoute("testacc", &CommandHandler::testAcc);
-    addRoute("testtx", &CommandHandler::testTx);
     addRoute("tx", &CommandHandler::tx);
     addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("unban", &CommandHandler::unban);
+
+#ifdef BUILD_TESTS
+    addRoute("generateload", &CommandHandler::generateLoad);
+    addRoute("testacc", &CommandHandler::testAcc);
+    addRoute("testtx", &CommandHandler::testTx);
+#endif
 }
 
 void
@@ -130,116 +133,6 @@ CommandHandler::manualCmd(std::string const& cmd)
     request.uri = cmd;
     mServer->handle_request(request, reply);
     LOG(INFO) << cmd << " -> " << reply.content;
-}
-
-void
-CommandHandler::testAcc(std::string const& params, std::string& retStr)
-{
-    std::map<std::string, std::string> retMap;
-    http::server::server::parseParams(params, retMap);
-    Json::Value root;
-    auto accName = retMap.find("name");
-    if (accName == retMap.end())
-    {
-        root["status"] = "error";
-        root["detail"] = "Bad HTTP GET: try something like: testacc?name=bob";
-    }
-    else
-    {
-        SecretKey key;
-        if (accName->second == "root")
-        {
-            key = getRoot(mApp.getNetworkID());
-        }
-        else
-        {
-            key = getAccount(accName->second.c_str());
-        }
-
-        LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        auto acc = stellar::loadAccount(ltx, key.getPublicKey());
-        if (acc)
-        {
-            auto const& ae = acc.current().data.account();
-            root["name"] = accName->second;
-            root["id"] = KeyUtils::toStrKey(ae.accountID);
-            root["balance"] = (Json::Int64)ae.balance;
-            root["seqnum"] = (Json::UInt64)ae.seqNum;
-        }
-    }
-    retStr = root.toStyledString();
-}
-
-void
-CommandHandler::testTx(std::string const& params, std::string& retStr)
-{
-    std::map<std::string, std::string> retMap;
-    http::server::server::parseParams(params, retMap);
-
-    auto to = retMap.find("to");
-    auto from = retMap.find("from");
-    auto amount = retMap.find("amount");
-    auto create = retMap.find("create");
-
-    Json::Value root;
-
-    if (to != retMap.end() && from != retMap.end() && amount != retMap.end())
-    {
-        Hash const& networkID = mApp.getNetworkID();
-
-        auto toAccount =
-            to->second == "root"
-                ? TestAccount{mApp, getRoot(networkID)}
-                : TestAccount{mApp, getAccount(to->second.c_str())};
-        auto fromAccount =
-            from->second == "root"
-                ? TestAccount{mApp, getRoot(networkID)}
-                : TestAccount{mApp, getAccount(from->second.c_str())};
-
-        uint64_t paymentAmount = 0;
-        std::istringstream iss(amount->second);
-        iss >> paymentAmount;
-
-        root["from_name"] = from->second;
-        root["to_name"] = to->second;
-        root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
-        root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
-        root["amount"] = (Json::UInt64)paymentAmount;
-
-        TransactionFramePtr txFrame;
-        if (create != retMap.end() && create->second == "true")
-        {
-            txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
-        }
-        else
-        {
-            txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
-        }
-
-        switch (mApp.getHerder().recvTransaction(txFrame))
-        {
-        case Herder::TX_STATUS_PENDING:
-            root["status"] = "pending";
-            break;
-        case Herder::TX_STATUS_DUPLICATE:
-            root["status"] = "duplicate";
-            break;
-        case Herder::TX_STATUS_ERROR:
-            root["status"] = "error";
-            root["detail"] =
-                xdr::xdr_to_string(txFrame->getResult().result.code());
-            break;
-        default:
-            assert(false);
-        }
-    }
-    else
-    {
-        root["status"] = "error";
-        root["detail"] = "Bad HTTP GET: try something like: "
-                         "testtx?from=root&to=bob&amount=1000000000";
-    }
-    retStr = root.toStyledString();
 }
 
 void
@@ -407,75 +300,6 @@ parseParam(std::map<std::string, std::string> const& map,
         throw std::runtime_error(errorMsg);
     }
     return val;
-}
-
-void
-CommandHandler::generateLoad(std::string const& params, std::string& retStr)
-{
-    if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
-    {
-        uint32_t nAccounts = 1000;
-        uint32_t nTxs = 0;
-        uint32_t txRate = 10;
-        uint32_t batchSize = 100; // Only for account creations
-        uint32_t offset = 0;
-        bool autoRate = false;
-        std::string mode = "create";
-
-        std::map<std::string, std::string> map;
-        http::server::server::parseParams(params, map);
-
-        bool isCreate;
-        maybeParseParam<std::string>(map, "mode", mode);
-        if (mode == std::string("create"))
-        {
-            isCreate = true;
-        }
-        else if (mode == std::string("pay"))
-        {
-            isCreate = false;
-        }
-        else
-        {
-            throw std::runtime_error("Unknown mode.");
-        }
-
-        maybeParseParam(map, "accounts", nAccounts);
-        maybeParseParam(map, "txs", nTxs);
-        maybeParseParam(map, "batchsize", batchSize);
-        maybeParseParam(map, "offset", offset);
-        {
-            auto i = map.find("txrate");
-            if (i != map.end() && i->second == std::string("auto"))
-            {
-                autoRate = true;
-            }
-            else
-            {
-                maybeParseParam(map, "txrate", txRate);
-            }
-        }
-
-        uint32_t numItems = isCreate ? nAccounts : nTxs;
-        std::string itemType = isCreate ? "accounts" : "txs";
-        double hours = (numItems / txRate) / 3600.0;
-
-        if (batchSize > 100)
-        {
-            batchSize = 100;
-            retStr = "Setting batch size to its limit of 100.";
-        }
-        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
-                          autoRate);
-        retStr +=
-            fmt::format(" Generating load: {:d} {:s}, {:d} tx/s = {:f} hours",
-                        numItems, itemType, txRate, hours);
-    }
-    else
-    {
-        retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
-                 "the stellar-core.cfg if you want this behavior";
-    }
 }
 
 void
@@ -1013,4 +837,189 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 
     retStr = fmt::format("Cleared {} metrics!", domain);
 }
+
+#ifdef BUILD_TESTS
+void
+CommandHandler::generateLoad(std::string const& params, std::string& retStr)
+{
+    if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+    {
+        uint32_t nAccounts = 1000;
+        uint32_t nTxs = 0;
+        uint32_t txRate = 10;
+        uint32_t batchSize = 100; // Only for account creations
+        uint32_t offset = 0;
+        bool autoRate = false;
+        std::string mode = "create";
+
+        std::map<std::string, std::string> map;
+        http::server::server::parseParams(params, map);
+
+        bool isCreate;
+        maybeParseParam<std::string>(map, "mode", mode);
+        if (mode == std::string("create"))
+        {
+            isCreate = true;
+        }
+        else if (mode == std::string("pay"))
+        {
+            isCreate = false;
+        }
+        else
+        {
+            throw std::runtime_error("Unknown mode.");
+        }
+
+        maybeParseParam(map, "accounts", nAccounts);
+        maybeParseParam(map, "txs", nTxs);
+        maybeParseParam(map, "batchsize", batchSize);
+        maybeParseParam(map, "offset", offset);
+        {
+            auto i = map.find("txrate");
+            if (i != map.end() && i->second == std::string("auto"))
+            {
+                autoRate = true;
+            }
+            else
+            {
+                maybeParseParam(map, "txrate", txRate);
+            }
+        }
+
+        uint32_t numItems = isCreate ? nAccounts : nTxs;
+        std::string itemType = isCreate ? "accounts" : "txs";
+        double hours = (numItems / txRate) / 3600.0;
+
+        if (batchSize > 100)
+        {
+            batchSize = 100;
+            retStr = "Setting batch size to its limit of 100.";
+        }
+        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
+                          autoRate);
+        retStr +=
+            fmt::format(" Generating load: {:d} {:s}, {:d} tx/s = {:f} hours",
+                        numItems, itemType, txRate, hours);
+    }
+    else
+    {
+        retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
+                 "the stellar-core.cfg if you want this behavior";
+    }
+}
+
+void
+CommandHandler::testAcc(std::string const& params, std::string& retStr)
+{
+    using namespace txtest;
+
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    Json::Value root;
+    auto accName = retMap.find("name");
+    if (accName == retMap.end())
+    {
+        root["status"] = "error";
+        root["detail"] = "Bad HTTP GET: try something like: testacc?name=bob";
+    }
+    else
+    {
+        SecretKey key;
+        if (accName->second == "root")
+        {
+            key = getRoot(mApp.getNetworkID());
+        }
+        else
+        {
+            key = getAccount(accName->second.c_str());
+        }
+
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto acc = stellar::loadAccount(ltx, key.getPublicKey());
+        if (acc)
+        {
+            auto const& ae = acc.current().data.account();
+            root["name"] = accName->second;
+            root["id"] = KeyUtils::toStrKey(ae.accountID);
+            root["balance"] = (Json::Int64)ae.balance;
+            root["seqnum"] = (Json::UInt64)ae.seqNum;
+        }
+    }
+    retStr = root.toStyledString();
+}
+
+void
+CommandHandler::testTx(std::string const& params, std::string& retStr)
+{
+    using namespace txtest;
+
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto to = retMap.find("to");
+    auto from = retMap.find("from");
+    auto amount = retMap.find("amount");
+    auto create = retMap.find("create");
+
+    Json::Value root;
+
+    if (to != retMap.end() && from != retMap.end() && amount != retMap.end())
+    {
+        Hash const& networkID = mApp.getNetworkID();
+
+        auto toAccount =
+            to->second == "root"
+                ? TestAccount{mApp, getRoot(networkID)}
+                : TestAccount{mApp, getAccount(to->second.c_str())};
+        auto fromAccount =
+            from->second == "root"
+                ? TestAccount{mApp, getRoot(networkID)}
+                : TestAccount{mApp, getAccount(from->second.c_str())};
+
+        uint64_t paymentAmount = 0;
+        std::istringstream iss(amount->second);
+        iss >> paymentAmount;
+
+        root["from_name"] = from->second;
+        root["to_name"] = to->second;
+        root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
+        root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
+        root["amount"] = (Json::UInt64)paymentAmount;
+
+        TransactionFramePtr txFrame;
+        if (create != retMap.end() && create->second == "true")
+        {
+            txFrame = fromAccount.tx({createAccount(toAccount, paymentAmount)});
+        }
+        else
+        {
+            txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
+        }
+
+        switch (mApp.getHerder().recvTransaction(txFrame))
+        {
+        case Herder::TX_STATUS_PENDING:
+            root["status"] = "pending";
+            break;
+        case Herder::TX_STATUS_DUPLICATE:
+            root["status"] = "duplicate";
+            break;
+        case Herder::TX_STATUS_ERROR:
+            root["status"] = "error";
+            root["detail"] =
+                xdr::xdr_to_string(txFrame->getResult().result.code());
+            break;
+        default:
+            assert(false);
+        }
+    }
+    else
+    {
+        root["status"] = "error";
+        root["detail"] = "Bad HTTP GET: try something like: "
+                         "testtx?from=root&to=bob&amount=1000000000";
+    }
+    retStr = root.toStyledString();
+}
+#endif
 }

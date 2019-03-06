@@ -6,7 +6,7 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryArchiveManager.h"
-#include "history/HistoryTestsUtils.h"
+#include "history/test/HistoryTestsUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"

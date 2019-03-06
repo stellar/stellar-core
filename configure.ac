@@ -277,6 +277,11 @@ if test x"$enable_postgres" != xno; then
 fi
 AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])
 
+AC_ARG_ENABLE(tests,
+    AS_HELP_STRING([--disable-tests],
+        [Disable building test suite]))
+AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
+
 # Need this to pass through ccache for xdrpp, libsodium
 esc() {
     out=

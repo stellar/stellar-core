@@ -4,11 +4,11 @@
 
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "invariant/InvariantTestUtils.h"
 #include "invariant/LiabilitiesMatchOffers.h"
-#include "ledger/LedgerTestUtils.h"
+#include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"

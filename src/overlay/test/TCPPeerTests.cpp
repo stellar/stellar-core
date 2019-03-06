@@ -2,13 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TCPPeer.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerDoor.h"
+#include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
 #include "test/test.h"
 #include "util/Logging.h"

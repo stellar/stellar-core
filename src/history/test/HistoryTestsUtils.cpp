@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "history/HistoryTestsUtils.h"
-#include "FileTransferInfo.h"
+#include "history/test/HistoryTestsUtils.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "herder/TxSetFrame.h"
+#include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
 #include "ledger/LedgerRange.h"

@@ -16,7 +16,6 @@
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "test/TestPrinter.h"
 #include "util/Logging.h"
 #include <lib/util/format.h>
 
