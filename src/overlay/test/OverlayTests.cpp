@@ -26,6 +26,41 @@
 
 using namespace stellar;
 
+bool
+doesNotKnow(Application& knowingApp, Application& knownApp)
+{
+    return !knowingApp.getOverlayManager()
+                .getPeerManager()
+                .load(PeerBareAddress{"127.0.0.1",
+                                      knownApp.getConfig().PEER_PORT})
+                .second;
+}
+
+bool
+knowsAs(Application& knowingApp, Application& knownApp, PeerType peerType)
+{
+    auto data = knowingApp.getOverlayManager().getPeerManager().load(
+        PeerBareAddress{"127.0.0.1", knownApp.getConfig().PEER_PORT});
+    if (!data.second)
+    {
+        return false;
+    }
+
+    return data.first.mType == static_cast<int>(peerType);
+}
+
+bool
+knowsAsInbound(Application& knowingApp, Application& knownApp)
+{
+    return knowsAs(knowingApp, knownApp, PeerType::INBOUND);
+}
+
+bool
+knowsAsOutbound(Application& knowingApp, Application& knownApp)
+{
+    return knowsAs(knowingApp, knownApp, PeerType::OUTBOUND);
+}
+
 TEST_CASE("loopback peer hello", "[overlay][connections]")
 {
     VirtualClock clock;
@@ -39,6 +74,9 @@ TEST_CASE("loopback peer hello", "[overlay][connections]")
 
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+    REQUIRE(knowsAsOutbound(*app1, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app1));
 }
 
 TEST_CASE("loopback peer with 0 port", "[overlay][connections]")
@@ -72,6 +110,9 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
 
     REQUIRE(!conn.getInitiator()->isAuthenticated());
     REQUIRE(!conn.getAcceptor()->isAuthenticated());
+
+    REQUIRE(doesNotKnow(*app1, *app2));
+    REQUIRE(doesNotKnow(*app2, *app1));
 }
 
 TEST_CASE("failed auth", "[overlay][connections]")
@@ -89,6 +130,9 @@ TEST_CASE("failed auth", "[overlay][connections]")
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
     REQUIRE(conn.getInitiator()->getDropReason() == "unexpected MAC");
+
+    REQUIRE(knowsAsOutbound(*app1, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app1));
 }
 
 TEST_CASE("reject non preferred peer", "[overlay][connections]")
@@ -110,6 +154,9 @@ TEST_CASE("reject non preferred peer", "[overlay][connections]")
         REQUIRE(!conn.getInitiator()->isConnected());
         REQUIRE(!conn.getAcceptor()->isConnected());
         REQUIRE(conn.getAcceptor()->getDropReason() == "peer rejected");
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
     }
 
     SECTION("outbound")
@@ -120,6 +167,9 @@ TEST_CASE("reject non preferred peer", "[overlay][connections]")
         REQUIRE(!conn.getInitiator()->isConnected());
         REQUIRE(!conn.getAcceptor()->isConnected());
         REQUIRE(conn.getInitiator()->getDropReason() == "peer rejected");
+
+        REQUIRE(knowsAsInbound(*app1, *app2));
+        REQUIRE(knowsAsOutbound(*app2, *app1));
     }
 }
 
@@ -143,6 +193,9 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
 
         REQUIRE(conn.getInitiator()->isAuthenticated());
         REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
     }
 
     SECTION("outbound")
@@ -152,6 +205,9 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
 
         REQUIRE(conn.getInitiator()->isAuthenticated());
         REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+        REQUIRE(knowsAsInbound(*app1, *app2));
+        REQUIRE(knowsAsOutbound(*app2, *app1));
     }
 }
 
@@ -180,6 +236,11 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
         REQUIRE(!conn2.getInitiator()->isConnected());
         REQUIRE(!conn2.getAcceptor()->isConnected());
         REQUIRE(conn2.getAcceptor()->getDropReason() == "peer rejected");
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
+        REQUIRE(knowsAsOutbound(*app3, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app3));
     }
 
     SECTION("outbound")
@@ -200,6 +261,11 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
         REQUIRE(!conn2.getInitiator()->isConnected());
         REQUIRE(!conn2.getAcceptor()->isConnected());
         REQUIRE(conn2.getInitiator()->getDropReason() == "peer rejected");
+
+        REQUIRE(knowsAsInbound(*app1, *app2));
+        REQUIRE(knowsAsOutbound(*app2, *app1));
+        REQUIRE(knowsAsInbound(*app3, *app2));
+        REQUIRE(knowsAsOutbound(*app2, *app3));
     }
 }
 
@@ -233,6 +299,11 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(conn2.getInitiator()->isConnected());
             REQUIRE(conn2.getAcceptor()->isConnected());
             REQUIRE(conn1.getAcceptor()->getDropReason() == "peer rejected");
+
+            REQUIRE(knowsAsOutbound(*app1, *app2));
+            REQUIRE(knowsAsInbound(*app2, *app1));
+            REQUIRE(knowsAsOutbound(*app3, *app2));
+            REQUIRE(knowsAsInbound(*app2, *app3));
         }
 
         SECTION("outbound")
@@ -255,6 +326,11 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(conn2.getInitiator()->isConnected());
             REQUIRE(conn2.getAcceptor()->isConnected());
             REQUIRE(conn1.getInitiator()->getDropReason() == "peer rejected");
+
+            REQUIRE(knowsAsInbound(*app1, *app2));
+            REQUIRE(knowsAsOutbound(*app2, *app1));
+            REQUIRE(knowsAsInbound(*app3, *app2));
+            REQUIRE(knowsAsOutbound(*app2, *app3));
         }
     }
 
@@ -281,6 +357,11 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(conn2.getAcceptor()->isConnected());
             REQUIRE(conn1.getAcceptor()->getDropReason() ==
                     "preferred peer selected instead");
+
+            REQUIRE(knowsAsOutbound(*app1, *app2));
+            REQUIRE(knowsAsInbound(*app2, *app1));
+            REQUIRE(knowsAsOutbound(*app3, *app2));
+            REQUIRE(knowsAsInbound(*app2, *app3));
         }
 
         SECTION("outbound")
@@ -304,6 +385,11 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(conn2.getAcceptor()->isConnected());
             REQUIRE(conn1.getInitiator()->getDropReason() ==
                     "preferred peer selected instead");
+
+            REQUIRE(knowsAsInbound(*app1, *app2));
+            REQUIRE(knowsAsOutbound(*app2, *app1));
+            REQUIRE(knowsAsInbound(*app3, *app2));
+            REQUIRE(knowsAsOutbound(*app2, *app3));
         }
     }
 }
@@ -357,6 +443,15 @@ TEST_CASE("allow inbound pending peers up to max", "[overlay][connections]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                 .count() == 2);
+
+    REQUIRE(doesNotKnow(*app1, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app1)); // corked
+    REQUIRE(doesNotKnow(*app3, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app3)); // corked
+    REQUIRE(knowsAsOutbound(*app4, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app4));
+    REQUIRE(doesNotKnow(*app5, *app2)); // didn't get to hello phase
+    REQUIRE(doesNotKnow(*app2, *app5)); // didn't get to hello phase
 }
 
 TEST_CASE("allow inbound pending peers over max if possibly preferred",
@@ -416,6 +511,15 @@ TEST_CASE("allow inbound pending peers over max if possibly preferred",
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "connection", "reject"}, "connection")
                 .count() == 0);
+
+    REQUIRE(doesNotKnow(*app1, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app1)); // corked
+    REQUIRE(doesNotKnow(*app3, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app3)); // corked
+    REQUIRE(knowsAsOutbound(*app4, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app4));
+    REQUIRE(knowsAsOutbound(*app5, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app5));
 }
 
 TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
@@ -468,6 +572,15 @@ TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                 .count() == 2);
+
+    REQUIRE(doesNotKnow(*app1, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app1)); // corked
+    REQUIRE(doesNotKnow(*app3, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app3)); // corked
+    REQUIRE(knowsAsInbound(*app4, *app2));
+    REQUIRE(knowsAsOutbound(*app2, *app4));
+    REQUIRE(doesNotKnow(*app5, *app2)); // corked
+    REQUIRE(doesNotKnow(*app2, *app5)); // corked
 }
 
 TEST_CASE("reject peers with differing network passphrases",
@@ -487,6 +600,9 @@ TEST_CASE("reject peers with differing network passphrases",
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+
+    REQUIRE(doesNotKnow(*app1, *app2));
+    REQUIRE(doesNotKnow(*app2, *app1));
 }
 
 TEST_CASE("reject peers with invalid cert", "[overlay][connections]")
@@ -504,6 +620,9 @@ TEST_CASE("reject peers with invalid cert", "[overlay][connections]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+
+    REQUIRE(doesNotKnow(*app1, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app1));
 }
 
 TEST_CASE("reject banned peers", "[overlay][connections]")
@@ -521,6 +640,9 @@ TEST_CASE("reject banned peers", "[overlay][connections]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+
+    REQUIRE(doesNotKnow(*app1, *app2));
+    REQUIRE(knowsAsInbound(*app2, *app1));
 }
 
 TEST_CASE("reject peers with incompatible overlay versions",
@@ -544,6 +666,9 @@ TEST_CASE("reject peers with incompatible overlay versions",
         REQUIRE(!conn.getAcceptor()->isConnected());
         REQUIRE(conn.getInitiator()->getDropReason() ==
                 "wrong protocol version");
+
+        REQUIRE(doesNotKnow(*app1, *app2));
+        REQUIRE(doesNotKnow(*app2, *app1));
     };
     SECTION("cfg2 above")
     {
@@ -587,6 +712,9 @@ TEST_CASE("reject peers who dont handshake quickly", "[overlay][connections]")
         REQUIRE(app2->getMetrics()
                     .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                     .count() != 0);
+
+        REQUIRE(doesNotKnow(*app1, *app2));
+        REQUIRE(doesNotKnow(*app2, *app1));
     };
 
     SECTION("2 seconds timeout")
@@ -613,16 +741,43 @@ TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
     auto app2 = createTestApplication(clock, cfg2);
     auto app3 = createTestApplication(clock, cfg3);
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    LoopbackPeerConnection conn2(*app3, *app2);
-    testutil::crankSome(clock);
+    SECTION("inbound")
+    {
+        LoopbackPeerConnection conn(*app1, *app2);
+        LoopbackPeerConnection conn2(*app3, *app2);
+        testutil::crankSome(clock);
 
-    REQUIRE(conn.getInitiator()->isAuthenticated());
-    REQUIRE(conn.getAcceptor()->isAuthenticated());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
-    REQUIRE(conn2.getAcceptor()->getDropReason() ==
-            "connecting already-connected peer");
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+        REQUIRE(!conn2.getInitiator()->isConnected());
+        REQUIRE(!conn2.getAcceptor()->isConnected());
+        REQUIRE(conn2.getAcceptor()->getDropReason() ==
+                "connecting already-connected peer");
+
+        REQUIRE(knowsAsOutbound(*app1, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app1));
+        REQUIRE(knowsAsOutbound(*app3, *app2));
+        REQUIRE(knowsAsInbound(*app2, *app3));
+    }
+
+    SECTION("outbound")
+    {
+        LoopbackPeerConnection conn(*app2, *app1);
+        LoopbackPeerConnection conn2(*app2, *app3);
+        testutil::crankSome(clock);
+
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+        REQUIRE(!conn2.getInitiator()->isConnected());
+        REQUIRE(!conn2.getAcceptor()->isConnected());
+        REQUIRE(conn2.getInitiator()->getDropReason() ==
+                "connecting already-connected peer");
+
+        REQUIRE(knowsAsInbound(*app1, *app2));
+        REQUIRE(knowsAsOutbound(*app2, *app1));
+        REQUIRE(knowsAsInbound(*app3, *app2));
+        REQUIRE(knowsAsOutbound(*app2, *app3));
+    }
 }
 
 TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
