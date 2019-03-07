@@ -71,7 +71,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
     addRoute("bans", &CommandHandler::bans);
-    addRoute("catchup", &CommandHandler::catchup);
     addRoute("connect", &CommandHandler::connect);
     addRoute("dropcursor", &CommandHandler::dropcursor);
     addRoute("droppeer", &CommandHandler::dropPeer);
@@ -144,9 +143,6 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
     retStr +=
         "<p><h1> /bans</h1>"
         "list current active bans"
-        "</p><p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
-        "triggers the instance to catch up to ledger NNN from history; "
-        "mode is either 'minimal' (the default, if omitted) or 'complete'."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> "
@@ -365,58 +361,6 @@ CommandHandler::logRotate(std::string const& params, std::string& retStr)
     retStr = "Log rotate...";
 
     Logging::rotate();
-}
-
-void
-CommandHandler::catchup(std::string const& params, std::string& retStr)
-{
-    switch (mApp.getLedgerManager().getState())
-    {
-    case LedgerManager::LM_BOOTING_STATE:
-        retStr = "Ledger Manager is still booting, try later";
-        return;
-    case LedgerManager::LM_CATCHING_UP_STATE:
-        retStr = "Catchup already in progress";
-        return;
-    default:
-        break;
-    }
-
-    uint32_t count = 0;
-    std::map<std::string, std::string> retMap;
-    http::server::server::parseParams(params, retMap);
-
-    uint32_t ledger = parseParam<uint32_t>(retMap, "ledger");
-
-    auto modeP = retMap.find("mode");
-    if (modeP != retMap.end())
-    {
-        if (modeP->second == std::string("complete"))
-        {
-            count = std::numeric_limits<uint32_t>::max();
-        }
-        else if (modeP->second == std::string("minimal"))
-        {
-            count = 0;
-        }
-        else if (modeP->second == std::string("recent"))
-        {
-            count = mApp.getConfig().CATCHUP_RECENT;
-        }
-        else
-        {
-            retStr = "Mode should be either 'minimal', 'recent' or 'complete'";
-            return;
-        }
-    }
-
-    mApp.getLedgerManager().startCatchup({ledger, count}, true);
-    retStr = (std::string("Started catchup to ledger ") +
-              std::to_string(ledger) + std::string(" in mode ") +
-              std::string(
-                  count == std::numeric_limits<uint32_t>::max()
-                      ? "CATCHUP_COMPLETE"
-                      : (count != 0 ? "CATCHUP_RECENT" : "CATCHUP_MINIMAL")));
 }
 
 void
