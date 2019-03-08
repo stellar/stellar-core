@@ -600,6 +600,84 @@ TEST_CASE("reject peers who dont handshake quickly", "[overlay][connections]")
     }
 }
 
+TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
+{
+    auto test = [](unsigned short stragglerTimeout) {
+        VirtualClock clock;
+        Config cfg1 = getTestConfig(0);
+        Config cfg2 = getTestConfig(1);
+
+        // Straggler detection piggy-backs on the idle timer so we drive
+        // the test from idle-timer-firing granularity.
+        assert(cfg1.PEER_TIMEOUT == cfg2.PEER_TIMEOUT);
+        assert(cfg1.PEER_TIMEOUT > stragglerTimeout);
+
+        // Initiator (cfg1) will straggle, and acceptor (cfg2) will notice and
+        // disconnect.
+        cfg2.PEER_STRAGGLER_TIMEOUT = stragglerTimeout;
+
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+        auto waitTime = std::chrono::seconds(cfg2.PEER_TIMEOUT * 5);
+        auto padTime = std::chrono::seconds(5);
+
+        LoopbackPeerConnection conn(*app1, *app2);
+        auto start = clock.now();
+
+        testutil::crankSome(clock);
+        REQUIRE(conn.getInitiator()->isAuthenticated());
+        REQUIRE(conn.getAcceptor()->isAuthenticated());
+
+        conn.getInitiator()->setStraggling(true);
+        auto straggler = conn.getInitiator();
+        VirtualTimer sendTimer(*app1);
+
+        while (clock.now() < (start + waitTime) &&
+               (conn.getInitiator()->isConnected() ||
+                conn.getAcceptor()->isConnected()))
+        {
+            LOG(INFO) << "clock.now() = "
+                      << clock.now().time_since_epoch().count();
+
+            // Straggler keeps asking for peers 10 times per second -- this is
+            // easy traffic to fake-generate -- but not accepting response
+            // messages in a timely fashion.
+            sendTimer.expires_from_now(std::chrono::milliseconds(100));
+            sendTimer.async_wait([straggler](asio::error_code const& error) {
+                if (!error)
+                {
+                    straggler->sendGetPeers();
+                }
+            });
+            clock.crank(false);
+        }
+        LOG(INFO) << "loop complete, clock.now() = "
+                  << clock.now().time_since_epoch().count();
+        REQUIRE(clock.now() < (start + waitTime + padTime));
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(app1->getMetrics()
+                    .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                    .count() == 0);
+        REQUIRE(app2->getMetrics()
+                    .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                    .count() == 0);
+        REQUIRE(app2->getMetrics()
+                    .NewMeter({"overlay", "timeout", "straggler"}, "timeout")
+                    .count() != 0);
+    };
+
+    SECTION("5 seconds straggle timeout")
+    {
+        test(5);
+    }
+
+    SECTION("28 seconds straggle timeout")
+    {
+        test(28);
+    }
+}
+
 TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
 {
     VirtualClock clock;

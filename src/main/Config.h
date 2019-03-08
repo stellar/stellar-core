@@ -167,6 +167,7 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short MAX_OUTBOUND_PENDING_CONNECTIONS;
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
+    unsigned short PEER_STRAGGLER_TIMEOUT;
     static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
 
     // Peers we will always try to stay connected to

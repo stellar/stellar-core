@@ -29,6 +29,7 @@ class LoopbackPeer : public Peer
     std::queue<xdr::msg_ptr> mInQueue;  // receiving queue
 
     bool mCorked{false};
+    bool mStraggling{false};
     size_t mMaxQueueDepth{0};
 
     bool mDamageCert{false};
@@ -78,6 +79,9 @@ class LoopbackPeer : public Peer
 
     bool getCorked() const;
     void setCorked(bool c);
+
+    bool getStraggling() const;
+    void setStraggling(bool s);
 
     size_t getMaxQueueDepth() const;
     void setMaxQueueDepth(size_t sz);

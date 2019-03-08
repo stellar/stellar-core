@@ -10,6 +10,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
@@ -63,6 +64,16 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     // Possibly flush some queued messages if queue's full.
     while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
     {
+        // If our recipient is straggling, we will break off sending 50% of the
+        // time even when we have more things to send, causing the outbound
+        // queue to back up gradually.
+        auto remote = mRemote.lock();
+        if (remote && remote->getStraggling() && rand_flip())
+        {
+            CLOG(INFO, "Overlay") << "LoopbackPeer recipient straggling, "
+                                  << "outbound queue at " << mOutQueue.size();
+            break;
+        }
         deliverOne();
     }
 }
@@ -212,6 +223,10 @@ LoopbackPeer::deliverOne()
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
+        if (mOutQueue.empty())
+        {
+            mLastEmpty = mApp.getClock().now();
+        }
         mMessageWrite.Mark();
         mByteWrite.Mark(nBytes);
 
@@ -267,6 +282,18 @@ void
 LoopbackPeer::setCorked(bool c)
 {
     mCorked = c;
+}
+
+bool
+LoopbackPeer::getStraggling() const
+{
+    return mStraggling;
+}
+
+void
+LoopbackPeer::setStraggling(bool s)
+{
+    mStraggling = s;
 }
 
 size_t
