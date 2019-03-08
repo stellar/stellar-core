@@ -680,6 +680,43 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
+static bool
+isFailedOperationResult(OperationResult const& or)
+{
+    switch (or.code())
+    {
+    case opINNER:
+    {
+        auto& op = or.tr();
+#define checkOp(t, field) \
+    case t: \
+        return op.##field().code() < 0
+        switch (op.type())
+        {
+            checkOp(CREATE_ACCOUNT, createAccountResult);
+            checkOp(PAYMENT, paymentResult);
+            checkOp(PATH_PAYMENT, pathPaymentResult);
+            checkOp(MANAGE_OFFER, manageOfferResult);
+            checkOp(CREATE_PASSIVE_OFFER, createPassiveOfferResult);
+            checkOp(SET_OPTIONS, setOptionsResult);
+            checkOp(CHANGE_TRUST, changeTrustResult);
+            checkOp(ALLOW_TRUST, allowTrustResult);
+            checkOp(ACCOUNT_MERGE, accountMergeResult);
+            checkOp(INFLATION, inflationResult);
+            checkOp(MANAGE_DATA, manageDataResult);
+        case BUMP_SEQUENCE:
+            return false;
+        default:
+            return false;
+        }
+        break;
+    }
+    default:
+        return false;
+    }
+#undef checkOp
+}
+
 void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
@@ -712,20 +749,52 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 mApp.getOverlayManager().broadcastMessage(msg);
             }
 
-            output << "{"
-                   << "\"status\": "
-                   << "\"" << Herder::TX_STATUS_STRING[status] << "\"";
+            std::string errString;
             if (status == Herder::TX_STATUS_ERROR)
             {
+                auto& err = transaction->getResult();
+                // legacy error field
                 std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                auto resultBin = xdr::xdr_to_opaque(err);
                 resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
                                      1);
                 resultBase64 = decoder::encode_b64(resultBin);
 
-                output << " , \"error\": \"" << resultBase64 << "\"";
+                std::string opError;
+                // updated error field
+                if (err.result.code() == txFAILED)
+                {
+                    auto& results = err.result.results();
+                    auto it = std::find_if(results.begin(), results.end(),
+                                           isFailedOperationResult);
+                    if (it != results.end())
+                    {
+                        auto d = std::distance(results.begin(), it);
+                        std::string opErrBase64;
+                        auto opErrBin = xdr::xdr_to_opaque(*it);
+                        opErrBase64.reserve(
+                            decoder::encoded_size64(opErrBin.size()) + 1);
+                        opErrBase64 = decoder::encode_b64(opErrBin);
+                        opError = fmt::format(R"( ,
+"FirstFailedOp": "{}",
+"OperationResult": "{}")",
+                                              d, opErrBase64);
+                    }
+                }
+                errString =
+                    fmt::format(R"( ,
+"error": "{}",
+"failure": {{
+"TransactionResultCode" : "{}"{}
+}})",
+                                resultBase64, err.result.code(), opError);
             }
-            output << "}";
+            output << fmt::format(R"(
+{{
+"status": "{}"{}
+}}
+)",
+                                  Herder::TX_STATUS_STRING[status], errString);
         }
     }
     else
