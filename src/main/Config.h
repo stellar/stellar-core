@@ -169,6 +169,7 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_TIMEOUT;
     unsigned short PEER_STRAGGLER_TIMEOUT;
     static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
+    static constexpr auto const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
     // Peers we will always try to stay connected to
     std::vector<std::string> PREFERRED_PEERS;

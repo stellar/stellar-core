@@ -124,6 +124,13 @@ class PeerManager
                                                  int size);
 
     /**
+     * Remove peers that have at least minNumFailures. Can only remove peer with
+     * given address.
+     */
+    void removePeersWithManyFailures(int minNumFailures,
+                                     PeerBareAddress const* address = nullptr);
+
+    /**
      * Get list of peers to send to peer with given address.
      */
     std::vector<PeerBareAddress> getPeersToSend(int size,
