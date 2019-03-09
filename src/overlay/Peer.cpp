@@ -74,6 +74,8 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewMeter({"overlay", "error", "write"}, "error"))
     , mTimeoutIdle(
           app.getMetrics().NewMeter({"overlay", "timeout", "idle"}, "timeout"))
+    , mTimeoutStraggler(app.getMetrics().NewMeter(
+          {"overlay", "timeout", "straggler"}, "timeout"))
 
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
     , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
@@ -217,17 +219,19 @@ Peer::idleTimerExpired(asio::error_code const& error)
     {
         auto now = mApp.getClock().now();
         auto timeout = getIOTimeout();
+        auto stragglerTimeout =
+            std::chrono::seconds(mApp.getConfig().PEER_STRAGGLER_TIMEOUT);
         if (((now - mLastRead) >= timeout) && ((now - mLastWrite) >= timeout))
         {
             CLOG(WARNING, "Overlay") << "idle timeout for peer " << toString();
             mTimeoutIdle.Mark();
             drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
-        else if (((now - mLastEmpty) >= timeout))
+        else if (((now - mLastEmpty) >= stragglerTimeout))
         {
             CLOG(WARNING, "Overlay")
-                << "peer " << toString() << " cannot keep up";
-            mTimeoutIdle.Mark();
+                << "peer " << toString() << " straggling (cannot keep up)";
+            mTimeoutStraggler.Mark();
             drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
         else

@@ -91,6 +91,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mErrorRead;
     medida::Meter& mErrorWrite;
     medida::Meter& mTimeoutIdle;
+    medida::Meter& mTimeoutStraggler;
 
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
