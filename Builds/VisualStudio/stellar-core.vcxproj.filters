@@ -1523,6 +1523,9 @@
     <ClInclude Include="..\..\src\main\dumpxdr.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\main\ErrorMessages.h">
+      <Filter>main</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\main\ExternalQueue.h">
       <Filter>main</Filter>
     </ClInclude>

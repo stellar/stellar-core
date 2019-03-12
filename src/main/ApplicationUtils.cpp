@@ -9,6 +9,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
+#include "main/ErrorMessages.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
@@ -35,7 +36,8 @@ checkInitialized(Application::pointer app)
     catch (...)
     {
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
+        LOG(INFO) << "* The database has not yet been initialized. Try "
+                     "stellar-core newdb";
         LOG(INFO) << "* ";
         return false;
     }
@@ -85,6 +87,7 @@ runWithConfig(Config cfg)
     catch (std::exception& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
         return 1;
     }
     auto& io = clock.getIOService();

@@ -7,6 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
+#include "main/ErrorMessages.h"
 #include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -129,11 +130,12 @@ Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
     }
     catch (...)
     {
-        auto info = getJsonInfo();
-        CLOG(ERROR, "SCP") << "Exception in processEnvelope "
-                           << "state: " << info.toStyledString()
-                           << " processing envelope: "
-                           << mSCP.envToStr(envelope);
+        CLOG(FATAL, "SCP") << "SCP context:";
+        CLOG(FATAL, "SCP") << getJsonInfo().toStyledString();
+        CLOG(FATAL, "SCP") << "Exception processing SCP messages at "
+                           << mSlotIndex
+                           << ", envelope: " << mSCP.envToStr(envelope);
+        CLOG(FATAL, "SCP") << REPORT_INTERNAL_BUG;
 
         throw;
     }

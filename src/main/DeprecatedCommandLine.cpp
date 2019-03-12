@@ -11,6 +11,7 @@
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
@@ -455,6 +456,7 @@ handleDeprecatedCommandLine(int argc, char* const* argv)
     catch (std::exception& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
         return 1;
     }
     // run outside of catch block so that we properly capture crashes

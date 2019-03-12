@@ -11,6 +11,7 @@
 #include "herder/PendingEnvelopes.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "scp/SCP.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-SCP.h"
@@ -659,6 +660,7 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         // therefore contain a valid StellarValue.
         CLOG(ERROR, "Herder") << "HerderSCPDriver::valueExternalized"
                               << " Externalized StellarValue malformed";
+        CLOG(ERROR, "Herder") << REPORT_INTERNAL_BUG;
         // no point in continuing as 'b' contains garbage at this point
         abort();
     }

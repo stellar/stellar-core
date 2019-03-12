@@ -7,11 +7,14 @@
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/Progress.h"
+#include "invariant/InvariantDoesNotHold.h"
 #include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
 #include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
-#include "util/format.h"
+#include "main/ErrorMessages.h"
+
+#include <lib/util/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 
@@ -21,7 +24,7 @@ namespace stellar
 ApplyLedgerChainWork::ApplyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
     LedgerRange range, LedgerHeaderHistoryEntry& lastApplied)
-    : Work(app, parent, std::string("apply-ledger-chain"))
+    : Work(app, parent, std::string("apply-ledger-chain"), RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrSeq(
@@ -247,7 +250,13 @@ ApplyLedgerChainWork::onRun()
         }
         scheduleSuccess();
     }
-    catch (std::runtime_error& e)
+    catch (InvariantDoesNotHold&)
+    {
+        // already displayed e.what()
+        CLOG(ERROR, "History") << "Replay failed";
+        throw;
+    }
+    catch (std::exception& e)
     {
         CLOG(ERROR, "History") << "Replay failed: " << e.what();
         scheduleFailure();

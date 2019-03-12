@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "scp/QuorumSetUtils.h"
@@ -683,6 +684,7 @@ run(CommandLineArgs const& args)
                            catch (std::exception& e)
                            {
                                LOG(FATAL) << "Got an exception: " << e.what();
+                               LOG(FATAL) << REPORT_INTERNAL_BUG;
                                return 1;
                            }
                            // run outside of catch block so that we properly
@@ -848,6 +850,7 @@ handleCommandLine(int argc, char* const* argv)
     catch (std::exception& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
         return make_optional<int>(1);
     }
 }
