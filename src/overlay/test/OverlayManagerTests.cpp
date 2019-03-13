@@ -35,7 +35,7 @@ class PeerStub : public Peer
     PeerStub(Application& app, PeerBareAddress const& addres)
         : Peer(app, WE_CALLED_REMOTE)
     {
-        mPeerID = SecretKey::random().getPublicKey();
+        mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
         mState = GOT_AUTH;
         mAddress = addres;
     }

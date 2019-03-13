@@ -18,10 +18,10 @@ TEST_CASE("InferredQuorum intersection", "[history][inferredquorum]")
 {
     InferredQuorum iq;
 
-    SecretKey skA = SecretKey::random();
-    SecretKey skB = SecretKey::random();
-    SecretKey skC = SecretKey::random();
-    SecretKey skD = SecretKey::random();
+    SecretKey skA = SecretKey::pseudoRandomForTesting();
+    SecretKey skB = SecretKey::pseudoRandomForTesting();
+    SecretKey skC = SecretKey::pseudoRandomForTesting();
+    SecretKey skD = SecretKey::pseudoRandomForTesting();
 
     PublicKey pkA = skA.getPublicKey();
     PublicKey pkB = skB.getPublicKey();
@@ -63,12 +63,12 @@ TEST_CASE("InferredQuorum intersection w subquorums",
 {
     InferredQuorum iq;
 
-    SecretKey skA = SecretKey::random();
-    SecretKey skB = SecretKey::random();
-    SecretKey skC = SecretKey::random();
-    SecretKey skD = SecretKey::random();
-    SecretKey skE = SecretKey::random();
-    SecretKey skF = SecretKey::random();
+    SecretKey skA = SecretKey::pseudoRandomForTesting();
+    SecretKey skB = SecretKey::pseudoRandomForTesting();
+    SecretKey skC = SecretKey::pseudoRandomForTesting();
+    SecretKey skD = SecretKey::pseudoRandomForTesting();
+    SecretKey skE = SecretKey::pseudoRandomForTesting();
+    SecretKey skF = SecretKey::pseudoRandomForTesting();
 
     PublicKey pkA = skA.getPublicKey();
     PublicKey pkB = skB.getPublicKey();
@@ -146,12 +146,12 @@ TEST_CASE("InferredQuorum non intersection", "[history][inferredquorum]")
 {
     InferredQuorum iq;
 
-    SecretKey skA = SecretKey::random();
-    SecretKey skB = SecretKey::random();
-    SecretKey skC = SecretKey::random();
-    SecretKey skD = SecretKey::random();
-    SecretKey skE = SecretKey::random();
-    SecretKey skF = SecretKey::random();
+    SecretKey skA = SecretKey::pseudoRandomForTesting();
+    SecretKey skB = SecretKey::pseudoRandomForTesting();
+    SecretKey skC = SecretKey::pseudoRandomForTesting();
+    SecretKey skD = SecretKey::pseudoRandomForTesting();
+    SecretKey skE = SecretKey::pseudoRandomForTesting();
+    SecretKey skF = SecretKey::pseudoRandomForTesting();
 
     PublicKey pkA = skA.getPublicKey();
     PublicKey pkB = skB.getPublicKey();
@@ -211,12 +211,12 @@ TEST_CASE("InferredQuorum non intersection w subquorums",
 {
     InferredQuorum iq;
 
-    SecretKey skA = SecretKey::random();
-    SecretKey skB = SecretKey::random();
-    SecretKey skC = SecretKey::random();
-    SecretKey skD = SecretKey::random();
-    SecretKey skE = SecretKey::random();
-    SecretKey skF = SecretKey::random();
+    SecretKey skA = SecretKey::pseudoRandomForTesting();
+    SecretKey skB = SecretKey::pseudoRandomForTesting();
+    SecretKey skC = SecretKey::pseudoRandomForTesting();
+    SecretKey skD = SecretKey::pseudoRandomForTesting();
+    SecretKey skE = SecretKey::pseudoRandomForTesting();
+    SecretKey skF = SecretKey::pseudoRandomForTesting();
 
     PublicKey pkA = skA.getPublicKey();
     PublicKey pkB = skB.getPublicKey();

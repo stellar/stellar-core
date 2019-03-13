@@ -11,6 +11,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Math.h"
 #include "util/XDROperators.h"
 #include <algorithm>
 #include <functional>
@@ -268,7 +269,6 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgerstate]")
 
 TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
 {
-    std::default_random_engine gen;
     std::bernoulli_distribution shouldCommitDist;
 
     auto generateNew = [](AbstractLedgerTxn& ltx,
@@ -294,15 +294,15 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
     };
 
     auto generateModify =
-        [&gen](AbstractLedgerTxn& ltx,
-               std::unordered_map<LedgerKey, LedgerEntry>& entries) {
+        [](AbstractLedgerTxn& ltx,
+           std::unordered_map<LedgerKey, LedgerEntry>& entries) {
             size_t const MODIFY_ENTRIES = 25;
             std::unordered_map<LedgerKey, LedgerEntry> modifyBatch;
             std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
             while (modifyBatch.size() < MODIFY_ENTRIES)
             {
                 auto iter = entries.begin();
-                std::advance(iter, dist(gen));
+                std::advance(iter, dist(gRandomEngine));
                 modifyBatch[iter->first] =
                     generateLedgerEntryWithSameKey(iter->second);
             }
@@ -317,16 +317,16 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
         };
 
     auto generateErase =
-        [&gen](AbstractLedgerTxn& ltx,
-               std::unordered_map<LedgerKey, LedgerEntry>& entries,
-               std::unordered_set<LedgerKey>& dead) {
+        [&](AbstractLedgerTxn& ltx,
+            std::unordered_map<LedgerKey, LedgerEntry>& entries,
+            std::unordered_set<LedgerKey>& dead) {
             size_t const ERASE_ENTRIES = 25;
             std::unordered_set<LedgerKey> eraseBatch;
             std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
             while (eraseBatch.size() < ERASE_ENTRIES)
             {
                 auto iter = entries.begin();
-                std::advance(iter, dist(gen));
+                std::advance(iter, dist(gRandomEngine));
                 eraseBatch.insert(iter->first);
             }
 
@@ -374,7 +374,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
             generateModify(ltx1, updatedEntries);
             generateErase(ltx1, updatedEntries, updatedDead);
 
-            if (entries.empty() || shouldCommitDist(gen))
+            if (entries.empty() || shouldCommitDist(gRandomEngine))
             {
                 entries = updatedEntries;
                 dead = updatedDead;

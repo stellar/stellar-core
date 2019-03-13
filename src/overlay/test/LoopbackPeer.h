@@ -34,7 +34,6 @@ class LoopbackPeer : public Peer
 
     bool mDamageCert{false};
     bool mDamageAuth{false};
-    std::default_random_engine mGenerator;
     std::bernoulli_distribution mDuplicateProb{0.0};
     std::bernoulli_distribution mReorderProb{0.0};
     std::bernoulli_distribution mDamageProb{0.0};

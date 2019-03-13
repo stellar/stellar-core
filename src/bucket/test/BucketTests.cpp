@@ -22,6 +22,7 @@
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
 
@@ -152,8 +153,6 @@ TEST_CASE("merging bucket entries", "[bucket]")
         auto& bm = app->getBucketManager();
         auto vers = getAppLedgerVersion(app);
 
-        autocheck::generator<bool> flip;
-
         auto checkDeadAnnihilatesLive = [&](LedgerEntryType let) {
             std::string entryType =
                 xdr::xdr_traits<LedgerEntryType>::enum_name(let);
@@ -206,7 +205,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
             for (auto& e : live)
             {
                 e = LedgerTestUtils::generateValidLedgerEntry(10);
-                if (flip())
+                if (rand_flip())
                 {
                     dead.push_back(LedgerEntryKey(e));
                 }
@@ -240,7 +239,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
             size_t liveCount = live.size();
             for (auto& e : live)
             {
-                if (flip())
+                if (rand_flip())
                 {
                     e = LedgerTestUtils::generateValidLedgerEntry(10);
                     ++liveCount;

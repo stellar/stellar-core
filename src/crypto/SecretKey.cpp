@@ -10,6 +10,7 @@
 #include "main/Config.h"
 #include "transactions/SignatureUtils.h"
 #include "util/HashOfHash.h"
+#include "util/Math.h"
 #include "util/RandomEvictionCache.h"
 #include <memory>
 #include <mutex>
@@ -148,6 +149,38 @@ SecretKey::random()
 #endif
     return sk;
 }
+
+#ifdef BUILD_TESTS
+static SecretKey
+pseudoRandomForTestingFromPRNG(std::default_random_engine& engine)
+{
+    std::vector<uint8_t> bytes;
+    for (size_t i = 0; i < crypto_sign_SEEDBYTES; ++i)
+    {
+        bytes.push_back(static_cast<uint8_t>(engine()));
+    }
+    return SecretKey::fromSeed(bytes);
+}
+
+SecretKey
+SecretKey::pseudoRandomForTesting()
+{
+    // Reminder: this is not cryptographic randomness or even particularly hard
+    // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
+    // "slightly random-ish" keys, for test-data generation.
+    return pseudoRandomForTestingFromPRNG(gRandomEngine);
+}
+
+SecretKey
+SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
+{
+    // Reminder: this is not cryptographic randomness or even particularly hard
+    // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
+    // "slightly random-ish" keys, for test-data generation.
+    std::default_random_engine tmpEngine(seed);
+    return pseudoRandomForTestingFromPRNG(tmpEngine);
+}
+#endif
 
 SecretKey
 SecretKey::fromSeed(ByteSlice const& seed)
