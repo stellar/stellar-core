@@ -128,6 +128,9 @@ Operation pathPayment(PublicKey const& to, Asset const& sendCur,
 
 Operation manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
                       Price const& price, int64_t amount);
+Operation manageBuyOffer(uint64 offerId, Asset const& selling,
+                         Asset const& buying, Price const& price,
+                         int64_t amount);
 
 Operation createPassiveOffer(Asset const& selling, Asset const& buying,
                              Price const& price, int64_t amount);
@@ -138,6 +141,12 @@ uint64_t applyManageOffer(Application& app, uint64 offerId,
                           Asset const& buying, Price const& price,
                           int64_t amount, SequenceNumber seq,
                           ManageOfferEffect expectedEffect);
+
+uint64_t applyManageBuyOffer(Application& app, uint64 offerId,
+                             SecretKey const& source, Asset const& selling,
+                             Asset const& buying, Price const& price,
+                             int64_t amount, SequenceNumber seq,
+                             ManageOfferEffect expectedEffect);
 
 // returns the ID of the new offer if created
 uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,

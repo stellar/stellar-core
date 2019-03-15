@@ -570,6 +570,21 @@ manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
     return op;
 }
 
+Operation
+manageBuyOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+               Price const& price, int64_t amount)
+{
+    Operation op;
+    op.body.type(MANAGE_BUY_OFFER);
+    op.body.manageBuyOfferOp().buyAmount = amount;
+    op.body.manageBuyOfferOp().selling = selling;
+    op.body.manageBuyOfferOp().buying = buying;
+    op.body.manageBuyOfferOp().offerID = offerId;
+    op.body.manageBuyOfferOp().price = price;
+
+    return op;
+}
+
 static ManageOfferResult
 applyCreateOfferHelper(Application& app, uint64 offerId,
                        SecretKey const& source, Asset const& selling,
@@ -649,6 +664,73 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
 
     auto& success = createOfferRes.success().offer;
     REQUIRE(success.effect() == expectedEffect);
+    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
+                                                    : 0;
+}
+
+uint64_t
+applyManageBuyOffer(Application& app, uint64 offerId, SecretKey const& source,
+                    Asset const& selling, Asset const& buying,
+                    Price const& price, int64_t amount, SequenceNumber seq,
+                    ManageOfferEffect expectedEffect)
+{
+    auto getIdPool = [&]() {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        return ltx.loadHeader().current().idPool;
+    };
+    auto lastGeneratedID = getIdPool();
+    auto expectedOfferID = lastGeneratedID + 1;
+    if (offerId != 0)
+    {
+        expectedOfferID = offerId;
+    }
+
+    auto op = manageBuyOffer(offerId, selling, buying, price, amount);
+    auto tx = transactionFromOperations(app, source, seq, {op});
+
+    try
+    {
+        applyTx(tx, app);
+    }
+    catch (...)
+    {
+        REQUIRE(getIdPool() == lastGeneratedID);
+        throw;
+    }
+
+    auto& results = tx->getResult().result.results();
+    REQUIRE(results.size() == 1);
+    auto& manageBuyOfferResult = results[0].tr().manageBuyOfferResult();
+    auto& success = manageBuyOfferResult.success().offer;
+
+    REQUIRE(success.effect() == expectedEffect);
+    switch (success.effect())
+    {
+    case MANAGE_OFFER_CREATED:
+    case MANAGE_OFFER_UPDATED:
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        auto offer =
+            stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID);
+        REQUIRE(offer);
+        auto& offerEntry = offer.current().data.offer();
+        REQUIRE(offerEntry == success.offer());
+        REQUIRE(offerEntry.price == price);
+        REQUIRE(offerEntry.selling == selling);
+        REQUIRE(offerEntry.buying == buying);
+    }
+    break;
+    case MANAGE_OFFER_DELETED:
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        REQUIRE(
+            !stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID));
+    }
+    break;
+    default:
+        abort();
+    }
+
     return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
                                                     : 0;
 }

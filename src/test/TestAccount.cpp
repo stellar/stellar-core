@@ -224,6 +224,16 @@ TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
 }
 
 uint64_t
+TestAccount::manageBuyOffer(uint64_t offerID, Asset const& selling,
+                            Asset const& buying, Price const& price,
+                            int64_t amount, ManageOfferEffect expectedEffect)
+{
+    return applyManageBuyOffer(mApp, offerID, getSecretKey(), selling, buying,
+                               price, amount, nextSequenceNumber(),
+                               expectedEffect);
+}
+
+uint64_t
 TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount,
                                 ManageOfferEffect expectedEffect)
