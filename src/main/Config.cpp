@@ -254,6 +254,23 @@ Config::load(std::string const& filename)
 
     LOG(DEBUG) << "Loading config from: " << filename;
 
+    auto logIfSet = [](auto& item, auto const& message) {
+        if (item.second->template as<bool>())
+        {
+            if (item.second->template as<bool>()->value())
+            {
+                LOG(INFO) << fmt::format(
+                    "{} enabled in configuration file - {}", item.first,
+                    message);
+            }
+        }
+        else
+        {
+            LOG(INFO) << fmt::format("{} set in configuration file - {}",
+                                     item.first, message);
+        }
+    };
+
     try
     {
         cpptoml::toml_group g;
@@ -273,15 +290,13 @@ Config::load(std::string const& filename)
             LOG(DEBUG) << "Config item: " << item.first;
             if (TESTING_ONLY_OPTIONS.count(item.first) > 0)
             {
-                LOG(INFO) << item.first
-                          << " enabled in configuration file - node will not "
-                             "function properly with most networks";
+                logIfSet(item,
+                         "node will not function properly with most networks");
             }
             else if (TESTING_SUGGESTED_OPTIONS.count(item.first) > 0)
             {
-                LOG(INFO) << item.first
-                          << " enabled in configuration file - node may not "
-                             "be configured for production use";
+                logIfSet(item,
+                         "node may not function properly with most networks");
             }
 
             if (item.first == "PEER_PORT")
