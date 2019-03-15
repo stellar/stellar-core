@@ -110,6 +110,7 @@ Bucket::apply(Application& app) const
     {
         applicator.advance(counters);
     }
+    counters.logInfo("direct", 0, std::chrono::system_clock::now());
 }
 
 std::vector<BucketEntry>
