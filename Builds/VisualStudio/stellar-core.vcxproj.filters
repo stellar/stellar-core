@@ -159,7 +159,7 @@
     <ClCompile Include="..\..\lib\util\getopt_long.c">
       <Filter>lib\util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp">
+    <ClCompile Include="..\..\src\overlay\test\LoopbackPeer.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
@@ -932,7 +932,7 @@
     <ClInclude Include="..\..\lib\util\getopt.h">
       <Filter>lib\util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\LoopbackPeer.h">
+    <ClInclude Include="..\..\src\overlay\test\LoopbackPeer.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\TCPPeer.h">
