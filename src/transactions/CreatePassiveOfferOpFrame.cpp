@@ -24,8 +24,8 @@ ManageOfferOpHolder::ManageOfferOpHolder(Operation const& op)
 CreatePassiveOfferOpFrame::CreatePassiveOfferOpFrame(Operation const& op,
                                                      OperationResult& res,
                                                      TransactionFrame& parentTx)
-    : ManageOfferOpHolder(op), ManageOfferOpFrame(mCreateOp, res, parentTx)
+    : ManageOfferOpHolder(op)
+    , ManageOfferOpFrame(mCreateOp, res, parentTx, true)
 {
-    mPassive = true;
 }
 }
