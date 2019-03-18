@@ -14,14 +14,6 @@ namespace fs
 {
 
 ////
-// Utility for manipulating process ids
-////
-
-long getCurrentPid();
-
-bool processExists(long pid);
-
-////
 // Utility functions for operating on the filesystem.
 ////
 
