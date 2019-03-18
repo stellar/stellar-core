@@ -18,7 +18,7 @@ using asio::ip::tcp;
 using namespace std;
 
 PeerDoor::PeerDoor(Application& app)
-    : mApp(app), mAcceptor(mApp.getClock().getIOService())
+    : mApp(app), mAcceptor(mApp.getClock().getIOContext())
 {
 }
 
@@ -58,7 +58,7 @@ PeerDoor::acceptNextPeer()
 
     CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
     auto sock =
-        make_shared<TCPPeer::SocketType>(mApp.getClock().getIOService());
+        make_shared<TCPPeer::SocketType>(mApp.getClock().getIOContext());
     mAcceptor.async_accept(sock->next_layer(),
                            [this, sock](asio::error_code const& ec) {
                                if (ec)

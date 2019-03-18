@@ -107,10 +107,10 @@ void validateNetworkPassphrase(std::shared_ptr<Application> app);
  * In general, Application expects to run on a single thread -- the main thread
  * -- and most subsystems perform no locking, are not multi-thread
  * safe. Operations with high IO latency are broken into steps and executed
- * piecewise through the VirtualClock's asio::io_service; those with high CPU
+ * piecewise through the VirtualClock's asio::io_context; those with high CPU
  * latency are run on a "worker" thread pool.
  *
- * Each Application owns a secondary "worker" asio::io_service, that queues and
+ * Each Application owns a secondary "worker" asio::io_context, that queues and
  * dispatches CPU-bound work to a number of worker threads (one per core); these
  * serve only to offload self-contained CPU-bound tasks like hashing from the
  * main thread, and do not generally call back into the Application's owned
@@ -118,7 +118,7 @@ void validateNetworkPassphrase(std::shared_ptr<Application> app);
  * objects).
  *
  * Completed "worker" tasks typically post their results back to the main
- * thread's io_service (held in the VirtualClock), or else deliver their results
+ * thread's io_context (held in the VirtualClock), or else deliver their results
  * to the Application through std::futures or similar standard
  * thread-synchronization primitives.
  */
@@ -213,9 +213,9 @@ class Application
     virtual StatusManager& getStatusManager() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
-    // this io_service will execute in parallel with the calling thread, so use
+    // this io_context will execute in parallel with the calling thread, so use
     // with caution.
-    virtual asio::io_service& getWorkerIOService() = 0;
+    virtual asio::io_context& getWorkerIOContext() = 0;
 
     virtual void postOnMainThread(std::function<void()>&& f,
                                   std::string jobName) = 0;
@@ -230,13 +230,13 @@ class Application
     // Config).
     virtual void start() = 0;
 
-    // Stop the io_services, which should cause the threads to exit once they
+    // Stop the io_contexts, which should cause the threads to exit once they
     // finish running any work-in-progress.
     virtual void gracefulStop() = 0;
 
     // Wait-on and join all the threads this application started; should only
     // return when there is no more work to do or someone has force-stopped the
-    // worker io_service. Application can be safely destroyed after this
+    // worker io_context. Application can be safely destroyed after this
     // returns.
     virtual void joinAllThreads() = 0;
 

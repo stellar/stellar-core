@@ -26,7 +26,7 @@ class ProcessManagerImpl : public ProcessManager
 
     bool mIsShutdown{false};
     size_t mMaxProcesses;
-    asio::io_service& mIOService;
+    asio::io_context& mIOContext;
 
     std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mPendingImpls;
     std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mKillableImpls;

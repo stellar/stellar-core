@@ -87,8 +87,8 @@ runWithConfig(Config cfg)
         LOG(FATAL) << "Got an exception: " << e.what();
         return 1;
     }
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
     while (!io.stopped())
     {
         clock.crank();
@@ -350,9 +350,9 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     }
 
     auto& clock = app->getClock();
-    auto& io = clock.getIOService();
+    auto& io = clock.getIOContext();
     auto synced = false;
-    asio::io_service::work mainWork(io);
+    asio::io_context::work mainWork(io);
     auto done = false;
     while (!done && clock.crank(true))
     {
@@ -420,8 +420,8 @@ publish(Application::pointer app)
     app->start();
 
     auto& clock = app->getClock();
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
     auto isCheckpoint =

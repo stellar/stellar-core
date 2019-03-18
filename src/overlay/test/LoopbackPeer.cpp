@@ -221,7 +221,7 @@ LoopbackPeer::deliverOne()
 
         // Pass ownership of a serialized XDR message buffer to a recvMesage
         // callback event against the remote Peer, posted on the remote
-        // Peer's io_service.
+        // Peer's io_context.
         auto remote = mRemote.lock();
         if (remote)
         {

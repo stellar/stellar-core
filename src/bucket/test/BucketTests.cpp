@@ -255,7 +255,7 @@ TEST_CASE("bucket list", "[bucket]")
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
         for (uint32_t i = 1;
-             !app->getClock().getIOService().stopped() && i < 130; ++i)
+             !app->getClock().getIOContext().stopped() && i < 130; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, LedgerTestUtils::generateValidLedgerEntries(8),
@@ -298,7 +298,7 @@ TEST_CASE("bucket list shadowing", "[bucket]")
     autocheck::generator<std::vector<LedgerKey>> deadGen;
     CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
 
-    for (uint32_t i = 1; !app->getClock().getIOService().stopped() && i < 1200;
+    for (uint32_t i = 1; !app->getClock().getIOContext().stopped() && i < 1200;
          ++i)
     {
         app->getClock().crank(false);
@@ -368,7 +368,7 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
         CLOG(DEBUG, "Bucket")
             << "Adding batches with duplicates to bucket list";
         for (uint32_t i = 1;
-             !app->getClock().getIOService().stopped() && i < 130; ++i)
+             !app->getClock().getIOContext().stopped() && i < 130; ++i)
         {
             auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(8);
             auto doubleLiveBatch = liveBatch;
@@ -721,7 +721,7 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
 
         CLOG(DEBUG, "Bucket") << "Adding empty batches to bucket list";
         for (uint32_t i = 2;
-             !app->getClock().getIOService().stopped() && i < 300; ++i)
+             !app->getClock().getIOContext().stopped() && i < 300; ++i)
         {
             app->getClock().crank(false);
             bl.addBatch(*app, i, emptySetEntry, emptySet);

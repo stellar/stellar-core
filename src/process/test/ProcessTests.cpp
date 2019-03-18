@@ -38,7 +38,7 @@ TEST_CASE("subprocess", "[process]")
         exited = true;
     });
 
-    while (!exited && !clock.getIOService().stopped())
+    while (!exited && !clock.getIOContext().stopped())
     {
         clock.crank(true);
     }
@@ -63,7 +63,7 @@ TEST_CASE("subprocess fails", "[process]")
         exited = true;
     });
 
-    while (!exited && !clock.getIOService().stopped())
+    while (!exited && !clock.getIOContext().stopped())
     {
         clock.crank(true);
     }
@@ -88,7 +88,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
         exited = true;
     });
 
-    while (!exited && !clock.getIOService().stopped())
+    while (!exited && !clock.getIOContext().stopped())
     {
         clock.crank(true);
     }
@@ -138,7 +138,7 @@ TEST_CASE("subprocess storm", "[process]")
     }
 
     size_t last = 0;
-    while (completed < n && !clock.getIOService().stopped())
+    while (completed < n && !clock.getIOContext().stopped())
     {
         clock.crank(false);
         size_t n2 = app.getProcessManager().getNumRunningProcesses();
@@ -196,7 +196,7 @@ TEST_CASE("shutdown while process running", "[process]")
     app1->getProcessManager().shutdown();
     app2->getProcessManager().shutdown();
 
-    while (exitedCount < events.size() && !clock.getIOService().stopped())
+    while (exitedCount < events.size() && !clock.getIOContext().stopped())
     {
         clock.crank(true);
     }

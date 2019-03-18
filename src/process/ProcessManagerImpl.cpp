@@ -73,7 +73,7 @@ class ProcessExitEvent::Impl
         , mCmdLine(cmdLine)
         , mOutFile(outFile)
 #ifdef _WIN32
-        , mProcessHandle(outerTimer->get_io_service())
+        , mProcessHandle(outerTimer->get_io_context())
 #endif
         , mProcManagerImpl(pm)
     {
@@ -164,8 +164,8 @@ ProcessManagerImpl::shutdown()
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
-    , mIOService(app.getClock().getIOService())
-    , mSigChild(mIOService)
+    , mIOContext(app.getClock().getIOContext())
+    , mSigChild(mIOContext)
 {
 }
 
@@ -383,8 +383,8 @@ ProcessManagerImpl::forceShutdown(ProcessExitEvent::Impl& impl)
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
-    , mIOService(app.getClock().getIOService())
-    , mSigChild(mIOService, SIGCHLD)
+    , mIOContext(app.getClock().getIOContext())
+    , mSigChild(mIOContext, SIGCHLD)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
     startSignalWait();
@@ -607,7 +607,7 @@ ProcessExitEvent
 ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
-    ProcessExitEvent pe(mIOService);
+    ProcessExitEvent pe(mIOContext);
     std::shared_ptr<ProcessManagerImpl> self =
         std::static_pointer_cast<ProcessManagerImpl>(shared_from_this());
     std::weak_ptr<ProcessManagerImpl> weakSelf(self);
@@ -648,8 +648,8 @@ ProcessManagerImpl::maybeRunPendingProcesses()
     }
 }
 
-ProcessExitEvent::ProcessExitEvent(asio::io_service& io_service)
-    : mTimer(std::make_shared<RealTimer>(io_service))
+ProcessExitEvent::ProcessExitEvent(asio::io_context& io_context)
+    : mTimer(std::make_shared<RealTimer>(io_context))
     , mImpl(nullptr)
     , mEc(std::make_shared<asio::error_code>())
 {

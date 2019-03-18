@@ -34,7 +34,7 @@ class WorkManager : public WorkParent
         auto work = addWork<T>(std::forward<Args>(args)...);
         auto& clock = mApp.getClock();
         advanceChildren();
-        while (!clock.getIOService().stopped() && !allChildrenDone())
+        while (!clock.getIOContext().stopped() && !allChildrenDone())
         {
             clock.crank(true);
         }

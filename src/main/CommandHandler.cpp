@@ -59,13 +59,13 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         int httpMaxClient = mApp.getConfig().HTTP_MAX_CLIENT;
 
         mServer = std::make_unique<http::server::server>(
-            app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT,
+            app.getClock().getIOContext(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
     }
     else
     {
         mServer = std::make_unique<http::server::server>(
-            app.getClock().getIOService());
+            app.getClock().getIOContext());
     }
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));

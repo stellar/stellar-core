@@ -17,7 +17,7 @@ using namespace std;
 
 static const uint32_t RECENT_CRANK_WINDOW = 1024;
 
-VirtualClock::VirtualClock(Mode mode) : mMode(mode), mRealTimer(mIOService)
+VirtualClock::VirtualClock(Mode mode) : mMode(mode), mRealTimer(mIOContext)
 {
     resetIdleCrankPercent();
 }
@@ -264,7 +264,7 @@ VirtualClock::crank(bool block)
         }
 
         // Pick up some work off the IO queue.
-        // Calling mIOService.poll() here may introduce unbounded delays
+        // Calling mIOContext.poll() here may introduce unbounded delays
         // to trigger timers.
         const size_t WORK_BATCH_SIZE = 100;
         size_t lastPoll;
@@ -272,7 +272,7 @@ VirtualClock::crank(bool block)
         do
         {
             // May add work to mDelayedExecutionQueue.
-            lastPoll = mIOService.poll_one();
+            lastPoll = mIOContext.poll_one();
             nWorkDone += lastPoll;
         } while (lastPoll != 0 && ++i < WORK_BATCH_SIZE);
 
@@ -286,7 +286,7 @@ VirtualClock::crank(bool block)
             nWorkDone++;
             for (auto&& f : mDelayedExecutionQueue)
             {
-                mIOService.post(std::move(f));
+                asio::post(mIOContext, std::move(f));
             }
             mDelayedExecutionQueue.clear();
         }
@@ -305,7 +305,7 @@ VirtualClock::crank(bool block)
     // At this point main and background threads can add work to next crank.
     if (block && nWorkDone == 0)
     {
-        nWorkDone += mIOService.run_one();
+        nWorkDone += mIOContext.run_one();
     }
 
     noteCrankOccurred(nWorkDone == 0);
@@ -316,7 +316,7 @@ VirtualClock::crank(bool block)
 void
 VirtualClock::postToCurrentCrank(std::function<void()>&& f)
 {
-    mIOService.post(std::move(f));
+    asio::post(mIOContext, std::move(f));
 }
 
 void
@@ -326,18 +326,18 @@ VirtualClock::postToNextCrank(std::function<void()>&& f)
 
     if (!mDelayExecution)
     {
-        // Either we are waiting on io_service().run_one here, or by some
+        // Either we are waiting on io_context().run_one here, or by some
         // chance run_one was woke up by network activity and postToNextCrank
         // was called from background thread during of just after that (before
         // mutex is again taken by crank). In first case we need to post
-        // directly to io_service to wake up run_one(). In second case this
+        // directly to io_context to wake up run_one(). In second case this
         // handler will be executed in poll_one(), a bit earlier that we want.
         // But with current design it would be at most one additional job per
         // crank.
 
         // One immediate post is enough.
         mDelayExecution = true;
-        mIOService.post(std::move(f));
+        asio::post(mIOContext, std::move(f));
     }
     else
     {
@@ -401,10 +401,10 @@ VirtualClock::resetIdleCrankPercent()
     mRecentIdleCrankCount = RECENT_CRANK_WINDOW >> 1;
 }
 
-asio::io_service&
-VirtualClock::getIOService()
+asio::io_context&
+VirtualClock::getIOContext()
 {
-    return mIOService;
+    return mIOContext;
 }
 
 VirtualClock::~VirtualClock()
