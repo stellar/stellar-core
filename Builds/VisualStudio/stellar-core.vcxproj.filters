@@ -903,6 +903,9 @@
     <ClCompile Include="..\..\src\test\TxTests.cpp">
       <Filter>test</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\Thread.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
@@ -1558,6 +1561,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\TxTests.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Thread.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

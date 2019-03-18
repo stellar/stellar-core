@@ -44,6 +44,7 @@
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
+#include "util/Thread.h"
 #include "util/TmpDir.h"
 #include "work/WorkManager.h"
 
@@ -91,9 +92,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
 
-    unsigned t = std::thread::hardware_concurrency();
-    LOG(DEBUG) << "Application constructing "
-               << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
         {
@@ -102,9 +100,16 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         }
     });
 
+    unsigned t = std::thread::hardware_concurrency();
+    LOG(DEBUG) << "Application constructing "
+               << "(worker threads: " << t << ")";
     while (t--)
     {
-        mWorkerThreads.emplace_back([this, t]() { this->runWorkerThread(t); });
+        auto thread = std::thread{[this]() {
+            runCurrentThreadWithLowPriority();
+            mWorkerIOContext.run();
+        }};
+        mWorkerThreads.emplace_back(std::move(thread));
     }
 }
 
@@ -391,12 +396,6 @@ ApplicationImpl::start()
 
     while (!done && mVirtualClock.crank(true))
         ;
-}
-
-void
-ApplicationImpl::runWorkerThread(unsigned i)
-{
-    mWorkerIOContext.run();
 }
 
 void

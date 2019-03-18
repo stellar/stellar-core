@@ -517,6 +517,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\TimerTests.cpp" />
     <ClCompile Include="..\..\src\util\test\Uint128Tests.cpp" />
     <ClCompile Include="..\..\src\util\test\XDRStreamTests.cpp" />
+    <ClCompile Include="..\..\src\util\Thread.cpp" />
     <ClCompile Include="..\..\src\util\TmpDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
@@ -740,6 +741,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\SecretValue.h" />
     <ClInclude Include="..\..\src\util\SociNoWarnings.h" />
     <ClInclude Include="..\..\src\util\StatusManager.h" />
+    <ClInclude Include="..\..\src\util\Thread.h" />
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />

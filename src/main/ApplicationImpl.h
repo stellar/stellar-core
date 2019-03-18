@@ -178,7 +178,6 @@ class ApplicationImpl : public Application
     Hash mNetworkID;
 
     void shutdownMainIOContext();
-    void runWorkerThread(unsigned i);
 
     void enableInvariantsFromConfig();
 
