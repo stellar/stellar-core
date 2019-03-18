@@ -89,14 +89,14 @@ Some key configuration choices concerning storage access will greatly affect per
 
 For illustration sake, the following table shows some latency numbers around ledger close-times measured on a test cluster running in AWS, with varying database configurations:
 
-  | Database connection type                                  | median  |    p75 |    p99 |   max |
-  |-----------------------------------------------------------|---------|--------|--------|-------|
-  | SQLite on NVMe instance storage                           |     1ms |    2ms |    2ms |  12ms |
-  | Local PostgreSQL on NVMe instance storage, Unix socket    |     3ms |    3ms |    3ms |  31ms |
-  | Local PostgreSQL on NVMe instance storage, TCP socket     |     3ms |    4ms |    4ms |  50ms |
-  | Local PostgreSQL on SSD EBS, Unix socket                  |     5ms |   20ms |   27ms | 169ms |
-  | Local PostgreSQL on SSD EBS, TCP socket                   |     4ms |   19ms |   54ms | 173ms |
-  | Remote PostgreSQL on RDS, TCP socket                      |    27ms |   87ms |  120ms | 170ms |
+| Database connection type                                  | median  |    p75 |    p99 |   max |
+|-----------------------------------------------------------|---------|--------|--------|-------|
+| SQLite on NVMe instance storage                           |     1ms |    2ms |    2ms |  12ms |
+| Local PostgreSQL on NVMe instance storage, Unix socket    |     3ms |    3ms |    3ms |  31ms |
+| Local PostgreSQL on NVMe instance storage, TCP socket     |     3ms |    4ms |    4ms |  50ms |
+| Local PostgreSQL on SSD EBS, Unix socket                  |     5ms |   20ms |   27ms | 169ms |
+| Local PostgreSQL on SSD EBS, TCP socket                   |     4ms |   19ms |   54ms | 173ms |
+| Remote PostgreSQL on RDS, TCP socket                      |    27ms |   87ms |  120ms | 170ms |
 
 ## Notes and advice from existing node operators
 
