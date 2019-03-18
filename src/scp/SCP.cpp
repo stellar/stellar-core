@@ -119,14 +119,14 @@ SCP::getSlot(uint64 slotIndex, bool create)
 }
 
 Json::Value
-SCP::getJsonInfo(size_t limit)
+SCP::getJsonInfo(size_t limit, bool fullKeys)
 {
     Json::Value ret;
     auto it = mKnownSlots.rbegin();
     while (it != mKnownSlots.rend() && limit-- != 0)
     {
         auto& slot = *(it->second);
-        ret[std::to_string(slot.getSlotIndex())] = slot.getJsonInfo();
+        ret[std::to_string(slot.getSlotIndex())] = slot.getJsonInfo(fullKeys);
         it++;
     }
 
@@ -134,7 +134,8 @@ SCP::getJsonInfo(size_t limit)
 }
 
 Json::Value
-SCP::getJsonQuorumInfo(NodeID const& id, bool summary, uint64 index)
+SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
+                       uint64 index)
 {
     Json::Value ret;
     if (index == 0)
@@ -143,7 +144,7 @@ SCP::getJsonQuorumInfo(NodeID const& id, bool summary, uint64 index)
         {
             auto& slot = *item.second;
             ret[std::to_string(slot.getSlotIndex())] =
-                slot.getJsonQuorumInfo(id, summary);
+                slot.getJsonQuorumInfo(id, summary, fullKeys);
         }
     }
     else
@@ -151,7 +152,8 @@ SCP::getJsonQuorumInfo(NodeID const& id, bool summary, uint64 index)
         auto s = getSlot(index, false);
         if (s)
         {
-            ret[std::to_string(index)] = s->getJsonQuorumInfo(id, summary);
+            ret[std::to_string(index)] =
+                s->getJsonQuorumInfo(id, summary, fullKeys);
         }
     }
     return ret;
@@ -317,19 +319,22 @@ SCP::ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const
 }
 
 std::string
-SCP::envToStr(SCPEnvelope const& envelope) const
+SCP::envToStr(SCPEnvelope const& envelope, bool fullKeys) const
 {
-    return envToStr(envelope.statement);
+    return envToStr(envelope.statement, fullKeys);
 }
 
 std::string
-SCP::envToStr(SCPStatement const& st) const
+SCP::envToStr(SCPStatement const& st, bool fullKeys) const
 {
     std::ostringstream oss;
 
     Hash const& qSetHash = Slot::getCompanionQuorumSetHashFromStatement(st);
 
-    oss << "{ENV@" << mDriver.toShortString(st.nodeID) << " | "
+    std::string nodeId = fullKeys ? mDriver.toStrKey(st.nodeID)
+                                  : mDriver.toShortString(st.nodeID);
+
+    oss << "{ENV@" << nodeId << " | "
         << " i: " << st.slotIndex;
     switch (st.pledges.type())
     {

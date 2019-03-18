@@ -87,6 +87,9 @@ class SCPDriver
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;
 
+    // `toStrKey` returns StrKey encoded string representation
+    virtual std::string toStrKey(PublicKey const& pk) const;
+
     // `toShortString` converts to the common name of a key if found
     virtual std::string toShortString(PublicKey const& pk) const;
 

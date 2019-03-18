@@ -146,8 +146,9 @@ class Herder
     {
     }
 
-    virtual Json::Value getJsonInfo(size_t limit) = 0;
+    virtual Json::Value getJsonInfo(size_t limit, bool fullKeys = false) = 0;
     virtual Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
+                                          bool fullKeys = false,
                                           uint64 index = 0) = 0;
 };
 }
