@@ -100,7 +100,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         }
     });
 
-    unsigned t = std::thread::hardware_concurrency();
+    auto t = mConfig.WORKER_THREADS;
     LOG(DEBUG) << "Application constructing "
                << "(worker threads: " << t << ")";
     while (t--)
