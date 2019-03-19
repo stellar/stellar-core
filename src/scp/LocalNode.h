@@ -98,7 +98,7 @@ class LocalNode
             [](SCPStatement const&) { return true; },
         NodeID const* excluded = nullptr);
 
-    Json::Value toJson(SCPQuorumSet const& qSet) const;
+    Json::Value toJson(SCPQuorumSet const& qSet, bool fullKeys) const;
     std::string to_string(SCPQuorumSet const& qSet) const;
 
     static uint64 computeWeight(uint64 m, uint64 total, uint64 threshold);

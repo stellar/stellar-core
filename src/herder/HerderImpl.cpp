@@ -866,23 +866,24 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
 }
 
 Json::Value
-HerderImpl::getJsonInfo(size_t limit)
+HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 {
     Json::Value ret;
     ret["you"] =
         mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
 
-    ret["scp"] = getSCP().getJsonInfo(limit);
+    ret["scp"] = getSCP().getJsonInfo(limit, fullKeys);
     ret["queue"] = mPendingEnvelopes.getJsonInfo(limit);
     return ret;
 }
 
 Json::Value
-HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, uint64 index)
+HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
+                              uint64 index)
 {
     Json::Value ret;
     ret["node"] = mApp.getConfig().toStrKey(id);
-    ret["slots"] = getSCP().getJsonQuorumInfo(id, summary, index);
+    ret["slots"] = getSCP().getJsonQuorumInfo(id, summary, fullKeys, index);
     return ret;
 }
 

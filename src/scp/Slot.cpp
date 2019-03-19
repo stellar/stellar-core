@@ -295,7 +295,7 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st)
 }
 
 Json::Value
-Slot::getJsonInfo()
+Slot::getJsonInfo(bool fullKeys)
 {
     Json::Value ret;
     std::map<Hash, SCPQuorumSetPtr> qSetsUsed;
@@ -305,7 +305,7 @@ Slot::getJsonInfo()
     {
         Json::Value& v = ret["statements"][count++];
         v.append((Json::UInt64)item.mWhen);
-        v.append(mSCP.envToStr(item.mStatement));
+        v.append(mSCP.envToStr(item.mStatement, fullKeys));
         v.append(item.mValidated);
 
         Hash const& qSetHash =
@@ -320,7 +320,7 @@ Slot::getJsonInfo()
     auto& qSets = ret["quorum_sets"];
     for (auto const& q : qSetsUsed)
     {
-        qSets[hexAbbrev(q.first)] = getLocalNode()->toJson(*q.second);
+        qSets[hexAbbrev(q.first)] = getLocalNode()->toJson(*q.second, fullKeys);
     }
 
     ret["validated"] = mFullyValidated;
@@ -331,9 +331,9 @@ Slot::getJsonInfo()
 }
 
 Json::Value
-Slot::getJsonQuorumInfo(NodeID const& id, bool summary)
+Slot::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
 {
-    Json::Value ret = mBallotProtocol.getJsonQuorumInfo(id, summary);
+    Json::Value ret = mBallotProtocol.getJsonQuorumInfo(id, summary, fullKeys);
     if (getLocalNode()->isValidator())
     {
         ret["validated"] = isFullyValidated();
