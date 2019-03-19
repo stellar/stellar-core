@@ -112,11 +112,6 @@ format.
 * **help**
   Prints a list of currently supported commands.
 
-* **catchup** 
-  `/catchup?ledger=NNN[&mode=MODE]`<br>
-  Triggers the instance to catch up to ledger NNN from history;
-  Mode is either 'minimal' (the default, if omitted) or 'complete'.
-
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
 
