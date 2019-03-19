@@ -4,7 +4,8 @@
 
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
-#include "util/lrucache.hpp"
+#include "util/RandomEvictionCache.h"
+#include <list>
 #ifdef USE_POSTGRES
 #include <iomanip>
 #include <libpq-fe.h>
@@ -377,7 +378,8 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 class LedgerTxnRoot::Impl
 {
     typedef std::string EntryCacheKey;
-    typedef cache::lru_cache<EntryCacheKey, std::shared_ptr<LedgerEntry const>>
+    typedef RandomEvictionCache<EntryCacheKey,
+                                std::shared_ptr<LedgerEntry const>>
         EntryCache;
 
     typedef std::string BestOffersCacheKey;
@@ -386,7 +388,8 @@ class LedgerTxnRoot::Impl
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef cache::lru_cache<std::string, BestOffersCacheEntry> BestOffersCache;
+    typedef RandomEvictionCache<std::string, BestOffersCacheEntry>
+        BestOffersCache;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;
