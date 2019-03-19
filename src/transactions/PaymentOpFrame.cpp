@@ -26,7 +26,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines
@@ -60,8 +60,7 @@ PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     opRes.tr().type(PATH_PAYMENT);
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
 
-    if (!ppayment.doCheckValid(app, ledgerVersion) ||
-        !ppayment.doApply(app, ltx))
+    if (!ppayment.doCheckValid(ledgerVersion) || !ppayment.doApply(ltx))
     {
         if (ppayment.getResultCode() != opINNER)
         {
@@ -111,7 +110,7 @@ PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-PaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mPayment.amount <= 0)
     {

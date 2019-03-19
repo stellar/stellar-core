@@ -41,7 +41,7 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -165,7 +165,7 @@ SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mSetOptions.setFlags)
     {

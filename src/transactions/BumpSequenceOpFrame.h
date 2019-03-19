@@ -27,8 +27,8 @@ class BumpSequenceOpFrame : public OperationFrame
     BumpSequenceOpFrame(Operation const& op, OperationResult& res,
                         TransactionFrame& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doCheckValid(uint32_t ledgerVersion) override;
 
     static BumpSequenceResultCode
     getInnerCode(OperationResult const& res)

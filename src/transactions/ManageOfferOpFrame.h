@@ -15,9 +15,11 @@ class ManageOfferOpFrame : public OperationFrame
 {
     bool checkOfferValid(AbstractLedgerTxn& lsOuter);
 
-    bool computeOfferExchangeParameters(
-        Application& app, AbstractLedgerTxn& lsOuter, LedgerEntry const& offer,
-        bool creatingNewOffer, int64_t& maxSheepSend, int64_t& maxWheatReceive);
+    bool computeOfferExchangeParameters(AbstractLedgerTxn& lsOuter,
+                                        LedgerEntry const& offer,
+                                        bool creatingNewOffer,
+                                        int64_t& maxSheepSend,
+                                        int64_t& maxWheatReceive);
 
     ManageOfferResult&
     innerResult()
@@ -37,8 +39,8 @@ class ManageOfferOpFrame : public OperationFrame
     ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerTxn& lsOuter) override;
-    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& lsOuter) override;
+    bool doCheckValid(uint32_t ledgerVersion) override;
 
     static ManageOfferResultCode
     getInnerCode(OperationResult const& res)

@@ -306,7 +306,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
 
         for (auto& op : mOperations)
         {
-            if (!op->checkSignature(signatureChecker, app, ltx, false))
+            if (!op->checkSignature(signatureChecker, ltx, false))
             {
                 allOpsValid = false;
             }
@@ -497,7 +497,7 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
     {
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, app, ltx, false))
+            if (!op->checkValid(signatureChecker, ltx, false))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -559,7 +559,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     {
         auto time = opTimer.TimeScope();
         LedgerTxn ltxOp(ltxTx);
-        bool txRes = op->apply(signatureChecker, app, ltxOp);
+        bool txRes = op->apply(signatureChecker, ltxOp);
 
         if (!txRes)
         {

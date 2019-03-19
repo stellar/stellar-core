@@ -31,7 +31,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     innerResult().code(PATH_PAYMENT_SUCCESS);
 
@@ -265,7 +265,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-PathPaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+PathPaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {

@@ -33,7 +33,7 @@ BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     LedgerTxn ltxInner(ltx);
     auto header = ltxInner.loadHeader();
@@ -54,7 +54,7 @@ BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-BumpSequenceOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+BumpSequenceOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {

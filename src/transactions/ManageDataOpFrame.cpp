@@ -27,7 +27,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     if (header.current().ledgerVersion == 3)
@@ -79,7 +79,7 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (ledgerVersion < 2)
     {
