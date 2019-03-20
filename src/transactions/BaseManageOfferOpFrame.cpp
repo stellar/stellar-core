@@ -124,6 +124,21 @@ BaseManageOfferOpFrame::computeOfferExchangeParameters(
     maxSheepSend = canSellAtMost(header, sourceAccount, mSheep, sheepLineA);
     if (ledgerVersion >= 10)
     {
+        // Note that maxWheatReceive = max(0, availableLimit). But why do we
+        // work with availableLimit?
+        // - If availableLimit >= 0 then maxWheatReceive = availableLimit so
+        //   they are interchangeable.
+        // - If availableLimit < 0 then maxWheatReceive = 0. But if
+        //   getOfferBuyingLiabilities() == 0 (which is possible) then we have
+        //       availableLimit < 0 = getOfferBuyingLiabilities()
+        //       maxWheatReceive = 0 = getOfferBuyingLiailities()
+        //   which are not the same. Using availableLimit allows us to return
+        //   LINE_FULL here in cases where the availableLimit is negative. This
+        //   makes sense: all we are checking here is that liabilities fit into
+        //   the available limit, and no liabilities fit if the available limit
+        //   is negative.
+        // In practice, I _think_ that negative available limit is not possible
+        // unless there is a logic error.
         int64_t availableLimit =
             (mWheat.type() == ASSET_TYPE_NATIVE)
                 ? getMaxAmountReceive(header, sourceAccount)
@@ -134,6 +149,21 @@ BaseManageOfferOpFrame::computeOfferExchangeParameters(
             return false;
         }
 
+        // Note that maxSheepSend = max(0, availableBalance). But why do we
+        // work with availableBalance?
+        // - If availableBalance >= 0 then maxSheepSend = availableBalance so
+        //   they are interchangeable.
+        // - If availableBalance < 0 then maxSheepSend = 0. But if
+        //   getOfferSellingLiabilities() == 0 (which is possible) then we have
+        //       availableBalance < 0 = getOfferSellingLiabilities()
+        //       maxSheepSend = 0 = getOfferSellingLiailities()
+        //   which are not the same. Using availableBalance allows us to return
+        //   LINE_FULL here in cases where the availableBalance is negative.
+        //   This makes sense: all we are checking here is that liabilities fit
+        //   into the available balance, and no liabilities fit if the available
+        //   balance is negative.
+        // In practice, negative available balance is possible for native assets
+        // after the reserve has been raised.
         int64_t availableBalance =
             (mSheep.type() == ASSET_TYPE_NATIVE)
                 ? getAvailableBalance(header, sourceAccount)
