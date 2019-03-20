@@ -109,8 +109,8 @@ You can send commands to stellar-core via a web browser, curl, or using the --c
 command line option (see above). Most commands return their results in JSON
 format.
 
-* **help**
-  Prints a list of currently supported commands.
+* **bans**
+  List current active bans
 
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
@@ -124,9 +124,13 @@ format.
   Triggers the instance to connect to peer NAME at port NNN.
 
 * **dropcursor**  
-  `/dropcursor?id=XYZ`<br>
-  deletes the tracking cursor with identified by `id`. See `setcursor` for
+  `/dropcursor?id=ID`<br>
+  Deletes the tracking cursor identified by `id`. See `setcursor` for
   more information.
+
+* **droppeer**
+  `/droppeer?node=NODE_ID[&ban=D]`<br>
+  Drops peer identified by NODE_ID, when D is 1 the peer is also banned.
 
 * **info**
   Returns information about the server in JSON format (sync state, connected
@@ -138,6 +142,9 @@ format.
   Herder, History, Ledger, Overlay, Process, SCP, Tx (or all if no partition is
   specified). Level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE,
   TRACE.
+
+* **logrotate**
+  Rotate log files.
 
 * **maintenance**
   `/maintenance?[queue=true]`<br>
@@ -157,14 +164,15 @@ format.
   Returns the list of known peers in JSON format.
 
 * **quorum**
-  `/quorum?[node=NODE_ID][&compact=true]`<br>
-  returns information about the quorum for node NODE_ID (this node by default).
+  `/quorum?[node=NODE_ID][&compact=true][&fullkeys=true]`<br>
+  Returns information about the quorum for node NODE_ID (this node by default).
   NODE_ID is either a full key (`GABCD...`), an alias (`$name`) or an
   abbreviated ID (`@GABCD`). If compact is set, only returns a summary version.
+  Outputs unshortened public keys if fullkeys is set.
 
 * **setcursor**
   `/setcursor?id=ID&cursor=N`<br>
-  sets or creates a cursor identified by `ID` with value `N`. ID is an
+  Sets or creates a cursor identified by `ID` with value `N`. ID is an
   uppercase AlphaNum, N is an uint32 that represents the last ledger sequence
   number that the instance ID processed. Cursors are used by dependent services
   to tell stellar-core which data can be safely deleted by the instance. The
@@ -176,17 +184,17 @@ format.
 
 * **getcursor**
   `/getcursor?[id=ID]`<br>
-  gets the cursor identified by `ID`. If ID is not defined then all cursors
+  Gets the cursor identified by `ID`. If ID is not defined then all cursors
   will be returned.
 
 * **scp**
-  `/scp?[limit=n]`<br>
+  `/scp?[limit=n][&fullkeys=true]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last
-  n (default 2) ledgers.
+  n (default 2) ledgers. Outputs unshortened public keys if fullkeys is set.
 
 * **tx**
   `/tx?blob=Base64`<br>
-  submit a [transaction](../../learn/concepts/transactions.md) to the network.
+  Submit a transaction to the network.
   blob is a base64 encoded XDR serialized 'TransactionEnvelope', and it
   returns a JSON object with the following properties
   status:
@@ -198,9 +206,9 @@ format.
 
 * **upgrades**
   * `/upgrades?mode=get`<br>
-    retrieves the currently configured upgrade settings<br>
+    Retrieves the currently configured upgrade settings.<br>
   * `/upgrades?mode=clear`<br>
-    clears any upgrade settings<br>
+    Clears any upgrade settings.<br>
   * `/upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
     * upgradetime is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
         It is the time the upgrade will be scheduled for. If it is in the past,
