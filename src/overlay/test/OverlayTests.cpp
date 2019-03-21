@@ -835,7 +835,9 @@ TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
         REQUIRE(!conn2.getInitiator()->isConnected());
         REQUIRE(!conn2.getAcceptor()->isConnected());
         REQUIRE(conn2.getAcceptor()->getDropReason() ==
-                "connecting already-connected peer");
+                fmt::format("already-connected peer: {}",
+                            app1->getConfig().toShortString(
+                                cfg1.NODE_SEED.getPublicKey())));
 
         REQUIRE(knowsAsOutbound(*app1, *app2));
         REQUIRE(knowsAsInbound(*app2, *app1));
@@ -853,8 +855,10 @@ TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
         REQUIRE(conn.getAcceptor()->isAuthenticated());
         REQUIRE(!conn2.getInitiator()->isConnected());
         REQUIRE(!conn2.getAcceptor()->isConnected());
-        REQUIRE(conn2.getInitiator()->getDropReason() ==
-                "connecting already-connected peer");
+        REQUIRE(conn2.getAcceptor()->getDropReason() ==
+                fmt::format("ERR_CONF (already-connected peer: {})",
+                            app1->getConfig().toShortString(
+                                cfg1.NODE_SEED.getPublicKey())));
 
         REQUIRE(knowsAsInbound(*app1, *app2));
         REQUIRE(knowsAsOutbound(*app2, *app1));

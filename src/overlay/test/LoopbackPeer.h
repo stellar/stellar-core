@@ -65,9 +65,8 @@ class LoopbackPeer : public Peer
     {
     }
     LoopbackPeer(Application& app, PeerRole role);
-    void drop(ErrorCode err, std::string const& msg,
+    void drop(std::string const& reason, DropDirection dropDirection,
               DropMode dropMode) override;
-    void drop(DropMode dropMode) override;
 
     void deliverOne();
     void deliverAll();

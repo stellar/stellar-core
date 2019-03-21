@@ -42,8 +42,8 @@ class OverlayManagerImpl : public OverlayManager
     {
         explicit PeersList(OverlayManagerImpl& overlayManager,
                            medida::MetricsRegistry& metricsRegistry,
-                           std::string directionString,
-                           std::string cancelledName,
+                           std::string const& directionString,
+                           std::string const& cancelledName,
                            int maxAuthenticatedCount);
 
         medida::Meter& mConnectionsAttempted;
@@ -52,6 +52,7 @@ class OverlayManagerImpl : public OverlayManager
         medida::Meter& mConnectionsCancelled;
 
         OverlayManagerImpl& mOverlayManager;
+        std::string mDirectionString;
         int mMaxAuthenticatedCount;
 
         std::vector<Peer::pointer> mPending;
