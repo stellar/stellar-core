@@ -478,8 +478,15 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadData(
     std::unordered_set<LedgerKey> const& keys) const
 {
-    BulkLoadDataOperation op(mDatabase, keys);
-    return populateLoadedEntries(keys,
-                                 mDatabase.doDatabaseTypeSpecificOperation(op));
+    if (!keys.empty())
+    {
+        BulkLoadDataOperation op(mDatabase, keys);
+        return populateLoadedEntries(
+            keys, mDatabase.doDatabaseTypeSpecificOperation(op));
+    }
+    else
+    {
+        return {};
+    }
 }
 }
