@@ -64,15 +64,25 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     // Possibly flush some queued messages if queue's full.
     while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
     {
-        // If our recipient is straggling, we will break off sending 50% of the
+        // If our recipient is straggling, we will break off sending 75% of the
         // time even when we have more things to send, causing the outbound
         // queue to back up gradually.
         auto remote = mRemote.lock();
-        if (remote && remote->getStraggling() && rand_flip())
+        if (remote && remote->getStraggling())
         {
-            CLOG(INFO, "Overlay") << "LoopbackPeer recipient straggling, "
-                                  << "outbound queue at " << mOutQueue.size();
-            break;
+            if (rand_flip() || rand_flip())
+            {
+                CLOG(INFO, "Overlay")
+                    << "Loopback send-to-straggler pausing, "
+                    << "outbound queue at " << mOutQueue.size();
+                break;
+            }
+            else
+            {
+                CLOG(INFO, "Overlay")
+                    << "Loopback send-to-straggler sending, "
+                    << "outbound queue at " << mOutQueue.size();
+            }
         }
         deliverOne();
     }

@@ -738,7 +738,7 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
         // Straggler detection piggy-backs on the idle timer so we drive
         // the test from idle-timer-firing granularity.
         assert(cfg1.PEER_TIMEOUT == cfg2.PEER_TIMEOUT);
-        assert(cfg1.PEER_TIMEOUT > stragglerTimeout);
+        assert(stragglerTimeout >= cfg1.PEER_TIMEOUT * 2);
 
         // Initiator (cfg1) will straggle, and acceptor (cfg2) will notice and
         // disconnect.
@@ -746,7 +746,7 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
 
         auto app1 = createTestApplication(clock, cfg1);
         auto app2 = createTestApplication(clock, cfg2);
-        auto waitTime = std::chrono::seconds(cfg2.PEER_TIMEOUT * 5);
+        auto waitTime = std::chrono::seconds(stragglerTimeout * 3);
         auto padTime = std::chrono::seconds(5);
 
         LoopbackPeerConnection conn(*app1, *app2);
@@ -767,10 +767,10 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
             LOG(INFO) << "clock.now() = "
                       << clock.now().time_since_epoch().count();
 
-            // Straggler keeps asking for peers 10 times per second -- this is
+            // Straggler keeps asking for peers once per second -- this is
             // easy traffic to fake-generate -- but not accepting response
             // messages in a timely fashion.
-            sendTimer.expires_from_now(std::chrono::milliseconds(100));
+            sendTimer.expires_from_now(std::chrono::seconds(1));
             sendTimer.async_wait([straggler](asio::error_code const& error) {
                 if (!error)
                 {
@@ -795,14 +795,19 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
                     .count() != 0);
     };
 
-    SECTION("5 seconds straggle timeout")
+    SECTION("60 seconds straggle timeout")
     {
-        test(5);
+        test(60);
     }
 
-    SECTION("28 seconds straggle timeout")
+    SECTION("120 seconds straggle timeout")
     {
-        test(28);
+        test(120);
+    }
+
+    SECTION("150 seconds straggle timeout")
+    {
+        test(150);
     }
 }
 
