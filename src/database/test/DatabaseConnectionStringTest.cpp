@@ -145,4 +145,11 @@ TEST_CASE("remove password from database connection string",
                     R"(dbname=name password=abc)") ==
                 R"(dbname=name password=abc)");
     }
+
+    SECTION("ignore sqlite3://:memory:")
+    {
+        REQUIRE(removePasswordFromConnectionString(
+                    R"(sqlite3://:memory:)") ==
+                R"(sqlite3://:memory:)");
+    }
 }
