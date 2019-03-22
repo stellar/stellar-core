@@ -66,8 +66,8 @@ Field | Type | Description
 ------|------|---------------
 sellerid | VARCHAR(56) NOT NULL | (STRKEY)
 offerid | BIGINT NOT NULL CHECK (offerid >= 0) |
-sellingasset | TEXT NOT NULL | selling (BASE64)
-buyingasset | TEXT NOT NULL | buying (BASE64)
+sellingasset | TEXT NOT NULL | selling (XDR)
+buyingasset | TEXT NOT NULL | buying (XDR)
 amount | BIGINT NOT NULL CHECK (amount >= 0) |
 pricen | INT NOT NULL | Price.n
 priced | INT NOT NULL | Price.d
