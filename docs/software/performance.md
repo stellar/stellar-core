@@ -80,7 +80,7 @@ Some key configuration choices concerning storage access will greatly affect per
   1. The `BUCKET_DIR_PATH` config option sets the location that `stellar-core` places its buckets while (re)writing the bucket list. This should be located on a relatively fast, low-latency local disk. Ideally SSD or NVMe or similar. The faster the better. It does not need to be _very_ large and should not grow in usage _very_ fast, though `stellar-core` will fail if it fills up, so keep an eye on its utilization and make sure there's plenty of room.
   2. The `DATABASE` config value controls not only which _kind_ of database the node is performing transactions against, but also _where_ the database is located. Unlike with many database-backed programs, the _content_ of the database in a `stellar-core` installation is somewhat ephemeral: every node has a complete copy of it, as does every history archive, and the database can always be restored / rebuilt from history archives (it is in fact being continuously backed up every 5 minutes). So the main thing to optimize for here is latency, especially on nodes doing consensus. We recommend either:
 
-     * SQLite on a fast, local disk. This is probably the fastest option and is perfectly adequate for many types of node.
+     * SQLite on a fast, local disk. This is probably the fastest option and is perfectly adequate for many types of node. Note: if you are running Horizon, it will need to access stellar-core's database to ingest data. It is not compatible with SQLite. 
      * The newest version of PostgreSQL supported (a minimum version is listed in installation instructions but we usually test with newer versions as well).
 
          * Ideally running on the same physical machine as `stellar-core`
