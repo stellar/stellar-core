@@ -58,7 +58,7 @@ signers | TEXT | (XDR)
 
 ## offers
 
-Defined in [`src/ledger/LedgerTxnOfferSQL.cpp.cpp`](/src/ledger/LedgerTxnOfferSQL.cpp.cpp)
+Defined in [`src/ledger/LedgerTxnOfferSQL.cpp`](/src/ledger/LedgerTxnOfferSQL.cpp)
 
 Equivalent to _OfferEntry_
 
