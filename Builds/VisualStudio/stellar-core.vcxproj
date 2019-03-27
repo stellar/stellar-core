@@ -429,7 +429,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\test\ApplicationTests.cpp" />
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp" />
     <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp" />
-    <ClCompile Include="..\..\src\main\test\LruCacheTests.cpp" />
+    <ClCompile Include="..\..\src\util\test\CacheTests.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\LoadManager.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerAuth.cpp" />
@@ -745,6 +745,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\types.h" />
     <ClInclude Include="..\..\src\util\MetricResetter.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
+    <ClInclude Include="..\..\src\util\RandomEvictionCache.h" />
     <ClInclude Include="..\..\src\work\Work.h" />
     <ClInclude Include="..\..\src\work\WorkManager.h" />
     <ClInclude Include="..\..\src\work\WorkManagerImpl.h" />

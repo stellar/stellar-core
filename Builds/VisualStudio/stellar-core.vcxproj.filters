@@ -783,8 +783,8 @@
     <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\test\LruCacheTests.cpp">
-      <Filter>main\tests</Filter>
+    <ClCompile Include="..\..\src\util\test\CacheTests.cpp">
+      <Filter>util\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\FloodTests.cpp">
       <Filter>overlay\tests</Filter>
@@ -1239,6 +1239,9 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\numeric.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\RandomEvictionCache.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\TransactionUtils.h">
