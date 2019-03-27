@@ -149,59 +149,51 @@ TEST_CASE("merging bucket entries", "[bucket]")
     Config const& cfg = getTestConfig();
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
-
-        LedgerEntry liveEntry;
-        LedgerKey deadEntry;
+        auto& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
 
         autocheck::generator<bool> flip;
 
-        SECTION("dead account entry annihilates live account entry")
-        {
-            liveEntry.data.type(ACCOUNT);
-            liveEntry.data.account() =
-                LedgerTestUtils::generateValidAccountEntry(10);
-            deadEntry.type(ACCOUNT);
-            deadEntry.account().accountID = liveEntry.data.account().accountID;
-            std::vector<LedgerEntry> live{liveEntry};
-            std::vector<LedgerKey> dead{deadEntry};
-            std::shared_ptr<Bucket> b1 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
-            CHECK(countEntries(b1) == 1);
-        }
+        auto checkDeadAnnihilatesLive = [&](LedgerEntryType let) {
+            std::string entryType =
+                xdr::xdr_traits<LedgerEntryType>::enum_name(let);
+            SECTION("dead " + entryType + " annihilates live " + entryType)
+            {
+                LedgerEntry liveEntry;
+                liveEntry.data.type(let);
+                switch (let)
+                {
+                case ACCOUNT:
+                    liveEntry.data.account() = LedgerTestUtils::generateValidAccountEntry(10);
+                    break;
+                case TRUSTLINE:
+                    liveEntry.data.trustLine() = LedgerTestUtils::generateValidTrustLineEntry(10);
+                    break;
+                case OFFER:
+                    liveEntry.data.offer() = LedgerTestUtils::generateValidOfferEntry(10);
+                    break;
+                case DATA:
+                    liveEntry.data.data() = LedgerTestUtils::generateValidDataEntry(10);
+                    break;
+                default:
+                    abort();
+                }
+                auto deadEntry = LedgerEntryKey(liveEntry);
+                auto bLive = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                        /*countMergeEvents=*/true);
+                auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                        /*countMergeEvents=*/true);
+                auto b1 = Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
+                                        /*keepDeadEntries=*/true,
+                                        /*countMergeEvents=*/true);
+                CHECK(countEntries(b1) == 1);
+            }
+        };
 
-        SECTION("dead trustline entry annihilates live trustline entry")
-        {
-            liveEntry.data.type(TRUSTLINE);
-            liveEntry.data.trustLine() =
-                LedgerTestUtils::generateValidTrustLineEntry(10);
-            deadEntry.type(TRUSTLINE);
-            deadEntry.trustLine().accountID =
-                liveEntry.data.trustLine().accountID;
-            deadEntry.trustLine().asset = liveEntry.data.trustLine().asset;
-            std::vector<LedgerEntry> live{liveEntry};
-            std::vector<LedgerKey> dead{deadEntry};
-            std::shared_ptr<Bucket> b1 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
-            CHECK(countEntries(b1) == 1);
-        }
-
-        SECTION("dead offer entry annihilates live offer entry")
-        {
-            liveEntry.data.type(OFFER);
-            liveEntry.data.offer() =
-                LedgerTestUtils::generateValidOfferEntry(10);
-            deadEntry.type(OFFER);
-            deadEntry.offer().sellerID = liveEntry.data.offer().sellerID;
-            deadEntry.offer().offerID = liveEntry.data.offer().offerID;
-            std::vector<LedgerEntry> live{liveEntry};
-            std::vector<LedgerKey> dead{deadEntry};
-            std::shared_ptr<Bucket> b1 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
-            CHECK(countEntries(b1) == 1);
-        }
+        checkDeadAnnihilatesLive(ACCOUNT);
+        checkDeadAnnihilatesLive(TRUSTLINE);
+        checkDeadAnnihilatesLive(OFFER);
+        checkDeadAnnihilatesLive(DATA);
 
         SECTION("random dead entries annihilates live entries")
         {
@@ -215,9 +207,13 @@ TEST_CASE("merging bucket entries", "[bucket]")
                     dead.push_back(LedgerEntryKey(e));
                 }
             }
-            std::shared_ptr<Bucket> b1 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
+            auto bLive = Bucket::fresh(bm, vers, {}, live, {},
+                                    /*countMergeEvents=*/true);
+            auto bDead = Bucket::fresh(bm, vers, {}, {}, dead,
+                                    /*countMergeEvents=*/true);
+            auto b1 = Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
+                                    /*keepDeadEntries=*/true,
+                                    /*countMergeEvents=*/true);
             EntryCounts e(b1);
             CHECK(e.sum() == live.size());
             CLOG(DEBUG, "Bucket") << "post-merge live count: " << e.nLive
@@ -394,7 +390,13 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
 
         SECTION("dead and init account entries merge correctly")
         {
-            auto b1 = Bucket::fresh(bm, vers, {initEntry}, {}, {deadEntry},
+            auto bInit = Bucket::fresh(bm, vers, {initEntry}, {}, {},
+                                    /*countMergeEvents=*/true);
+            auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                    /*countMergeEvents=*/true);
+            auto b1 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, bInit,
+                                    bDead, /*shadows=*/{},
+                                    /*keepDeadEntries=*/true,
                                     /*countMergeEvents=*/true);
             // In initEra, the INIT will make it through fresh() to the bucket,
             // and mutually annihilate on contact with the DEAD, leaving 0
@@ -419,31 +421,22 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
         SECTION("dead and init entries merge with intervening live entries "
                 "correctly")
         {
-            auto b1 = Bucket::fresh(bm, vers, {initEntry}, {liveEntry},
-                                    {deadEntry}, /*countMergeEvents=*/true);
+            auto bInit = Bucket::fresh(bm, vers, {initEntry}, {}, {},
+                                    /*countMergeEvents=*/true);
+            auto bLive = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                    /*countMergeEvents=*/true);
+            auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                    /*countMergeEvents=*/true);
+            auto bmerge1 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, bInit,
+                                         bLive, /*shadows=*/{},
+                                         /*keepDeadEntries=*/true,
+                                         /*countMergeEvents=*/true);
+            auto b1 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, bmerge1,
+                                    bDead, /*shadows=*/{},
+                                    /*keepDeadEntries=*/true,
+                                    /*countMergeEvents=*/true);
             // The same thing should happen here as above, except that the INIT
             // will merge-over the LIVE during fresh().
-            EntryCounts e(b1);
-            CHECK(e.nInit == 0);
-            CHECK(e.nLive == 0);
-            if (initEra)
-            {
-                CHECK(e.nMeta == 1);
-                CHECK(e.nDead == 0);
-            }
-            else
-            {
-                CHECK(e.nMeta == 0);
-                CHECK(e.nDead == 1);
-            }
-        }
-
-        SECTION("dead and init entries annihilate multiple live entries")
-        {
-            auto b1 = Bucket::fresh(bm, vers, {initEntry},
-                                    {liveEntry, liveEntry2, liveEntry3},
-                                    {deadEntry}, /*countMergeEvents=*/true);
-            // Same deal here as above.
             EntryCounts e(b1);
             CHECK(e.nInit == 0);
             CHECK(e.nLive == 0);

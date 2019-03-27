@@ -249,54 +249,6 @@ TEST_CASE("bucket list shadowing", "[bucket][bucketlist]")
     });
 }
 
-TEST_CASE("duplicate bucket entries", "[bucket][bucketlist]")
-{
-    VirtualClock clock;
-    Config const& cfg = getTestConfig();
-    try
-    {
-        for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-            Application::pointer app = createTestApplication(clock, cfg);
-            BucketList bl1, bl2;
-            autocheck::generator<std::vector<LedgerKey>> deadGen;
-            CLOG(DEBUG, "Bucket")
-                << "Adding batches with duplicates to bucket list";
-            for (uint32_t i = 1;
-                 !app->getClock().getIOContext().stopped() && i < 130; ++i)
-            {
-                auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(8);
-                auto doubleLiveBatch = liveBatch;
-                doubleLiveBatch.insert(doubleLiveBatch.end(), liveBatch.begin(),
-                                       liveBatch.end());
-                auto deadBatch = deadGen(8);
-                app->getClock().crank(false);
-                bl1.addBatch(*app, i, getAppLedgerVersion(app), {}, liveBatch,
-                             deadBatch);
-                bl2.addBatch(*app, i, getAppLedgerVersion(app), {},
-                             doubleLiveBatch, deadBatch);
-
-                if (i % 10 == 0)
-                    CLOG(DEBUG, "Bucket")
-                        << "Added batch " << i
-                        << ", hash1=" << hexAbbrev(bl1.getHash())
-                        << ", hash2=" << hexAbbrev(bl2.getHash());
-                for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
-                {
-                    auto const& lev1 = bl1.getLevel(j);
-                    auto const& lev2 = bl2.getLevel(j);
-                    REQUIRE(lev1.getHash() == lev2.getHash());
-                }
-            }
-        });
-    }
-    catch (std::future_error& e)
-    {
-        CLOG(DEBUG, "Bucket")
-            << "Test caught std::future_error " << e.code() << ": " << e.what();
-        REQUIRE(false);
-    }
-}
-
 TEST_CASE("bucket tombstones expire at bottom level",
           "[bucket][bucketlist][tombstones]")
 {
