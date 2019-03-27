@@ -126,6 +126,45 @@ Bucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
     return dead;
 }
 
+static std::vector<BucketEntry>
+convertToBucketEntry(bool useInit,
+                     std::vector<LedgerEntry> const& initEntries,
+                     std::vector<LedgerEntry> const& liveEntries,
+                     std::vector<LedgerKey> const& deadEntries)
+{
+
+    std::vector<BucketEntry> bucket;
+    for (auto const& e : initEntries)
+    {
+        BucketEntry ce;
+        ce.type(useInit ? INITENTRY : LIVEENTRY);
+        ce.liveEntry() = e;
+        bucket.push_back(ce);
+    }
+    for (auto const& e : liveEntries)
+    {
+        BucketEntry ce;
+        ce.type(LIVEENTRY);
+        ce.liveEntry() = e;
+        bucket.push_back(ce);
+    }
+    for (auto const& e : deadEntries)
+    {
+        BucketEntry ce;
+        ce.type(DEADENTRY);
+        ce.deadEntry() = e;
+        bucket.push_back(ce);
+    }
+
+    BucketEntryIdCmp cmp;
+    std::sort(bucket.begin(), bucket.end(), cmp);
+    assert(std::adjacent_find(bucket.begin(), bucket.end(),
+                [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
+                    return !cmp(lhs, rhs);
+                }) == bucket.end());
+    return bucket;
+}
+
 std::shared_ptr<Bucket>
 Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
               std::vector<LedgerEntry> const& initEntries,
@@ -138,49 +177,23 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     bool useInit =
         (protocolVersion >= FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
 
-    auto init = convertToBucketEntry(initEntries, useInit);
-    auto live = convertToBucketEntry(liveEntries, false);
-    auto dead = convertToBucketEntry(deadEntries);
-
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
+    auto entries =
+        stellar::convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
     MergeCounters mc;
-    BucketOutputIterator initOut(bucketManager.getTmpDir(), true, meta, mc);
-    BucketOutputIterator liveOut(bucketManager.getTmpDir(), true, meta, mc);
-    BucketOutputIterator deadOut(bucketManager.getTmpDir(), true, meta, mc);
-    for (auto const& e : init)
+    BucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc);
+    for (auto const& e : entries)
     {
-        initOut.put(e);
+        out.put(e);
     }
-    for (auto const& e : live)
-    {
-        liveOut.put(e);
-    }
-    for (auto const& e : dead)
-    {
-        deadOut.put(e);
-    }
-    auto initBucket = initOut.getBucket(bucketManager);
-    auto liveBucket = liveOut.getBucket(bucketManager);
-    auto deadBucket = deadOut.getBucket(bucketManager);
+
     if (countMergeEvents)
     {
         bucketManager.incrMergeCounters(mc);
     }
-
-    std::shared_ptr<Bucket> bucket1, bucket2;
-    {
-        bucket1 = Bucket::merge(
-            bucketManager, protocolVersion, initBucket, liveBucket,
-            /*shadows=*/{}, /*keepDeadEntries*/ true, countMergeEvents);
-    }
-    {
-        bucket2 = Bucket::merge(
-            bucketManager, protocolVersion, bucket1, deadBucket,
-            /*shadows=*/{}, /*keepDeadEntries*/ true, countMergeEvents);
-    }
-    return bucket2;
+    return out.getBucket(bucketManager);
 }
 
 static void
