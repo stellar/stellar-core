@@ -101,8 +101,6 @@ BaseManageOfferOpFrame::computeOfferExchangeParameters(
 
     auto ledgerVersion = header.current().ledgerVersion;
 
-    // Same condition for ManageOfferOp and ManageBuyOfferOp. We always have
-    // ledgerVersion >= 10 for ManageBuyOfferOp.
     if (creatingNewOffer &&
         (ledgerVersion >= 10 ||
          (mSheep.type() == ASSET_TYPE_NATIVE && ledgerVersion > 8)))
