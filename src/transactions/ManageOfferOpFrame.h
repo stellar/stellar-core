@@ -13,12 +13,12 @@ class AbstractLedgerTxn;
 
 class ManageOfferOpFrame : public BaseManageOfferOpFrame
 {
-    ManageOfferOp const& mManageOffer;
+    ManageSellOfferOp const& mManageSellOffer;
 
-    ManageOfferResult&
+    ManageSellOfferResult&
     innerResult()
     {
-        return mResult.tr().manageOfferResult();
+        return mResult.tr().manageSellOfferResult();
     }
 
   public:
@@ -56,10 +56,10 @@ class ManageOfferOpFrame : public BaseManageOfferOpFrame
     void setResultNotFound() override;
     void setResultLowReserve() override;
 
-    static ManageOfferResultCode
+    static ManageSellOfferResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().manageOfferResult().code();
+        return res.tr().manageSellOfferResult().code();
     }
 };
 }

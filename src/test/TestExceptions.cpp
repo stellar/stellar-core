@@ -97,35 +97,35 @@ throwIf(PathPaymentResult const& result)
 }
 
 void
-throwIf(ManageOfferResult const& result)
+throwIf(ManageSellOfferResult const& result)
 {
     switch (result.code())
     {
-    case MANAGE_OFFER_MALFORMED:
-        throw ex_MANAGE_OFFER_MALFORMED{};
-    case MANAGE_OFFER_SELL_NO_TRUST:
-        throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
-    case MANAGE_OFFER_BUY_NO_TRUST:
-        throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
-    case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
-        throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
-    case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
-        throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
-    case MANAGE_OFFER_LINE_FULL:
-        throw ex_MANAGE_OFFER_LINE_FULL{};
-    case MANAGE_OFFER_UNDERFUNDED:
-        throw ex_MANAGE_OFFER_UNDERFUNDED{};
-    case MANAGE_OFFER_CROSS_SELF:
-        throw ex_MANAGE_OFFER_CROSS_SELF{};
-    case MANAGE_OFFER_SELL_NO_ISSUER:
-        throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
-    case MANAGE_OFFER_BUY_NO_ISSUER:
-        throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
-    case MANAGE_OFFER_NOT_FOUND:
-        throw ex_MANAGE_OFFER_NOT_FOUND{};
-    case MANAGE_OFFER_LOW_RESERVE:
-        throw ex_MANAGE_OFFER_LOW_RESERVE{};
-    case MANAGE_OFFER_SUCCESS:
+    case MANAGE_SELL_OFFER_MALFORMED:
+        throw ex_MANAGE_SELL_OFFER_MALFORMED{};
+    case MANAGE_SELL_OFFER_SELL_NO_TRUST:
+        throw ex_MANAGE_SELL_OFFER_SELL_NO_TRUST{};
+    case MANAGE_SELL_OFFER_BUY_NO_TRUST:
+        throw ex_MANAGE_SELL_OFFER_BUY_NO_TRUST{};
+    case MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED:
+        throw ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED{};
+    case MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED:
+        throw ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED{};
+    case MANAGE_SELL_OFFER_LINE_FULL:
+        throw ex_MANAGE_SELL_OFFER_LINE_FULL{};
+    case MANAGE_SELL_OFFER_UNDERFUNDED:
+        throw ex_MANAGE_SELL_OFFER_UNDERFUNDED{};
+    case MANAGE_SELL_OFFER_CROSS_SELF:
+        throw ex_MANAGE_SELL_OFFER_CROSS_SELF{};
+    case MANAGE_SELL_OFFER_SELL_NO_ISSUER:
+        throw ex_MANAGE_SELL_OFFER_SELL_NO_ISSUER{};
+    case MANAGE_SELL_OFFER_BUY_NO_ISSUER:
+        throw ex_MANAGE_SELL_OFFER_BUY_NO_ISSUER{};
+    case MANAGE_SELL_OFFER_NOT_FOUND:
+        throw ex_MANAGE_SELL_OFFER_NOT_FOUND{};
+    case MANAGE_SELL_OFFER_LOW_RESERVE:
+        throw ex_MANAGE_SELL_OFFER_LOW_RESERVE{};
+    case MANAGE_SELL_OFFER_SUCCESS:
         break;
     default:
         throw ex_UNKNOWN{};
@@ -365,11 +365,11 @@ throwIf(TransactionResult const& result)
     case PATH_PAYMENT:
         throwIf(opResult.tr().pathPaymentResult());
         break;
-    case MANAGE_OFFER:
-        throwIf(opResult.tr().manageOfferResult());
+    case MANAGE_SELL_OFFER:
+        throwIf(opResult.tr().manageSellOfferResult());
         break;
-    case CREATE_PASSIVE_OFFER:
-        throwIf(opResult.tr().createPassiveOfferResult());
+    case CREATE_PASSIVE_SELL_OFFER:
+        throwIf(opResult.tr().createPassiveSellOfferResult());
         break;
     case SET_OPTIONS:
         throwIf(opResult.tr().setOptionsResult());

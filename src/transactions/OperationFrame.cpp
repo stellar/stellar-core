@@ -55,9 +55,9 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<PaymentOpFrame>(op, res, tx);
     case PATH_PAYMENT:
         return std::make_shared<PathPaymentOpFrame>(op, res, tx);
-    case MANAGE_OFFER:
+    case MANAGE_SELL_OFFER:
         return std::make_shared<ManageOfferOpFrame>(op, res, tx);
-    case CREATE_PASSIVE_OFFER:
+    case CREATE_PASSIVE_SELL_OFFER:
         return std::make_shared<CreatePassiveOfferOpFrame>(op, res, tx);
     case SET_OPTIONS:
         return std::make_shared<SetOptionsOpFrame>(op, res, tx);

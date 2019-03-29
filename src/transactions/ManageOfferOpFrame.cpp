@@ -35,31 +35,32 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
                                        OperationResult& res,
                                        TransactionFrame& parentTx, bool passive)
-    : BaseManageOfferOpFrame(op, res, parentTx, op.body.manageOfferOp().selling,
-                             op.body.manageOfferOp().buying,
-                             op.body.manageOfferOp().offerID,
-                             op.body.manageOfferOp().price, passive)
-    , mManageOffer(mOperation.body.manageOfferOp())
+    : BaseManageOfferOpFrame(op, res, parentTx,
+                             op.body.manageSellOfferOp().selling,
+                             op.body.manageSellOfferOp().buying,
+                             op.body.manageSellOfferOp().offerID,
+                             op.body.manageSellOfferOp().price, passive)
+    , mManageSellOffer(mOperation.body.manageSellOfferOp())
 {
 }
 
 bool
 ManageOfferOpFrame::isAmountValid()
 {
-    return mManageOffer.amount >= 0;
+    return mManageSellOffer.amount >= 0;
 }
 
 bool
 ManageOfferOpFrame::isDeleteOffer()
 {
-    return mManageOffer.amount == 0;
+    return mManageSellOffer.amount == 0;
 }
 
 int64_t
 ManageOfferOpFrame::getOfferBuyingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        mManageOffer.price, mManageOffer.amount, INT64_MAX, INT64_MAX,
+        mManageSellOffer.price, mManageSellOffer.amount, INT64_MAX, INT64_MAX,
         INT64_MAX, false);
     return res.numSheepSend;
 }
@@ -68,7 +69,7 @@ int64_t
 ManageOfferOpFrame::getOfferSellingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        mManageOffer.price, mManageOffer.amount, INT64_MAX, INT64_MAX,
+        mManageSellOffer.price, mManageSellOffer.amount, INT64_MAX, INT64_MAX,
         INT64_MAX, false);
     return res.numWheatReceived;
 }
@@ -79,7 +80,7 @@ ManageOfferOpFrame::applyOperationSpecificLimits(int64_t& maxSheepSend,
                                                  int64_t& maxWheatReceive,
                                                  int64_t wheatReceived)
 {
-    maxSheepSend = std::min(mManageOffer.amount - sheepSent, maxSheepSend);
+    maxSheepSend = std::min(mManageSellOffer.amount - sheepSent, maxSheepSend);
 }
 
 void
@@ -87,103 +88,107 @@ ManageOfferOpFrame::getExchangeParametersBeforeV10(int64_t& maxSheepSend,
                                                    int64_t& maxWheatReceive)
 {
     int64_t maxSheepBasedOnWheat;
-    if (!bigDivide(maxSheepBasedOnWheat, maxWheatReceive, mManageOffer.price.d,
-                   mManageOffer.price.n, ROUND_DOWN))
+    if (!bigDivide(maxSheepBasedOnWheat, maxWheatReceive,
+                   mManageSellOffer.price.d, mManageSellOffer.price.n,
+                   ROUND_DOWN))
     {
         maxSheepBasedOnWheat = INT64_MAX;
     }
 
     maxSheepSend =
-        std::min({maxSheepSend, maxSheepBasedOnWheat, mManageOffer.amount});
+        std::min({maxSheepSend, maxSheepBasedOnWheat, mManageSellOffer.amount});
 }
 
 bool
 ManageOfferOpFrame::isResultSuccess()
 {
-    return mResult.tr().manageOfferResult().code() == MANAGE_OFFER_SUCCESS;
+    return mResult.tr().manageSellOfferResult().code() ==
+           MANAGE_SELL_OFFER_SUCCESS;
 }
 
 ManageOfferSuccessResult&
 ManageOfferOpFrame::getSuccessResult()
 {
-    return mResult.tr().manageOfferResult().success();
+    return mResult.tr().manageSellOfferResult().success();
 }
 
 void
 ManageOfferOpFrame::setResultSuccess()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_SUCCESS);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_SUCCESS);
 }
 
 void
 ManageOfferOpFrame::setResultMalformed()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_MALFORMED);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_MALFORMED);
 }
 
 void
 ManageOfferOpFrame::setResultSellNoTrust()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_SELL_NO_TRUST);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_SELL_NO_TRUST);
 }
 
 void
 ManageOfferOpFrame::setResultBuyNoTrust()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_BUY_NO_TRUST);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_BUY_NO_TRUST);
 }
 
 void
 ManageOfferOpFrame::setResultSellNotAuthorized()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
+    mResult.tr().manageSellOfferResult().code(
+        MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
 }
 
 void
 ManageOfferOpFrame::setResultBuyNotAuthorized()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
+    mResult.tr().manageSellOfferResult().code(
+        MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
 }
 
 void
 ManageOfferOpFrame::setResultLineFull()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_LINE_FULL);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_LINE_FULL);
 }
 
 void
 ManageOfferOpFrame::setResultUnderfunded()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_UNDERFUNDED);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_UNDERFUNDED);
 }
 
 void
 ManageOfferOpFrame::setResultCrossSelf()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_CROSS_SELF);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_CROSS_SELF);
 }
 
 void
 ManageOfferOpFrame::setResultSellNoIssuer()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_SELL_NO_ISSUER);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_SELL_NO_ISSUER);
 }
 
 void
 ManageOfferOpFrame::setResultBuyNoIssuer()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_BUY_NO_ISSUER);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_BUY_NO_ISSUER);
 }
 
 void
 ManageOfferOpFrame::setResultNotFound()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_NOT_FOUND);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_NOT_FOUND);
 }
 
 void
 ManageOfferOpFrame::setResultLowReserve()
 {
-    mResult.tr().manageOfferResult().code(MANAGE_OFFER_LOW_RESERVE);
+    mResult.tr().manageSellOfferResult().code(MANAGE_SELL_OFFER_LOW_RESERVE);
 }
 }

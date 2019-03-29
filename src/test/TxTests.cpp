@@ -546,11 +546,11 @@ createPassiveOffer(Asset const& selling, Asset const& buying,
                    Price const& price, int64_t amount)
 {
     Operation op;
-    op.body.type(CREATE_PASSIVE_OFFER);
-    op.body.createPassiveOfferOp().amount = amount;
-    op.body.createPassiveOfferOp().selling = selling;
-    op.body.createPassiveOfferOp().buying = buying;
-    op.body.createPassiveOfferOp().price = price;
+    op.body.type(CREATE_PASSIVE_SELL_OFFER);
+    op.body.createPassiveSellOfferOp().amount = amount;
+    op.body.createPassiveSellOfferOp().selling = selling;
+    op.body.createPassiveSellOfferOp().buying = buying;
+    op.body.createPassiveSellOfferOp().price = price;
 
     return op;
 }
@@ -560,12 +560,12 @@ manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
             Price const& price, int64_t amount)
 {
     Operation op;
-    op.body.type(MANAGE_OFFER);
-    op.body.manageOfferOp().amount = amount;
-    op.body.manageOfferOp().selling = selling;
-    op.body.manageOfferOp().buying = buying;
-    op.body.manageOfferOp().offerID = offerId;
-    op.body.manageOfferOp().price = price;
+    op.body.type(MANAGE_SELL_OFFER);
+    op.body.manageSellOfferOp().amount = amount;
+    op.body.manageSellOfferOp().selling = selling;
+    op.body.manageSellOfferOp().buying = buying;
+    op.body.manageSellOfferOp().offerID = offerId;
+    op.body.manageSellOfferOp().price = price;
 
     return op;
 }
@@ -585,7 +585,7 @@ manageBuyOffer(uint64 offerId, Asset const& selling, Asset const& buying,
     return op;
 }
 
-static ManageOfferResult
+static ManageSellOfferResult
 applyCreateOfferHelper(Application& app, uint64 offerId,
                        SecretKey const& source, Asset const& selling,
                        Asset const& buying, Price const& price, int64_t amount,
@@ -619,9 +619,9 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     REQUIRE(results.size() == 1);
 
-    auto& manageOfferResult = results[0].tr().manageOfferResult();
+    auto& manageSellOfferResult = results[0].tr().manageSellOfferResult();
 
-    auto& offerResult = manageOfferResult.success().offer;
+    auto& offerResult = manageSellOfferResult.success().offer;
 
     switch (offerResult.effect())
     {
@@ -650,7 +650,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
         abort();
     }
 
-    return manageOfferResult;
+    return manageSellOfferResult;
 }
 
 uint64_t
@@ -659,7 +659,7 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
                  int64_t amount, SequenceNumber seq,
                  ManageOfferEffect expectedEffect)
 {
-    ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
+    ManageSellOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, offerId, source, selling, buying, price, amount, seq);
 
     auto& success = createOfferRes.success().offer;
@@ -765,11 +765,12 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     REQUIRE(results.size() == 1);
 
-    auto& createPassiveOfferResult = results[0].tr().manageOfferResult();
+    auto& createPassiveSellOfferResult =
+        results[0].tr().manageSellOfferResult();
 
-    if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
+    if (createPassiveSellOfferResult.code() == MANAGE_SELL_OFFER_SUCCESS)
     {
-        auto& offerResult = createPassiveOfferResult.success().offer;
+        auto& offerResult = createPassiveSellOfferResult.success().offer;
 
         switch (offerResult.effect())
         {
@@ -800,7 +801,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         }
     }
 
-    auto& success = createPassiveOfferResult.success().offer;
+    auto& success = createPassiveSellOfferResult.success().offer;
 
     REQUIRE(success.effect() == expectedEffect);
 

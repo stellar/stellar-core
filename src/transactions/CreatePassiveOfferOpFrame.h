@@ -8,10 +8,10 @@
 
 namespace stellar
 {
-class ManageOfferOpHolder
+class ManageSellOfferOpHolder
 {
   public:
-    ManageOfferOpHolder(Operation const& op);
+    ManageSellOfferOpHolder(Operation const& op);
     Operation mCreateOp;
 };
 

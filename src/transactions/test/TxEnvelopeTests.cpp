@@ -954,7 +954,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         // second
                         REQUIRE(ManageOfferOpFrame::getInnerCode(
                                     tx->getOperations()[1]->getResult()) ==
-                                MANAGE_OFFER_MALFORMED);
+                                MANAGE_SELL_OFFER_MALFORMED);
                     }
                     SECTION("one failed tx")
                     {

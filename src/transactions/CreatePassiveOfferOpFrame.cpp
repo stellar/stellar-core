@@ -10,9 +10,9 @@ namespace stellar
 // change from CreatePassiveOfferOp to ManageOfferOp
 ManageOfferOpHolder::ManageOfferOpHolder(Operation const& op)
 {
-    mCreateOp.body.type(MANAGE_OFFER);
-    auto& manageOffer = mCreateOp.body.manageOfferOp();
-    auto const& createPassiveOp = op.body.createPassiveOfferOp();
+    mCreateOp.body.type(MANAGE_SELL_OFFER);
+    auto& manageOffer = mCreateOp.body.manageSellOfferOp();
+    auto const& createPassiveOp = op.body.createPassiveSellOfferOp();
     manageOffer.amount = createPassiveOp.amount;
     manageOffer.buying = createPassiveOp.buying;
     manageOffer.selling = createPassiveOp.selling;
