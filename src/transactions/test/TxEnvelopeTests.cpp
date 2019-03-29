@@ -19,7 +19,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "transactions/ManageOfferOpFrame.h"
+#include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
