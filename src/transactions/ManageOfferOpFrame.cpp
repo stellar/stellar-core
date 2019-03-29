@@ -87,8 +87,8 @@ ManageOfferOpFrame::getExchangeParametersBeforeV10(int64_t& maxSheepSend,
         maxSheepBasedOnWheat = INT64_MAX;
     }
 
-    maxSheepSend = std::min(maxSheepSend, maxSheepBasedOnWheat);
-    maxSheepSend = std::min(maxSheepSend, mManageOffer.amount);
+    maxSheepSend =
+        std::min({maxSheepSend, maxSheepBasedOnWheat, mManageOffer.amount});
 }
 
 bool
