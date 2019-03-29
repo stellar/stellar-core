@@ -502,7 +502,7 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
 // Next consider the case (wheatStays && price.n <= price.d && !isPathPayment).
 // Then it follows from sheepSend = 0 that
 //     wheatReceive = floor(sheepSend * price.d / price.n)
-// so sheepSend = 0. Similarly, if wheatReceive = 0 then
+// so wheatReceive = 0. Similarly, if wheatReceive = 0 then
 //     wheatReceive = floor(sheepSend * price.d / price.n)
 //                  >= floor(sheepSend)
 //                  = sheepSend
