@@ -18,7 +18,7 @@ class BaseManageOfferOpFrame : public OperationFrame
     uint64_t const mOfferID;
     Price const mPrice;
 
-    bool const mPassive;
+    bool const mSetPassiveOnCreate;
 
     bool checkOfferValid(AbstractLedgerTxn& lsOuter);
 
@@ -33,7 +33,7 @@ class BaseManageOfferOpFrame : public OperationFrame
     BaseManageOfferOpFrame(Operation const& op, OperationResult& res,
                            TransactionFrame& parentTx, Asset const& sheep,
                            Asset const& wheat, uint64_t offerID,
-                           Price const& price, bool passive);
+                           Price const& price, bool setPassiveOnCreate);
 
     bool doApply(AbstractLedgerTxn& lsOuter) override;
 

@@ -16,13 +16,13 @@ namespace stellar
 BaseManageOfferOpFrame::BaseManageOfferOpFrame(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx,
     Asset const& sheep, Asset const& wheat, uint64_t offerID,
-    Price const& price, bool passive)
+    Price const& price, bool setPassiveOnCreate)
     : OperationFrame(op, res, parentTx)
     , mSheep(sheep)
     , mWheat(wheat)
     , mOfferID(offerID)
     , mPrice(price)
-    , mPassive(passive)
+    , mSetPassiveOnCreate(setPassiveOnCreate)
 {
 }
 
@@ -229,7 +229,7 @@ BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
     else
     { // creating a new Offer
         creatingNewOffer = true;
-        passive = mPassive;
+        passive = mSetPassiveOnCreate;
         flags = passive ? PASSIVE_FLAG : 0;
     }
 
