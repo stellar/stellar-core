@@ -97,7 +97,7 @@ BaseManageOfferOpFrame::computeOfferExchangeParameters(
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
     auto header = ltx.loadHeader();
-    auto sourceAccount = stellar::loadAccount(ltx, getSourceID());
+    auto sourceAccount = loadSourceAccount(ltx, header);
 
     auto ledgerVersion = header.current().ledgerVersion;
 
@@ -310,7 +310,7 @@ BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
         {
             if (mWheat.type() == ASSET_TYPE_NATIVE)
             {
-                auto sourceAccount = stellar::loadAccount(ltx, getSourceID());
+                auto sourceAccount = loadSourceAccount(ltx, header);
                 if (!addBalance(header, sourceAccount, wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
@@ -329,7 +329,7 @@ BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
 
             if (mSheep.type() == ASSET_TYPE_NATIVE)
             {
-                auto sourceAccount = stellar::loadAccount(ltx, getSourceID());
+                auto sourceAccount = loadSourceAccount(ltx, header);
                 if (!addBalance(header, sourceAccount, -sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
@@ -383,7 +383,9 @@ BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
         auto newOffer = buildOffer(amount, flags);
         if (creatingNewOffer)
         {
-            auto sourceAccount = stellar::loadAccount(ltx, getSourceID());
+            // make sure we don't allow us to add offers when we don't have
+            // the minbalance (should never happen at this stage in v9+)
+            auto sourceAccount = loadSourceAccount(ltx, header);
             if (!addNumEntries(header, sourceAccount, 1))
             {
                 setResultLowReserve();
@@ -413,7 +415,7 @@ BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
 
         if (!creatingNewOffer)
         {
-            auto sourceAccount = stellar::loadAccount(ltx, getSourceID());
+            auto sourceAccount = loadSourceAccount(ltx, header);
             addNumEntries(header, sourceAccount, -1);
         }
     }
