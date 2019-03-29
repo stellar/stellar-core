@@ -11,7 +11,7 @@ namespace stellar
 
 class AbstractLedgerTxn;
 
-class ManageOfferOpFrame : public BaseManageOfferOpFrame
+class ManageSellOfferOpFrame : public ManageOfferOpFrameBase
 {
     ManageSellOfferOp const& mManageSellOffer;
 
@@ -22,10 +22,10 @@ class ManageOfferOpFrame : public BaseManageOfferOpFrame
     }
 
   public:
-    ManageOfferOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
-    ManageOfferOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx, bool passive);
+    ManageSellOfferOpFrame(Operation const& op, OperationResult& res,
+                           TransactionFrame& parentTx);
+    ManageSellOfferOpFrame(Operation const& op, OperationResult& res,
+                           TransactionFrame& parentTx, bool passive);
 
     bool isAmountValid() override;
     bool isDeleteOffer() override;

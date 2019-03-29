@@ -952,7 +952,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
                         // second
-                        REQUIRE(ManageOfferOpFrame::getInnerCode(
+                        REQUIRE(ManageSellOfferOpFrame::getInnerCode(
                                     tx->getOperations()[1]->getResult()) ==
                                 MANAGE_SELL_OFFER_MALFORMED);
                     }

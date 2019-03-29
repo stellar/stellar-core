@@ -15,11 +15,11 @@ class ManageSellOfferOpHolder
     Operation mCreateOp;
 };
 
-class CreatePassiveOfferOpFrame : public ManageOfferOpHolder,
-                                  public ManageOfferOpFrame
+class CreatePassiveSellOfferOpFrame : public ManageSellOfferOpHolder,
+                                      public ManageSellOfferOpFrame
 {
   public:
-    CreatePassiveOfferOpFrame(Operation const& op, OperationResult& res,
-                              TransactionFrame& parentTx);
+    CreatePassiveSellOfferOpFrame(Operation const& op, OperationResult& res,
+                                  TransactionFrame& parentTx);
 };
 }

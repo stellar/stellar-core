@@ -11,7 +11,7 @@ namespace stellar
 
 class AbstractLedgerTxn;
 
-class BaseManageOfferOpFrame : public OperationFrame
+class ManageOfferOpFrameBase : public OperationFrame
 {
     Asset const mSheep;
     Asset const mWheat;
@@ -30,7 +30,7 @@ class BaseManageOfferOpFrame : public OperationFrame
     LedgerEntry buildOffer(int64_t amount, uint32_t flags) const;
 
   public:
-    BaseManageOfferOpFrame(Operation const& op, OperationResult& res,
+    ManageOfferOpFrameBase(Operation const& op, OperationResult& res,
                            TransactionFrame& parentTx, Asset const& sheep,
                            Asset const& wheat, uint64_t offerID,
                            Price const& price, bool setPassiveOnCreate);

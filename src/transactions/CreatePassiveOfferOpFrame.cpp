@@ -8,7 +8,7 @@ namespace stellar
 {
 
 // change from CreatePassiveOfferOp to ManageOfferOp
-ManageOfferOpHolder::ManageOfferOpHolder(Operation const& op)
+ManageSellOfferOpHolder::ManageSellOfferOpHolder(Operation const& op)
 {
     mCreateOp.body.type(MANAGE_SELL_OFFER);
     auto& manageOffer = mCreateOp.body.manageSellOfferOp();
@@ -21,11 +21,10 @@ ManageOfferOpHolder::ManageOfferOpHolder(Operation const& op)
     mCreateOp.sourceAccount = op.sourceAccount;
 }
 
-CreatePassiveOfferOpFrame::CreatePassiveOfferOpFrame(Operation const& op,
-                                                     OperationResult& res,
-                                                     TransactionFrame& parentTx)
-    : ManageOfferOpHolder(op)
-    , ManageOfferOpFrame(mCreateOp, res, parentTx, true)
+CreatePassiveSellOfferOpFrame::CreatePassiveSellOfferOpFrame(
+    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
+    : ManageSellOfferOpHolder(op)
+    , ManageSellOfferOpFrame(mCreateOp, res, parentTx, true)
 {
 }
 }

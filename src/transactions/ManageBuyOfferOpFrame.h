@@ -11,7 +11,7 @@ namespace stellar
 
 class AbstractLedgerTxn;
 
-class ManageBuyOfferOpFrame : public BaseManageOfferOpFrame
+class ManageBuyOfferOpFrame : public ManageOfferOpFrameBase
 {
     ManageBuyOfferOp const& mManageBuyOffer;
 

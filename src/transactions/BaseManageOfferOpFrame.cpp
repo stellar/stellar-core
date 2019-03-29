@@ -13,7 +13,7 @@
 namespace stellar
 {
 
-BaseManageOfferOpFrame::BaseManageOfferOpFrame(
+ManageOfferOpFrameBase::ManageOfferOpFrameBase(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx,
     Asset const& sheep, Asset const& wheat, uint64_t offerID,
     Price const& price, bool setPassiveOnCreate)
@@ -27,7 +27,7 @@ BaseManageOfferOpFrame::BaseManageOfferOpFrame(
 }
 
 bool
-BaseManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& ltxOuter)
+ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
@@ -90,7 +90,7 @@ BaseManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& ltxOuter)
 }
 
 bool
-BaseManageOfferOpFrame::computeOfferExchangeParameters(
+ManageOfferOpFrameBase::computeOfferExchangeParameters(
     AbstractLedgerTxn& ltxOuter, bool creatingNewOffer, int64_t& maxSheepSend,
     int64_t& maxWheatReceive)
 {
@@ -183,7 +183,7 @@ BaseManageOfferOpFrame::computeOfferExchangeParameters(
 }
 
 bool
-BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
+ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
     if (!checkOfferValid(ltx))
@@ -423,7 +423,7 @@ BaseManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
 }
 
 LedgerEntry
-BaseManageOfferOpFrame::buildOffer(int64_t amount, uint32_t flags) const
+ManageOfferOpFrameBase::buildOffer(int64_t amount, uint32_t flags) const
 {
     LedgerEntry le;
     le.data.type(OFFER);
@@ -441,7 +441,7 @@ BaseManageOfferOpFrame::buildOffer(int64_t amount, uint32_t flags) const
 
 // makes sure the currencies are different
 bool
-BaseManageOfferOpFrame::doCheckValid(uint32_t ledgerVersion)
+ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion)
 {
     if (!isAssetValid(mSheep) || !isAssetValid(mWheat))
     {
