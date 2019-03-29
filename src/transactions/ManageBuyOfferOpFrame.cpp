@@ -31,6 +31,12 @@ ManageBuyOfferOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
+ManageBuyOfferOpFrame::isAmountValid()
+{
+    return mManageBuyOffer.buyAmount >= 0;
+}
+
+bool
 ManageBuyOfferOpFrame::isDeleteOffer()
 {
     return mManageBuyOffer.buyAmount == 0;
@@ -88,6 +94,12 @@ void
 ManageBuyOfferOpFrame::setResultSuccess()
 {
     mResult.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_SUCCESS);
+}
+
+void
+ManageBuyOfferOpFrame::setResultMalformed()
+{
+    mResult.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_MALFORMED);
 }
 
 void
@@ -156,43 +168,5 @@ void
 ManageBuyOfferOpFrame::setResultLowReserve()
 {
     mResult.tr().manageBuyOfferResult().code(MANAGE_BUY_OFFER_LOW_RESERVE);
-}
-
-bool
-ManageBuyOfferOpFrame::doCheckValid(uint32_t ledgerVersion)
-{
-    Asset const& sheep = mManageBuyOffer.selling;
-    Asset const& wheat = mManageBuyOffer.buying;
-
-    if (!isAssetValid(sheep) || !isAssetValid(wheat))
-    {
-        innerResult().code(MANAGE_BUY_OFFER_MALFORMED);
-        return false;
-    }
-    if (compareAsset(sheep, wheat))
-    {
-        innerResult().code(MANAGE_BUY_OFFER_MALFORMED);
-        return false;
-    }
-    if (mManageBuyOffer.buyAmount < 0 || mManageBuyOffer.price.d <= 0 ||
-        mManageBuyOffer.price.n <= 0)
-    {
-        innerResult().code(MANAGE_BUY_OFFER_MALFORMED);
-        return false;
-    }
-    if (mManageBuyOffer.offerID == 0 && mManageBuyOffer.buyAmount == 0)
-    {
-        // Note: This currently does not match the return code of ManageOfferOp.
-        // This is not an accident, but instead reflects the fact that MALFORMED
-        // is a more relevant error for this than NOT_FOUND. MALFORMED correctly
-        // reflects that this is never valid, whereas NOT_FOUND suggests that it
-        // depends on the state of the ledger. This was not corrected in
-        // ManageOfferOp because changing the behavior of ManageOfferOp is not
-        // in the scope of CAP-0006.
-        innerResult().code(MANAGE_BUY_OFFER_MALFORMED);
-        return false;
-    }
-
-    return true;
 }
 }

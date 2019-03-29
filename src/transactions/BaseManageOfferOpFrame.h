@@ -35,8 +35,11 @@ class BaseManageOfferOpFrame : public OperationFrame
                            Asset const& wheat, uint64_t offerID,
                            Price const& price, bool setPassiveOnCreate);
 
+    bool doCheckValid(uint32_t ledgerVersion) override;
+
     bool doApply(AbstractLedgerTxn& lsOuter) override;
 
+    virtual bool isAmountValid() = 0;
     virtual bool isDeleteOffer() = 0;
 
     virtual int64_t getOfferBuyingLiabilities() = 0;
@@ -53,6 +56,7 @@ class BaseManageOfferOpFrame : public OperationFrame
     virtual ManageOfferSuccessResult& getSuccessResult() = 0;
 
     virtual void setResultSuccess() = 0;
+    virtual void setResultMalformed() = 0;
     virtual void setResultSellNoTrust() = 0;
     virtual void setResultBuyNoTrust() = 0;
     virtual void setResultSellNotAuthorized() = 0;

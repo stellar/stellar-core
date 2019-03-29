@@ -291,7 +291,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                            OfferState::DELETED);
                 });
             });
-            for_versions_from(3, *app, [&] {
+            for_versions(3, 10, *app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -299,6 +299,15 @@ TEST_CASE("create offer", "[tx][offers]")
                             return market.addOffer(a1, {idr, usd, oneone, 0});
                         }),
                     ex_MANAGE_OFFER_NOT_FOUND);
+            });
+            for_versions_from(11, *app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 0});
+                        }),
+                    ex_MANAGE_OFFER_MALFORMED);
             });
         }
 

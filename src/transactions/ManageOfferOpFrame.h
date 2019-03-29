@@ -27,8 +27,7 @@ class ManageOfferOpFrame : public BaseManageOfferOpFrame
     ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx, bool passive);
 
-    bool doCheckValid(uint32_t ledgerVersion) override;
-
+    bool isAmountValid() override;
     bool isDeleteOffer() override;
 
     int64_t getOfferBuyingLiabilities() override;
@@ -44,6 +43,7 @@ class ManageOfferOpFrame : public BaseManageOfferOpFrame
     ManageOfferSuccessResult& getSuccessResult() override;
 
     void setResultSuccess() override;
+    void setResultMalformed() override;
     void setResultSellNoTrust() override;
     void setResultBuyNoTrust() override;
     void setResultSellNotAuthorized() override;

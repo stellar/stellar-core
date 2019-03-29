@@ -438,4 +438,43 @@ BaseManageOfferOpFrame::buildOffer(int64_t amount, uint32_t flags) const
     o.flags = flags;
     return le;
 }
+
+// makes sure the currencies are different
+bool
+BaseManageOfferOpFrame::doCheckValid(uint32_t ledgerVersion)
+{
+    if (!isAssetValid(mSheep) || !isAssetValid(mWheat))
+    {
+        setResultMalformed();
+        return false;
+    }
+    if (compareAsset(mSheep, mWheat))
+    {
+        setResultMalformed();
+        return false;
+    }
+
+    if (!isAmountValid() || mPrice.d <= 0 || mPrice.n <= 0)
+    {
+        setResultMalformed();
+        return false;
+    }
+
+    if (mOfferID == 0 && isDeleteOffer())
+    {
+        if (ledgerVersion >= 11)
+        {
+            setResultMalformed();
+            return false;
+        }
+        else if (ledgerVersion >= 3)
+        {
+            setResultNotFound();
+            return false;
+        }
+        // Note: This was not invalid before version 3
+    }
+
+    return true;
+}
 }

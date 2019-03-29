@@ -44,6 +44,12 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 }
 
 bool
+ManageOfferOpFrame::isAmountValid()
+{
+    return mManageOffer.amount >= 0;
+}
+
+bool
 ManageOfferOpFrame::isDeleteOffer()
 {
     return mManageOffer.amount == 0;
@@ -110,6 +116,12 @@ ManageOfferOpFrame::setResultSuccess()
 }
 
 void
+ManageOfferOpFrame::setResultMalformed()
+{
+    mResult.tr().manageOfferResult().code(MANAGE_OFFER_MALFORMED);
+}
+
+void
 ManageOfferOpFrame::setResultSellNoTrust()
 {
     mResult.tr().manageOfferResult().code(MANAGE_OFFER_SELL_NO_TRUST);
@@ -173,40 +185,5 @@ void
 ManageOfferOpFrame::setResultLowReserve()
 {
     mResult.tr().manageOfferResult().code(MANAGE_OFFER_LOW_RESERVE);
-}
-
-// makes sure the currencies are different
-bool
-ManageOfferOpFrame::doCheckValid(uint32_t ledgerVersion)
-{
-    Asset const& sheep = mManageOffer.selling;
-    Asset const& wheat = mManageOffer.buying;
-
-    if (!isAssetValid(sheep) || !isAssetValid(wheat))
-    {
-        mResult.tr().manageOfferResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
-    }
-    if (compareAsset(sheep, wheat))
-    {
-        mResult.tr().manageOfferResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
-    }
-    if (mManageOffer.amount < 0 || mManageOffer.price.d <= 0 ||
-        mManageOffer.price.n <= 0)
-    {
-        mResult.tr().manageOfferResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
-    }
-    if (ledgerVersion > 2 && mManageOffer.offerID == 0 &&
-        mManageOffer.amount == 0)
-    { // since version 3 of ledger you cannot send
-        // offer operation with id and
-        // amount both equal to 0
-        setResultNotFound();
-        return false;
-    }
-
-    return true;
 }
 }
