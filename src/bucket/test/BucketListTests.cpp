@@ -25,6 +25,7 @@
 #include "xdrpp/autocheck.h"
 
 #include <deque>
+#include <sstream>
 
 using namespace stellar;
 using namespace BucketTests;
@@ -620,5 +621,158 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][bucketlist][count]")
             checkBucketSizeAndBounds(bl, ledgerSeq, level, true);
             checkBucketSizeAndBounds(bl, ledgerSeq, level, false);
         }
+    }
+}
+
+static std::string
+formatX32(uint32_t v)
+{
+    std::ostringstream oss;
+    oss << "0x" << std::hex << std::setw(8) << std::setfill('0') << v;
+    return oss.str();
+}
+
+static std::string
+formatU32(uint32_t v)
+{
+    std::ostringstream oss;
+    oss << std::dec << std::setw(8) << std::setfill(' ') << v << "="
+        << formatX32(v);
+    return oss.str();
+}
+
+static std::string
+formatLedgerList(std::vector<uint32_t> const& ledgers)
+{
+    std::ostringstream oss;
+    bool first = true;
+    for (size_t i = 0; i < ledgers.size(); ++i)
+    {
+        if (!first)
+        {
+            oss << ", ";
+        }
+        else
+        {
+            first = false;
+        }
+        oss << formatU32(ledgers[i]);
+        if (i > 5)
+        {
+            break;
+        }
+    }
+    return oss.str();
+}
+
+TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
+{
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        CLOG(INFO, "Bucket")
+            << "levelSize(" << level
+            << ") = " << formatU32(BucketList::levelSize(level))
+            << " (formally)";
+    }
+
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        CLOG(INFO, "Bucket")
+            << "levelHalf(" << level
+            << ") = " << formatU32(BucketList::levelHalf(level))
+            << " (formally)";
+    }
+
+    for (uint32_t probe : {0x100, 0x10000, 0x1000000})
+    {
+        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        {
+            CLOG(INFO, "Bucket")
+                << "sizeOfCurr(0x" << std::hex << probe << ", " << std::dec
+                << level
+                << ") = " << formatU32(BucketList::sizeOfCurr(probe, level))
+                << " (precisely)";
+        }
+
+        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        {
+            CLOG(INFO, "Bucket")
+                << "sizeOfSnap(0x" << std::hex << probe << ", " << std::dec
+                << level
+                << ") = " << formatU32(BucketList::sizeOfSnap(probe, level))
+                << " (precisely)";
+        }
+    }
+
+    std::vector<std::vector<uint32_t>> spillEvents;
+    std::vector<std::vector<uint32_t>> nonMergeCommitEvents;
+    std::vector<std::vector<uint32_t>> mergeCommitEvents;
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        spillEvents.push_back({});
+        nonMergeCommitEvents.push_back({});
+        mergeCommitEvents.push_back({});
+    }
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        for (uint32_t ledger = 0; ledger < 0x1000000; ++ledger)
+        {
+            if (BucketList::levelShouldSpill(ledger, level))
+            {
+                spillEvents[level].push_back(ledger);
+                if (spillEvents[level].size() > 5)
+                {
+                    break;
+                }
+            }
+            if (level != 0 && BucketList::levelShouldSpill(ledger, level - 1))
+            {
+                uint32_t nextChangeLedger =
+                    ledger + BucketList::levelHalf(level - 1);
+                if (BucketList::levelShouldSpill(nextChangeLedger, level))
+                {
+                    nonMergeCommitEvents[level].push_back(ledger);
+                }
+                else
+                {
+                    mergeCommitEvents[level].push_back(ledger);
+                }
+            }
+        }
+    }
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        CLOG(INFO, "Bucket")
+            << "levelShouldSpill(" << std::hex << level << ") = true @ "
+            << formatLedgerList(spillEvents[level]);
+    }
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        CLOG(INFO, "Bucket") << "mergeCommit(" << std::hex << level << ") @ "
+                             << formatLedgerList(mergeCommitEvents[level]);
+    }
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        CLOG(INFO, "Bucket") << "nonMergeCommit(" << std::hex << level << ") @ "
+                             << formatLedgerList(nonMergeCommitEvents[level]);
+    }
+
+    // Print out the full bucketlist at an arbitrarily-chosen probe ledger.
+    uint32_t probe = 0x11f9ab;
+    CLOG(INFO, "Bucket") << "BucketList state at" << std::hex << probe;
+    for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+    {
+        uint32_t currOld = BucketList::oldestLedgerInCurr(probe, level);
+        uint32_t snapOld = BucketList::oldestLedgerInSnap(probe, level);
+        uint32_t currSz = BucketList::sizeOfCurr(probe, level);
+        uint32_t snapSz = BucketList::sizeOfSnap(probe, level);
+        uint32_t currNew = currOld + currSz - 1;
+        uint32_t snapNew = snapOld + snapSz - 1;
+        CLOG(INFO, "Bucket")
+            << "level[" << std::hex << level << "]"
+            << " curr (size:" << formatX32(currSz) << ") = "
+            << "[" << formatX32(currOld) << ", " << formatX32(currNew) << "]"
+            << " snap (size:" << formatX32(snapSz) << ") = "
+            << "[" << formatX32(snapOld) << ", " << formatX32(snapNew) << "]";
     }
 }
