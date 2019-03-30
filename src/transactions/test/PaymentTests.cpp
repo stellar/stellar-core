@@ -37,7 +37,11 @@ using namespace stellar::txtest;
 // path payment with a transfer rate
 TEST_CASE("payment", "[tx][payment]")
 {
-    Config const& cfg = getTestConfig();
+    Config cfg = getTestConfig();
+
+    // Do our setup in version 1 so that for_all_versions below does not
+    // try to downgrade us from >1 to 1.
+    cfg.LEDGER_PROTOCOL_VERSION = 1;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
@@ -142,15 +146,20 @@ TEST_CASE("payment", "[tx][payment]")
 
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
-            TestMarket market(*app);
-
             auto cur1 = acc1.asset("CUR1");
-            market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(acc1, {native, cur1, Price{1, 1}, 500});
+            auto setup = [&]() {
+                TestMarket market(*app);
+                market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(acc1,
+                                           {native, cur1, Price{1, 1}, 500});
+                });
+            };
+            for_versions_to(9, *app, [&] {
+                setup();
+                acc1.create("acc2", minBal0 + 1);
             });
-
-            for_versions_to(9, *app, [&] { acc1.create("acc2", minBal0 + 1); });
             for_versions_from(10, *app, [&] {
+                setup();
                 REQUIRE_THROWS_AS(acc1.create("acc2", minBal0 + 1),
                                   ex_CREATE_ACCOUNT_UNDERFUNDED);
                 root.pay(acc1, txfee);
@@ -1810,14 +1819,18 @@ TEST_CASE("payment", "[tx][payment]")
         {
             a1.changeTrust(idr, 200);
             gateway.pay(a1, idr, 100);
-
-            TestMarket market(*app);
-            auto offer = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(a1, {idr, xlm, Price{1, 1}, 50});
+            auto setup = [&]() {
+                TestMarket market(*app);
+                auto offer = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(a1, {idr, xlm, Price{1, 1}, 50});
+                });
+            };
+            for_versions_to(9, *app, [&] {
+                setup();
+                a1.pay(gateway, idr, 51);
             });
-
-            for_versions_to(9, *app, [&] { a1.pay(gateway, idr, 51); });
             for_versions_from(10, *app, [&] {
+                setup();
                 REQUIRE_THROWS_AS(a1.pay(gateway, idr, 51),
                                   ex_PAYMENT_UNDERFUNDED);
                 a1.pay(gateway, idr, 50);
@@ -1828,14 +1841,18 @@ TEST_CASE("payment", "[tx][payment]")
                 " limit")
         {
             a1.changeTrust(idr, 100);
-
-            TestMarket market(*app);
-            auto offer = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(a1, {xlm, idr, Price{1, 1}, 50});
+            auto setup = [&]() {
+                TestMarket market(*app);
+                auto offer = market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(a1, {xlm, idr, Price{1, 1}, 50});
+                });
+            };
+            for_versions_to(9, *app, [&] {
+                setup();
+                gateway.pay(a1, idr, 51);
             });
-
-            for_versions_to(9, *app, [&] { gateway.pay(a1, idr, 51); });
             for_versions_from(10, *app, [&] {
+                setup();
                 REQUIRE_THROWS_AS(gateway.pay(a1, idr, 51),
                                   ex_PAYMENT_LINE_FULL);
                 gateway.pay(a1, idr, 50);

@@ -1410,6 +1410,11 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
+
+    // Do our setup in version 1 so that for_versions_* below do not
+    // try to downgrade us from >1 to 1.
+    cfg.LEDGER_PROTOCOL_VERSION = 1;
+
     auto app = createTestApplication(clock, cfg);
     app->start();
 
@@ -1476,6 +1481,35 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
         }
     };
 
+    auto createOffers = [&](TestAccount& acc,
+                            std::vector<TestMarketOffer>& offers) {
+        createOffer(acc, native, cur1, offers);
+        createOffer(acc, native, cur1, offers);
+        createOffer(acc, cur1, native, offers);
+        createOffer(acc, cur1, native, offers);
+        createOffer(acc, native, cur2, offers);
+        createOffer(acc, native, cur2, offers);
+        createOffer(acc, cur2, native, offers);
+        createOffer(acc, cur2, native, offers);
+        createOffer(acc, cur1, cur2, offers);
+        createOffer(acc, cur1, cur2, offers);
+        createOffer(acc, cur2, cur1, offers);
+        createOffer(acc, cur2, cur1, offers);
+    };
+
+    auto deleteOffers = [&](TestAccount& acc,
+                            std::vector<TestMarketOffer> const& offers) {
+        for (auto const& offer : offers)
+        {
+            auto delOfferState = offer.state;
+            delOfferState.amount = 0;
+            market.requireChangesWithOffer({}, [&] {
+                return market.updateOffer(acc, offer.key.offerID, delOfferState,
+                                          OfferState::DELETED);
+            });
+        }
+    };
+
     SECTION("decrease reserve")
     {
         auto a1 =
@@ -1485,32 +1519,24 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
         issuer.pay(a1, cur1, 4000);
         issuer.pay(a1, cur2, 4000);
 
-        std::vector<TestMarketOffer> offers;
-        createOffer(a1, native, cur1, offers);
-        createOffer(a1, native, cur1, offers);
-        createOffer(a1, cur1, native, offers);
-        createOffer(a1, cur1, native, offers);
-        createOffer(a1, native, cur2, offers);
-        createOffer(a1, native, cur2, offers);
-        createOffer(a1, cur2, native, offers);
-        createOffer(a1, cur2, native, offers);
-        createOffer(a1, cur1, cur2, offers);
-        createOffer(a1, cur1, cur2, offers);
-        createOffer(a1, cur2, cur1, offers);
-        createOffer(a1, cur2, cur1, offers);
-
         for_versions_to(9, *app, [&] {
+            std::vector<TestMarketOffer> offers;
+            createOffers(a1, offers);
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
                                   std::bind(executeUpgrade, baseReserve / 2));
+            deleteOffers(a1, offers);
         });
         for_versions_from(10, *app, [&] {
+            std::vector<TestMarketOffer> offers;
+            createOffers(a1, offers);
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
                                   std::bind(executeUpgrade, baseReserve / 2));
             REQUIRE(getLiabilities(a1) == Liabilities{8000, 4000});
             REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{8000, 4000});
             REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{8000, 4000});
+            deleteOffers(a1, offers);
         });
     }
 
@@ -1532,31 +1558,8 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             issuer.pay(a2, cur2, 4000);
 
             std::vector<TestMarketOffer> offers;
-            createOffer(a1, native, cur1, offers);
-            createOffer(a1, native, cur1, offers);
-            createOffer(a1, cur1, native, offers);
-            createOffer(a1, cur1, native, offers);
-            createOffer(a1, native, cur2, offers);
-            createOffer(a1, native, cur2, offers);
-            createOffer(a1, cur2, native, offers);
-            createOffer(a1, cur2, native, offers);
-            createOffer(a1, cur1, cur2, offers);
-            createOffer(a1, cur1, cur2, offers);
-            createOffer(a1, cur2, cur1, offers);
-            createOffer(a1, cur2, cur1, offers);
-
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur2, cur1, offers);
-            createOffer(a2, cur2, cur1, offers);
+            createOffers(a1, offers);
+            createOffers(a2, offers);
 
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
@@ -1591,18 +1594,7 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             createOffer(a1, cur2, cur1, offers);
             createOffer(a1, cur2, cur1, offers);
 
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur2, cur1, offers);
-            createOffer(a2, cur2, cur1, offers);
+            createOffers(a2, offers);
 
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,

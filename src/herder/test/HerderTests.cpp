@@ -40,91 +40,94 @@ TEST_CASE("standalone", "[herder]")
     cfg.QUORUM_SET.validators.clear();
     cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
+    for_all_versions(cfg, [&](Config const& cfg1) {
 
-    app->start();
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg1);
 
-    // set up world
-    auto root = TestAccount::createRoot(*app);
-    auto a1 = TestAccount{*app, getAccount("A")};
-    auto b1 = TestAccount{*app, getAccount("B")};
-    auto c1 = TestAccount{*app, getAccount("C")};
+        app->start();
 
-    auto txfee = app->getLedgerManager().getLastTxFee();
-    const int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
-    const int64_t paymentAmount = 100;
-    const int64_t startingBalance = minBalance + (paymentAmount + txfee) * 3;
+        // set up world
+        auto root = TestAccount::createRoot(*app);
+        auto a1 = TestAccount{*app, getAccount("A")};
+        auto b1 = TestAccount{*app, getAccount("B")};
+        auto c1 = TestAccount{*app, getAccount("C")};
 
-    SECTION("basic ledger close on valid txs")
-    {
-        VirtualTimer setupTimer(*app);
+        auto txfee = app->getLedgerManager().getLastTxFee();
+        const int64_t minBalance = app->getLedgerManager().getLastMinBalance(0);
+        const int64_t paymentAmount = 100;
+        const int64_t startingBalance =
+            minBalance + (paymentAmount + txfee) * 3;
 
-        auto feedTx = [&](TransactionFramePtr& tx) {
-            REQUIRE(app->getHerder().recvTransaction(tx) ==
-                    Herder::TX_STATUS_PENDING);
-        };
+        SECTION("basic ledger close on valid txs")
+        {
+            VirtualTimer setupTimer(*app);
 
-        auto waitForExternalize = [&]() {
-            bool stop = false;
-            auto prev = app->getLedgerManager().getLastClosedLedgerNum();
-            VirtualTimer checkTimer(*app);
-
-            auto check = [&](asio::error_code const& error) {
-                REQUIRE(!error);
-                REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >
-                        prev);
-                stop = true;
+            auto feedTx = [&](TransactionFramePtr& tx) {
+                REQUIRE(app->getHerder().recvTransaction(tx) ==
+                        Herder::TX_STATUS_PENDING);
             };
 
-            checkTimer.expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS +
-                                        std::chrono::seconds(1));
-            checkTimer.async_wait(check);
-            while (!stop)
+            auto waitForExternalize = [&]() {
+                bool stop = false;
+                auto prev = app->getLedgerManager().getLastClosedLedgerNum();
+                VirtualTimer checkTimer(*app);
+
+                auto check = [&](asio::error_code const& error) {
+                    REQUIRE(!error);
+                    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >
+                            prev);
+                    stop = true;
+                };
+
+                checkTimer.expires_from_now(
+                    Herder::EXP_LEDGER_TIMESPAN_SECONDS +
+                    std::chrono::seconds(1));
+                checkTimer.async_wait(check);
+                while (!stop)
+                {
+                    app->getClock().crank(true);
+                }
+            };
+
+            auto setup = [&](asio::error_code const& error) {
+                REQUIRE(!error);
+                // create accounts
+                auto txFrameA = root.tx({createAccount(a1, startingBalance)});
+                auto txFrameB = root.tx({createAccount(b1, startingBalance)});
+                auto txFrameC = root.tx({createAccount(c1, startingBalance)});
+
+                feedTx(txFrameA);
+                feedTx(txFrameB);
+                feedTx(txFrameC);
+            };
+
+            setupTimer.expires_from_now(std::chrono::seconds(0));
+            setupTimer.async_wait(setup);
+
+            waitForExternalize();
+            auto a1OldSeqNum = a1.getLastSequenceNumber();
+
+            REQUIRE(a1.getBalance() == startingBalance);
+            REQUIRE(b1.getBalance() == startingBalance);
+            REQUIRE(c1.getBalance() == startingBalance);
+
+            SECTION("txset with valid txs - but failing later")
             {
-                app->getClock().crank(true);
-            }
-        };
+                std::vector<TransactionFramePtr> txAs, txBs, txCs;
+                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+                txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
 
-        auto setup = [&](asio::error_code const& error) {
-            REQUIRE(!error);
-            // create accounts
-            auto txFrameA = root.tx({createAccount(a1, startingBalance)});
-            auto txFrameB = root.tx({createAccount(b1, startingBalance)});
-            auto txFrameC = root.tx({createAccount(c1, startingBalance)});
+                txBs.emplace_back(b1.tx({payment(root, paymentAmount)}));
+                txBs.emplace_back(b1.tx({accountMerge(root)}));
+                txBs.emplace_back(b1.tx({payment(a1, paymentAmount)}));
 
-            feedTx(txFrameA);
-            feedTx(txFrameB);
-            feedTx(txFrameC);
-        };
+                auto expectedC1Seq = c1.getLastSequenceNumber() + 10;
+                txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+                txCs.emplace_back(c1.tx({bumpSequence(expectedC1Seq)}));
+                txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
 
-        setupTimer.expires_from_now(std::chrono::seconds(0));
-        setupTimer.async_wait(setup);
-
-        waitForExternalize();
-        auto a1OldSeqNum = a1.getLastSequenceNumber();
-
-        REQUIRE(a1.getBalance() == startingBalance);
-        REQUIRE(b1.getBalance() == startingBalance);
-        REQUIRE(c1.getBalance() == startingBalance);
-
-        SECTION("txset with valid txs - but failing later")
-        {
-            std::vector<TransactionFramePtr> txAs, txBs, txCs;
-            txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-            txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-            txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
-
-            txBs.emplace_back(b1.tx({payment(root, paymentAmount)}));
-            txBs.emplace_back(b1.tx({accountMerge(root)}));
-            txBs.emplace_back(b1.tx({payment(a1, paymentAmount)}));
-
-            auto expectedC1Seq = c1.getLastSequenceNumber() + 10;
-            txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
-            txCs.emplace_back(c1.tx({bumpSequence(expectedC1Seq)}));
-            txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
-
-            for_all_versions(*app, [&]() {
                 for (auto a : txAs)
                 {
                     feedTx(a);
@@ -165,54 +168,57 @@ TEST_CASE("standalone", "[herder]")
                     REQUIRE(c1.getBalance() == expectedCBalance);
                     REQUIRE(c1.loadSequenceNumber() == expectedC1Seq);
                 }
-            });
-        }
-
-        SECTION("Queue processing test")
-        {
-            app->getCommandHandler().manualCmd("maintenance?queue=true");
-
-            while (app->getLedgerManager().getLastClosedLedgerNum() <
-                   (app->getHistoryManager().getCheckpointFrequency() + 5))
-            {
-                app->getClock().crank(true);
             }
 
-            app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=1");
-            app->getCommandHandler().manualCmd("maintenance?queue=true");
-            auto& db = app->getDatabase();
-            auto& sess = db.getSession();
-
-            app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
-            app->getCommandHandler().manualCmd("maintenance?queue=true");
-            auto lh = LedgerHeaderUtils::loadBySequence(db, sess, 2);
-            REQUIRE(!!lh);
-
-            app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=2");
-            // this should delete items older than sequence 2
-            app->getCommandHandler().manualCmd("maintenance?queue=true");
-            lh = LedgerHeaderUtils::loadBySequence(db, sess, 2);
-            REQUIRE(!lh);
-            lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
-            REQUIRE(!!lh);
-
-            // this should delete items older than sequence 3
-            SECTION("set min to 3 by update")
+            SECTION("Queue processing test")
             {
-                app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=3");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
-                REQUIRE(!lh);
-            }
-            SECTION("set min to 3 by deletion")
-            {
-                app->getCommandHandler().manualCmd("dropcursor?id=A1");
+
+                while (app->getLedgerManager().getLastClosedLedgerNum() <
+                       (app->getHistoryManager().getCheckpointFrequency() + 5))
+                {
+                    app->getClock().crank(true);
+                }
+
+                app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=1");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
+                auto& db = app->getDatabase();
+                auto& sess = db.getSession();
+
+                app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
+                app->getCommandHandler().manualCmd("maintenance?queue=true");
+                auto lh = LedgerHeaderUtils::loadBySequence(db, sess, 2);
+                REQUIRE(!!lh);
+
+                app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=2");
+                // this should delete items older than sequence 2
+                app->getCommandHandler().manualCmd("maintenance?queue=true");
+                lh = LedgerHeaderUtils::loadBySequence(db, sess, 2);
                 REQUIRE(!lh);
+                lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
+                REQUIRE(!!lh);
+
+                // this should delete items older than sequence 3
+                SECTION("set min to 3 by update")
+                {
+                    app->getCommandHandler().manualCmd(
+                        "setcursor?id=A1&cursor=3");
+                    app->getCommandHandler().manualCmd(
+                        "maintenance?queue=true");
+                    lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
+                    REQUIRE(!lh);
+                }
+                SECTION("set min to 3 by deletion")
+                {
+                    app->getCommandHandler().manualCmd("dropcursor?id=A1");
+                    app->getCommandHandler().manualCmd(
+                        "maintenance?queue=true");
+                    lh = LedgerHeaderUtils::loadBySequence(db, sess, 3);
+                    REQUIRE(!lh);
+                }
             }
         }
-    }
+    });
 }
 
 TEST_CASE("txset", "[herder]")

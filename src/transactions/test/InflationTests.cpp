@@ -284,7 +284,11 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
 TEST_CASE("inflation", "[tx][inflation]")
 {
-    Config const& cfg = getTestConfig(0);
+    Config cfg = getTestConfig(0);
+
+    // Do our setup in version 1 so that for_all_versions below does not
+    // try to downgrade us from >1 to 1.
+    cfg.LEDGER_PROTOCOL_VERSION = 1;
 
     VirtualClock::time_point inflationStart;
     // inflation starts on 1-jul-2014

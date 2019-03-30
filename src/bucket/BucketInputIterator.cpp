@@ -87,6 +87,13 @@ BucketInputIterator::getMetadata() const
 BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
     : mBucket(bucket), mEntryPtr(nullptr), mSeenMetadata(false)
 {
+    // In absence of metadata, we treat every bucket as though it is from ledger
+    // protocol 0, which is the protocol of the genesis ledger. At very least
+    // some empty buckets and the bucket containing the initial genesis account
+    // entry really _are_ from protocol 0, so it's a lower bound for the real
+    // protocol of a pre-protocol-11 bucket, and we have to use as conservative
+    // a default as possible to avoid spurious attempted-downgrade errors.
+    mMetadata.ledgerVersion = 0;
     if (!mBucket->getFilename().empty())
     {
         CLOG(TRACE, "Bucket") << "BucketInputIterator opening file to read: "

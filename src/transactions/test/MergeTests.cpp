@@ -34,6 +34,10 @@ TEST_CASE("merge", "[tx][merge]")
 {
     Config cfg(getTestConfig());
 
+    // Do our setup in version 1 so that for_all_versions below does not
+    // try to downgrade us from >1 to 1.
+    cfg.LEDGER_PROTOCOL_VERSION = 1;
+
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
     app->start();
@@ -594,17 +598,21 @@ TEST_CASE("merge", "[tx][merge]")
         auto const native = makeNativeAsset();
         auto cur1 = acc1.asset("CUR1");
 
-        TestMarket market(*app);
-        market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(
-                acc1, {cur1, native, Price{1, 1}, INT64_MAX - 2 * minBal});
-        });
-
         for_versions_to(9, *app, [&] {
+            TestMarket market(*app);
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    acc1, {cur1, native, Price{1, 1}, INT64_MAX - 2 * minBal});
+            });
             acc2.merge(acc1);
             REQUIRE(acc1.getBalance() == 2 * minBal + 1);
         });
         for_versions_from(10, *app, [&] {
+            TestMarket market(*app);
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    acc1, {cur1, native, Price{1, 1}, INT64_MAX - 2 * minBal});
+            });
             closeLedgerOn(*app, 3, 1, 1, 2017);
             REQUIRE_THROWS_AS(acc2.merge(acc1), ex_ACCOUNT_MERGE_DEST_FULL);
             root.pay(acc2, txfee - 1);
