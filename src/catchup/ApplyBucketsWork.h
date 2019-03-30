@@ -35,6 +35,7 @@ class ApplyBucketsWork : public Work
     size_t mLastAppliedSizeMb;
     size_t mLastPos;
     uint32_t mLevel;
+    uint32_t mMaxProtocolVersion;
     std::shared_ptr<Bucket const> mSnapBucket;
     std::shared_ptr<Bucket const> mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;
@@ -53,7 +54,7 @@ class ApplyBucketsWork : public Work
     ApplyBucketsWork(
         Application& app, WorkParent& parent,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState);
+        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
     ~ApplyBucketsWork();
 
     void onReset() override;

@@ -25,13 +25,14 @@ namespace stellar
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-    HistoryArchiveState const& applyState)
+    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
     , mApplying(false)
     , mTotalSize(0)
     , mLevel(BucketList::kNumLevels - 1)
+    , mMaxProtocolVersion(maxProtocolVersion)
     , mBucketApplyStart(app.getMetrics().NewMeter(
           {"history", "bucket-apply", "start"}, "event"))
     , mBucketApplySuccess(app.getMetrics().NewMeter(
@@ -119,7 +120,8 @@ ApplyBucketsWork::onStart()
     if (mApplying || applySnap)
     {
         mSnapBucket = getBucket(i.snap);
-        mSnapApplicator = std::make_unique<BucketApplicator>(mApp, mSnapBucket);
+        mSnapApplicator = std::make_unique<BucketApplicator>(
+            mApp, mMaxProtocolVersion, mSnapBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
@@ -128,7 +130,8 @@ ApplyBucketsWork::onStart()
     if (mApplying || applyCurr)
     {
         mCurrBucket = getBucket(i.curr);
-        mCurrApplicator = std::make_unique<BucketApplicator>(mApp, mCurrBucket);
+        mCurrApplicator = std::make_unique<BucketApplicator>(
+            mApp, mMaxProtocolVersion, mCurrBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;
@@ -242,7 +245,7 @@ ApplyBucketsWork::onSuccess()
     }
 
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    mApp.getBucketManager().assumeState(mApplyState);
+    mApp.getBucketManager().assumeState(mApplyState, mMaxProtocolVersion);
     return WORK_SUCCESS;
 }
 

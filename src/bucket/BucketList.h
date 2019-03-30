@@ -260,8 +260,9 @@ class BucketLevel
     void setSnap(std::shared_ptr<Bucket>);
     void commit();
     void prepare(Application& app, uint32_t currLedger,
-                 std::shared_ptr<Bucket> snap,
-                 std::vector<std::shared_ptr<Bucket>> const& shadows);
+                 uint32_t currLedgerProtocol, std::shared_ptr<Bucket> snap,
+                 std::vector<std::shared_ptr<Bucket>> const& shadows,
+                 bool countMergeEvents);
     std::shared_ptr<Bucket> snap();
 };
 
@@ -343,14 +344,18 @@ class BucketList
     // merging buckets between levels. This needs to be called after forcing a
     // BucketList to adopt a new state, either at application restart or when
     // catching up from buckets loaded over the network.
-    void restartMerges(Application& app);
+    void restartMerges(Application& app, uint32_t maxProtocolVersion);
 
-    // Add a batch of live and dead entries to the bucketlist, representing the
-    // entries effected by closing `currLedger`. The bucketlist will incorporate
-    // these into the smallest (0th) level, as well as commit or prepare merges
-    // for any levels that should have spilled due to passing through
-    // `currLedger`.
+    // Add a batch of initial (created), live (updated) and dead entries to the
+    // bucketlist, representing the entries effected by closing
+    // `currLedger`. The bucketlist will incorporate these into the smallest
+    // (0th) level, as well as commit or prepare merges for any levels that
+    // should have spilled due to passing through `currLedger`. The `currLedger`
+    // and `currProtocolVersion` values should be taken from the ledger at which
+    // this batch is being added.
     void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries);
 };

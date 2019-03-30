@@ -63,7 +63,9 @@ struct BucketListGenerator
         std::map<std::string, std::shared_ptr<Bucket>> buckets;
         auto has = getHistoryArchiveState();
         auto& wm = mAppApply->getWorkManager();
-        wm.executeWork<T>(buckets, has, std::forward<Args>(args)...);
+        wm.executeWork<T>(buckets, has,
+                          mAppApply->getConfig().LEDGER_PROTOCOL_VERSION,
+                          std::forward<Args>(args)...);
     }
 
     void
@@ -73,6 +75,7 @@ struct BucketListGenerator
         LedgerTxn ltx(app->getLedgerTxnRoot(), false);
         REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
         mLedgerSeq = ++ltx.loadHeader().current().ledgerSeq;
+        auto vers = ltx.loadHeader().current().ledgerVersion;
 
         auto dead = generateDeadEntries(ltx);
         assert(dead.size() <= mLiveKeys.size());
@@ -100,8 +103,11 @@ struct BucketListGenerator
             mLiveKeys.insert(LedgerEntryKey(le));
         }
 
-        app->getBucketManager().addBatch(*app, mLedgerSeq, ltx.getLiveEntries(),
-                                         ltx.getDeadEntries());
+        std::vector<LedgerEntry> initEntries, liveEntries;
+        std::vector<LedgerKey> deadEntries;
+        ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+        app->getBucketManager().addBatch(
+            *app, mLedgerSeq, vers, initEntries, liveEntries, deadEntries);
         ltx.commit();
     }
 
@@ -149,25 +155,31 @@ struct BucketListGenerator
     {
         auto& blGenerate = mAppGenerate->getBucketManager().getBucketList();
         auto& bmApply = mAppApply->getBucketManager();
-
+        MergeCounters mergeCounters;
+        LedgerTxn ltx(mAppGenerate->getLedgerTxnRoot(), false);
+        auto vers = ltx.loadHeader().current().ledgerVersion;
         for (uint32_t i = 0; i <= BucketList::kNumLevels - 1; i++)
         {
             auto& level = blGenerate.getLevel(i);
+            auto meta = testutil::testBucketMetadata(vers);
+            auto keepDead = BucketList::keepDeadEntries(i);
             {
-                BucketOutputIterator out(bmApply.getTmpDir(), true);
+                BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
+                                         mergeCounters);
                 for (BucketInputIterator in (level.getCurr()); in; ++in)
                 {
                     out.put(*in);
                 }
-                out.getBucket(bmApply);
+                auto b = out.getBucket(bmApply);
             }
             {
-                BucketOutputIterator out(bmApply.getTmpDir(), true);
+                BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
+                                         mergeCounters);
                 for (BucketInputIterator in (level.getSnap()); in; ++in)
                 {
                     out.put(*in);
                 }
-                out.getBucket(bmApply);
+                auto b = out.getBucket(bmApply);
             }
         }
         return HistoryArchiveState(mLedgerSeq, blGenerate);
@@ -267,8 +279,9 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
     ApplyBucketsWorkAddEntry(
         Application& app, WorkParent& parent,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState, LedgerEntry const& entry)
-        : ApplyBucketsWork(app, parent, buckets, applyState)
+        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+        LedgerEntry const& entry)
+        : ApplyBucketsWork(app, parent, buckets, applyState, maxProtocolVersion)
         , mEntry(entry)
         , mAdded{false}
     {
@@ -317,8 +330,9 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     ApplyBucketsWorkDeleteEntry(
         Application& app, WorkParent& parent,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState, LedgerEntry const& target)
-        : ApplyBucketsWork(app, parent, buckets, applyState)
+        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+        LedgerEntry const& target)
+        : ApplyBucketsWork(app, parent, buckets, applyState, maxProtocolVersion)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mDeleted{false}
@@ -402,8 +416,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     ApplyBucketsWorkModifyEntry(
         Application& app, WorkParent& parent,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-        HistoryArchiveState const& applyState, LedgerEntry const& target)
-        : ApplyBucketsWork(app, parent, buckets, applyState)
+        HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
+        LedgerEntry const& target)
+        : ApplyBucketsWork(app, parent, buckets, applyState, maxProtocolVersion)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mModified{false}
@@ -749,6 +764,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             dead.deadEntry() = LedgerEntryKey(*blg.mSelected);
             BucketEntry live(LIVEENTRY);
             live.liveEntry() = *blg.mSelected;
+            BucketEntry init(INITENTRY);
+            init.liveEntry() = *blg.mSelected;
 
             REQUIRE_NOTHROW(blg.applyBuckets());
             REQUIRE(exists(*blg.mAppGenerate, *blg.mSelected));
@@ -756,15 +773,18 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
 
             blg.generateLedgers(10);
             REQUIRE(doesBucketListContain(blGenerate, dead));
-            REQUIRE(doesBucketListContain(blGenerate, live));
+            REQUIRE((doesBucketListContain(blGenerate, live) ||
+                     doesBucketListContain(blGenerate, init)));
 
             blg.generateLedgers(100);
             REQUIRE(!doesBucketListContain(blGenerate, dead));
-            REQUIRE(!doesBucketListContain(blGenerate, live));
+            REQUIRE(!(doesBucketListContain(blGenerate, live) ||
+                      doesBucketListContain(blGenerate, init)));
             REQUIRE(!exists(*blg.mAppGenerate, *blg.mSelected));
             REQUIRE_NOTHROW(blg.applyBuckets());
             REQUIRE(!doesBucketListContain(blApply, dead));
-            REQUIRE(!doesBucketListContain(blApply, live));
+            REQUIRE(!(doesBucketListContain(blApply, live) ||
+                      doesBucketListContain(blApply, init)));
             REQUIRE(!exists(*blg.mAppApply, *blg.mSelected));
 
             ++nTests;

@@ -17,6 +17,32 @@ BucketInputIterator::loadEntry()
     if (mIn.readOne(mEntry))
     {
         mEntryPtr = &mEntry;
+        if (mEntry.type() == METAENTRY)
+        {
+            // There should only be one METAENTRY in the input stream
+            // and it should be the first record.
+            if (mSeenMetadata)
+            {
+                throw std::runtime_error(
+                    "Malformed bucket: multiple META entries.");
+            }
+            if (mSeenOtherEntries)
+            {
+                throw std::runtime_error(
+                    "Malformed bucket: META after other entries.");
+            }
+            mMetadata = mEntry.metaEntry();
+            mSeenMetadata = true;
+            loadEntry();
+        }
+        else
+        {
+            mSeenOtherEntries = true;
+            if (mSeenMetadata)
+            {
+                Bucket::checkProtocolLegality(mEntry, mMetadata.ledgerVersion);
+            }
+        }
     }
     else
     {
@@ -46,8 +72,20 @@ BucketEntry const& BucketInputIterator::operator*()
     return *mEntryPtr;
 }
 
+bool
+BucketInputIterator::seenMetadata() const
+{
+    return mSeenMetadata;
+}
+
+BucketMetadata const&
+BucketInputIterator::getMetadata() const
+{
+    return mMetadata;
+}
+
 BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
-    : mBucket(bucket), mEntryPtr(nullptr)
+    : mBucket(bucket), mEntryPtr(nullptr), mSeenMetadata(false)
 {
     if (!mBucket->getFilename().empty())
     {

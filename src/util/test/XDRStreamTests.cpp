@@ -26,7 +26,8 @@ TEST_CASE("XDROutputFileStream fail modes", "[xdrstream]")
         auto hasher = SHA256::create();
         size_t bytes = 0;
         auto ledgerEntries = LedgerTestUtils::generateValidLedgerEntries(1);
-        auto bucketEntries = Bucket::convertToBucketEntry(ledgerEntries);
+        auto bucketEntries =
+            Bucket::convertToBucketEntry(ledgerEntries, /*isInit=*/false);
 
         REQUIRE_THROWS_AS(out.writeOne(bucketEntries[0], hasher.get(), &bytes),
                           std::ios_base::failure);

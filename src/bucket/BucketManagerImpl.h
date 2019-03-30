@@ -76,13 +76,16 @@ class BucketManagerImpl : public BucketManager
 
     void forgetUnreferencedBuckets() override;
     void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
 
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void assumeState(HistoryArchiveState const& has) override;
+    void assumeState(HistoryArchiveState const& has,
+                     uint32_t maxProtocolVersion) override;
     void shutdown() override;
 };
 

@@ -22,6 +22,7 @@ class Application;
 class BucketApplicator
 {
     Application& mApp;
+    uint32_t mMaxProtocolVersion;
     BucketInputIterator mBucketIter;
     size_t mCount{0};
 
@@ -56,7 +57,8 @@ class BucketApplicator
                       VirtualClock::time_point now);
     };
 
-    BucketApplicator(Application& app, std::shared_ptr<const Bucket> bucket);
+    BucketApplicator(Application& app, uint32_t maxProtocolVersion,
+                     std::shared_ptr<const Bucket> bucket);
     operator bool() const;
     size_t advance(Counters& counters);
 

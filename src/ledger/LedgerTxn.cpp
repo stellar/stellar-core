@@ -610,32 +610,6 @@ LedgerTxn::Impl::getChanges()
     return changes;
 }
 
-std::vector<LedgerKey>
-LedgerTxn::getDeadEntries()
-{
-    return getImpl()->getDeadEntries();
-}
-
-std::vector<LedgerKey>
-LedgerTxn::Impl::getDeadEntries()
-{
-    throwIfNotExactConsistency();
-    std::vector<LedgerKey> res;
-    res.reserve(mEntry.size());
-    maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
-        for (auto const& kv : entries)
-        {
-            auto const& key = kv.first;
-            auto const& entry = kv.second;
-            if (!entry)
-            {
-                res.push_back(key);
-            }
-        }
-    });
-    return res;
-}
-
 LedgerTxnDelta
 LedgerTxn::getDelta()
 {
@@ -839,28 +813,50 @@ LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
     return getInflationWinners(maxWinners, minVotes);
 }
 
-std::vector<LedgerEntry>
-LedgerTxn::getLiveEntries()
+void
+LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
+                         std::vector<LedgerEntry>& liveEntries,
+                         std::vector<LedgerKey>& deadEntries)
 {
-    return getImpl()->getLiveEntries();
+    getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
 }
 
-std::vector<LedgerEntry>
-LedgerTxn::Impl::getLiveEntries()
+void
+LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
+                               std::vector<LedgerEntry>& liveEntries,
+                               std::vector<LedgerKey>& deadEntries)
 {
-    std::vector<LedgerEntry> res;
-    res.reserve(mEntry.size());
-    maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
+    std::vector<LedgerEntry> resInit, resLive;
+    std::vector<LedgerKey> resDead;
+    resInit.reserve(mEntry.size());
+    resLive.reserve(mEntry.size());
+    resDead.reserve(mEntry.size());
+    maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
+            auto const& key = kv.first;
             auto const& entry = kv.second;
             if (entry)
             {
-                res.push_back(*entry);
+                auto previous = mParent.getNewestVersion(key);
+                if (previous)
+                {
+                    resLive.emplace_back(*entry);
+                }
+                else
+                {
+                    resInit.emplace_back(*entry);
+                }
+            }
+            else
+            {
+                resDead.emplace_back(key);
             }
         }
     });
-    return res;
+    initEntries.swap(resInit);
+    liveEntries.swap(resLive);
+    deadEntries.swap(resDead);
 }
 
 std::shared_ptr<LedgerEntry const>

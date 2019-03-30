@@ -114,7 +114,7 @@ class BucketManager : NonMovableOrCopyable
     // worker threads. Very carefully.
     virtual std::shared_ptr<Bucket>
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
-                      size_t nObjects = 0, size_t nBytes = 0) = 0;
+                      size_t nObjects, size_t nBytes) = 0;
 
     // Return a bucket by hash if we have it, else return nullptr.
     virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
@@ -125,8 +125,13 @@ class BucketManager : NonMovableOrCopyable
     // independently keep them alive.
     virtual void forgetUnreferencedBuckets() = 0;
 
-    // Feed a new batch of entries to the bucket list.
+    // Feed a new batch of entries to the bucket list. This interface expects to
+    // be given separate init (created) and live (updated) entry vectors. The
+    // `currLedger` and `currProtocolVersion` values should be taken from the
+    // ledger at which this batch is being added.
     virtual void addBatch(Application& app, uint32_t currLedger,
+                          uint32_t currLedgerProtocol,
+                          std::vector<LedgerEntry> const& initEntries,
                           std::vector<LedgerEntry> const& liveEntries,
                           std::vector<LedgerKey> const& deadEntries) = 0;
 
@@ -140,8 +145,9 @@ class BucketManager : NonMovableOrCopyable
     checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
 
     // Restart from a saved state: find and attach all buckets in `has`, set
-    // current BL.
-    virtual void assumeState(HistoryArchiveState const& has) = 0;
+    // current BL. Pass `maxProtocolVersion` to any restarted merges.
+    virtual void assumeState(HistoryArchiveState const& has,
+                             uint32_t maxProtocolVersion) = 0;
 
     // Ensure all needed buckets are retained
     virtual void shutdown() = 0;

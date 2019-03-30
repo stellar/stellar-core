@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManagerImpl.h"
+#include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
 #include "history/HistoryManager.h"
@@ -442,12 +443,16 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 
 void
 BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
+                            uint32_t currLedgerProtocol,
+                            std::vector<LedgerEntry> const& initEntries,
                             std::vector<LedgerEntry> const& liveEntries,
                             std::vector<LedgerKey> const& deadEntries)
 {
     auto timer = mBucketAddBatch.TimeScope();
-    mBucketObjectInsertBatch.Mark(liveEntries.size());
-    mBucketList.addBatch(app, currLedger, liveEntries, deadEntries);
+    mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
+                                  deadEntries.size());
+    mBucketList.addBatch(app, currLedger, currLedgerProtocol, initEntries,
+                         liveEntries, deadEntries);
 }
 
 // updates the given LedgerHeader to reflect the current state of the bucket
@@ -500,7 +505,8 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 }
 
 void
-BucketManagerImpl::assumeState(HistoryArchiveState const& has)
+BucketManagerImpl::assumeState(HistoryArchiveState const& has,
+                               uint32_t maxProtocolVersion)
 {
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
@@ -516,7 +522,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
         mBucketList.getLevel(i).setNext(has.currentBuckets.at(i).next);
     }
 
-    mBucketList.restartMerges(mApp);
+    mBucketList.restartMerges(mApp, maxProtocolVersion);
     cleanupStaleFiles();
 }
 

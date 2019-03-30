@@ -91,8 +91,9 @@ BucketLevel::commit()
 
 void
 BucketLevel::prepare(Application& app, uint32_t currLedger,
-                     std::shared_ptr<Bucket> snap,
-                     std::vector<std::shared_ptr<Bucket>> const& shadows)
+                     uint32_t currLedgerProtocol, std::shared_ptr<Bucket> snap,
+                     std::vector<std::shared_ptr<Bucket>> const& shadows,
+                     bool countMergeEvents)
 {
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
@@ -119,8 +120,9 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         }
     }
 
-    mNextCurr = FutureBucket(app, curr, snap, shadows,
-                             BucketList::keepDeadEntries(mLevel));
+    mNextCurr =
+        FutureBucket(app, curr, snap, shadows, currLedgerProtocol,
+                     BucketList::keepDeadEntries(mLevel), countMergeEvents);
     assert(mNextCurr.isMerging());
 }
 
@@ -327,6 +329,8 @@ BucketList::getLevel(uint32_t i)
 
 void
 BucketList::addBatch(Application& app, uint32_t currLedger,
+                     uint32_t currLedgerProtocol,
+                     std::vector<LedgerEntry> const& initEntries,
                      std::vector<LedgerEntry> const& liveEntries,
                      std::vector<LedgerKey> const& deadEntries)
 {
@@ -410,20 +414,27 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
             //           << " to level " << i;
 
             mLevels[i].commit();
-            mLevels[i].prepare(app, currLedger, snap, shadows);
+            mLevels[i].prepare(app, currLedger, currLedgerProtocol, snap,
+                               shadows, /*countMergeEvents=*/true);
         }
     }
 
+    // In some testing scenarios, we want to inhibit counting level 0 merges
+    // because they are not repeated when restarting merges on app startup,
+    // and we are checking for an expected number of merge events on restart.
+    bool countMergeEvents =
+        !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
     assert(shadows.size() == 0);
-    mLevels[0].prepare(
-        app, currLedger,
-        Bucket::fresh(app.getBucketManager(), liveEntries, deadEntries),
-        shadows);
+    mLevels[0].prepare(app, currLedger, currLedgerProtocol,
+                       Bucket::fresh(app.getBucketManager(), currLedgerProtocol,
+                                     initEntries, liveEntries, deadEntries,
+                                     countMergeEvents),
+                       shadows, countMergeEvents);
     mLevels[0].commit();
 }
 
 void
-BucketList::restartMerges(Application& app)
+BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion)
 {
     for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
     {
@@ -431,7 +442,7 @@ BucketList::restartMerges(Application& app)
         auto& next = level.getNext();
         if (next.hasHashes() && !next.isLive())
         {
-            next.makeLive(app, keepDeadEntries(i));
+            next.makeLive(app, maxProtocolVersion, keepDeadEntries(i));
             if (next.isMerging())
             {
                 CLOG(INFO, "Bucket")

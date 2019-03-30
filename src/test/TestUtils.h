@@ -32,6 +32,14 @@ class BucketListDepthModifier
 
     ~BucketListDepthModifier();
 };
+
+inline BucketMetadata
+testBucketMetadata(uint32_t protocolVersion)
+{
+    BucketMetadata meta;
+    meta.ledgerVersion = protocolVersion;
+    return meta;
+}
 }
 
 class TestInvariantManager : public InvariantManagerImpl

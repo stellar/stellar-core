@@ -233,9 +233,6 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerEntryChanges getChanges();
 
-    // getDeadEntries has the strong exception safety guarantee
-    std::vector<LedgerKey> getDeadEntries();
-
     // getDelta has the basic exception safety guarantee. If it throws an
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -267,8 +264,10 @@ class LedgerTxn::Impl
     std::vector<InflationWinner> queryInflationWinners(size_t maxWinners,
                                                        int64_t minBalance);
 
-    // getLiveEntries has the strong exception safety guarantee
-    std::vector<LedgerEntry> getLiveEntries();
+    // getAllEntries has the strong exception safety guarantee
+    void getAllEntries(std::vector<LedgerEntry>& initEntries,
+                       std::vector<LedgerEntry>& liveEntries,
+                       std::vector<LedgerKey>& deadEntries);
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then

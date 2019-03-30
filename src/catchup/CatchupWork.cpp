@@ -253,9 +253,12 @@ CatchupWork::applyBuckets()
 
     CLOG(INFO, "History") << "Catchup applying buckets for state "
                           << LedgerManager::ledgerAbbrev(
-                                 mVerifiedLedgerRangeStart);
-    mApplyBucketsWork =
-        addWork<ApplyBucketsWork>(mBuckets, mApplyBucketsRemoteState);
+                                 mVerifiedLedgerRangeStart)
+                          << " with max ledger version "
+                          << mVerifiedLedgerRangeStart.header.ledgerVersion;
+    mApplyBucketsWork = addWork<ApplyBucketsWork>(
+        mBuckets, mApplyBucketsRemoteState,
+        mVerifiedLedgerRangeStart.header.ledgerVersion);
 
     return true;
 }

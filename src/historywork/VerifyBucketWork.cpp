@@ -93,7 +93,9 @@ VerifyBucketWork::onRun()
 Work::State
 VerifyBucketWork::onSuccess()
 {
-    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
+    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash,
+                                                       /*objectsPut=*/0,
+                                                       /*bytesPut=*/0);
     mBuckets[binToHex(mHash)] = b;
     mVerifyBucketSuccess.Mark();
     return WORK_SUCCESS;
