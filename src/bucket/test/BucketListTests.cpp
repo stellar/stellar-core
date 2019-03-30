@@ -24,6 +24,8 @@
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
 
+#include <deque>
+
 using namespace stellar;
 using namespace BucketTests;
 
@@ -131,33 +133,34 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
     try
     {
         for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
-                Application::pointer app = createTestApplication(clock, cfg);
-                BucketList bl;
-                autocheck::generator<std::vector<LedgerKey>> deadGen;
-                CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
-                for (uint32_t i = 1;
-                     !app->getClock().getIOContext().stopped() && i < 130; ++i)
+            Application::pointer app = createTestApplication(clock, cfg);
+            BucketList bl;
+            autocheck::generator<std::vector<LedgerKey>> deadGen;
+            CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
+            for (uint32_t i = 1;
+                 !app->getClock().getIOContext().stopped() && i < 130; ++i)
+            {
+                app->getClock().crank(false);
+                bl.addBatch(*app, i, getAppLedgerVersion(app), {},
+                            LedgerTestUtils::generateValidLedgerEntries(8),
+                            deadGen(5));
+                if (i % 10 == 0)
+                    CLOG(DEBUG, "Bucket")
+                        << "Added batch " << i
+                        << ", hash=" << binToHex(bl.getHash());
+                for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
                 {
-                    app->getClock().crank(false);
-                    bl.addBatch(*app, i, getAppLedgerVersion(app), {},
-                                LedgerTestUtils::generateValidLedgerEntries(8),
-                                deadGen(5));
-                    if (i % 10 == 0)
-                        CLOG(DEBUG, "Bucket") << "Added batch " << i
-                                              << ", hash=" << binToHex(bl.getHash());
-                    for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
-                    {
-                        auto const& lev = bl.getLevel(j);
-                        auto currSz = countEntries(lev.getCurr());
-                        auto snapSz = countEntries(lev.getSnap());
-                        // CLOG(DEBUG, "Bucket") << "level " << j
-                        //            << " curr=" << currSz
-                        //            << " snap=" << snapSz;
-                        CHECK(currSz <= BucketList::levelHalf(j) * 100);
-                        CHECK(snapSz <= BucketList::levelHalf(j) * 100);
-                    }
+                    auto const& lev = bl.getLevel(j);
+                    auto currSz = countEntries(lev.getCurr());
+                    auto snapSz = countEntries(lev.getSnap());
+                    // CLOG(DEBUG, "Bucket") << "level " << j
+                    //            << " curr=" << currSz
+                    //            << " snap=" << snapSz;
+                    CHECK(currSz <= BucketList::levelHalf(j) * 100);
+                    CHECK(snapSz <= BucketList::levelHalf(j) * 100);
                 }
-            });
+            }
+        });
     }
     catch (std::future_error& e)
     {
@@ -283,7 +286,7 @@ TEST_CASE("duplicate bucket entries", "[bucket][bucketlist]")
                     REQUIRE(lev1.getHash() == lev2.getHash());
                 }
             }
-            });
+        });
     }
     catch (std::future_error& e)
     {
@@ -352,6 +355,73 @@ TEST_CASE("bucket tombstones expire at bottom level",
         REQUIRE(e0.nDead != 0);
         REQUIRE(e1.nDead != 0);
         REQUIRE(e2.nDead == 0);
+    });
+}
+
+TEST_CASE("bucket tombstones mutually-annihilate init entries",
+          "[bucket][bucketlist][bl-initentry][!hide]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        Application::pointer app = createTestApplication(clock, cfg);
+        BucketList bl;
+        BucketManager& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
+        autocheck::generator<bool> flip;
+        std::deque<LedgerEntry> entriesToModify;
+        for (uint32_t i = 1; i < 10000; ++i)
+        {
+            std::vector<LedgerEntry> initEntries =
+                LedgerTestUtils::generateValidLedgerEntries(8);
+            std::vector<LedgerEntry> liveEntries;
+            std::vector<LedgerKey> deadEntries;
+            for (auto const& e : initEntries)
+            {
+                entriesToModify.push_back(e);
+            }
+            while (entriesToModify.size() > 100)
+            {
+                LedgerEntry e = entriesToModify.front();
+                entriesToModify.pop_front();
+                if (flip())
+                {
+                    // Entry will survive another round of the
+                    // queue.
+                    if (flip())
+                    {
+                        // Entry will be changed before re-enqueueing.
+                        LedgerTestUtils::randomlyModifyEntry(e);
+                        liveEntries.push_back(e);
+                    }
+                    entriesToModify.push_back(e);
+                }
+                else
+                {
+                    // Entry will die.
+                    deadEntries.push_back(LedgerEntryKey(e));
+                }
+            }
+            bl.addBatch(*app, i, vers, initEntries, liveEntries, deadEntries);
+            app->getClock().crank(false);
+            for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
+            {
+                auto& next = bl.getLevel(k).getNext();
+                if (next.isLive())
+                {
+                    next.resolve();
+                }
+            }
+        }
+        for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
+        {
+            auto const& lev = bl.getLevel(k);
+            auto currSz = countEntries(lev.getCurr());
+            auto snapSz = countEntries(lev.getSnap());
+            CLOG(INFO, "Bucket")
+                << "Level " << k << " size: " << (currSz + snapSz);
+        }
     });
 }
 

@@ -259,6 +259,483 @@ TEST_CASE("merging bucket entries", "[bucket]")
     });
 }
 
+static LedgerEntry
+generateAccount()
+{
+    LedgerEntry e;
+    e.data.type(ACCOUNT);
+    e.data.account() = LedgerTestUtils::generateValidAccountEntry(10);
+    return e;
+}
+
+static LedgerEntry
+generateSameAccountDifferentState(std::vector<LedgerEntry> const& others)
+{
+    assert(
+        std::all_of(others.begin(), others.end(), [](LedgerEntry const& other) {
+            return other.data.type() == ACCOUNT;
+        }));
+    assert(!others.empty());
+    while (true)
+    {
+        auto e = generateAccount();
+        e.data.account().accountID = others[0].data.account().accountID;
+        if (std::none_of(others.begin(), others.end(),
+                         [&](LedgerEntry const& other) { return e == other; }))
+        {
+            return e;
+        }
+    }
+}
+
+static LedgerEntry
+generateDifferentAccount(std::vector<LedgerEntry> const& others)
+{
+    assert(
+        std::all_of(others.begin(), others.end(), [](LedgerEntry const& other) {
+            return other.data.type() == ACCOUNT;
+        }));
+    while (true)
+    {
+        auto e = generateAccount();
+        if (std::none_of(others.begin(), others.end(),
+                         [&](LedgerEntry const& other) {
+                             return e.data.account().accountID ==
+                                    other.data.account().accountID;
+                         }))
+        {
+            return e;
+        }
+    }
+}
+
+TEST_CASE("merges refuse to exceed max protocol version",
+          "[bucket][bucketmaxprotocol]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto& bm = app->getBucketManager();
+    auto vers = getAppLedgerVersion(app);
+    LedgerEntry liveEntry = generateAccount();
+    LedgerEntry otherLiveA = generateDifferentAccount({liveEntry});
+    auto bold1 = Bucket::fresh(bm, vers - 1, {}, {liveEntry}, {},
+                               /*countMergeEvents=*/true);
+    auto bold2 = Bucket::fresh(bm, vers - 1, {}, {otherLiveA}, {},
+                               /*countMergeEvents=*/true);
+    auto bnew1 =
+        Bucket::fresh(bm, vers, {}, {liveEntry}, {}, /*countMergeEvents=*/true);
+    auto bnew2 = Bucket::fresh(bm, vers, {}, {otherLiveA}, {},
+                               /*countMergeEvents=*/true);
+    REQUIRE_THROWS_AS(Bucket::merge(bm, vers - 1, bnew1, bnew2,
+                                    /*shadows=*/{},
+                                    /*keepDeadEntries=*/true,
+                                    /*countMergeEvents=*/true),
+                      std::runtime_error);
+    REQUIRE_THROWS_AS(Bucket::merge(bm, vers - 1, bold1, bold2,
+                                    /*shadows=*/{bnew1},
+                                    /*keepDeadEntries=*/true,
+                                    /*countMergeEvents=*/true),
+                      std::runtime_error);
+}
+
+TEST_CASE("bucket output iterator rejects wrong-version entries",
+          "[bucket][bucketinitoutput]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    auto vers_new = Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY;
+    BucketMetadata meta;
+    meta.ledgerVersion = vers_new - 1;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto& bm = app->getBucketManager();
+    BucketEntry initEntry, metaEntry;
+    initEntry.type(INITENTRY);
+    initEntry.liveEntry() = generateAccount();
+    metaEntry.type(METAENTRY);
+    metaEntry.metaEntry() = meta;
+    MergeCounters mc;
+    BucketOutputIterator out(bm.getTmpDir(), true, meta, mc);
+    REQUIRE_THROWS_AS(out.put(initEntry), std::runtime_error);
+    REQUIRE_THROWS_AS(out.put(metaEntry), std::runtime_error);
+}
+
+TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        CLOG(INFO, "Bucket") << "=== starting test app == ";
+        Application::pointer app = createTestApplication(clock, cfg);
+        auto& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
+
+        // Whether we're in the era of supporting or not-supporting INITENTRY.
+        bool initEra =
+            (vers >= Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+
+        CLOG(INFO, "Bucket") << "=== finished buckets for initial account == ";
+
+        LedgerEntry liveEntry = generateAccount();
+        LedgerEntry liveEntry2 = generateSameAccountDifferentState({liveEntry});
+        LedgerEntry liveEntry3 =
+            generateSameAccountDifferentState({liveEntry, liveEntry2});
+        LedgerEntry otherLiveA = generateDifferentAccount({liveEntry});
+        LedgerEntry otherLiveB =
+            generateDifferentAccount({liveEntry, otherLiveA});
+        LedgerEntry otherLiveC =
+            generateDifferentAccount({liveEntry, otherLiveA, otherLiveB});
+        LedgerEntry initEntry = generateSameAccountDifferentState(
+            {liveEntry, liveEntry2, liveEntry3});
+        LedgerEntry initEntry2 = generateSameAccountDifferentState(
+            {initEntry, liveEntry, liveEntry2, liveEntry3});
+        LedgerEntry otherInitA = generateDifferentAccount({initEntry});
+        LedgerKey deadEntry = LedgerEntryKey(liveEntry);
+
+        SECTION("dead and init account entries merge correctly")
+        {
+            auto b1 = Bucket::fresh(bm, vers, {initEntry}, {}, {deadEntry},
+                                    /*countMergeEvents=*/true);
+            // In initEra, the INIT will make it through fresh() to the bucket,
+            // and mutually annihilate on contact with the DEAD, leaving 0
+            // entries. Pre-initEra, the INIT will downgrade to a LIVE during
+            // fresh(), and that will be killed by the DEAD, leaving 1
+            // (tombstone) entry.
+            EntryCounts e(b1);
+            CHECK(e.nInit == 0);
+            CHECK(e.nLive == 0);
+            if (initEra)
+            {
+                CHECK(e.nMeta == 1);
+                CHECK(e.nDead == 0);
+            }
+            else
+            {
+                CHECK(e.nMeta == 0);
+                CHECK(e.nDead == 1);
+            }
+        }
+
+        SECTION("dead and init entries merge with intervening live entries "
+                "correctly")
+        {
+            auto b1 = Bucket::fresh(bm, vers, {initEntry}, {liveEntry},
+                                    {deadEntry}, /*countMergeEvents=*/true);
+            // The same thing should happen here as above, except that the INIT
+            // will merge-over the LIVE during fresh().
+            EntryCounts e(b1);
+            CHECK(e.nInit == 0);
+            CHECK(e.nLive == 0);
+            if (initEra)
+            {
+                CHECK(e.nMeta == 1);
+                CHECK(e.nDead == 0);
+            }
+            else
+            {
+                CHECK(e.nMeta == 0);
+                CHECK(e.nDead == 1);
+            }
+        }
+
+        SECTION("dead and init entries annihilate multiple live entries")
+        {
+            auto b1 = Bucket::fresh(bm, vers, {initEntry},
+                                    {liveEntry, liveEntry2, liveEntry3},
+                                    {deadEntry}, /*countMergeEvents=*/true);
+            // Same deal here as above.
+            EntryCounts e(b1);
+            CHECK(e.nInit == 0);
+            CHECK(e.nLive == 0);
+            if (initEra)
+            {
+                CHECK(e.nMeta == 1);
+                CHECK(e.nDead == 0);
+            }
+            else
+            {
+                CHECK(e.nMeta == 0);
+                CHECK(e.nDead == 1);
+            }
+        }
+
+        SECTION("dead and init entries annihilate multiple live entries via "
+                "separate buckets")
+        {
+            auto bold = Bucket::fresh(bm, vers, {initEntry}, {}, {},
+                                      /*countMergeEvents=*/true);
+            auto bmed = Bucket::fresh(
+                bm, vers, {}, {otherLiveA, otherLiveB, liveEntry, otherLiveC},
+                {}, /*countMergeEvents=*/true);
+            auto bnew = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                      /*countMergeEvents=*/true);
+            EntryCounts eold(bold), emed(bmed), enew(bnew);
+            if (initEra)
+            {
+                CHECK(eold.nMeta == 1);
+                CHECK(emed.nMeta == 1);
+                CHECK(enew.nMeta == 1);
+                CHECK(eold.nInit == 1);
+                CHECK(eold.nLive == 0);
+            }
+            else
+            {
+                CHECK(eold.nMeta == 0);
+                CHECK(emed.nMeta == 0);
+                CHECK(enew.nMeta == 0);
+                CHECK(eold.nInit == 0);
+                CHECK(eold.nLive == 1);
+            }
+
+            CHECK(eold.nDead == 0);
+
+            CHECK(emed.nInit == 0);
+            CHECK(emed.nLive == 4);
+            CHECK(emed.nDead == 0);
+
+            CHECK(enew.nInit == 0);
+            CHECK(enew.nLive == 0);
+            CHECK(enew.nDead == 1);
+
+            auto bmerge1 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, bold,
+                                         bmed, /*shadows=*/{},
+                                         /*keepDeadEntries=*/true,
+                                         /*countMergeEvents=*/true);
+            auto bmerge2 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION,
+                                         bmerge1, bnew, /*shadows=*/{},
+                                         /*keepDeadEntries=*/true,
+                                         /*countMergeEvents=*/true);
+            EntryCounts emerge1(bmerge1), emerge2(bmerge2);
+            if (initEra)
+            {
+                CHECK(emerge1.nMeta == 1);
+                CHECK(emerge1.nInit == 1);
+                CHECK(emerge1.nLive == 3);
+
+                CHECK(emerge2.nMeta == 1);
+                CHECK(emerge2.nDead == 0);
+            }
+            else
+            {
+                CHECK(emerge1.nMeta == 0);
+                CHECK(emerge1.nInit == 0);
+                CHECK(emerge1.nLive == 4);
+
+                CHECK(emerge2.nMeta == 0);
+                CHECK(emerge2.nDead == 1);
+            }
+            CHECK(emerge1.nDead == 0);
+            CHECK(emerge2.nInit == 0);
+            CHECK(emerge2.nLive == 3);
+        }
+
+        SECTION("shadows influence lifecycle entries appropriately")
+        {
+            // In pre-11 versions, shadows _do_ eliminate lifecycle entries
+            // (INIT/DEAD). In 11-and-after versions, shadows _don't_ eliminate
+            // lifecycle entries.
+            auto shadow = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                        /*countMergeEvents=*/true);
+            auto b1 = Bucket::fresh(bm, vers, {initEntry}, {}, {},
+                                    /*countMergeEvents=*/true);
+            auto b2 = Bucket::fresh(bm, vers, {otherInitA}, {}, {},
+                                    /*countMergeEvents=*/true);
+            auto merged = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, b1, b2,
+                                        /*shadows=*/{shadow},
+                                        /*keepDeadEntries=*/true,
+                                        /*countMergeEvents=*/true);
+            EntryCounts e(merged);
+            if (initEra)
+            {
+                CHECK(e.nMeta == 1);
+                CHECK(e.nInit == 2);
+                CHECK(e.nLive == 0);
+                CHECK(e.nDead == 0);
+            }
+            else
+            {
+                CHECK(e.nMeta == 0);
+                CHECK(e.nInit == 0);
+                CHECK(e.nLive == 1);
+                CHECK(e.nDead == 0);
+            }
+        }
+
+        SECTION("shadowing does not revive dead entries")
+        {
+            // This is the first contrived example of what might go wrong if we
+            // shadowed aggressively while supporting INIT+DEAD annihilation,
+            // and why we had to change the shadowing behaviour when introducing
+            // INIT. See comment in `maybePut` in Bucket.cpp.
+            //
+            // (level1 is newest here, level5 is oldest)
+            auto level1 = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                        /*countMergeEvents=*/true);
+            auto level2 = Bucket::fresh(bm, vers, {initEntry2}, {}, {},
+                                        /*countMergeEvents=*/true);
+            auto level3 = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                        /*countMergeEvents=*/true);
+            auto level4 =
+                Bucket::fresh(bm, vers, {}, {}, {}, /*countMergeEvents=*/true);
+            auto level5 = Bucket::fresh(bm, vers, {initEntry}, {}, {},
+                                        /*countMergeEvents=*/true);
+
+            // Do a merge between levels 4 and 3, with shadows from 2 and 1,
+            // risking shadowing-out level 3. Level 4 is a placeholder here,
+            // just to be a thing-to-merge-level-3-with in the presence of
+            // shadowing from 1 and 2.
+            auto merge43 =
+                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level4, level3,
+                              /*shadows=*/{level2, level1},
+                              /*keepDeadEntries=*/true,
+                              /*countMergeEvents=*/true);
+            EntryCounts e43(merge43);
+            if (initEra)
+            {
+                // New-style, we preserve the dead entry.
+                CHECK(e43.nMeta == 1);
+                CHECK(e43.nInit == 0);
+                CHECK(e43.nLive == 0);
+                CHECK(e43.nDead == 1);
+            }
+            else
+            {
+                // Old-style, we shadowed-out the dead entry.
+                CHECK(e43.nMeta == 0);
+                CHECK(e43.nInit == 0);
+                CHECK(e43.nLive == 0);
+                CHECK(e43.nDead == 0);
+            }
+
+            // Do a merge between level 2 and 1, producing potentially
+            // an annihilation of their INIT and DEAD pair.
+            auto merge21 =
+                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level2, level1,
+                              /*shadows=*/{},
+                              /*keepDeadEntries=*/true,
+                              /*countMergeEvents=*/true);
+            EntryCounts e21(merge21);
+            if (initEra)
+            {
+                // New-style, they mutually annihilate.
+                CHECK(e21.nMeta == 1);
+                CHECK(e21.nInit == 0);
+                CHECK(e21.nLive == 0);
+                CHECK(e21.nDead == 0);
+            }
+            else
+            {
+                // Old-style, we keep the tombstone around.
+                CHECK(e21.nMeta == 0);
+                CHECK(e21.nInit == 0);
+                CHECK(e21.nLive == 0);
+                CHECK(e21.nDead == 1);
+            }
+
+            // Do two more merges: one between the two merges we've
+            // done so far, and then finally one with level 5.
+            auto merge4321 =
+                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, merge43, merge21,
+                              /*shadows=*/{},
+                              /*keepDeadEntries=*/true,
+                              /*countMergeEvents=*/true);
+            auto merge54321 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION,
+                                            level5, merge4321,
+                                            /*shadows=*/{},
+                                            /*keepDeadEntries=*/true,
+                                            /*countMergeEvents=*/true);
+            EntryCounts e54321(merge21);
+            if (initEra)
+            {
+                // New-style, we should get a second mutual annihilation.
+                CHECK(e54321.nMeta == 1);
+                CHECK(e54321.nInit == 0);
+                CHECK(e54321.nLive == 0);
+                CHECK(e54321.nDead == 0);
+            }
+            else
+            {
+                // Old-style, the tombstone should clobber the live entry.
+                CHECK(e54321.nMeta == 0);
+                CHECK(e54321.nInit == 0);
+                CHECK(e54321.nLive == 0);
+                CHECK(e54321.nDead == 1);
+            }
+        }
+
+        SECTION("shadowing does not eliminate init entries")
+        {
+            // This is the second less-bad but still problematic contrived
+            // example of what might go wrong if we shadowed aggressively while
+            // supporting INIT+DEAD annihilation, and why we had to change the
+            // shadowing behaviour when introducing INIT. See comment in
+            // `maybePut` in Bucket.cpp.
+            //
+            // (level1 is newest here, level3 is oldest)
+            auto level1 = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
+                                        /*countMergeEvents=*/true);
+            auto level2 = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
+                                        /*countMergeEvents=*/true);
+            auto level3 = Bucket::fresh(bm, vers, {initEntry}, {}, {},
+                                        /*countMergeEvents=*/true);
+
+            // Do a merge between levels 3 and 2, with shadow from 1, risking
+            // shadowing-out the init on level 3. Level 2 is a placeholder here,
+            // just to be a thing-to-merge-level-3-with in the presence of
+            // shadowing from 1.
+            auto merge32 =
+                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, level3, level2,
+                              /*shadows=*/{level1},
+                              /*keepDeadEntries=*/true,
+                              /*countMergeEvents=*/true);
+            EntryCounts e32(merge32);
+            if (initEra)
+            {
+                // New-style, we preserve the init entry.
+                CHECK(e32.nMeta == 1);
+                CHECK(e32.nInit == 1);
+                CHECK(e32.nLive == 0);
+                CHECK(e32.nDead == 0);
+            }
+            else
+            {
+                // Old-style, we shadowed-out the live and init entries.
+                CHECK(e32.nMeta == 0);
+                CHECK(e32.nInit == 0);
+                CHECK(e32.nLive == 0);
+                CHECK(e32.nDead == 0);
+            }
+
+            // Now do a merge between that 3+2 merge and level 1, and we risk
+            // collecting tombstones in the lower levels, which we're expressly
+            // trying to _stop_ doing by adding INIT.
+            auto merge321 =
+                Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, merge32, level1,
+                              /*shadows=*/{},
+                              /*keepDeadEntries=*/true,
+                              /*countMergeEvents=*/true);
+            EntryCounts e321(merge321);
+            if (initEra)
+            {
+                // New-style, init meets dead and they annihilate.
+                CHECK(e321.nMeta == 1);
+                CHECK(e321.nInit == 0);
+                CHECK(e321.nLive == 0);
+                CHECK(e321.nDead == 0);
+            }
+            else
+            {
+                // Old-style, init was already shadowed-out, so dead
+                // accumulates.
+                CHECK(e321.nMeta == 0);
+                CHECK(e321.nInit == 0);
+                CHECK(e321.nLive == 0);
+                CHECK(e321.nDead == 1);
+            }
+        }
+    });
+}
+
 TEST_CASE("bucket apply", "[bucket]")
 {
     VirtualClock clock;
