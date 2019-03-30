@@ -184,6 +184,55 @@ BucketManagerImpl::getMergeTimer()
     return mBucketSnapMerge;
 }
 
+MergeCounters
+BucketManagerImpl::readMergeCounters()
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    return mMergeCounters;
+}
+
+MergeCounters&
+MergeCounters::operator+=(MergeCounters const& delta)
+{
+    mPreInitEntryProtocolMerges += delta.mPreInitEntryProtocolMerges;
+    mPostInitEntryProtocolMerges += delta.mPostInitEntryProtocolMerges;
+
+    mNewMetaEntries += delta.mNewMetaEntries;
+    mNewInitEntries += delta.mNewInitEntries;
+    mNewLiveEntries += delta.mNewLiveEntries;
+    mNewDeadEntries += delta.mNewDeadEntries;
+    mOldMetaEntries += delta.mOldMetaEntries;
+    mOldInitEntries += delta.mOldInitEntries;
+    mOldLiveEntries += delta.mOldLiveEntries;
+    mOldDeadEntries += delta.mOldDeadEntries;
+
+    mOldEntriesDefaultAccepted += delta.mOldEntriesDefaultAccepted;
+    mNewEntriesDefaultAccepted += delta.mNewEntriesDefaultAccepted;
+    mNewInitEntriesMergedWithOldDead += delta.mNewInitEntriesMergedWithOldDead;
+    mOldInitEntriesMergedWithNewLive += delta.mOldInitEntriesMergedWithNewLive;
+    mOldInitEntriesMergedWithNewDead += delta.mOldInitEntriesMergedWithNewDead;
+    mNewEntriesMergedWithOldNeitherInit +=
+        delta.mNewEntriesMergedWithOldNeitherInit;
+
+    mShadowScanSteps += delta.mShadowScanSteps;
+    mMetaEntryShadowElisions += delta.mMetaEntryShadowElisions;
+    mLiveEntryShadowElisions += delta.mLiveEntryShadowElisions;
+    mInitEntryShadowElisions += delta.mInitEntryShadowElisions;
+    mDeadEntryShadowElisions += delta.mDeadEntryShadowElisions;
+
+    mOutputIteratorTombstoneElisions += delta.mOutputIteratorTombstoneElisions;
+    mOutputIteratorBufferUpdates += delta.mOutputIteratorBufferUpdates;
+    mOutputIteratorActualWrites += delta.mOutputIteratorActualWrites;
+    return *this;
+}
+
+void
+BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    mMergeCounters += delta;
+}
+
 std::shared_ptr<Bucket>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, size_t nObjects,

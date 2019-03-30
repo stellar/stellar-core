@@ -45,6 +45,7 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
+    MergeCounters mMergeCounters;
 
     std::set<Hash> getReferencedBuckets() const;
     void cleanupStaleFiles();
@@ -64,6 +65,8 @@ class BucketManagerImpl : public BucketManager
     std::string const& getBucketDir() override;
     BucketList& getBucketList() override;
     medida::Timer& getMergeTimer() override;
+    MergeCounters readMergeCounters() override;
+    void incrMergeCounters(MergeCounters const&) override;
     TmpDirManager& getTmpDirManager() override;
     std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
                                               uint256 const& hash,

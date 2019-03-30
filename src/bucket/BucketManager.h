@@ -20,6 +20,43 @@ class TmpDirManager;
 struct LedgerHeader;
 struct HistoryArchiveState;
 
+// A fine-grained merge-operation-counter structure for tracking various
+// events during merges. These are not medida counters becasue we do not
+// want or need to publish this level of granularity outside of testing, and
+// we do want merges to run as quickly as possible.
+struct MergeCounters
+{
+    uint64_t mPreInitEntryProtocolMerges{0};
+    uint64_t mPostInitEntryProtocolMerges{0};
+
+    uint64_t mNewMetaEntries{0};
+    uint64_t mNewInitEntries{0};
+    uint64_t mNewLiveEntries{0};
+    uint64_t mNewDeadEntries{0};
+    uint64_t mOldMetaEntries{0};
+    uint64_t mOldInitEntries{0};
+    uint64_t mOldLiveEntries{0};
+    uint64_t mOldDeadEntries{0};
+
+    uint64_t mOldEntriesDefaultAccepted{0};
+    uint64_t mNewEntriesDefaultAccepted{0};
+    uint64_t mNewInitEntriesMergedWithOldDead{0};
+    uint64_t mOldInitEntriesMergedWithNewLive{0};
+    uint64_t mOldInitEntriesMergedWithNewDead{0};
+    uint64_t mNewEntriesMergedWithOldNeitherInit{0};
+
+    uint64_t mShadowScanSteps{0};
+    uint64_t mMetaEntryShadowElisions{0};
+    uint64_t mLiveEntryShadowElisions{0};
+    uint64_t mInitEntryShadowElisions{0};
+    uint64_t mDeadEntryShadowElisions{0};
+
+    uint64_t mOutputIteratorTombstoneElisions{0};
+    uint64_t mOutputIteratorBufferUpdates{0};
+    uint64_t mOutputIteratorActualWrites{0};
+    MergeCounters& operator+=(MergeCounters const& delta);
+};
+
 /**
  * BucketManager is responsible for maintaining a collection of Buckets of
  * ledger entries (each sorted, de-duplicated and identified by hash) and,
@@ -58,6 +95,11 @@ class BucketManager : NonMovableOrCopyable
     virtual BucketList& getBucketList() = 0;
 
     virtual medida::Timer& getMergeTimer() = 0;
+
+    // Reading and writing the merge counters is done in bulk, and takes a lock
+    // briefly; this can be done from any thread.
+    virtual MergeCounters readMergeCounters() = 0;
+    virtual void incrMergeCounters(MergeCounters const& delta) = 0;
 
     // Get a reference to a persistent bucket (in the BucketManager's bucket
     // directory), from the BucketManager's shared bucket-set.
