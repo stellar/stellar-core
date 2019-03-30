@@ -68,6 +68,21 @@ TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
     return mCfg;
 }
 
+ProtocolVersionTmpDirHistoryConfigurator::
+    ProtocolVersionTmpDirHistoryConfigurator(uint32_t version)
+    : mProtocolVersion(version)
+{
+}
+
+Config&
+ProtocolVersionTmpDirHistoryConfigurator::configure(Config& mCfg,
+                                                    bool writable) const
+{
+    TmpDirHistoryConfigurator::configure(mCfg, writable);
+    mCfg.LEDGER_PROTOCOL_VERSION = mProtocolVersion;
+    return mCfg;
+}
+
 Config&
 S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
 {
@@ -536,12 +551,13 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
 Application::pointer
 CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
                                          bool manual, Config::TestDbMode dbMode,
-                                         std::string const& appName)
+                                         std::string const& appName,
+                                         uint32_t protocolVersion)
 {
 
     CLOG(INFO, "History") << "****";
     CLOG(INFO, "History") << "**** Beginning catchup test for app '" << appName
-                          << "'";
+                          << "', protocol " << protocolVersion;
     CLOG(INFO, "History") << "****";
 
     mCfgs.emplace_back(
@@ -552,6 +568,7 @@ CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
     {
         mCfgs.back().CATCHUP_RECENT = count;
     }
+    mCfgs.back().LEDGER_PROTOCOL_VERSION = protocolVersion;
     Application::pointer app2 = createTestApplication(
         mClock, mHistoryConfigurator->configure(mCfgs.back(), false));
 

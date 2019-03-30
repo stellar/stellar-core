@@ -75,6 +75,16 @@ class TmpDirHistoryConfigurator : public HistoryConfigurator
     Config& configure(Config& cfg, bool writable) const override;
 };
 
+class ProtocolVersionTmpDirHistoryConfigurator
+    : public TmpDirHistoryConfigurator
+{
+    uint32_t mProtocolVersion;
+
+  public:
+    ProtocolVersionTmpDirHistoryConfigurator(uint32_t protocolVersion);
+    Config& configure(Config& cfg, bool writable) const override;
+};
+
 class BucketOutputIteratorForTesting : public BucketOutputIterator
 {
     const size_t NUM_ITEMS_PER_BUCKET = 5;
@@ -241,10 +251,10 @@ class CatchupSimulation
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);
 
-    Application::pointer catchupNewApplication(uint32_t initLedger,
-                                               uint32_t count, bool manual,
-                                               Config::TestDbMode dbMode,
-                                               std::string const& appName);
+    Application::pointer catchupNewApplication(
+        uint32_t initLedger, uint32_t count, bool manual,
+        Config::TestDbMode dbMode, std::string const& appName,
+        uint32_t protocol = Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     bool catchupApplication(uint32_t initLedger, uint32_t count, bool manual,
                             Application::pointer app2, uint32_t gap = 0);
 

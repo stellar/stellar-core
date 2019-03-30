@@ -365,7 +365,7 @@ getRoot(Hash const& networkID)
 }
 
 SecretKey
-getAccount(const char* n)
+getAccount(std::string const& n)
 {
     // stretch seed to 32 bytes
     std::string seed(n);
