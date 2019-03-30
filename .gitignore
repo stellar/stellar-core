@@ -20,6 +20,12 @@
 *.trs
 *.db
 
+# sourcetrail
+compile_commands.json
+*.srctrlbm
+*.srctrldb
+*.srctrlprj
+
 # text editors
 *~
 *.swp
