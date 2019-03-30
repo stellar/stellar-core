@@ -1034,6 +1034,19 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
                                        has.toString());
 }
 
+// NB: This is a separate method so a testing subclass can override it.
+void
+LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
+                                                     uint32_t ledgerSeq,
+                                                     uint32_t ledgerVers)
+{
+    std::vector<LedgerEntry> initEntries, liveEntries;
+    std::vector<LedgerKey> deadEntries;
+    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+                                     initEntries, liveEntries, deadEntries);
+}
+
 void
 LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
 {
@@ -1042,11 +1055,8 @@ LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
     CLOG(TRACE, "Ledger") << fmt::format(
         "sealing ledger {} with version {}, sending to bucket list", ledgerSeq,
         ledgerVers);
-    std::vector<LedgerEntry> initEntries, liveEntries;
-    std::vector<LedgerKey> deadEntries;
-    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
-                                     initEntries, liveEntries, deadEntries);
+
+    transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);
