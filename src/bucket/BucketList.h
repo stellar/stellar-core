@@ -101,11 +101,17 @@ namespace stellar
 //
 // Define levels(k) = ceil(log_4(k))
 //
-// Each level holds objects changed _in some range of ledgers_.
+// In the original design of the bucket list, we intended that each level would
+// hold objects changed _in some range of ledgers_.
 //
 // for i in range(0, levels(k)):
 //   curr(i) covers range (mask(k,half(i)), mask(k,prev(i))]
 //   snap(i) covers range (mask(k,size(i)), mask(k,half(i))]
+//
+// In practice, the final implementation we settled on wound up having a sort of
+// off-by-one error in the initial population of each level (see "initial level
+// skews" below), so those ranges fail to hold. But they're _close_, just off by
+// an unfortunate error term.
 //
 // Every time k increases, it must create a snapshot (promoting curr(i) to
 // snap(i) and evicting snap(i)) at any level i where the size of the actual
@@ -115,32 +121,86 @@ namespace stellar
 // Example:
 // --------
 //
-// Suppose we're on ledger 0x56789ab (decimal 90,671,531)
+// Suppose we're on ledger 0x11_f9ab (decimal 1,178,027)
 //
-// We immediately know that we could represent the bucket list for this in 14
-// levels, because the ledger number has 7 hex digits (alternatively:
-// ceil(log_4(ledger)) == 14). It turns out (see below re: "degeneracy")
-// that we won't use all 14, but for now let's imagine we did:
+// This will occupy 10 levels of bucket list. Here they are (this is taken from
+// measuring actual buckets in the current code, and is accurate -- previous
+// calculations were off by a bit):
 //
-// The levels would then hold objects changed in the following ranges:
+// level           curr                             snap
+//            size=[lo_ledger, hi_ledger]      size=[lo_ledger, hi_ledger]
+// =========================================================================
+//   0         0x2=[0x11_f9aa, 0x11_f9ab]       0x2=[0x11_f9a8, 0x11_f9a9]
+//   1         0x4=[0x11_f9a4, 0x11_f9a7]       0x8=[0x11_f99c, 0x11_f9a3]
+//   2        0x10=[0x11_f98c, 0x11_f99b]      0x20=[0x11_f96c, 0x11_f98b]
+//   3        0x40=[0x11_f92c, 0x11_f96b]      0x80=[0x11_f8ac, 0x11_f92b]
+//   4       0x200=[0x11_f6ac, 0x11_f8ab]     0x200=[0x11_f4ac, 0x11_f6ab]
+//   5       0x200=[0x11_f2ac, 0x11_f4ab]     0x800=[0x11_eaac, 0x11_f2ab]
+//   6      0x2000=[0x11_caac, 0x11_eaab]    0x2000=[0x11_aaac, 0x11_caab]
+//   7      0x8000=[0x11_2aac, 0x11_aaab]    0x8000=[0x10_aaac, 0x11_2aab]
+//   8    0x2_0000=[ 0xe_aaac, 0x10_aaab]   0x20000=[ 0xc_aaac,  0xe_aaab]
+//   9    0x2_0000=[ 0xa_aaac,  0xc_aaab]   0x80000=[ 0x2_aaac,  0xa_aaab]
+//  10    0x2_aaab=[      0x1,  0x2_aaab]   ---------- empty -----------
 //
-// level[0]  curr=(0x56789aa, 0x56789ab],  snap=(0x56789a8, 0x56789aa]
-// level[1]  curr= ------ empty ------- ,  snap=(0x56789a0, 0x56789a8]
-// level[2]  curr= ------ empty ------- ,  snap=(0x5678980, 0x56789a0]
-// level[3]  curr= ------ empty ------- ,  snap=(0x5678900, 0x5678980]
-// level[4]  curr=(0x5678800, 0x5678900],  snap= ------ empty -------
-// level[5]  curr= ------ empty ------- ,  snap=(0x5678000, 0x5678800]
-// level[6]  curr= ------ empty ------- ,  snap= ------ empty -------
-// level[7]  curr= ------ empty ------- ,  snap=(0x5670000, 0x5678000]
-// level[8]  curr=(0x5660000, 0x5670000],  snap=(0x5640000, 0x5660000]
-// level[9]  curr=(0x5600000, 0x5640000],  snap= ------ empty -------
-// level[10] curr= ------ empty ------- ,  snap=(0x5400000, 0x5600000]
-// level[11] curr=(0x5000000, 0x5400000],  snap= ------ empty -------
-// level[12] curr=(0x4000000, 0x5000000],  snap= ------ empty -------
-// level[13] curr=(0x0, 0x4000000],        snap= ------ empty -------
+// The sizes of the "snap" buckets _for levels that are full_ correspond exactly
+// to the values of the levelHalf() function: (4^(level+1))/2. I.e. 0x2, 0x8,
+// 0x20, 0x80, 0x200, etc.
 //
-// Assuming a ledger closes every 5 seconds, here are the timespans
-// covered by each level:
+// The sizes of the "curr" buckets _for levels that are full_ cycle over time
+// between 1 and 4 times the size of levelHalf() of the _previous_ level (where
+// 4x the previous levelHalf is the _current_ level's levelHalf).
+//
+// For example, the curr bucket on level 5 grows in units of 0x200 ledgers, as
+// snap buckets of size 0x200 spill in from level 4. In the picture above it is
+// currently holding 0x200 ledgers-worth, and it will cycle through 0x400, 0x600
+// and 0x800 ledgers before returning to 0x200. When it holds 0x800 it is
+// "full", and the next spill from level 4 will cause level 5 curr to snapshot,
+// to become level 5 snap, and _only then_ will level 5 curr be replaced by the
+// newly arrived 0x200-ledger spill from level 4.
+//
+//
+// Initial ledger skews (a.k.a. "why do they all end in ...aaaab?"):
+// -----------------------------------------------------------------
+//
+// For levels that _are not full_ (which only happens at the level holding the
+// oldest bucket in the bucket list, as it grows, eg. level 10's curr in the
+// table above) unfortunately the picture is more complex: each curr is
+// essentially the sum of the "last 4 snaps" from its previous level, and those
+// start out _empty_ on each level, only filling in as snaps from earlier-still
+// levels (that also started empty) spill into them, fill up their curr, and get
+// snap'ed, etc. So each level's buckets take exponentially-longer to "ramp up"
+// to being full:
+//
+//    - level 0 is spilling full (2-ledger) snaps only after ledger 4,
+//    - level 1 is spilling full (8-ledger) snaps only after ledger 16,
+//    - level 2 is spilling full (32-ledger) snaps only after ledger 64,
+//
+// and so forth. So during the filling-up period, each curr and snap is at some
+// degenerate size less than the expected size, and spanning a range that's
+// offset from the expected range by the sum of all the size-degeneracies that
+// occurred up to the present. The exact recurrence defining the sizes and range
+// offsets of these "filling-up buckets" is a bit complex (see sizeOfCurr and
+// sizeOfSnap) and beside the point. But for example, in the full bucketlist
+// example table above, the level 10 curr at ledger 0x11f9ab only spans 0x2aaab
+// ledgers, rather than a multiple-of-0x80000 as one would expect.
+//
+// Unfortunately even after the bucketlist fills up in its entirety, and most
+// buckets have their expected _sizes_, every bucket's _ledger range_ will
+// retain this weird offset from the elegant powers-of-4 boundaries one would
+// want, as residue from its "filling up" period. Moreover the oldest bucket
+// will forever have a "weird size" that includes the residue from the
+// filling-up period. This state of affairs is unfortunately wired-in to the
+// design now; an unforeseen consequence of choices made when translating the
+// on-paper design to code that actually deals with initial conditions, and an
+// oversight to have not tested-for specifically. Apologies for the resulting
+// "ugly" ledger spans.
+//
+//
+// Time intuitions:
+// ----------------
+//
+// Assuming a ledger closes every 5 seconds, here are the timespans covered by
+// each level:
 //
 // L0:   20 seconds          (4 ledgers)
 // L1:   80 seconds         (16 ledgers)
