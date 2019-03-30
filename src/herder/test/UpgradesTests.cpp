@@ -1406,6 +1406,67 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
     }
 }
 
+TEST_CASE("upgrade to version 11", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.LEDGER_PROTOCOL_VERSION = 10;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+    auto& lm = app->getLedgerManager();
+    uint32_t oldProto = 10;
+    uint32_t newProto = 11;
+    auto root = TestAccount{*app, txtest::getRoot(app->getNetworkID())};
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+        auto stranger =
+            TestAccount{*app, txtest::getAccount(fmt::format("stranger{}", i))};
+        TxSetFramePtr txSet =
+            std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+        uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
+        uint64_t minBalance = lm.getLastMinBalance(5);
+        uint64_t big = minBalance + ledgerSeq;
+        uint64_t closeTime = 60 * 5 * ledgerSeq;
+        txSet->add(root.tx({txtest::createAccount(stranger, big)}));
+        // Provoke sortForHash and hash-caching:
+        txSet->getContentsHash();
+
+        // On 3rd iteration of advance, perform a ledger-protocol version
+        // upgrade to the new protocol, to activate INITENTRY behaviour.
+        auto upgrades = xdr::xvector<UpgradeType, 6>{};
+        if (i == 3)
+        {
+            auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+            ledgerUpgrade.newLedgerVersion() = newProto;
+            auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+            upgrades.push_back(UpgradeType{v.begin(), v.end()});
+            CLOG(INFO, "Ledger")
+                << "Ledger " << ledgerSeq << " upgrading to v" << newProto;
+        }
+        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades, 0);
+        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        auto mc = app->getBucketManager().readMergeCounters();
+        CLOG(INFO, "Bucket") << "Ledger " << ledgerSeq << " caused "
+                             << mc.mNewInitEntries << " new INITENTRYs";
+        if (i < 3)
+        {
+            // Check that before upgrade, we did not do any INITENTRY.
+            REQUIRE(mc.mPreInitEntryProtocolMerges != 0);
+            REQUIRE(mc.mPostInitEntryProtocolMerges == 0);
+            REQUIRE(mc.mNewInitEntries == 0);
+            REQUIRE(mc.mOldInitEntries == 0);
+        }
+        else
+        {
+            // Check that after upgrade, we did INITENTRY.
+            REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
+            REQUIRE(mc.mNewInitEntries != 0);
+            REQUIRE(mc.mOldInitEntries != 0);
+        }
+    }
+}
+
 TEST_CASE("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
