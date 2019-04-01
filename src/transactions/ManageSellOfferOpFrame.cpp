@@ -199,4 +199,11 @@ ManageSellOfferOpFrame::setResultTooManySubentries()
     mResult.tr().manageSellOfferResult().code(
         MANAGE_SELL_OFFER_TOO_MANY_SUBENTRIES);
 }
+
+void
+ManageSellOfferOpFrame::setResultExceededWorkLimit()
+{
+    mResult.tr().manageSellOfferResult().code(
+        MANAGE_SELL_OFFER_EXCEEDED_WORK_LIMIT);
+}
 }

@@ -466,7 +466,8 @@ enum PathPaymentResultCode
     PATH_PAYMENT_NO_ISSUER = -9,          // missing issuer on one asset
     PATH_PAYMENT_TOO_FEW_OFFERS = -10,    // not enough offers to satisfy path
     PATH_PAYMENT_OFFER_CROSS_SELF = -11,  // would cross one of its own offers
-    PATH_PAYMENT_OVER_SENDMAX = -12       // could not satisfy sendmax
+    PATH_PAYMENT_OVER_SENDMAX = -12,      // could not satisfy sendmax
+    PATH_PAYMENT_EXCEEDED_WORK_LIMIT = -13 // operation did too much work
 };
 
 struct SimplePaymentResult
@@ -514,7 +515,8 @@ enum ManageSellOfferResultCode
 
     MANAGE_SELL_OFFER_LOW_RESERVE = -12, // not enough funds to create a new Offer
     MANAGE_SELL_OFFER_TOO_MANY_SUBENTRIES
-        = -13 // max number of subentries already reached
+        = -13, // max number of subentries already reached
+    MANAGE_SELL_OFFER_EXCEEDED_WORK_LIMIT = -14 // operation did too much work
 };
 
 enum ManageOfferEffect
@@ -572,7 +574,8 @@ enum ManageBuyOfferResultCode
 
     MANAGE_BUY_OFFER_LOW_RESERVE = -12, // not enough funds to create a new Offer
     MANAGE_BUY_OFFER_TOO_MANY_SUBENTRIES
-        = -13 // max number of subentries already reached
+        = -13, // max number of subentries already reached
+    MANAGE_BUY_OFFER_EXCEEDED_WORK_LIMIT = -14 // operation did too much work
 };
 
 union ManageBuyOfferResult switch (ManageBuyOfferResultCode code)

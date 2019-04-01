@@ -182,4 +182,11 @@ ManageBuyOfferOpFrame::setResultTooManySubentries()
     mResult.tr().manageBuyOfferResult().code(
         MANAGE_BUY_OFFER_TOO_MANY_SUBENTRIES);
 }
+
+void
+ManageBuyOfferOpFrame::setResultExceededWorkLimit()
+{
+    mResult.tr().manageBuyOfferResult().code(
+        MANAGE_BUY_OFFER_EXCEEDED_WORK_LIMIT);
+}
 }

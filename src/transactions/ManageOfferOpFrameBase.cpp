@@ -260,6 +260,13 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             return false;
         }
 
+        int64_t maxOffersToCross = INT64_MAX;
+        if (ltx.loadHeader().current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS)
+        {
+            maxOffersToCross = MAX_OFFERS_TO_CROSS;
+        }
+
         int64_t sheepSent, wheatReceived;
         std::vector<ClaimOfferAtom> offerTrail;
         Price maxWheatPrice(mPrice.d, mPrice.n);
@@ -282,7 +289,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 }
                 return OfferFilterResult::eKeep;
             },
-            offerTrail);
+            offerTrail, maxOffersToCross);
         assert(sheepSent >= 0);
 
         bool sheepStays;
@@ -301,6 +308,9 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             }
             sheepStays = true;
             break;
+        case ConvertResult::eCrossedTooMany:
+            setResultExceededWorkLimit();
+            return false;
         default:
             abort();
         }

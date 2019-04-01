@@ -69,5 +69,6 @@ class ManageOfferOpFrameBase : public OperationFrame
     virtual void setResultNotFound() = 0;
     virtual void setResultLowReserve() = 0;
     virtual void setResultTooManySubentries() = 0;
+    virtual void setResultExceededWorkLimit() = 0;
 };
 }

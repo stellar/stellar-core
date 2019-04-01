@@ -11,6 +11,8 @@
 namespace stellar
 {
 
+size_t const MAX_OFFERS_TO_CROSS = 1000;
+
 class AbstractLedgerTxn;
 class ConstLedgerTxnEntry;
 class LedgerTxnEntry;
@@ -99,7 +101,8 @@ enum class ConvertResult
 {
     eOK,
     ePartial,
-    eFilterStop
+    eFilterStop,
+    eCrossedTooMany
 };
 
 enum class CrossOfferResult
@@ -115,5 +118,5 @@ ConvertResult convertWithOffers(
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, bool isPathPayment,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
-    std::vector<ClaimOfferAtom>& offerTrail);
+    std::vector<ClaimOfferAtom>& offerTrail, int64_t maxOffersToCross);
 }
