@@ -229,6 +229,12 @@ class Config : public std::enable_shared_from_this<Config>
     size_t ENTRY_CACHE_SIZE;
     size_t BEST_OFFERS_CACHE_SIZE;
 
+    // Data layer prefetcher configuration
+    // - PREFETCH_BATCH_SIZE determines how many records we'll prefetch per
+    // SQL load. Note that it should be significantly smaller than size of
+    // the entry cache
+    size_t PREFETCH_BATCH_SIZE;
+
     Config();
 
     void load(std::string const& filename);
