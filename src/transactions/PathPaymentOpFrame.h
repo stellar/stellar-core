@@ -25,6 +25,8 @@ class PathPaymentOpFrame : public OperationFrame
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
+    void insertLedgerKeysToPrefetch(
+        std::unordered_set<LedgerKey>& keys) const override;
 
     static PathPaymentResultCode
     getInnerCode(OperationResult const& res)

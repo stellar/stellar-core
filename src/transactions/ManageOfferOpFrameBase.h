@@ -38,6 +38,8 @@ class ManageOfferOpFrameBase : public OperationFrame
     bool doCheckValid(uint32_t ledgerVersion) override;
 
     bool doApply(AbstractLedgerTxn& lsOuter) override;
+    void insertLedgerKeysToPrefetch(
+        std::unordered_set<LedgerKey>& keys) const override;
 
     virtual bool isAmountValid() = 0;
     virtual bool isDeleteOffer() = 0;
