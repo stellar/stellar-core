@@ -386,6 +386,109 @@ dbModeName(Config::TestDbMode mode)
 
 TEST_CASE("History catchup", "[history][historycatchup]")
 {
+    // needs REAL_TIME here, as prepare-snapshot works will fail for one of the
+    // sections again and again - as it is set to RETRY_FOREVER it can generate
+    // megabytes of unneccessary log entries
+    CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_ON_DISK_SQLITE,
+        "app");
+
+    auto offlineNonCheckpointDestinationLedger =
+        checkpointLedger -
+        app->getHistoryManager().getCheckpointFrequency() / 2;
+
+    SECTION("when not enough publishes has been performed")
+    {
+        // only 2 first checkpoints can be published in this section
+        catchupSimulation.ensureLedgerAvailable(checkpointLedger);
+
+        SECTION("online")
+        {
+            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
+        }
+
+        SECTION("offline")
+        {
+            REQUIRE(!catchupSimulation.catchupOffline(app, checkpointLedger));
+        }
+
+        SECTION("offline, in the middle of checkpoint")
+        {
+            REQUIRE(!catchupSimulation.catchupOffline(
+                app, offlineNonCheckpointDestinationLedger));
+        }
+    }
+
+    SECTION("when enough publishes has been performed, but no trigger ledger "
+            "was externalized")
+    {
+        // 1 ledger is for publish-trigger
+        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
+        catchupSimulation.ensurePublishesComplete();
+
+        SECTION("online")
+        {
+            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
+        }
+
+        SECTION("offline")
+        {
+            REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
+        }
+
+        SECTION("offline, in the middle of checkpoint")
+        {
+            REQUIRE(catchupSimulation.catchupOffline(
+                app, offlineNonCheckpointDestinationLedger));
+        }
+    }
+
+    SECTION("when enough publishes has been performed, but no closing ledger "
+            "was externalized")
+    {
+        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger
+        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
+        catchupSimulation.ensurePublishesComplete();
+
+        SECTION("online")
+        {
+            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
+        }
+    }
+
+    SECTION("when enough publishes has been performed, 3 ledgers are buffered "
+            "and no closing ledger was externalized")
+    {
+        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
+        // 3 ledgers are buffered
+        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
+        catchupSimulation.ensurePublishesComplete();
+
+        SECTION("online")
+        {
+            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        }
+    }
+
+    SECTION("when enough publishes has been performed, 3 ledgers are buffered "
+            "and closing ledger was externalized")
+    {
+        // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger,
+        // 3 ledgers are buffered, 1 ledger is cloding
+        catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
+        catchupSimulation.ensurePublishesComplete();
+
+        SECTION("online")
+        {
+            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
+        }
+    }
+}
+
+TEST_CASE("History catchup with different modes", "[history][historycatchup]")
+{
     CatchupSimulation catchupSimulation{};
 
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -460,7 +563,8 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
     uint32_t oldProto = newProto - 1;
     auto configurator =
         std::make_shared<ProtocolVersionTmpDirHistoryConfigurator>(oldProto);
-    CatchupSimulation catchupSimulation{configurator};
+    CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
+                                        configurator};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
 
@@ -659,7 +763,7 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
 TEST_CASE("Publish catchup via s3", "[!hide][s3]")
 {
     CatchupSimulation catchupSimulation{
-        std::make_shared<S3HistoryConfigurator>()};
+        VirtualClock::VIRTUAL_TIME, std::make_shared<S3HistoryConfigurator>()};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
 

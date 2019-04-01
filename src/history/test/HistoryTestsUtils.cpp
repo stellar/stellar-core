@@ -397,8 +397,10 @@ operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
     return !(x == y);
 }
 
-CatchupSimulation::CatchupSimulation(std::shared_ptr<HistoryConfigurator> cg)
-    : mHistoryConfigurator(cg)
+CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
+                                     std::shared_ptr<HistoryConfigurator> cg)
+    : mClock(mode)
+    , mHistoryConfigurator(cg)
     , mCfg(getTestConfig())
     , mAppPtr(createTestApplication(
           mClock, mHistoryConfigurator->configure(mCfg, true)))

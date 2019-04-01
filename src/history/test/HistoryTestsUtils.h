@@ -214,9 +214,6 @@ class CatchupSimulation
     std::vector<SequenceNumber> bobSeqs;
     std::vector<SequenceNumber> carolSeqs;
 
-    void ensurePublishesComplete();
-    void ensureLedgerAvailable(uint32_t targetLedger);
-
     CatchupMetrics getCatchupMetrics(Application::pointer app);
     CatchupPerformedWork computeCatchupPerformedWork(
         uint32_t lastClosedLedger,
@@ -226,6 +223,7 @@ class CatchupSimulation
 
   public:
     explicit CatchupSimulation(
+        VirtualClock::Mode mode = VirtualClock::VIRTUAL_TIME,
         std::shared_ptr<HistoryConfigurator> cg =
             std::make_shared<TmpDirHistoryConfigurator>());
     ~CatchupSimulation();
@@ -258,6 +256,8 @@ class CatchupSimulation
 
     void generateRandomLedger();
 
+    void ensurePublishesComplete();
+    void ensureLedgerAvailable(uint32_t targetLedger);
     void ensureOfflineCatchupPossible(uint32_t targetLedger);
     void ensureOnlineCatchupPossible(uint32_t targetLedger,
                                      uint32_t bufferLedgers = 0);
