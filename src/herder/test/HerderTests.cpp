@@ -383,7 +383,7 @@ TEST_CASE("txset", "[herder]")
 TEST_CASE("surge pricing", "[herder]")
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 5;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -393,7 +393,7 @@ TEST_CASE("surge pricing", "[herder]")
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
         ltx.loadHeader().current().maxTxSetSize =
-            cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
     }
 
     // set up world
@@ -422,7 +422,7 @@ TEST_CASE("surge pricing", "[herder]")
     };
 
     auto addRootTxs = [&]() {
-        for (uint32_t n = 0; n < 2 * cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
+        for (uint32_t n = 0; n < 2 * cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
         {
             txSet->add(multiPaymentTx(root, n + 1, 10000 + 1000 * n));
         }
@@ -442,7 +442,7 @@ TEST_CASE("surge pricing", "[herder]")
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
         REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
@@ -456,7 +456,7 @@ TEST_CASE("surge pricing", "[herder]")
     SECTION("one account paying more")
     {
         addRootTxs();
-        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
+        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             tx->getEnvelope().tx.fee -= 1;
@@ -468,7 +468,7 @@ TEST_CASE("surge pricing", "[herder]")
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
         REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
@@ -481,7 +481,7 @@ TEST_CASE("surge pricing", "[herder]")
     SECTION("one account with more operations but same total fee")
     {
         addRootTxs();
-        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
+        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
             // find corresponding root tx (should have 1 less op)
@@ -498,7 +498,7 @@ TEST_CASE("surge pricing", "[herder]")
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
         REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
@@ -513,7 +513,7 @@ TEST_CASE("surge pricing", "[herder]")
         auto refSeqNumRoot = root.getLastSequenceNumber();
         addRootTxs();
         auto refSeqNumB = accountB.getLastSequenceNumber();
-        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
+        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
@@ -532,7 +532,7 @@ TEST_CASE("surge pricing", "[herder]")
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
         REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
@@ -572,7 +572,7 @@ TEST_CASE("surge pricing", "[herder]")
 TEST_CASE("SCP Driver", "[herder]")
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 5;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -582,7 +582,7 @@ TEST_CASE("SCP Driver", "[herder]")
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
         ltx.loadHeader().current().maxTxSetSize =
-            cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
     }
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
