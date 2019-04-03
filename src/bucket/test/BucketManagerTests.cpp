@@ -987,7 +987,23 @@ TEST_CASE("bucket persistence over app restart with initentry",
          {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
           Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY})
     {
-        for (uint32_t level : {2, 3, 4})
+        for (uint32_t level : {2, 3})
+        {
+            StopAndRestartBucketMergesTest t(protocol, level);
+            t.run();
+        }
+    }
+}
+
+// Same as previous test, but runs a long time; too long to run in CI.
+TEST_CASE("bucket persistence over app restart with initentry - extended",
+          "[bucket][bucketmanager][bp-initentry-ext][!hide]")
+{
+    for (uint32_t protocol :
+         {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
+          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY})
+    {
+        for (uint32_t level : {2, 3, 4, 5})
         {
             StopAndRestartBucketMergesTest t(protocol, level);
             t.run();

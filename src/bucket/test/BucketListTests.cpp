@@ -360,7 +360,7 @@ TEST_CASE("bucket tombstones expire at bottom level",
 }
 
 TEST_CASE("bucket tombstones mutually-annihilate init entries",
-          "[bucket][bucketlist][bl-initentry][!hide]")
+          "[bucket][bucketlist][bl-initentry]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -372,7 +372,7 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
         auto vers = getAppLedgerVersion(app);
         autocheck::generator<bool> flip;
         std::deque<LedgerEntry> entriesToModify;
-        for (uint32_t i = 1; i < 10000; ++i)
+        for (uint32_t i = 1; i < 512; ++i)
         {
             std::vector<LedgerEntry> initEntries =
                 LedgerTestUtils::generateValidLedgerEntries(8);
@@ -420,6 +420,14 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
             auto const& lev = bl.getLevel(k);
             auto currSz = countEntries(lev.getCurr());
             auto snapSz = countEntries(lev.getSnap());
+            if (cfg.LEDGER_PROTOCOL_VERSION >=
+                Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+            {
+                // init/dead pairs should mutually-annihilate pretty readily as
+                // they go, empirically this test peaks at buckets around 400
+                // entries.
+                REQUIRE((currSz + snapSz) < 500);
+            }
             CLOG(INFO, "Bucket")
                 << "Level " << k << " size: " << (currSz + snapSz);
         }
