@@ -106,8 +106,8 @@ struct BucketListGenerator
         std::vector<LedgerEntry> initEntries, liveEntries;
         std::vector<LedgerKey> deadEntries;
         ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-        app->getBucketManager().addBatch(
-            *app, mLedgerSeq, vers, initEntries, liveEntries, deadEntries);
+        app->getBucketManager().addBatch(*app, mLedgerSeq, vers, initEntries,
+                                         liveEntries, deadEntries);
         ltx.commit();
     }
 

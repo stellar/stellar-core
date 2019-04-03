@@ -37,9 +37,10 @@ class LedgerManagerImpl : public LedgerManager
 {
     LedgerHeaderHistoryEntry mLastClosedLedger;
 
-protected:
+  protected:
     Application& mApp;
-private:
+
+  private:
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
@@ -84,11 +85,9 @@ private:
     void setState(State s);
 
   protected:
-
-    virtual void
-    transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
-                                      uint32_t ledgerSeq,
-                                      uint32_t ledgerVers);
+    virtual void transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
+                                                   uint32_t ledgerSeq,
+                                                   uint32_t ledgerVers);
 
     SyncingLedgerChain mSyncingLedgers;
 

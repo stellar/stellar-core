@@ -58,7 +58,8 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         }
         else
         {
-            LedgerManagerImpl::transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
+            LedgerManagerImpl::transferLedgerEntriesToBucketList(ltx, ledgerSeq,
+                                                                 ledgerVers);
         }
     }
 
@@ -75,8 +76,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
         mTestDeadEntries = deadEntries;
     }
 
-    LedgerManagerForBucketTests(Application& app)
-        : LedgerManagerImpl(app)
+    LedgerManagerForBucketTests(Application& app) : LedgerManagerImpl(app)
     {
     }
 };
@@ -740,7 +740,8 @@ class StopAndRestartBucketMergesTest
         CLOG(INFO, "Bucket")
             << "Collecting control surveys in ledger range 2.." << std::dec
             << finalLedger << " = 0x" << std::hex << finalLedger;
-        auto app = createTestApplication<LedgerManagerTestApplication>(clock, cfg);
+        auto app =
+            createTestApplication<LedgerManagerTestApplication>(clock, cfg);
         app->start();
 
         std::vector<LedgerKey> allKeys;
@@ -859,7 +860,8 @@ class StopAndRestartBucketMergesTest
         uint32_t protocolSwitchLedger = *(std::next(
             mDesignatedLedgers.begin(), mDesignatedLedgers.size() / 2));
 
-        auto app = createTestApplication<LedgerManagerTestApplication>(*clock, cfg);
+        auto app =
+            createTestApplication<LedgerManagerTestApplication>(*clock, cfg);
         app->start();
         CLOG(INFO, "Bucket")
             << "Running stop/restart test in ledger range 2.." << std::dec
@@ -919,7 +921,8 @@ class StopAndRestartBucketMergesTest
                 CLOG(INFO, "Bucket")
                     << "Restarting application at ledger " << std::dec << i;
                 clock = std::make_unique<VirtualClock>();
-                app = createTestApplication<LedgerManagerTestApplication>(*clock, cfg, false);
+                app = createTestApplication<LedgerManagerTestApplication>(
+                    *clock, cfg, false);
                 app->start();
                 if (BucketList::levelShouldSpill(i, mDesignatedLevel - 1))
                 {

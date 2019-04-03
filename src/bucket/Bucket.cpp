@@ -364,13 +364,11 @@ countNewEntryType(MergeCounters& mc, BucketEntry const& e)
 // bucket enters the youngest level. At least one new bucket is in every merge's
 // shadows from then on in, so they all upgrade (and preserve lifecycle events).
 static void
-calculateMergeProtocolVersion(MergeCounters &mc,
-                              uint32_t maxProtocolVersion,
-                              BucketInputIterator const& oi,
-                              BucketInputIterator const& ni,
-                              std::vector<BucketInputIterator> const& shadowIterators,
-                              uint32 & protocolVersion,
-                              bool &keepShadowedLifecycleEntries)
+calculateMergeProtocolVersion(
+    MergeCounters& mc, uint32_t maxProtocolVersion,
+    BucketInputIterator const& oi, BucketInputIterator const& ni,
+    std::vector<BucketInputIterator> const& shadowIterators,
+    uint32& protocolVersion, bool& keepShadowedLifecycleEntries)
 {
     protocolVersion = std::max(oi.getMetadata().ledgerVersion,
                                ni.getMetadata().ledgerVersion);
@@ -381,8 +379,7 @@ calculateMergeProtocolVersion(MergeCounters &mc,
             std::max(si.getMetadata().ledgerVersion, protocolVersion);
     }
 
-    CLOG(TRACE, "Bucket") << "Bucket merge protocolVersion="
-                          << protocolVersion
+    CLOG(TRACE, "Bucket") << "Bucket merge protocolVersion=" << protocolVersion
                           << ", maxProtocolVersion=" << maxProtocolVersion;
 
     if (protocolVersion > maxProtocolVersion)
@@ -397,7 +394,8 @@ calculateMergeProtocolVersion(MergeCounters &mc,
     // support annihilation of INITENTRY and DEADENTRY pairs. See commentary
     // above in `maybePut`.
     keepShadowedLifecycleEntries = true;
-    if (protocolVersion < Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
+    if (protocolVersion <
+        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
     {
         ++mc.mPreInitEntryProtocolMerges;
         keepShadowedLifecycleEntries = false;
@@ -413,14 +411,11 @@ calculateMergeProtocolVersion(MergeCounters &mc,
 // take the lesser (or existing) entry and advance only one iterator,
 // not scrutinizing the entry type further.
 static bool
-mergeCasesWithDefaultAcceptance(BucketEntryIdCmp &cmp,
-                                MergeCounters &mc,
-                                BucketInputIterator &oi,
-                                BucketInputIterator &ni,
-                                BucketOutputIterator &out,
-                                std::vector<BucketInputIterator> &shadowIterators,
-                                uint32_t protocolVersion,
-                                bool keepShadowedLifecycleEntries)
+mergeCasesWithDefaultAcceptance(
+    BucketEntryIdCmp& cmp, MergeCounters& mc, BucketInputIterator& oi,
+    BucketInputIterator& ni, BucketOutputIterator& out,
+    std::vector<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
+    bool keepShadowedLifecycleEntries)
 {
     if (!ni || (oi && ni && cmp(*oi, *ni)))
     {
@@ -458,11 +453,9 @@ mergeCasesWithDefaultAcceptance(BucketEntryIdCmp &cmp,
 // The remaining cases happen when keys are equal and we have to reason
 // through the relationships of their bucket lifecycle states. Trickier.
 static void
-mergeCasesWithEqualKeys(MergeCounters &mc,
-                        BucketInputIterator &oi,
-                        BucketInputIterator &ni,
-                        BucketOutputIterator &out,
-                        std::vector<BucketInputIterator> &shadowIterators,
+mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
+                        BucketInputIterator& ni, BucketOutputIterator& out,
+                        std::vector<BucketInputIterator>& shadowIterators,
                         uint32_t protocolVersion,
                         bool keepShadowedLifecycleEntries)
 {
@@ -549,8 +542,8 @@ mergeCasesWithEqualKeys(MergeCounters &mc,
         newLive.type(LIVEENTRY);
         newLive.liveEntry() = newEntry.liveEntry();
         ++mc.mNewInitEntriesMergedWithOldDead;
-        maybePut(out, newLive, shadowIterators,
-                 keepShadowedLifecycleEntries, mc);
+        maybePut(out, newLive, shadowIterators, keepShadowedLifecycleEntries,
+                 mc);
     }
     else if (oldEntry.type() == INITENTRY)
     {
@@ -580,13 +573,12 @@ mergeCasesWithEqualKeys(MergeCounters &mc,
     {
         // Neither is in INIT state, take the newer one.
         ++mc.mNewEntriesMergedWithOldNeitherInit;
-        maybePut(out, newEntry, shadowIterators,
-                 keepShadowedLifecycleEntries, mc);
+        maybePut(out, newEntry, shadowIterators, keepShadowedLifecycleEntries,
+                 mc);
     }
     ++oi;
     ++ni;
 }
-
 
 std::shared_ptr<Bucket>
 Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
@@ -610,8 +602,9 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
 
     uint32_t protocolVersion;
     bool keepShadowedLifecycleEntries;
-    calculateMergeProtocolVersion(mc, maxProtocolVersion, oi, ni, shadowIterators,
-                                  protocolVersion, keepShadowedLifecycleEntries);
+    calculateMergeProtocolVersion(mc, maxProtocolVersion, oi, ni,
+                                  shadowIterators, protocolVersion,
+                                  keepShadowedLifecycleEntries);
 
     auto timer = bucketManager.getMergeTimer().TimeScope();
     BucketMetadata meta;
@@ -626,8 +619,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
                                              shadowIterators, protocolVersion,
                                              keepShadowedLifecycleEntries))
         {
-            mergeCasesWithEqualKeys(mc, oi, ni, out,
-                                    shadowIterators, protocolVersion,
+            mergeCasesWithEqualKeys(mc, oi, ni, out, shadowIterators,
+                                    protocolVersion,
                                     keepShadowedLifecycleEntries);
         }
     }

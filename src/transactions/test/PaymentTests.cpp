@@ -1822,7 +1822,7 @@ TEST_CASE("payment", "[tx][payment]")
             auto setup = [&]() {
                 TestMarket market(*app);
                 auto offer = market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(a1, {idr, xlm, Price{1, 1}, 50});
+                    return market.addOffer(a1, {idr, xlm, Price{1, 1}, 50});
                 });
             };
             for_versions_to(9, *app, [&] {

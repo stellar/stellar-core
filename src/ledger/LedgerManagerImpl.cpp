@@ -1043,8 +1043,8 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
-                                     initEntries, liveEntries, deadEntries);
+    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers, initEntries,
+                                     liveEntries, deadEntries);
 }
 
 void
