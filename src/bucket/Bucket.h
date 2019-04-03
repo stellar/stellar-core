@@ -65,10 +65,10 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
                                       uint32_t protocolVersion);
 
     static std::vector<BucketEntry>
-    convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries,
-                         bool isInit);
-    static std::vector<BucketEntry>
-    convertToBucketEntry(std::vector<LedgerKey> const& deadEntries);
+    convertToBucketEntry(bool useInit,
+                         std::vector<LedgerEntry> const& initEntries,
+                         std::vector<LedgerEntry> const& liveEntries,
+                         std::vector<LedgerKey> const& deadEntries);
 
     // "Applies" the bucket to the database. For each entry in the bucket,
     // if the entry is init or live, creates or updates the corresponding

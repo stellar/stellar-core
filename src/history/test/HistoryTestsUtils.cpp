@@ -120,7 +120,7 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
 {
     auto ledgerEntries =
         LedgerTestUtils::generateValidLedgerEntries(NUM_ITEMS_PER_BUCKET);
-    auto bucketEntries = Bucket::convertToBucketEntry(ledgerEntries, false);
+    auto bucketEntries = Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
     for (auto const& bucketEntry : bucketEntries)
     {
         put(bucketEntry);

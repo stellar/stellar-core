@@ -94,45 +94,11 @@ Bucket::apply(Application& app) const
 }
 
 std::vector<BucketEntry>
-Bucket::convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries,
-                             bool isInit)
+Bucket::convertToBucketEntry(bool useInit,
+                             std::vector<LedgerEntry> const& initEntries,
+                             std::vector<LedgerEntry> const& liveEntries,
+                             std::vector<LedgerKey> const& deadEntries)
 {
-    std::vector<BucketEntry> live;
-    live.reserve(liveEntries.size());
-    for (auto const& e : liveEntries)
-    {
-        BucketEntry ce;
-        ce.type(isInit ? INITENTRY : LIVEENTRY);
-        ce.liveEntry() = e;
-        live.push_back(ce);
-    }
-    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
-    return live;
-}
-
-std::vector<BucketEntry>
-Bucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
-{
-    std::vector<BucketEntry> dead;
-    dead.reserve(deadEntries.size());
-    for (auto const& e : deadEntries)
-    {
-        BucketEntry ce;
-        ce.type(DEADENTRY);
-        ce.deadEntry() = e;
-        dead.push_back(ce);
-    }
-    std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
-    return dead;
-}
-
-static std::vector<BucketEntry>
-convertToBucketEntry(bool useInit,
-                     std::vector<LedgerEntry> const& initEntries,
-                     std::vector<LedgerEntry> const& liveEntries,
-                     std::vector<LedgerKey> const& deadEntries)
-{
-
     std::vector<BucketEntry> bucket;
     for (auto const& e : initEntries)
     {
@@ -180,7 +146,7 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
     auto entries =
-        stellar::convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
+        convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
     MergeCounters mc;
     BucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc);
