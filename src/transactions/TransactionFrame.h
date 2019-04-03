@@ -44,7 +44,6 @@ class TransactionFrame
 
     std::shared_ptr<LedgerEntry const> mCachedAccount;
 
-    void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
@@ -104,6 +103,9 @@ class TransactionFrame
     makeTransactionFromWire(Hash const& networkID,
                             TransactionEnvelope const& msg);
 
+    // clear pre-computed hashes
+    void clearCached();
+
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
 
@@ -160,7 +162,6 @@ class TransactionFrame
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
-    bool checkValid(Application& app, SequenceNumber current);
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                     SequenceNumber current);
 

@@ -22,8 +22,11 @@
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
 #include "test/TxTests.h"
+#include "transactions/OperationFrame.h"
+#include "transactions/TransactionFrame.h"
 
 #include "xdrpp/marshal.h"
+#include <algorithm>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -350,7 +353,7 @@ TEST_CASE("txset", "[herder]")
                 REQUIRE(txSet->checkValid(*app));
             }
         }
-        SECTION("insuficient balance")
+        SECTION("insufficient balance")
         {
             // extra transaction would push the account below the reserve
             txSet->add(sourceAccount.tx({payment(accounts[0], paymentAmount)}));
@@ -361,6 +364,14 @@ TEST_CASE("txset", "[herder]")
             txSet->trimInvalid(*app, removed);
             REQUIRE(txSet->checkValid(*app));
         }
+        SECTION("bad signature")
+        {
+            auto tx = txSet->mTransactions[0];
+            tx->getEnvelope().tx.timeBounds.activate().maxTime = UINT64_MAX;
+            tx->clearCached();
+            txSet->sortForHash();
+            REQUIRE(!txSet->checkValid(*app));
+        }
     }
 }
 
@@ -369,7 +380,7 @@ TEST_CASE("txset", "[herder]")
 // make sure it drops the correct txs
 // txs with high fee but low ratio
 // txs from same account high ratio with high seq
-TEST_CASE("surge", "[herder]")
+TEST_CASE("surge pricing", "[herder]")
 {
     Config cfg(getTestConfig());
     cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 5;
@@ -395,105 +406,157 @@ TEST_CASE("surge", "[herder]")
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-    SECTION("over surge")
-    {
-        // extra transaction would push the account below the reserve
-        for (int n = 0; n < 10; n++)
-        {
-            txSet->add(root.tx({payment(destAccount, n + 10)}));
-        }
-        txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
-        REQUIRE(txSet->mTransactions.size() == 5);
-        REQUIRE(txSet->checkValid(*app));
-    }
+    std::vector<TransactionFramePtr> removed;
 
-    SECTION("over surge random")
-    {
-        // extra transaction would push the account below the reserve
-        for (int n = 0; n < 10; n++)
+    auto multiPaymentTx = [&](TestAccount& src, int nbOps, int64 paymentBase) {
+        std::vector<stellar::Operation> ops;
+        for (int i = 0; i < nbOps; i++)
         {
-            txSet->add(root.tx({payment(destAccount, n + 10)}));
+            ops.emplace_back(payment(destAccount, i + paymentBase));
         }
-        random_shuffle(txSet->mTransactions.begin(),
-                       txSet->mTransactions.end());
+        auto tx = src.tx(ops);
+        tx->getEnvelope().tx.fee *= 100; // 100x min fee
+        tx->getEnvelope().signatures.clear();
+        tx->addSignature(src);
+        return tx;
+    };
+
+    auto addRootTxs = [&]() {
+        for (uint32_t n = 0; n < 2 * cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
+        {
+            txSet->add(multiPaymentTx(root, n + 1, 10000 + 1000 * n));
+        }
+    };
+
+    auto surgePricing = [&]() {
+        txSet->trimInvalid(*app, removed);
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
-        REQUIRE(txSet->mTransactions.size() == 5);
+    };
+
+    SECTION("basic single account")
+    {
+        auto refSeqNum = root.getLastSequenceNumber();
+        addRootTxs();
+        txSet->sortForHash();
+        REQUIRE(!txSet->checkValid(*app));
+        surgePricing();
+        REQUIRE(txSet->mTransactions.size() ==
+                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
         REQUIRE(txSet->checkValid(*app));
+        // check that the expected tx are there
+        auto txs = txSet->sortForApply();
+        for (auto& tx : txs)
+        {
+            refSeqNum++;
+            REQUIRE(tx->getSeqNum() == refSeqNum);
+        }
     }
 
     SECTION("one account paying more")
     {
-        // extra transaction would push the account below the reserve
-        for (int n = 0; n < 10; n++)
+        addRootTxs();
+        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
         {
-            txSet->add(root.tx({payment(destAccount, n + 10)}));
-            auto tx = accountB.tx({payment(destAccount, n + 10)});
-            tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
+            auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
+            tx->getEnvelope().tx.fee -= 1;
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(accountB);
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
-        REQUIRE(txSet->mTransactions.size() == 5);
+        REQUIRE(!txSet->checkValid(*app));
+        surgePricing();
+        REQUIRE(txSet->mTransactions.size() ==
+                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
         REQUIRE(txSet->checkValid(*app));
-        for (auto& tx : txSet->mTransactions)
+        // check that the expected tx are there
+        auto& txs = txSet->mTransactions;
+        for (auto& tx : txs)
         {
-            REQUIRE(tx->getSourceID() == accountB.getPublicKey());
+            REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
     }
 
     SECTION("one account with more operations but same total fee")
     {
-        // extra transaction would push the account below the reserve
-        for (int n = 0; n < 10; n++)
+        addRootTxs();
+        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
         {
-            auto txRoot = root.tx({payment(destAccount, n + 10)});
-            txRoot->getEnvelope().tx.fee = txRoot->getEnvelope().tx.fee * 2;
-            txSet->add(txRoot);
-
-            auto tx = accountB.tx(
-                {payment(destAccount, n + 10), payment(destAccount, n + 10)});
+            auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
+            // find corresponding root tx (should have 1 less op)
+            auto rTx = txSet->mTransactions[n];
+            REQUIRE(rTx->getEnvelope().tx.operations.size() == n + 1);
+            REQUIRE(tx->getEnvelope().tx.operations.size() == n + 2);
+            // use the same fee
+            tx->getEnvelope().tx.fee = rTx->getEnvelope().tx.fee;
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(accountB);
             txSet->add(tx);
         }
-        std::vector<TransactionFramePtr> trimmed;
-        txSet->trimInvalid(*app, trimmed);
-        txSet->surgePricingFilter(*app);
-        REQUIRE(txSet->mTransactions.size() == 5);
+        txSet->sortForHash();
+        REQUIRE(!txSet->checkValid(*app));
+        surgePricing();
+        REQUIRE(txSet->mTransactions.size() ==
+                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
         REQUIRE(txSet->checkValid(*app));
-        for (auto& tx : txSet->mTransactions)
+        // check that the expected tx are there
+        auto& txs = txSet->mTransactions;
+        for (auto& tx : txs)
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
     }
 
-    SECTION("one account paying more except for one tx")
+    SECTION("one account paying more except for one tx in middle")
     {
-        // extra transaction would push the account below the reserve
-        for (int n = 0; n < 10; n++)
+        auto refSeqNumRoot = root.getLastSequenceNumber();
+        addRootTxs();
+        auto refSeqNumB = accountB.getLastSequenceNumber();
+        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER; n++)
         {
-            auto tx = root.tx({payment(destAccount, n + 10)});
-            tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
-            txSet->add(tx);
-
-            tx = accountB.tx({payment(destAccount, n + 10)});
-            if (n != 1)
-                tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
+            auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
+            if (n == 2)
+            {
+                tx->getEnvelope().tx.fee -= 1;
+            }
+            else
+            {
+                tx->getEnvelope().tx.fee += 1;
+            }
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(accountB);
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
-        REQUIRE(txSet->mTransactions.size() == 5);
+        REQUIRE(!txSet->checkValid(*app));
+        surgePricing();
+        REQUIRE(txSet->mTransactions.size() ==
+                cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
         REQUIRE(txSet->checkValid(*app));
-        for (auto& tx : txSet->mTransactions)
+        // check that the expected tx are there
+        auto txs = txSet->sortForApply();
+        int nbAccountB = 0;
+        for (auto& tx : txs)
         {
-            REQUIRE(tx->getSourceID() == root.getPublicKey());
+            if (tx->getSourceID() == accountB.getPublicKey())
+            {
+                nbAccountB++;
+                refSeqNumB++;
+                REQUIRE(tx->getSeqNum() == refSeqNumB);
+            }
+            else
+            {
+                refSeqNumRoot++;
+                REQUIRE(tx->getSeqNum() == refSeqNumRoot);
+            }
         }
+        // current surge pricing deletes all from B
+        REQUIRE(nbAccountB == 0);
     }
 
     SECTION("a lot of txs")
     {
-        // extra transaction would push the account below the reserve
         for (int n = 0; n < 30; n++)
         {
             txSet->add(root.tx({payment(destAccount, n + 10)}));
@@ -501,7 +564,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(accountC.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        surgePricing();
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
