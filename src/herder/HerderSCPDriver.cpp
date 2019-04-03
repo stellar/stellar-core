@@ -489,7 +489,32 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     }
 }
 
-// core SCP
+// returns true if l < r
+// lh, rh are the hashes of l,h
+static bool
+compareTxSets(TxSetFramePtr l, TxSetFramePtr r, Hash const& lh, Hash const& rh,
+              LedgerHeader const& header, Hash const& s)
+{
+    if (l == nullptr)
+    {
+        return r != nullptr;
+    }
+    if (r == nullptr)
+    {
+        return false;
+    }
+    auto lSize = l->size(header);
+    auto rSize = r->size(header);
+    if (lSize < rSize)
+    {
+        return true;
+    }
+    else if (lSize > rSize)
+    {
+        return false;
+    }
+    return lessThanXored(lh, rh, s);
+}
 
 Value
 HerderSCPDriver::combineCandidates(uint64_t slotIndex,
@@ -569,8 +594,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         }
     }
 
-    // take the txSet with the highest number of transactions,
-    // highest xored hash that we have
+    // take the txSet with the biggest size, highest xored hash that we have
     TxSetFramePtr bestTxSet;
     {
         Hash highest;
@@ -581,12 +605,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
             if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
-                if (!highestTxSet ||
-                    (cTxSet->mTransactions.size() >
-                     highestTxSet->mTransactions.size()) ||
-                    ((cTxSet->mTransactions.size() ==
-                      highestTxSet->mTransactions.size()) &&
-                     lessThanXored(highest, sv.txSetHash, candidatesHash)))
+                if (compareTxSets(highestTxSet, cTxSet, highest, sv.txSetHash,
+                                  lcl.header, candidatesHash))
                 {
                     highestTxSet = cTxSet;
                     highest = sv.txSetHash;
