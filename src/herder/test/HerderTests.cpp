@@ -406,7 +406,7 @@ testTxSet(uint32 protocolVersion)
     }
 }
 
-TEST_CASE("txset", "[herder]")
+TEST_CASE("txset", "[herder][txset]")
 {
     SECTION("protocol 10")
     {
@@ -418,13 +418,15 @@ TEST_CASE("txset", "[herder]")
     }
 }
 
-TEST_CASE("txset base fee", "[herder]")
+TEST_CASE("txset base fee", "[herder][txset]")
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
+    uint32_t const maxTxSize = 112;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSize;
 
-    auto testBaseFee = [&](uint32_t protocolVersion, bool withBaseTxs,
-                           size_t lim, int64_t expLowFee, int64_t expHighFee) {
+    auto testBaseFee = [&](uint32_t protocolVersion, uint32 nbTransactions,
+                           uint32 extraAccounts, size_t lim, int64_t expLowFee,
+                           int64_t expHighFee) {
         cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
@@ -448,32 +450,25 @@ TEST_CASE("txset base fee", "[herder]")
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
             app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-        if (withBaseTxs)
+        for (uint32 i = 0; i < nbTransactions; i++)
         {
-            const int nbTransactions = 8;
-
-            for (int i = 0; i < nbTransactions; i++)
-            {
-                std::string nameI = fmt::format("Base{}", i);
-                auto aI = root.create(nameI, startingBalance);
-                accounts.push_back(aI);
-
-                auto tx = makeMultiPayment(aI, aI, 1, 1000, 0, 10);
-                txSet->add(tx);
-            }
-        }
-
-        int extraAccounts = 0;
-        do
-        {
-            extraAccounts++;
-            std::string nameI = fmt::format("Extra{}", extraAccounts);
+            std::string nameI = fmt::format("Base{}", i);
             auto aI = root.create(nameI, startingBalance);
             accounts.push_back(aI);
 
-            auto tx = makeMultiPayment(aI, aI, 2, 1000, extraAccounts, 100);
+            auto tx = makeMultiPayment(aI, aI, 1, 1000, 0, 10);
             txSet->add(tx);
-        } while (txSet->size(lhCopy) < lim);
+        }
+
+        for (uint32 k = 1; k <= extraAccounts; k++)
+        {
+            std::string nameI = fmt::format("Extra{}", k);
+            auto aI = root.create(nameI, startingBalance);
+            accounts.push_back(aI);
+
+            auto tx = makeMultiPayment(aI, aI, 2, 1000, k, 100);
+            txSet->add(tx);
+        }
 
         REQUIRE(txSet->size(lhCopy) == lim);
         REQUIRE(extraAccounts >= 2);
@@ -507,13 +502,24 @@ TEST_CASE("txset base fee", "[herder]")
         REQUIRE(lowFee == expLowFee);
         REQUIRE(highFee == expHighFee);
     };
+
     // 8 base transactions
     //   1 op, fee bid = baseFee*10 = 1000
     // extra tx
     //   2 ops, fee bid = 20000+i
-    // to reach 14
-    //    protocol 10 adds 6 tx (12 ops)
-    //    protocol 10 adds 3 tx (6 ops)
+    // to reach 112
+    //    protocol 10 adds 104 tx (208 ops)
+    //    protocol 11 adds 52 tx (104 ops)
+
+    // v11: surge threshold is 112-100=12 ops
+    //     no surge pricing @ 10 (only 1 extra tx)
+    //     surge pricing @ 12 (2 extra tx)
+
+    uint32 const baseCount = 8;
+    uint32 const v10ExtraTx = 104;
+    uint32 const v11ExtraTx = 52;
+    uint32 const v10NewCount = 112;
+    uint32 const v11NewCount = 56; // 112/2
     SECTION("surged")
     {
         SECTION("mixed")
@@ -522,15 +528,23 @@ TEST_CASE("txset base fee", "[herder]")
             {
                 // low = base tx
                 // high = last extra tx
-                testBaseFee(10, true, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE, 1000,
-                            20006);
+                testBaseFee(10, baseCount, v10ExtraTx, maxTxSize, 1000, 20104);
             }
             SECTION("protocol current")
             {
                 // low = 10*base tx = baseFee = 1000
                 // high = 2*base (surge)
-                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, true,
-                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE, 1000, 2000);
+                SECTION("maxed out surged")
+                {
+                    testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                baseCount, v11ExtraTx, maxTxSize, 1000, 2000);
+                }
+                SECTION("smallest surged")
+                {
+                    testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+                                baseCount + 1, v11ExtraTx - 50,
+                                maxTxSize - 100 + 1, 1000, 2000);
+                }
             }
         }
         SECTION("newOnly")
@@ -538,39 +552,35 @@ TEST_CASE("txset base fee", "[herder]")
             SECTION("protocol 10")
             {
                 // low = 20000+1
-                // high = 20000+14
-                testBaseFee(10, false, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE,
-                            20001, 20014);
+                // high = 20000+112
+                testBaseFee(10, 0, v10NewCount, maxTxSize, 20001, 20112);
             }
             SECTION("protocol current")
             {
                 // low = 20000+1 -> baseFee = 20001/2+ = 10001
                 // high = 10001*2
-                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, false,
-                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE, 20001, 20002);
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
+                            v11NewCount, maxTxSize, 20001, 20002);
             }
         }
     }
     SECTION("not surged")
     {
-        // aim for 12 tx / 12 ops instead of 14
-        // -> 8+4 (v10)
-        //    8+2 (v11)
         SECTION("mixed")
         {
             SECTION("protocol 10")
             {
                 // low = 1000
                 // high = 20000+4
-                testBaseFee(10, true, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2,
-                            1000, 20004);
+                testBaseFee(10, baseCount, 4, baseCount + 4, 1000, 20004);
             }
             SECTION("protocol current")
             {
                 // baseFee = minFee = 100
                 // high = 2*minFee
-                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, true,
-                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2, 100, 200);
+                // highest number of ops not surged is max-100
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, baseCount,
+                            v11ExtraTx - 50, maxTxSize - 100, 100, 200);
             }
         }
         SECTION("newOnly")
@@ -579,15 +589,15 @@ TEST_CASE("txset base fee", "[herder]")
             {
                 // low = 20000+1
                 // high = 20000+12
-                testBaseFee(10, false, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2,
-                            20001, 20012);
+                testBaseFee(10, 0, 12, 12, 20001, 20012);
             }
             SECTION("protocol current")
             {
                 // low = minFee = 100
                 // high = 2*minFee
-                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, false,
-                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2, 200, 200);
+                // highest number of ops not surged is max-100
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 0,
+                            v11NewCount - 50, maxTxSize - 100, 200, 200);
             }
         }
     }
@@ -774,7 +784,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     }
 }
 
-TEST_CASE("surge pricing", "[herder]")
+TEST_CASE("surge pricing", "[herder][txset]")
 {
     SECTION("protocol 10")
     {

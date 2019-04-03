@@ -220,12 +220,17 @@ TxSetFrame::surgePricingFilter(Application& app)
 
     bool maxIsOps = header.current().ledgerVersion >= 11;
 
-    auto maxSize = header.current().maxTxSetSize;
-    auto curSize = size(header.current());
-    if (curSize > maxSize)
+    size_t opsLeft;
+    {
+        size_t maxTxSetSize = header.current().maxTxSetSize;
+        opsLeft = maxIsOps ? maxTxSetSize : (maxTxSetSize * MAX_OPS_PER_TX);
+    }
+
+    auto curSizeOps = maxIsOps ? sizeOp() : (sizeTx() * MAX_OPS_PER_TX);
+    if (curSizeOps > opsLeft)
     {
         CLOG(WARNING, "Herder")
-            << "surge pricing in effect! " << curSize << " > " << maxSize;
+            << "surge pricing in effect! " << curSizeOps << " > " << opsLeft;
 
         auto actTxQueueMap = buildAccountTxQueues();
 
@@ -240,7 +245,6 @@ TxSetFrame::surgePricingFilter(Application& app)
             surgeQueue.push(&am.second);
         }
 
-        size_t opsLeft = maxIsOps ? maxSize : (maxSize * MAX_OPS_PER_TX);
         std::vector<TransactionFramePtr> updatedSet;
         updatedSet.reserve(mTransactions.size());
         while (opsLeft > 0 && !surgeQueue.empty())
@@ -480,7 +484,12 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
         }
         // if surge pricing was in action, use the lowest base fee bid from the
         // transaction set
-        if (ops >= lh.maxTxSetSize)
+        size_t surgeOpsCutoff = 0;
+        if (lh.maxTxSetSize >= MAX_OPS_PER_TX)
+        {
+            surgeOpsCutoff = lh.maxTxSetSize - MAX_OPS_PER_TX;
+        }
+        if (ops > surgeOpsCutoff)
         {
             baseFee = lowBaseFee;
         }
