@@ -63,11 +63,15 @@ class TxSetFrame
         mHashIsValid = false;
     }
 
+    size_t size(LedgerHeader const& lh) const;
+
     size_t
-    size()
+    sizeTx() const
     {
         return mTransactions.size();
     }
+
+    size_t sizeOp() const;
 
     void toXDR(TransactionSet& set);
 };

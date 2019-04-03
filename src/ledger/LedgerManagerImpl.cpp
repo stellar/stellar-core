@@ -390,7 +390,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         << "Got consensus: "
         << "[seq=" << ledgerData.getLedgerSeq()
         << ", prev=" << hexAbbrev(ledgerData.getTxSet()->previousLedgerHash())
-        << ", tx_count=" << ledgerData.getTxSet()->size()
+        << ", txs=" << ledgerData.getTxSet()->sizeTx()
+        << ", ops=" << ledgerData.getTxSet()->sizeOp()
         << ", sv: " << stellarValueToString(ledgerData.getValue()) << "]";
 
     auto st = getState();
@@ -713,7 +714,8 @@ LedgerManagerImpl::applyBufferedLedgers()
                 << "Replaying buffered ledger-close: "
                 << "[seq=" << lcd.getLedgerSeq()
                 << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-                << ", tx_count=" << lcd.getTxSet()->size()
+                << ", txs=" << lcd.getTxSet()->sizeTx()
+                << ", ops=" << lcd.getTxSet()->sizeOp()
                 << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
             closeLedger(lcd);
 

@@ -19,6 +19,7 @@
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
+#include <numeric>
 
 #include "xdrpp/printer.h"
 
@@ -429,6 +430,22 @@ Hash const&
 TxSetFrame::previousLedgerHash() const
 {
     return mPreviousLedgerHash;
+}
+
+size_t
+TxSetFrame::size(LedgerHeader const& lh) const
+{
+    return lh.ledgerVersion >= 11 ? sizeOp() : sizeTx();
+}
+
+size_t
+TxSetFrame::sizeOp() const
+{
+    return std::accumulate(
+        mTransactions.begin(), mTransactions.end(), size_t(0),
+        [](size_t a, TransactionFramePtr const& tx) {
+            return a + tx->getEnvelope().tx.operations.size();
+        });
 }
 
 void
