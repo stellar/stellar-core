@@ -1,187 +1,189 @@
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
-#include "transactions/ManageOfferOpFrame.h"
-#include "OfferExchange.h"
-#include "database/Database.h"
+#include "transactions/ManageOfferOpFrameBase.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
-#include "main/Application.h"
+#include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
-#include "util/XDROperators.h"
-#include "util/types.h"
-
-// convert from sheep to wheat
-// selling sheep
-// buying wheat
 
 namespace stellar
 {
 
-using namespace std;
-
-ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
-                                       OperationResult& res,
-                                       TransactionFrame& parentTx)
+ManageOfferOpFrameBase::ManageOfferOpFrameBase(
+    Operation const& op, OperationResult& res, TransactionFrame& parentTx,
+    Asset const& sheep, Asset const& wheat, uint64_t offerID,
+    Price const& price, bool setPassiveOnCreate)
     : OperationFrame(op, res, parentTx)
-    , mManageOffer(mOperation.body.manageOfferOp())
+    , mSheep(sheep)
+    , mWheat(wheat)
+    , mOfferID(offerID)
+    , mPrice(price)
+    , mSetPassiveOnCreate(setPassiveOnCreate)
 {
-    mPassive = false;
 }
 
-// make sure these issuers exist and you can hold the ask asset
 bool
-ManageOfferOpFrame::checkOfferValid(AbstractLedgerTxn& ltxOuter)
+ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
-    Asset const& sheep = mManageOffer.selling;
-    Asset const& wheat = mManageOffer.buying;
 
-    if (mManageOffer.amount == 0)
+    if (isDeleteOffer())
     {
         // don't bother loading trust lines as we're deleting the offer
         return true;
     }
 
-    if (sheep.type() != ASSET_TYPE_NATIVE)
+    if (mSheep.type() != ASSET_TYPE_NATIVE)
     {
-        auto sheepLineA = loadTrustLine(ltx, getSourceID(), sheep);
-        auto issuer = stellar::loadAccount(ltx, getIssuer(sheep));
+        auto sheepLineA = loadTrustLine(ltx, getSourceID(), mSheep);
+        auto issuer = stellar::loadAccount(ltx, getIssuer(mSheep));
         if (!issuer)
         {
-            innerResult().code(MANAGE_OFFER_SELL_NO_ISSUER);
+            setResultSellNoIssuer();
             return false;
         }
         if (!sheepLineA)
         { // we don't have what we are trying to sell
-            innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
+            setResultSellNoTrust();
             return false;
         }
         if (sheepLineA.getBalance() == 0)
         {
-            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
+            setResultUnderfunded();
             return false;
         }
         if (!sheepLineA.isAuthorized())
         {
             // we are not authorized to sell
-            innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
+            setResultSellNotAuthorized();
             return false;
         }
     }
 
-    if (wheat.type() != ASSET_TYPE_NATIVE)
+    if (mWheat.type() != ASSET_TYPE_NATIVE)
     {
-        auto wheatLineA = loadTrustLine(ltx, getSourceID(), wheat);
-        auto issuer = stellar::loadAccount(ltx, getIssuer(wheat));
+        auto wheatLineA = loadTrustLine(ltx, getSourceID(), mWheat);
+        auto issuer = stellar::loadAccount(ltx, getIssuer(mWheat));
         if (!issuer)
         {
-            innerResult().code(MANAGE_OFFER_BUY_NO_ISSUER);
+            setResultBuyNoIssuer();
             return false;
         }
         if (!wheatLineA)
         { // we can't hold what we are trying to buy
-            innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
+            setResultBuyNoTrust();
             return false;
         }
         if (!wheatLineA.isAuthorized())
         { // we are not authorized to hold what we
             // are trying to buy
-            innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
+            setResultBuyNotAuthorized();
             return false;
         }
     }
+
     return true;
 }
 
 bool
-ManageOfferOpFrame::computeOfferExchangeParameters(
-    AbstractLedgerTxn& ltxOuter, LedgerEntry const& offerEntry,
-    bool creatingNewOffer, int64_t& maxSheepSend, int64_t& maxWheatReceive)
+ManageOfferOpFrameBase::computeOfferExchangeParameters(
+    AbstractLedgerTxn& ltxOuter, bool creatingNewOffer, int64_t& maxSheepSend,
+    int64_t& maxWheatReceive)
 {
     LedgerTxn ltx(ltxOuter); // ltx will always be rolled back
 
-    auto const& offer = offerEntry.data.offer();
-    Asset const& sheep = offer.selling;
-    Asset const& wheat = offer.buying;
-
     auto header = ltx.loadHeader();
-    auto ledgerVersion = header.current().ledgerVersion;
-
     auto sourceAccount = loadSourceAccount(ltx, header);
+
+    auto ledgerVersion = header.current().ledgerVersion;
 
     if (creatingNewOffer &&
         (ledgerVersion >= 10 ||
-         (sheep.type() == ASSET_TYPE_NATIVE && ledgerVersion > 8)))
+         (mSheep.type() == ASSET_TYPE_NATIVE && ledgerVersion > 8)))
     {
         // we need to compute maxAmountOfSheepCanSell based on the
         // updated reserve to avoid selling too many and falling
         // below the reserve when we try to create the offer later on
         if (!addNumEntries(header, sourceAccount, 1))
         {
-            innerResult().code(MANAGE_OFFER_LOW_RESERVE);
+            setResultLowReserve();
             return false;
         }
     }
 
-    auto sheepLineA = loadTrustLineIfNotNative(ltx, getSourceID(), sheep);
-    auto wheatLineA = loadTrustLineIfNotNative(ltx, getSourceID(), wheat);
+    auto sheepLineA = loadTrustLineIfNotNative(ltx, getSourceID(), mSheep);
+    auto wheatLineA = loadTrustLineIfNotNative(ltx, getSourceID(), mWheat);
 
-    maxWheatReceive = canBuyAtMost(header, sourceAccount, wheat, wheatLineA);
+    maxWheatReceive = canBuyAtMost(header, sourceAccount, mWheat, wheatLineA);
+    maxSheepSend = canSellAtMost(header, sourceAccount, mSheep, sheepLineA);
     if (ledgerVersion >= 10)
     {
+        // Note that maxWheatReceive = max(0, availableLimit). But why do we
+        // work with availableLimit?
+        // - If availableLimit >= 0 then maxWheatReceive = availableLimit so
+        //   they are interchangeable.
+        // - If availableLimit < 0 then maxWheatReceive = 0. But if
+        //   getOfferBuyingLiabilities() == 0 (which is possible) then we have
+        //       availableLimit < 0 = getOfferBuyingLiabilities()
+        //       maxWheatReceive = 0 = getOfferBuyingLiailities()
+        //   which are not the same. Using availableLimit allows us to return
+        //   LINE_FULL here in cases where the availableLimit is negative. This
+        //   makes sense: all we are checking here is that liabilities fit into
+        //   the available limit, and no liabilities fit if the available limit
+        //   is negative.
+        // In practice, I _think_ that negative available limit is not possible
+        // unless there is a logic error.
         int64_t availableLimit =
-            (wheat.type() == ASSET_TYPE_NATIVE)
+            (mWheat.type() == ASSET_TYPE_NATIVE)
                 ? getMaxAmountReceive(header, sourceAccount)
                 : wheatLineA.getMaxAmountReceive(header);
-        if (availableLimit < getOfferBuyingLiabilities(header, offerEntry))
+        if (availableLimit < getOfferBuyingLiabilities())
         {
-            innerResult().code(MANAGE_OFFER_LINE_FULL);
+            setResultLineFull();
             return false;
         }
 
+        // Note that maxSheepSend = max(0, availableBalance). But why do we
+        // work with availableBalance?
+        // - If availableBalance >= 0 then maxSheepSend = availableBalance so
+        //   they are interchangeable.
+        // - If availableBalance < 0 then maxSheepSend = 0. But if
+        //   getOfferSellingLiabilities() == 0 (which is possible) then we have
+        //       availableBalance < 0 = getOfferSellingLiabilities()
+        //       maxSheepSend = 0 = getOfferSellingLiailities()
+        //   which are not the same. Using availableBalance allows us to return
+        //   LINE_FULL here in cases where the availableBalance is negative.
+        //   This makes sense: all we are checking here is that liabilities fit
+        //   into the available balance, and no liabilities fit if the available
+        //   balance is negative.
+        // In practice, negative available balance is possible for native assets
+        // after the reserve has been raised.
         int64_t availableBalance =
-            (sheep.type() == ASSET_TYPE_NATIVE)
+            (mSheep.type() == ASSET_TYPE_NATIVE)
                 ? getAvailableBalance(header, sourceAccount)
                 : sheepLineA.getAvailableBalance(header);
-        if (availableBalance < getOfferSellingLiabilities(header, offerEntry))
+        if (availableBalance < getOfferSellingLiabilities())
         {
-            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
+            setResultUnderfunded();
             return false;
         }
 
-        maxSheepSend = canSellAtMost(header, sourceAccount, sheep, sheepLineA);
+        applyOperationSpecificLimits(maxSheepSend, 0, maxWheatReceive, 0);
     }
     else
     {
-        int64_t maxSheepCanSell =
-            canSellAtMost(header, sourceAccount, sheep, sheepLineA);
-        int64_t maxSheepBasedOnWheat;
-        if (!bigDivide(maxSheepBasedOnWheat, maxWheatReceive, offer.price.d,
-                       offer.price.n, ROUND_DOWN))
-        {
-            maxSheepBasedOnWheat = INT64_MAX;
-        }
-
-        maxSheepSend = std::min({maxSheepCanSell, maxSheepBasedOnWheat});
+        getExchangeParametersBeforeV10(maxSheepSend, maxWheatReceive);
     }
-    // amount of sheep for sale is the lesser of amount we can sell and
-    // amount put in the offer
-    maxSheepSend = std::min(offer.amount, maxSheepSend);
+
     return true;
 }
 
-// you are selling sheep for wheat
-// need to check the counter offers selling wheat for sheep
-// see if this is modifying an old offer
-// see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
+ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
 {
     LedgerTxn ltx(ltxOuter);
     if (!checkOfferValid(ltx))
@@ -189,20 +191,17 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
         return false;
     }
 
-    Asset const& sheep = mManageOffer.selling;
-    Asset const& wheat = mManageOffer.buying;
-
     bool creatingNewOffer = false;
-    uint64_t offerID = mManageOffer.offerID;
+    bool passive = false;
+    int64_t amount = 0;
+    uint32_t flags = 0;
 
-    LedgerEntry newOffer;
-    newOffer.data.type(OFFER);
-    if (offerID)
+    if (mOfferID)
     { // modifying an old offer
-        auto sellSheepOffer = stellar::loadOffer(ltx, getSourceID(), offerID);
+        auto sellSheepOffer = stellar::loadOffer(ltx, getSourceID(), mOfferID);
         if (!sellSheepOffer)
         {
-            innerResult().code(MANAGE_OFFER_NOT_FOUND);
+            setResultNotFound();
             return false;
         }
 
@@ -217,10 +216,9 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
             releaseLiabilities(ltx, header, sellSheepOffer);
         }
 
-        // rebuild offer based off the manage offer
-        auto flags = sellSheepOffer.current().data.offer().flags;
-        newOffer.data.offer() = buildOffer(getSourceID(), mManageOffer, flags);
-        mPassive = flags & PASSIVE_FLAG;
+        // Capture flags state before erasing offer
+        flags = sellSheepOffer.current().data.offer().flags;
+        passive = flags & PASSIVE_FLAG;
 
         // WARNING: sellSheepOffer is deleted but sourceAccount is not updated
         // to reflect the change in numSubEntries at this point. However, we
@@ -231,39 +229,39 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
     else
     { // creating a new Offer
         creatingNewOffer = true;
-        newOffer.data.offer() = buildOffer(getSourceID(), mManageOffer,
-                                           mPassive ? PASSIVE_FLAG : 0);
+        passive = mSetPassiveOnCreate;
+        flags = passive ? PASSIVE_FLAG : 0;
     }
 
-    innerResult().code(MANAGE_OFFER_SUCCESS);
+    setResultSuccess();
 
-    if (mManageOffer.amount > 0)
+    if (!isDeleteOffer())
     {
-        Price maxWheatPrice(newOffer.data.offer().price.d,
-                            newOffer.data.offer().price.n);
         int64_t maxSheepSend = 0;
         int64_t maxWheatReceive = 0;
-        if (!computeOfferExchangeParameters(ltx, newOffer, creatingNewOffer,
-                                            maxSheepSend, maxWheatReceive))
+        if (!computeOfferExchangeParameters(ltx, creatingNewOffer, maxSheepSend,
+                                            maxWheatReceive))
         {
             return false;
         }
 
+        // Make sure that we can actually receive something.
         if (maxWheatReceive == 0)
         {
-            innerResult().code(MANAGE_OFFER_LINE_FULL);
+            setResultLineFull();
             return false;
         }
 
         int64_t sheepSent, wheatReceived;
         std::vector<ClaimOfferAtom> offerTrail;
+        Price maxWheatPrice(mPrice.d, mPrice.n);
         ConvertResult r = convertWithOffers(
-            ltx, sheep, maxSheepSend, sheepSent, wheat, maxWheatReceive,
+            ltx, mSheep, maxSheepSend, sheepSent, mWheat, maxWheatReceive,
             wheatReceived, false,
-            [this, &newOffer, &maxWheatPrice](LedgerTxnEntry const& entry) {
+            [this, passive, &maxWheatPrice](LedgerTxnEntry const& entry) {
                 auto const& o = entry.current().data.offer();
-                assert(o.offerID != newOffer.data.offer().offerID);
-                if ((mPassive && (o.price >= maxWheatPrice)) ||
+                assert(o.offerID != mOfferID);
+                if ((passive && (o.price >= maxWheatPrice)) ||
                     (o.price > maxWheatPrice))
                 {
                     return OfferFilterResult::eStop;
@@ -271,7 +269,7 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
                 if (o.sellerID == getSourceID())
                 {
                     // we are crossing our own offer
-                    innerResult().code(MANAGE_OFFER_CROSS_SELF);
+                    setResultCrossSelf();
                     return OfferFilterResult::eStop;
                 }
                 return OfferFilterResult::eKeep;
@@ -289,7 +287,7 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
             sheepStays = true;
             break;
         case ConvertResult::eFilterStop:
-            if (innerResult().code() != MANAGE_OFFER_SUCCESS)
+            if (!isResultSuccess())
             {
                 return false;
             }
@@ -302,15 +300,13 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
         // updates the result with the offers that got taken on the way
         for (auto const& oatom : offerTrail)
         {
-            innerResult().success().offersClaimed.push_back(oatom);
+            getSuccessResult().offersClaimed.push_back(oatom);
         }
 
         auto header = ltx.loadHeader();
         if (wheatReceived > 0)
         {
-            // it's OK to use mSourceAccount, mWheatLineA and mSheepLineA
-            // here as OfferExchange won't cross offers from source account
-            if (wheat.type() == ASSET_TYPE_NATIVE)
+            if (mWheat.type() == ASSET_TYPE_NATIVE)
             {
                 auto sourceAccount = loadSourceAccount(ltx, header);
                 if (!addBalance(header, sourceAccount, wheatReceived))
@@ -321,7 +317,7 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
             }
             else
             {
-                auto wheatLineA = loadTrustLine(ltx, getSourceID(), wheat);
+                auto wheatLineA = loadTrustLine(ltx, getSourceID(), mWheat);
                 if (!wheatLineA.addBalance(header, wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
@@ -329,7 +325,7 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
                 }
             }
 
-            if (sheep.type() == ASSET_TYPE_NATIVE)
+            if (mSheep.type() == ASSET_TYPE_NATIVE)
             {
                 auto sourceAccount = loadSourceAccount(ltx, header);
                 if (!addBalance(header, sourceAccount, -sheepSent))
@@ -340,7 +336,7 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
             }
             else
             {
-                auto sheepLineA = loadTrustLine(ltx, getSourceID(), sheep);
+                auto sheepLineA = loadTrustLine(ltx, getSourceID(), mSheep);
                 if (!sheepLineA.addBalance(header, -sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
@@ -349,7 +345,6 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
             }
         }
 
-        newOffer.data.offer().amount = maxSheepSend - sheepSent;
         if (header.current().ledgerVersion >= 10)
         {
             if (sheepStays)
@@ -357,29 +352,33 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
                 auto sourceAccount =
                     stellar::loadAccountWithoutRecord(ltx, getSourceID());
                 auto sheepLineA = loadTrustLineWithoutRecordIfNotNative(
-                    ltx, getSourceID(), sheep);
+                    ltx, getSourceID(), mSheep);
                 auto wheatLineA = loadTrustLineWithoutRecordIfNotNative(
-                    ltx, getSourceID(), wheat);
+                    ltx, getSourceID(), mWheat);
 
-                OfferEntry& oe = newOffer.data.offer();
                 int64_t sheepSendLimit =
-                    std::min({oe.amount, canSellAtMost(header, sourceAccount,
-                                                       sheep, sheepLineA)});
+                    canSellAtMost(header, sourceAccount, mSheep, sheepLineA);
                 int64_t wheatReceiveLimit =
-                    canBuyAtMost(header, sourceAccount, wheat, wheatLineA);
-                oe.amount =
-                    adjustOffer(oe.price, sheepSendLimit, wheatReceiveLimit);
+                    canBuyAtMost(header, sourceAccount, mWheat, wheatLineA);
+                applyOperationSpecificLimits(sheepSendLimit, sheepSent,
+                                             wheatReceiveLimit, wheatReceived);
+                amount = adjustOffer(mPrice, sheepSendLimit, wheatReceiveLimit);
             }
             else
             {
-                newOffer.data.offer().amount = 0;
+                amount = 0;
             }
+        }
+        else
+        {
+            amount = maxSheepSend - sheepSent;
         }
     }
 
     auto header = ltx.loadHeader();
-    if (newOffer.data.offer().amount > 0)
-    { // we still have sheep to sell so leave an offer
+    if (amount > 0)
+    {
+        auto newOffer = buildOffer(amount, flags);
         if (creatingNewOffer)
         {
             // make sure we don't allow us to add offers when we don't have
@@ -387,18 +386,20 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
             auto sourceAccount = loadSourceAccount(ltx, header);
             if (!addNumEntries(header, sourceAccount, 1))
             {
-                innerResult().code(MANAGE_OFFER_LOW_RESERVE);
+                setResultLowReserve();
                 return false;
             }
+
             newOffer.data.offer().offerID = generateID(header);
-            innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
+            getSuccessResult().offer.effect(MANAGE_OFFER_CREATED);
         }
         else
         {
-            innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
+            getSuccessResult().offer.effect(MANAGE_OFFER_UPDATED);
         }
+
         auto sellSheepOffer = ltx.create(newOffer);
-        innerResult().success().offer.offer() =
+        getSuccessResult().offer.offer() =
             sellSheepOffer.current().data.offer();
 
         if (header.current().ledgerVersion >= 10)
@@ -408,7 +409,7 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
     }
     else
     {
-        innerResult().success().offer.effect(MANAGE_OFFER_DELETED);
+        getSuccessResult().offer.effect(MANAGE_OFFER_DELETED);
 
         if (!creatingNewOffer)
         {
@@ -421,53 +422,59 @@ ManageOfferOpFrame::doApply(AbstractLedgerTxn& ltxOuter)
     return true;
 }
 
+LedgerEntry
+ManageOfferOpFrameBase::buildOffer(int64_t amount, uint32_t flags) const
+{
+    LedgerEntry le;
+    le.data.type(OFFER);
+    OfferEntry& o = le.data.offer();
+
+    o.sellerID = getSourceID();
+    o.amount = amount;
+    o.price = mPrice;
+    o.offerID = mOfferID;
+    o.selling = mSheep;
+    o.buying = mWheat;
+    o.flags = flags;
+    return le;
+}
+
 // makes sure the currencies are different
 bool
-ManageOfferOpFrame::doCheckValid(uint32_t ledgerVersion)
+ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion)
 {
-    Asset const& sheep = mManageOffer.selling;
-    Asset const& wheat = mManageOffer.buying;
+    if (!isAssetValid(mSheep) || !isAssetValid(mWheat))
+    {
+        setResultMalformed();
+        return false;
+    }
+    if (compareAsset(mSheep, mWheat))
+    {
+        setResultMalformed();
+        return false;
+    }
 
-    if (!isAssetValid(sheep) || !isAssetValid(wheat))
+    if (!isAmountValid() || mPrice.d <= 0 || mPrice.n <= 0)
     {
-        innerResult().code(MANAGE_OFFER_MALFORMED);
+        setResultMalformed();
         return false;
     }
-    if (compareAsset(sheep, wheat))
+
+    if (mOfferID == 0 && isDeleteOffer())
     {
-        innerResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
-    }
-    if (mManageOffer.amount < 0 || mManageOffer.price.d <= 0 ||
-        mManageOffer.price.n <= 0)
-    {
-        innerResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
-    }
-    if (ledgerVersion > 2 && mManageOffer.offerID == 0 &&
-        mManageOffer.amount == 0)
-    { // since version 3 of ledger you cannot send
-        // offer operation with id and
-        // amount both equal to 0
-        innerResult().code(MANAGE_OFFER_NOT_FOUND);
-        return false;
+        if (ledgerVersion >= 11)
+        {
+            setResultMalformed();
+            return false;
+        }
+        else if (ledgerVersion >= 3)
+        {
+            setResultNotFound();
+            return false;
+        }
+        // Note: This was not invalid before version 3
     }
 
     return true;
-}
-
-OfferEntry
-ManageOfferOpFrame::buildOffer(AccountID const& account,
-                               ManageOfferOp const& op, uint32 flags)
-{
-    OfferEntry o;
-    o.sellerID = account;
-    o.amount = op.amount;
-    o.price = op.price;
-    o.offerID = op.offerID;
-    o.selling = op.selling;
-    o.buying = op.buying;
-    o.flags = flags;
-    return o;
 }
 }

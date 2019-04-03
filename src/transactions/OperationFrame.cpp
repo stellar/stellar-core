@@ -7,10 +7,11 @@
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "transactions/CreatePassiveOfferOpFrame.h"
+#include "transactions/CreatePassiveSellOfferOpFrame.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/ManageBuyOfferOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
-#include "transactions/ManageOfferOpFrame.h"
+#include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
@@ -54,10 +55,10 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<PaymentOpFrame>(op, res, tx);
     case PATH_PAYMENT:
         return std::make_shared<PathPaymentOpFrame>(op, res, tx);
-    case MANAGE_OFFER:
-        return std::make_shared<ManageOfferOpFrame>(op, res, tx);
-    case CREATE_PASSIVE_OFFER:
-        return std::make_shared<CreatePassiveOfferOpFrame>(op, res, tx);
+    case MANAGE_SELL_OFFER:
+        return std::make_shared<ManageSellOfferOpFrame>(op, res, tx);
+    case CREATE_PASSIVE_SELL_OFFER:
+        return std::make_shared<CreatePassiveSellOfferOpFrame>(op, res, tx);
     case SET_OPTIONS:
         return std::make_shared<SetOptionsOpFrame>(op, res, tx);
     case CHANGE_TRUST:
@@ -72,6 +73,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
     case BUMP_SEQUENCE:
         return std::make_shared<BumpSequenceOpFrame>(op, res, tx);
+    case MANAGE_BUY_OFFER:
+        return std::make_shared<ManageBuyOfferOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

@@ -19,7 +19,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "transactions/ManageOfferOpFrame.h"
+#include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
@@ -952,9 +952,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
                         // second
-                        REQUIRE(ManageOfferOpFrame::getInnerCode(
+                        REQUIRE(ManageSellOfferOpFrame::getInnerCode(
                                     tx->getOperations()[1]->getResult()) ==
-                                MANAGE_OFFER_MALFORMED);
+                                MANAGE_SELL_OFFER_MALFORMED);
                     }
                     SECTION("one failed tx")
                     {

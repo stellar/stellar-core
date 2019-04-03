@@ -472,9 +472,11 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreatePassiveSellOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
-    <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageOfferOpFrameBase.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageBuyOfferOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ManageSellOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\InflationOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\MergeOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\OfferExchange.cpp" />
@@ -706,9 +708,11 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CreatePassiveSellOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h" />
-    <ClInclude Include="..\..\src\transactions\ManageOfferOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ManageOfferOpFrameBase.h" />
+    <ClInclude Include="..\..\src\transactions\ManageBuyOfferOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\ManageSellOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\InflationOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\MergeOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\OfferExchange.h" />

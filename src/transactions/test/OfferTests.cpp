@@ -152,7 +152,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 100});
                         }),
-                    ex_MANAGE_OFFER_SELL_NO_TRUST);
+                    ex_MANAGE_SELL_OFFER_SELL_NO_TRUST);
             });
         }
 
@@ -168,7 +168,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                               a1, {makeAsset(fakeIssuer, "IDR"),
                                                    usd, oneone, 100});
                                       }),
-                                  ex_MANAGE_OFFER_SELL_NO_ISSUER);
+                                  ex_MANAGE_SELL_OFFER_SELL_NO_ISSUER);
             });
         }
 
@@ -183,7 +183,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 100});
                         }),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
             });
         }
 
@@ -199,7 +199,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 100});
                         }),
-                    ex_MANAGE_OFFER_BUY_NO_TRUST);
+                    ex_MANAGE_SELL_OFFER_BUY_NO_TRUST);
             });
         }
 
@@ -218,7 +218,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                                    makeAsset(fakeIssuer, "USD"),
                                                    oneone, 100});
                                       }),
-                                  ex_MANAGE_OFFER_BUY_NO_ISSUER);
+                                  ex_MANAGE_SELL_OFFER_BUY_NO_ISSUER);
             });
         }
 
@@ -235,7 +235,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 100});
                         }),
-                    ex_MANAGE_OFFER_LOW_RESERVE);
+                    ex_MANAGE_SELL_OFFER_LOW_RESERVE);
             });
         }
 
@@ -254,7 +254,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 100});
                         }),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
 
@@ -273,7 +273,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 100});
                         }),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
 
@@ -291,14 +291,23 @@ TEST_CASE("create offer", "[tx][offers]")
                                            OfferState::DELETED);
                 });
             });
-            for_versions_from(3, *app, [&] {
+            for_versions(3, 10, *app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
                         [&] {
                             return market.addOffer(a1, {idr, usd, oneone, 0});
                         }),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
+            });
+            for_versions_from(11, *app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 0});
+                        }),
+                    ex_MANAGE_SELL_OFFER_MALFORMED);
             });
         }
 
@@ -318,7 +327,7 @@ TEST_CASE("create offer", "[tx][offers]")
                             [&] {
                                 return market.addOffer(a, {xlm, idr, p, 150});
                             }),
-                        ex_MANAGE_OFFER_MALFORMED);
+                        ex_MANAGE_SELL_OFFER_MALFORMED);
                 }
             });
         }
@@ -482,7 +491,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                               a1, bogusOfferID,
                                               {idr, usd, oneone, 100});
                                       }),
-                                  ex_MANAGE_OFFER_NOT_FOUND);
+                                  ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
 
@@ -497,7 +506,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                               a1, bogusOfferID,
                                               {idr, usd, oneone, 0});
                                       }),
-                                  ex_MANAGE_OFFER_NOT_FOUND);
+                                  ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
     }
@@ -587,7 +596,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                     return market.addOffer(
                                         b1, {xlm, idr, oneone, offerAmount});
                                 }),
-                            ex_MANAGE_OFFER_LOW_RESERVE);
+                            ex_MANAGE_SELL_OFFER_LOW_RESERVE);
                     });
                 }
                 SECTION("large amount (oversell) - cross & create")
@@ -624,7 +633,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                     return market.addOffer(
                                         b1, {xlm, idr, oneone, offerAmount});
                                 }),
-                            ex_MANAGE_OFFER_LOW_RESERVE);
+                            ex_MANAGE_SELL_OFFER_LOW_RESERVE);
                     });
 
                     for_versions({9}, *app, [&]() {
@@ -642,7 +651,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         auto actualPayment = a1IDrs - delta;
                         REQUIRE_THROWS_AS(
                             checkCrossed(b1, actualPayment, actualPayment + 1),
-                            ex_MANAGE_OFFER_UNDERFUNDED);
+                            ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                         root.pay(b1, txfee);
                         checkCrossed(b1, actualPayment, actualPayment);
                     });
@@ -693,7 +702,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                 return market.addOffer(
                                     a1, {usd, idr, exactCrossPrice, 150});
                             }),
-                        ex_MANAGE_OFFER_CROSS_SELF);
+                        ex_MANAGE_SELL_OFFER_CROSS_SELF);
                 });
             }
 
@@ -1311,7 +1320,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     // as b1 cannot buy any more IDRs the operation should fail
                     REQUIRE_THROWS_AS(
                         market.addOffer(b1, offerB1Params, OfferState::DELETED),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                 });
             }
             SECTION("Offer reaches limit")
@@ -1521,7 +1530,7 @@ TEST_CASE("create offer", "[tx][offers]")
             });
             REQUIRE_THROWS_AS(market.updateOffer(a1, offer.key.offerID,
                                                  {xlm, usd, oneone, 111}),
-                              ex_MANAGE_OFFER_UNDERFUNDED);
+                              ex_MANAGE_SELL_OFFER_UNDERFUNDED);
         });
     }
 
@@ -1719,7 +1728,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 root.pay(acc1, xlm, 500 + txfee);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 root.pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 500});
@@ -1730,7 +1739,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 root.pay(acc1, xlm, 500 + txfee + reserve);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 root.pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 500});
@@ -1754,7 +1763,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, xlm, Price{1, 1},
                                            INT64_MAX - minBalance - txfee + 1}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 root.pay(acc1, xlm, txfee);
                 auto o1 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1,
@@ -1773,7 +1782,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 root.pay(acc1, xlm, txfee);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, xlm, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 root.pay(acc1, xlm, txfee);
                 auto o2 = market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {usd, xlm, Price{1, 1}, 500});
@@ -1795,7 +1804,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 issuer.pay(acc1, usd, 500);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, xlm, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {usd, xlm, Price{1, 1}, 500});
                 });
@@ -1804,7 +1813,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 issuer.pay(acc1, usd, 500);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, xlm, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {usd, xlm, Price{1, 1}, 500});
                 });
@@ -1824,7 +1833,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 issuer.pay(acc1, usd, 500);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 500});
                 });
@@ -1833,7 +1842,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 acc1.changeTrust(usd, 1500);
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(acc1, {xlm, usd, Price{1, 1}, 500});
                 });
@@ -1862,7 +1871,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o1.key.offerID,
                                        {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 root.pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o1.key.offerID,
@@ -1879,7 +1888,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o2.key.offerID,
                                        {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 root.pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o2.key.offerID,
@@ -1911,7 +1920,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     market.updateOffer(
                         acc1, o1.key.offerID,
                         {usd, xlm, Price{1, 1}, INT64_MAX - minBalance + 1}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 root.pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(
@@ -1935,7 +1944,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o2.key.offerID,
                                        {usd, xlm, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 root.pay(acc1, xlm, txfee);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o2.key.offerID,
@@ -1962,7 +1971,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o1.key.offerID,
                                        {usd, xlm, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o1.key.offerID,
                                               {usd, xlm, Price{1, 1}, 500});
@@ -1976,7 +1985,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o2.key.offerID,
                                        {usd, xlm, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_UNDERFUNDED);
+                    ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o2.key.offerID,
                                               {usd, xlm, Price{1, 1}, 500});
@@ -2001,7 +2010,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o1.key.offerID,
                                        {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o1.key.offerID,
                                               {xlm, usd, Price{1, 1}, 500});
@@ -2015,7 +2024,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, o2.key.offerID,
                                        {xlm, usd, Price{1, 1}, 501}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(acc1, o2.key.offerID,
                                               {xlm, usd, Price{1, 1}, 500});
@@ -2042,9 +2051,9 @@ TEST_CASE("create offer", "[tx][offers]")
 
             TestMarket market(*app);
             REQUIRE_THROWS_AS(market.addOffer(acc1, {idr, xlm, Price{1, 1}, 1}),
-                              ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED);
+                              ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
             REQUIRE_THROWS_AS(market.addOffer(acc1, {xlm, idr, Price{1, 1}, 1}),
-                              ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED);
+                              ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
         });
     }
 
@@ -2064,7 +2073,7 @@ TEST_CASE("create offer", "[tx][offers]")
             for_versions_from(10, *app, [&] {
                 REQUIRE_THROWS_AS(
                     market.addOffer(acc1, {usd, idr, Price{3, 2}, 27}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
 
@@ -2086,7 +2095,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, offer.key.offerID,
                                        {usd, idr, Price{3, 2}, 27}),
-                    ex_MANAGE_OFFER_LINE_FULL);
+                    ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
     }
@@ -2113,7 +2122,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, o1.key.offerID,
                                            {xlm, usd, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     acc1.changeTrust(usd, 1000);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, o1.key.offerID,
@@ -2159,7 +2168,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, o1.key.offerID,
                                            {idr, xlm, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
 
                     root.pay(acc1, 2 * txfee);
                     market.requireChangesWithOffer({}, [&] {
@@ -2212,7 +2221,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, o1.key.offerID,
                                            {idr, usd, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     acc1.changeTrust(usd, 1000);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, o1.key.offerID,
@@ -2357,7 +2366,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(market.updateOffer(acc1, offerID,
                                                      {finalSelling, finalBuying,
                                                       Price{2, 1}, 500}),
-                                  ex_MANAGE_OFFER_LINE_FULL);
+                                  ex_MANAGE_SELL_OFFER_LINE_FULL);
                 if (finalBuying.type() == ASSET_TYPE_NATIVE)
                 {
                     root.pay(acc1, txfee);
@@ -2376,7 +2385,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(market.updateOffer(acc1, offerID,
                                                      {finalSelling, finalBuying,
                                                       Price{2, 1}, 500}),
-                                  ex_MANAGE_OFFER_UNDERFUNDED);
+                                  ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                 if (finalSelling.type() == ASSET_TYPE_NATIVE)
                 {
                     root.pay(acc1, 1);
@@ -2506,15 +2515,15 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_versions_from(10, *app, [&] {
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {xlm, idr, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LOW_RESERVE);
+                        ex_MANAGE_SELL_OFFER_LOW_RESERVE);
                     root.pay(acc1, reserve + txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {xlm, idr, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     root.pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {xlm, idr, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_UNDERFUNDED);
+                        ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                     root.pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(acc1,
@@ -2545,15 +2554,15 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {idr, xlm, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LOW_RESERVE);
+                        ex_MANAGE_SELL_OFFER_LOW_RESERVE);
                     root.pay(acc1, reserve + txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {idr, xlm, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     root.pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {idr, xlm, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_UNDERFUNDED);
+                        ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                     root.pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(acc1,
@@ -2577,15 +2586,15 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_versions_from(10, *app, [&] {
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {usd, idr, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LOW_RESERVE);
+                        ex_MANAGE_SELL_OFFER_LOW_RESERVE);
                     root.pay(acc1, reserve + txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {usd, idr, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     root.pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.addOffer(acc1, {usd, idr, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_UNDERFUNDED);
+                        ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                     root.pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(acc1,
@@ -2616,12 +2625,12 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {xlm, idr, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     root.pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {xlm, idr, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_UNDERFUNDED);
+                        ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                     root.pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, offerID,
@@ -2658,12 +2667,12 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {idr, xlm, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     root.pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {idr, xlm, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_UNDERFUNDED);
+                        ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                     root.pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, offerID,
@@ -2693,12 +2702,12 @@ TEST_CASE("create offer", "[tx][offers]")
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {usd, idr, Price{2, 1}, 501}),
-                        ex_MANAGE_OFFER_LINE_FULL);
+                        ex_MANAGE_SELL_OFFER_LINE_FULL);
                     root.pay(acc1, txfee);
                     REQUIRE_THROWS_AS(
                         market.updateOffer(acc1, offerID,
                                            {usd, idr, Price{2, 1}, 500}),
-                        ex_MANAGE_OFFER_UNDERFUNDED);
+                        ex_MANAGE_SELL_OFFER_UNDERFUNDED);
                     root.pay(acc1, txfee);
                     market.requireChangesWithOffer({}, [&] {
                         return market.updateOffer(acc1, offerID,
@@ -2773,7 +2782,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 });
                 REQUIRE_THROWS_AS(market.addOffer(acc1, {cur1, usd, Price{1, 1},
                                                          (INT64_MAX / 3) * 2}),
-                                  ex_MANAGE_OFFER_LINE_FULL);
+                                  ex_MANAGE_SELL_OFFER_LINE_FULL);
             });
         }
 
@@ -2795,7 +2804,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 });
                 REQUIRE_THROWS_AS(market.addOffer(acc1, {usd, cur1, Price{1, 1},
                                                          (INT64_MAX / 3) * 2}),
-                                  ex_MANAGE_OFFER_UNDERFUNDED);
+                                  ex_MANAGE_SELL_OFFER_UNDERFUNDED);
             });
         }
     }
@@ -2818,16 +2827,16 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, INT64_MAX,
                                        {usd, idr, Price{1, 1}, 1}),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1,
                                        static_cast<uint64_t>(INT64_MAX) + 1,
                                        {usd, idr, Price{1, 1}, 1}),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, UINT64_MAX,
                                        {usd, idr, Price{1, 1}, 1}),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
 
@@ -2847,16 +2856,16 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, INT64_MAX,
                                        {usd, idr, Price{1, 1}, 0}),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1,
                                        static_cast<uint64_t>(INT64_MAX) + 1,
                                        {usd, idr, Price{1, 1}, 0}),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, UINT64_MAX,
                                        {usd, idr, Price{1, 1}, 0}),
-                    ex_MANAGE_OFFER_NOT_FOUND);
+                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
     }
