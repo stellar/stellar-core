@@ -110,10 +110,25 @@ TransactionFrame::getFeeBid() const
 }
 
 int64_t
-TransactionFrame::getMinFee(LedgerTxnHeader const& header) const
+TransactionFrame::getMinFee(LedgerHeader const& header) const
 {
-    return ((int64_t)header.current().baseFee) *
-           std::max<int64_t>(1, mOperations.size());
+    return ((int64_t)header.baseFee) * std::max<int64_t>(1, mOperations.size());
+}
+
+int64_t
+TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
+{
+    if (header.ledgerVersion < 11)
+    {
+        return getFeeBid();
+    }
+    else
+    {
+        int64_t adjustedFee =
+            baseFee * std::max<int64_t>(1, mOperations.size());
+
+        return std::min<int64_t>(getFeeBid(), adjustedFee);
+    }
 }
 
 void
@@ -209,7 +224,7 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
 }
 
 void
-TransactionFrame::resetResults()
+TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 {
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
@@ -228,7 +243,7 @@ TransactionFrame::resetResults()
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    getResult().feeCharged = getFeeBid();
+    getResult().feeCharged = getFee(header, baseFee);
 }
 
 bool
@@ -261,7 +276,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         }
     }
 
-    if (mEnvelope.tx.fee < getMinFee(header))
+    if (mEnvelope.tx.fee < getMinFee(header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
@@ -391,12 +406,13 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 }
 
 void
-TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx)
+TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
 {
     mCachedAccount.reset();
-    resetResults();
 
     auto header = ltx.loadHeader();
+    resetResults(header.current(), baseFee);
+
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)
     {
@@ -486,9 +502,11 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current)
 {
     mCachedAccount.reset();
-    resetResults();
 
     LedgerTxn ltx(ltxOuter);
+    auto minBaseFee = ltx.loadHeader().current().baseFee;
+    resetResults(ltx.loadHeader().current(), minBaseFee);
+
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(), mEnvelope.signatures};
     bool res = commonValid(signatureChecker, app, ltx, current, false) ==

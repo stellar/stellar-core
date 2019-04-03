@@ -806,7 +806,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
 
     // first, charge fees
-    processFeesSeqNums(txs, ltx);
+    processFeesSeqNums(txs, ltx,
+                       ledgerData.getTxSet()->getBaseFee(header.current()));
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
@@ -917,9 +918,11 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 
 void
 LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                                      AbstractLedgerTxn& ltxOuter)
+                                      AbstractLedgerTxn& ltxOuter,
+                                      int64_t baseFee)
 {
-    CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
+    CLOG(DEBUG, "Ledger")
+        << "processing fees and sequence numbers with base fee " << baseFee;
     int index = 0;
     try
     {
@@ -928,7 +931,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx);
+            tx->processFeeSeqNum(ltxTx, baseFee);
             tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq,
                                     ltxTx.getChanges(), ++index);
             ltxTx.commit();

@@ -224,14 +224,39 @@ TEST_CASE("standalone", "[herder]")
     });
 }
 
-TEST_CASE("txset", "[herder]")
+static TransactionFramePtr
+makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
+                 int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
+{
+    std::vector<stellar::Operation> ops;
+    for (int i = 0; i < nbOps; i++)
+    {
+        ops.emplace_back(payment(destAccount, i + paymentBase));
+    }
+    auto tx = src.tx(ops);
+    tx->getEnvelope().tx.fee *= feeMult;
+    tx->getEnvelope().tx.fee += extraFee;
+    tx->getEnvelope().signatures.clear();
+    tx->addSignature(src);
+    return tx;
+}
+
+static void
+testTxSet(uint32 protocolVersion)
 {
     Config cfg(getTestConfig());
-
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
+    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
+
+    LedgerHeader lhCopy;
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        lhCopy = ltx.loadHeader().current();
+    }
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -363,6 +388,7 @@ TEST_CASE("txset", "[herder]")
             std::vector<TransactionFramePtr> removed;
             txSet->trimInvalid(*app, removed);
             REQUIRE(txSet->checkValid(*app));
+            REQUIRE(removed.size() != 0);
         }
         SECTION("bad signature")
         {
@@ -375,20 +401,191 @@ TEST_CASE("txset", "[herder]")
     }
 }
 
-static TransactionFramePtr
-makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
-                 int nbOps, int64 paymentBase)
+TEST_CASE("txset", "[herder]")
 {
-    std::vector<stellar::Operation> ops;
-    for (int i = 0; i < nbOps; i++)
+    SECTION("protocol 10")
     {
-        ops.emplace_back(payment(destAccount, i + paymentBase));
+        testTxSet(10);
     }
-    auto tx = src.tx(ops);
-    tx->getEnvelope().tx.fee *= 100; // 100x min fee
-    tx->getEnvelope().signatures.clear();
-    tx->addSignature(src);
-    return tx;
+    SECTION("protocol current")
+    {
+        testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
+}
+
+TEST_CASE("txset base fee", "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
+
+    auto testBaseFee = [&](uint32_t protocolVersion, bool withBaseTxs,
+                           size_t lim, int64_t expLowFee, int64_t expHighFee) {
+        cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        app->start();
+
+        LedgerHeader lhCopy;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            lhCopy = ltx.loadHeader().current();
+        }
+
+        // set up world
+        auto root = TestAccount::createRoot(*app);
+
+        int64 startingBalance =
+            app->getLedgerManager().getLastMinBalance(0) + 10000000;
+
+        auto accounts = std::vector<TestAccount>{};
+
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        if (withBaseTxs)
+        {
+            const int nbTransactions = 8;
+
+            for (int i = 0; i < nbTransactions; i++)
+            {
+                std::string nameI = fmt::format("Base{}", i);
+                auto aI = root.create(nameI, startingBalance);
+                accounts.push_back(aI);
+
+                auto tx = makeMultiPayment(aI, aI, 1, 1000, 0, 10);
+                txSet->add(tx);
+            }
+        }
+
+        int extraAccounts = 0;
+        do
+        {
+            extraAccounts++;
+            std::string nameI = fmt::format("Extra{}", extraAccounts);
+            auto aI = root.create(nameI, startingBalance);
+            accounts.push_back(aI);
+
+            auto tx = makeMultiPayment(aI, aI, 2, 1000, extraAccounts, 100);
+            txSet->add(tx);
+        } while (txSet->size(lhCopy) < lim);
+
+        REQUIRE(txSet->size(lhCopy) == lim);
+        REQUIRE(extraAccounts >= 2);
+        txSet->sortForHash();
+        REQUIRE(txSet->checkValid(*app));
+
+        // fetch balances
+        auto getBalances = [&]() {
+            std::vector<int64_t> balances;
+            std::transform(accounts.begin(), accounts.end(),
+                           std::back_inserter(balances),
+                           [](TestAccount& a) { return a.getBalance(); });
+            return balances;
+        };
+        auto balancesBefore = getBalances();
+
+        // apply this
+        closeLedgerOn(*app, 2, 1, 1, 2020, txSet->mTransactions);
+
+        auto balancesAfter = getBalances();
+        int64_t lowFee = INT64_MAX, highFee = 0;
+        for (size_t i = 0; i < balancesAfter.size(); i++)
+        {
+            auto b = balancesBefore[i];
+            auto a = balancesAfter[i];
+            auto fee = b - a;
+            lowFee = std::min(lowFee, fee);
+            highFee = std::max(highFee, fee);
+        }
+
+        REQUIRE(lowFee == expLowFee);
+        REQUIRE(highFee == expHighFee);
+    };
+    // 8 base transactions
+    //   1 op, fee bid = baseFee*10 = 1000
+    // extra tx
+    //   2 ops, fee bid = 20000+i
+    // to reach 14
+    //    protocol 10 adds 6 tx (12 ops)
+    //    protocol 10 adds 3 tx (6 ops)
+    SECTION("surged")
+    {
+        SECTION("mixed")
+        {
+            SECTION("protocol 10")
+            {
+                // low = base tx
+                // high = last extra tx
+                testBaseFee(10, true, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE, 1000,
+                            20006);
+            }
+            SECTION("protocol current")
+            {
+                // low = 10*base tx = baseFee = 1000
+                // high = 2*base (surge)
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, true,
+                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE, 1000, 2000);
+            }
+        }
+        SECTION("newOnly")
+        {
+            SECTION("protocol 10")
+            {
+                // low = 20000+1
+                // high = 20000+14
+                testBaseFee(10, false, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE,
+                            20001, 20014);
+            }
+            SECTION("protocol current")
+            {
+                // low = 20000+1 -> baseFee = 20001/2+ = 10001
+                // high = 10001*2
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, false,
+                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE, 20001, 20002);
+            }
+        }
+    }
+    SECTION("not surged")
+    {
+        // aim for 12 tx / 12 ops instead of 14
+        // -> 8+4 (v10)
+        //    8+2 (v11)
+        SECTION("mixed")
+        {
+            SECTION("protocol 10")
+            {
+                // low = 1000
+                // high = 20000+4
+                testBaseFee(10, true, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2,
+                            1000, 20004);
+            }
+            SECTION("protocol current")
+            {
+                // baseFee = minFee = 100
+                // high = 2*minFee
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, true,
+                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2, 100, 200);
+            }
+        }
+        SECTION("newOnly")
+        {
+            SECTION("protocol 10")
+            {
+                // low = 20000+1
+                // high = 20000+12
+                testBaseFee(10, false, cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2,
+                            20001, 20012);
+            }
+            SECTION("protocol current")
+            {
+                // low = minFee = 100
+                // high = 2*minFee
+                testBaseFee(Config::CURRENT_LEDGER_PROTOCOL_VERSION, false,
+                            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 2, 200, 200);
+            }
+        }
+    }
 }
 
 using std::placeholders::_1;
@@ -425,7 +622,8 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
 
     std::vector<TransactionFramePtr> removed;
 
-    auto multiPaymentTx = std::bind(makeMultiPayment, destAccount, _1, _2, _3);
+    auto multiPaymentTx =
+        std::bind(makeMultiPayment, destAccount, _1, _2, _3, 0, 100);
 
     auto addRootTxs = [&]() {
         for (uint32_t n = 0; n < 2 * nbTxs; n++)
@@ -625,9 +823,11 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
     };
     auto addTransactions = [&](TxSetFramePtr txSet, int n, int multi) {
         txSet->mTransactions.resize(n);
-        std::generate(
-            std::begin(txSet->mTransactions), std::end(txSet->mTransactions),
-            [&]() { return makeMultiPayment(root, root, multi, 1000); });
+        std::generate(std::begin(txSet->mTransactions),
+                      std::end(txSet->mTransactions), [&]() {
+                          return makeMultiPayment(root, root, multi, 1000, 0,
+                                                  100);
+                      });
     };
     auto makeTransactions = [&](Hash hash, int n, int multi) {
         root.loadSequenceNumber();

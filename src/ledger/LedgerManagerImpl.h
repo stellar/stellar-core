@@ -63,7 +63,7 @@ class LedgerManagerImpl : public LedgerManager
                          LedgerHeaderHistoryEntry const& lastClosed);
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            AbstractLedgerTxn& ltxOuter);
+                            AbstractLedgerTxn& ltxOuter, int64_t baseFee);
 
     void applyTransactions(std::vector<TransactionFramePtr>& txs,
                            AbstractLedgerTxn& ltx,

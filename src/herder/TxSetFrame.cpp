@@ -148,8 +148,8 @@ TxSetFrame::sortForApply()
 struct SurgeCompare
 {
     Hash mSeed;
-    LedgerTxnHeader const& mHeader;
-    SurgeCompare(LedgerTxnHeader const& header)
+    LedgerHeader const& mHeader;
+    SurgeCompare(LedgerHeader const& header)
         : mSeed(HashUtils::random()), mHeader(header)
     {
     }
@@ -229,7 +229,8 @@ TxSetFrame::surgePricingFilter(Application& app)
 
         auto actTxQueueMap = buildAccountTxQueues();
 
-        SurgeCompare const surge(header);
+        auto headerCopy = header.current();
+        SurgeCompare const surge(headerCopy);
         std::priority_queue<AccountTransactionQueue*,
                             std::vector<AccountTransactionQueue*>, SurgeCompare>
             surgeQueue(surge);
@@ -458,6 +459,33 @@ TxSetFrame::sizeOp() const
         [](size_t a, TransactionFramePtr const& tx) {
             return a + tx->getEnvelope().tx.operations.size();
         });
+}
+
+int64_t
+TxSetFrame::getBaseFee(LedgerHeader const& lh) const
+{
+    int64_t baseFee = lh.baseFee;
+    if (lh.ledgerVersion >= 11)
+    {
+        size_t ops = 0;
+        int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
+        for (auto& txPtr : mTransactions)
+        {
+            auto txOps = txPtr->getEnvelope().tx.operations.size();
+            ops += txOps;
+            int64_t txBaseFee =
+                bigDivide(txPtr->getFeeBid(), 1, static_cast<int64_t>(txOps),
+                          Rounding::ROUND_UP);
+            lowBaseFee = std::min(lowBaseFee, txBaseFee);
+        }
+        // if surge pricing was in action, use the lowest base fee bid from the
+        // transaction set
+        if (ops >= lh.maxTxSetSize)
+        {
+            baseFee = lowBaseFee;
+        }
+    }
+    return baseFee;
 }
 
 void

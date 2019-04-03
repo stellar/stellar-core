@@ -70,7 +70,7 @@ class TransactionFrame
                                Application& app, AbstractLedgerTxn& ltxOuter,
                                SequenceNumber current, bool applying);
 
-    void resetResults();
+    void resetResults(LedgerHeader const& header, int64_t baseFee);
 
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
                                      AbstractLedgerTxn& ltx);
@@ -151,7 +151,9 @@ class TransactionFrame
 
     uint32_t getFeeBid() const;
 
-    int64_t getMinFee(LedgerTxnHeader const& header) const;
+    int64_t getMinFee(LedgerHeader const& header) const;
+
+    int64_t getFee(LedgerHeader const& header, int64_t baseFee) const;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
@@ -166,7 +168,7 @@ class TransactionFrame
                     SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ltx);
+    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied

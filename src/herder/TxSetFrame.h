@@ -81,6 +81,9 @@ class TxSetFrame
 
     size_t sizeOp() const;
 
+    // return the base fee associated with this transaction set
+    int64_t getBaseFee(LedgerHeader const& lh) const;
+
     void toXDR(TransactionSet& set);
 };
 } // namespace stellar
