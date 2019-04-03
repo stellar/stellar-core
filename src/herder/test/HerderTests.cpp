@@ -272,33 +272,35 @@ testTxSet(uint32 protocolVersion)
     int64_t amountPop =
         nbTransactions * app->getLedgerManager().getLastTxFee() + minBalance0;
 
-    std::vector<std::vector<TransactionFramePtr>> transactions;
-
-    for (int i = 0; i < nbAccounts; i++)
-    {
-        std::string accountName = "A";
-        accountName += '0' + (char)i;
-        accounts.push_back(root.create(accountName.c_str(), amountPop));
-        transactions.push_back(std::vector<TransactionFramePtr>());
-        for (int j = 0; j < nbTransactions; j++)
-        {
-            // payment to self
-            transactions[i].emplace_back(
-                accounts[i].tx({payment(accounts[i].getPublicKey(), 10000)}));
-        }
-    }
-
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-    for (auto& txs : transactions)
-    {
-        for (auto& tx : txs)
+    auto genTx = [&](int nbTxs) {
+        std::string accountName = fmt::format("A{}", accounts.size());
+        accounts.push_back(root.create(accountName.c_str(), amountPop));
+        auto& account = accounts.back();
+        for (int j = 0; j < nbTxs; j++)
         {
-            txSet->add(tx);
+            // payment to self
+            txSet->add(account.tx({payment(account.getPublicKey(), 10000)}));
         }
+    };
+
+    for (size_t i = 0; i < nbAccounts; i++)
+    {
+        genTx(nbTransactions);
     }
 
+    SECTION("too many txs")
+    {
+        while (txSet->mTransactions.size() <=
+               cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE)
+        {
+            genTx(1);
+        }
+        txSet->sortForHash();
+        REQUIRE(!txSet->checkValid(*app));
+    }
     SECTION("order check")
     {
         txSet->sortForHash();
