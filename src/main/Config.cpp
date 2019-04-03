@@ -89,6 +89,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     MINIMUM_IDLE_PERCENT = 0;
 
+    WORKER_THREADS = 10;
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
 
@@ -462,10 +463,13 @@ Config::load(std::string const& filename)
             {
                 COMMANDS = readStringArray(item);
             }
+            else if (item.first == "WORKER_THREADS")
+            {
+                WORKER_THREADS = readInt<int>(item, 1, 1000);
+            }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
-                MAX_CONCURRENT_SUBPROCESSES =
-                    static_cast<size_t>(readInt<int>(item, 1));
+                MAX_CONCURRENT_SUBPROCESSES = readInt<int>(item, 1);
             }
             else if (item.first == "MINIMUM_IDLE_PERCENT")
             {

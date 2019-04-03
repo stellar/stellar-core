@@ -15,7 +15,7 @@ Another peer out there that we are connected to
 namespace stellar
 {
 // [testing] Peer that communicates via byte-buffer delivery events queued in
-// in-process io_services.
+// in-process io_contexts.
 //
 // NB: Do not construct one of these directly; instead, construct a connected
 // pair of them wrapped in a LoopbackPeerConnection that explicitly manages the

@@ -337,7 +337,7 @@ TEST_CASE("Work batching", "[batching]")
 
     auto verify = wm.addWork<TestBatchWork>("test-batch");
     wm.advanceChildren();
-    while (!clock.getIOService().stopped() && !wm.allChildrenDone())
+    while (!clock.getIOContext().stopped() && !wm.allChildrenDone())
     {
         clock.crank(true);
         REQUIRE(verify->getChildren().size() <=

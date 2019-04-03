@@ -150,10 +150,10 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     size_t app2Event = 0;
     size_t timerFired = 0;
 
-    auto& io = clock.getIOService();
+    auto& io = clock.getIOContext();
 
     // Fire one event on the app's queue
-    io.post([&]() { ++app1Event; });
+    asio::post(io, [&]() { ++app1Event; });
     clock.crank(false);
     CHECK(app1Event == 1);
     CHECK(app2Event == 0);
@@ -169,8 +169,8 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     CHECK(timerFired == 1);
 
     // Queue 2 new events and 1 new timer
-    io.post([&]() { ++app1Event; });
-    io.post([&]() { ++app2Event; });
+    asio::post(io, [&]() { ++app1Event; });
+    asio::post(io, [&]() { ++app2Event; });
     timer.expires_from_now(std::chrono::seconds(1));
     timer.async_wait([&](asio::error_code const& e) { ++timerFired; });
 
@@ -245,8 +245,8 @@ TEST_CASE("crank returns correct value", "[timer]")
         SECTION(mode.first)
         {
             VirtualClock clock{mode.second};
-            auto& io = clock.getIOService();
-            asio::io_service::work mainWork(io);
+            auto& io = clock.getIOContext();
+            asio::io_context::work mainWork(io);
 
             auto executed = false;
             auto execute = [&executed] { executed = true; };
@@ -276,7 +276,7 @@ TEST_CASE("crank returns correct value", "[timer]")
             clock.postToCurrentCrank(executeLater);
             REQUIRE(!executed);
             // 1 for "executeLater"
-            // 1 for posting "execute" to io_service
+            // 1 for posting "execute" to io_context
             REQUIRE(clock.crank(false) == 2);
             REQUIRE(!executed);
             // 1 for "execute"
@@ -288,11 +288,11 @@ TEST_CASE("crank returns correct value", "[timer]")
             clock.postToCurrentCrank(executeMuchLater);
             REQUIRE(!executed);
             // 1 for "executeMuchLater"
-            // 1 for posting "executeLater" to io_service
+            // 1 for posting "executeLater" to io_context
             REQUIRE(clock.crank(false) == 2);
             REQUIRE(!executed);
             // 1 for "executeLater"
-            // 1 for posting "execute" to io_service
+            // 1 for posting "execute" to io_context
             REQUIRE(clock.crank(false) == 2);
             REQUIRE(!executed);
             // 1 for "execute"

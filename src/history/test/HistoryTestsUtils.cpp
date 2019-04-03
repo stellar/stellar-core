@@ -171,7 +171,7 @@ TestBucketGenerator::generateBucket(TestBucketState state)
             mkdir->advance();
         }
 
-        while (!mApp.getClock().getIOService().stopped() &&
+        while (!mApp.getClock().getIOContext().stopped() &&
                !wm.allChildrenDone())
         {
             mApp.getClock().crank(true);
@@ -674,7 +674,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
 
-    REQUIRE(!app2->getClock().getIOService().stopped());
+    REQUIRE(!app2->getClock().getIOContext().stopped());
     crankUntil(
         app2,
         [&]() {

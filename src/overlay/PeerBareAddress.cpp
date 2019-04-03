@@ -70,7 +70,7 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
         toResolve = m[2].str();
     }
 
-    asio::ip::tcp::resolver resolver(app.getWorkerIOService());
+    asio::ip::tcp::resolver resolver(app.getWorkerIOContext());
     asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
 
     asio::error_code ec;

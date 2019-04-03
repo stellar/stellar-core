@@ -41,7 +41,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << address.toString();
     assertThreadIsMain();
-    auto socket = make_shared<SocketType>(app.getClock().getIOService());
+    auto socket = make_shared<SocketType>(app.getClock().getIOContext());
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
     result->startIdleTimer();

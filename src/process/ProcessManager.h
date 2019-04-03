@@ -36,7 +36,7 @@ class ProcessExitEvent
     std::shared_ptr<RealTimer> mTimer;
     std::shared_ptr<Impl> mImpl;
     std::shared_ptr<asio::error_code> mEc;
-    ProcessExitEvent(asio::io_service& io_service);
+    ProcessExitEvent(asio::io_context& io_context);
     friend class ProcessManagerImpl;
 
   public:

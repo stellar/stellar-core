@@ -405,8 +405,8 @@ TEST_CASE("Auto calibrated single node load test", "[autoload][!hide]")
     auto appPtr = newLoadTestApp(clock);
     // Create accounts
     appPtr->generateLoad(true, 100000, 0, 0, 10, 3, true);
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
     while (!io.stopped() && complete.count() == 0)
@@ -503,8 +503,8 @@ TEST_CASE("Accounts vs latency", "[scalability][!hide]")
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
     while (!io.stopped() && complete.count() == 0)
     {
         clock.crank();
@@ -648,7 +648,7 @@ TEST_CASE("Bucket list entries vs write throughput", "[scalability][!hide]")
                      "mergelatencymax", "mergelatencymean"});
 
     for (uint32_t i = 1;
-         !app->getClock().getIOService().stopped() && i < 0x200000; ++i)
+         !app->getClock().getIOContext().stopped() && i < 0x200000; ++i)
     {
         app->getClock().crank(false);
         app->getBucketManager().addBatch(
