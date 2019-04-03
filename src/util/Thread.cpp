@@ -9,6 +9,9 @@
 #else
 #include <unistd.h>
 #endif
+#if defined(__APPLE__)
+#include <pthread.h>
+#endif
 
 namespace stellar
 {
@@ -23,7 +26,7 @@ runCurrentThreadWithLowPriority()
 
     if (!ret)
     {
-        CLOG(DEBUG, "Fs") << "Unable to set priority for thread: " << ret;
+        LOG(DEBUG) << "Unable to set priority for thread: " << ret;
     }
 }
 
@@ -37,8 +40,8 @@ runCurrentThreadWithLowPriority()
     auto newNice = nice(LOW_PRIORITY_NICE);
     if (newNice != LOW_PRIORITY_NICE)
     {
-        CLOG(DEBUG, "Fs") << "Unable to run worker thread with low priority. "
-                             "Normal priority will be used.";
+        LOG(DEBUG) << "Unable to run worker thread with low priority. "
+                      "Normal priority will be used.";
     }
 }
 
@@ -47,8 +50,24 @@ runCurrentThreadWithLowPriority()
 void
 runCurrentThreadWithLowPriority()
 {
-    // probably can use thread_policy_set with THREAD_PRECEDENCE_POLICY to get
-    // desired effect
+    // Default MacOS priority is 31 in a user-mode band from 0..63, niceing (or
+    // other priority-adjustment) usually subtracts from there. Range is +/- 16,
+    // with lower meaning lower (i.e. UTILITY class is 20). The standard
+    // pthreads API works for adjusting a single thread's priority.
+    constexpr auto const LOW_PRIORITY_NICE = 5;
+    struct sched_param sp;
+    int policy;
+    int ret = pthread_getschedparam(pthread_self(), &policy, &sp);
+    if (ret != 0)
+    {
+        LOG(DEBUG) << "Unable to get priority for thread: " << ret;
+    }
+    sp.sched_priority -= LOW_PRIORITY_NICE;
+    ret = pthread_setschedparam(pthread_self(), policy, &sp);
+    if (ret != 0)
+    {
+        LOG(DEBUG) << "Unable to set priority for thread: " << ret;
+    }
 }
 
 #else
