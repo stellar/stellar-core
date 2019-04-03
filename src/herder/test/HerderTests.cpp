@@ -551,8 +551,7 @@ TEST_CASE("surge pricing", "[herder]")
                 REQUIRE(tx->getSeqNum() == refSeqNumRoot);
             }
         }
-        // current surge pricing deletes all from B
-        REQUIRE(nbAccountB == 0);
+        REQUIRE(nbAccountB == 2);
     }
 
     SECTION("a lot of txs")

@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "TxSetFrame.h"
 #include "crypto/Hex.h"
+#include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
@@ -136,23 +137,47 @@ TxSetFrame::sortForApply()
     return retList;
 }
 
-struct SurgeSorter
+using AccountTransactionQueue = std::deque<TransactionFramePtr>;
+
+struct SurgeCompare
 {
-    map<AccountID, double>& mAccountFeeMap;
-    SurgeSorter(map<AccountID, double>& afm) : mAccountFeeMap(afm)
+    Hash mSeed;
+    LedgerTxnHeader const& mHeader;
+    SurgeCompare(LedgerTxnHeader const& header)
+        : mSeed(HashUtils::random()), mHeader(header)
     {
     }
 
+    // return true if tx1 < tx2
     bool
-    operator()(TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
+    operator()(AccountTransactionQueue const* tx1,
+               AccountTransactionQueue const* tx2) const
     {
-        if (tx1->getSourceID() == tx2->getSourceID())
-            return tx1->getSeqNum() < tx2->getSeqNum();
-        double fee1 = mAccountFeeMap[tx1->getSourceID()];
-        double fee2 = mAccountFeeMap[tx2->getSourceID()];
-        if (fee1 == fee2)
-            return tx1->getSourceID() < tx2->getSourceID();
-        return fee1 > fee2;
+        if (tx1 == nullptr || tx1->empty())
+        {
+            return tx2 ? !tx2->empty() : false;
+        }
+        if (tx2 == nullptr || tx2->empty())
+        {
+            return false;
+        }
+
+        auto& top1 = tx1->front();
+        auto& top2 = tx2->front();
+
+        // compare fee/minFee between top1 and top2
+        auto v1 = bigMultiply(top1->getFee(), top2->getMinFee(mHeader));
+        auto v2 = bigMultiply(top2->getFee(), top1->getMinFee(mHeader));
+        if (v1 < v2)
+        {
+            return true;
+        }
+        else if (v1 > v2)
+        {
+            return false;
+        }
+        // use hash of transaction as a tie breaker
+        return lessThanXored(top1->getFullHash(), top2->getFullHash(), mSeed);
     }
 };
 
@@ -161,14 +186,13 @@ TxSetFrame::surgePricingFilter(Application& app)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
-    size_t max = header.current().maxTxSetSize;
-    if (mTransactions.size() > max)
-    { // surge pricing in effect!
+
+    size_t maxSize = header.current().maxTxSetSize;
+    if (mTransactions.size() > maxSize)
+    {
         CLOG(WARNING, "Herder")
             << "surge pricing in effect! " << mTransactions.size();
-
-        // determine the fee ratio for each account
-        map<AccountID, double> accountFeeMap;
+        std::unordered_map<AccountID, AccountTransactionQueue> actTxQueueMap;
         for (auto& tx : mTransactions)
         {
             if (tx->getOperations().size() == 0)
@@ -177,26 +201,58 @@ TxSetFrame::surgePricingFilter(Application& app)
                 throw std::runtime_error(
                     "Surge pricing should not be run on invalid transactions");
             }
-            double fee = tx->getFee();
-            double minFee = (double)tx->getMinFee(header);
-            double r = fee / minFee;
-
-            double now = accountFeeMap[tx->getSourceID()];
-            if (now == 0)
-                accountFeeMap[tx->getSourceID()] = r;
-            else if (r < now)
-                accountFeeMap[tx->getSourceID()] = r;
+            auto& id = tx->getSourceID();
+            auto it = actTxQueueMap.find(id);
+            if (it == actTxQueueMap.end())
+            {
+                auto d = std::make_pair(id, AccountTransactionQueue{});
+                auto r = actTxQueueMap.insert(d);
+                it = r.first;
+            }
+            it->second.emplace_back(tx);
         }
 
-        // sort tx by amount of fee they have paid
-        // remove the bottom that aren't paying enough
-        std::vector<TransactionFramePtr> tempList = mTransactions;
-        std::sort(tempList.begin(), tempList.end(), SurgeSorter(accountFeeMap));
+        SurgeCompare const surge(header);
+        std::priority_queue<AccountTransactionQueue*,
+                            std::vector<AccountTransactionQueue*>, SurgeCompare>
+            surgeQueue(surge);
 
-        for (auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
+        for (auto& am : actTxQueueMap)
         {
-            removeTx(*iter);
+            // sort each in sequence number order
+            std::sort(am.second.begin(), am.second.end(), SeqSorter);
+            surgeQueue.push(&am.second);
         }
+
+        size_t opsLeft = maxSize * MAX_OPS_PER_TX;
+        std::vector<TransactionFramePtr> updatedSet;
+        updatedSet.reserve(mTransactions.size());
+        while (opsLeft > 0 && !surgeQueue.empty())
+        {
+            auto cur = surgeQueue.top();
+            surgeQueue.pop();
+            // inspect the top candidate queue
+            auto& curTopTx = cur->front();
+            if (curTopTx->getOperations().size() <= opsLeft)
+            {
+                // pop from this one
+                updatedSet.emplace_back(curTopTx);
+                cur->pop_front();
+                opsLeft -= MAX_OPS_PER_TX;
+                // if there are more transactions, put it back
+                if (!cur->empty())
+                {
+                    surgeQueue.push(cur);
+                }
+            }
+            else
+            {
+                // drop this transaction -> we need to drop the others
+                cur->clear();
+            }
+        }
+        mTransactions = std::move(updatedSet);
+        sortForHash();
     }
 }
 
