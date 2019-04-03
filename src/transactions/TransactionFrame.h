@@ -149,7 +149,7 @@ class TransactionFrame
         return mEnvelope.tx.sourceAccount;
     }
 
-    uint32_t getFee() const;
+    uint32_t getFeeBid() const;
 
     int64_t getMinFee(LedgerTxnHeader const& header) const;
 

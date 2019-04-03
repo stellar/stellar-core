@@ -293,7 +293,7 @@ HerderImpl::TxMap::addTx(TransactionFramePtr tx)
     }
     mTransactions.insert(std::make_pair(h, tx));
     mMaxSeq = std::max(tx->getSeqNum(), mMaxSeq);
-    mTotalFees += tx->getFee();
+    mTotalFees += tx->getFeeBid();
 }
 
 void
@@ -304,7 +304,7 @@ HerderImpl::TxMap::recalculate()
     for (auto const& pair : mTransactions)
     {
         mMaxSeq = std::max(pair.second->getSeqNum(), mMaxSeq);
-        mTotalFees += pair.second->getFee();
+        mTotalFees += pair.second->getFeeBid();
     }
 }
 
@@ -316,7 +316,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     // determine if we have seen this tx before and if not if it has the right
     // seq num
-    int64_t totFee = tx->getFee();
+    int64_t totFee = tx->getFeeBid();
     SequenceNumber highSeq = 0;
 
     for (auto& map : mPendingTransactions)

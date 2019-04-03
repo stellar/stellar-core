@@ -172,8 +172,8 @@ struct SurgeCompare
         auto& top2 = tx2->front();
 
         // compare fee/minFee between top1 and top2
-        auto v1 = bigMultiply(top1->getFee(), top2->getMinFee(mHeader));
-        auto v2 = bigMultiply(top2->getFee(), top1->getMinFee(mHeader));
+        auto v1 = bigMultiply(top1->getFeeBid(), top2->getMinFee(mHeader));
+        auto v2 = bigMultiply(top2->getFeeBid(), top1->getMinFee(mHeader));
         if (v1 < v2)
         {
             return true;
@@ -312,7 +312,7 @@ TxSetFrame::checkOrTrim(
 
                 return false;
             }
-            totFee += tx->getFee();
+            totFee += tx->getFeeBid();
 
             lastTx = tx;
             lastSeq = tx->getSeqNum();

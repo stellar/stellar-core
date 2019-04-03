@@ -605,7 +605,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                     expectedResult(baseFee * 3, 3, txFAILED,
                                    {PAYMENT_SUCCESS,
                                     {ACCOUNT_MERGE_SUCCESS,
-                                     startAmount - tx->getFee() - 1000},
+                                     startAmount - tx->getFeeBid() - 1000},
                                     opNO_ACCOUNT}));
             });
         }

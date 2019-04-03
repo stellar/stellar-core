@@ -104,7 +104,7 @@ TransactionFrame::getEnvelope()
 }
 
 uint32_t
-TransactionFrame::getFee() const
+TransactionFrame::getFeeBid() const
 {
     return mEnvelope.tx.fee;
 }
@@ -228,7 +228,7 @@ TransactionFrame::resetResults()
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    getResult().feeCharged = getFee();
+    getResult().feeCharged = getFeeBid();
 }
 
 bool
