@@ -171,6 +171,12 @@ TxSetFrame::surgePricingFilter(Application& app)
         map<AccountID, double> accountFeeMap;
         for (auto& tx : mTransactions)
         {
+            if (tx->getOperations().size() == 0)
+            {
+                // ensure that "checkValid" was called
+                throw std::runtime_error(
+                    "Surge pricing should not be run on invalid transactions");
+            }
             double fee = tx->getFee();
             double minFee = (double)tx->getMinFee(header);
             double r = fee / minFee;
