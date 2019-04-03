@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketInputIterator.h"
+#include "bucket/BucketTests.h"
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
@@ -1432,10 +1434,11 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         // Provoke sortForHash and hash-caching:
         txSet->getContentsHash();
 
-        // On 3rd iteration of advance, perform a ledger-protocol version
-        // upgrade to the new protocol, to activate INITENTRY behaviour.
+        // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
+        // ledger-protocol version upgrade to the new protocol, to activate
+        // INITENTRY behaviour.
         auto upgrades = xdr::xvector<UpgradeType, 6>{};
-        if (i == 3)
+        if (ledgerSeq == 5)
         {
             auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
             ledgerUpgrade.newLedgerVersion() = newProto;
@@ -1446,10 +1449,25 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         }
         StellarValue sv(txSet->getContentsHash(), closeTime, upgrades, 0);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
-        auto mc = app->getBucketManager().readMergeCounters();
-        CLOG(INFO, "Bucket") << "Ledger " << ledgerSeq << " caused "
-                             << mc.mNewInitEntries << " new INITENTRYs";
-        if (i < 3)
+        auto& bm = app->getBucketManager();
+        auto mc = bm.readMergeCounters();
+        CLOG(INFO, "Bucket")
+            << "Ledger " << ledgerSeq << " did "
+            << mc.mPreInitEntryProtocolMerges << " old-protocol merges, "
+            << mc.mPostInitEntryProtocolMerges << " new-protocol merges, "
+            << mc.mNewInitEntries << " new INITENTRYs, " << mc.mOldInitEntries
+            << " old INITENTRYs";
+        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        {
+            auto& lev = bm.getBucketList().getLevel(level);
+            BucketTests::EntryCounts currCounts(lev.getCurr());
+            BucketTests::EntryCounts snapCounts(lev.getSnap());
+            CLOG(INFO, "Bucket")
+                << "post-ledger " << ledgerSeq << " close, init counts: level "
+                << level << ", " << currCounts.nInit << " in curr, "
+                << snapCounts.nInit << " in snap";
+        }
+        if (ledgerSeq < 5)
         {
             // Check that before upgrade, we did not do any INITENTRY.
             REQUIRE(mc.mPreInitEntryProtocolMerges != 0);
@@ -1459,10 +1477,42 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
         }
         else
         {
-            // Check that after upgrade, we did INITENTRY.
+            // Check several subtle characteristics of the post-upgrade
+            // environment:
+            //   - Old-protocol merges stop happening (there should have
+            //     been 6 before the upgrade, and we stop there.)
+            //   - New-protocol merges start happening.
+            //   - At the upgrade (5), we find 1 INITENTRY in lev[0].curr
+            //   - The next two (6, 7), propagate INITENTRYs to lev[0].snap
+            //   - From 8 on, the INITENTRYs propagate to lev[1].curr
+            REQUIRE(mc.mPreInitEntryProtocolMerges == 6);
             REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
-            REQUIRE(mc.mNewInitEntries != 0);
-            REQUIRE(mc.mOldInitEntries != 0);
+            auto& lev0 = bm.getBucketList().getLevel(0);
+            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto lev0Curr = lev0.getCurr();
+            auto lev0Snap = lev0.getSnap();
+            auto lev1Curr = lev1.getCurr();
+            auto lev1Snap = lev1.getSnap();
+            BucketTests::EntryCounts lev0CurrCounts(lev0Curr);
+            BucketTests::EntryCounts lev0SnapCounts(lev0Snap);
+            BucketTests::EntryCounts lev1CurrCounts(lev1Curr);
+            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
+                return BucketInputIterator(b).getMetadata().ledgerVersion;
+            };
+            switch (ledgerSeq)
+            {
+            default:
+            case 8:
+                REQUIRE(getVers(lev1Curr) == newProto);
+                REQUIRE(lev1CurrCounts.nInit != 0);
+            case 7:
+            case 6:
+                REQUIRE(getVers(lev0Snap) == newProto);
+                REQUIRE(lev0SnapCounts.nInit != 0);
+            case 5:
+                REQUIRE(getVers(lev0Curr) == newProto);
+                REQUIRE(lev0CurrCounts.nInit != 0);
+            }
         }
     }
 }

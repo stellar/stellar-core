@@ -164,25 +164,29 @@ TEST_CASE("merging bucket entries", "[bucket]")
                 switch (let)
                 {
                 case ACCOUNT:
-                    liveEntry.data.account() = LedgerTestUtils::generateValidAccountEntry(10);
+                    liveEntry.data.account() =
+                        LedgerTestUtils::generateValidAccountEntry(10);
                     break;
                 case TRUSTLINE:
-                    liveEntry.data.trustLine() = LedgerTestUtils::generateValidTrustLineEntry(10);
+                    liveEntry.data.trustLine() =
+                        LedgerTestUtils::generateValidTrustLineEntry(10);
                     break;
                 case OFFER:
-                    liveEntry.data.offer() = LedgerTestUtils::generateValidOfferEntry(10);
+                    liveEntry.data.offer() =
+                        LedgerTestUtils::generateValidOfferEntry(10);
                     break;
                 case DATA:
-                    liveEntry.data.data() = LedgerTestUtils::generateValidDataEntry(10);
+                    liveEntry.data.data() =
+                        LedgerTestUtils::generateValidDataEntry(10);
                     break;
                 default:
                     abort();
                 }
                 auto deadEntry = LedgerEntryKey(liveEntry);
                 auto bLive = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                                        /*countMergeEvents=*/true);
+                                           /*countMergeEvents=*/true);
                 auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                                        /*countMergeEvents=*/true);
+                                           /*countMergeEvents=*/true);
                 auto b1 = Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
                                         /*keepDeadEntries=*/true,
                                         /*countMergeEvents=*/true);
@@ -208,9 +212,9 @@ TEST_CASE("merging bucket entries", "[bucket]")
                 }
             }
             auto bLive = Bucket::fresh(bm, vers, {}, live, {},
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto bDead = Bucket::fresh(bm, vers, {}, {}, dead,
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto b1 = Bucket::merge(bm, vers, bLive, bDead, /*shadows=*/{},
                                     /*keepDeadEntries=*/true,
                                     /*countMergeEvents=*/true);
@@ -391,9 +395,9 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
         SECTION("dead and init account entries merge correctly")
         {
             auto bInit = Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto b1 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, bInit,
                                     bDead, /*shadows=*/{},
                                     /*keepDeadEntries=*/true,
@@ -422,11 +426,11 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
                 "correctly")
         {
             auto bInit = Bucket::fresh(bm, vers, {initEntry}, {}, {},
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto bLive = Bucket::fresh(bm, vers, {}, {liveEntry}, {},
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto bDead = Bucket::fresh(bm, vers, {}, {}, {deadEntry},
-                                    /*countMergeEvents=*/true);
+                                       /*countMergeEvents=*/true);
             auto bmerge1 = Bucket::merge(bm, cfg.LEDGER_PROTOCOL_VERSION, bInit,
                                          bLive, /*shadows=*/{},
                                          /*keepDeadEntries=*/true,

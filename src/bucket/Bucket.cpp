@@ -124,10 +124,11 @@ Bucket::convertToBucketEntry(bool useInit,
 
     BucketEntryIdCmp cmp;
     std::sort(bucket.begin(), bucket.end(), cmp);
-    assert(std::adjacent_find(bucket.begin(), bucket.end(),
-                [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
-                    return !cmp(lhs, rhs);
-                }) == bucket.end());
+    assert(std::adjacent_find(
+               bucket.begin(), bucket.end(),
+               [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
+                   return !cmp(lhs, rhs);
+               }) == bucket.end());
     return bucket;
 }
 
