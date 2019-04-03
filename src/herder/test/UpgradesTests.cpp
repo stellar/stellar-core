@@ -1416,7 +1416,6 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
     auto app = createTestApplication(clock, cfg);
     app->start();
     auto& lm = app->getLedgerManager();
-    uint32_t oldProto = 10;
     uint32_t newProto = 11;
     auto root = TestAccount{*app, txtest::getRoot(app->getNetworkID())};
 

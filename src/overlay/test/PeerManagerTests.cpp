@@ -263,7 +263,7 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
     auto past = clock.now() - std::chrono::seconds(1);
     auto future = clock.now() + std::chrono::seconds(1);
 
-    auto port = 1;
+    unsigned short port = 1;
     auto peerRecords = std::map<int, PeerRecord>{};
     for (auto time : {past, now, future})
     {
@@ -324,7 +324,6 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
         }
     };
 
-    auto count = port - 1;
     for (auto useNextAttempt : {false, true})
     {
         for (auto numFailures : {-1, 0})
