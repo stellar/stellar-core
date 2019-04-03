@@ -513,6 +513,19 @@ compareTxSets(TxSetFramePtr l, TxSetFramePtr r, Hash const& lh, Hash const& rh,
     {
         return false;
     }
+    if (header.ledgerVersion >= 11)
+    {
+        auto lFee = l->getTotalFees(header);
+        auto rFee = r->getTotalFees(header);
+        if (lFee < rFee)
+        {
+            return true;
+        }
+        else if (lFee > rFee)
+        {
+            return false;
+        }
+    }
     return lessThanXored(lh, rh, s);
 }
 

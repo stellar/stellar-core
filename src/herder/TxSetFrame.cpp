@@ -488,6 +488,17 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
     return baseFee;
 }
 
+int64_t
+TxSetFrame::getTotalFees(LedgerHeader const& lh) const
+{
+    auto baseFee = getBaseFee(lh);
+    return std::accumulate(mTransactions.begin(), mTransactions.end(),
+                           int64_t(0),
+                           [&](int64_t t, TransactionFramePtr const& tx) {
+                               return t + tx->getFee(lh, baseFee);
+                           });
+}
+
 void
 TxSetFrame::toXDR(TransactionSet& txSet)
 {

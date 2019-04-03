@@ -783,7 +783,8 @@ TEST_CASE("surge pricing", "[herder]")
 }
 
 static void
-testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
+testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
+              bool checkHighFee)
 {
     Config cfg(getTestConfig());
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -821,18 +822,19 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
             root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
-    auto addTransactions = [&](TxSetFramePtr txSet, int n, int multi) {
+    auto addTransactions = [&](TxSetFramePtr txSet, int n, int nbOps,
+                               uint32 feeMulti) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
                       std::end(txSet->mTransactions), [&]() {
-                          return makeMultiPayment(root, root, multi, 1000, 0,
-                                                  100);
+                          return makeMultiPayment(root, root, nbOps, 1000, 0,
+                                                  feeMulti);
                       });
     };
-    auto makeTransactions = [&](Hash hash, int n, int multi) {
+    auto makeTransactions = [&](Hash hash, int n, int nbOps, uint32 feeMulti) {
         root.loadSequenceNumber();
         auto result = std::make_shared<TxSetFrame>(hash);
-        addTransactions(result, n, multi);
+        addTransactions(result, n, nbOps, feeMulti);
         result->sortForHash();
         REQUIRE(result->checkValid(*app));
         return result;
@@ -852,7 +854,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
         };
 
-        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1);
+        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
         addToCandidates(makeTxPair(txSet0, 100));
 
         Value v;
@@ -863,7 +865,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet0->getContentsHash());
 
-        TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10, 1);
+        TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10, 1, 100);
 
         addToCandidates(makeTxPair(txSet1, 10));
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
@@ -871,21 +873,30 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
 
-        TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5, 3);
+        TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5, 3, 100);
         addToCandidates(makeTxPair(txSet2, 1000));
 
-        auto maxTxSet = txSet1;
-        if (maxTxSet->size(lcl.header) < txSet2->size(lcl.header))
+        auto biggestTxSet = txSet1;
+        if (biggestTxSet->size(lcl.header) < txSet2->size(lcl.header))
         {
-            maxTxSet = txSet2;
+            biggestTxSet = txSet2;
         }
 
         // picks the biggest set, highest time
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 1000);
-        REQUIRE(sv.txSetHash == maxTxSet->getContentsHash());
-        REQUIRE(maxTxSet->sizeOp() == expectedOps);
+        REQUIRE(sv.txSetHash == biggestTxSet->getContentsHash());
+        REQUIRE(biggestTxSet->sizeOp() == expectedOps);
+
+        if (checkHighFee)
+        {
+            TxSetFramePtr txSet3 = makeTransactions(lcl.hash, 5, 3, 101);
+            addToCandidates(makeTxPair(txSet3, 1000));
+            v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
+            xdr::xdr_from_opaque(v, sv);
+            REQUIRE(sv.txSetHash == txSet3->getContentsHash());
+        }
     }
 
     SECTION("accept qset and txset")
@@ -927,8 +938,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
         auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
-        auto transactions1 = makeTransactions(lcl.hash, 5, 1);
-        auto transactions2 = makeTransactions(lcl.hash, 4, 1);
+        auto transactions1 = makeTransactions(lcl.hash, 5, 1, 100);
+        auto transactions2 = makeTransactions(lcl.hash, 4, 1, 100);
         auto p1 = makeTxPair(transactions1, 10);
         auto p2 = makeTxPair(transactions1, 10);
         auto saneEnvelopeQ1T1 =
@@ -1058,11 +1069,11 @@ TEST_CASE("SCP Driver", "[herder]")
 {
     SECTION("protocol 10")
     {
-        testSCPDriver(10, 10, 10);
+        testSCPDriver(10, 10, 10, false);
     }
     SECTION("protocol current")
     {
-        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
+        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15, true);
     }
 }
 
