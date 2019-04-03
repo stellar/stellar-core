@@ -188,11 +188,14 @@ TxSetFrame::surgePricingFilter(Application& app)
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
 
-    size_t maxSize = header.current().maxTxSetSize;
-    if (mTransactions.size() > maxSize)
+    bool maxIsOps = header.current().ledgerVersion >= 11;
+
+    auto maxSize = header.current().maxTxSetSize;
+    auto curSize = size(header.current());
+    if (curSize > maxSize)
     {
         CLOG(WARNING, "Herder")
-            << "surge pricing in effect! " << mTransactions.size();
+            << "surge pricing in effect! " << curSize << " > " << maxSize;
         std::unordered_map<AccountID, AccountTransactionQueue> actTxQueueMap;
         for (auto& tx : mTransactions)
         {
@@ -225,7 +228,7 @@ TxSetFrame::surgePricingFilter(Application& app)
             surgeQueue.push(&am.second);
         }
 
-        size_t opsLeft = maxSize * MAX_OPS_PER_TX;
+        size_t opsLeft = maxIsOps ? maxSize : (maxSize * MAX_OPS_PER_TX);
         std::vector<TransactionFramePtr> updatedSet;
         updatedSet.reserve(mTransactions.size());
         while (opsLeft > 0 && !surgeQueue.empty())
@@ -234,12 +237,14 @@ TxSetFrame::surgePricingFilter(Application& app)
             surgeQueue.pop();
             // inspect the top candidate queue
             auto& curTopTx = cur->front();
-            if (curTopTx->getOperations().size() <= opsLeft)
+            size_t opsCount =
+                maxIsOps ? curTopTx->getOperations().size() : MAX_OPS_PER_TX;
+            if (opsCount <= opsLeft)
             {
                 // pop from this one
                 updatedSet.emplace_back(curTopTx);
                 cur->pop_front();
-                opsLeft -= MAX_OPS_PER_TX;
+                opsLeft -= opsCount;
                 // if there are more transactions, put it back
                 if (!cur->empty())
                 {
@@ -362,10 +367,10 @@ TxSetFrame::checkValid(Application& app)
         return false;
     }
 
-    if (mTransactions.size() > lcl.header.maxTxSetSize)
+    if (this->size(lcl.header) > lcl.header.maxTxSetSize)
     {
         CLOG(DEBUG, "Herder")
-            << "Got bad txSet: too many txs " << mTransactions.size() << " > "
+            << "Got bad txSet: too many txs " << this->size(lcl.header) << " > "
             << lcl.header.maxTxSetSize;
         return false;
     }

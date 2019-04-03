@@ -375,27 +375,24 @@ TEST_CASE("txset", "[herder]")
     }
 }
 
-// under surge
-// over surge
-// make sure it drops the correct txs
-// txs with high fee but low ratio
-// txs from same account high ratio with high seq
-TEST_CASE("surge pricing", "[herder]")
+static void
+surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
+          uint32_t expectedReduced)
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSetSize;
+    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
 
+    LedgerHeader lhCopy;
     {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        ltx.loadHeader().current().maxTxSetSize =
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
+        lhCopy = ltx.loadHeader().current();
     }
-
     // set up world
     auto root = TestAccount::createRoot(*app);
 
@@ -422,7 +419,7 @@ TEST_CASE("surge pricing", "[herder]")
     };
 
     auto addRootTxs = [&]() {
-        for (uint32_t n = 0; n < 2 * cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
+        for (uint32_t n = 0; n < 2 * nbTxs; n++)
         {
             txSet->add(multiPaymentTx(root, n + 1, 10000 + 1000 * n));
         }
@@ -441,8 +438,7 @@ TEST_CASE("surge pricing", "[herder]")
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
-        REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
@@ -456,7 +452,7 @@ TEST_CASE("surge pricing", "[herder]")
     SECTION("one account paying more")
     {
         addRootTxs();
-        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
+        for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             tx->getEnvelope().tx.fee -= 1;
@@ -467,8 +463,7 @@ TEST_CASE("surge pricing", "[herder]")
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
-        REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
@@ -481,7 +476,7 @@ TEST_CASE("surge pricing", "[herder]")
     SECTION("one account with more operations but same total fee")
     {
         addRootTxs();
-        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
+        for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
             // find corresponding root tx (should have 1 less op)
@@ -497,8 +492,7 @@ TEST_CASE("surge pricing", "[herder]")
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
-        REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
@@ -513,7 +507,7 @@ TEST_CASE("surge pricing", "[herder]")
         auto refSeqNumRoot = root.getLastSequenceNumber();
         addRootTxs();
         auto refSeqNumB = accountB.getLastSequenceNumber();
-        for (uint32_t n = 0; n < cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE; n++)
+        for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
@@ -531,8 +525,7 @@ TEST_CASE("surge pricing", "[herder]")
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
         surgePricing();
-        REQUIRE(txSet->mTransactions.size() ==
-                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
+        REQUIRE(txSet->size(lhCopy) == expectedReduced);
         REQUIRE(txSet->checkValid(*app));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
@@ -556,7 +549,7 @@ TEST_CASE("surge pricing", "[herder]")
 
     SECTION("a lot of txs")
     {
-        for (int n = 0; n < 30; n++)
+        for (uint32_t n = 0; n < nbTxs * 10; n++)
         {
             txSet->add(root.tx({payment(destAccount, n + 10)}));
             txSet->add(accountB.tx({payment(destAccount, n + 10)}));
@@ -564,8 +557,21 @@ TEST_CASE("surge pricing", "[herder]")
         }
         txSet->sortForHash();
         surgePricing();
-        REQUIRE(txSet->mTransactions.size() == 5);
+        REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
         REQUIRE(txSet->checkValid(*app));
+    }
+}
+
+TEST_CASE("surge pricing", "[herder]")
+{
+    SECTION("protocol 10")
+    {
+        surgeTest(10, 5, 5, 5);
+    }
+    SECTION("protocol current")
+    {
+        // (1+..+4) + (1+2) = 10+3 = 13
+        surgeTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 5, 15, 13);
     }
 }
 
