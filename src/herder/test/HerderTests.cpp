@@ -266,13 +266,11 @@ testTxSet(uint32 protocolVersion)
 
     auto accounts = std::vector<TestAccount>{};
 
-    const int64_t paymentAmount = app->getLedgerManager().getLastMinBalance(0);
+    const int64_t minBalance0 = app->getLedgerManager().getLastMinBalance(0);
 
+    // amount only allows up to nbTransactions
     int64_t amountPop =
-        nbAccounts * nbTransactions * app->getLedgerManager().getLastTxFee() +
-        paymentAmount;
-
-    auto sourceAccount = root.create("source", amountPop);
+        nbTransactions * app->getLedgerManager().getLastTxFee() + minBalance0;
 
     std::vector<std::vector<TransactionFramePtr>> transactions;
 
@@ -280,20 +278,13 @@ testTxSet(uint32 protocolVersion)
     {
         std::string accountName = "A";
         accountName += '0' + (char)i;
-        accounts.push_back(TestAccount{*app, getAccount(accountName.c_str())});
+        accounts.push_back(root.create(accountName.c_str(), amountPop));
         transactions.push_back(std::vector<TransactionFramePtr>());
         for (int j = 0; j < nbTransactions; j++)
         {
-            if (j == 0)
-            {
-                transactions[i].emplace_back(sourceAccount.tx({createAccount(
-                    accounts[i].getPublicKey(), paymentAmount)}));
-            }
-            else
-            {
-                transactions[i].emplace_back(sourceAccount.tx(
-                    {payment(accounts[i].getPublicKey(), paymentAmount)}));
-            }
+            // payment to self
+            transactions[i].emplace_back(
+                accounts[i].tx({payment(accounts[i].getPublicKey(), 10000)}));
         }
     }
 
@@ -334,7 +325,8 @@ testTxSet(uint32 protocolVersion)
     {
         SECTION("no user")
         {
-            txSet->add(accounts[0].tx({payment(root, paymentAmount)}));
+            auto newUser = TestAccount{*app, getAccount("doesnotexist")};
+            txSet->add(newUser.tx({payment(root, 1)}));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
@@ -346,8 +338,7 @@ testTxSet(uint32 protocolVersion)
         {
             SECTION("gap after")
             {
-                auto tx =
-                    sourceAccount.tx({payment(accounts[0], paymentAmount)});
+                auto tx = accounts[0].tx({payment(accounts[0], 1)});
                 tx->getEnvelope().tx.seqNum += 5;
                 txSet->add(tx);
                 txSet->sortForHash();
@@ -359,6 +350,7 @@ testTxSet(uint32 protocolVersion)
             }
             SECTION("gap begin")
             {
+                txSet->sortForApply();
                 txSet->mTransactions.erase(txSet->mTransactions.begin());
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
@@ -366,29 +358,40 @@ testTxSet(uint32 protocolVersion)
                 std::vector<TransactionFramePtr> removed;
                 txSet->trimInvalid(*app, removed);
                 REQUIRE(txSet->checkValid(*app));
+                // one of the account lost all its transactions
+                REQUIRE(removed.size() == (nbTransactions - 1));
+                REQUIRE(txSet->mTransactions.size() == nbTransactions);
             }
             SECTION("gap middle")
             {
-                txSet->mTransactions.erase(txSet->mTransactions.begin() + 3);
+                int remIdx = 2; // 3rd transaction
+                txSet->sortForApply();
+                txSet->mTransactions.erase(txSet->mTransactions.begin() +
+                                           (remIdx * 2));
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
                 std::vector<TransactionFramePtr> removed;
                 txSet->trimInvalid(*app, removed);
                 REQUIRE(txSet->checkValid(*app));
+                // one account has all its transactions,
+                // other, we removed all its tx
+                REQUIRE(removed.size() == (nbTransactions - 1));
+                REQUIRE(txSet->mTransactions.size() == nbTransactions);
             }
         }
         SECTION("insufficient balance")
         {
             // extra transaction would push the account below the reserve
-            txSet->add(sourceAccount.tx({payment(accounts[0], paymentAmount)}));
+            txSet->add(accounts[0].tx({payment(accounts[0], 10)}));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
             std::vector<TransactionFramePtr> removed;
             txSet->trimInvalid(*app, removed);
             REQUIRE(txSet->checkValid(*app));
-            REQUIRE(removed.size() != 0);
+            REQUIRE(removed.size() == (nbTransactions + 1));
+            REQUIRE(txSet->mTransactions.size() == nbTransactions);
         }
         SECTION("bad signature")
         {
