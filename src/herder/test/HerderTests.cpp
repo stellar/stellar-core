@@ -375,6 +375,26 @@ TEST_CASE("txset", "[herder]")
     }
 }
 
+static TransactionFramePtr
+makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
+                 int nbOps, int64 paymentBase)
+{
+    std::vector<stellar::Operation> ops;
+    for (int i = 0; i < nbOps; i++)
+    {
+        ops.emplace_back(payment(destAccount, i + paymentBase));
+    }
+    auto tx = src.tx(ops);
+    tx->getEnvelope().tx.fee *= 100; // 100x min fee
+    tx->getEnvelope().signatures.clear();
+    tx->addSignature(src);
+    return tx;
+}
+
+using std::placeholders::_1;
+using std::placeholders::_2;
+using std::placeholders::_3;
+
 static void
 surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
           uint32_t expectedReduced)
@@ -405,18 +425,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
 
     std::vector<TransactionFramePtr> removed;
 
-    auto multiPaymentTx = [&](TestAccount& src, int nbOps, int64 paymentBase) {
-        std::vector<stellar::Operation> ops;
-        for (int i = 0; i < nbOps; i++)
-        {
-            ops.emplace_back(payment(destAccount, i + paymentBase));
-        }
-        auto tx = src.tx(ops);
-        tx->getEnvelope().tx.fee *= 100; // 100x min fee
-        tx->getEnvelope().signatures.clear();
-        tx->addSignature(src);
-        return tx;
-    };
+    auto multiPaymentTx = std::bind(makeMultiPayment, destAccount, _1, _2, _3);
 
     auto addRootTxs = [&]() {
         for (uint32_t n = 0; n < 2 * nbTxs; n++)
@@ -575,21 +584,17 @@ TEST_CASE("surge pricing", "[herder]")
     }
 }
 
-TEST_CASE("SCP Driver", "[herder]")
+static void
+testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps)
 {
     Config cfg(getTestConfig());
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 5;
+    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSize;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
-
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        ltx.loadHeader().current().maxTxSetSize =
-            cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
-    }
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -618,15 +623,18 @@ TEST_CASE("SCP Driver", "[herder]")
             root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
-    auto addTransactions = [&](TxSetFramePtr txSet, int n) {
+    auto addTransactions = [&](TxSetFramePtr txSet, int n, int multi) {
         txSet->mTransactions.resize(n);
-        std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions),
-                      [&]() { return root.tx({createAccount(a1, 10000000)}); });
+        std::generate(
+            std::begin(txSet->mTransactions), std::end(txSet->mTransactions),
+            [&]() { return makeMultiPayment(root, root, multi, 1000); });
     };
-    auto makeTransactions = [&](Hash hash, int n) {
+    auto makeTransactions = [&](Hash hash, int n, int multi) {
+        root.loadSequenceNumber();
         auto result = std::make_shared<TxSetFrame>(hash);
-        addTransactions(result, n);
+        addTransactions(result, n, multi);
+        result->sortForHash();
+        REQUIRE(result->checkValid(*app));
         return result;
     };
 
@@ -644,7 +652,7 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
         };
 
-        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0);
+        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1);
         addToCandidates(makeTxPair(txSet0, 100));
 
         Value v;
@@ -655,7 +663,7 @@ TEST_CASE("SCP Driver", "[herder]")
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet0->getContentsHash());
 
-        TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10);
+        TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10, 1);
 
         addToCandidates(makeTxPair(txSet1, 10));
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
@@ -663,13 +671,21 @@ TEST_CASE("SCP Driver", "[herder]")
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
 
-        TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5);
-
+        TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5, 3);
         addToCandidates(makeTxPair(txSet2, 1000));
+
+        auto maxTxSet = txSet1;
+        if (maxTxSet->size(lcl.header) < txSet2->size(lcl.header))
+        {
+            maxTxSet = txSet2;
+        }
+
+        // picks the biggest set, highest time
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 1000);
-        REQUIRE(sv.txSetHash == txSet1->getContentsHash());
+        REQUIRE(sv.txSetHash == maxTxSet->getContentsHash());
+        REQUIRE(maxTxSet->sizeOp() == expectedOps);
     }
 
     SECTION("accept qset and txset")
@@ -711,8 +727,8 @@ TEST_CASE("SCP Driver", "[herder]")
         auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
-        auto transactions1 = makeTransactions(lcl.hash, 50);
-        auto transactions2 = makeTransactions(lcl.hash, 40);
+        auto transactions1 = makeTransactions(lcl.hash, 5, 1);
+        auto transactions2 = makeTransactions(lcl.hash, 4, 1);
         auto p1 = makeTxPair(transactions1, 10);
         auto p2 = makeTxPair(transactions1, 10);
         auto saneEnvelopeQ1T1 =
@@ -835,6 +851,18 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
         }
+    }
+}
+
+TEST_CASE("SCP Driver", "[herder]")
+{
+    SECTION("protocol 10")
+    {
+        testSCPDriver(10, 10, 10);
+    }
+    SECTION("protocol current")
+    {
+        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15);
     }
 }
 
