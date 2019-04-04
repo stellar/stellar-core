@@ -133,17 +133,37 @@ case DATA:
 
 enum BucketEntryType
 {
-    LIVEENTRY = 0,
-    DEADENTRY = 1
+    METAENTRY = -1, // At-and-after protocol 11: bucket metadata, should come first.
+    LIVEENTRY = 0,  // Before protocol 11: created-or-updated;
+                    // At-and-after protocol 11: only updated.
+    DEADENTRY = 1,
+    INITENTRY = 2   // At-and-after protocol 11: only created.
+};
+
+struct BucketMetadata
+{
+    // Indicates the protocol version used to create / merge this bucket.
+    uint32 ledgerVersion;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 union BucketEntry switch (BucketEntryType type)
 {
 case LIVEENTRY:
+case INITENTRY:
     LedgerEntry liveEntry;
 
 case DEADENTRY:
     LedgerKey deadEntry;
+case METAENTRY:
+    BucketMetadata metaEntry;
 };
 
 // Transaction sets are the unit used by SCP to decide on transitions

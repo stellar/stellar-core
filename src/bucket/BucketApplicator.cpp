@@ -7,6 +7,7 @@
 #include "bucket/Bucket.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
+#include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -15,9 +16,17 @@ namespace stellar
 {
 
 BucketApplicator::BucketApplicator(Application& app,
+                                   uint32_t maxProtocolVersion,
                                    std::shared_ptr<const Bucket> bucket)
-    : mApp(app), mBucketIter(bucket)
+    : mApp(app), mMaxProtocolVersion(maxProtocolVersion), mBucketIter(bucket)
 {
+    auto protocolVersion = mBucketIter.getMetadata().ledgerVersion;
+    if (protocolVersion > mMaxProtocolVersion)
+    {
+        throw std::runtime_error(fmt::format(
+            "bucket protocol version {} exceeds maxProtocolVersion {}",
+            protocolVersion, mMaxProtocolVersion));
+    }
 }
 
 BucketApplicator::operator bool() const
@@ -46,13 +55,19 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
     for (; mBucketIter; ++mBucketIter)
     {
         BucketEntry const& e = *mBucketIter;
+        Bucket::checkProtocolLegality(e, mMaxProtocolVersion);
         counters.mark(e);
-        if (e.type() == LIVEENTRY)
+        if (e.type() == LIVEENTRY || e.type() == INITENTRY)
         {
             ltx.createOrUpdateWithoutLoading(e.liveEntry());
         }
         else
         {
+            if (e.type() != DEADENTRY)
+            {
+                throw std::runtime_error(
+                    "Malformed bucket: unexpected non-INIT/LIVE/DEAD entry.");
+            }
             ltx.eraseWithoutLoading(e.deadEntry());
         }
 
@@ -155,7 +170,7 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
 void
 BucketApplicator::Counters::mark(BucketEntry const& e)
 {
-    if (e.type() == LIVEENTRY)
+    if (e.type() == LIVEENTRY || e.type() == INITENTRY)
     {
         switch (e.liveEntry().data.type())
         {

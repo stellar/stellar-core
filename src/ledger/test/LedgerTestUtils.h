@@ -20,6 +20,8 @@ namespace LedgerTestUtils
 
 template <typename T> void replaceControlCharacters(T& s, int minSize);
 
+void randomlyModifyEntry(LedgerEntry& e);
+
 void makeValid(AccountEntry& a);
 void makeValid(TrustLineEntry& tl);
 void makeValid(OfferEntry& o);

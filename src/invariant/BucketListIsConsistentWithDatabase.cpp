@@ -99,7 +99,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             previousEntry = e;
             hasPreviousEntry = true;
 
-            if (e.type() == LIVEENTRY)
+            if (e.type() == LIVEENTRY || e.type() == INITENTRY)
             {
                 if (e.liveEntry().lastModifiedLedgerSeq < oldestLedger)
                 {

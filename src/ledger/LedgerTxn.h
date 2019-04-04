@@ -410,7 +410,7 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     virtual void createOrUpdateWithoutLoading(LedgerEntry const& entry) = 0;
     virtual void eraseWithoutLoading(LedgerKey const& key) = 0;
 
-    // getChanges, getDelta, getDeadEntries, and getLiveEntries are used to
+    // getChanges, getDelta, and getAllEntries are used to
     // extract information about changes contained in the AbstractLedgerTxn
     // in different formats. These functions also cause the AbstractLedgerTxn
     // to enter the sealed state, simultaneously updating last modified if
@@ -423,15 +423,17 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     //     to the LedgerHeader) in a format convenient for answering queries
     //     about how specific entries and the header have changed. To be used
     //     for invariants.
-    // - getDeadEntries and getLiveEntries
-    //     getDeadEntries extracts a list of keys that are now dead, whereas
-    //     getLiveEntries extracts a list of entries that were recorded and
-    //     are still alive. To be inserted into the BucketList.
+    // - getAllEntries
+    //     extracts a list of keys that were created (init), updated (live) or
+    //     deleted (dead) in this AbstractLedgerTxn. All these are to be
+    //     inserted into the BucketList.
+    //
     // All of these functions throw if the AbstractLedgerTxn has a child.
     virtual LedgerEntryChanges getChanges() = 0;
     virtual LedgerTxnDelta getDelta() = 0;
-    virtual std::vector<LedgerKey> getDeadEntries() = 0;
-    virtual std::vector<LedgerEntry> getLiveEntries() = 0;
+    virtual void getAllEntries(std::vector<LedgerEntry>& initEntries,
+                               std::vector<LedgerEntry>& liveEntries,
+                               std::vector<LedgerKey>& deadEntries) = 0;
 
     // loadAllOffers, loadBestOffer, and loadOffersByAccountAndAsset are used to
     // handle some specific queries related to Offers. These functions are built
@@ -503,8 +505,6 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     LedgerEntryChanges getChanges() override;
 
-    std::vector<LedgerKey> getDeadEntries() override;
-
     LedgerTxnDelta getDelta() override;
 
     std::unordered_map<LedgerKey, LedgerEntry>
@@ -519,7 +519,9 @@ class LedgerTxn final : public AbstractLedgerTxn
     std::vector<InflationWinner>
     queryInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
-    std::vector<LedgerEntry> getLiveEntries() override;
+    void getAllEntries(std::vector<LedgerEntry>& initEntries,
+                       std::vector<LedgerEntry>& liveEntries,
+                       std::vector<LedgerKey>& deadEntries) override;
 
     std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const override;

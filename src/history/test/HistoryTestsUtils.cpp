@@ -68,6 +68,21 @@ TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
     return mCfg;
 }
 
+ProtocolVersionTmpDirHistoryConfigurator::
+    ProtocolVersionTmpDirHistoryConfigurator(uint32_t version)
+    : mProtocolVersion(version)
+{
+}
+
+Config&
+ProtocolVersionTmpDirHistoryConfigurator::configure(Config& mCfg,
+                                                    bool writable) const
+{
+    TmpDirHistoryConfigurator::configure(mCfg, writable);
+    mCfg.LEDGER_PROTOCOL_VERSION = mProtocolVersion;
+    return mCfg;
+}
+
 Config&
 S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
 {
@@ -94,8 +109,9 @@ S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
 }
 
 BucketOutputIteratorForTesting::BucketOutputIteratorForTesting(
-    std::string const& tmpDir)
-    : BucketOutputIterator{tmpDir, false}
+    std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc)
+    : BucketOutputIterator{tmpDir, true,
+                           testutil::testBucketMetadata(protocolVersion), mc}
 {
 }
 
@@ -104,8 +120,8 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
 {
     auto ledgerEntries =
         LedgerTestUtils::generateValidLedgerEntries(NUM_ITEMS_PER_BUCKET);
-    auto bucketEntries = Bucket::convertToBucketEntry(ledgerEntries);
-
+    auto bucketEntries =
+        Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
     for (auto const& bucketEntry : bucketEntries)
     {
         put(bucketEntry);
@@ -138,8 +154,9 @@ TestBucketGenerator::generateBucket(TestBucketState state)
         // Skip uploading the file, return any hash
         return binToHex(hash);
     }
-
-    BucketOutputIteratorForTesting bucketOut{mTmpDir->getName()};
+    MergeCounters mc;
+    BucketOutputIteratorForTesting bucketOut{
+        mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc};
     std::string filename;
     std::tie(filename, hash) = bucketOut.writeTmpTestBucket();
 
@@ -535,12 +552,13 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
 Application::pointer
 CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
                                          bool manual, Config::TestDbMode dbMode,
-                                         std::string const& appName)
+                                         std::string const& appName,
+                                         uint32_t protocolVersion)
 {
 
     CLOG(INFO, "History") << "****";
     CLOG(INFO, "History") << "**** Beginning catchup test for app '" << appName
-                          << "'";
+                          << "', protocol " << protocolVersion;
     CLOG(INFO, "History") << "****";
 
     mCfgs.emplace_back(
@@ -551,6 +569,7 @@ CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
     {
         mCfgs.back().CATCHUP_RECENT = count;
     }
+    mCfgs.back().LEDGER_PROTOCOL_VERSION = protocolVersion;
     Application::pointer app2 = createTestApplication(
         mClock, mHistoryConfigurator->configure(mCfgs.back(), false));
 

@@ -16,7 +16,9 @@
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "process/ProcessManager.h"
+#include "test/TestAccount.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "work/WorkManager.h"
@@ -204,6 +206,83 @@ TEST_CASE("Full history catchup", "[history][historycatchup]")
                     dbModeName(dbMode));
             apps.push_back(a);
         }
+    }
+}
+
+TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
+          "[history][historyinitentry]")
+{
+    uint32_t newProto =
+        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY;
+    uint32_t oldProto = newProto - 1;
+    auto configurator =
+        std::make_shared<ProtocolVersionTmpDirHistoryConfigurator>(oldProto);
+    CatchupSimulation catchupSimulation{configurator};
+    catchupSimulation.generateAndPublishInitialHistory(3);
+    uint32_t initLedger =
+        catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum() -
+        2;
+    std::vector<Application::pointer> apps;
+    std::vector<uint32_t> counts = {0, std::numeric_limits<uint32_t>::max(),
+                                    60};
+    for (auto count : counts)
+    {
+        auto a = catchupSimulation.catchupNewApplication(
+            initLedger, count, false, Config::TESTDB_IN_MEMORY_SQLITE,
+            std::string("full, ") + resumeModeName(count) + ", " +
+                dbModeName(Config::TESTDB_IN_MEMORY_SQLITE),
+            newProto);
+
+        // Check that during catchup/replay, we did not use any INITENTRY code,
+        // were still on the old protocol.
+        auto mc = a->getBucketManager().readMergeCounters();
+        REQUIRE(mc.mPostInitEntryProtocolMerges == 0);
+        REQUIRE(mc.mNewInitEntries == 0);
+        REQUIRE(mc.mOldInitEntries == 0);
+
+        // Now that a is caught up, start advancing it at catchup point.
+        for (auto i = 0; i < 3; ++i)
+        {
+            auto root = TestAccount{*a, txtest::getRoot(a->getNetworkID())};
+            auto stranger = TestAccount{
+                *a, txtest::getAccount(fmt::format("stranger{}", i))};
+            auto& lm = a->getLedgerManager();
+            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+                lm.getLastClosedLedgerHeader().hash);
+            uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
+            uint64_t minBalance = lm.getLastMinBalance(5);
+            uint64_t big = minBalance + ledgerSeq;
+            uint64_t closeTime = 60 * 5 * ledgerSeq;
+            txSet->add(root.tx({txtest::createAccount(stranger, big)}));
+            // Provoke sortForHash and hash-caching:
+            txSet->getContentsHash();
+
+            // On first iteration of advance, perform a ledger-protocol version
+            // upgrade to the new protocol, to activate INITENTRY behaviour.
+            auto upgrades = xdr::xvector<UpgradeType, 6>{};
+            if (i == 0)
+            {
+                auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+                ledgerUpgrade.newLedgerVersion() = newProto;
+                auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+                upgrades.push_back(UpgradeType{v.begin(), v.end()});
+            }
+            CLOG(DEBUG, "History")
+                << "Closing synthetic ledger " << ledgerSeq << " with "
+                << txSet->size()
+                << " txs (txhash:" << hexAbbrev(txSet->getContentsHash())
+                << ")";
+            StellarValue sv(txSet->getContentsHash(), closeTime, upgrades, 0);
+            lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        }
+
+        // Check that we did in fact use INITENTRY code.
+        mc = a->getBucketManager().readMergeCounters();
+        REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
+        REQUIRE(mc.mNewInitEntries != 0);
+        REQUIRE(mc.mOldInitEntries != 0);
+
+        apps.push_back(a);
     }
 }
 

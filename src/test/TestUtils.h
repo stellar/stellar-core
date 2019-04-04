@@ -32,6 +32,14 @@ class BucketListDepthModifier
 
     ~BucketListDepthModifier();
 };
+
+inline BucketMetadata
+testBucketMetadata(uint32_t protocolVersion)
+{
+    BucketMetadata meta;
+    meta.ledgerVersion = protocolVersion;
+    return meta;
+}
 }
 
 class TestInvariantManager : public InvariantManagerImpl
@@ -58,11 +66,11 @@ template <typename T = TestApplication,
           typename = typename std::enable_if<
               std::is_base_of<TestApplication, T>::value>::type>
 std::shared_ptr<T>
-createTestApplication(VirtualClock& clock, Config const& cfg)
+createTestApplication(VirtualClock& clock, Config const& cfg, bool newDB = true)
 {
     Config c2(cfg);
     c2.adjust();
-    auto app = Application::create<T>(clock, c2);
+    auto app = Application::create<T>(clock, c2, newDB);
     return app;
 }
 

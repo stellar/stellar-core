@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketInputIterator.h"
+#include "bucket/BucketTests.h"
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
@@ -1406,10 +1408,124 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
     }
 }
 
+TEST_CASE("upgrade to version 11", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.LEDGER_PROTOCOL_VERSION = 10;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+    auto& lm = app->getLedgerManager();
+    uint32_t oldProto = 10;
+    uint32_t newProto = 11;
+    auto root = TestAccount{*app, txtest::getRoot(app->getNetworkID())};
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+        auto stranger =
+            TestAccount{*app, txtest::getAccount(fmt::format("stranger{}", i))};
+        TxSetFramePtr txSet =
+            std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+        uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
+        uint64_t minBalance = lm.getLastMinBalance(5);
+        uint64_t big = minBalance + ledgerSeq;
+        uint64_t closeTime = 60 * 5 * ledgerSeq;
+        txSet->add(root.tx({txtest::createAccount(stranger, big)}));
+        // Provoke sortForHash and hash-caching:
+        txSet->getContentsHash();
+
+        // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
+        // ledger-protocol version upgrade to the new protocol, to activate
+        // INITENTRY behaviour.
+        auto upgrades = xdr::xvector<UpgradeType, 6>{};
+        if (ledgerSeq == 5)
+        {
+            auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+            ledgerUpgrade.newLedgerVersion() = newProto;
+            auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+            upgrades.push_back(UpgradeType{v.begin(), v.end()});
+            CLOG(INFO, "Ledger")
+                << "Ledger " << ledgerSeq << " upgrading to v" << newProto;
+        }
+        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades, 0);
+        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        auto& bm = app->getBucketManager();
+        auto mc = bm.readMergeCounters();
+        CLOG(INFO, "Bucket")
+            << "Ledger " << ledgerSeq << " did "
+            << mc.mPreInitEntryProtocolMerges << " old-protocol merges, "
+            << mc.mPostInitEntryProtocolMerges << " new-protocol merges, "
+            << mc.mNewInitEntries << " new INITENTRYs, " << mc.mOldInitEntries
+            << " old INITENTRYs";
+        for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+        {
+            auto& lev = bm.getBucketList().getLevel(level);
+            BucketTests::EntryCounts currCounts(lev.getCurr());
+            BucketTests::EntryCounts snapCounts(lev.getSnap());
+            CLOG(INFO, "Bucket")
+                << "post-ledger " << ledgerSeq << " close, init counts: level "
+                << level << ", " << currCounts.nInit << " in curr, "
+                << snapCounts.nInit << " in snap";
+        }
+        if (ledgerSeq < 5)
+        {
+            // Check that before upgrade, we did not do any INITENTRY.
+            REQUIRE(mc.mPreInitEntryProtocolMerges != 0);
+            REQUIRE(mc.mPostInitEntryProtocolMerges == 0);
+            REQUIRE(mc.mNewInitEntries == 0);
+            REQUIRE(mc.mOldInitEntries == 0);
+        }
+        else
+        {
+            // Check several subtle characteristics of the post-upgrade
+            // environment:
+            //   - Old-protocol merges stop happening (there should have
+            //     been 6 before the upgrade, and we stop there.)
+            //   - New-protocol merges start happening.
+            //   - At the upgrade (5), we find 1 INITENTRY in lev[0].curr
+            //   - The next two (6, 7), propagate INITENTRYs to lev[0].snap
+            //   - From 8 on, the INITENTRYs propagate to lev[1].curr
+            REQUIRE(mc.mPreInitEntryProtocolMerges == 6);
+            REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
+            auto& lev0 = bm.getBucketList().getLevel(0);
+            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto lev0Curr = lev0.getCurr();
+            auto lev0Snap = lev0.getSnap();
+            auto lev1Curr = lev1.getCurr();
+            auto lev1Snap = lev1.getSnap();
+            BucketTests::EntryCounts lev0CurrCounts(lev0Curr);
+            BucketTests::EntryCounts lev0SnapCounts(lev0Snap);
+            BucketTests::EntryCounts lev1CurrCounts(lev1Curr);
+            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
+                return BucketInputIterator(b).getMetadata().ledgerVersion;
+            };
+            switch (ledgerSeq)
+            {
+            default:
+            case 8:
+                REQUIRE(getVers(lev1Curr) == newProto);
+                REQUIRE(lev1CurrCounts.nInit != 0);
+            case 7:
+            case 6:
+                REQUIRE(getVers(lev0Snap) == newProto);
+                REQUIRE(lev0SnapCounts.nInit != 0);
+            case 5:
+                REQUIRE(getVers(lev0Curr) == newProto);
+                REQUIRE(lev0CurrCounts.nInit != 0);
+            }
+        }
+    }
+}
+
 TEST_CASE("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig(0);
+
+    // Do our setup in version 1 so that for_versions_* below do not
+    // try to downgrade us from >1 to 1.
+    cfg.LEDGER_PROTOCOL_VERSION = 1;
+
     auto app = createTestApplication(clock, cfg);
     app->start();
 
@@ -1476,6 +1592,35 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
         }
     };
 
+    auto createOffers = [&](TestAccount& acc,
+                            std::vector<TestMarketOffer>& offers) {
+        createOffer(acc, native, cur1, offers);
+        createOffer(acc, native, cur1, offers);
+        createOffer(acc, cur1, native, offers);
+        createOffer(acc, cur1, native, offers);
+        createOffer(acc, native, cur2, offers);
+        createOffer(acc, native, cur2, offers);
+        createOffer(acc, cur2, native, offers);
+        createOffer(acc, cur2, native, offers);
+        createOffer(acc, cur1, cur2, offers);
+        createOffer(acc, cur1, cur2, offers);
+        createOffer(acc, cur2, cur1, offers);
+        createOffer(acc, cur2, cur1, offers);
+    };
+
+    auto deleteOffers = [&](TestAccount& acc,
+                            std::vector<TestMarketOffer> const& offers) {
+        for (auto const& offer : offers)
+        {
+            auto delOfferState = offer.state;
+            delOfferState.amount = 0;
+            market.requireChangesWithOffer({}, [&] {
+                return market.updateOffer(acc, offer.key.offerID, delOfferState,
+                                          OfferState::DELETED);
+            });
+        }
+    };
+
     SECTION("decrease reserve")
     {
         auto a1 =
@@ -1485,32 +1630,24 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
         issuer.pay(a1, cur1, 4000);
         issuer.pay(a1, cur2, 4000);
 
-        std::vector<TestMarketOffer> offers;
-        createOffer(a1, native, cur1, offers);
-        createOffer(a1, native, cur1, offers);
-        createOffer(a1, cur1, native, offers);
-        createOffer(a1, cur1, native, offers);
-        createOffer(a1, native, cur2, offers);
-        createOffer(a1, native, cur2, offers);
-        createOffer(a1, cur2, native, offers);
-        createOffer(a1, cur2, native, offers);
-        createOffer(a1, cur1, cur2, offers);
-        createOffer(a1, cur1, cur2, offers);
-        createOffer(a1, cur2, cur1, offers);
-        createOffer(a1, cur2, cur1, offers);
-
         for_versions_to(9, *app, [&] {
+            std::vector<TestMarketOffer> offers;
+            createOffers(a1, offers);
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
                                   std::bind(executeUpgrade, baseReserve / 2));
+            deleteOffers(a1, offers);
         });
         for_versions_from(10, *app, [&] {
+            std::vector<TestMarketOffer> offers;
+            createOffers(a1, offers);
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
                                   std::bind(executeUpgrade, baseReserve / 2));
             REQUIRE(getLiabilities(a1) == Liabilities{8000, 4000});
             REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{8000, 4000});
             REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{8000, 4000});
+            deleteOffers(a1, offers);
         });
     }
 
@@ -1532,31 +1669,8 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             issuer.pay(a2, cur2, 4000);
 
             std::vector<TestMarketOffer> offers;
-            createOffer(a1, native, cur1, offers);
-            createOffer(a1, native, cur1, offers);
-            createOffer(a1, cur1, native, offers);
-            createOffer(a1, cur1, native, offers);
-            createOffer(a1, native, cur2, offers);
-            createOffer(a1, native, cur2, offers);
-            createOffer(a1, cur2, native, offers);
-            createOffer(a1, cur2, native, offers);
-            createOffer(a1, cur1, cur2, offers);
-            createOffer(a1, cur1, cur2, offers);
-            createOffer(a1, cur2, cur1, offers);
-            createOffer(a1, cur2, cur1, offers);
-
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur2, cur1, offers);
-            createOffer(a2, cur2, cur1, offers);
+            createOffers(a1, offers);
+            createOffers(a2, offers);
 
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
@@ -1591,18 +1705,7 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             createOffer(a1, cur2, cur1, offers);
             createOffer(a1, cur2, cur1, offers);
 
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, native, cur1, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, cur1, native, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, native, cur2, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur2, native, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur1, cur2, offers);
-            createOffer(a2, cur2, cur1, offers);
-            createOffer(a2, cur2, cur1, offers);
+            createOffers(a2, offers);
 
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,

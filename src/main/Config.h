@@ -113,6 +113,12 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
 
+    // A config parameter that avoids counting level 0 merge events and those
+    // within Bucket::fresh; this option exists only for calculating adjustments
+    // to the expected count of merges when stopping and resuming merges,
+    // and should be false in all normal cases.
+    bool ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
+
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;

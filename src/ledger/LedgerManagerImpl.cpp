@@ -277,10 +277,11 @@ LedgerManagerImpl::loadLastKnownLedger(
                 }
                 else
                 {
-                    mApp.getBucketManager().assumeState(has);
                     {
                         LedgerTxn ltx(mApp.getLedgerTxnRoot());
                         auto header = ltx.loadHeader();
+                        mApp.getBucketManager().assumeState(
+                            has, header.current().ledgerVersion);
                         CLOG(INFO, "Ledger") << "Loaded last known ledger: "
                                              << ledgerAbbrev(header.current());
                         advanceLedgerPointers(header.current());
@@ -1033,12 +1034,29 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
                                        has.toString());
 }
 
+// NB: This is a separate method so a testing subclass can override it.
+void
+LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
+                                                     uint32_t ledgerSeq,
+                                                     uint32_t ledgerVers)
+{
+    std::vector<LedgerEntry> initEntries, liveEntries;
+    std::vector<LedgerKey> deadEntries;
+    ltx.getAllEntries(initEntries, liveEntries, deadEntries);
+    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers, initEntries,
+                                     liveEntries, deadEntries);
+}
+
 void
 LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
 {
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ltx.getLiveEntries(),
-                                     ltx.getDeadEntries());
+    auto ledgerVers = ltx.loadHeader().current().ledgerVersion;
+    CLOG(TRACE, "Ledger") << fmt::format(
+        "sealing ledger {} with version {}, sending to bucket list", ledgerSeq,
+        ledgerVers);
+
+    transferLedgerEntriesToBucketList(ltx, ledgerSeq, ledgerVers);
 
     ltx.unsealHeader([this](LedgerHeader& lh) {
         mApp.getBucketManager().snapshotLedger(lh);

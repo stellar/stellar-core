@@ -286,6 +286,12 @@ for_all_versions(Application& app, std::function<void(void)> const& f)
 }
 
 void
+for_all_versions(Config const& cfg, std::function<void(Config const&)> const& f)
+{
+    for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, f);
+}
+
+void
 for_versions(uint32 from, uint32 to, Application& app,
              std::function<void(void)> const& f)
 {
@@ -298,6 +304,21 @@ for_versions(uint32 from, uint32 to, Application& app,
     std::iota(std::begin(versions), std::end(versions), from);
 
     for_versions(versions, app, f);
+}
+
+void
+for_versions(uint32 from, uint32 to, Config const& cfg,
+             std::function<void(Config const&)> const& f)
+{
+    if (from > to)
+    {
+        return;
+    }
+    auto versions = std::vector<uint32>{};
+    versions.resize(to - from + 1);
+    std::iota(std::begin(versions), std::end(versions), from);
+
+    for_versions(versions, cfg, f);
 }
 
 void
@@ -333,6 +354,27 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         ltx.loadHeader().current().ledgerVersion = previousVersion;
         ltx.commit();
+    }
+}
+
+void
+for_versions(std::vector<uint32> const& versions, Config const& cfg,
+             std::function<void(Config const&)> const& f)
+{
+    for (auto v : versions)
+    {
+        if (!gTestAllVersions &&
+            std::find(gVersionsToTest.begin(), gVersionsToTest.end(), v) ==
+                gVersionsToTest.end())
+        {
+            continue;
+        }
+        SECTION("protocol version " + std::to_string(v))
+        {
+            Config vcfg = cfg;
+            vcfg.LEDGER_PROTOCOL_VERSION = v;
+            f(vcfg);
+        }
     }
 }
 

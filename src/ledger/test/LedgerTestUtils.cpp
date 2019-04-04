@@ -68,6 +68,32 @@ signerEqual(Signer const& s1, Signer const& s2)
 }
 
 void
+randomlyModifyEntry(LedgerEntry& e)
+{
+    switch (e.data.type())
+    {
+    case TRUSTLINE:
+        e.data.trustLine().limit = autocheck::generator<int64>{}();
+        e.data.trustLine().balance = e.data.trustLine().limit - 10;
+        makeValid(e.data.trustLine());
+        break;
+    case OFFER:
+        e.data.offer().amount = autocheck::generator<int64>{}();
+        makeValid(e.data.offer());
+        break;
+    case ACCOUNT:
+        e.data.account().balance = autocheck::generator<int64>{}();
+        e.data.account().seqNum++;
+        makeValid(e.data.account());
+        break;
+    case DATA:
+        e.data.data().dataValue = autocheck::generator<DataValue>{}(8);
+        makeValid(e.data.data());
+        break;
+    }
+}
+
+void
 makeValid(AccountEntry& a)
 {
     if (a.balance < 0)

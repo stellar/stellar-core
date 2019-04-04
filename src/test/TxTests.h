@@ -77,7 +77,7 @@ TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
 
 SecretKey getRoot(Hash const& networkID);
 
-SecretKey getAccount(const char* n);
+SecretKey getAccount(std::string const& n);
 
 Signer makeSigner(SecretKey key, int weight);
 
