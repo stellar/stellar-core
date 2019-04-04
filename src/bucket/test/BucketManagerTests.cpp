@@ -117,7 +117,7 @@ clearFutures(Application::pointer app, BucketList& bl)
     // Then go through all the _worker threads_ and mop up any work they
     // might still be doing (that might be "dropping a shared_ptr<Bucket>").
 
-    size_t n = std::thread::hardware_concurrency();
+    size_t n = (size_t)app->getConfig().WORKER_THREADS;
     std::mutex mutex;
     std::condition_variable cv, cv2;
     size_t waiting = 0, finished = 0;

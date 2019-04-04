@@ -64,7 +64,7 @@ namespace stellar
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
-    , mWorkerIOContext(std::thread::hardware_concurrency())
+    , mWorkerIOContext(mConfig.WORKER_THREADS)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
     , mWorkerThreads()
     , mStopSignals(clock.getIOContext(), SIGINT)
