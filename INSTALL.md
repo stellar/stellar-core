@@ -29,16 +29,14 @@ When running a node, the best bet is to go with the latest release.
 - `clang-format-5.0` (for `make format` to work)
 - `pandoc`
 
-### Ubuntu 14.04
+### Ubuntu 18.04
 
     # sudo add-apt-repository ppa:ubuntu-toolchain-r/test
     # sudo apt-get update
-    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev clang++-3.5 gcc-4.9 g++-4.9 cpp-4.9
+    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev gcc-6 g++-6 cpp-6
 
 In order to make changes, you'll need to install the proper version of clang-format (you may have to follow instructions on https://apt.llvm.org/ )
     # sudo apt-get install clang-format-5.0
-
-See [installing gcc 4.9 on ubuntu 14.04](http://askubuntu.com/questions/428198/getting-installing-gcc-g-4-9-on-ubuntu)
 
 Additional, for proper documentation generation (man page), pandoc is needed:
     # sudo apt-get install pandoc
