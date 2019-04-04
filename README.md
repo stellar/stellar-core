@@ -1,18 +1,15 @@
-[![Build Status](https://travis-ci.org/stellar/stellar-core.svg?branch=auto)](https://travis-ci.org/stellar/stellar-core)
+# Core
 
-
-# stellar-core
-
-Stellar-core is a replicated state machine that maintains a local copy of a cryptographic ledger and processes transactions against it, in consensus with a set of peers.
-It implements the [Stellar Consensus Protocol](https://github.com/stellar/stellar-core/blob/master/src/scp/readme.md), a _federated_ consensus protocol.
+Core is a replicated state machine that maintains a local copy of a cryptographic ledger and processes transactions against it, in consensus with a set of peers.
+It implements the [Stellar Consensus Protocol](https://github.com/kinecosystem/core/blob/master/src/scp/readme.md), a _federated_ consensus protocol.
 It is written in C++11 and runs on Linux, OSX and Windows.
-Learn more by reading the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
+Learn more by reading the [overview document](https://github.com/kinecosystem/core/blob/master/docs/readme.md).
 
 # Documentation
 
 Documentation of the code's layout and abstractions, as well as for the
 functionality available, can be found in
-[`./docs`](https://github.com/stellar/stellar-core/tree/master/docs).
+[`./docs`](https://github.com/kinecosystem/core/tree/master/docs).
 
 # Installation
 

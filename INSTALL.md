@@ -1,6 +1,6 @@
 Installation Instructions
 ==================
-These are intructions for building stellar-core from source. For a potentially quicker set up we also have stellar-core in a docker container: https://github.com/stellar/docker-stellar-core-horizon
+These are intructions for building stellar-core from source. For a potentially quicker set up we also have stellar-core in a docker container: https://hub.docker.com/r/kinecosystem/blockchain-quickstart
 
 ## Picking a version to run
 
@@ -58,7 +58,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 
 ## Basic Installation
 
-- `git clone https://github.com/stellar/stellar-core.git`
+- `git clone https://github.com/kinecosystem/core.git`
 - `cd stellar-core`
 - `git submodule init`
 - `git submodule update`
