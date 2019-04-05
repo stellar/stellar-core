@@ -273,6 +273,9 @@ Divide the validators into two categories:
 
 One of the goals is to ensure that there will always be some full validators in any given quorum (from your node's point of view).
 
+**Important** For each full validator you add in your quorum set, make sure that you are also configuring your node to point to their [history archive](#history-archives).
+This ensures that if your node falls out of sync for any reason, you will be able to rejoin the network regardless of its state.
+
 As the way quorum sets are specified using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
 
 ```toml
@@ -430,6 +433,15 @@ network, and likely unable to acquire synchronization at all. At the very
 least, if you are joining an existing network in a read-only capacity, you 
 will still need to configure a `get` command to access that network's history 
 archives.
+
+#### Configuring to get data from an archive
+
+You can configure any number of archives to download from: stellar-core will automatically round-robin between them.
+
+At a minimum you should configure `get` archives for each full validator referenced from your quorum set (see [crafting  a quorum set](#crafting-a-quorum-set) for more detail).
+
+Note: if you notice a lot of errors related to downloading archives, you should check that all archives in your configuration are up to date.
+
 
 #### Configuring to publish to an archive
 Archive sections can also be configured with `put` and `mkdir` commands to
