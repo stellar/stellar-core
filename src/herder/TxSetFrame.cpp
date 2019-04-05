@@ -19,6 +19,7 @@
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
+#include <list>
 #include <numeric>
 
 #include "xdrpp/printer.h"
@@ -98,38 +99,44 @@ SeqSorter(TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
 std::vector<TransactionFramePtr>
 TxSetFrame::sortForApply()
 {
-    vector<TransactionFramePtr> retList;
+    auto txQueues = buildAccountTxQueues();
 
-    vector<vector<TransactionFramePtr>> txBatches(4);
-    map<AccountID, size_t> accountTxCountMap;
-    retList = mTransactions;
-    // sort all the txs by seqnum
-    std::sort(retList.begin(), retList.end(), SeqSorter);
+    // build txBatches
+    // txBatches i-th element contains each i-th transaction for accounts with a
+    // transaction in the transaction set
+    std::list<std::deque<TransactionFramePtr>> txBatches;
 
-    // build the txBatches
-    // batch[i] contains the i-th transaction for any account with
-    // a transaction in the transaction set
-    for (auto tx : retList)
+    while (!txQueues.empty())
     {
-        auto& v = accountTxCountMap[tx->getSourceID()];
-
-        if (v >= txBatches.size())
+        txBatches.emplace_back();
+        auto& curBatch = txBatches.back();
+        // go over all users that still have transactions
+        for (auto it = txQueues.begin(); it != txQueues.end();)
         {
-            txBatches.resize(v + 4);
+            auto& h = it->second.front();
+            curBatch.emplace_back(h);
+            it->second.pop_front();
+            if (it->second.empty())
+            {
+                // done with that user
+                it = txQueues.erase(it);
+            }
+            else
+            {
+                it++;
+            }
         }
-        txBatches[v].push_back(tx);
-        v++;
     }
 
-    retList.clear();
-
+    vector<TransactionFramePtr> retList;
+    retList.reserve(mTransactions.size());
     for (auto& batch : txBatches)
     {
         // randomize each batch using the hash of the transaction set
         // as a way to randomize even more
         ApplyTxSorter s(getContentsHash());
         std::sort(batch.begin(), batch.end(), s);
-        for (auto tx : batch)
+        for (auto const& tx : batch)
         {
             retList.push_back(tx);
         }
@@ -137,8 +144,6 @@ TxSetFrame::sortForApply()
 
     return retList;
 }
-
-using AccountTransactionQueue = std::deque<TransactionFramePtr>;
 
 struct SurgeCompare
 {
@@ -151,8 +156,8 @@ struct SurgeCompare
 
     // return true if tx1 < tx2
     bool
-    operator()(AccountTransactionQueue const* tx1,
-               AccountTransactionQueue const* tx2) const
+    operator()(TxSetFrame::AccountTransactionQueue const* tx1,
+               TxSetFrame::AccountTransactionQueue const* tx2) const
     {
         if (tx1 == nullptr || tx1->empty())
         {
@@ -182,6 +187,31 @@ struct SurgeCompare
     }
 };
 
+std::unordered_map<AccountID, TxSetFrame::AccountTransactionQueue>
+TxSetFrame::buildAccountTxQueues()
+{
+    std::unordered_map<AccountID, AccountTransactionQueue> actTxQueueMap;
+    for (auto& tx : mTransactions)
+    {
+        auto& id = tx->getSourceID();
+        auto it = actTxQueueMap.find(id);
+        if (it == actTxQueueMap.end())
+        {
+            auto d = std::make_pair(id, AccountTransactionQueue{});
+            auto r = actTxQueueMap.insert(d);
+            it = r.first;
+        }
+        it->second.emplace_back(tx);
+    }
+
+    for (auto& am : actTxQueueMap)
+    {
+        // sort each in sequence number order
+        std::sort(am.second.begin(), am.second.end(), SeqSorter);
+    }
+    return actTxQueueMap;
+}
+
 void
 TxSetFrame::surgePricingFilter(Application& app)
 {
@@ -196,25 +226,8 @@ TxSetFrame::surgePricingFilter(Application& app)
     {
         CLOG(WARNING, "Herder")
             << "surge pricing in effect! " << curSize << " > " << maxSize;
-        std::unordered_map<AccountID, AccountTransactionQueue> actTxQueueMap;
-        for (auto& tx : mTransactions)
-        {
-            if (tx->getOperations().size() == 0)
-            {
-                // ensure that "checkValid" was called
-                throw std::runtime_error(
-                    "Surge pricing should not be run on invalid transactions");
-            }
-            auto& id = tx->getSourceID();
-            auto it = actTxQueueMap.find(id);
-            if (it == actTxQueueMap.end())
-            {
-                auto d = std::make_pair(id, AccountTransactionQueue{});
-                auto r = actTxQueueMap.insert(d);
-                it = r.first;
-            }
-            it->second.emplace_back(tx);
-        }
+
+        auto actTxQueueMap = buildAccountTxQueues();
 
         SurgeCompare const surge(header);
         std::priority_queue<AccountTransactionQueue*,
@@ -223,8 +236,6 @@ TxSetFrame::surgePricingFilter(Application& app)
 
         for (auto& am : actTxQueueMap)
         {
-            // sort each in sequence number order
-            std::sort(am.second.begin(), am.second.end(), SeqSorter);
             surgeQueue.push(&am.second);
         }
 
@@ -267,12 +278,12 @@ TxSetFrame::checkOrTrim(
     Application& app,
     std::function<bool(TransactionFramePtr, SequenceNumber)>
         processInvalidTxLambda,
-    std::function<bool(std::vector<TransactionFramePtr> const&)>
+    std::function<bool(std::deque<TransactionFramePtr> const&)>
         processInsufficientBalance)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
-    map<AccountID, vector<TransactionFramePtr>> accountTxMap;
+    auto accountTxMap = buildAccountTxQueues();
 
     Hash lastHash;
     for (auto& tx : mTransactions)
@@ -284,15 +295,11 @@ TxSetFrame::checkOrTrim(
                 << " not sorted correctly";
             return false;
         }
-        accountTxMap[tx->getSourceID()].push_back(tx);
         lastHash = tx->getFullHash();
     }
 
     for (auto& item : accountTxMap)
     {
-        // order by sequence number
-        std::sort(item.second.begin(), item.second.end(), SeqSorter);
-
         TransactionFramePtr lastTx;
         SequenceNumber lastSeq = 0;
         int64_t totFee = 0;
@@ -339,7 +346,7 @@ TxSetFrame::trimInvalid(Application& app,
         return true;
     };
     auto processInsufficientBalance =
-        [&](vector<TransactionFramePtr> const& item) {
+        [&](deque<TransactionFramePtr> const& item) {
             for (auto& tx : item)
             {
                 trimmed.push_back(tx);
@@ -386,7 +393,7 @@ TxSetFrame::checkValid(Application& app)
         return false;
     };
     auto processInsufficientBalance =
-        [&](vector<TransactionFramePtr> const& item) {
+        [&](deque<TransactionFramePtr> const& item) {
             CLOG(DEBUG, "Herder")
                 << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                 << " account can't pay fee"

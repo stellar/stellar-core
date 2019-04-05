@@ -4,9 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include <deque>
 #include <functional>
+#include <unordered_map>
 
 namespace stellar
 {
@@ -22,12 +25,17 @@ class TxSetFrame
 
     Hash mPreviousLedgerHash;
 
-    bool
-    checkOrTrim(Application& app,
-                std::function<bool(TransactionFramePtr, SequenceNumber)>
-                    processInvalidTxLambda,
-                std::function<bool(std::vector<TransactionFramePtr> const&)>
-                    processLastInvalidTxLambda);
+    using AccountTransactionQueue = std::deque<TransactionFramePtr>;
+
+    bool checkOrTrim(Application& app,
+                     std::function<bool(TransactionFramePtr, SequenceNumber)>
+                         processInvalidTxLambda,
+                     std::function<bool(std::deque<TransactionFramePtr> const&)>
+                         processLastInvalidTxLambda);
+
+    std::unordered_map<AccountID, AccountTransactionQueue>
+    buildAccountTxQueues();
+    friend struct SurgeCompare;
 
   public:
     std::vector<TransactionFramePtr> mTransactions;
