@@ -13,13 +13,19 @@
 namespace stellar
 {
 
+static Price
+getInversePrice(Price const& price)
+{
+    return Price{price.d, price.n};
+}
+
 ManageBuyOfferOpFrame::ManageBuyOfferOpFrame(Operation const& op,
                                              OperationResult& res,
                                              TransactionFrame& parentTx)
     : ManageOfferOpFrameBase(
           op, res, parentTx, op.body.manageBuyOfferOp().selling,
           op.body.manageBuyOfferOp().buying, op.body.manageBuyOfferOp().offerID,
-          op.body.manageBuyOfferOp().price, false)
+          getInversePrice(op.body.manageBuyOfferOp().price), false)
     , mManageBuyOffer(mOperation.body.manageBuyOfferOp())
 {
 }
@@ -46,7 +52,7 @@ int64_t
 ManageBuyOfferOpFrame::getOfferBuyingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        mManageBuyOffer.price, INT64_MAX, INT64_MAX, INT64_MAX,
+        getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
         mManageBuyOffer.buyAmount, false);
     return res.numSheepSend;
 }
@@ -55,7 +61,7 @@ int64_t
 ManageBuyOfferOpFrame::getOfferSellingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        mManageBuyOffer.price, INT64_MAX, INT64_MAX, INT64_MAX,
+        getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
         mManageBuyOffer.buyAmount, false);
     return res.numWheatReceived;
 }

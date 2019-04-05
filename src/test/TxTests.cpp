@@ -716,7 +716,7 @@ applyManageBuyOffer(Application& app, uint64 offerId, SecretKey const& source,
         REQUIRE(offer);
         auto& offerEntry = offer.current().data.offer();
         REQUIRE(offerEntry == success.offer());
-        REQUIRE(offerEntry.price == price);
+        REQUIRE(offerEntry.price == Price{price.d, price.n});
         REQUIRE(offerEntry.selling == selling);
         REQUIRE(offerEntry.buying == buying);
     }
