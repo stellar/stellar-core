@@ -38,7 +38,7 @@ class ApplicationImpl : public Application
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual void initialize() override;
+    virtual void initialize(bool newDB) override;
 
     virtual uint64_t timeNow() override;
 
@@ -78,8 +78,6 @@ class ApplicationImpl : public Application
                                            std::string jobName) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) override;
-
-    void newDB() override;
 
     virtual void start() override;
 
@@ -177,6 +175,9 @@ class ApplicationImpl : public Application
     VirtualClock::time_point mStartedOn;
 
     Hash mNetworkID;
+
+    void newDB();
+    void upgradeDB();
 
     void shutdownMainIOContext();
     void shutdownWorkScheduler();

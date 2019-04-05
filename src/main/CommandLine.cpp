@@ -610,6 +610,20 @@ runNewDB(CommandLineArgs const& args)
 }
 
 int
+runUpgradeDB(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        auto cfg = configOption.getConfig();
+        VirtualClock clock;
+        cfg.setNoListen();
+        Application::create(clock, cfg, false);
+        return 0;
+    });
+}
+
+int
 runNewHist(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -818,6 +832,8 @@ handleCommandLine(int argc, char* const* argv)
          {"sign-transaction",
           "add signature to transaction envelope, then quit",
           runSignTransaction},
+         {"upgrade-db", "upgade database schema to current version",
+          runUpgradeDB},
 #ifdef BUILD_TESTS
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},

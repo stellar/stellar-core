@@ -114,7 +114,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 }
 
 void
-ApplicationImpl::initialize()
+ApplicationImpl::initialize(bool createNewDB)
 {
     mDatabase = std::make_unique<Database>(*this);
     mPersistentState = std::make_unique<PersistentState>(*this);
@@ -143,6 +143,16 @@ ApplicationImpl::initialize()
     LedgerEntryIsValid::registerInvariant(*this);
     LiabilitiesMatchOffers::registerInvariant(*this);
     enableInvariantsFromConfig();
+
+    if (createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:")
+    {
+        newDB();
+    }
+    else
+    {
+        upgradeDB();
+    }
+
     LOG(DEBUG) << "Application constructed";
 }
 
@@ -151,12 +161,13 @@ ApplicationImpl::newDB()
 {
     mDatabase->initialize();
     mDatabase->upgradeToCurrentSchema();
-
-    LOG(INFO) << "* ";
-    LOG(INFO) << "* The database has been initialized";
-    LOG(INFO) << "* ";
-
     mLedgerManager->startNewLedger();
+}
+
+void
+ApplicationImpl::upgradeDB()
+{
+    mDatabase->upgradeToCurrentSchema();
 }
 
 void
@@ -319,7 +330,6 @@ ApplicationImpl::start()
     }
     CLOG(INFO, "Ledger") << "Starting up application";
     mStarted = true;
-    mDatabase->upgradeToCurrentSchema();
 
     if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
     {
