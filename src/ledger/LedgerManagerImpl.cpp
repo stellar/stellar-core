@@ -227,7 +227,7 @@ LedgerManagerImpl::startNewLedger()
         ledger.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
         ledger.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE;
         ledger.baseReserve = cfg.TESTING_UPGRADE_RESERVE;
-        ledger.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+        ledger.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
     }
 
     startNewLedger(std::move(ledger));
@@ -390,7 +390,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         << "Got consensus: "
         << "[seq=" << ledgerData.getLedgerSeq()
         << ", prev=" << hexAbbrev(ledgerData.getTxSet()->previousLedgerHash())
-        << ", tx_count=" << ledgerData.getTxSet()->size()
+        << ", txs=" << ledgerData.getTxSet()->sizeTx()
+        << ", ops=" << ledgerData.getTxSet()->sizeOp()
         << ", sv: " << stellarValueToString(ledgerData.getValue()) << "]";
 
     auto st = getState();
@@ -713,7 +714,8 @@ LedgerManagerImpl::applyBufferedLedgers()
                 << "Replaying buffered ledger-close: "
                 << "[seq=" << lcd.getLedgerSeq()
                 << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-                << ", tx_count=" << lcd.getTxSet()->size()
+                << ", txs=" << lcd.getTxSet()->sizeTx()
+                << ", ops=" << lcd.getTxSet()->sizeOp()
                 << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
             closeLedger(lcd);
 
@@ -804,7 +806,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
 
     // first, charge fees
-    processFeesSeqNums(txs, ltx);
+    processFeesSeqNums(txs, ltx,
+                       ledgerData.getTxSet()->getBaseFee(header.current()));
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
@@ -915,9 +918,11 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 
 void
 LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                                      AbstractLedgerTxn& ltxOuter)
+                                      AbstractLedgerTxn& ltxOuter,
+                                      int64_t baseFee)
 {
-    CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
+    CLOG(DEBUG, "Ledger")
+        << "processing fees and sequence numbers with base fee " << baseFee;
     int index = 0;
     try
     {
@@ -926,7 +931,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
         for (auto tx : txs)
         {
             LedgerTxn ltxTx(ltx);
-            tx->processFeeSeqNum(ltxTx);
+            tx->processFeeSeqNum(ltxTx, baseFee);
             tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq,
                                     ltxTx.getChanges(), ++index);
             ltxTx.commit();

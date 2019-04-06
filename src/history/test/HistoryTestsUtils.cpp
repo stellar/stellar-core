@@ -472,7 +472,7 @@ CatchupSimulation::generateRandomLedger()
     txSet->getContentsHash();
 
     CLOG(DEBUG, "History") << "Closing synthetic ledger " << ledgerSeq
-                           << " with " << txSet->size() << " txs (txhash:"
+                           << " with " << txSet->sizeTx() << " txs (txhash:"
                            << hexAbbrev(txSet->getContentsHash()) << ")";
 
     StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0);

@@ -148,7 +148,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                                    .data.account();
 
             // no account -> can't process the fee
-            tx->processFeeSeqNum(ltxFeeProc);
+            auto baseFee = ltxFeeProc.loadHeader().current().baseFee;
+            tx->processFeeSeqNum(ltxFeeProc, baseFee);
             uint32_t ledgerVersion =
                 ltxFeeProc.loadHeader().current().ledgerVersion;
 

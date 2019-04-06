@@ -44,7 +44,6 @@ class TransactionFrame
 
     std::shared_ptr<LedgerEntry const> mCachedAccount;
 
-    void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
@@ -71,7 +70,7 @@ class TransactionFrame
                                Application& app, AbstractLedgerTxn& ltxOuter,
                                SequenceNumber current, bool applying);
 
-    void resetResults();
+    void resetResults(LedgerHeader const& header, int64_t baseFee);
 
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
                                      AbstractLedgerTxn& ltx);
@@ -103,6 +102,9 @@ class TransactionFrame
     static TransactionFramePtr
     makeTransactionFromWire(Hash const& networkID,
                             TransactionEnvelope const& msg);
+
+    // clear pre-computed hashes
+    void clearCached();
 
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
@@ -147,9 +149,11 @@ class TransactionFrame
         return mEnvelope.tx.sourceAccount;
     }
 
-    uint32_t getFee() const;
+    uint32_t getFeeBid() const;
 
-    int64_t getMinFee(LedgerTxnHeader const& header) const;
+    int64_t getMinFee(LedgerHeader const& header) const;
+
+    int64_t getFee(LedgerHeader const& header, int64_t baseFee) const;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
@@ -160,12 +164,11 @@ class TransactionFrame
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
-    bool checkValid(Application& app, SequenceNumber current);
     bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
                     SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ltx);
+    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied

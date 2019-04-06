@@ -21,8 +21,8 @@ namespace stellar
 void
 runCurrentThreadWithLowPriority()
 {
-    auto native = std::this_thread::get_id();
-    auto ret = SetThreadPriority(native, THREAD_PRIORITY_BELOW_NORMAL);
+    HANDLE curThread = ::GetCurrentThread();
+    BOOL ret = ::SetThreadPriority(curThread, THREAD_PRIORITY_BELOW_NORMAL);
 
     if (!ret)
     {

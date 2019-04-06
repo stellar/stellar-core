@@ -221,7 +221,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
-    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 50;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
     cfg.TESTING_UPGRADE_RESERVE = 100000000;
     cfg.TESTING_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
@@ -229,14 +229,14 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
     header.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE;
     header.baseReserve = cfg.TESTING_UPGRADE_RESERVE;
-    header.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    header.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
     header.scpValue.closeTime = VirtualClock::to_time_t(genesis(0, 0));
 
     auto protocolVersionUpgrade =
         makeProtocolVersionUpgrade(cfg.LEDGER_PROTOCOL_VERSION);
     auto baseFeeUpgrade = makeBaseFeeUpgrade(cfg.TESTING_UPGRADE_DESIRED_FEE);
     auto txCountUpgrade =
-        makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+        makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
     auto baseReserveUpgrade =
         makeBaseReserveUpgrade(cfg.TESTING_UPGRADE_RESERVE);
 
@@ -319,7 +319,7 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
-    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 50;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
     cfg.TESTING_UPGRADE_RESERVE = 100000000;
     cfg.TESTING_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
@@ -1416,7 +1416,6 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
     auto app = createTestApplication(clock, cfg);
     app->start();
     auto& lm = app->getLedgerManager();
-    uint32_t oldProto = 10;
     uint32_t newProto = 11;
     auto root = TestAccount{*app, txtest::getRoot(app->getNetworkID())};
 

@@ -269,7 +269,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
             }
             CLOG(DEBUG, "History")
                 << "Closing synthetic ledger " << ledgerSeq << " with "
-                << txSet->size()
+                << txSet->size(lm.getLastClosedLedgerHeader().header)
                 << " txs (txhash:" << hexAbbrev(txSet->getContentsHash())
                 << ")";
             StellarValue sv(txSet->getContentsHash(), closeTime, upgrades, 0);

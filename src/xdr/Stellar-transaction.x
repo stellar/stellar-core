@@ -320,6 +320,9 @@ struct TimeBounds
     TimePoint maxTime; // 0 here means no maxTime
 };
 
+// maximum number of operations per transaction
+const MAX_OPS_PER_TX = 100;
+
 /* a transaction is a container for a set of operations
     - is executed by an account
     - fees are collected from the account
@@ -343,7 +346,7 @@ struct Transaction
 
     Memo memo;
 
-    Operation operations<100>;
+    Operation operations<MAX_OPS_PER_TX>;
 
     // reserved for future use
     union switch (int v)

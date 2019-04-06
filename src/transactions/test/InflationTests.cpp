@@ -223,7 +223,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
     auto root = TestAccount::createRoot(app);
     auto txFrame = root.tx({inflation()});
-    expectedFees += txFrame->getFee();
+    expectedFees += txFrame->getFeeBid();
 
     expectedBalances = simulateInflation(
         ledgerVersion, nbAccounts, expectedTotcoins, expectedFees,

@@ -192,7 +192,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
 
     auto txset = getCurrentTxSet();
     CLOG(DEBUG, "History") << "Ledger " << header.ledgerSeq << " has "
-                           << txset->size() << " transactions";
+                           << txset->sizeTx() << " transactions";
 
     // We've verified the ledgerHeader (in the "trusted part of history"
     // sense) in CATCHUP_VERIFY phase; we now need to check that the

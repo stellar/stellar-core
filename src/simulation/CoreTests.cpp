@@ -392,7 +392,7 @@ newLoadTestApp(VirtualClock& clock)
     cfg.RUN_STANDALONE = false;
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close
-    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 10000;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 10000;
     cfg.USE_CONFIG_FOR_GENESIS = true;
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();
