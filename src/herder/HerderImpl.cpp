@@ -739,7 +739,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     }
 
     // our first choice for this round's set is all the tx we have collected
-    // during last ledger close
+    // during last few ledger closes
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     auto proposedSet = std::make_shared<TxSetFrame>(lcl.hash);
 
