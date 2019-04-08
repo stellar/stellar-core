@@ -4,9 +4,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "PendingEnvelopes.h"
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
+#include "herder/PendingEnvelopes.h"
+#include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
@@ -57,7 +58,8 @@ class HerderImpl : public Herder
     void valueExternalized(uint64 slotIndex, StellarValue const& value);
     void emitEnvelope(SCPEnvelope const& envelope);
 
-    TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
+    TransactionQueue::AddResult
+    recvTransaction(TransactionFramePtr tx) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
@@ -91,16 +93,6 @@ class HerderImpl : public Herder
                                   bool fullKeys = false,
                                   uint64 index = 0) override;
 
-    struct TxMap
-    {
-        SequenceNumber mMaxSeq{0};
-        int64_t mTotalFees{0};
-        std::unordered_map<Hash, TransactionFramePtr> mTransactions;
-        void addTx(TransactionFramePtr);
-        void recalculate();
-    };
-    typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
-
 #ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
@@ -108,7 +100,6 @@ class HerderImpl : public Herder
 
   private:
     void ledgerClosed();
-    void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
 
     void startRebroadcastTimer();
     void rebroadcast();
@@ -116,14 +107,10 @@ class HerderImpl : public Herder
 
     void processSCPQueueUpToIndex(uint64 slotIndex);
 
-    // 0- tx we got during ledger close
-    // 1- one ledger ago. rebroadcast
-    // 2- two ledgers ago. rebroadcast
-    // ...
-    std::deque<AccountTxMap> mPendingTransactions;
+    TransactionQueue mTransactionQueue;
 
     void
-    updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);
+    updateTransactionQueue(std::vector<TransactionFramePtr> const& applied);
 
     PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;
@@ -172,12 +159,6 @@ class HerderImpl : public Herder
         // Counters for things reached-through the
         // SCP maps: Slots and Nodes
         medida::Counter& mCumulativeStatements;
-
-        // Pending tx buffer sizes
-        medida::Counter& mHerderPendingTxs0;
-        medida::Counter& mHerderPendingTxs1;
-        medida::Counter& mHerderPendingTxs2;
-        medida::Counter& mHerderPendingTxs3;
 
         SCPMetrics(Application& app);
     };
