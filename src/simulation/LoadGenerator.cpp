@@ -222,15 +222,15 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
     TxInfo tx =
         creationTransaction(mAccounts.size() + offset, numToProcess, ledgerNum);
     TransactionResultCode code;
-    Herder::TransactionSubmitStatus status;
+    TransactionQueue::AddResult status;
     bool createDuplicate = false;
     int numTries = 0;
 
     while ((status = tx.execute(mApp, true, code, batchSize)) !=
-           Herder::TX_STATUS_PENDING)
+           TransactionQueue::AddResult::STATUS_PENDING)
     {
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
-        if (status == Herder::TX_STATUS_DUPLICATE)
+        if (status == TransactionQueue::AddResult::STATUS_DUPLICATE)
         {
             createDuplicate = true;
             break;
@@ -261,11 +261,11 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
         paymentTransaction(nAccounts, offset, ledgerNum, sourceAccountId);
 
     TransactionResultCode code;
-    Herder::TransactionSubmitStatus status;
+    TransactionQueue::AddResult status;
     int numTries = 0;
 
     while ((status = tx.execute(mApp, false, code, batchSize)) !=
-           Herder::TX_STATUS_PENDING)
+           TransactionQueue::AddResult::STATUS_PENDING)
     {
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
         tx = paymentTransaction(nAccounts, offset, ledgerNum,
@@ -446,12 +446,13 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
 
 void
 LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
-                                      Herder::TransactionSubmitStatus status,
+                                      TransactionQueue::AddResult status,
                                       TransactionResultCode code)
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
-    if (status == Herder::TX_STATUS_ERROR && code == txBAD_SEQ)
+    if (status == TransactionQueue::AddResult::STATUS_ERROR &&
+        code == txBAD_SEQ)
     {
         if (!loadAccount(sourceAccount, mApp))
         {
@@ -541,7 +542,7 @@ LoadGenerator::TxMetrics::report()
                            << mNativePayment.one_minute_rate() << " na, ";
 }
 
-Herder::TransactionSubmitStatus
+TransactionQueue::AddResult
 LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
                                TransactionResultCode& code, int32_t batchSize)
 {
@@ -572,13 +573,13 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
     auto status = app.getHerder().recvTransaction(txf);
-    if (status != Herder::TX_STATUS_PENDING)
+    if (status != TransactionQueue::AddResult::STATUS_PENDING)
     {
         CLOG(INFO, "LoadGen")
-            << "tx rejected '" << Herder::TX_STATUS_STRING[status]
+            << "tx rejected '" << TX_STATUS_STRING[static_cast<int>(status)]
             << "': " << xdr::xdr_to_string(txf->getEnvelope()) << " ===> "
             << xdr::xdr_to_string(txf->getResult());
-        if (status == Herder::TX_STATUS_ERROR)
+        if (status == TransactionQueue::AddResult::STATUS_ERROR)
         {
             code = txf->getResultCode();
         }

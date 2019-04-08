@@ -737,13 +737,13 @@ Peer::recvTransaction(StellarMessage const& msg)
         // and make sure it is valid
         auto recvRes = mApp.getHerder().recvTransaction(transaction);
 
-        if (recvRes == Herder::TX_STATUS_PENDING ||
-            recvRes == Herder::TX_STATUS_DUPLICATE)
+        if (recvRes == TransactionQueue::AddResult::STATUS_PENDING ||
+            recvRes == TransactionQueue::AddResult::STATUS_DUPLICATE)
         {
             // record that this peer sent us this transaction
             mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
 
-            if (recvRes == Herder::TX_STATUS_PENDING)
+            if (recvRes == TransactionQueue::AddResult::STATUS_PENDING)
             {
                 // if it's a new transaction, broadcast it
                 mApp.getOverlayManager().broadcastMessage(msg);

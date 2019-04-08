@@ -68,7 +68,7 @@ TEST_CASE("standalone", "[herder]")
 
             auto feedTx = [&](TransactionFramePtr& tx) {
                 REQUIRE(app->getHerder().recvTransaction(tx) ==
-                        Herder::TX_STATUS_PENDING);
+                        TransactionQueue::AddResult::STATUS_PENDING);
             };
 
             auto waitForExternalize = [&]() {

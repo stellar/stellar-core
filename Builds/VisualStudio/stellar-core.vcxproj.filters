@@ -498,6 +498,9 @@
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\TransactionQueue.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -619,6 +622,9 @@
       <Filter>herder\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\PendingEnvelopesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\test\TransactionQueueTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\test\UpgradesTests.cpp">
@@ -1335,6 +1341,9 @@
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\TransactionQueue.h">
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">
