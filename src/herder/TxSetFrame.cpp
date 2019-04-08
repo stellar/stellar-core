@@ -338,10 +338,10 @@ TxSetFrame::checkOrTrim(
     return true;
 }
 
-void
-TxSetFrame::trimInvalid(Application& app,
-                        std::vector<TransactionFramePtr>& trimmed)
+std::vector<TransactionFramePtr>
+TxSetFrame::trimInvalid(Application& app)
 {
+    std::vector<TransactionFramePtr> trimmed;
     sortForHash();
 
     auto processInvalidTxLambda = [&](TransactionFramePtr tx,
@@ -361,6 +361,7 @@ TxSetFrame::trimInvalid(Application& app,
         };
 
     checkOrTrim(app, processInvalidTxLambda, processInsufficientBalance);
+    return trimmed;
 }
 
 // need to make sure every account that is submitting a tx has enough to pay
