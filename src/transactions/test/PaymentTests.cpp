@@ -1864,6 +1864,20 @@ TEST_CASE("payment", "[tx][payment]")
             });
         }
     }
+
+    SECTION("dest amount too big for native asset")
+    {
+        for_versions_to(10, *app, [&] {
+            REQUIRE_THROWS_AS(
+                root.pay(a1, xlm, std::numeric_limits<int64_t>::max()),
+                ex_txINTERNAL_ERROR);
+        });
+        for_versions_from(11, *app, [&] {
+            REQUIRE_THROWS_AS(
+                root.pay(a1, xlm, std::numeric_limits<int64_t>::max()),
+                ex_PAYMENT_LINE_FULL);
+        });
+    }
 }
 
 TEST_CASE("payment fees", "[tx][payment]")
