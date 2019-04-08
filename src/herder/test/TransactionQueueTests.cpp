@@ -17,6 +17,13 @@ using namespace stellar::txtest;
 
 namespace
 {
+enum class TransactionState
+{
+    STATE_UNKNOWN,
+    STATE_PENDING,
+    STATE_BANNED
+};
+
 TransactionFramePtr
 transaction(Application& app, TestAccount& account, int sequenceDelta)
 {
@@ -36,7 +43,8 @@ invalidTransaction(Application& app, TestAccount& account, int sequenceDelta)
 class TransactionQueueTest
 {
   public:
-    explicit TransactionQueueTest(Application& app) : mTransactionQueue{app, 4}
+    explicit TransactionQueueTest(Application& app)
+        : mTransactionQueue{app, 4, 2}
     {
     }
 
@@ -115,7 +123,8 @@ class TransactionQueueTest
     }
 
     void
-    check(std::vector<TransactionFramePtr> const& expected = {})
+    check(std::vector<TransactionFramePtr> const& expected = {},
+          std::vector<TransactionFramePtr> const& banned = {})
     {
         auto txSet = mTransactionQueue.toTxSet({});
         auto expectedTxSet = TxSetFrame{{}};
@@ -125,6 +134,14 @@ class TransactionQueueTest
         }
 
         REQUIRE(txSet->sortForApply() == expectedTxSet.sortForApply());
+
+        REQUIRE(mTransactionQueue.countBanned(0) +
+                    mTransactionQueue.countBanned(1) ==
+                banned.size());
+        for (auto const& tx : banned)
+        {
+            REQUIRE(mTransactionQueue.isBanned(tx->getFullHash()));
+        }
     }
 
   private:
@@ -252,7 +269,7 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.check({txSeqA1T1, txSeqA1T2});
     }
 
-    SECTION("good sequence number, same twice with four shifts")
+    SECTION("good sequence number, same twice with four shifts, then two more")
     {
         TransactionQueueTest test{*app};
         test.add(txSeqA1T1, TransactionQueue::AddResult::STATUS_PENDING);
@@ -260,7 +277,13 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.shift();
         test.shift({txSeqA1T1});
-        test.check();
+        test.check({}, {txSeqA1T1});
+        test.add(txSeqA1T1,
+                 TransactionQueue::AddResult::STATUS_TRY_AGAIN_LATER);
+        test.check({}, {txSeqA1T1});
+        test.shift();
+        test.shift();
+        test.check({}, {});
         test.add(txSeqA1T1, TransactionQueue::AddResult::STATUS_PENDING);
         test.check({txSeqA1T1});
     }
@@ -273,9 +296,9 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.shift();
         test.shift({txSeqA1T1});
-        test.check();
+        test.check({}, {txSeqA1T1});
         test.add(txSeqA1T3, TransactionQueue::AddResult::STATUS_ERROR);
-        test.check();
+        test.check({}, {txSeqA1T1});
     }
 
     SECTION("good then small sequence number, with four shifts")
@@ -286,9 +309,9 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.shift();
         test.shift({txSeqA1T1});
-        test.check();
+        test.check({}, {txSeqA1T1});
         test.add(txSeqA1T0, TransactionQueue::AddResult::STATUS_ERROR);
-        test.check();
+        test.check({}, {txSeqA1T1});
     }
 
     SECTION("invalid transaction")
@@ -311,7 +334,7 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.shift();
         test.shift({txSeqA1T1, txSeqA1T2, txSeqA1T3, txSeqA1T4});
-        test.check();
+        test.check({}, {txSeqA1T1, txSeqA1T2, txSeqA1T3, txSeqA1T4});
     }
 
     SECTION("multiple good sequence numbers, with shifts between")
@@ -326,13 +349,13 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.add(txSeqA1T4, TransactionQueue::AddResult::STATUS_PENDING);
         test.check({txSeqA1T1, txSeqA1T2, txSeqA1T3, txSeqA1T4});
         test.shift({txSeqA1T1});
-        test.check({txSeqA1T2, txSeqA1T3, txSeqA1T4});
+        test.check({txSeqA1T2, txSeqA1T3, txSeqA1T4}, {txSeqA1T1});
         test.shift({txSeqA1T2});
-        test.check({txSeqA1T3, txSeqA1T4});
+        test.check({txSeqA1T3, txSeqA1T4}, {txSeqA1T1, txSeqA1T2});
         test.shift({txSeqA1T3});
-        test.check({txSeqA1T4});
+        test.check({txSeqA1T4}, {txSeqA1T2, txSeqA1T3});
         test.shift({txSeqA1T4});
-        test.check();
+        test.check({}, {txSeqA1T3, txSeqA1T4});
     }
 
     SECTION(
@@ -348,7 +371,7 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.shift();
         test.shift({txSeqA1T1, txSeqA2T1, txSeqA1T2, txSeqA2T2});
-        test.check();
+        test.check({}, {txSeqA1T1, txSeqA2T1, txSeqA1T2, txSeqA2T2});
     }
 
     SECTION("multiple good sequence numbers, different accounts, with shifts "
@@ -364,13 +387,13 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.add(txSeqA2T2, TransactionQueue::AddResult::STATUS_PENDING);
         test.check({txSeqA1T1, txSeqA2T1, txSeqA1T2, txSeqA2T2});
         test.shift({txSeqA1T1});
-        test.check({txSeqA2T1, txSeqA1T2, txSeqA2T2});
+        test.check({txSeqA2T1, txSeqA1T2, txSeqA2T2}, {txSeqA1T1});
         test.shift({txSeqA2T1});
-        test.check({txSeqA1T2, txSeqA2T2});
+        test.check({txSeqA1T2, txSeqA2T2}, {txSeqA1T1, txSeqA2T1});
         test.shift({txSeqA1T2});
-        test.check({txSeqA2T2});
+        test.check({txSeqA2T2}, {txSeqA2T1, txSeqA1T2});
         test.shift({txSeqA2T2});
-        test.check();
+        test.check({}, {txSeqA1T2, txSeqA2T2});
     }
 
     SECTION("multiple good sequence numbers, different accounts, with remove")
