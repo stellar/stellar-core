@@ -14,6 +14,7 @@
 #include <deque>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace medida
@@ -43,6 +44,7 @@ class TransactionQueue
         STATUS_PENDING = 0,
         STATUS_DUPLICATE,
         STATUS_ERROR,
+        STATUS_TRY_AGAIN_LATER,
         STATUS_COUNT
     };
 
@@ -55,7 +57,7 @@ class TransactionQueue
     };
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
-    explicit TransactionQueue(Application& app, int pendingDepth);
+    explicit TransactionQueue(Application& app, int pendingDepth, int banDepth);
 
     AddResult tryAdd(TransactionFramePtr tx);
     // it is responsibility of the caller to always remove such sets of
@@ -69,17 +71,20 @@ class TransactionQueue
     AccountTransactionsQueueState
     getAccountTransactionQueueState(AccountID const& accountID) const;
 
+    int countBanned(int index) const;
+    bool isBanned(Hash const& hash) const;
     std::shared_ptr<TxSetFrame> toTxSet(Hash const& lclHash) const;
 
   private:
     Application& mApp;
     std::vector<medida::Counter*> mSizeByAge;
     std::deque<AccountTxMap> mPendingTransactions;
+    std::deque<std::unordered_set<Hash>> mBannedTransactions;
 
     bool contains(TransactionFramePtr tx) const;
 };
 
 static const char* TX_STATUS_STRING[static_cast<int>(
     TransactionQueue::AddResult::STATUS_COUNT)] = {"PENDING", "DUPLICATE",
-                                                   "ERROR"};
+                                                   "ERROR", "TRY_AGAIN_LATER"};
 }

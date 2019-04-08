@@ -46,6 +46,16 @@ findOrAdd(TransactionQueue::AccountTxMap& acc, AccountID const& aid)
     return txmap;
 }
 
+bool
+TransactionQueue::isBanned(Hash const& hash) const
+{
+    return std::any_of(
+        std::begin(mBannedTransactions), std::end(mBannedTransactions),
+        [&](std::unordered_set<Hash> const& transactions) {
+            return transactions.find(hash) != std::end(transactions);
+        });
+}
+
 void
 TransactionQueue::TxMap::addTx(TransactionFramePtr tx)
 {
@@ -72,8 +82,11 @@ TransactionQueue::TxMap::recalculate()
     }
 }
 
-TransactionQueue::TransactionQueue(Application& app, int pendingDepth)
-    : mApp(app), mPendingTransactions(pendingDepth)
+TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
+                                   int banDepth)
+    : mApp(app)
+    , mPendingTransactions(pendingDepth)
+    , mBannedTransactions(banDepth)
 {
     for (auto i = 0; i < pendingDepth; i++)
     {
@@ -85,6 +98,11 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth)
 TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFramePtr tx)
 {
+    if (isBanned(tx->getFullHash()))
+    {
+        return TransactionQueue::AddResult::STATUS_TRY_AGAIN_LATER;
+    }
+
     if (contains(tx))
     {
         return TransactionQueue::AddResult::STATUS_DUPLICATE;
@@ -196,6 +214,18 @@ TransactionQueue::getAccountTransactionQueueState(
 void
 TransactionQueue::shift()
 {
+    mBannedTransactions.pop_back();
+    mBannedTransactions.emplace_front();
+
+    auto& bannedFront = mBannedTransactions.front();
+    for (auto const& map : mPendingTransactions.back())
+    {
+        for (auto const& toBan : map.second->mTransactions)
+        {
+            bannedFront.insert(toBan.first);
+        }
+    }
+
     mPendingTransactions.pop_back();
     mPendingTransactions.emplace_front();
 
@@ -203,6 +233,12 @@ TransactionQueue::shift()
     {
         mSizeByAge[i]->set_count(countTxs(mPendingTransactions[i]));
     }
+}
+
+int
+TransactionQueue::countBanned(int index) const
+{
+    return mBannedTransactions[index].size();
 }
 
 std::shared_ptr<TxSetFrame>

@@ -844,6 +844,9 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             root["detail"] =
                 xdr::xdr_to_string(txFrame->getResult().result.code());
             break;
+        case TransactionQueue::AddResult::STATUS_TRY_AGAIN_LATER:
+            root["status"] = "try_again_later";
+            break;
         default:
             assert(false);
         }

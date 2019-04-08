@@ -43,6 +43,7 @@ namespace stellar
 {
 
 constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
+constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -66,7 +67,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : mTransactionQueue(app, TRANSACTION_QUEUE_SIZE)
+    : mTransactionQueue(app, TRANSACTION_QUEUE_SIZE, TRANSACTION_QUEUE_BAN_SIZE)
     , mPendingEnvelopes(app, *this)
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
