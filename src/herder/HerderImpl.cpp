@@ -744,8 +744,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
-    std::vector<TransactionFramePtr> removed;
-    proposedSet->trimInvalid(mApp, removed);
+    auto removed = proposedSet->trimInvalid(mApp);
     removeReceivedTxs(removed);
 
     proposedSet->surgePricingFilter(mApp);

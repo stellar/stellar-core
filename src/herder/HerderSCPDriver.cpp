@@ -638,10 +638,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         comp.upgrades.emplace_back(v.begin(), v.end());
     }
 
-    std::vector<TransactionFramePtr> removed;
-
     // just to be sure
-    bestTxSet->trimInvalid(mApp, removed);
+    auto removed = bestTxSet->trimInvalid(mApp);
     comp.txSetHash = bestTxSet->getContentsHash();
 
     if (removed.size() != 0)

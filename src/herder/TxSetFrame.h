@@ -58,8 +58,10 @@ class TxSetFrame
     std::vector<TransactionFramePtr> sortForApply();
 
     bool checkValid(Application& app);
-    void trimInvalid(Application& app,
-                     std::vector<TransactionFramePtr>& trimmed);
+
+    // remove invalid transaction from this set and return those removed
+    // transactions
+    std::vector<TransactionFramePtr> trimInvalid(Application& app);
     void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFramePtr tx);
