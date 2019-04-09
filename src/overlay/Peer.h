@@ -57,6 +57,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         IGNORE_WRITE_QUEUE
     };
 
+    enum class DropDirection
+    {
+        REMOTE_DROPPED_US,
+        WE_DROPPED_REMOTE
+    };
+
     static medida::Meter& getByteReadMeter(Application& app);
     static medida::Meter& getByteWriteMeter(Application& app);
 
@@ -153,6 +159,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
+    void sendError(ErrorCode error, std::string const& message);
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -189,6 +196,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
+    void sendErrorAndDrop(ErrorCode error, std::string const& message,
+                          DropMode dropMode);
 
     void sendMessage(StellarMessage const& msg);
 
@@ -259,9 +268,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
-    virtual void drop(ErrorCode err, std::string const& msg, DropMode dropMode);
-
-    virtual void drop(DropMode dropMode) = 0;
+    virtual void drop(std::string const& reason, DropDirection dropDirection,
+                      DropMode dropMode) = 0;
     virtual ~Peer()
     {
     }

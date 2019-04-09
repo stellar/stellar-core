@@ -12,6 +12,7 @@
 #include "ledger/LedgerTxn.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/Logging.h"
 #include "xdrpp/printer.h"
 
@@ -217,11 +218,13 @@ InvariantManagerImpl::handleInvariantFailure(
     if (invariant->isStrict())
     {
         CLOG(FATAL, "Invariant") << message;
+        CLOG(FATAL, "Invariant") << REPORT_INTERNAL_BUG;
         throw InvariantDoesNotHold{message};
     }
     else
     {
         CLOG(ERROR, "Invariant") << message;
+        CLOG(ERROR, "Invariant") << REPORT_INTERNAL_BUG;
     }
 }
 }

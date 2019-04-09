@@ -45,7 +45,8 @@ class PeerStub : public Peer
         REQUIRE(false); // should not be called
         return {};
     }
-    virtual void drop(DropMode) override
+    virtual void
+    drop(std::string const&, DropDirection, DropMode) override
     {
     }
     virtual void

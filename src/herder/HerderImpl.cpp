@@ -17,6 +17,7 @@
 #include "lib/json/json.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
@@ -509,28 +510,17 @@ HerderImpl::processSCPQueue()
 void
 HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
-    try
+    while (true)
     {
-        while (true)
+        SCPEnvelope env;
+        if (mPendingEnvelopes.pop(slotIndex, env))
         {
-            SCPEnvelope env;
-            if (mPendingEnvelopes.pop(slotIndex, env))
-            {
-                getSCP().receiveEnvelope(env);
-            }
-            else
-            {
-                return;
-            }
+            getSCP().receiveEnvelope(env);
         }
-    }
-    catch (...)
-    {
-        auto s = getJsonInfo(20).toStyledString();
-        CLOG(FATAL, "Herder") << "Exception processing SCP messages at "
-                              << slotIndex << ", SCP context: " << s;
-
-        throw;
+        else
+        {
+            return;
+        }
     }
 }
 
@@ -787,6 +777,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                 << "HerderImpl::triggerNextLedger"
                 << " exceeded size for upgrade step (got " << v.size()
                 << " ) for upgrade type " << std::to_string(upgrade.type());
+            CLOG(ERROR, "Herder") << REPORT_INTERNAL_BUG;
         }
         else
         {

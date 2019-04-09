@@ -24,6 +24,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -461,6 +462,7 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
             CLOG(FATAL, "Ledger") << "Network consensus for ledger "
                                   << mLastClosedLedger.header.ledgerSeq
                                   << " changed; this should never happen";
+            CLOG(FATAL, "Ledger") << POSSIBLY_CORRUPTED_QUORUM_SET;
             throw std::runtime_error("Network consensus inconsistency");
         }
     }
@@ -769,6 +771,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     {
         CLOG(ERROR, "Ledger")
             << "Unknown ledger version: " << header.current().ledgerVersion;
+        CLOG(ERROR, "Ledger") << UPGRADE_STELLAR_CORE;
         throw std::runtime_error(
             fmt::format("cannot apply ledger with not supported version: {}",
                         header.current().ledgerVersion));
@@ -785,6 +788,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
         CLOG(ERROR, "Ledger")
             << "Full LCL: " << xdr::xdr_to_string(getLastClosedLedgerHeader());
+        CLOG(ERROR, "Ledger") << POSSIBLY_CORRUPTED_LOCAL_DATA;
 
         throw std::runtime_error("txset mismatch");
     }
@@ -792,6 +796,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     if (ledgerData.getTxSet()->getContentsHash() !=
         ledgerData.getValue().txSetHash)
     {
+        CLOG(ERROR, "Ledger")
+            << "Corrupt transaction set: TxSet hash is "
+            << ledgerData.getTxSet()->getContentsHash()
+            << ", SCP value reports " << ledgerData.getValue().txSetHash;
+        CLOG(ERROR, "Ledger") << POSSIBLY_CORRUPTED_QUORUM_SET;
+
         throw std::runtime_error("corrupt transaction set");
     }
 
@@ -830,6 +840,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         catch (xdr::xdr_runtime_error)
         {
             CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
+            CLOG(FATAL, "Ledger") << REPORT_INTERNAL_BUG;
             throw;
         }
 
@@ -942,6 +953,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
     {
         CLOG(FATAL, "Ledger")
             << "processFeesSeqNums error @ " << index << " : " << e.what();
+        CLOG(FATAL, "Ledger") << REPORT_INTERNAL_BUG;
         throw;
     }
 }

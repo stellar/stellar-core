@@ -187,7 +187,8 @@ ApplicationImpl::reportCfgMetrics()
 
     if (reportAvailableMetrics)
     {
-        LOG(INFO) << "Available metrics: ";
+        LOG(INFO) << "Update REPORT_METRICS value in configuration file to "
+                     "only include available metrics:";
         for (auto const& n : allMetrics)
         {
             LOG(INFO) << "    " << n;

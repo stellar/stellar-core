@@ -48,7 +48,8 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
     if (mRemote.expired())
     {
-        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("remote expired", Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
@@ -89,21 +90,14 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 }
 
 void
-LoopbackPeer::drop(ErrorCode err, std::string const& msg, DropMode mode)
-{
-    if (mState != CLOSING)
-    {
-        mDropReason = msg;
-    }
-    Peer::drop(err, msg, mode);
-}
-
-void LoopbackPeer::drop(DropMode)
+LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 {
     if (mState == CLOSING)
     {
         return;
     }
+
+    mDropReason = reason;
     mState = CLOSING;
     mIdleTimer.cancel();
     getApp().getOverlayManager().removePeer(this);
@@ -112,7 +106,14 @@ void LoopbackPeer::drop(DropMode)
     if (remote)
     {
         remote->getApp().postOnMainThread(
-            [remote]() { remote->drop(Peer::DropMode::IGNORE_WRITE_QUEUE); },
+            [remote, reason, direction]() {
+                remote->drop("remote dropping because of " + reason,
+                             direction == Peer::DropDirection::WE_DROPPED_REMOTE
+                                 ? Peer::DropDirection::REMOTE_DROPPED_US
+                                 : Peer::DropDirection::WE_DROPPED_REMOTE,
+                             Peer::DropMode::IGNORE_WRITE_QUEUE);
+
+            },
             "LoopbackPeer: drop");
     }
 }
@@ -438,7 +439,9 @@ LoopbackPeerConnection::~LoopbackPeerConnection()
 {
     // NB: Dropping the peer from one side will automatically drop the
     // other.
-    mInitiator->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+    mInitiator->drop("loopback destruction",
+                     Peer::DropDirection::WE_DROPPED_REMOTE,
+                     Peer::DropMode::IGNORE_WRITE_QUEUE);
 }
 
 std::shared_ptr<LoopbackPeer>

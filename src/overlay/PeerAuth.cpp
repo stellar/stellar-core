@@ -58,7 +58,7 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
 {
     if (cert.expiration < mApp.timeNow())
     {
-        CLOG(ERROR, "Overlay")
+        CLOG(DEBUG, "Overlay")
             << "PeerAuth cert expired: "
             << "expired= " << cert.expiration << ", now=" << mApp.timeNow();
         return false;

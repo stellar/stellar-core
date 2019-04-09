@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/Logging.h"
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -69,7 +70,12 @@ GetHistoryArchiveStateWork::onRun()
     }
     catch (std::runtime_error& e)
     {
-        CLOG(ERROR, "History") << "error loading history state: " << e.what();
+        CLOG(ERROR, "History") << "Error loading history state: " << e.what();
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+        CLOG(ERROR, "History") << "OR";
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+        CLOG(ERROR, "History") << "OR";
+        CLOG(ERROR, "History") << UPGRADE_STELLAR_CORE;
         scheduleFailure();
     }
 }
