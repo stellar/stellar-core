@@ -12,6 +12,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Math.h"
 #include <numeric>
 #include <random>
 #include <xdrpp/autocheck.h>
@@ -44,7 +45,7 @@ getCoinsAboveReserve(std::vector<LedgerEntry> const& entries, Application& app)
 
 std::vector<LedgerEntry>
 updateBalances(std::vector<LedgerEntry> entries, Application& app,
-               std::default_random_engine& gen, int64_t netChange)
+               int64_t netChange)
 {
     int64_t initialCoins = getTotalBalance(entries);
     int64_t pool = netChange + getCoinsAboveReserve(entries, app);
@@ -64,7 +65,7 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
             REQUIRE(maxIncrease >= maxDecrease);
             std::uniform_int_distribution<int64_t> dist(maxDecrease,
                                                         maxIncrease);
-            delta = dist(gen);
+            delta = dist(gRandomEngine);
         }
         else
         {
@@ -88,8 +89,7 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
 }
 
 std::vector<LedgerEntry>
-updateBalances(std::vector<LedgerEntry> const& entries, Application& app,
-               std::default_random_engine& gen)
+updateBalances(std::vector<LedgerEntry> const& entries, Application& app)
 {
     int64_t coinsAboveReserve = getCoinsAboveReserve(entries, app);
 
@@ -101,14 +101,13 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app,
 
     std::uniform_int_distribution<int64_t> dist(totalCoins - coinsAboveReserve,
                                                 INT64_MAX);
-    int64_t newTotalCoins = dist(gen);
-    return updateBalances(entries, app, gen, newTotalCoins - totalCoins);
+    int64_t newTotalCoins = dist(gRandomEngine);
+    return updateBalances(entries, app, newTotalCoins - totalCoins);
 }
 
 TEST_CASE("Total coins change without inflation",
           "[invariant][conservationoflumens]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
@@ -118,7 +117,7 @@ TEST_CASE("Total coins change without inflation",
     Application::pointer app = createTestApplication(clock, cfg);
 
     LedgerTxn ltx(app->getLedgerTxnRoot());
-    ltx.loadHeader().current().totalCoins = dist(gen);
+    ltx.loadHeader().current().totalCoins = dist(gRandomEngine);
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
                           {}, res, ltx.getDelta()),
@@ -128,7 +127,6 @@ TEST_CASE("Total coins change without inflation",
 TEST_CASE("Fee pool change without inflation",
           "[invariant][conservationoflumens]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
@@ -138,7 +136,7 @@ TEST_CASE("Fee pool change without inflation",
     Application::pointer app = createTestApplication(clock, cfg);
 
     LedgerTxn ltx(app->getLedgerTxnRoot());
-    ltx.loadHeader().current().feePool = dist(gen);
+    ltx.loadHeader().current().feePool = dist(gRandomEngine);
     OperationResult res;
     REQUIRE_THROWS_AS(app->getInvariantManager().checkOnOperationApply(
                           {}, res, ltx.getDelta()),
@@ -148,7 +146,6 @@ TEST_CASE("Fee pool change without inflation",
 TEST_CASE("Account balances changed without inflation",
           "[invariant][conservationoflumens]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
@@ -161,13 +158,13 @@ TEST_CASE("Account balances changed without inflation",
         std::vector<LedgerEntry> entries1;
         std::generate_n(std::back_inserter(entries1), N,
                         std::bind(generateRandomAccount, 2));
-        entries1 = updateBalances(entries1, *app, gen);
+        entries1 = updateBalances(entries1, *app);
         {
             auto updates = makeUpdateList(entries1, nullptr);
             REQUIRE(!store(*app, updates));
         }
 
-        auto entries2 = updateBalances(entries1, *app, gen);
+        auto entries2 = updateBalances(entries1, *app);
         {
             auto updates = makeUpdateList(entries2, entries1);
             REQUIRE(!store(*app, updates));
@@ -183,7 +180,6 @@ TEST_CASE("Account balances changed without inflation",
 TEST_CASE("Account balances unchanged without inflation",
           "[invariant][conservationoflumens]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
 
@@ -196,13 +192,13 @@ TEST_CASE("Account balances unchanged without inflation",
         std::vector<LedgerEntry> entries1;
         std::generate_n(std::back_inserter(entries1), N,
                         std::bind(generateRandomAccount, 2));
-        entries1 = updateBalances(entries1, *app, gen);
+        entries1 = updateBalances(entries1, *app);
         {
             auto updates = makeUpdateList(entries1, nullptr);
             REQUIRE(!store(*app, updates));
         }
 
-        auto entries2 = updateBalances(entries1, *app, gen, 0);
+        auto entries2 = updateBalances(entries1, *app, 0);
         {
             auto updates = makeUpdateList(entries2, entries1);
             REQUIRE(store(*app, updates));
@@ -212,7 +208,7 @@ TEST_CASE("Account balances unchanged without inflation",
         std::vector<LedgerEntry> entries3(entries2.begin(), keepEnd);
         std::vector<LedgerEntry> toDelete(keepEnd, entries2.end());
         int64_t balanceToDelete = getTotalBalance(toDelete);
-        auto entries4 = updateBalances(entries3, *app, gen, balanceToDelete);
+        auto entries4 = updateBalances(entries3, *app, balanceToDelete);
         {
             auto updates = makeUpdateList(entries4, entries3);
             auto updates2 = makeUpdateList(nullptr, toDelete);
@@ -225,7 +221,6 @@ TEST_CASE("Account balances unchanged without inflation",
 TEST_CASE("Inflation changes are consistent",
           "[invariant][conservationoflumens]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"ConservationOfLumens"};
     std::uniform_int_distribution<uint32_t> payoutsDist(1, 100);
@@ -240,7 +235,7 @@ TEST_CASE("Inflation changes are consistent",
         std::vector<LedgerEntry> entries1;
         std::generate_n(std::back_inserter(entries1), N,
                         std::bind(generateRandomAccount, 2));
-        entries1 = updateBalances(entries1, *app, gen);
+        entries1 = updateBalances(entries1, *app);
         {
             auto updates = makeUpdateList(entries1, nullptr);
             REQUIRE(!store(*app, updates));
@@ -251,17 +246,17 @@ TEST_CASE("Inflation changes are consistent",
         opRes.tr().inflationResult().code(INFLATION_SUCCESS);
         int64_t inflationAmount = 0;
         auto& payouts = opRes.tr().inflationResult().payouts();
-        std::generate_n(std::back_inserter(payouts), payoutsDist(gen),
-                        [&gen, &amountDist, &inflationAmount]() {
+        std::generate_n(std::back_inserter(payouts), payoutsDist(gRandomEngine),
+                        [&amountDist, &inflationAmount]() {
                             InflationPayout ip;
-                            ip.amount = amountDist(gen);
+                            ip.amount = amountDist(gRandomEngine);
                             inflationAmount += ip.amount;
                             return ip;
                         });
 
         std::uniform_int_distribution<int64_t> deltaFeePoolDist(
             0, 2 * inflationAmount);
-        auto deltaFeePool = deltaFeePoolDist(gen);
+        auto deltaFeePool = deltaFeePoolDist(gRandomEngine);
 
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -281,7 +276,7 @@ TEST_CASE("Inflation changes are consistent",
                               InvariantDoesNotHold);
         }
 
-        auto entries2 = updateBalances(entries1, *app, gen, inflationAmount);
+        auto entries2 = updateBalances(entries1, *app, inflationAmount);
         {
             LedgerTxn ltx(app->getLedgerTxnRoot());
             ltx.loadHeader().current().feePool += deltaFeePool;

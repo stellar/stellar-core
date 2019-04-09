@@ -66,7 +66,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             for (int i = 0; i < nbTx; i++)
             {
                 sources.emplace_back(
-                    TestAccount{*app0, SecretKey::random(), 0});
+                    TestAccount{*app0, SecretKey::pseudoRandomForTesting(), 0});
                 gen.data.account().accountID = sources.back();
 
                 // need to create on all nodes
@@ -133,7 +133,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
         auto injectTransaction = [&](int i) {
             const int64 txAmount = 10000000;
 
-            SecretKey dest = SecretKey::random();
+            SecretKey dest = SecretKey::pseudoRandomForTesting();
 
             // round robin
             auto inApp = nodes[i % nodes.size()];
@@ -210,7 +210,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
         std::unordered_map<PublicKey, SecretKey> keysMap;
         for (int i = 0; i < nbTx; i++)
         {
-            keys.emplace_back(SecretKey::random());
+            keys.emplace_back(SecretKey::pseudoRandomForTesting());
             auto& k = keys.back();
             keysMap.insert(std::make_pair(k.getPublicKey(), k));
         }
@@ -218,7 +218,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
         auto injectSCP = [&](int i) {
             const int64 txAmount = 10000000;
 
-            SecretKey dest = SecretKey::random();
+            SecretKey dest = SecretKey::pseudoRandomForTesting();
 
             // round robin
             auto inApp = nodes[i % nodes.size()];

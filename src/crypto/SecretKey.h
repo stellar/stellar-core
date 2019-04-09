@@ -58,6 +58,19 @@ class SecretKey
     // Create a new, random secret key.
     static SecretKey random();
 
+#ifdef BUILD_TESTS
+    // Create a new, pseudo-random secret key drawn from the global weak
+    // non-cryptographic PRNG (which itself is seeded from command-line or
+    // deterministically). Do not under any circumstances use this for non-test
+    // key generation.
+    static SecretKey pseudoRandomForTesting();
+
+    // Same as above, but use a function-local PRNG seeded from the
+    // provided number. Again: do not under any circumstances use this
+    // for non-test key generation
+    static SecretKey pseudoRandomForTestingFromSeed(unsigned int seed);
+#endif
+
     // Decode a secret key from a provided StrKey seed value.
     static SecretKey fromStrKeySeed(std::string const& strKeySeed);
     static SecretKey

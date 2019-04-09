@@ -14,6 +14,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Math.h"
 #include <random>
 
 using namespace stellar;
@@ -21,7 +22,6 @@ using namespace stellar::InvariantTestUtils;
 
 LedgerEntry
 updateAccountWithRandomBalance(LedgerEntry le, Application& app,
-                               std::default_random_engine& gen,
                                bool exceedsMinimum, int32_t direction)
 {
     auto& account = le.data.account();
@@ -50,14 +50,13 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
     REQUIRE(lbound <= ubound);
 
     std::uniform_int_distribution<int64_t> dist(lbound, ubound);
-    account.balance = dist(gen);
+    account.balance = dist(gRandomEngine);
     return le;
 }
 
 TEST_CASE("Create account above minimum balance",
           "[invariant][liabilitiesmatchoffers]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
 
@@ -67,7 +66,7 @@ TEST_CASE("Create account above minimum balance",
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto le = generateRandomAccount(2);
-        le = updateAccountWithRandomBalance(le, *app, gen, true, 0);
+        le = updateAccountWithRandomBalance(le, *app, true, 0);
         REQUIRE(store(*app, makeUpdateList({le}, nullptr)));
     }
 }
@@ -75,7 +74,6 @@ TEST_CASE("Create account above minimum balance",
 TEST_CASE("Create account below minimum balance",
           "[invariant][liabilitiesmatchoffers]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
 
@@ -85,7 +83,7 @@ TEST_CASE("Create account below minimum balance",
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto le = generateRandomAccount(2);
-        le = updateAccountWithRandomBalance(le, *app, gen, false, 0);
+        le = updateAccountWithRandomBalance(le, *app, false, 0);
         REQUIRE(!store(*app, makeUpdateList({le}, nullptr)));
     }
 }
@@ -93,7 +91,6 @@ TEST_CASE("Create account below minimum balance",
 TEST_CASE("Create account then decrease balance below minimum",
           "[invariant][liabilitiesmatchoffers]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
 
@@ -103,9 +100,9 @@ TEST_CASE("Create account then decrease balance below minimum",
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto le1 = generateRandomAccount(2);
-        le1 = updateAccountWithRandomBalance(le1, *app, gen, true, 0);
+        le1 = updateAccountWithRandomBalance(le1, *app, true, 0);
         REQUIRE(store(*app, makeUpdateList({le1}, nullptr)));
-        auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
+        auto le2 = updateAccountWithRandomBalance(le1, *app, false, 0);
         REQUIRE(!store(*app, makeUpdateList({le2}, {le1})));
     }
 }
@@ -113,7 +110,6 @@ TEST_CASE("Create account then decrease balance below minimum",
 TEST_CASE("Account below minimum balance increases but stays below minimum",
           "[invariant][liabilitiesmatchoffers]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
 
@@ -123,9 +119,9 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto le1 = generateRandomAccount(2);
-        le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
+        le1 = updateAccountWithRandomBalance(le1, *app, false, 0);
         REQUIRE(!store(*app, makeUpdateList({le1}, nullptr)));
-        auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 1);
+        auto le2 = updateAccountWithRandomBalance(le1, *app, false, 1);
         REQUIRE(store(*app, makeUpdateList({le2}, {le1})));
     }
 }
@@ -133,7 +129,6 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
 TEST_CASE("Account below minimum balance decreases",
           "[invariant][liabilitiesmatchoffers]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
 
@@ -143,9 +138,9 @@ TEST_CASE("Account below minimum balance decreases",
         Application::pointer app = createTestApplication(clock, cfg);
 
         auto le1 = generateRandomAccount(2);
-        le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
+        le1 = updateAccountWithRandomBalance(le1, *app, false, 0);
         REQUIRE(!store(*app, makeUpdateList({le1}, nullptr)));
-        auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, -1);
+        auto le2 = updateAccountWithRandomBalance(le1, *app, false, -1);
         REQUIRE(!store(*app, makeUpdateList({le2}, {le1})));
     }
 }
@@ -279,7 +274,6 @@ generateBuyingLiabilities(LedgerEntry offer, bool excess, bool authorized)
 
 TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
 {
-    std::default_random_engine gen;
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
 

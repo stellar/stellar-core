@@ -16,6 +16,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Math.h"
 #include "work/WorkManager.h"
 #include <random>
 #include <unordered_set>
@@ -29,16 +30,14 @@ namespace BucketListIsConsistentWithDatabaseTests
 struct BucketListGenerator
 {
     VirtualClock mClock;
-    std::shared_ptr<std::default_random_engine> mGen;
     Application::pointer mAppGenerate;
     Application::pointer mAppApply;
     uint32_t mLedgerSeq;
     std::unordered_set<LedgerKey> mLiveKeys;
 
   public:
-    BucketListGenerator(std::shared_ptr<std::default_random_engine> const& gen)
-        : mGen(gen)
-        , mAppGenerate(createTestApplication(mClock, getTestConfig(0)))
+    BucketListGenerator()
+        : mAppGenerate(createTestApplication(mClock, getTestConfig(0)))
         , mAppApply(createTestApplication(mClock, getTestConfig(1)))
         , mLedgerSeq(1)
     {
@@ -49,11 +48,6 @@ struct BucketListGenerator
 
         LedgerTxn ltx(mAppGenerate->getLedgerTxnRoot(), false);
         REQUIRE(mLedgerSeq == ltx.loadHeader().current().ledgerSeq);
-    }
-
-    BucketListGenerator()
-        : BucketListGenerator(std::make_shared<std::default_random_engine>())
-    {
     }
 
     template <typename T = ApplyBucketsWork, typename... Args>
@@ -141,7 +135,7 @@ struct BucketListGenerator
         {
             auto dist =
                 std::uniform_int_distribution<size_t>(0, live.size() - 1);
-            auto index = dist(*mGen);
+            auto index = dist(gRandomEngine);
             auto iter = live.begin();
             std::advance(iter, index);
             dead.push_back(*iter);
@@ -243,7 +237,7 @@ struct SelectBucketListGenerator : public BucketListGenerator
                 std::uniform_int_distribution<size_t> dist(
                     0, filteredKeys.size() - 1);
                 auto iter = filteredKeys.begin();
-                std::advance(iter, dist(*mGen));
+                std::advance(iter, dist(gRandomEngine));
 
                 mSelected = std::make_shared<LedgerEntry>(
                     ltx.loadWithoutRecord(*iter).current());
@@ -518,11 +512,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
         uint32_t const mTargetLedger;
         bool mModifiedRoot;
 
-        TestRootBucketListGenerator(
-            std::shared_ptr<std::default_random_engine> const& gen)
-            : BucketListGenerator(gen)
-            , mTargetLedger(
-                  std::uniform_int_distribution<uint32_t>(2, 100)(*mGen))
+        TestRootBucketListGenerator()
+            : mTargetLedger(std::uniform_int_distribution<uint32_t>(2, 100)(
+                  gRandomEngine))
             , mModifiedRoot(false)
         {
         }
@@ -554,10 +546,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
         }
     };
 
-    auto gen = std::make_shared<std::default_random_engine>();
     for (size_t j = 0; j < 5; ++j)
     {
-        TestRootBucketListGenerator blg(gen);
+        TestRootBucketListGenerator blg;
         blg.generateLedgers(100);
         REQUIRE(blg.mModifiedRoot);
         REQUIRE_NOTHROW(blg.applyBuckets());
@@ -575,7 +566,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
         std::uniform_int_distribution<uint32_t> addAtLedgerDist(2,
                                                                 blg.mLedgerSeq);
         auto le = LedgerTestUtils::generateValidLedgerEntry(5);
-        le.lastModifiedLedgerSeq = addAtLedgerDist(*blg.mGen);
+        le.lastModifiedLedgerSeq = addAtLedgerDist(gRandomEngine);
 
         REQUIRE_THROWS_AS(blg.applyBuckets<ApplyBucketsWorkAddEntry>(le),
                           InvariantDoesNotHold);
@@ -635,11 +626,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
         uint32_t const mChangeLedgerTo;
         uint32_t mModifiedLedger;
 
-        LastModifiedBucketListGenerator(
-            std::shared_ptr<std::default_random_engine> gen,
-            uint32_t targetLedger, uint32_t changeLedgerTo)
-            : BucketListGenerator(gen)
-            , mTargetLedger(targetLedger)
+        LastModifiedBucketListGenerator(uint32_t targetLedger,
+                                        uint32_t changeLedgerTo)
+            : mTargetLedger(targetLedger)
             , mChangeLedgerTo(changeLedgerTo)
             , mModifiedLedger(false)
         {
@@ -661,7 +650,6 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
         }
     };
 
-    auto gen = std::make_shared<std::default_random_engine>();
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
         uint32_t oldestLedger = BucketList::oldestLedgerInSnap(101, level);
@@ -676,7 +664,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
 
         for (uint32_t i = 0; i < 10; ++i)
         {
-            uint32_t ledgerToModify = ledgerToModifyDist(*gen);
+            uint32_t ledgerToModify = ledgerToModifyDist(gRandomEngine);
             uint32_t maxLowTargetLedger = 0;
             uint32_t minHighTargetLedger = 0;
             if (ledgerToModify >= BucketList::oldestLedgerInCurr(101, level))
@@ -699,12 +687,11 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
             std::uniform_int_distribution<uint32_t> highTargetLedgerDist(
                 minHighTargetLedger, std::numeric_limits<int32_t>::max());
 
-            uint32_t lowTarget = lowTargetLedgerDist(*gen);
-            uint32_t highTarget = highTargetLedgerDist(*gen);
+            uint32_t lowTarget = lowTargetLedgerDist(gRandomEngine);
+            uint32_t highTarget = highTargetLedgerDist(gRandomEngine);
             for (auto target : {lowTarget, highTarget})
             {
-                LastModifiedBucketListGenerator blg(gen, ledgerToModify,
-                                                    target);
+                LastModifiedBucketListGenerator blg(ledgerToModify, target);
                 blg.generateLedgers(100);
                 REQUIRE_THROWS_AS(blg.applyBuckets(), InvariantDoesNotHold);
             }

@@ -196,9 +196,6 @@ class CatchupSimulation
     Application& mApp;
     BucketList mBucketListAtLastPublish;
 
-    std::default_random_engine mGenerator;
-    std::bernoulli_distribution mFlip{0.5};
-
     std::vector<LedgerCloseData> mLedgerCloseDatas;
 
     std::vector<uint32_t> mLedgerSeqs;
@@ -267,12 +264,6 @@ class CatchupSimulation
     void crankUntil(Application::pointer app,
                     std::function<bool()> const& predicate,
                     VirtualClock::duration duration);
-
-    bool
-    flip()
-    {
-        return mFlip(mGenerator);
-    }
 };
 }
 }

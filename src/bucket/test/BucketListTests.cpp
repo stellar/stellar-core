@@ -21,6 +21,7 @@
 #include "main/Config.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Math.h"
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
 
@@ -453,13 +454,12 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
 TEST_CASE("BucketList sizeOf and oldestLedgerIn relations",
           "[bucket][bucketlist][count]")
 {
-    std::default_random_engine gen;
     std::uniform_int_distribution<uint32_t> dist;
     for (uint32_t i = 0; i < 1000; ++i)
     {
         for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
         {
-            uint32_t ledger = dist(gen);
+            uint32_t ledger = dist(gRandomEngine);
             if (BucketList::sizeOfSnap(ledger, level) > 0)
             {
                 uint32_t oldestInCurr =
@@ -485,7 +485,6 @@ TEST_CASE("BucketList sizeOf and oldestLedgerIn relations",
 
 TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
 {
-    std::default_random_engine gen;
     // Deliberately exclude deepest level since snap on the deepest level
     // is always empty.
     for (uint32_t level = 0; level < BucketList::kNumLevels - 1; ++level)
@@ -507,8 +506,8 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
         std::uniform_int_distribution<uint32_t> distHigh(boundary);
         for (uint32_t i = 0; i < 1000; ++i)
         {
-            uint32_t low = distLow(gen);
-            uint32_t high = distHigh(gen);
+            uint32_t low = distLow(gRandomEngine);
+            uint32_t high = distHigh(gRandomEngine);
             REQUIRE(BucketList::sizeOfSnap(low, level) < half);
             REQUIRE(BucketList::sizeOfSnap(high, level) == half);
         }
@@ -517,7 +516,6 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][bucketlist][count]")
 
 TEST_CASE("BucketList deepest curr accumulates", "[bucket][bucketlist][count]")
 {
-    std::default_random_engine gen;
     uint32_t const deepest = BucketList::kNumLevels - 1;
     // Use binary search to find the first ledger where the deepest curr
     // first is non-empty.
@@ -530,8 +528,8 @@ TEST_CASE("BucketList deepest curr accumulates", "[bucket][bucketlist][count]")
     std::uniform_int_distribution<uint32_t> distHigh(boundary);
     for (uint32_t i = 0; i < 1000; ++i)
     {
-        uint32_t low = distLow(gen);
-        uint32_t high = distHigh(gen);
+        uint32_t low = distLow(gRandomEngine);
+        uint32_t high = distHigh(gRandomEngine);
         REQUIRE(BucketList::sizeOfCurr(low, deepest) == 0);
         REQUIRE(BucketList::oldestLedgerInCurr(low, deepest) ==
                 std::numeric_limits<uint32_t>::max());

@@ -185,7 +185,7 @@ LoopbackPeer::deliverOne()
         // CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
 
         // Possibly duplicate the message and requeue it at the front.
-        if (mDuplicateProb(mGenerator))
+        if (mDuplicateProb(gRandomEngine))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer duplicated message";
             mOutQueue.emplace_front(duplicateMessage(msg));
@@ -193,7 +193,7 @@ LoopbackPeer::deliverOne()
         }
 
         // Possibly requeue it at the back and return, reordering.
-        if (mReorderProb(mGenerator) && mOutQueue.size() > 0)
+        if (mReorderProb(gRandomEngine) && mOutQueue.size() > 0)
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer reordered message";
             mStats.messagesReordered++;
@@ -202,15 +202,15 @@ LoopbackPeer::deliverOne()
         }
 
         // Possibly flip some bits in the message.
-        if (mDamageProb(mGenerator))
+        if (mDamageProb(gRandomEngine))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer damaged message";
-            if (damageMessage(mGenerator, msg))
+            if (damageMessage(gRandomEngine, msg))
                 mStats.messagesDamaged++;
         }
 
         // Possibly just drop the message on the floor.
-        if (mDropProb(mGenerator))
+        if (mDropProb(gRandomEngine))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer dropped message";
             mStats.messagesDropped++;

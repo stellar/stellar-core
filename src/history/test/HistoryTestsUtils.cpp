@@ -18,6 +18,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/Math.h"
 #include "util/XDROperators.h"
 #include "work/WorkManager.h"
 
@@ -452,19 +453,19 @@ CatchupSimulation::generateRandomLedger()
     // They all randomly send a little to one another every ledger after #4
     if (ledgerSeq > 4)
     {
-        if (flip())
+        if (rand_flip())
             txSet->add(alice.tx({payment(bob, small)}));
-        if (flip())
+        if (rand_flip())
             txSet->add(alice.tx({payment(carol, small)}));
 
-        if (flip())
+        if (rand_flip())
             txSet->add(bob.tx({payment(alice, small)}));
-        if (flip())
+        if (rand_flip())
             txSet->add(bob.tx({payment(carol, small)}));
 
-        if (flip())
+        if (rand_flip())
             txSet->add(carol.tx({payment(alice, small)}));
-        if (flip())
+        if (rand_flip())
             txSet->add(carol.tx({payment(bob, small)}));
     }
 

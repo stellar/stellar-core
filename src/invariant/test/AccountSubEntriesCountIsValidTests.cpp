@@ -13,6 +13,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Math.h"
 #include <random>
 #include <xdrpp/autocheck.h>
 
@@ -168,8 +169,7 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
 
 static void
 modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
-                                std::vector<LedgerEntry>& subentries,
-                                std::default_random_engine& gen)
+                                std::vector<LedgerEntry>& subentries)
 {
     auto lePrev = le;
     auto& acc = le.data.account();
@@ -187,14 +187,14 @@ modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
-        acc.signers.at(dist(gen)) = validSignerGenerator();
+        acc.signers.at(dist(gRandomEngine)) = validSignerGenerator();
         updateAccountSubEntries(app, le, lePrev, 0, {});
     }
     else
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
-        auto index = dist(gen);
+        auto index = dist(gRandomEngine);
         auto se = subentries.at(index);
         auto se2 = generateRandomModifiedSubEntry(le, se);
         subentries.at(index) = se2;
@@ -205,8 +205,7 @@ modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
 
 static void
 deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
-                                std::vector<LedgerEntry>& subentries,
-                                std::default_random_engine& gen)
+                                std::vector<LedgerEntry>& subentries)
 {
     auto lePrev = le;
     auto& acc = le.data.account();
@@ -224,14 +223,14 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
-        acc.signers.erase(acc.signers.begin() + dist(gen));
+        acc.signers.erase(acc.signers.begin() + dist(gRandomEngine));
         updateAccountSubEntries(app, le, lePrev, -1, {});
     }
     else
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(subentries.size()) - 1);
-        auto index = dist(gen);
+        auto index = dist(gRandomEngine);
         auto se = subentries.at(index);
         subentries.erase(subentries.begin() + index);
         updateAccountSubEntries(app, le, lePrev, -1,
@@ -258,7 +257,6 @@ TEST_CASE("Create account with no subentries",
 TEST_CASE("Create account then add signers and subentries",
           "[invariant][accountsubentriescount]")
 {
-    std::default_random_engine gen;
     std::uniform_int_distribution<int32_t> changesDist(-1, 2);
     Config cfg = getTestConfig(0);
     cfg.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid"};
@@ -274,18 +272,18 @@ TEST_CASE("Create account then add signers and subentries",
         std::vector<LedgerEntry> subentries;
         for (uint32_t j = 0; j < 50; ++j)
         {
-            auto change = changesDist(gen);
+            auto change = changesDist(gRandomEngine);
             if (change > 0 || le.data.account().numSubEntries == 0)
             {
                 addRandomSubEntryToAccount(*app, le, subentries);
             }
             else if (change == 0)
             {
-                modifyRandomSubEntryFromAccount(*app, le, subentries, gen);
+                modifyRandomSubEntryFromAccount(*app, le, subentries);
             }
             else if (change < 0)
             {
-                deleteRandomSubEntryFromAccount(*app, le, subentries, gen);
+                deleteRandomSubEntryFromAccount(*app, le, subentries);
             }
         }
 

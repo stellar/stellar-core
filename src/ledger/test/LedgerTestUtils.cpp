@@ -224,9 +224,8 @@ makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
             }
         }
         // On a coin flip, corrupt header content rather than previous link
-        autocheck::generator<bool> flip;
         if (i == randomIndex &&
-            state == HistoryManager::VERIFY_STATUS_ERR_BAD_HASH && flip())
+            state == HistoryManager::VERIFY_STATUS_ERR_BAD_HASH && rand_flip())
         {
             lh.hash = HashUtils::random();
         }

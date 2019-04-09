@@ -11,6 +11,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include <random>
@@ -252,7 +253,6 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
     VirtualClock clock;
-    std::default_random_engine gen;
     std::uniform_int_distribution<uint64_t> dist;
 
     try
@@ -275,7 +275,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
                 soci::transaction sqltx(session);
                 for (int64_t j = 0; j < sz; ++j)
                 {
-                    int64_t r = dist(gen);
+                    int64_t r = dist(gRandomEngine);
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(j);
                 }
@@ -294,7 +294,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
                 soci::transaction subtx(session);
                 for (int64_t k = 0; k < div; ++k)
                 {
-                    int64_t r = dist(gen);
+                    int64_t r = dist(gRandomEngine);
                     pk++;
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(k);
