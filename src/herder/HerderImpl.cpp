@@ -349,7 +349,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
-        if (!tx->checkValid(mApp, ltx, highSeq))
+        if (!tx->checkValid(ltx, highSeq))
         {
             return TX_STATUS_ERROR;
         }
