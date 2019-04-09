@@ -80,7 +80,14 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
         auto destination = stellar::loadAccount(ltx, mPathPayment.destination);
         if (!addBalance(ltx.loadHeader(), destination, curBReceived))
         {
-            innerResult().code(PATH_PAYMENT_MALFORMED);
+            if (ltx.loadHeader().current().ledgerVersion >= 11)
+            {
+                innerResult().code(PATH_PAYMENT_LINE_FULL);
+            }
+            else
+            {
+                innerResult().code(PATH_PAYMENT_MALFORMED);
+            }
             return false;
         }
     }

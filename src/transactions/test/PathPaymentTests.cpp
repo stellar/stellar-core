@@ -262,10 +262,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("dest amount too big for XLM")
     {
         auto a = root.create("a", minBalance1);
-        for_all_versions(*app, [&] {
+        for_versions_to(10, *app, [&] {
             REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
                                        std::numeric_limits<int64_t>::max(), {}),
                               ex_PATH_PAYMENT_MALFORMED);
+        });
+        for_versions_from(11, *app, [&] {
+            REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
+                                       std::numeric_limits<int64_t>::max(), {}),
+                              ex_PATH_PAYMENT_LINE_FULL);
         });
     }
 
