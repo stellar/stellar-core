@@ -20,8 +20,6 @@
 #include "transactions/TransactionUtils.h"
 #include "xdrpp/autocheck.h"
 
-#include "util/Logging.h"
-
 using namespace stellar;
 using namespace stellar::txtest;
 
@@ -350,44 +348,93 @@ TEST_CASE("manage buy offer liabilities", "[tx][offers]")
         {
             SECTION("with no rounding")
             {
-                checkLiabilities("sell two for five", 20, Price{5, 2}, 20, 8);
-                checkLiabilities("sell one for two", 20, Price{2, 1}, 20, 10);
-                checkLiabilities("sell one for one", 20, Price{1, 1}, 20, 20);
-                checkLiabilities("sell two for one", 20, Price{1, 2}, 20, 40);
-                checkLiabilities("sell five for two", 20, Price{2, 5}, 20, 50);
+                checkLiabilities("buy five for two", 20, Price{2, 5}, 20, 8);
+                checkLiabilities("buy two for one", 20, Price{1, 2}, 20, 10);
+                checkLiabilities("buy one for one", 20, Price{1, 1}, 20, 20);
+                checkLiabilities("buy one for two", 20, Price{2, 1}, 20, 40);
+                checkLiabilities("buy two for five", 20, Price{5, 2}, 20, 50);
             }
 
             SECTION("with rounding")
             {
-                checkLiabilities("sell two for five", 21, Price{5, 2}, 20, 8);
-                checkLiabilities("sell one for two", 21, Price{2, 1}, 20, 10);
-                checkLiabilities("sell two for one", 21, Price{1, 2}, 21, 42);
-                checkLiabilities("sell five for two", 21, Price{2, 5}, 21, 53);
+                checkLiabilities("buy five for two", 21, Price{2, 5}, 20, 8);
+                checkLiabilities("buy two for one", 21, Price{1, 2}, 20, 10);
+                checkLiabilities("buy one for one", 21, Price{2, 1}, 21, 42);
+                checkLiabilities("buy two for five", 21, Price{5, 2}, 21, 53);
             }
         }
 
-        // Note: This can only happen with price.d >= price.n
+        // Note: This can only happen with price.n >= price.d
         SECTION("sheep stays")
         {
             SECTION("with no rounding")
             {
-                checkLiabilities("sell one for one", INT64_MAX, Price{1, 1},
+                checkLiabilities("buy one for one", INT64_MAX, Price{1, 1},
                                  INT64_MAX, INT64_MAX);
             }
 
             SECTION("with rounding")
             {
-                checkLiabilities("sell two for one", INT64_MAX, Price{1, 2},
+                checkLiabilities("buy one for two", INT64_MAX, Price{2, 1},
                                  bigDivide((uint128_t)INT64_MAX, 2, ROUND_DOWN),
                                  INT64_MAX - 1);
-                checkLiabilities("sell five for two", INT64_MAX, Price{2, 5},
+                checkLiabilities("buy two for five", INT64_MAX, Price{5, 2},
                                  bigDivide(INT64_MAX, 2, 5, ROUND_DOWN),
                                  INT64_MAX - 2);
             }
         }
 
-        checkLiabilities("zero liabilities", 1, Price{2, 1}, 0, 0);
+        checkLiabilities("zero liabilities", 1, Price{1, 2}, 0, 0);
     });
+}
+
+TEST_CASE("manage buy offer exactly crosses existing offers", "[tx][offers]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    int64_t const txfee = app->getLedgerManager().getLastTxFee();
+    int64_t const minBalancePlusFees =
+        app->getLedgerManager().getLastMinBalance(0) + 100 * txfee;
+    int64_t const minBalance3PlusFees =
+        app->getLedgerManager().getLastMinBalance(3) + 100 * txfee;
+
+    auto root = TestAccount::createRoot(*app);
+    auto issuer = root.create("issuer", minBalancePlusFees);
+    auto a1 = root.create("a1", minBalance3PlusFees);
+    auto a2 = root.create("a2", minBalance3PlusFees);
+
+    auto native = makeNativeAsset();
+    auto cur1 = issuer.asset("CUR1");
+    auto cur2 = issuer.asset("CUR2");
+
+    a1.changeTrust(cur1, INT64_MAX);
+    issuer.pay(a1, cur1, INT64_MAX);
+    a1.changeTrust(cur2, INT64_MAX);
+
+    a2.changeTrust(cur1, INT64_MAX);
+    a2.changeTrust(cur2, INT64_MAX);
+    issuer.pay(a2, cur2, INT64_MAX);
+
+    auto doTest = [&](std::string const& section, Price const& price,
+                      int64_t amount) {
+        SECTION(section)
+        {
+            auto offerID = a1.manageOffer(0, cur1, cur2, price, amount);
+            a2.manageBuyOffer(0, cur2, cur1, price, amount,
+                              MANAGE_OFFER_DELETED);
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!stellar::loadOffer(ltx, a1.getPublicKey(), offerID));
+        }
+    };
+
+    doTest("buy five for two", Price{2, 5}, 20);
+    doTest("buy two for one", Price{1, 2}, 20);
+    doTest("buy one for one", Price{1, 1}, 20);
+    doTest("buy one for two", Price{2, 1}, 20);
+    doTest("buy two for five", Price{5, 2}, 20);
 }
 
 TEST_CASE("manage buy offer matches manage sell offer when not executing",
@@ -435,7 +482,8 @@ TEST_CASE("manage buy offer matches manage sell offer when not executing",
         a1.changeTrust(cur2, availableLimit);
 
         auto offerID = a1.manageBuyOffer(0, cur1, cur2, price, buyAmount);
-        return checkOffer(a1.getPublicKey(), offerID, cur1, cur2, price);
+        return checkOffer(a1.getPublicKey(), offerID, cur1, cur2,
+                          Price{price.d, price.n});
     };
 
     auto getManageSellOfferAmount = [&](Price const& price, int64_t amount) {
@@ -452,12 +500,12 @@ TEST_CASE("manage buy offer matches manage sell offer when not executing",
         {
             SECTION("sell two for five")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 20) ==
                         getManageSellOfferAmount(Price{5, 2}, 8));
             }
             SECTION("sell one for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 20) ==
                         getManageSellOfferAmount(Price{2, 1}, 10));
             }
             SECTION("sell one for one")
@@ -467,12 +515,12 @@ TEST_CASE("manage buy offer matches manage sell offer when not executing",
             }
             SECTION("sell two for one")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 20) ==
                         getManageSellOfferAmount(Price{1, 2}, 40));
             }
             SECTION("sell five for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 20) ==
                         getManageSellOfferAmount(Price{2, 5}, 50));
             }
         }
@@ -481,22 +529,22 @@ TEST_CASE("manage buy offer matches manage sell offer when not executing",
         {
             SECTION("sell two for five")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 21) ==
                         getManageSellOfferAmount(Price{5, 2}, 8));
             }
             SECTION("sell one for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 21) ==
                         getManageSellOfferAmount(Price{2, 1}, 10));
             }
             SECTION("sell two for one")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 21) ==
                         getManageSellOfferAmount(Price{1, 2}, 42));
             }
             SECTION("sell five for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 21) ==
                         getManageSellOfferAmount(Price{2, 5}, 53));
             }
         }
@@ -560,13 +608,13 @@ TEST_CASE("manage buy offer matches manage sell offer when executing partially",
         issuer.pay(a2, cur2, INT64_MAX);
         a2.changeTrust(cur1, INT64_MAX);
 
-        a2.manageOffer(0, cur2, cur1, Price{price.d, price.n},
-                       offerSizeInLedger);
+        a2.manageOffer(0, cur2, cur1, price, offerSizeInLedger);
         auto offerID = a1.manageBuyOffer(0, cur1, cur2, price, buyAmount);
-        return std::make_tuple(
-            availableBalance - checkTrustLine(a1.getPublicKey(), cur1),
-            checkTrustLine(a1.getPublicKey(), cur2),
-            checkOffer(a1.getPublicKey(), offerID, cur1, cur2, price));
+        return std::make_tuple(availableBalance -
+                                   checkTrustLine(a1.getPublicKey(), cur1),
+                               checkTrustLine(a1.getPublicKey(), cur2),
+                               checkOffer(a1.getPublicKey(), offerID, cur1,
+                                          cur2, Price{price.d, price.n}));
     };
 
     auto getManageSellOfferAmount = [&](Price const& price,
@@ -593,12 +641,12 @@ TEST_CASE("manage buy offer matches manage sell offer when executing partially",
         {
             SECTION("sell two for five")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 200) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 200) ==
                         getManageSellOfferAmount(Price{5, 2}, 80));
             }
             SECTION("sell one for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 200) ==
+                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 200) ==
                         getManageSellOfferAmount(Price{2, 1}, 100));
             }
             SECTION("sell one for one")
@@ -608,12 +656,12 @@ TEST_CASE("manage buy offer matches manage sell offer when executing partially",
             }
             SECTION("sell two for one")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 200) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 200) ==
                         getManageSellOfferAmount(Price{1, 2}, 400));
             }
             SECTION("sell five for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 200) ==
+                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 200) ==
                         getManageSellOfferAmount(Price{2, 5}, 500));
             }
         }
@@ -622,22 +670,22 @@ TEST_CASE("manage buy offer matches manage sell offer when executing partially",
         {
             SECTION("sell two for five")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 201) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 201) ==
                         getManageSellOfferAmount(Price{5, 2}, 80));
             }
             SECTION("sell one for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 201) ==
+                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 201) ==
                         getManageSellOfferAmount(Price{2, 1}, 100));
             }
             SECTION("sell two for one")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 201) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 201) ==
                         getManageSellOfferAmount(Price{1, 2}, 402));
             }
             SECTION("sell five for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 201) ==
+                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 201) ==
                         getManageSellOfferAmount(Price{2, 5}, 503));
             }
         }
@@ -700,15 +748,13 @@ TEST_CASE("manage buy offer matches manage sell offer when executing entirely",
         issuer.pay(a2, cur2, INT64_MAX);
         a2.changeTrust(cur1, INT64_MAX);
 
-        auto offerID = a2.manageOffer(0, cur2, cur1, Price{price.d, price.n},
-                                      availableBalance);
+        auto offerID = a2.manageOffer(0, cur2, cur1, price, availableBalance);
         a1.manageBuyOffer(0, cur1, cur2, price, buyAmount,
                           MANAGE_OFFER_DELETED);
-        return std::make_tuple(availableBalance -
-                                   checkTrustLine(a1.getPublicKey(), cur1),
-                               checkTrustLine(a1.getPublicKey(), cur2),
-                               checkOffer(a2.getPublicKey(), offerID, cur2,
-                                          cur1, Price{price.d, price.n}));
+        return std::make_tuple(
+            availableBalance - checkTrustLine(a1.getPublicKey(), cur1),
+            checkTrustLine(a1.getPublicKey(), cur2),
+            checkOffer(a2.getPublicKey(), offerID, cur2, cur1, price));
     };
 
     auto getManageSellOfferAmount = [&](Price const& price,
@@ -736,12 +782,12 @@ TEST_CASE("manage buy offer matches manage sell offer when executing entirely",
         {
             SECTION("sell two for five")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 20) ==
                         getManageSellOfferAmount(Price{5, 2}, 8));
             }
             SECTION("sell one for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 20) ==
                         getManageSellOfferAmount(Price{2, 1}, 10));
             }
             SECTION("sell one for one")
@@ -751,12 +797,12 @@ TEST_CASE("manage buy offer matches manage sell offer when executing entirely",
             }
             SECTION("sell two for one")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 20) ==
                         getManageSellOfferAmount(Price{1, 2}, 40));
             }
             SECTION("sell five for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 20) ==
+                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 20) ==
                         getManageSellOfferAmount(Price{2, 5}, 50));
             }
         }
@@ -765,22 +811,22 @@ TEST_CASE("manage buy offer matches manage sell offer when executing entirely",
         {
             SECTION("sell two for five")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 21) ==
                         getManageSellOfferAmount(Price{5, 2}, 8));
             }
             SECTION("sell one for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 21) ==
                         getManageSellOfferAmount(Price{2, 1}, 10));
             }
             SECTION("sell two for one")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{1, 2}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{2, 1}, 21) ==
                         getManageSellOfferAmount(Price{1, 2}, 42));
             }
             SECTION("sell five for two")
             {
-                REQUIRE(getManageBuyOfferAmount(Price{2, 5}, 21) ==
+                REQUIRE(getManageBuyOfferAmount(Price{5, 2}, 21) ==
                         getManageSellOfferAmount(Price{2, 5}, 53));
             }
         }
@@ -825,21 +871,16 @@ TEST_CASE("manage buy offer with zero liabilities", "[tx][offers]")
     for_current_and_previous_version_from(11, *app, [&]() {
         SECTION("offer initially had zero liabilities and does not execute")
         {
-            a1.manageBuyOffer(0, cur1, cur2, Price{3, 1}, 1,
+            a1.manageBuyOffer(0, cur1, cur2, Price{1, 3}, 1,
                               MANAGE_OFFER_DELETED);
             REQUIRE(checkTrustLine(a1.getPublicKey(), cur1) == 100);
             REQUIRE(checkTrustLine(a1.getPublicKey(), cur2) == 0);
         }
 
-        SECTION("offer initially had zero liabilities and executes partially")
-        {
-            // TODO(jonjove): Is this possible?
-        }
-
         SECTION("offer had zero liabilities after executing partially")
         {
-            a2.manageBuyOffer(0, cur2, cur1, Price{1, 3}, 1);
-            a1.manageBuyOffer(0, cur1, cur2, Price{3, 1}, 4,
+            a2.manageBuyOffer(0, cur2, cur1, Price{3, 1}, 1);
+            a1.manageBuyOffer(0, cur1, cur2, Price{1, 3}, 4,
                               MANAGE_OFFER_DELETED);
             REQUIRE(checkTrustLine(a1.getPublicKey(), cur1) == 99);
             REQUIRE(checkTrustLine(a1.getPublicKey(), cur2) == 3);
@@ -885,10 +926,10 @@ TEST_CASE("manage buy offer releases liabilities before modify", "[tx][offers]")
         SECTION("change price")
         {
             REQUIRE(a1.manageBuyOffer(0, cur1, cur2, Price{1, 1}, 100) == 1);
-            REQUIRE(a1.manageBuyOffer(1, cur1, cur2, Price{2, 1}, 100,
+            REQUIRE(a1.manageBuyOffer(1, cur1, cur2, Price{1, 2}, 100,
                                       MANAGE_OFFER_UPDATED) == 1);
             REQUIRE_THROWS_AS(
-                a1.manageBuyOffer(1, cur1, cur2, Price{100, 201}, 100),
+                a1.manageBuyOffer(1, cur1, cur2, Price{201, 100}, 100),
                 ex_MANAGE_BUY_OFFER_UNDERFUNDED);
         }
     });
