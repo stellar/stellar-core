@@ -27,8 +27,8 @@ class ManageBuyOfferOpFrame : public ManageOfferOpFrameBase
     ManageBuyOfferOpFrame(Operation const& op, OperationResult& res,
                           TransactionFrame& parentTx);
 
-    bool isAmountValid() override;
-    bool isDeleteOffer() override;
+    bool isAmountValid() const override;
+    bool isDeleteOffer() const override;
 
     int64_t getOfferBuyingLiabilities() override;
     int64_t getOfferSellingLiabilities() override;

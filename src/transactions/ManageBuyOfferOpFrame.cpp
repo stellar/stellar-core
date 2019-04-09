@@ -37,13 +37,13 @@ ManageBuyOfferOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
-ManageBuyOfferOpFrame::isAmountValid()
+ManageBuyOfferOpFrame::isAmountValid() const
 {
     return mManageBuyOffer.buyAmount >= 0;
 }
 
 bool
-ManageBuyOfferOpFrame::isDeleteOffer()
+ManageBuyOfferOpFrame::isDeleteOffer() const
 {
     return mManageBuyOffer.buyAmount == 0;
 }
