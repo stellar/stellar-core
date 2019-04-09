@@ -1421,8 +1421,12 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
-        mTransaction->commit();
+        // NB: we want to clear the prepared statement cache _before_
+        // committing; on postgres this doesn't matter but on SQLite the passive
+        // WAL-auto-checkpointing-at-commit behaviour will starve if there are
+        // still prepared statements open at commit time.
         mDatabase.clearPreparedStatementCache();
+        mTransaction->commit();
     }
     catch (std::exception& e)
     {
