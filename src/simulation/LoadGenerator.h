@@ -117,6 +117,8 @@ class LoadGenerator
 
   protected:
     Application& mApp;
+    uint32_t mLastClosedLedger;
+    uint32_t mCurrentTxsPerLedger;
     TestAccountPtr mRoot;
     // Accounts cache
     std::map<uint64_t, TestAccountPtr> mAccounts;
