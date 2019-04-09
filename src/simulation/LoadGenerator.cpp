@@ -41,7 +41,11 @@ const uint32_t LoadGenerator::STEP_MSECS = 100;
 const uint32_t LoadGenerator::TX_SUBMIT_MAX_TRIES = 1000;
 
 LoadGenerator::LoadGenerator(Application& app)
-    : mMinBalance(0), mLastSecond(0), mApp(app)
+    : mMinBalance(0)
+    , mLastSecond(0)
+    , mApp(app)
+    , mLastClosedLedger(app.getLedgerManager().getLastClosedLedgerNum())
+    , mCurrentTxsPerLedger(0)
 {
     createRootAccount();
 }
@@ -68,37 +72,38 @@ LoadGenerator::createRootAccount()
 uint32_t
 LoadGenerator::getTxPerStep(uint32_t txRate)
 {
-    // txRate is "per second"; we're running one "step" worth which is a
-    // fraction of txRate determined by STEP_MSECS. For example if txRate
-    // is 200 and STEP_MSECS is 100, then we want to do 20 tx per step.
-    uint32_t txPerStep = (txRate * STEP_MSECS / 1000);
-
-    // There is a wrinkle here though which is that the tx-apply phase might
-    // well block timers for up to half the close-time; plus we'll be probably
-    // not be scheduled quite as often as we want due to the time it takes to
-    // run and the time the network is exchanging packets. So instead of a naive
-    // calculation based _just_ on target rate and STEP_MSECS, we also adjust
-    // based on how often we seem to be waking up and taking loadgen steps in
-    // reality.
     auto& stepMeter =
         mApp.getMetrics().NewMeter({"loadgen", "step", "count"}, "step");
     stepMeter.Mark();
-    auto stepsPerSecond = stepMeter.one_minute_rate();
-    if (stepMeter.count() > 10 && stepsPerSecond != 0)
+
+    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+
+    if (mLastClosedLedger < lcl.header.ledgerSeq)
     {
-        txPerStep = static_cast<uint32_t>(txRate / stepsPerSecond);
+        mLastClosedLedger = lcl.header.ledgerSeq;
+        CLOG(DEBUG, "LoadGen")
+            << "Ledger closed! Txs submitted in the previous ledger: "
+            << mCurrentTxsPerLedger;
+        mCurrentTxsPerLedger = 0;
+    }
+    else
+    {
+        assert(mLastClosedLedger == lcl.header.ledgerSeq);
     }
 
-    // If we have a very low tx rate (eg. 2/sec) then the previous division will
-    // be zero and we'll never issue anything; what we need to do instead is
-    // dispatch 1 tx every "few steps" (eg. every 5 steps). We do this by random
-    // choice, weighted to the desired frequency.
-    if (txPerStep == 0)
+    // Estimate how much time we have left, and how many transactions should
+    // be submitted based on this heuristic
+    uint64_t now =
+        static_cast<uint64_t>(VirtualClock::to_time_t(mApp.getClock().now()));
+    uint64_t nextCloseTime = lcl.header.scpValue.closeTime + 5;
+    uint64_t timeRemaining = static_cast<uint32_t>(nextCloseTime - now);
+    uint32_t remainingTxs = txRate * 5 - mCurrentTxsPerLedger;
+    if (timeRemaining > 0)
     {
-        txPerStep = rand_uniform(0U, 1000U) < (txRate * STEP_MSECS) ? 1 : 0;
+        return remainingTxs / (timeRemaining * 1000 / STEP_MSECS);
     }
 
-    return txPerStep;
+    return remainingTxs;
 }
 
 bool
@@ -137,6 +142,7 @@ LoadGenerator::clear()
 {
     mAccounts.clear();
     mRoot.reset();
+    mCurrentTxsPerLedger = 0;
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
@@ -242,7 +248,6 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
 
     if (autoRate && secondBoundary)
     {
-        mLastSecond = now;
         inspectRate(ledgerNum, txRate);
     }
 
@@ -252,6 +257,8 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
         logProgress(submit, isCreate, nAccounts, nTxs, batchSize, txRate);
     }
 
+    mLastSecond = now;
+    mCurrentTxsPerLedger += txPerStep;
     scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
                            autoRate);
 }
