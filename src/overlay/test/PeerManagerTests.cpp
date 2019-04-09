@@ -18,6 +18,12 @@ namespace stellar
 
 using namespace std;
 
+PeerBareAddress
+localhost(unsigned short port)
+{
+    return PeerBareAddress{"127.0.0.1", port};
+}
+
 TEST_CASE("toXdr", "[overlay][PeerManager]")
 {
     VirtualClock clock;
@@ -97,7 +103,7 @@ TEST_CASE("create peer rercord", "[overlay][PeerManager]")
 
     SECTION("zero port")
     {
-        REQUIRE_THROWS_AS(PeerBareAddress("127.0.0.1", 0), std::runtime_error);
+        REQUIRE_THROWS_AS(localhost(0), std::runtime_error);
     }
 
     SECTION("random string") // PeerBareAddress does not validate IP format
@@ -109,7 +115,7 @@ TEST_CASE("create peer rercord", "[overlay][PeerManager]")
 
     SECTION("valid data")
     {
-        auto pa = PeerBareAddress("127.0.0.1", 80);
+        auto pa = localhost(80);
         REQUIRE(pa.getIP() == "127.0.0.1");
         REQUIRE(pa.getPort() == 80);
     }
@@ -276,8 +282,7 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
                     PeerRecord{VirtualClock::pointToTm(time), numFailures,
                                static_cast<int>(type)};
                 peerRecords[port] = peerRecord;
-                peerManager.store(PeerBareAddress("127.0.0.1", port),
-                                  peerRecord, false);
+                peerManager.store(localhost(port), peerRecord, false);
                 port++;
             }
         }
@@ -366,23 +371,23 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
         unsigned short port = 1;
         for (auto i = 0; i < normalInboundCount; i++)
         {
-            peerManager.ensureExists(PeerBareAddress("127.0.0.1", port++));
+            peerManager.ensureExists(localhost(port++));
         }
         for (auto i = 0; i < failedInboundCount; i++)
         {
             peerManager.store(
-                PeerBareAddress("127.0.0.1", port++),
+                localhost(port++),
                 PeerRecord{{}, 11, static_cast<int>(PeerType::INBOUND)}, false);
         }
         for (auto i = 0; i < normalOutboundCount; i++)
         {
-            peerManager.update(PeerBareAddress("127.0.0.1", port++),
+            peerManager.update(localhost(port++),
                                PeerManager::TypeUpdate::SET_OUTBOUND);
         }
         for (auto i = 0; i < failedOutboundCount; i++)
         {
             peerManager.store(
-                PeerBareAddress("127.0.0.1", port++),
+                localhost(port++),
                 PeerRecord{{}, 11, static_cast<int>(PeerType::OUTBOUND)},
                 false);
         }
@@ -485,25 +490,55 @@ TEST_CASE("RandomPeerSource::nextAttemptCutoff also limits maxFailures",
         peerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND)};
 
     auto now = VirtualClock::pointToTm(clock.now());
-    peerManager.store(PeerBareAddress("127.0.0.1", 1),
+    peerManager.store(localhost(1),
                       {now, 0, static_cast<int>(PeerType::INBOUND)}, false);
-    peerManager.store(PeerBareAddress("127.0.0.1", 2),
+    peerManager.store(localhost(2),
                       {now, 0, static_cast<int>(PeerType::OUTBOUND)}, false);
-    peerManager.store(PeerBareAddress("127.0.0.1", 3),
+    peerManager.store(localhost(3),
                       {now, 120, static_cast<int>(PeerType::INBOUND)}, false);
-    peerManager.store(PeerBareAddress("127.0.0.1", 4),
+    peerManager.store(localhost(4),
                       {now, 120, static_cast<int>(PeerType::OUTBOUND)}, false);
-    peerManager.store(PeerBareAddress("127.0.0.1", 5),
+    peerManager.store(localhost(5),
                       {now, 121, static_cast<int>(PeerType::INBOUND)}, false);
-    peerManager.store(PeerBareAddress("127.0.0.1", 6),
+    peerManager.store(localhost(6),
                       {now, 121, static_cast<int>(PeerType::OUTBOUND)}, false);
 
     auto peers = randomPeerSource.getRandomPeers(
         50, [](PeerBareAddress const&) { return true; });
     REQUIRE(peers.size() == 2);
-    REQUIRE(std::find(std::begin(peers), std::end(peers),
-                      PeerBareAddress("127.0.0.1", 2)) != std::end(peers));
-    REQUIRE(std::find(std::begin(peers), std::end(peers),
-                      PeerBareAddress("127.0.0.1", 4)) != std::end(peers));
+    REQUIRE(std::find(std::begin(peers), std::end(peers), localhost(2)) !=
+            std::end(peers));
+    REQUIRE(std::find(std::begin(peers), std::end(peers), localhost(4)) !=
+            std::end(peers));
+}
+
+TEST_CASE("purge peer table", "[overlay][PeerManager]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& peerManager = app->getOverlayManager().getPeerManager();
+    auto record = [](int numFailures) {
+        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    };
+
+    peerManager.store(localhost(1), record(1), false);
+    peerManager.store(localhost(2), record(2), false);
+    peerManager.store(localhost(3), record(3), false);
+    peerManager.store(localhost(4), record(4), false);
+    peerManager.store(localhost(5), record(5), false);
+
+    peerManager.removePeersWithManyFailures(3);
+    REQUIRE(peerManager.load(localhost(1)).second);
+    REQUIRE(peerManager.load(localhost(2)).second);
+    REQUIRE(!peerManager.load(localhost(3)).second);
+    REQUIRE(!peerManager.load(localhost(4)).second);
+    REQUIRE(!peerManager.load(localhost(5)).second);
+
+    auto localhost2 = localhost(2);
+    peerManager.removePeersWithManyFailures(3, &localhost2);
+    REQUIRE(peerManager.load(localhost(2)).second);
+
+    peerManager.removePeersWithManyFailures(2, &localhost2);
+    REQUIRE(!peerManager.load(localhost(2)).second);
 }
 }

@@ -161,6 +161,45 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
     return result;
 }
 
+void
+PeerManager::removePeersWithManyFailures(int minNumFailures,
+                                         PeerBareAddress const* address)
+{
+    try
+    {
+        auto& db = mApp.getDatabase();
+        auto sql = std::string{
+            "DELETE FROM peers WHERE numfailures >= :minNumFailures"};
+        if (address)
+        {
+            sql += " AND ip = :ip";
+        }
+
+        auto prep = db.getPreparedStatement(sql);
+        auto& st = prep.statement();
+
+        st.exchange(use(minNumFailures));
+
+        std::string ip;
+        if (address)
+        {
+            ip = address->getIP();
+            st.exchange(use(ip));
+        }
+        st.define_and_bind();
+
+        {
+            auto timer = db.getDeleteTimer("peer");
+            st.execute(true);
+        }
+    }
+    catch (soci_error& err)
+    {
+        CLOG(ERROR, "Overlay")
+            << "PeerManager::removePeersWithManyFailures error: " << err.what();
+    }
+}
+
 std::vector<PeerBareAddress>
 PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
 {

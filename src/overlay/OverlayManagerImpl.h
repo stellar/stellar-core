@@ -101,6 +101,7 @@ class OverlayManagerImpl : public OverlayManager
     bool addOutboundConnection(Peer::pointer peer) override;
     void removePeer(Peer* peer) override;
     void storeConfigPeers();
+    void purgeDeadPeers();
 
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) const override;

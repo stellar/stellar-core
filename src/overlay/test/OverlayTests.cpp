@@ -1046,3 +1046,110 @@ TEST_CASE("inbounds nodes can be promoted to ouboundvalid", "[overlay]")
 
     simulation->crankForAtLeast(std::chrono::seconds{3}, true);
 }
+
+PeerBareAddress
+localhost(unsigned short port)
+{
+    return PeerBareAddress{"127.0.0.1", port};
+}
+
+TEST_CASE("database is purged at overlay start", "[overlay]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.RUN_STANDALONE = false;
+    auto app = createTestApplication(clock, cfg);
+    auto& om = app->getOverlayManager();
+    auto& peerManager = om.getPeerManager();
+    auto record = [](int numFailures) {
+        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    };
+
+    peerManager.store(localhost(1), record(118), false);
+    peerManager.store(localhost(2), record(119), false);
+    peerManager.store(localhost(3), record(120), false);
+    peerManager.store(localhost(4), record(121), false);
+    peerManager.store(localhost(5), record(122), false);
+
+    om.start();
+
+    testutil::crankSome(clock);
+
+    REQUIRE(peerManager.load(localhost(1)).second);
+    REQUIRE(peerManager.load(localhost(2)).second);
+    REQUIRE(!peerManager.load(localhost(3)).second);
+    REQUIRE(!peerManager.load(localhost(4)).second);
+    REQUIRE(!peerManager.load(localhost(5)).second);
+}
+
+TEST_CASE("peer numfailures resets after good connection", "[overlay]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+    auto record = [](int numFailures) {
+        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    };
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    Config const& cfg1 = getTestConfig(1);
+    Config const& cfg2 = getTestConfig(2);
+
+    auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
+    auto app2 = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
+
+    simulation->startAllNodes();
+
+    auto& om = app1->getOverlayManager();
+    auto& peerManager = om.getPeerManager();
+    peerManager.store(localhost(cfg2.PEER_PORT), record(119), false);
+    REQUIRE(peerManager.load(localhost(cfg2.PEER_PORT)).second);
+
+    simulation->crankForAtLeast(std::chrono::seconds{4}, true);
+
+    auto r = peerManager.load(localhost(cfg2.PEER_PORT));
+    REQUIRE(r.second);
+    REQUIRE(r.first.mNumFailures == 0);
+}
+
+TEST_CASE("peer is purged from database after few failures", "[overlay]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+    auto record = [](int numFailures) {
+        return PeerRecord{{}, numFailures, static_cast<int>(PeerType::INBOUND)};
+    };
+
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(vNode1NodeID);
+
+    Config const& cfg1 = getTestConfig(1);
+    Config cfg2 = getTestConfig(2);
+    cfg2.MAX_INBOUND_PENDING_CONNECTIONS = 0;
+    cfg2.MAX_OUTBOUND_PENDING_CONNECTIONS = 4; // to prevent changes in adjust()
+
+    auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
+    auto app2 = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
+
+    simulation->startAllNodes();
+
+    auto& om = app1->getOverlayManager();
+    auto& peerManager = om.getPeerManager();
+    peerManager.store(localhost(cfg2.PEER_PORT), record(119), false);
+    REQUIRE(peerManager.load(localhost(cfg2.PEER_PORT)).second);
+
+    simulation->crankForAtLeast(std::chrono::seconds{4}, true);
+
+    REQUIRE(!peerManager.load(localhost(cfg2.PEER_PORT)).second);
+}

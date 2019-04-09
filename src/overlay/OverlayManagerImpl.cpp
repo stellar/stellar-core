@@ -256,9 +256,10 @@ OverlayManagerImpl::start()
     {
         mTimer.async_wait(
             [this]() {
-                this->storeConfigPeers();
-                this->triggerPeerResolution();
-                this->tick();
+                storeConfigPeers();
+                purgeDeadPeers();
+                triggerPeerResolution();
+                tick();
             },
             VirtualTimer::onFailureNoop);
     }
@@ -344,6 +345,13 @@ OverlayManagerImpl::storeConfigPeers()
     // Synchronously resolve and store peers from the config
     storePeerList(resolvePeers(mApp.getConfig().KNOWN_PEERS), false, true);
     storePeerList(resolvePeers(mApp.getConfig().PREFERRED_PEERS), true, true);
+}
+
+void
+OverlayManagerImpl::purgeDeadPeers()
+{
+    getPeerManager().removePeersWithManyFailures(
+        Config::REALLY_DEAD_NUM_FAILURES_CUTOFF);
 }
 
 void
@@ -644,6 +652,8 @@ void
 OverlayManagerImpl::removePeer(Peer* peer)
 {
     getPeersList(peer).removePeer(peer);
+    getPeerManager().removePeersWithManyFailures(
+        Config::REALLY_DEAD_NUM_FAILURES_CUTOFF, &peer->getAddress());
     updateSizeCounters();
 }
 
