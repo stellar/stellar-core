@@ -310,7 +310,7 @@ TxSetFrame::checkOrTrim(
         int64_t totFee = 0;
         for (auto& tx : item.second)
         {
-            if (!tx->checkValid(app, ltx, lastSeq))
+            if (!tx->checkValid(ltx, lastSeq))
             {
                 if (processInvalidTxLambda(tx, lastSeq))
                     continue;

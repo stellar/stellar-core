@@ -63,11 +63,10 @@ class TransactionFrame
         kFullyValid
     };
 
-    bool commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
-                              bool forApply);
+    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply);
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
-                               Application& app, AbstractLedgerTxn& ltxOuter,
+                               AbstractLedgerTxn& ltxOuter,
                                SequenceNumber current, bool applying);
 
     void resetResults(LedgerHeader const& header, int64_t baseFee);
@@ -90,7 +89,7 @@ class TransactionFrame
 
     void processSeqNum(AbstractLedgerTxn& ltx);
 
-    bool processSignatures(SignatureChecker& signatureChecker, Application& app,
+    bool processSignatures(SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
 
   public:
@@ -164,8 +163,7 @@ class TransactionFrame
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
-    bool checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
-                    SequenceNumber current);
+    bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current);
 
     // collect fee, consume sequence number
     void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee);
