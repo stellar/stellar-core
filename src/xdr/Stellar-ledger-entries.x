@@ -210,7 +210,7 @@ const MASK_OFFERENTRY_FLAGS = 1;
 struct OfferEntry
 {
     AccountID sellerID;
-    uint64 offerID;
+    int64 offerID;
     Asset selling; // A
     Asset buying;  // B
     int64 amount;  // amount of A

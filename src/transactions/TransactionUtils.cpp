@@ -42,7 +42,7 @@ loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
 }
 
 LedgerTxnEntry
-loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, uint64_t offerID)
+loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, int64_t offerID)
 {
     LedgerKey key(OFFER);
     key.offer().sellerID = sellerID;

@@ -1282,7 +1282,7 @@ TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgerstate]")
 static void
 applyLedgerTxnUpdates(
     AbstractLedgerTxn& ltx,
-    std::map<std::pair<AccountID, uint64_t>,
+    std::map<std::pair<AccountID, int64_t>,
              std::tuple<Asset, Asset, int64_t>> const& updates)
 {
     for (auto const& kv : updates)
@@ -1318,13 +1318,13 @@ static void
 testAllOffers(
     AbstractLedgerTxnParent& ltxParent,
     std::map<AccountID,
-             std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>>> const&
+             std::vector<std::tuple<int64_t, Asset, Asset, int64_t>>> const&
         expected,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, int64_t>>>::const_iterator
         begin,
     std::vector<
-        std::map<std::pair<AccountID, uint64_t>,
+        std::map<std::pair<AccountID, int64_t>,
                  std::tuple<Asset, Asset, int64_t>>>::const_iterator const& end)
 {
     REQUIRE(begin != end);
@@ -1370,9 +1370,9 @@ testAllOffers(
 static void
 testAllOffers(
     std::map<AccountID,
-             std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>>> const&
+             std::vector<std::tuple<int64_t, Asset, Asset, int64_t>>> const&
         expected,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, int64_t>>> const& updates)
 {
     REQUIRE(!updates.empty());
@@ -1547,7 +1547,7 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgerstate]")
 static void
 applyLedgerTxnUpdates(
     AbstractLedgerTxn& ltx,
-    std::map<std::pair<AccountID, uint64_t>,
+    std::map<std::pair<AccountID, int64_t>,
              std::tuple<Asset, Asset, Price, int64_t>> const& updates)
 {
     for (auto const& kv : updates)
@@ -1583,12 +1583,12 @@ static void
 testBestOffer(
     AbstractLedgerTxnParent& ltxParent, Asset const& buying,
     Asset const& selling,
-    std::vector<std::tuple<uint64_t, Asset, Asset, Price, int64_t>> const&
+    std::vector<std::tuple<int64_t, Asset, Asset, Price, int64_t>> const&
         expected,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, Price, int64_t>>>::
         const_iterator begin,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, Price, int64_t>>>::
         const_iterator const& end)
 {
@@ -1621,9 +1621,9 @@ testBestOffer(
 static void
 testBestOffer(
     Asset const& buying, Asset const& selling,
-    std::vector<std::tuple<uint64_t, Asset, Asset, Price, int64_t>> const&
+    std::vector<std::tuple<int64_t, Asset, Asset, Price, int64_t>> const&
         expected,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, Price, int64_t>>>
         updates)
 {
@@ -1826,12 +1826,12 @@ static void
 testOffersByAccountAndAsset(
     AbstractLedgerTxnParent& ltxParent, AccountID const& accountID,
     Asset const& asset,
-    std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>> const& expected,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::tuple<int64_t, Asset, Asset, int64_t>> const& expected,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, int64_t>>>::const_iterator
         begin,
     std::vector<
-        std::map<std::pair<AccountID, uint64_t>,
+        std::map<std::pair<AccountID, int64_t>,
                  std::tuple<Asset, Asset, int64_t>>>::const_iterator const& end)
 {
     REQUIRE(begin != end);
@@ -1864,8 +1864,8 @@ testOffersByAccountAndAsset(
 static void
 testOffersByAccountAndAsset(
     AccountID const& accountID, Asset const& asset,
-    std::vector<std::tuple<uint64_t, Asset, Asset, int64_t>> const& expected,
-    std::vector<std::map<std::pair<AccountID, uint64_t>,
+    std::vector<std::tuple<int64_t, Asset, Asset, int64_t>> const& expected,
+    std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, int64_t>>>
         updates)
 {

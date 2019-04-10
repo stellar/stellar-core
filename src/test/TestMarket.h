@@ -20,7 +20,7 @@ struct OfferEntry;
 struct OfferKey
 {
     AccountID sellerID;
-    uint64_t offerID;
+    int64_t offerID;
 
     friend bool operator<(OfferKey const& x, OfferKey const& y);
 };
@@ -96,7 +96,7 @@ class TestMarket
              OfferState const& finishedState = OfferState::SAME);
 
     TestMarketOffer
-    updateOffer(TestAccount& account, uint64_t id, OfferState const& state,
+    updateOffer(TestAccount& account, int64_t id, OfferState const& state,
                 OfferState const& finishedState = OfferState::SAME);
 
     void requireChanges(std::vector<TestMarketOffer> const& changes,
@@ -112,7 +112,7 @@ class TestMarket
   private:
     Application& mApp;
     std::map<OfferKey, OfferState> mOffers;
-    uint64_t mLastAddedID{0};
+    int64_t mLastAddedID{0};
 
     void checkState(std::map<OfferKey, OfferState> const& offers,
                     std::vector<OfferKey> const& deletedOffers);

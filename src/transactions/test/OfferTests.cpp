@@ -2829,13 +2829,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                        {usd, idr, Price{1, 1}, 1}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
                 REQUIRE_THROWS_AS(
-                    market.updateOffer(acc1,
-                                       static_cast<uint64_t>(INT64_MAX) + 1,
-                                       {usd, idr, Price{1, 1}, 1}),
-                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
-                REQUIRE_THROWS_AS(
-                    market.updateOffer(acc1, UINT64_MAX,
-                                       {usd, idr, Price{1, 1}, 1}),
+                    market.updateOffer(acc1, -1, {usd, idr, Price{1, 1}, 1}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
@@ -2858,13 +2852,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                        {usd, idr, Price{1, 1}, 0}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
                 REQUIRE_THROWS_AS(
-                    market.updateOffer(acc1,
-                                       static_cast<uint64_t>(INT64_MAX) + 1,
-                                       {usd, idr, Price{1, 1}, 0}),
-                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
-                REQUIRE_THROWS_AS(
-                    market.updateOffer(acc1, UINT64_MAX,
-                                       {usd, idr, Price{1, 1}, 0}),
+                    market.updateOffer(acc1, -1, {usd, idr, Price{1, 1}, 0}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }

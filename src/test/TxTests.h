@@ -126,9 +126,9 @@ Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
                       std::vector<Asset> const& path);
 
-Operation manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+Operation manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
                       Price const& price, int64_t amount);
-Operation manageBuyOffer(uint64 offerId, Asset const& selling,
+Operation manageBuyOffer(int64 offerId, Asset const& selling,
                          Asset const& buying, Price const& price,
                          int64_t amount);
 
@@ -136,24 +136,24 @@ Operation createPassiveOffer(Asset const& selling, Asset const& buying,
                              Price const& price, int64_t amount);
 
 // returns the ID of the new offer if created
-uint64_t applyManageOffer(Application& app, uint64 offerId,
-                          SecretKey const& source, Asset const& selling,
-                          Asset const& buying, Price const& price,
-                          int64_t amount, SequenceNumber seq,
-                          ManageOfferEffect expectedEffect);
+int64_t applyManageOffer(Application& app, int64 offerId,
+                         SecretKey const& source, Asset const& selling,
+                         Asset const& buying, Price const& price,
+                         int64_t amount, SequenceNumber seq,
+                         ManageOfferEffect expectedEffect);
 
-uint64_t applyManageBuyOffer(Application& app, uint64 offerId,
-                             SecretKey const& source, Asset const& selling,
-                             Asset const& buying, Price const& price,
-                             int64_t amount, SequenceNumber seq,
-                             ManageOfferEffect expectedEffect);
+int64_t applyManageBuyOffer(Application& app, int64 offerId,
+                            SecretKey const& source, Asset const& selling,
+                            Asset const& buying, Price const& price,
+                            int64_t amount, SequenceNumber seq,
+                            ManageOfferEffect expectedEffect);
 
 // returns the ID of the new offer if created
-uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
-                                 Asset const& selling, Asset const& buying,
-                                 Price const& price, int64_t amount,
-                                 SequenceNumber seq,
-                                 ManageOfferEffect expectedEffect);
+int64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
+                                Asset const& selling, Asset const& buying,
+                                Price const& price, int64_t amount,
+                                SequenceNumber seq,
+                                ManageOfferEffect expectedEffect);
 Operation setOptions(SetOptionsArguments const& arguments);
 
 SetOptionsArguments setMasterWeight(int master);

@@ -99,7 +99,7 @@ struct ManageSellOfferOp
     Price price;  // price of thing being sold in terms of what you are buying
 
     // 0=create a new offer, otherwise edit an existing offer
-    uint64 offerID;
+    int64 offerID;
 };
 
 /* Creates, updates or deletes an offer with amount in terms of buying asset
@@ -118,7 +118,7 @@ struct ManageBuyOfferOp
                      // selling
 
     // 0=create a new offer, otherwise edit an existing offer
-    uint64 offerID;
+    int64 offerID;
 };
 
 /* Creates an offer that doesn't take offers of the same price
@@ -386,7 +386,7 @@ struct ClaimOfferAtom
 {
     // emitted to identify the offer
     AccountID sellerID; // Account that owns the offer
-    uint64 offerID;
+    int64 offerID;
 
     // amount and asset taken from the owner
     Asset assetSold;

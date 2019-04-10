@@ -213,8 +213,8 @@ TestAccount::bumpSequence(SequenceNumber to)
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
 }
 
-uint64_t
-TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
+int64_t
+TestAccount::manageOffer(int64_t offerID, Asset const& selling,
                          Asset const& buying, Price const& price,
                          int64_t amount, ManageOfferEffect expectedEffect)
 {
@@ -223,8 +223,8 @@ TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
                             expectedEffect);
 }
 
-uint64_t
-TestAccount::manageBuyOffer(uint64_t offerID, Asset const& selling,
+int64_t
+TestAccount::manageBuyOffer(int64_t offerID, Asset const& selling,
                             Asset const& buying, Price const& price,
                             int64_t amount, ManageOfferEffect expectedEffect)
 {
@@ -233,7 +233,7 @@ TestAccount::manageBuyOffer(uint64_t offerID, Asset const& selling,
                                expectedEffect);
 }
 
-uint64_t
+int64_t
 TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount,
                                 ManageOfferEffect expectedEffect)
