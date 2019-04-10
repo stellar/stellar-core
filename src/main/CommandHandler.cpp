@@ -695,7 +695,6 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         uint32_t txRate = 10;
         uint32_t batchSize = 100; // Only for account creations
         uint32_t offset = 0;
-        bool autoRate = false;
         std::string mode = "create";
 
         std::map<std::string, std::string> map;
@@ -720,17 +719,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         maybeParseParam(map, "txs", nTxs);
         maybeParseParam(map, "batchsize", batchSize);
         maybeParseParam(map, "offset", offset);
-        {
-            auto i = map.find("txrate");
-            if (i != map.end() && i->second == std::string("auto"))
-            {
-                autoRate = true;
-            }
-            else
-            {
-                maybeParseParam(map, "txrate", txRate);
-            }
-        }
+        maybeParseParam(map, "txrate", txRate);
 
         uint32_t numItems = isCreate ? nAccounts : nTxs;
         std::string itemType = isCreate ? "accounts" : "txs";
@@ -741,8 +730,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             batchSize = 100;
             retStr = "Setting batch size to its limit of 100.";
         }
-        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
-                          autoRate);
+        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize);
         retStr +=
             fmt::format(" Generating load: {:d} {:s}, {:d} tx/s = {:f} hours",
                         numItems, itemType, txRate, hours);
