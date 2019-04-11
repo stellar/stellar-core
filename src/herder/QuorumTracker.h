@@ -20,8 +20,12 @@ namespace stellar
 // or the quorum can be rebuilt from scratch by using a lookup function
 class QuorumTracker : public NonMovableOrCopyable
 {
+  public:
+    using QuorumMap = std::unordered_map<NodeID, SCPQuorumSetPtr>;
+
+  private:
     SCP& mSCP;
-    std::unordered_map<NodeID, SCPQuorumSetPtr> mQuorum;
+    QuorumMap mQuorum;
 
   public:
     QuorumTracker(SCP& scp);
@@ -43,6 +47,6 @@ class QuorumTracker : public NonMovableOrCopyable
     void rebuild(std::function<SCPQuorumSetPtr(NodeID const&)> lookup);
 
     // returns the current known quorum
-    std::unordered_map<NodeID, SCPQuorumSetPtr> const& getQuorum() const;
+    QuorumMap const& getQuorum() const;
 };
 }
