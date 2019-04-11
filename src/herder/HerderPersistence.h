@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/QuorumTracker.h"
 #include "overlay/Peer.h"
 #include "xdr/Stellar-SCP.h"
 #include <cstdint>
@@ -31,7 +32,8 @@ class HerderPersistence
     }
 
     virtual void saveSCPHistory(uint32_t seq,
-                                std::vector<SCPEnvelope> const& envs) = 0;
+                                std::vector<SCPEnvelope> const& envs,
+                                QuorumTracker::QuorumMap const& qmap) = 0;
 
     static size_t copySCPHistoryToStream(Database& db, soci::session& sess,
                                          uint32_t ledgerSeq,

@@ -191,7 +191,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     // save the SCP messages in the database
     mApp.getHerderPersistence().saveSCPHistory(
         static_cast<uint32>(slotIndex),
-        getSCP().getExternalizingState(slotIndex));
+        getSCP().getExternalizingState(slotIndex),
+        mPendingEnvelopes.getCurrentlyTrackedQuorum());
 
     // reflect upgrades with the ones included in this SCP round
     {
