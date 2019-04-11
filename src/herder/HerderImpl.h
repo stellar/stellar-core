@@ -101,6 +101,9 @@ class HerderImpl : public Herder
     };
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
+    // used for testing
+    PendingEnvelopes& getPendingEnvelopes();
+
   private:
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);

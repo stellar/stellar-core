@@ -515,13 +515,23 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
         SCPEnvelope env;
         if (mPendingEnvelopes.pop(slotIndex, env))
         {
-            getSCP().receiveEnvelope(env);
+            auto r = getSCP().receiveEnvelope(env);
+            if (r == SCP::EnvelopeState::VALID)
+            {
+                mPendingEnvelopes.envelopeProcessed(env);
+            }
         }
         else
         {
             return;
         }
     }
+}
+
+PendingEnvelopes&
+HerderImpl::getPendingEnvelopes()
+{
+    return mPendingEnvelopes;
 }
 
 void
