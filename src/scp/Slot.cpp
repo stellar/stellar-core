@@ -196,29 +196,6 @@ Slot::setFullyValidated(bool fullyValidated)
     mFullyValidated = fullyValidated;
 }
 
-SCP::TriBool
-Slot::isNodeInQuorum(NodeID const& node)
-{
-    // build the mapping between nodes and envelopes
-    std::map<NodeID, std::vector<SCPStatement const*>> m;
-    // this may be reduced to the pair (at most) of the latest
-    // statements for each protocol
-    for (auto const& e : mStatementsHistory)
-    {
-        auto& n = m[e.mStatement.nodeID];
-        n.emplace_back(&e.mStatement);
-    }
-    return mSCP.getLocalNode()->isNodeInQuorum(
-        node,
-        [this](SCPStatement const& st) {
-            // uses the companion set here as we want to consider
-            // nodes that were used up to EXTERNALIZE
-            Hash h = getCompanionQuorumSetHashFromStatement(st);
-            return getSCPDriver().getQSet(h);
-        },
-        m);
-}
-
 SCPEnvelope
 Slot::createEnvelope(SCPStatement const& statement)
 {

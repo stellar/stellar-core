@@ -123,13 +123,6 @@ class SCP
     // (or empty if the slot didn't externalize)
     std::vector<SCPEnvelope> getExternalizingState(uint64 slotIndex);
 
-    // returns if a node is in the (transitive) quorum originating at
-    // the local node, scanning the known slots.
-    // TB_TRUE iff n is in the quorum
-    // TB_FALSE iff n is not in the quorum
-    // TB_MAYBE iff the quorum cannot be computed
-    TriBool isNodeInQuorum(NodeID const& node);
-
     // ** helper methods to stringify ballot for logging
     std::string getValueString(Value const& v) const;
     std::string ballotToStr(SCPBallot const& ballot) const;

@@ -285,24 +285,6 @@ SCP::getExternalizingState(uint64 slotIndex)
     }
 }
 
-SCP::TriBool
-SCP::isNodeInQuorum(NodeID const& node)
-{
-    TriBool res = TB_MAYBE;
-    // iterate in reverse order as the most recent slots are authoritative over
-    // older ones
-    for (auto it = mKnownSlots.rbegin(); it != mKnownSlots.rend(); it++)
-    {
-        auto slot = it->second;
-        res = slot->isNodeInQuorum(node);
-        if (res == TB_TRUE || res == TB_FALSE)
-        {
-            break;
-        }
-    }
-    return res;
-}
-
 std::string
 SCP::getValueString(Value const& v) const
 {
