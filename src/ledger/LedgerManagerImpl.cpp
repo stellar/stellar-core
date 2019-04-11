@@ -744,7 +744,7 @@ LedgerManagerImpl::syncMetrics()
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
     mLedgerAge.set_count(secondsSinceLastLedgerClose());
     mPrefetchHitRate.set_count(
-        std::round(mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100));
+        std::llround(mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100));
     mApp.syncOwnMetrics();
 }
 
@@ -1083,7 +1083,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                           << ", prefetch hit rate (%): " << hitRate;
 
     // We lose a bit of precision here, as medida only accepts int64_t
-    mPrefetchHitRate.set_count(std::round(hitRate));
+    mPrefetchHitRate.set_count(std::llround(hitRate));
 }
 
 void
