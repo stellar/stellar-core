@@ -535,11 +535,13 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
     }
 }
 
+#ifdef BUILD_TESTS
 PendingEnvelopes&
 HerderImpl::getPendingEnvelopes()
 {
     return mPendingEnvelopes;
 }
+#endif
 
 void
 HerderImpl::ledgerClosed()
