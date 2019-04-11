@@ -68,4 +68,10 @@ QuorumTracker::rebuild(std::function<SCPQuorumSetPtr(NodeID const&)> lookup)
         }
     }
 }
+
+std::unordered_map<NodeID, SCPQuorumSetPtr> const&
+QuorumTracker::getQuorum() const
+{
+    return mQuorum;
+}
 }
