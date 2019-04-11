@@ -267,6 +267,17 @@ HerderPersistence::dropAll(Database& db)
 
     db.getSession()
         << "CREATE INDEX scpquorumsbyseq ON scpquorums(lastledgerseq)";
+
+    db.getSession() << "DROP TABLE IF EXISTS quoruminfo";
+}
+
+void
+HerderPersistence::createQuorumTrackingTable(soci::session& sess)
+{
+    sess << "CREATE TABLE quoruminfo ("
+            "nodeid      CHARACTER(56) NOT NULL,"
+            "qsethash    CHARACTER(64) NOT NULL,"
+            "PRIMARY KEY (nodeid))";
 }
 
 void

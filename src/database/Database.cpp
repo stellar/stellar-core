@@ -55,7 +55,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 9;
+static unsigned long const SCHEMA_VERSION = 10;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -218,7 +218,10 @@ Database::applySchemaUpgrade(unsigned long vers)
         // Update schema for simplified offers table
         mApp.getLedgerTxnRoot().writeOffersIntoSimplifiedOffersTable();
         break;
-
+    case 10:
+        // add tracking table information
+        mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
+        break;
     default:
         if (vers <= 6)
         {
