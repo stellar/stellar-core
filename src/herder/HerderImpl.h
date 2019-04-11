@@ -129,6 +129,9 @@ class HerderImpl : public Herder
 
     void herderOutOfSync();
 
+    // attempt to retrieve additional SCP messages from peers
+    void getMoreSCPState();
+
     // last slot that was persisted into the database
     // only keep track of the most recent slot
     uint64 mLastSlotSaved;
