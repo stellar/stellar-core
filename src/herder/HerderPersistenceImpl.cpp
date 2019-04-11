@@ -243,6 +243,60 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
     return n;
 }
 
+optional<Hash>
+HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
+                                    NodeID const& nodeID)
+{
+    std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
+    std::string qsethHex;
+
+    auto timer = db.getSelectTimer("quoruminfo");
+    soci::statement st = (sess.prepare << "SELECT qsethash FROM quoruminfo "
+                                          "WHERE nodeid = :id",
+                          soci::into(qsethHex), soci::use(nodeIDStrKey));
+
+    st.execute(true);
+
+    optional<Hash> res;
+    if (st.got_data())
+    {
+        auto h = hexToBin256(qsethHex);
+        res = make_optional<Hash>(std::move(h));
+    }
+    return res;
+}
+
+SCPQuorumSetPtr
+HerderPersistence::getQuorumSet(Database& db, soci::session& sess,
+                                Hash const& qSetHash)
+{
+    SCPQuorumSetPtr res;
+    SCPQuorumSet qset;
+    std::string qset64, qSetHashHex;
+
+    qSetHashHex = binToHex(qSetHash);
+
+    auto timer = db.getSelectTimer("scpquorums");
+
+    soci::statement st = (sess.prepare << "SELECT qset FROM scpquorums "
+                                          "WHERE qsethash = :h",
+                          soci::into(qset64), soci::use(qSetHashHex));
+
+    st.execute(true);
+
+    if (st.got_data())
+    {
+        std::vector<uint8_t> qSetBytes;
+        decoder::decode_b64(qset64, qSetBytes);
+
+        xdr::xdr_get g1(&qSetBytes.front(), &qSetBytes.back() + 1);
+        xdr_argpack_archive(g1, qset);
+
+        res = std::make_shared<SCPQuorumSet>(std::move(qset));
+    }
+    return res;
+}
+
 void
 HerderPersistence::dropAll(Database& db)
 {

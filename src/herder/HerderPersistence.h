@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "overlay/Peer.h"
+#include "xdr/Stellar-SCP.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -18,7 +20,6 @@ namespace stellar
 class Application;
 class Database;
 class XDROutputFileStream;
-struct SCPEnvelope;
 
 class HerderPersistence
 {
@@ -36,6 +37,12 @@ class HerderPersistence
                                          uint32_t ledgerSeq,
                                          uint32_t ledgerCount,
                                          XDROutputFileStream& scpHistory);
+    // quorum information lookup
+    static optional<Hash> getNodeQuorumSet(Database& db, soci::session& sess,
+                                           NodeID const& nodeID);
+    static SCPQuorumSetPtr getQuorumSet(Database& db, soci::session& sess,
+                                        Hash const& qSetHash);
+
     static void dropAll(Database& db);
     static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                  uint32_t count);
