@@ -20,6 +20,9 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
+
+    auto s = SecretKey::pseudoRandomForTesting();
+    cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
     Application::pointer app = createTestApplication(clock, cfg);
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
@@ -35,8 +38,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [&root](TxPair const& p, Hash qSetHash,
-                                uint64_t slotIndex) {
+    auto makeEnvelope = [&s](TxPair const& p, Hash qSetHash,
+                             uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};
@@ -44,8 +47,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         envelope.statement.pledges.type(SCP_ST_PREPARE);
         envelope.statement.pledges.prepare().ballot.value = p.first;
         envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
-        envelope.signature =
-            root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
+        envelope.statement.nodeID = s.getPublicKey();
+        envelope.signature = s.sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
