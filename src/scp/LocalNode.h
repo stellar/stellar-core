@@ -42,11 +42,6 @@ class LocalNode
     Hash const& getQuorumSetHash();
     bool isValidator();
 
-    SCP::TriBool isNodeInQuorum(
-        NodeID const& node,
-        std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
-        std::map<NodeID, std::vector<SCPStatement const*>> const& map) const;
-
     // returns the quorum set {{X}}
     static SCPQuorumSetPtr getSingletonQSet(NodeID const& nodeID);
 
