@@ -96,8 +96,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     DATABASE = SecretValue{"sqlite3://:memory:"};
 
-    ENTRY_CACHE_SIZE = 4096;
+    ENTRY_CACHE_SIZE = 100000;
     BEST_OFFERS_CACHE_SIZE = 64;
+    PREFETCH_BATCH_SIZE = 1000;
 }
 
 namespace
@@ -543,6 +544,10 @@ Config::load(std::string const& filename)
             else if (item.first == "BEST_OFFERS_CACHE_SIZE")
             {
                 BEST_OFFERS_CACHE_SIZE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "PREFETCH_BATCH_SIZE")
+            {
+                PREFETCH_BATCH_SIZE = readInt<uint32_t>(item);
             }
             else
             {

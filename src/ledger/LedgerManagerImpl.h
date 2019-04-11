@@ -48,6 +48,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mLedgerClose;
     medida::Timer& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
+    medida::Counter& mPrefetchHitRate;
     VirtualClock::time_point mLastClose;
 
     medida::Counter& mSyncingLedgersSize;
@@ -72,6 +73,8 @@ class LedgerManagerImpl : public LedgerManager
     void ledgerClosed(AbstractLedgerTxn& ltx);
 
     void storeCurrentLedger(LedgerHeader const& header);
+    void prefetchTransactionData(std::vector<TransactionFramePtr>& txs);
+    void prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs);
 
     enum class CloseLedgerIfResult
     {
@@ -98,6 +101,8 @@ class LedgerManagerImpl : public LedgerManager
     void initializeCatchup(LedgerCloseData const& ledgerData);
     void continueCatchup(LedgerCloseData const& ledgerData);
     void finalizeCatchup(LedgerCloseData const& ledgerData);
+    void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
+                           size_t numOps);
 
   public:
     LedgerManagerImpl(Application& app);

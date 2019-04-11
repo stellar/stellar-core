@@ -293,4 +293,34 @@ PathPaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
     }
     return true;
 }
+
+void
+PathPaymentOpFrame::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    keys.emplace(accountKey(mPathPayment.destination));
+
+    auto processAsset = [&](Asset const& asset) {
+        if (asset.type() != ASSET_TYPE_NATIVE)
+        {
+            auto issuer = getIssuer(asset);
+            keys.emplace(accountKey(issuer));
+        }
+    };
+
+    processAsset(mPathPayment.sendAsset);
+    processAsset(mPathPayment.destAsset);
+    std::for_each(mPathPayment.path.begin(), mPathPayment.path.end(),
+                  processAsset);
+
+    if (mPathPayment.destAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        keys.emplace(
+            trustlineKey(mPathPayment.destination, mPathPayment.destAsset));
+    }
+    if (mPathPayment.sendAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        keys.emplace(trustlineKey(getSourceID(), mPathPayment.sendAsset));
+    }
+}
 }

@@ -2159,6 +2159,52 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
     }
 }
 
+TEST_CASE("LedgerTxnRoot prefetch", "[ledgerstate]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.ENTRY_CACHE_SIZE = 1000;
+    cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
+
+    std::unordered_set<LedgerKey> keysToPrefetch;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+    auto& root = app->getLedgerTxnRoot();
+
+    auto entries = LedgerTestUtils::generateValidLedgerEntries(1000);
+    LedgerTxn ltx(root);
+    for (auto e : entries)
+    {
+        ltx.createOrUpdateWithoutLoading(e);
+        keysToPrefetch.emplace(LedgerEntryKey(e));
+    }
+    ltx.commit();
+
+    SECTION("prefetch normally")
+    {
+        LedgerTxn ltx2(root);
+        std::unordered_set<LedgerKey> smallSet;
+        for (auto const& k : keysToPrefetch)
+        {
+            smallSet.emplace(k);
+            if (smallSet.size() > (cfg.ENTRY_CACHE_SIZE / 3))
+            {
+                break;
+            }
+        }
+
+        REQUIRE(root.prefetch(smallSet) == smallSet.size());
+        ltx2.commit();
+    }
+    SECTION("stop prefetching as cache fills up")
+    {
+        LedgerTxn ltx2(root);
+        REQUIRE(root.prefetch(keysToPrefetch) == (cfg.ENTRY_CACHE_SIZE / 2));
+        REQUIRE(root.prefetch(keysToPrefetch) == 0);
+        ltx2.commit();
+    }
+}
+
 TEST_CASE("Create performance benchmark", "[!hide][createbench]")
 {
     auto runTest = [&](Config::TestDbMode mode, bool loading) {
@@ -2284,6 +2330,70 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
     {
         runTest(Config::TESTDB_POSTGRESQL, true);
         runTest(Config::TESTDB_POSTGRESQL, false);
+    }
+#endif
+}
+
+TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
+{
+    size_t floor = 1000;
+    size_t ceiling = 20000;
+    size_t bestBatchSize = 0;
+    double bestTime = 0xffffffff;
+
+    auto runTest = [&](Config::TestDbMode mode) {
+        for (; floor <= ceiling; floor += 1000)
+        {
+            std::unordered_set<LedgerKey> keys;
+            VirtualClock clock;
+            Config cfg(getTestConfig(0, mode));
+            cfg.PREFETCH_BATCH_SIZE = floor;
+
+            auto app = createTestApplication(clock, cfg);
+            app->start();
+            auto& root = app->getLedgerTxnRoot();
+
+            auto entries = LedgerTestUtils::generateValidLedgerEntries(50000);
+            LedgerTxn ltx(root);
+            for (auto e : entries)
+            {
+                ltx.createOrUpdateWithoutLoading(e);
+                keys.insert(LedgerEntryKey(e));
+            }
+            ltx.commit();
+
+            auto& m = app->getMetrics().NewTimer(
+                {"ledger", "bulk-load", std::to_string(floor) + " batch"});
+            LedgerTxn ltx2(root);
+            {
+                m.TimeScope();
+                root.prefetch(keys);
+            }
+            ltx2.commit();
+
+            auto total = m.sum();
+            CLOG(INFO, "Ledger")
+                << "Bulk Load test batch size: " << floor << " took " << total;
+
+            if (total < bestTime)
+            {
+                bestBatchSize = floor;
+                bestTime = total;
+            }
+        }
+        CLOG(INFO, "Ledger") << "Best batch and best time per entry "
+                             << bestBatchSize << " : " << bestTime;
+    };
+
+    SECTION("sqlite")
+    {
+        runTest(Config::TESTDB_ON_DISK_SQLITE);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
     }
 #endif
 }

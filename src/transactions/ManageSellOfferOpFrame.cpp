@@ -46,13 +46,13 @@ ManageSellOfferOpFrame::ManageSellOfferOpFrame(Operation const& op,
 }
 
 bool
-ManageSellOfferOpFrame::isAmountValid()
+ManageSellOfferOpFrame::isAmountValid() const
 {
     return mManageSellOffer.amount >= 0;
 }
 
 bool
-ManageSellOfferOpFrame::isDeleteOffer()
+ManageSellOfferOpFrame::isDeleteOffer() const
 {
     return mManageSellOffer.amount == 0;
 }

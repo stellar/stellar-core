@@ -26,6 +26,8 @@
 #include "main/Config.h"
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/OperationFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/format.h"
@@ -119,6 +121,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
+    , mPrefetchHitRate(
+          app.getMetrics().NewCounter({"ledger", "prefetch", "hit-rate"}))
     , mLastClose(mApp.getClock().now())
     , mSyncingLedgersSize(
           app.getMetrics().NewCounter({"ledger", "memory", "queued-ledgers"}))
@@ -739,6 +743,8 @@ LedgerManagerImpl::syncMetrics()
 {
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
     mLedgerAge.set_count(secondsSinceLastLedgerClose());
+    mPrefetchHitRate.set_count(
+        std::round(mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100));
     mApp.syncOwnMetrics();
 }
 
@@ -815,7 +821,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // sorted such that sequence numbers are respected
     vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
 
-    // first, charge fees
+    // first, prefetch source accounts fot txset, then charge fees
+    prefetchTxSourceIds(txs);
     processFeesSeqNums(txs, ltx,
                        ledgerData.getTxSet()->getBaseFee(header.current()));
 
@@ -959,6 +966,44 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 }
 
 void
+LedgerManagerImpl::prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs)
+{
+    if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
+    {
+        std::unordered_set<LedgerKey> keys;
+        for (auto const& tx : txs)
+        {
+            keys.emplace(accountKey(tx->getSourceID()));
+        }
+        auto& root = mApp.getLedgerTxnRoot();
+        root.prefetch(keys);
+    }
+}
+
+void
+LedgerManagerImpl::prefetchTransactionData(
+    std::vector<TransactionFramePtr>& txs)
+{
+    if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
+    {
+        auto& root = mApp.getLedgerTxnRoot();
+        std::unordered_set<LedgerKey> keysToPrefetch;
+        for (auto const& tx : txs)
+        {
+            for (auto const& op : tx->getOperations())
+            {
+                if (!(tx->getSourceID() == op->getSourceID()))
+                {
+                    keysToPrefetch.emplace(accountKey(op->getSourceID()));
+                }
+                op->insertLedgerKeysToPrefetch(keysToPrefetch);
+            }
+        }
+        root.prefetch(keysToPrefetch);
+    }
+}
+
+void
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                                      AbstractLedgerTxn& ltx,
                                      TransactionResultSet& txResultSet)
@@ -967,19 +1012,21 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
 
     // Record counts
     auto numTxs = txs.size();
+    size_t numOps = 0;
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
-        size_t numOps =
-            std::accumulate(txs.begin(), txs.end(), size_t(0),
-                            [](size_t s, TransactionFramePtr const& v) {
-                                return s + v->getOperations().size();
-                            });
+        numOps = std::accumulate(txs.begin(), txs.end(), size_t(0),
+                                 [](size_t s, TransactionFramePtr const& v) {
+                                     return s + v->getOperations().size();
+                                 });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
                                         ltx.loadHeader().current().ledgerSeq,
                                         numTxs, numOps);
     }
+
+    prefetchTransactionData(txs);
 
     for (auto tx : txs)
     {
@@ -1020,6 +1067,23 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, ++index,
                              txResultSet);
     }
+
+    logTxApplyMetrics(ltx, numTxs, numOps);
+}
+
+void
+LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
+                                     size_t numOps)
+{
+    auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+    auto hitRate = mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100;
+
+    CLOG(DEBUG, "Ledger") << "Ledger: " << ledgerSeq << " txs: " << numTxs
+                          << ", ops: " << numOps
+                          << ", prefetch hit rate (%): " << hitRate;
+
+    // We lose a bit of precision here, as medida only accepts int64_t
+    mPrefetchHitRate.set_count(std::round(hitRate));
 }
 
 void

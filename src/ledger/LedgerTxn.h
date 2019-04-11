@@ -557,8 +557,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::unique_ptr<Impl> const mImpl;
 
   public:
-    explicit LedgerTxnRoot(Database& db, size_t entryCacheSize = 4096,
-                           size_t bestOfferCacheSize = 64);
+    explicit LedgerTxnRoot(Database& db, size_t entryCacheSize,
+                           size_t bestOfferCacheSize, size_t prefetchBatchSize);
 
     virtual ~LedgerTxnRoot();
 
@@ -602,5 +602,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void encodeHomeDomainsBase64();
 
     void writeOffersIntoSimplifiedOffersTable();
+    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+    double getPrefetchHitRate() const;
 };
 }

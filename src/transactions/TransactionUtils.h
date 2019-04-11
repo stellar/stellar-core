@@ -15,6 +15,12 @@ class AbstractLedgerTxn;
 class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
+struct LedgerKey;
+
+LedgerKey accountKey(AccountID const& accountID);
+LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
+LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
+LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 
 LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 

@@ -477,4 +477,32 @@ ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion)
 
     return true;
 }
+
+void
+ManageOfferOpFrameBase::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    if (isDeleteOffer())
+    {
+        return;
+    }
+
+    // Prefetch existing offer
+    if (mOfferID)
+    {
+        keys.emplace(offerKey(getSourceID(), mOfferID));
+    }
+
+    auto addIssuerAndTrustline = [&](Asset const& asset) {
+        if (asset.type() != ASSET_TYPE_NATIVE)
+        {
+            auto issuer = getIssuer(asset);
+            keys.emplace(accountKey(issuer));
+            keys.emplace(trustlineKey(this->getSourceID(), asset));
+        }
+    };
+
+    addIssuerAndTrustline(mSheep);
+    addIssuerAndTrustline(mWheat);
+}
 }
