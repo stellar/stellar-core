@@ -2,14 +2,15 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
+#include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/OverlayManager.h"
 #include "scp/QuorumSetUtils.h"
+#include "scp/Slot.h"
 #include "util/Logging.h"
-#include <overlay/OverlayManager.h>
-#include <scp/Slot.h>
 #include <xdrpp/marshal.h>
 
 using namespace std;
@@ -180,6 +181,17 @@ PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
                     auto h = Slot::getCompanionQuorumSetHashFromStatement(
                         m->statement);
                     res = getQSet(h);
+                }
+                if (res == nullptr)
+                {
+                    // see if we had some information for that node
+                    auto& db = mApp.getDatabase();
+                    auto h = HerderPersistence::getNodeQuorumSet(
+                        db, db.getSession(), id);
+                    if (h)
+                    {
+                        res = getQSet(*h);
+                    }
                 }
             }
             return res;
@@ -488,8 +500,13 @@ PendingEnvelopes::getQSet(Hash const& hash)
     {
         return mQsetCache.get(hash);
     }
-
-    return SCPQuorumSetPtr();
+    auto& db = mApp.getDatabase();
+    auto qset = HerderPersistence::getQuorumSet(db, db.getSession(), hash);
+    if (qset)
+    {
+        mQsetCache.put(hash, qset);
+    }
+    return qset;
 }
 
 Json::Value
