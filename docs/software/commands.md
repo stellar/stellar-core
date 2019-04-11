@@ -230,7 +230,7 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload**
-  `/generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=(R|auto)&batchsize=L]`<br>
+  `/generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L]`<br>
   Artificially generate load for testing; must be used with
   `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true. Depending on the mode,
   either creates new accounts or generates payments on accounts specified

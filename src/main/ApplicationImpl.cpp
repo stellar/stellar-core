@@ -474,11 +474,11 @@ ApplicationImpl::manualClose()
 void
 ApplicationImpl::generateLoad(bool isCreate, uint32_t nAccounts,
                               uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                              uint32_t batchSize, bool autoRate)
+                              uint32_t batchSize)
 {
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
     getLoadGenerator().generateLoad(isCreate, nAccounts, offset, nTxs, txRate,
-                                    batchSize, autoRate);
+                                    batchSize);
 }
 
 LoadGenerator&
