@@ -90,6 +90,17 @@ Slot::getCurrentState() const
     return res;
 }
 
+SCPEnvelope const*
+Slot::getLatestMessage(NodeID const& id) const
+{
+    auto m = mBallotProtocol.getLatestMessage(id);
+    if (m == nullptr)
+    {
+        m = mNominationProtocol.getLatestMessage(id);
+    }
+    return m;
+}
+
 std::vector<SCPEnvelope>
 Slot::getExternalizingState() const
 {

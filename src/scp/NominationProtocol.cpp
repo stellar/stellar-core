@@ -616,4 +616,15 @@ NominationProtocol::getCurrentState() const
     }
     return res;
 }
+
+SCPEnvelope const*
+NominationProtocol::getLatestMessage(NodeID const& id) const
+{
+    auto it = mLatestNominations.find(id);
+    if (it != mLatestNominations.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
+}
 }

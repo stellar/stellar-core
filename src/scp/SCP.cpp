@@ -256,6 +256,21 @@ SCP::getCurrentState(uint64 slotIndex)
     }
 }
 
+SCPEnvelope const*
+SCP::getLatestMessage(NodeID const& id)
+{
+    for (auto it = mKnownSlots.rbegin(); it != mKnownSlots.rend(); it++)
+    {
+        auto slot = it->second;
+        auto res = slot->getLatestMessage(id);
+        if (res != nullptr)
+        {
+            return res;
+        }
+    }
+    return nullptr;
+}
+
 std::vector<SCPEnvelope>
 SCP::getExternalizingState(uint64 slotIndex)
 {
