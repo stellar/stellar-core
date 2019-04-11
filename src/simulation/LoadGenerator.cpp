@@ -15,6 +15,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
+#include "util/numeric.h"
 #include "util/types.h"
 
 #include "database/Database.h"
@@ -65,7 +66,7 @@ LoadGenerator::createRootAccount()
     }
 }
 
-uint32_t
+int64_t
 LoadGenerator::getTxPerStep(uint32_t txRate)
 {
     if (!mStartTime)
@@ -80,8 +81,8 @@ LoadGenerator::getTxPerStep(uint32_t txRate)
     auto now = mApp.getClock().now();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         now - *mStartTime);
-    auto txs = static_cast<uint32_t>(static_cast<double>(elapsed.count()) /
-                                     1000 * txRate);
+    auto txs = bigDivide(elapsed.count(), txRate, 1000, Rounding::ROUND_DOWN);
+
     if (txs <= mTotalSubmitted)
     {
         return 0;
@@ -169,14 +170,14 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
         batchSize = 1;
     }
 
-    uint32_t txPerStep = getTxPerStep(txRate);
+    auto txPerStep = getTxPerStep(txRate);
     auto& submitTimer =
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
 
     uint32_t ledgerNum = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
 
-    for (uint32_t i = 0; i < txPerStep; ++i)
+    for (int64_t i = 0; i < txPerStep; ++i)
     {
         if (isCreate)
         {

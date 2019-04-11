@@ -44,7 +44,7 @@ class LoadGenerator
     uint64_t mLastSecond;
 
     void createRootAccount();
-    uint32_t getTxPerStep(uint32_t txRate);
+    int64_t getTxPerStep(uint32_t txRate);
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
@@ -113,7 +113,7 @@ class LoadGenerator
 
   protected:
     Application& mApp;
-    uint32_t mTotalSubmitted;
+    int64_t mTotalSubmitted;
     // Set when load generation actually begins
     std::unique_ptr<VirtualClock::time_point> mStartTime;
 
