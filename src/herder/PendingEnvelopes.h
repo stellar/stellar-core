@@ -140,6 +140,8 @@ class PendingEnvelopes
     // sure
     bool isNodeDefinitelyInQuorum(NodeID const& node);
 
+    std::unordered_map<NodeID, SCPQuorumSetPtr> const& getCurrentQuorum() const;
+
     // updates internal state when an envelope was succesfuly processed
     void envelopeProcessed(SCPEnvelope const& env);
 };

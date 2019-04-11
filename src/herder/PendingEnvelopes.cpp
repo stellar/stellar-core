@@ -526,6 +526,12 @@ PendingEnvelopes::getJsonInfo(size_t limit)
     return ret;
 }
 
+std::unordered_map<NodeID, SCPQuorumSetPtr> const&
+PendingEnvelopes::getCurrentQuorum() const
+{
+    return mQuorumTracker.getQuorum();
+}
+
 void
 PendingEnvelopes::envelopeProcessed(SCPEnvelope const& env)
 {
