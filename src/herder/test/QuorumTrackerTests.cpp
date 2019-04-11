@@ -15,7 +15,7 @@ using namespace stellar;
 
 TEST_CASE("quorum tracker", "[quorum][herder]")
 {
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
     std::vector<SecretKey> otherKeys;
     int const kKeysCount = 7;
@@ -52,12 +52,27 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
 
     using TxPair = std::pair<Value, TxSetFramePtr>;
 
-    auto recvEnvelope = [&](uint64 slotID, SecretKey const& k,
-                            SCPQuorumSet const& qSet, std::vector<TxPair> pp) {
+    auto recvEnvelope = [&](SCPEnvelope envelope, uint64 slotID,
+                            SecretKey const& k, SCPQuorumSet const& qSet,
+                            std::vector<TxPair> const& pp) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
-        auto envelope = SCPEnvelope{};
         envelope.statement.slotIndex = slotID;
+        auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
+        envelope.statement.nodeID = k.getPublicKey();
+        envelope.signature = k.sign(xdr::xdr_to_opaque(
+            app->getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
+        herder->recvSCPEnvelope(envelope);
+        herder->recvSCPQuorumSet(qSetH, qSet);
+        for (auto& p : pp)
+        {
+            herder->recvTxSet(p.second->getContentsHash(), *p.second);
+        }
+    };
+    auto recvNom = [&](uint64 slotID, SecretKey const& k,
+                       SCPQuorumSet const& qSet,
+                       std::vector<TxPair> const& pp) {
+        SCPEnvelope envelope;
         envelope.statement.pledges.type(SCP_ST_NOMINATE);
         auto& nom = envelope.statement.pledges.nominate();
 
@@ -69,17 +84,22 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
         nom.votes.insert(nom.votes.begin(), values.begin(), values.end());
         auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
         nom.quorumSetHash = qSetH;
-        envelope.statement.nodeID = k.getPublicKey();
-        envelope.signature = k.sign(xdr::xdr_to_opaque(
-            app->getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
-        herder->recvSCPEnvelope(envelope);
-        herder->recvSCPQuorumSet(qSetH, qSet);
-        for (auto& p : pp)
-        {
-            herder->recvTxSet(p.second->getContentsHash(), *p.second);
-        }
+        recvEnvelope(envelope, slotID, k, qSet, pp);
     };
+    auto recvExternalize = [&](uint64 slotID, SecretKey const& k,
+                               SCPQuorumSet const& qSet, TxPair const& v) {
+        SCPEnvelope envelope;
+        envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
+        auto& ext = envelope.statement.pledges.externalize();
+        ext.commit.counter = UINT32_MAX;
+        ext.commit.value = v.first;
+        ext.nH = UINT32_MAX;
 
+        auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
+        ext.commitQuorumSetHash = qSetH;
+        std::vector<TxPair> pp = {v};
+        recvEnvelope(envelope, slotID, k, qSet, pp);
+    };
     auto makeValue = [&](int i) {
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
         auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
@@ -106,29 +126,46 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
     SECTION("Receive self")
     {
         checkInQuorum({0, 1});
-        recvEnvelope(3, cfg.NODE_SEED, cfg.QUORUM_SET, {vv});
+        recvNom(3, cfg.NODE_SEED, cfg.QUORUM_SET, {vv});
         checkInQuorum({0, 1});
     }
     SECTION("Expand 0")
     {
         checkInQuorum({0, 1});
-        recvEnvelope(3, otherKeys[0], qSet0, {vv});
+        recvNom(3, otherKeys[0], qSet0, {vv});
         checkInQuorum({0, 1, 2, 3});
         SECTION("Expand 2")
         {
-            recvEnvelope(3, otherKeys[2], qSet2, {vv});
+            recvNom(3, otherKeys[2], qSet2, {vv});
             checkInQuorum({0, 1, 2, 3, 5, 6});
+            SECTION("node restart")
+            {
+                // externalize -> we persist quorum information
+                recvExternalize(3, otherKeys[0], qSet0, vv);
+                // use qSet0 for node1
+                recvExternalize(3, otherKeys[1], qSet0, vv);
+                checkInQuorum({0, 1, 2, 3, 5, 6});
+                app.reset();
+                clock.reset();
+
+                clock = std::make_shared<VirtualClock>();
+                app = Application::create(*clock, cfg, false);
+                app->start();
+                herder = static_cast<HerderImpl*>(&app->getHerder());
+                penEnvs = &herder->getPendingEnvelopes();
+                checkInQuorum({0, 1, 2, 3, 5, 6});
+            }
         }
         SECTION("Update 0's qSet")
         {
             auto vv2 = makeValue(2);
-            recvEnvelope(3, otherKeys[0], qSet0b, {vv, vv2});
+            recvNom(3, otherKeys[0], qSet0b, {vv, vv2});
             checkInQuorum({0, 1, 4, 5});
         }
         SECTION("Update 0's qSet in an old slot")
         {
             auto vv2 = makeValue(2);
-            recvEnvelope(2, otherKeys[0], qSet0b, {vv, vv2});
+            recvNom(2, otherKeys[0], qSet0b, {vv, vv2});
             // nothing changes (slot 3 has precedence)
             checkInQuorum({0, 1, 2, 3});
         }
