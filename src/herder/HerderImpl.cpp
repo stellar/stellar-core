@@ -191,7 +191,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     // save the SCP messages in the database
     mApp.getHerderPersistence().saveSCPHistory(
         static_cast<uint32>(slotIndex),
-        getSCP().getExternalizingState(slotIndex));
+        getSCP().getExternalizingState(slotIndex),
+        mPendingEnvelopes.getCurrentlyTrackedQuorum());
 
     // reflect upgrades with the ones included in this SCP round
     {
@@ -235,6 +236,12 @@ HerderImpl::rebroadcast()
     {
         broadcast(e);
     }
+
+    if (!mHerderSCPDriver.trackingSCP())
+    {
+        getMoreSCPState();
+    }
+
     startRebroadcastTimer();
 }
 
@@ -515,13 +522,23 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
         SCPEnvelope env;
         if (mPendingEnvelopes.pop(slotIndex, env))
         {
-            getSCP().receiveEnvelope(env);
+            auto r = getSCP().receiveEnvelope(env);
+            if (r == SCP::EnvelopeState::VALID)
+            {
+                mPendingEnvelopes.envelopeProcessed(env);
+            }
         }
         else
         {
             return;
         }
     }
+}
+
+PendingEnvelopes&
+HerderImpl::getPendingEnvelopes()
+{
+    return mPendingEnvelopes;
 }
 
 void
@@ -1100,6 +1117,30 @@ HerderImpl::herderOutOfSync()
     mSCPMetrics.mLostSync.Mark();
     mHerderSCPDriver.lostSync();
 
+    getMoreSCPState();
+
     processSCPQueue();
+}
+
+void
+HerderImpl::getMoreSCPState()
+{
+    int const NB_PEERS_TO_ASK = 2;
+    auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
+    if (low > Herder::MAX_SLOTS_TO_REMEMBER)
+    {
+        low -= Herder::MAX_SLOTS_TO_REMEMBER;
+    }
+    else
+    {
+        low = 1;
+    }
+
+    // ask a few random peers their SCP messages
+    auto r = mApp.getOverlayManager().getRandomAuthenticatedPeers();
+    for (int i = 0; i < NB_PEERS_TO_ASK && i < r.size(); i++)
+    {
+        r[i]->sendGetScpState(low);
+    }
 }
 }

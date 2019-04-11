@@ -115,16 +115,13 @@ class SCP
     // returns all messages for the slot
     std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
 
+    // returns the latest message from a node
+    // or nullptr if not found
+    SCPEnvelope const* getLatestMessage(NodeID const& id);
+
     // returns messages that contributed to externalizing the slot
     // (or empty if the slot didn't externalize)
     std::vector<SCPEnvelope> getExternalizingState(uint64 slotIndex);
-
-    // returns if a node is in the (transitive) quorum originating at
-    // the local node, scanning the known slots.
-    // TB_TRUE iff n is in the quorum
-    // TB_FALSE iff n is not in the quorum
-    // TB_MAYBE iff the quorum cannot be computed
-    TriBool isNodeInQuorum(NodeID const& node);
 
     // ** helper methods to stringify ballot for logging
     std::string getValueString(Value const& v) const;

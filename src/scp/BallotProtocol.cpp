@@ -1794,6 +1794,17 @@ BallotProtocol::getCurrentState() const
     return res;
 }
 
+SCPEnvelope const*
+BallotProtocol::getLatestMessage(NodeID const& id) const
+{
+    auto it = mLatestEnvelopes.find(id);
+    if (it != mLatestEnvelopes.end())
+    {
+        return &it->second;
+    }
+    return nullptr;
+}
+
 std::vector<SCPEnvelope>
 BallotProtocol::getExternalizingState() const
 {

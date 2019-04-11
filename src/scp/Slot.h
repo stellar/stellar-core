@@ -90,6 +90,10 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns the latest messages known for this slot
     std::vector<SCPEnvelope> getCurrentState() const;
 
+    // returns the latest message from a node
+    // or nullptr if not found
+    SCPEnvelope const* getLatestMessage(NodeID const& id) const;
+
     // returns messages that helped this slot externalize
     std::vector<SCPEnvelope> getExternalizingState() const;
 
@@ -122,9 +126,6 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     bool isFullyValidated() const;
     void setFullyValidated(bool fullyValidated);
-
-    // returns if a node is in the quorum originating at the local node
-    SCP::TriBool isNodeInQuorum(NodeID const& node);
 
     // ** status methods
 

@@ -101,6 +101,11 @@ class HerderImpl : public Herder
     };
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
+#ifdef BUILD_TESTS
+    // used for testing
+    PendingEnvelopes& getPendingEnvelopes();
+#endif
+
   private:
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
@@ -125,6 +130,9 @@ class HerderImpl : public Herder
     HerderSCPDriver mHerderSCPDriver;
 
     void herderOutOfSync();
+
+    // attempt to retrieve additional SCP messages from peers
+    void getMoreSCPState();
 
     // last slot that was persisted into the database
     // only keep track of the most recent slot

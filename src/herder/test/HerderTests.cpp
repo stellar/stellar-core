@@ -806,6 +806,9 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSize;
 
     VirtualClock clock;
+    auto s = SecretKey::pseudoRandomForTesting();
+    cfg.QUORUM_SET.validators.emplace_back(s.getPublicKey());
+
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
@@ -824,8 +827,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [&root](TxPair const& p, Hash qSetHash,
-                                uint64_t slotIndex) {
+    auto makeEnvelope = [&s](TxPair const& p, Hash qSetHash,
+                             uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};
@@ -833,8 +836,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         envelope.statement.pledges.type(SCP_ST_PREPARE);
         envelope.statement.pledges.prepare().ballot.value = p.first;
         envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
-        envelope.signature =
-            root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
+        envelope.statement.nodeID = s.getPublicKey();
+        envelope.signature = s.sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
     auto addTransactions = [&](TxSetFramePtr txSet, int n, int nbOps,
@@ -1364,7 +1367,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     simulation->stopAllNodes();
 }
 
-TEST_CASE("In quorum filtering", "[herder]")
+TEST_CASE("In quorum filtering", "[quorum][herder]")
 {
     auto mode = Simulation::OVER_LOOPBACK;
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);

@@ -111,6 +111,10 @@ class BallotProtocol
 
     std::vector<SCPEnvelope> getCurrentState() const;
 
+    // returns the latest message from a node
+    // or nullptr if not found
+    SCPEnvelope const* getLatestMessage(NodeID const& id) const;
+
     std::vector<SCPEnvelope> getExternalizingState() const;
 
   private:
