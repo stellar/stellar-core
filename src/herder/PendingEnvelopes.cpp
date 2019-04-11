@@ -500,8 +500,17 @@ PendingEnvelopes::getQSet(Hash const& hash)
     {
         return mQsetCache.get(hash);
     }
-    auto& db = mApp.getDatabase();
-    auto qset = HerderPersistence::getQuorumSet(db, db.getSession(), hash);
+    SCPQuorumSetPtr qset;
+    auto& scp = mHerder.getSCP();
+    if (hash == scp.getLocalNode()->getQuorumSetHash())
+    {
+        qset = make_shared<SCPQuorumSet>(scp.getLocalQuorumSet());
+    }
+    else
+    {
+        auto& db = mApp.getDatabase();
+        qset = HerderPersistence::getQuorumSet(db, db.getSession(), hash);
+    }
     if (qset)
     {
         mQsetCache.put(hash, qset);

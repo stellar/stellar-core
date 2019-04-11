@@ -101,8 +101,10 @@ class HerderImpl : public Herder
     };
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
+#ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
+#endif
 
   private:
     void ledgerClosed();
