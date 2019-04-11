@@ -1364,7 +1364,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     simulation->stopAllNodes();
 }
 
-TEST_CASE("In quorum filtering", "[herder]")
+TEST_CASE("In quorum filtering", "[quorum][herder]")
 {
     auto mode = Simulation::OVER_LOOPBACK;
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
