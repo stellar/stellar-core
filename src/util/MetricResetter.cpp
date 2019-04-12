@@ -16,7 +16,7 @@ MetricResetter::Process(medida::Counter& counter)
 void
 MetricResetter::Process(medida::Meter& meter)
 {
-    // Meter has no "clear" method
+    meter.Clear();
 }
 
 void
