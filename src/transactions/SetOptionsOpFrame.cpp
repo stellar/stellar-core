@@ -140,7 +140,7 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
                     innerResult().code(SET_OPTIONS_LOW_RESERVE);
                     return false;
                 case AddSubentryResult::TOO_MANY_SUBENTRIES:
-                    innerResult().code(SET_OPTIONS_TOO_MANY_SUBENTRIES);
+                    mResult.code(opTOO_MANY_SUBENTRIES);
                     return false;
                 default:
                     throw std::runtime_error(

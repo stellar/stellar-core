@@ -55,8 +55,6 @@ class ManageBuyOfferOpFrame : public ManageOfferOpFrameBase
     void setResultBuyNoIssuer() override;
     void setResultNotFound() override;
     void setResultLowReserve() override;
-    void setResultTooManySubentries() override;
-    void setResultExceededWorkLimit() override;
 
     static ManageBuyOfferResultCode
     getInnerCode(OperationResult const& res)

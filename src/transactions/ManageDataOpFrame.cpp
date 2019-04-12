@@ -50,7 +50,7 @@ ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
                 return false;
             case AddSubentryResult::TOO_MANY_SUBENTRIES:
-                innerResult().code(MANAGE_DATA_TOO_MANY_SUBENTRIES);
+                mResult.code(opTOO_MANY_SUBENTRIES);
                 return false;
             default:
                 throw std::runtime_error(

@@ -116,7 +116,7 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
             setResultLowReserve();
             return false;
         case AddSubentryResult::TOO_MANY_SUBENTRIES:
-            setResultTooManySubentries();
+            mResult.code(opTOO_MANY_SUBENTRIES);
             return false;
         default:
             throw std::runtime_error("Unexpected result from addNumEntries");
@@ -309,7 +309,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             sheepStays = true;
             break;
         case ConvertResult::eCrossedTooMany:
-            setResultExceededWorkLimit();
+            mResult.code(opEXCEEDED_WORK_LIMIT);
             return false;
         default:
             abort();
@@ -410,7 +410,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 setResultLowReserve();
                 return false;
             case AddSubentryResult::TOO_MANY_SUBENTRIES:
-                setResultTooManySubentries();
+                mResult.code(opTOO_MANY_SUBENTRIES);
                 return false;
             default:
                 throw std::runtime_error(

@@ -195,7 +195,7 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
             return false;
         case ConvertResult::eCrossedTooMany:
-            innerResult().code(PATH_PAYMENT_EXCEEDED_WORK_LIMIT);
+            mResult.code(opEXCEEDED_WORK_LIMIT);
             return false;
         }
         assert(curBReceived == actualCurBReceived);

@@ -114,7 +114,7 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
             return false;
         case AddSubentryResult::TOO_MANY_SUBENTRIES:
-            innerResult().code(CHANGE_TRUST_TOO_MANY_SUBENTRIES);
+            mResult.code(opTOO_MANY_SUBENTRIES);
             return false;
         default:
             throw std::runtime_error("Unexpected result from addNumEntries");
