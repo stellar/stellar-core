@@ -61,7 +61,8 @@ class LedgerManagerImpl : public LedgerManager
 
     void historyCaughtup(asio::error_code const& ec,
                          CatchupWork::ProgressState progressState,
-                         LedgerHeaderHistoryEntry const& lastClosed);
+                         LedgerHeaderHistoryEntry const& lastClosed,
+                         CatchupConfiguration::Mode catchupMode);
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
                             AbstractLedgerTxn& ltxOuter, int64_t baseFee);
@@ -134,8 +135,7 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchup(CatchupConfiguration configuration,
-                      bool manualCatchup) override;
+    void startCatchup(CatchupConfiguration configuration) override;
 
     void closeLedger(LedgerCloseData const& ledgerData) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,

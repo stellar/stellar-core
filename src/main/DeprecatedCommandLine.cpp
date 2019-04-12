@@ -194,15 +194,17 @@ usage(int err = 1)
 int
 catchupAt(Application::pointer app, uint32_t at, Json::Value& catchupInfo)
 {
-    return catchup(app, CatchupConfiguration{at, 0}, catchupInfo);
+    return catchup(app, {at, 0, CatchupConfiguration::Mode::OFFLINE},
+                   catchupInfo);
 }
 
 int
 catchupComplete(Application::pointer app, Json::Value& catchupInfo)
 {
     return catchup(app,
-                   CatchupConfiguration{CatchupConfiguration::CURRENT,
-                                        std::numeric_limits<uint32_t>::max()},
+                   {CatchupConfiguration::CURRENT,
+                    std::numeric_limits<uint32_t>::max(),
+                    CatchupConfiguration::Mode::OFFLINE},
                    catchupInfo);
 }
 
@@ -211,16 +213,18 @@ catchupRecent(Application::pointer app, uint32_t count,
               Json::Value& catchupInfo)
 {
     return catchup(app,
-                   CatchupConfiguration{CatchupConfiguration::CURRENT, count},
+                   {CatchupConfiguration::CURRENT, count,
+                    CatchupConfiguration::Mode::OFFLINE},
                    catchupInfo);
 }
 
 int
 catchupTo(Application::pointer app, uint32_t to, Json::Value& catchupInfo)
 {
-    return catchup(
-        app, CatchupConfiguration{to, std::numeric_limits<uint32_t>::max()},
-        catchupInfo);
+    return catchup(app,
+                   {to, std::numeric_limits<uint32_t>::max(),
+                    CatchupConfiguration::Mode::OFFLINE},
+                   catchupInfo);
 }
 }
 

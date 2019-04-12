@@ -328,6 +328,12 @@ ApplicationImpl::start()
     if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
         "true")
     {
+        if (!mConfig.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting stellar-core in FORCE_SCP mode requires "
+                          "NODE_IS_VALIDATOR to be set";
+            throw std::invalid_argument("NODE_IS_VALIDATOR not set");
+        }
         mConfig.FORCE_SCP = true;
     }
 

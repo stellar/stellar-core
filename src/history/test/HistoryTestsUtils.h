@@ -214,8 +214,16 @@ class CatchupSimulation
     std::vector<SequenceNumber> bobSeqs;
     std::vector<SequenceNumber> carolSeqs;
 
+    CatchupMetrics getCatchupMetrics(Application::pointer app);
+    CatchupPerformedWork computeCatchupPerformedWork(
+        uint32_t lastClosedLedger,
+        CatchupConfiguration const& catchupConfiguration,
+        HistoryManager const& historyManager);
+    void validateCatchup(Application::pointer app);
+
   public:
     explicit CatchupSimulation(
+        VirtualClock::Mode mode = VirtualClock::VIRTUAL_TIME,
         std::shared_ptr<HistoryConfigurator> cg =
             std::make_shared<TmpDirHistoryConfigurator>());
     ~CatchupSimulation();
@@ -244,22 +252,22 @@ class CatchupSimulation
         return mBucketListAtLastPublish;
     }
 
+    uint32_t getLastCheckpointLedger(uint32_t checkpointIndex) const;
+
     void generateRandomLedger();
-    void generateAndPublishHistory(size_t nPublishes);
-    void generateAndPublishInitialHistory(size_t nPublishes);
 
-    Application::pointer catchupNewApplication(
-        uint32_t initLedger, uint32_t count, bool manual,
-        Config::TestDbMode dbMode, std::string const& appName,
+    void ensurePublishesComplete();
+    void ensureLedgerAvailable(uint32_t targetLedger);
+    void ensureOfflineCatchupPossible(uint32_t targetLedger);
+    void ensureOnlineCatchupPossible(uint32_t targetLedger,
+                                     uint32_t bufferLedgers = 0);
+
+    Application::pointer createCatchupApplication(
+        uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
         uint32_t protocol = Config::CURRENT_LEDGER_PROTOCOL_VERSION);
-    bool catchupApplication(uint32_t initLedger, uint32_t count, bool manual,
-                            Application::pointer app2, uint32_t gap = 0);
-
-    CatchupMetrics getCatchupMetrics(Application::pointer app);
-    CatchupPerformedWork computeCatchupPerformedWork(
-        uint32_t lastClosedLedger,
-        CatchupConfiguration const& catchupConfiguration,
-        HistoryManager const& historyManager);
+    bool catchupOffline(Application::pointer app, uint32_t toLedger);
+    bool catchupOnline(Application::pointer app, uint32_t initLedger,
+                       uint32_t bufferLedgers = 0, uint32_t gapLedger = 0);
 
     void crankUntil(Application::pointer app,
                     std::function<bool()> const& predicate,

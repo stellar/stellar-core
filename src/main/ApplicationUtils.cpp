@@ -50,6 +50,13 @@ runWithConfig(Config cfg)
 {
     if (cfg.MANUAL_CLOSE)
     {
+        if (!cfg.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting stellar-core in MANUAL_CLOSE mode requires "
+                          "NODE_IS_VALIDATOR to be set";
+            return 1;
+        }
+
         // in manual close mode, we set FORCE_SCP
         // so that the node starts fully in sync
         // (this is to avoid to force scp all the time when testing)
@@ -338,7 +345,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, true);
+        app->getLedgerManager().startCatchup(cc);
     }
     catch (std::invalid_argument const&)
     {
@@ -368,27 +375,16 @@ catchup(Application::pointer app, CatchupConfiguration cc,
         }
         case LedgerManager::LM_SYNCED_STATE:
         {
+            done = true;
+            synced = true;
             break;
         }
         case LedgerManager::LM_CATCHING_UP_STATE:
         {
-            switch (app->getLedgerManager().getCatchupState())
+            if (app->getLedgerManager().getCatchupState() ==
+                LedgerManager::CatchupState::NONE)
             {
-            case LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER:
-            {
-                done = true;
-                synced = true;
-                break;
-            }
-            case LedgerManager::CatchupState::NONE:
-            {
-                done = true;
-                break;
-            }
-            default:
-            {
-                break;
-            }
+                abort();
             }
             break;
         }
