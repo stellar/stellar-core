@@ -69,12 +69,6 @@ class TestSCP : public SCPDriver
     {
     }
 
-    bool
-    verifyEnvelope(SCPEnvelope const& envelope) override
-    {
-        return true;
-    }
-
     void
     storeQuorumSet(SCPQuorumSetPtr qSet)
     {

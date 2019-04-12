@@ -106,6 +106,11 @@ class HerderImpl : public Herder
     PendingEnvelopes& getPendingEnvelopes();
 #endif
 
+    // helper function to verify envelopes are signed
+    bool verifyEnvelope(SCPEnvelope const& envelope);
+    // helper function to sign envelopes
+    void signEnvelope(SecretKey const& s, SCPEnvelope& envelope);
+
   private:
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
@@ -178,6 +183,10 @@ class HerderImpl : public Herder
         medida::Counter& mHerderPendingTxs1;
         medida::Counter& mHerderPendingTxs2;
         medida::Counter& mHerderPendingTxs3;
+
+        // envelope signature verification
+        medida::Meter& mEnvelopeValidSig;
+        medida::Meter& mEnvelopeInvalidSig;
 
         SCPMetrics(Application& app);
     };

@@ -27,6 +27,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
     using TxPair = std::pair<Value, TxSetFramePtr>;
@@ -38,8 +40,8 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [&s](TxPair const& p, Hash qSetHash,
-                             uint64_t slotIndex) {
+    auto makeEnvelope = [&s, &herder](TxPair const& p, Hash qSetHash,
+                                      uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};
@@ -48,7 +50,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         envelope.statement.pledges.prepare().ballot.value = p.first;
         envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
         envelope.statement.nodeID = s.getPublicKey();
-        envelope.signature = s.sign(xdr::xdr_to_opaque(envelope.statement));
+        herder.signEnvelope(s, envelope);
         return envelope;
     };
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
@@ -102,8 +104,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto saneEnvelope = makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
     auto bigEnvelope = makeEnvelope(p, bigQSetHash, lcl.header.ledgerSeq + 1);
 
-    PendingEnvelopes pendingEnvelopes{
-        *app, static_cast<HerderImpl&>(app->getHerder())};
+    PendingEnvelopes pendingEnvelopes{*app, herder};
 
     SECTION("return FETCHING when first receiving envelope")
     {
