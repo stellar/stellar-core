@@ -90,7 +90,6 @@ class HerderSCPDriver : public SCPDriver
 
     // envelope handling
     void signEnvelope(SCPEnvelope& envelope) override;
-    bool verifyEnvelope(SCPEnvelope const& envelope) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
 
     // value validation
@@ -146,8 +145,6 @@ class HerderSCPDriver : public SCPDriver
     struct SCPMetrics
     {
         medida::Meter& mEnvelopeSign;
-        medida::Meter& mEnvelopeValidSig;
-        medida::Meter& mEnvelopeInvalidSig;
 
         medida::Meter& mValueValid;
         medida::Meter& mValueInvalid;

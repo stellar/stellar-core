@@ -65,6 +65,10 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewCounter({"herder", "pending-txs", "age2"}))
     , mHerderPendingTxs3(
           app.getMetrics().NewCounter({"herder", "pending-txs", "age3"}))
+    , mEnvelopeValidSig(app.getMetrics().NewMeter(
+          {"scp", "envelope", "validsig"}, "envelope"))
+    , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
+          {"scp", "envelope", "invalidsig"}, "envelope"))
 {
 }
 
@@ -373,6 +377,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     if (mApp.getConfig().MANUAL_CLOSE)
     {
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
+    if (!verifyEnvelope(envelope))
+    {
+        CLOG(DEBUG, "Herder") << "Received bad envelope, discarding";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
@@ -1144,5 +1154,30 @@ HerderImpl::getMoreSCPState()
     {
         r[i]->sendGetScpState(low);
     }
+}
+
+bool
+HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
+{
+    auto b = PubKeyUtils::verifySig(
+        envelope.statement.nodeID, envelope.signature,
+        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCP,
+                           envelope.statement));
+    if (b)
+    {
+        mSCPMetrics.mEnvelopeValidSig.Mark();
+    }
+    else
+    {
+        mSCPMetrics.mEnvelopeInvalidSig.Mark();
+    }
+
+    return b;
+}
+void
+HerderImpl::signEnvelope(SecretKey const& s, SCPEnvelope& envelope)
+{
+    envelope.signature = s.sign(xdr::xdr_to_opaque(
+        mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
 }
 }

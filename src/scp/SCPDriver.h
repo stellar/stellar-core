@@ -23,9 +23,8 @@ class SCPDriver
     {
     }
 
-    // Envelope signature/verification
+    // Envelope signature
     virtual void signEnvelope(SCPEnvelope& envelope) = 0;
-    virtual bool verifyEnvelope(SCPEnvelope const& envelope) = 0;
 
     // Retrieves a quorum set from its hash
     //

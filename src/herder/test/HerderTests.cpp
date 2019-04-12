@@ -827,7 +827,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [&s](TxPair const& p, Hash qSetHash,
+    auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
                              uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
@@ -837,7 +837,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         envelope.statement.pledges.prepare().ballot.value = p.first;
         envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
         envelope.statement.nodeID = s.getPublicKey();
-        envelope.signature = s.sign(xdr::xdr_to_opaque(envelope.statement));
+        herder.signEnvelope(s, envelope);
         return envelope;
     };
     auto addTransactions = [&](TxSetFramePtr txSet, int n, int nbOps,
@@ -866,7 +866,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
         auto addToCandidates = [&](TxPair const& p) {
             candidates.emplace(p.first);
-            auto envelope = makeEnvelope(p, {}, herder.getCurrentLedgerSeq());
+            auto envelope =
+                makeEnvelope(herder, p, {}, herder.getCurrentLedgerSeq());
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
@@ -960,14 +961,14 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto transactions2 = makeTransactions(lcl.hash, 4, 1, 100);
         auto p1 = makeTxPair(transactions1, 10);
         auto p2 = makeTxPair(transactions1, 10);
-        auto saneEnvelopeQ1T1 =
-            makeEnvelope(p1, saneQSet1Hash, herder.getCurrentLedgerSeq());
-        auto saneEnvelopeQ1T2 =
-            makeEnvelope(p2, saneQSet1Hash, herder.getCurrentLedgerSeq());
-        auto saneEnvelopeQ2T1 =
-            makeEnvelope(p1, saneQSet2Hash, herder.getCurrentLedgerSeq());
+        auto saneEnvelopeQ1T1 = makeEnvelope(herder, p1, saneQSet1Hash,
+                                             herder.getCurrentLedgerSeq());
+        auto saneEnvelopeQ1T2 = makeEnvelope(herder, p2, saneQSet1Hash,
+                                             herder.getCurrentLedgerSeq());
+        auto saneEnvelopeQ2T1 = makeEnvelope(herder, p1, saneQSet2Hash,
+                                             herder.getCurrentLedgerSeq());
         auto bigEnvelope =
-            makeEnvelope(p1, bigQSetHash, herder.getCurrentLedgerSeq());
+            makeEnvelope(herder, p1, bigQSetHash, herder.getCurrentLedgerSeq());
 
         SECTION("return FETCHING until fetched")
         {

@@ -29,13 +29,6 @@ SCP::SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
 SCP::EnvelopeState
 SCP::receiveEnvelope(SCPEnvelope const& envelope)
 {
-    // If the envelope is not correctly signed, we ignore it.
-    if (!mDriver.verifyEnvelope(envelope))
-    {
-        CLOG(DEBUG, "SCP") << "SCP::receiveEnvelope invalid";
-        return SCP::EnvelopeState::INVALID;
-    }
-
     uint64 slotIndex = envelope.statement.slotIndex;
     return getSlot(slotIndex, true)->processEnvelope(envelope, false);
 }
@@ -213,11 +206,8 @@ SCP::getLatestMessagesSend(uint64 slotIndex)
 void
 SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e)
 {
-    if (mDriver.verifyEnvelope(e))
-    {
-        auto slot = getSlot(slotIndex, true);
-        slot->setStateFromEnvelope(e);
-    }
+    auto slot = getSlot(slotIndex, true);
+    slot->setStateFromEnvelope(e);
 }
 
 bool

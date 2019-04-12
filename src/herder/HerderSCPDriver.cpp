@@ -26,10 +26,6 @@ namespace stellar
 HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
     : mEnvelopeSign(
           app.getMetrics().NewMeter({"scp", "envelope", "sign"}, "envelope"))
-    , mEnvelopeValidSig(app.getMetrics().NewMeter(
-          {"scp", "envelope", "validsig"}, "envelope"))
-    , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
-          {"scp", "envelope", "invalidsig"}, "envelope"))
     , mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
           app.getMetrics().NewMeter({"scp", "value", "invalid"}, "value"))
@@ -103,27 +99,7 @@ void
 HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
 {
     mSCPMetrics.mEnvelopeSign.Mark();
-    envelope.signature = mApp.getConfig().NODE_SEED.sign(xdr::xdr_to_opaque(
-        mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
-}
-
-bool
-HerderSCPDriver::verifyEnvelope(SCPEnvelope const& envelope)
-{
-    auto b = PubKeyUtils::verifySig(
-        envelope.statement.nodeID, envelope.signature,
-        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCP,
-                           envelope.statement));
-    if (b)
-    {
-        mSCPMetrics.mEnvelopeValidSig.Mark();
-    }
-    else
-    {
-        mSCPMetrics.mEnvelopeInvalidSig.Mark();
-    }
-
-    return b;
+    mHerder.signEnvelope(mApp.getConfig().NODE_SEED, envelope);
 }
 
 void
