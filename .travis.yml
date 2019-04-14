@@ -1,9 +1,19 @@
-language: cpp
-sudo: false
+language: python
+python:
+- 3.7-dev
+os: linux
+dist: xenial
+sudo: true
+env:
+  global:
+  - COMMIT=${TRAVIS_COMMIT::6}
+  - BUILD_TYPE="stellar-core"
 
-compiler:
-- clang
-- gcc
+#language: cpp
+#sudo: false
+#compiler:
+#- clang
+#- gcc
 
 addons:
   postgresql: "9.3"
@@ -26,8 +36,18 @@ addons:
     - pkg-config
     - clang-format-5.0
     - pandoc
+    - libffi-dev
 
-script: ./travis-build.sh
+before_script:
+- git describe --tags >> describe.txt
+- export MY_TAG="$(cat describe.txt)"
+
+script:
+- mkdir $COMMIT && cd $COMMIT
+- git clone https://github.com/kinecosystem/blockchain-ops.git && cd blockchain-ops
+- pip -V
+- pipenv sync
+- pipenv run invoke build-core --branch="master" --version=$MY_TAG 
 
 cache:
   directories:
