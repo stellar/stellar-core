@@ -35,7 +35,7 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
         txSet->sortForHash();
         auto sv = StellarValue{txSet->getContentsHash(), closeTime,
-                               emptyUpgradeSteps, 0};
+                               emptyUpgradeSteps, STELLAR_VALUE_BASIC};
         auto v = xdr::xdr_to_opaque(sv);
 
         return TxPair{v, txSet};

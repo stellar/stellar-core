@@ -76,7 +76,8 @@ TEST_CASE("new ledger comes from network after last applyBufferedLedgers is "
 
     auto ledgerCloseData = [](uint32_t ledger) {
         auto txSet = std::make_shared<TxSetFrame>(Hash{});
-        StellarValue sv{txSet->getContentsHash(), 2, emptyUpgradeSteps, 0};
+        StellarValue sv{txSet->getContentsHash(), 2, emptyUpgradeSteps,
+                        STELLAR_VALUE_BASIC};
         return LedgerCloseData{ledger, txSet, sv};
     };
 

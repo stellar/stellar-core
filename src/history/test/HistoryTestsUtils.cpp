@@ -473,7 +473,8 @@ CatchupSimulation::generateRandomLedger()
                            << " with " << txSet->sizeTx() << " txs (txhash:"
                            << hexAbbrev(txSet->getContentsHash()) << ")";
 
-    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0);
+    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+                    STELLAR_VALUE_BASIC);
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
     lm.closeLedger(mLedgerCloseDatas.back());
 

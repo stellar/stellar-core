@@ -105,7 +105,7 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
         auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
         auto sv = StellarValue{txSet->getContentsHash(),
                                lcl.header.scpValue.closeTime + i,
-                               emptyUpgradeSteps, 0};
+                               emptyUpgradeSteps, STELLAR_VALUE_BASIC};
         auto v = xdr::xdr_to_opaque(sv);
 
         return TxPair{v, txSet};
