@@ -981,7 +981,7 @@ class StopAndRestartBucketMergesTest
 };
 
 TEST_CASE("bucket persistence over app restart with initentry",
-          "[bucket][bucketmanager][bp-initentry]")
+          "[bucket][bucketmanager][bp-initentry][!hide]")
 {
     for (uint32_t protocol :
          {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,

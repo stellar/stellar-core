@@ -881,7 +881,7 @@ TEST_CASE("catchup with a gap", "[history][catchupstall]")
  * Test a variety of orderings of CATCHUP_RECENT mode, to shake out boundary
  * cases.
  */
-TEST_CASE("Catchup recent", "[history][catchuprecent]")
+TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
