@@ -151,6 +151,9 @@ class HerderImpl : public Herder
     // timer that detects that we're stuck on an SCP slot
     VirtualTimer mTrackingTimer;
 
+    // tracks the last time externalize was called
+    VirtualClock::time_point mLastExternalize;
+
     // saves the SCP messages that the instance sent out last
     void persistSCPState(uint64 slot);
     // restores SCP state based on the last messages saved on disk

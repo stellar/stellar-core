@@ -78,6 +78,7 @@ HerderImpl::HerderImpl(Application& app)
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
+    , mLastExternalize(app.getClock().now())
     , mTriggerTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
@@ -164,8 +165,26 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
 void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
+    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+
     // record metrics
     getHerderSCPDriver().recordSCPExecutionMetrics(slotIndex);
+
+    // dump SCP information if this ledger took a long time
+    auto now = mApp.getClock().now();
+    auto gap =
+        std::chrono::duration_cast<std::chrono::seconds>(now - mLastExternalize)
+            .count();
+    if (gap > DUMP_SCP_TIMEOUT_SECONDS)
+    {
+        auto slotInfo = getJsonQuorumInfo(getSCP().getLocalNodeID(), false,
+                                          false, slotIndex);
+        Json::FastWriter fw;
+        CLOG(WARNING, "Herder")
+            << fmt::format("Ledger took {} seconds, SCP information:{}", gap,
+                           fw.write(slotInfo));
+    }
+    mLastExternalize = now;
 
     // called both here and at the end (this one is in case of an exception)
     trackingHeartBeat();
