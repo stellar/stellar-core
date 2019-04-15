@@ -150,6 +150,18 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
             }
         }
 
+        int64_t maxOffersToCross = INT64_MAX;
+        if (ltx.loadHeader().current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS)
+        {
+            size_t offersCrossed = innerResult().success().offers.size();
+            // offersCrossed will never be bigger than INT64_MAX because
+            // - the machine would have run out of memory
+            // - the limit, which cannot exceed INT64_MAX, should be enforced
+            // so this subtraction is safe because MAX_OFFERS_TO_CROSS >= 0
+            maxOffersToCross = MAX_OFFERS_TO_CROSS - offersCrossed;
+        }
+
         // curA -> curB
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
@@ -165,7 +177,7 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
                 }
                 return OfferFilterResult::eKeep;
             },
-            offerTrail);
+            offerTrail, maxOffersToCross);
 
         assert(curASent >= 0);
 
@@ -181,6 +193,9 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
         // fall through
         case ConvertResult::ePartial:
             innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
+            return false;
+        case ConvertResult::eCrossedTooMany:
+            mResult.code(opEXCEEDED_WORK_LIMIT);
             return false;
         }
         assert(curBReceived == actualCurBReceived);

@@ -108,10 +108,18 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
         // we need to compute maxAmountOfSheepCanSell based on the
         // updated reserve to avoid selling too many and falling
         // below the reserve when we try to create the offer later on
-        if (!addNumEntries(header, sourceAccount, 1))
+        switch (addNumEntries(header, sourceAccount, 1))
         {
+        case AddSubentryResult::SUCCESS:
+            break;
+        case AddSubentryResult::LOW_RESERVE:
             setResultLowReserve();
             return false;
+        case AddSubentryResult::TOO_MANY_SUBENTRIES:
+            mResult.code(opTOO_MANY_SUBENTRIES);
+            return false;
+        default:
+            throw std::runtime_error("Unexpected result from addNumEntries");
         }
     }
 
@@ -252,6 +260,13 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             return false;
         }
 
+        int64_t maxOffersToCross = INT64_MAX;
+        if (ltx.loadHeader().current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS)
+        {
+            maxOffersToCross = MAX_OFFERS_TO_CROSS;
+        }
+
         int64_t sheepSent, wheatReceived;
         std::vector<ClaimOfferAtom> offerTrail;
         Price maxWheatPrice(mPrice.d, mPrice.n);
@@ -274,7 +289,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 }
                 return OfferFilterResult::eKeep;
             },
-            offerTrail);
+            offerTrail, maxOffersToCross);
         assert(sheepSent >= 0);
 
         bool sheepStays;
@@ -293,6 +308,9 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             }
             sheepStays = true;
             break;
+        case ConvertResult::eCrossedTooMany:
+            mResult.code(opEXCEEDED_WORK_LIMIT);
+            return false;
         default:
             abort();
         }
@@ -384,10 +402,19 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             // make sure we don't allow us to add offers when we don't have
             // the minbalance (should never happen at this stage in v9+)
             auto sourceAccount = loadSourceAccount(ltx, header);
-            if (!addNumEntries(header, sourceAccount, 1))
+            switch (addNumEntries(header, sourceAccount, 1))
             {
+            case AddSubentryResult::SUCCESS:
+                break;
+            case AddSubentryResult::LOW_RESERVE:
                 setResultLowReserve();
                 return false;
+            case AddSubentryResult::TOO_MANY_SUBENTRIES:
+                mResult.code(opTOO_MANY_SUBENTRIES);
+                return false;
+            default:
+                throw std::runtime_error(
+                    "Unexpected result from addNumEntries");
             }
 
             newOffer.data.offer().offerID = generateID(header);

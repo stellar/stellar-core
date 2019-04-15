@@ -618,7 +618,7 @@ enum ChangeTrustResultCode
                                      // cannot create with a limit of 0
     CHANGE_TRUST_LOW_RESERVE =
         -4, // not enough funds to create a new trust line,
-    CHANGE_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
+    CHANGE_TRUST_SELF_NOT_ALLOWED = -5  // trusting self is not allowed
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
@@ -748,7 +748,9 @@ enum OperationResultCode
 
     opBAD_AUTH = -1,     // too few valid signatures / wrong network
     opNO_ACCOUNT = -2,   // source account was not found
-    opNOT_SUPPORTED = -3 // operation not supported at this time
+    opNOT_SUPPORTED = -3, // operation not supported at this time
+    opTOO_MANY_SUBENTRIES = -4, // max number of subentries already reached
+    opEXCEEDED_WORK_LIMIT = -5  // operation did too much work
 };
 
 union OperationResult switch (OperationResultCode code)

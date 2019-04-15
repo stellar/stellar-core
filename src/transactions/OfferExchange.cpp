@@ -1096,8 +1096,12 @@ convertWithOffers(
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, bool isPathPayment,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
-    std::vector<ClaimOfferAtom>& offerTrail)
+    std::vector<ClaimOfferAtom>& offerTrail, int64_t maxOffersToCross)
 {
+    // If offerTrail is not empty at the start, then the limit maxOffersToCross
+    // will not be imposed correctly.
+    assert(offerTrail.empty());
+
     sheepSend = 0;
     wheatReceived = 0;
 
@@ -1113,6 +1117,12 @@ convertWithOffers(
         if (filter && filter(wheatOffer) == OfferFilterResult::eStop)
         {
             return ConvertResult::eFilterStop;
+        }
+
+        // Note: maxOffersToCross == INT64_MAX before protocol version 11
+        if (offerTrail.size() >= maxOffersToCross)
+        {
+            return ConvertResult::eCrossedTooMany;
         }
 
         int64_t numWheatReceived;

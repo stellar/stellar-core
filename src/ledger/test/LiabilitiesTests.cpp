@@ -850,7 +850,9 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto header = ltx.loadHeader();
             auto acc = ltx.create(le);
-            bool res = stellar::addNumEntries(header, acc, deltaNumSubEntries);
+            bool res =
+                stellar::addNumEntries(header, acc, deltaNumSubEntries) ==
+                AddSubentryResult::SUCCESS;
             REQUIRE(getSellingLiabilities(header, acc) ==
                     initSellingLiabilities);
             REQUIRE(getBuyingLiabilities(header, acc) == initBuyingLiabilities);

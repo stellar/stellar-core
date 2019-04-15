@@ -22,6 +22,9 @@ LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 
+uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
+uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
+
 LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 
 ConstLedgerTxnEntry loadAccountWithoutRecord(AbstractLedgerTxn& ltx,
@@ -56,8 +59,14 @@ bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                           int64_t delta);
 
-bool addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                   int count);
+enum class AddSubentryResult
+{
+    SUCCESS,
+    LOW_RESERVE,
+    TOO_MANY_SUBENTRIES
+};
+AddSubentryResult addNumEntries(LedgerTxnHeader const& header,
+                                LedgerTxnEntry& entry, int count);
 
 bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                            int64_t delta);
