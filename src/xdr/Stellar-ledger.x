@@ -12,7 +12,14 @@ typedef opaque UpgradeType<128>;
 
 enum StellarValueType
 {
-    STELLAR_VALUE_BASIC = 0
+    STELLAR_VALUE_BASIC = 0,
+    STELLAR_VALUE_SIGNED = 1
+};
+
+struct LedgerCloseValueSignature
+{
+    NodeID nodeID;       // which node introduced the value
+    Signature signature; // nodeID's signature
 };
 
 /* StellarValue is the value used by SCP to reach consensus on a given ledger
@@ -34,6 +41,8 @@ struct StellarValue
     {
     case STELLAR_VALUE_BASIC:
         void;
+    case STELLAR_VALUE_SIGNED:
+        LedgerCloseValueSignature lcValueSignature;
     }
     ext;
 };

@@ -196,8 +196,9 @@ class HerderSCPDriver : public SCPDriver
     bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
                         StellarValue const& b) const;
 
-    SCPDriver::ValidationLevel
-    validateValueHelper(uint64_t slotIndex, StellarValue const& sv) const;
+    SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
+                                                   StellarValue const& sv,
+                                                   bool nomination) const;
 
     // returns true if the local instance is in a state compatible with
     // this slot

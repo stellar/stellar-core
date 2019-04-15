@@ -814,6 +814,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
+    if (lcl.header.ledgerVersion >= 11)
+    {
+        // version 11 and above require values to be signed during nomination
+        signStellarValue(mApp.getConfig().NODE_SEED, newProposedValue);
+    }
     getHerderSCPDriver().recordSCPEvent(slotIndex, true);
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
@@ -1179,5 +1184,24 @@ HerderImpl::signEnvelope(SecretKey const& s, SCPEnvelope& envelope)
 {
     envelope.signature = s.sign(xdr::xdr_to_opaque(
         mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
+}
+bool
+HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
+{
+    auto b = PubKeyUtils::verifySig(
+        sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
+        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                           sv.txSetHash, sv.closeTime));
+    return b;
+}
+
+void
+HerderImpl::signStellarValue(SecretKey const& s, StellarValue& sv)
+{
+    sv.ext.v(STELLAR_VALUE_SIGNED);
+    sv.ext.lcValueSignature().nodeID = s.getPublicKey();
+    sv.ext.lcValueSignature().signature =
+        s.sign(xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                                  sv.txSetHash, sv.closeTime));
 }
 }

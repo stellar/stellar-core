@@ -283,6 +283,7 @@ enum EnvelopeType
 {
     ENVELOPE_TYPE_SCP = 1,
     ENVELOPE_TYPE_TX = 2,
-    ENVELOPE_TYPE_AUTH = 3
+    ENVELOPE_TYPE_AUTH = 3,
+    ENVELOPE_TYPE_SCPVALUE = 4
 };
 }

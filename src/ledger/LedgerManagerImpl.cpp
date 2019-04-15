@@ -397,8 +397,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         << "[seq=" << ledgerData.getLedgerSeq()
         << ", prev=" << hexAbbrev(ledgerData.getTxSet()->previousLedgerHash())
         << ", txs=" << ledgerData.getTxSet()->sizeTx()
-        << ", ops=" << ledgerData.getTxSet()->sizeOp()
-        << ", sv: " << stellarValueToString(ledgerData.getValue()) << "]";
+        << ", ops=" << ledgerData.getTxSet()->sizeOp() << ", sv: "
+        << stellarValueToString(mApp.getConfig(), ledgerData.getValue()) << "]";
 
     auto st = getState();
     switch (st)
@@ -733,8 +733,9 @@ LedgerManagerImpl::applyBufferedLedgers()
                 << "[seq=" << lcd.getLedgerSeq()
                 << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
                 << ", txs=" << lcd.getTxSet()->sizeTx()
-                << ", ops=" << lcd.getTxSet()->sizeOp()
-                << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
+                << ", ops=" << lcd.getTxSet()->sizeOp() << ", sv: "
+                << stellarValueToString(mApp.getConfig(), lcd.getValue())
+                << "]";
             closeLedger(lcd);
 
             applyBufferedLedgers();

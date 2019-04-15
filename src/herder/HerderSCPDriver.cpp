@@ -149,10 +149,26 @@ HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
 }
 
 SCPDriver::ValidationLevel
-HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
-                                     StellarValue const& b) const
+HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
+                                     bool nomination) const
 {
     uint64_t lastCloseTime;
+
+    if (b.ext.v() == STELLAR_VALUE_SIGNED)
+    {
+        if (nomination)
+        {
+            if (!mHerder.verifyStellarValueSignature(b))
+            {
+                return SCPDriver::kInvalidValue;
+            }
+        }
+        else
+        {
+            // don't use signed values in ballot protocol
+            return SCPDriver::kInvalidValue;
+        }
+    }
 
     bool compat = isSlotCompatibleWithCurrentState(slotIndex);
 
@@ -258,6 +274,26 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 
     // we are fully synced up
 
+    if ((!nomination || lcl.ledgerVersion < 11) &&
+        b.ext.v() != STELLAR_VALUE_BASIC)
+    {
+        // ballot protocol or
+        // pre version 11 only supports BASIC
+        CLOG(TRACE, "Herder")
+            << "HerderSCPDriver::validateValue"
+            << " i: " << slotIndex << " invalid value type - expected BASIC";
+        return SCPDriver::kInvalidValue;
+    }
+    if (nomination &&
+        (lcl.ledgerVersion >= 11 && b.ext.v() != STELLAR_VALUE_SIGNED))
+    {
+        // v11 and above use SIGNED for nomination
+        CLOG(TRACE, "Herder")
+            << "HerderSCPDriver::validateValue"
+            << " i: " << slotIndex << " invalid value type - expected SIGNED";
+        return SCPDriver::kInvalidValue;
+    }
+
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
@@ -304,7 +340,8 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
         return SCPDriver::kInvalidValue;
     }
 
-    SCPDriver::ValidationLevel res = validateValueHelper(slotIndex, b);
+    SCPDriver::ValidationLevel res =
+        validateValueHelper(slotIndex, b, nomination);
     if (res != SCPDriver::kInvalidValue)
     {
         auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
@@ -360,7 +397,8 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         return Value();
     }
     Value res;
-    if (validateValueHelper(slotIndex, b) == SCPDriver::kFullyValidatedValue)
+    if (validateValueHelper(slotIndex, b, true) ==
+        SCPDriver::kFullyValidatedValue)
     {
         auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
@@ -406,7 +444,7 @@ HerderSCPDriver::getValueString(Value const& v) const
     {
         xdr::xdr_from_opaque(v, b);
 
-        return stellarValueToString(b);
+        return stellarValueToString(mApp.getConfig(), b);
     }
     catch (...)
     {
@@ -634,6 +672,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
             "HerderSCPDriver: combineCandidates posts recvTxSet");
     }
 
+    // Ballot Protocol uses BASIC values
+    comp.ext.v(STELLAR_VALUE_BASIC);
     return xdr::xdr_to_opaque(comp);
 }
 

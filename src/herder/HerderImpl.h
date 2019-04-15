@@ -111,6 +111,11 @@ class HerderImpl : public Herder
     // helper function to sign envelopes
     void signEnvelope(SecretKey const& s, SCPEnvelope& envelope);
 
+    // helper function to verify SCPValues are signed
+    bool verifyStellarValueSignature(StellarValue const& sv);
+    // helper function to sign SCPValues
+    void signStellarValue(SecretKey const& s, StellarValue& sv);
+
   private:
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
