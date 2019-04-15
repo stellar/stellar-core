@@ -265,7 +265,7 @@ TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
     auto result = mTransactionQueue.tryAdd(tx);
-    if (result == TransactionQueue::AddResult::STATUS_PENDING)
+    if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         if (Logging::logTrace("Herder"))
             CLOG(TRACE, "Herder")
@@ -573,7 +573,7 @@ HerderImpl::getCurrentLedgerSeq() const
 SequenceNumber
 HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 {
-    return mTransactionQueue.getAccountTransactionQueueState(acc).mMaxSeq;
+    return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
 }
 
 // called to take a position during the next round

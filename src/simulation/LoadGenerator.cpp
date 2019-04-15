@@ -227,10 +227,10 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
     int numTries = 0;
 
     while ((status = tx.execute(mApp, true, code, batchSize)) !=
-           TransactionQueue::AddResult::STATUS_PENDING)
+           TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
-        if (status == TransactionQueue::AddResult::STATUS_DUPLICATE)
+        if (status == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
         {
             createDuplicate = true;
             break;
@@ -265,7 +265,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
     int numTries = 0;
 
     while ((status = tx.execute(mApp, false, code, batchSize)) !=
-           TransactionQueue::AddResult::STATUS_PENDING)
+           TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
         tx = paymentTransaction(nAccounts, offset, ledgerNum,
@@ -451,7 +451,7 @@ LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
-    if (status == TransactionQueue::AddResult::STATUS_ERROR &&
+    if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
         code == txBAD_SEQ)
     {
         if (!loadAccount(sourceAccount, mApp))
@@ -573,13 +573,13 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
     auto status = app.getHerder().recvTransaction(txf);
-    if (status != TransactionQueue::AddResult::STATUS_PENDING)
+    if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         CLOG(INFO, "LoadGen")
             << "tx rejected '" << TX_STATUS_STRING[static_cast<int>(status)]
             << "': " << xdr::xdr_to_string(txf->getEnvelope()) << " ===> "
             << xdr::xdr_to_string(txf->getResult());
-        if (status == TransactionQueue::AddResult::STATUS_ERROR)
+        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             code = txf->getResultCode();
         }

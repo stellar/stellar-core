@@ -647,7 +647,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     };
     auto caughtUp = [&]() { return lm.isSynced(); };
 
-    auto externalize = [&](int n) {
+    auto externalize = [&](uint32 n) {
         // Remember the vectors count from 2, not 0.
         if (n - 2 >= mLedgerCloseDatas.size())
         {

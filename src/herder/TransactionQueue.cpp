@@ -65,20 +65,20 @@ TransactionQueue::TxMap::addTx(TransactionFramePtr tx)
         return;
     }
     mTransactions.emplace(std::make_pair(h, tx));
-    mCurrentState.mMaxSeq = std::max(tx->getSeqNum(), mCurrentState.mMaxSeq);
-    mCurrentState.mTotalFees += tx->getFeeBid();
+    mCurrentQInfo.mMaxSeq = std::max(tx->getSeqNum(), mCurrentQInfo.mMaxSeq);
+    mCurrentQInfo.mTotalFees += tx->getFeeBid();
 }
 
 void
 TransactionQueue::TxMap::recalculate()
 {
-    mCurrentState.mMaxSeq = 0;
-    mCurrentState.mTotalFees = 0;
+    mCurrentQInfo.mMaxSeq = 0;
+    mCurrentQInfo.mTotalFees = 0;
     for (auto const& pair : mTransactions)
     {
-        mCurrentState.mMaxSeq =
-            std::max(pair.second->getSeqNum(), mCurrentState.mMaxSeq);
-        mCurrentState.mTotalFees += pair.second->getFeeBid();
+        mCurrentQInfo.mMaxSeq =
+            std::max(pair.second->getSeqNum(), mCurrentQInfo.mMaxSeq);
+        mCurrentQInfo.mTotalFees += pair.second->getFeeBid();
     }
 }
 
@@ -100,33 +100,33 @@ TransactionQueue::tryAdd(TransactionFramePtr tx)
 {
     if (isBanned(tx->getFullHash()))
     {
-        return TransactionQueue::AddResult::STATUS_TRY_AGAIN_LATER;
+        return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
     }
 
     if (contains(tx))
     {
-        return TransactionQueue::AddResult::STATUS_DUPLICATE;
+        return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
     }
 
-    auto state = getAccountTransactionQueueState(tx->getSourceID());
+    auto info = getAccountTransactionQueueInfo(tx->getSourceID());
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    if (!tx->checkValid(ltx, state.mMaxSeq))
+    if (!tx->checkValid(ltx, info.mMaxSeq))
     {
-        return TransactionQueue::AddResult::STATUS_ERROR;
+        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
     auto sourceAccount = stellar::loadAccount(ltx, tx->getSourceID());
     if (getAvailableBalance(ltx.loadHeader(), sourceAccount) - tx->getFeeBid() <
-        state.mTotalFees)
+        info.mTotalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return TransactionQueue::AddResult::STATUS_ERROR;
+        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
     auto map = findOrAdd(mPendingTransactions[0], tx->getSourceID());
     map->addTx(tx);
 
-    return TransactionQueue::AddResult::STATUS_PENDING;
+    return TransactionQueue::AddResult::ADD_STATUS_PENDING;
 }
 
 void
@@ -139,7 +139,7 @@ TransactionQueue::remove(std::vector<TransactionFramePtr> const& dropTxs)
             continue;
         }
 
-        std::set<std::shared_ptr<TxMap>> toRecalculate;
+        std::unordered_set<std::shared_ptr<TxMap>> toRecalculate;
 
         for (auto const& tx : dropTxs)
         {
@@ -190,11 +190,11 @@ TransactionQueue::contains(TransactionFramePtr tx) const
                        });
 }
 
-AccountTransactionsQueueState
-TransactionQueue::getAccountTransactionQueueState(
+TransactionQueue::AccountTxQueueInfo
+TransactionQueue::getAccountTransactionQueueInfo(
     AccountID const& accountID) const
 {
-    AccountTransactionsQueueState state;
+    AccountTxQueueInfo info;
 
     for (auto& map : mPendingTransactions)
     {
@@ -202,13 +202,12 @@ TransactionQueue::getAccountTransactionQueueState(
         if (i != map.end())
         {
             auto& txmap = i->second;
-            state.mTotalFees += txmap->mCurrentState.mTotalFees;
-            state.mMaxSeq =
-                std::max(state.mMaxSeq, txmap->mCurrentState.mMaxSeq);
+            info.mTotalFees += txmap->mCurrentQInfo.mTotalFees;
+            info.mMaxSeq = std::max(info.mMaxSeq, txmap->mCurrentQInfo.mMaxSeq);
         }
     }
 
-    return state;
+    return info;
 }
 
 void
@@ -238,7 +237,7 @@ TransactionQueue::shift()
 int
 TransactionQueue::countBanned(int index) const
 {
-    return mBannedTransactions[index].size();
+    return static_cast<int>(mBannedTransactions[index].size());
 }
 
 std::shared_ptr<TxSetFrame>
@@ -261,8 +260,8 @@ TransactionQueue::toTxSet(Hash const& lclHash) const
 }
 
 bool
-operator==(AccountTransactionsQueueState const& x,
-           AccountTransactionsQueueState const& y)
+operator==(TransactionQueue::AccountTxQueueInfo const& x,
+           TransactionQueue::AccountTxQueueInfo const& y)
 {
     return x.mMaxSeq == y.mMaxSeq && x.mTotalFees == y.mTotalFees;
 }

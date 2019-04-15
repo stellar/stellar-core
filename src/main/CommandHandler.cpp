@@ -550,7 +550,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             TransactionQueue::AddResult status =
                 mApp.getHerder().recvTransaction(transaction);
 
-            if (status == TransactionQueue::AddResult::STATUS_PENDING)
+            if (status == TransactionQueue::AddResult::ADD_STATUS_PENDING)
             {
                 StellarMessage msg;
                 msg.type(TRANSACTION);
@@ -562,7 +562,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                    << "\"status\": "
                    << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
                    << "\"";
-            if (status == TransactionQueue::AddResult::STATUS_ERROR)
+            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
                 auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
@@ -833,18 +833,18 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
 
         switch (mApp.getHerder().recvTransaction(txFrame))
         {
-        case TransactionQueue::AddResult::STATUS_PENDING:
+        case TransactionQueue::AddResult::ADD_STATUS_PENDING:
             root["status"] = "pending";
             break;
-        case TransactionQueue::AddResult::STATUS_DUPLICATE:
+        case TransactionQueue::AddResult::ADD_STATUS_DUPLICATE:
             root["status"] = "duplicate";
             break;
-        case TransactionQueue::AddResult::STATUS_ERROR:
+        case TransactionQueue::AddResult::ADD_STATUS_ERROR:
             root["status"] = "error";
             root["detail"] =
                 xdr::xdr_to_string(txFrame->getResult().result.code());
             break;
-        case TransactionQueue::AddResult::STATUS_TRY_AGAIN_LATER:
+        case TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER:
             root["status"] = "try_again_later";
             break;
         default:

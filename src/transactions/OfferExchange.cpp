@@ -1120,7 +1120,7 @@ convertWithOffers(
         }
 
         // Note: maxOffersToCross == INT64_MAX before protocol version 11
-        if (offerTrail.size() >= maxOffersToCross)
+        if (offerTrail.size() >= static_cast<uint64_t>(maxOffersToCross))
         {
             return ConvertResult::eCrossedTooMany;
         }

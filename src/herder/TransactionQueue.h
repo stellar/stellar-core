@@ -27,30 +27,30 @@ namespace stellar
 
 class Application;
 
-struct AccountTransactionsQueueState
-{
-    SequenceNumber mMaxSeq{0};
-    int64_t mTotalFees{0};
-
-    friend bool operator==(AccountTransactionsQueueState const& x,
-                           AccountTransactionsQueueState const& y);
-};
-
 class TransactionQueue
 {
   public:
     enum class AddResult
     {
-        STATUS_PENDING = 0,
-        STATUS_DUPLICATE,
-        STATUS_ERROR,
-        STATUS_TRY_AGAIN_LATER,
-        STATUS_COUNT
+        ADD_STATUS_PENDING = 0,
+        ADD_STATUS_DUPLICATE,
+        ADD_STATUS_ERROR,
+        ADD_STATUS_TRY_AGAIN_LATER,
+        ADD_STATUS_COUNT
+    };
+
+    struct AccountTxQueueInfo
+    {
+        SequenceNumber mMaxSeq{0};
+        int64_t mTotalFees{0};
+
+        friend bool operator==(AccountTxQueueInfo const& x,
+                               AccountTxQueueInfo const& y);
     };
 
     struct TxMap
     {
-        AccountTransactionsQueueState mCurrentState;
+        AccountTxQueueInfo mCurrentQInfo;
         std::unordered_map<Hash, TransactionFramePtr> mTransactions;
         void addTx(TransactionFramePtr);
         void recalculate();
@@ -68,8 +68,8 @@ class TransactionQueue
     // by one, this results in newest queue slot being empty
     void shift();
 
-    AccountTransactionsQueueState
-    getAccountTransactionQueueState(AccountID const& accountID) const;
+    AccountTxQueueInfo
+    getAccountTransactionQueueInfo(AccountID const& accountID) const;
 
     int countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
@@ -85,6 +85,6 @@ class TransactionQueue
 };
 
 static const char* TX_STATUS_STRING[static_cast<int>(
-    TransactionQueue::AddResult::STATUS_COUNT)] = {"PENDING", "DUPLICATE",
-                                                   "ERROR", "TRY_AGAIN_LATER"};
+    TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
+    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER"};
 }
