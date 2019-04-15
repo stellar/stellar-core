@@ -408,7 +408,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             setup();
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                REQUIRE(!tx->checkValid(*app, ltx, 0));
+                                REQUIRE(!tx->checkValid(ltx, 0));
                             }
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -868,7 +868,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValid(*app, ltx, 0));
+                    REQUIRE(!tx->checkValid(ltx, 0));
                 }
 
                 applyCheck(tx, *app);
@@ -897,7 +897,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(*app, ltx, 0));
+                            REQUIRE(!tx->checkValid(ltx, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -907,7 +907,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     for_versions({7}, *app, [&] {
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(*app, ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -921,7 +921,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(*app, ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -958,7 +958,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(*app, ltx, 0));
+                            REQUIRE(!tx->checkValid(ltx, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -995,7 +995,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(*app, ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1031,7 +1031,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(*app, ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1118,7 +1118,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_versions_to(9, *app, [&] {
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(*app, ltx, 0));
+                        REQUIRE(!txFrame->checkValid(ltx, 0));
                     }
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1188,7 +1188,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame->getEnvelope().tx.seqNum--;
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(*app, ltx, 0));
+                        REQUIRE(!txFrame->checkValid(ltx, 0));
                     }
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);

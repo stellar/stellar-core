@@ -656,7 +656,7 @@ TEST_CASE("Publish catchup alternation with stall",
     REQUIRE(catchupSimulation.catchupOnline(completeApp, checkpointLedger, 5));
     REQUIRE(catchupSimulation.catchupOnline(minimalApp, checkpointLedger, 5));
 
-    for (size_t i = 1; i < 4; ++i)
+    for (int i = 1; i < 4; ++i)
     {
         // Now alternate between publishing new stuff and catching up to it.
         checkpoint += i;
@@ -881,7 +881,7 @@ TEST_CASE("catchup with a gap", "[history][catchupstall]")
  * Test a variety of orderings of CATCHUP_RECENT mode, to shake out boundary
  * cases.
  */
-TEST_CASE("Catchup recent", "[history][catchuprecent]")
+TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);

@@ -68,7 +68,7 @@ TEST_CASE("standalone", "[herder]")
 
             auto feedTx = [&](TransactionFramePtr& tx) {
                 REQUIRE(app->getHerder().recvTransaction(tx) ==
-                        Herder::TX_STATUS_PENDING);
+                        TransactionQueue::AddResult::ADD_STATUS_PENDING);
             };
 
             auto waitForExternalize = [&]() {
@@ -309,8 +309,7 @@ testTxSet(uint32 protocolVersion)
         {
             REQUIRE(txSet->checkValid(*app));
 
-            std::vector<TransactionFramePtr> removed;
-            txSet->trimInvalid(*app, removed);
+            txSet->trimInvalid(*app);
             REQUIRE(txSet->checkValid(*app));
         }
         SECTION("out of order")
@@ -318,8 +317,7 @@ testTxSet(uint32 protocolVersion)
             std::swap(txSet->mTransactions[0], txSet->mTransactions[1]);
             REQUIRE(!txSet->checkValid(*app));
 
-            std::vector<TransactionFramePtr> removed;
-            txSet->trimInvalid(*app, removed);
+            txSet->trimInvalid(*app);
             REQUIRE(txSet->checkValid(*app));
         }
     }
@@ -332,8 +330,7 @@ testTxSet(uint32 protocolVersion)
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
-            std::vector<TransactionFramePtr> removed;
-            txSet->trimInvalid(*app, removed);
+            txSet->trimInvalid(*app);
             REQUIRE(txSet->checkValid(*app));
         }
         SECTION("sequence gap")
@@ -346,8 +343,7 @@ testTxSet(uint32 protocolVersion)
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
-                std::vector<TransactionFramePtr> removed;
-                txSet->trimInvalid(*app, removed);
+                txSet->trimInvalid(*app);
                 REQUIRE(txSet->checkValid(*app));
             }
             SECTION("gap begin")
@@ -357,8 +353,7 @@ testTxSet(uint32 protocolVersion)
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
-                std::vector<TransactionFramePtr> removed;
-                txSet->trimInvalid(*app, removed);
+                auto removed = txSet->trimInvalid(*app);
                 REQUIRE(txSet->checkValid(*app));
                 // one of the account lost all its transactions
                 REQUIRE(removed.size() == (nbTransactions - 1));
@@ -373,8 +368,7 @@ testTxSet(uint32 protocolVersion)
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
-                std::vector<TransactionFramePtr> removed;
-                txSet->trimInvalid(*app, removed);
+                auto removed = txSet->trimInvalid(*app);
                 REQUIRE(txSet->checkValid(*app));
                 // one account has all its transactions,
                 // other, we removed all its tx
@@ -389,8 +383,7 @@ testTxSet(uint32 protocolVersion)
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
-            std::vector<TransactionFramePtr> removed;
-            txSet->trimInvalid(*app, removed);
+            auto removed = txSet->trimInvalid(*app);
             REQUIRE(txSet->checkValid(*app));
             REQUIRE(removed.size() == (nbTransactions + 1));
             REQUIRE(txSet->mTransactions.size() == nbTransactions);
@@ -635,8 +628,6 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-    std::vector<TransactionFramePtr> removed;
-
     auto multiPaymentTx =
         std::bind(makeMultiPayment, destAccount, _1, _2, _3, 0, 100);
 
@@ -648,7 +639,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     };
 
     auto surgePricing = [&]() {
-        txSet->trimInvalid(*app, removed);
+        txSet->trimInvalid(*app);
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
     };

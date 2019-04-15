@@ -547,10 +547,10 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // add it to our current set
             // and make sure it is valid
-            Herder::TransactionSubmitStatus status =
+            TransactionQueue::AddResult status =
                 mApp.getHerder().recvTransaction(transaction);
 
-            if (status == Herder::TX_STATUS_PENDING)
+            if (status == TransactionQueue::AddResult::ADD_STATUS_PENDING)
             {
                 StellarMessage msg;
                 msg.type(TRANSACTION);
@@ -560,8 +560,9 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 
             output << "{"
                    << "\"status\": "
-                   << "\"" << Herder::TX_STATUS_STRING[status] << "\"";
-            if (status == Herder::TX_STATUS_ERROR)
+                   << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
+                   << "\"";
+            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
                 auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
@@ -832,16 +833,19 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
 
         switch (mApp.getHerder().recvTransaction(txFrame))
         {
-        case Herder::TX_STATUS_PENDING:
+        case TransactionQueue::AddResult::ADD_STATUS_PENDING:
             root["status"] = "pending";
             break;
-        case Herder::TX_STATUS_DUPLICATE:
+        case TransactionQueue::AddResult::ADD_STATUS_DUPLICATE:
             root["status"] = "duplicate";
             break;
-        case Herder::TX_STATUS_ERROR:
+        case TransactionQueue::AddResult::ADD_STATUS_ERROR:
             root["status"] = "error";
             root["detail"] =
                 xdr::xdr_to_string(txFrame->getResult().result.code());
+            break;
+        case TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER:
+            root["status"] = "try_again_later";
             break;
         default:
             assert(false);

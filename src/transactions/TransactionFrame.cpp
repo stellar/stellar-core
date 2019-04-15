@@ -247,8 +247,7 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
-                                       bool forApply)
+TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
@@ -308,7 +307,6 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 
 bool
 TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
-                                    Application& app,
                                     AbstractLedgerTxn& ltxOuter)
 {
     auto allOpsValid = true;
@@ -347,13 +345,13 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
 
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                              Application& app, AbstractLedgerTxn& ltxOuter,
+                              AbstractLedgerTxn& ltxOuter,
                               SequenceNumber current, bool applying)
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(app, ltx, applying))
+    if (!commonValidPreSeqNum(ltx, applying))
     {
         return res;
     }
@@ -498,7 +496,7 @@ TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
 }
 
 bool
-TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current)
 {
     mCachedAccount.reset();
@@ -509,7 +507,7 @@ TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(), mEnvelope.signatures};
-    bool res = commonValid(signatureChecker, app, ltx, current, false) ==
+    bool res = commonValid(signatureChecker, ltx, current, false) ==
                ValidationType::kFullyValid;
     if (res)
     {
@@ -634,13 +632,13 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
-        auto cv = commonValid(signatureChecker, app, ltxTx, 0, true);
+        auto cv = commonValid(signatureChecker, ltxTx, 0, true);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);
         }
         auto signaturesValid = cv >= (ValidationType::kInvalidPostAuth) &&
-                               processSignatures(signatureChecker, app, ltxTx);
+                               processSignatures(signatureChecker, ltxTx);
         meta.txChanges = ltxTx.getChanges();
         ltxTx.commit();
         valid = signaturesValid && (cv == ValidationType::kFullyValid);

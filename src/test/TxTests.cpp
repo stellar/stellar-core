@@ -130,7 +130,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     AccountEntry srcAccountBefore;
     {
         LedgerTxn ltxFeeProc(ltx);
-        check = tx->checkValid(app, ltxFeeProc, 0);
+        check = tx->checkValid(ltxFeeProc, 0);
         checkResult = tx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
@@ -294,7 +294,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     auto shouldValidateOk = validationResult.code == txSUCCESS;
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(app, ltx, 0) == shouldValidateOk);
+        REQUIRE(tx->checkValid(ltx, 0) == shouldValidateOk);
     }
     REQUIRE(tx->getResult().result.code() == validationResult.code);
     REQUIRE(tx->getResult().feeCharged == validationResult.fee);
