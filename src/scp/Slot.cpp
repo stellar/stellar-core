@@ -112,6 +112,10 @@ Slot::recordStatement(SCPStatement const& st)
 {
     mStatementsHistory.emplace_back(
         HistoricalStatement{std::time(nullptr), st, mFullyValidated});
+    CLOG(DEBUG, "SCP") << "new statement: "
+                       << " i: " << getSlotIndex()
+                       << " st: " << mSCP.envToStr(st, false) << " validated: "
+                       << (mFullyValidated ? "true" : "false");
 }
 
 SCP::EnvelopeState
