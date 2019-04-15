@@ -72,6 +72,7 @@ HerderImpl::HerderImpl(Application& app)
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
+    , mLastExternalize(app.getClock().now())
     , mTriggerTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
@@ -130,8 +131,26 @@ HerderImpl::bootstrap()
 void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
+    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+
     // record metrics
     getHerderSCPDriver().recordSCPExecutionMetrics(slotIndex);
+
+    // dump SCP information if this ledger took a long time
+    auto now = mApp.getClock().now();
+    auto gap =
+        std::chrono::duration_cast<std::chrono::seconds>(now - mLastExternalize)
+            .count();
+    if (gap > DUMP_SCP_TIMEOUT_SECONDS)
+    {
+        auto slotInfo = getJsonQuorumInfo(getSCP().getLocalNodeID(), false,
+                                          false, slotIndex);
+        Json::FastWriter fw;
+        CLOG(WARNING, "Herder")
+            << fmt::format("Ledger took {} seconds, SCP information:{}", gap,
+                           fw.write(slotInfo));
+    }
+    mLastExternalize = now;
 
     // called both here and at the end (this one is in case of an exception)
     trackingHeartBeat();
@@ -630,7 +649,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     }
 
     StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
-                                  0);
+                                  STELLAR_VALUE_BASIC);
 
     // see if we need to include some upgrades
     auto upgrades = mUpgrades.createUpgradesFor(lcl.header);
@@ -651,6 +670,11 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
+    if (lcl.header.ledgerVersion >= 11)
+    {
+        // version 11 and above require values to be signed during nomination
+        signStellarValue(mApp.getConfig().NODE_SEED, newProposedValue);
+    }
     getHerderSCPDriver().recordSCPEvent(slotIndex, true);
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
@@ -995,5 +1019,24 @@ HerderImpl::signEnvelope(SecretKey const& s, SCPEnvelope& envelope)
 {
     envelope.signature = s.sign(xdr::xdr_to_opaque(
         mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
+}
+bool
+HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
+{
+    auto b = PubKeyUtils::verifySig(
+        sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
+        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                           sv.txSetHash, sv.closeTime));
+    return b;
+}
+
+void
+HerderImpl::signStellarValue(SecretKey const& s, StellarValue& sv)
+{
+    sv.ext.v(STELLAR_VALUE_SIGNED);
+    sv.ext.lcValueSignature().nodeID = s.getPublicKey();
+    sv.ext.lcValueSignature().signature =
+        s.sign(xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
+                                  sv.txSetHash, sv.closeTime));
 }
 }

@@ -103,6 +103,11 @@ class HerderImpl : public Herder
     // helper function to sign envelopes
     void signEnvelope(SecretKey const& s, SCPEnvelope& envelope);
 
+    // helper function to verify SCPValues are signed
+    bool verifyStellarValueSignature(StellarValue const& sv);
+    // helper function to sign SCPValues
+    void signStellarValue(SecretKey const& s, StellarValue& sv);
+
   private:
     void ledgerClosed();
 
@@ -132,6 +137,9 @@ class HerderImpl : public Herder
 
     // timer that detects that we're stuck on an SCP slot
     VirtualTimer mTrackingTimer;
+
+    // tracks the last time externalize was called
+    VirtualClock::time_point mLastExternalize;
 
     // saves the SCP messages that the instance sent out last
     void persistSCPState(uint64 slot);

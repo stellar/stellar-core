@@ -790,7 +790,7 @@ TEST_CASE("surge pricing", "[herder][txset]")
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
-              bool checkHighFee)
+              bool checkHighFee, bool withSCPsignature)
 {
     Config cfg(getTestConfig());
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
@@ -810,23 +810,37 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
     auto a1 = TestAccount{*app, getAccount("A")};
 
     using TxPair = std::pair<Value, TxSetFramePtr>;
-    auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
+    auto makeTxPair = [&](HerderImpl& herder, TxSetFramePtr txSet,
+                          uint64_t closeTime, bool sig) {
         txSet->sortForHash();
-        auto sv = StellarValue{txSet->getContentsHash(), closeTime,
-                               emptyUpgradeSteps, 0};
+        auto sv = StellarValue(txSet->getContentsHash(), closeTime,
+                               emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+        if (sig)
+        {
+            herder.signStellarValue(root.getSecretKey(), sv);
+        }
         auto v = xdr::xdr_to_opaque(sv);
 
         return TxPair{v, txSet};
     };
     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
-                             uint64_t slotIndex) {
+                             uint64_t slotIndex, bool nomination) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};
         envelope.statement.slotIndex = slotIndex;
-        envelope.statement.pledges.type(SCP_ST_PREPARE);
-        envelope.statement.pledges.prepare().ballot.value = p.first;
-        envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
+        if (nomination)
+        {
+            envelope.statement.pledges.type(SCP_ST_NOMINATE);
+            envelope.statement.pledges.nominate().votes.push_back(p.first);
+            envelope.statement.pledges.nominate().quorumSetHash = qSetHash;
+        }
+        else
+        {
+            envelope.statement.pledges.type(SCP_ST_PREPARE);
+            envelope.statement.pledges.prepare().ballot.value = p.first;
+            envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
+        }
         envelope.statement.nodeID = s.getPublicKey();
         herder.signEnvelope(s, envelope);
         return envelope;
@@ -858,33 +872,35 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto addToCandidates = [&](TxPair const& p) {
             candidates.emplace(p.first);
             auto envelope =
-                makeEnvelope(herder, p, {}, herder.getCurrentLedgerSeq());
+                makeEnvelope(herder, p, {}, herder.getCurrentLedgerSeq(), true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
         };
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
-        addToCandidates(makeTxPair(txSet0, 100));
+        addToCandidates(makeTxPair(herder, txSet0, 100, withSCPsignature));
 
         Value v;
         StellarValue sv;
 
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
+        REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet0->getContentsHash());
 
         TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10, 1, 100);
 
-        addToCandidates(makeTxPair(txSet1, 10));
+        addToCandidates(makeTxPair(herder, txSet1, 10, withSCPsignature));
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
+        REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
 
         TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5, 3, 100);
-        addToCandidates(makeTxPair(txSet2, 1000));
+        addToCandidates(makeTxPair(herder, txSet2, 1000, withSCPsignature));
 
         auto biggestTxSet = txSet1;
         if (biggestTxSet->size(lcl.header) < txSet2->size(lcl.header))
@@ -895,17 +911,95 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         // picks the biggest set, highest time
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
+        REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
         REQUIRE(sv.closeTime == 1000);
         REQUIRE(sv.txSetHash == biggestTxSet->getContentsHash());
         REQUIRE(biggestTxSet->sizeOp() == expectedOps);
 
         if (checkHighFee)
         {
-            TxSetFramePtr txSet3 = makeTransactions(lcl.hash, 5, 3, 101);
-            addToCandidates(makeTxPair(txSet3, 1000));
+            TxSetFramePtr txSetL =
+                makeTransactions(lcl.hash, maxTxSize, 1, 101);
+            addToCandidates(makeTxPair(herder, txSetL, 1000, withSCPsignature));
+            TxSetFramePtr txSetL2 =
+                makeTransactions(lcl.hash, maxTxSize, 1, 1000);
+            addToCandidates(
+                makeTxPair(herder, txSetL2, 1000, withSCPsignature));
             v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
             xdr::xdr_from_opaque(v, sv);
-            REQUIRE(sv.txSetHash == txSet3->getContentsHash());
+            REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
+            REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
+        }
+    }
+
+    SECTION("validateValue signatures")
+    {
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getHerderSCPDriver();
+        auto seq = herder.getCurrentLedgerSeq() + 1;
+        auto ct = app->timeNow() + 1;
+
+        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
+        {
+            // make sure that txSet0 is loaded
+            auto p = makeTxPair(herder, txSet0, ct, withSCPsignature);
+            auto envelope = makeEnvelope(herder, p, {}, seq, true);
+            REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(herder.recvTxSet(txSet0->getContentsHash(), *txSet0));
+        }
+
+        SECTION("valid")
+        {
+            auto nomV = makeTxPair(herder, txSet0, ct, withSCPsignature);
+            REQUIRE(scp.validateValue(seq, nomV.first, true) ==
+                    SCPDriver::kFullyValidatedValue);
+
+            auto balV = makeTxPair(herder, txSet0, ct, false);
+            REQUIRE(scp.validateValue(seq, balV.first, false) ==
+                    SCPDriver::kFullyValidatedValue);
+        }
+        SECTION("invalid")
+        {
+            // nomination, requires signature iff withSCPsignature is true
+            auto nomV = makeTxPair(herder, txSet0, ct, !withSCPsignature);
+            REQUIRE(scp.validateValue(seq, nomV.first, true) ==
+                    SCPDriver::kInvalidValue);
+
+            // ballot protocol, with signature is never valid
+            auto balV = makeTxPair(herder, txSet0, ct, true);
+            REQUIRE(scp.validateValue(seq, balV.first, false) ==
+                    SCPDriver::kInvalidValue);
+
+            if (withSCPsignature)
+            {
+                auto p = makeTxPair(herder, txSet0, ct, withSCPsignature);
+                StellarValue sv;
+                xdr::xdr_from_opaque(p.first, sv);
+
+                auto checkInvalid = [&](StellarValue const& sv) {
+                    auto v = xdr::xdr_to_opaque(sv);
+                    REQUIRE(scp.validateValue(seq, v, true) ==
+                            SCPDriver::kInvalidValue);
+                };
+
+                // mutate in a few ways
+                SECTION("missing signature")
+                {
+                    sv.ext.lcValueSignature().signature.clear();
+                    checkInvalid(sv);
+                }
+                SECTION("wrong signature")
+                {
+                    sv.ext.lcValueSignature().signature[0] ^= 1;
+                    checkInvalid(sv);
+                }
+                SECTION("wrong signature 2")
+                {
+                    sv.ext.lcValueSignature().nodeID.ed25519()[0] ^= 1;
+                    checkInvalid(sv);
+                }
+            }
         }
     }
 
@@ -950,16 +1044,16 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto transactions1 = makeTransactions(lcl.hash, 5, 1, 100);
         auto transactions2 = makeTransactions(lcl.hash, 4, 1, 100);
-        auto p1 = makeTxPair(transactions1, 10);
-        auto p2 = makeTxPair(transactions1, 10);
-        auto saneEnvelopeQ1T1 = makeEnvelope(herder, p1, saneQSet1Hash,
-                                             herder.getCurrentLedgerSeq());
-        auto saneEnvelopeQ1T2 = makeEnvelope(herder, p2, saneQSet1Hash,
-                                             herder.getCurrentLedgerSeq());
-        auto saneEnvelopeQ2T1 = makeEnvelope(herder, p1, saneQSet2Hash,
-                                             herder.getCurrentLedgerSeq());
-        auto bigEnvelope =
-            makeEnvelope(herder, p1, bigQSetHash, herder.getCurrentLedgerSeq());
+        auto p1 = makeTxPair(herder, transactions1, 10, withSCPsignature);
+        auto p2 = makeTxPair(herder, transactions1, 10, withSCPsignature);
+        auto saneEnvelopeQ1T1 = makeEnvelope(
+            herder, p1, saneQSet1Hash, herder.getCurrentLedgerSeq(), true);
+        auto saneEnvelopeQ1T2 = makeEnvelope(
+            herder, p2, saneQSet1Hash, herder.getCurrentLedgerSeq(), true);
+        auto saneEnvelopeQ2T1 = makeEnvelope(
+            herder, p1, saneQSet2Hash, herder.getCurrentLedgerSeq(), true);
+        auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash,
+                                        herder.getCurrentLedgerSeq(), true);
 
         SECTION("return FETCHING until fetched")
         {
@@ -1079,11 +1173,12 @@ TEST_CASE("SCP Driver", "[herder]")
 {
     SECTION("protocol 10")
     {
-        testSCPDriver(10, 10, 10, false);
+        testSCPDriver(10, 10, 10, false, false);
     }
     SECTION("protocol current")
     {
-        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15, true);
+        testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15, true,
+                      true);
     }
 }
 

@@ -510,7 +510,8 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
             LedgerManager::GENESIS_LEDGER_BASE_RESERVE);
 
     auto executeUpgrades = [&](xdr::xvector<UpgradeType, 6> const& upgrades) {
-        StellarValue sv{txSet->getContentsHash(), 2, upgrades, 0};
+        StellarValue sv{txSet->getContentsHash(), 2, upgrades,
+                        STELLAR_VALUE_BASIC};
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
         return app->getLedgerManager().getLastClosedLedgerHeader();
@@ -589,7 +590,8 @@ TEST_CASE("upgrade to version 10", "[upgrades]")
         auto upgrades = xdr::xvector<UpgradeType, 6>{};
         upgrades.push_back(toUpgradeType(makeProtocolVersionUpgrade(10)));
 
-        StellarValue sv{txSet->getContentsHash(), 2, upgrades, 0};
+        StellarValue sv{txSet->getContentsHash(), 2, upgrades,
+                        STELLAR_VALUE_BASIC};
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 
@@ -1446,7 +1448,8 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             CLOG(INFO, "Ledger")
                 << "Ledger " << ledgerSeq << " upgrading to v" << newProto;
         }
-        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades, 0);
+        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
+                        STELLAR_VALUE_BASIC);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto mc = bm.readMergeCounters();
@@ -1546,7 +1549,8 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
         auto upgrades = xdr::xvector<UpgradeType, 6>{};
         upgrades.push_back(toUpgradeType(makeBaseReserveUpgrade(newReserve)));
 
-        StellarValue sv{txSet->getContentsHash(), 2, upgrades, 0};
+        StellarValue sv{txSet->getContentsHash(), 2, upgrades,
+                        STELLAR_VALUE_BASIC};
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 

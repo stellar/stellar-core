@@ -232,10 +232,10 @@ NominationProtocol::updateRoundLeaders()
     });
     // expand mRoundLeaders with the newly computed leaders
     mRoundLeaders.insert(newRoundLeaders.begin(), newRoundLeaders.end());
-    CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << newRoundLeaders.size()
-                       << " -> " << mRoundLeaders.size();
     if (Logging::logDebug("SCP"))
     {
+        CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << newRoundLeaders.size()
+                           << " -> " << mRoundLeaders.size();
         for (auto const& rl : mRoundLeaders)
         {
             CLOG(DEBUG, "SCP")
@@ -442,7 +442,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
         }
         else
         {
-            CLOG(DEBUG, "SCP")
+            CLOG(TRACE, "SCP")
                 << "NominationProtocol: message didn't pass sanity check";
         }
     }

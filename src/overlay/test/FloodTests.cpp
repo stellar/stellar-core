@@ -243,11 +243,11 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
 
-            // build an SCP nomination message for the next ledger
+            // build an SCP message for the next ledger
 
             StellarValue sv(txSet.getContentsHash(),
                             lcl.header.scpValue.closeTime + 1,
-                            emptyUpgradeSteps, 0);
+                            emptyUpgradeSteps, STELLAR_VALUE_BASIC);
 
             SCPEnvelope envelope;
 

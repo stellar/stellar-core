@@ -50,11 +50,18 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
     // allow SCP messages from other slots to be processed
     herder->getHerderSCPDriver().lostSync();
 
-    using TxPair = std::pair<Value, TxSetFramePtr>;
+    auto valSigner = SecretKey::pseudoRandomForTesting();
+
+    struct ValuesTxSet
+    {
+        Value mBasicV;
+        Value mSignedV;
+        TxSetFramePtr mTxSet;
+    };
 
     auto recvEnvelope = [&](SCPEnvelope envelope, uint64 slotID,
                             SecretKey const& k, SCPQuorumSet const& qSet,
-                            std::vector<TxPair> const& pp) {
+                            std::vector<ValuesTxSet> const& pp) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         envelope.statement.slotIndex = slotID;
@@ -66,12 +73,12 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
         herder->recvSCPQuorumSet(qSetH, qSet);
         for (auto& p : pp)
         {
-            herder->recvTxSet(p.second->getContentsHash(), *p.second);
+            herder->recvTxSet(p.mTxSet->getContentsHash(), *p.mTxSet);
         }
     };
     auto recvNom = [&](uint64 slotID, SecretKey const& k,
                        SCPQuorumSet const& qSet,
-                       std::vector<TxPair> const& pp) {
+                       std::vector<ValuesTxSet> const& pp) {
         SCPEnvelope envelope;
         envelope.statement.pledges.type(SCP_ST_NOMINATE);
         auto& nom = envelope.statement.pledges.nominate();
@@ -79,7 +86,7 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
         std::set<Value> values;
         for (auto& p : pp)
         {
-            values.insert(p.first);
+            values.insert(p.mSignedV);
         }
         nom.votes.insert(nom.votes.begin(), values.begin(), values.end());
         auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
@@ -87,17 +94,17 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
         recvEnvelope(envelope, slotID, k, qSet, pp);
     };
     auto recvExternalize = [&](uint64 slotID, SecretKey const& k,
-                               SCPQuorumSet const& qSet, TxPair const& v) {
+                               SCPQuorumSet const& qSet, ValuesTxSet const& v) {
         SCPEnvelope envelope;
         envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
         auto& ext = envelope.statement.pledges.externalize();
         ext.commit.counter = UINT32_MAX;
-        ext.commit.value = v.first;
+        ext.commit.value = v.mBasicV;
         ext.nH = UINT32_MAX;
 
         auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
         ext.commitQuorumSetHash = qSetH;
-        std::vector<TxPair> pp = {v};
+        std::vector<ValuesTxSet> pp = {v};
         recvEnvelope(envelope, slotID, k, qSet, pp);
     };
     auto makeValue = [&](int i) {
@@ -105,10 +112,12 @@ TEST_CASE("quorum tracker", "[quorum][herder]")
         auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
         auto sv = StellarValue{txSet->getContentsHash(),
                                lcl.header.scpValue.closeTime + i,
-                               emptyUpgradeSteps, 0};
+                               emptyUpgradeSteps, STELLAR_VALUE_BASIC};
         auto v = xdr::xdr_to_opaque(sv);
+        herder->signStellarValue(valSigner, sv);
+        auto vSigned = xdr::xdr_to_opaque(sv);
 
-        return TxPair{v, txSet};
+        return ValuesTxSet{v, vSigned, txSet};
     };
 
     auto vv = makeValue(1);
