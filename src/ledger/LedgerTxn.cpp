@@ -1703,6 +1703,48 @@ LedgerTxnRoot::Impl::getAllOffers()
     return offersByKey;
 }
 
+bool
+LedgerTxnRoot::Impl::BestOffersCacheKey::
+operator==(BestOffersCacheKey const& other) const
+{
+    return buying == other.buying && selling == other.selling;
+}
+
+// TODO(jonjove): Are we happy with the strength of this hash function?
+size_t
+LedgerTxnRoot::Impl::BestOffersCacheKeyHash::hashAsset(Asset const& asset)
+{
+    size_t res = asset.type();
+    switch (asset.type())
+    {
+    case ASSET_TYPE_NATIVE:
+        break;
+    case ASSET_TYPE_CREDIT_ALPHANUM4:
+    {
+        auto& a4 = asset.alphaNum4();
+        res ^= shortHash::computeHash(ByteSlice(a4.issuer.ed25519().data(), 8));
+        res ^= a4.assetCode[0];
+        break;
+    }
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
+    {
+        auto& a12 = asset.alphaNum12();
+        res ^=
+            shortHash::computeHash(ByteSlice(a12.issuer.ed25519().data(), 8));
+        res ^= a12.assetCode[0];
+        break;
+    }
+    }
+    return res;
+}
+
+size_t
+LedgerTxnRoot::Impl::BestOffersCacheKeyHash::
+operator()(BestOffersCacheKey const& key) const
+{
+    return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
                             std::unordered_set<LedgerKey>& exclude)
@@ -1992,8 +2034,7 @@ LedgerTxnRoot::Impl::getFromBestOffersCache(
 {
     try
     {
-        auto cacheKey = binToHex(xdr::xdr_to_opaque(buying)) +
-                        binToHex(xdr::xdr_to_opaque(selling));
+        BestOffersCacheKey cacheKey{buying, selling};
         if (!mBestOffersCache.exists(cacheKey))
         {
             mBestOffersCache.put(cacheKey, defaultValue);

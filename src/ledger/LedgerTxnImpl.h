@@ -400,13 +400,29 @@ class LedgerTxnRoot::Impl
 
     typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
-    typedef std::string BestOffersCacheKey;
+    struct BestOffersCacheKey
+    {
+        Asset buying;
+        Asset selling;
+
+        bool operator==(BestOffersCacheKey const& other) const;
+    };
+
     struct BestOffersCacheEntry
     {
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef RandomEvictionCache<std::string, BestOffersCacheEntry>
+
+    struct BestOffersCacheKeyHash
+    {
+        static size_t hashAsset(Asset const& asset);
+
+        size_t operator()(BestOffersCacheKey const& key) const;
+    };
+
+    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntry,
+                                BestOffersCacheKeyHash>
         BestOffersCache;
 
     Database& mDatabase;
