@@ -24,12 +24,16 @@ LedgerCloseData::LedgerCloseData(uint32_t ledgerSeq, TxSetFramePtr txSet,
 }
 
 std::string
-stellarValueToString(StellarValue const& sv)
+stellarValueToString(Config const& c, StellarValue const& sv)
 {
     std::stringstream res;
 
-    res << "[ "
-        << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
+    res << "[";
+    if (sv.ext.v() == STELLAR_VALUE_SIGNED)
+    {
+        res << " SIGNED@" << c.toShortString(sv.ext.lcValueSignature().nodeID);
+    }
+    res << " txH: " << hexAbbrev(sv.txSetHash) << ", ct: " << sv.closeTime
         << ", upgrades: [";
     for (auto const& upgrade : sv.upgrades)
     {

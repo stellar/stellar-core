@@ -28,7 +28,7 @@ AllowTrustOpFrame::getThresholdLevel() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     if (ltx.loadHeader().current().ledgerVersion > 2)
     {
@@ -129,7 +129,7 @@ AllowTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {

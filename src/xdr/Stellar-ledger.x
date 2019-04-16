@@ -10,11 +10,23 @@ namespace stellar
 
 typedef opaque UpgradeType<128>;
 
+enum StellarValueType
+{
+    STELLAR_VALUE_BASIC = 0,
+    STELLAR_VALUE_SIGNED = 1
+};
+
+struct LedgerCloseValueSignature
+{
+    NodeID nodeID;       // which node introduced the value
+    Signature signature; // nodeID's signature
+};
+
 /* StellarValue is the value used by SCP to reach consensus on a given ledger
-*/
+ */
 struct StellarValue
 {
-    Hash txSetHash;   // transaction set to apply to previous ledger
+    Hash txSetHash;      // transaction set to apply to previous ledger
     TimePoint closeTime; // network close time
 
     // upgrades to apply to the previous ledger (usually empty)
@@ -27,15 +39,17 @@ struct StellarValue
     // reserved for future use
     union switch (int v)
     {
-    case 0:
+    case STELLAR_VALUE_BASIC:
         void;
+    case STELLAR_VALUE_SIGNED:
+        LedgerCloseValueSignature lcValueSignature;
     }
     ext;
 };
 
 /* The LedgerHeader is the highest level structure representing the
  * state of a ledger, cryptographically linked to previous ledgers.
-*/
+ */
 struct LedgerHeader
 {
     uint32 ledgerVersion;    // the protocol version of the ledger
@@ -120,7 +134,7 @@ case OFFER:
     struct
     {
         AccountID sellerID;
-        uint64 offerID;
+        int64 offerID;
     } offer;
 
 case DATA:
@@ -133,17 +147,38 @@ case DATA:
 
 enum BucketEntryType
 {
-    LIVEENTRY = 0,
-    DEADENTRY = 1
+    METAENTRY =
+        -1, // At-and-after protocol 11: bucket metadata, should come first.
+    LIVEENTRY = 0, // Before protocol 11: created-or-updated;
+                   // At-and-after protocol 11: only updated.
+    DEADENTRY = 1,
+    INITENTRY = 2 // At-and-after protocol 11: only created.
+};
+
+struct BucketMetadata
+{
+    // Indicates the protocol version used to create / merge this bucket.
+    uint32 ledgerVersion;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 union BucketEntry switch (BucketEntryType type)
 {
 case LIVEENTRY:
+case INITENTRY:
     LedgerEntry liveEntry;
 
 case DEADENTRY:
     LedgerKey deadEntry;
+case METAENTRY:
+    BucketMetadata metaEntry;
 };
 
 // Transaction sets are the unit used by SCP to decide on transitions
@@ -268,7 +303,7 @@ struct OperationMeta
 struct TransactionMetaV1
 {
     LedgerEntryChanges txChanges; // tx level changes if any
-    OperationMeta operations<>; // meta for each operation
+    OperationMeta operations<>;   // meta for each operation
 };
 
 // this is the meta produced when applying transactions

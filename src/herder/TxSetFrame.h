@@ -4,9 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include <deque>
 #include <functional>
+#include <unordered_map>
 
 namespace stellar
 {
@@ -22,12 +25,17 @@ class TxSetFrame
 
     Hash mPreviousLedgerHash;
 
-    bool
-    checkOrTrim(Application& app,
-                std::function<bool(TransactionFramePtr, SequenceNumber)>
-                    processInvalidTxLambda,
-                std::function<bool(std::vector<TransactionFramePtr> const&)>
-                    processLastInvalidTxLambda);
+    using AccountTransactionQueue = std::deque<TransactionFramePtr>;
+
+    bool checkOrTrim(Application& app,
+                     std::function<bool(TransactionFramePtr, SequenceNumber)>
+                         processInvalidTxLambda,
+                     std::function<bool(std::deque<TransactionFramePtr> const&)>
+                         processLastInvalidTxLambda);
+
+    std::unordered_map<AccountID, AccountTransactionQueue>
+    buildAccountTxQueues();
+    friend struct SurgeCompare;
 
   public:
     std::vector<TransactionFramePtr> mTransactions;
@@ -50,8 +58,10 @@ class TxSetFrame
     std::vector<TransactionFramePtr> sortForApply();
 
     bool checkValid(Application& app);
-    void trimInvalid(Application& app,
-                     std::vector<TransactionFramePtr>& trimmed);
+
+    // remove invalid transaction from this set and return those removed
+    // transactions
+    std::vector<TransactionFramePtr> trimInvalid(Application& app);
     void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFramePtr tx);
@@ -63,12 +73,21 @@ class TxSetFrame
         mHashIsValid = false;
     }
 
+    size_t size(LedgerHeader const& lh) const;
+
     size_t
-    size()
+    sizeTx() const
     {
         return mTransactions.size();
     }
 
+    size_t sizeOp() const;
+
+    // return the base fee associated with this transaction set
+    int64_t getBaseFee(LedgerHeader const& lh) const;
+
+    // return the sum of all fees that this transaction set would take
+    int64_t getTotalFees(LedgerHeader const& lh) const;
     void toXDR(TransactionSet& set);
 };
 } // namespace stellar

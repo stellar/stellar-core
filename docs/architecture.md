@@ -10,7 +10,7 @@ the ledger, a crypto component for confirming signatures and hashing results,
 and a database component for persisting ledger changes.
 Two slightly-obscurely-named components are:
 
-  - "bucketList", stored in the directory "bucket": the in-memory and on-disk
+  - "BucketList", stored in the directory "bucket": the in-memory and on-disk
     linear history and ledger form that is hashed. A specific arrangement of
     concatenations-of-XDR. Organized around "temporal buckets". Entries tending
 	to stay in buckets grouped by how frequently they change.
@@ -24,11 +24,6 @@ Other details:
   - Single main thread doing async I/O and forming consensus; multiple
     worker threads doing computation (primarily memcpy, serialization,
     hashing). No multithreading on the core I/O or consensus logic.
-
-  - No secondary internal "work queue" / scheduler, nor secondary internal
-    packet transmit queues. Any async work is posted to either of the main
-    or worker asio io_service queues. Any async transmits are posted as
-    asio write callbacks that own their transmit buffers.
 
   - No secondary process-supervision process, no autonomous threads /
     complex shutdown requests. Can generally just destroy the application

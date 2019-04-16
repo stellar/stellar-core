@@ -15,30 +15,32 @@ Stellar Core is responsible for communicating directly with and maintaining the 
 It will also be useful to understand how [data flows](https://www.stellar.org/developers/stellar-core/software/core-data-flow.pdf) and is stored in the system.
 
 ## Zero to completed: node checklist
- - [ ] [deciding to run a node](#why-run-a-node)
- - [ ] [setting up an instance to run core](#instance-setup)
- - [ ] [install stellar-core](#installing)
- - [ ] [craft a configuration](#configuring)
- - [ ] [crafting  a quorum set](#crafting-a-quorum-set)
- - [ ] [preparing the environment before the first run](#environment-preparation)
- - [ ] [joining the network](#joining-the-network)
- - [ ] [logging](#logging)
- - [ ] [monitoring and diagnostics](#monitoring-and-diagnostics)
- - [ ] [performing validator maintenance](#validator-maintenance)
- - [ ] [performing network wide updates](#network-configuration)
- - [ ] [advanced topics and internals](#advanced-topics-and-internals)
+
+  - [ ] [deciding to run a node](#why-run-a-node)
+  - [ ] [setting up an instance to run core](#instance-setup)
+  - [ ] [install stellar-core](#installing)
+  - [ ] [craft a configuration](#configuring)
+  - [ ] [crafting  a quorum set](#crafting-a-quorum-set)
+  - [ ] [preparing the environment before the first run](#environment-preparation)
+  - [ ] [joining the network](#joining-the-network)
+  - [ ] [logging](#logging)
+  - [ ] [monitoring and diagnostics](#monitoring-and-diagnostics)
+  - [ ] [performing validator maintenance](#validator-maintenance)
+  - [ ] [performing network wide updates](#network-configuration)
+  - [ ] [advanced topics and internals](#advanced-topics-and-internals)
 
 ## Why run a node?
 
 ### Benefits of running a node
 
 You get to run your own Horizon instance:
-* Allows for customizations (triggers, etc) of the business logic or APIs
-* Full control of which data to retain (historical or online)
-* A trusted entry point to the network
-  * Trusted end to end (can implement additional counter measures to secure services)
-  * Open Horizon increases customer trust by allowing to query at the source (ie: larger token issuers have an official endpoint that can be queried)
-* Control of SLA
+
+  * Allows for customizations (triggers, etc) of the business logic or APIs
+  * Full control of which data to retain (historical or online)
+  * A trusted entry point to the network
+    * Trusted end to end (can implement additional counter measures to secure services)
+    * Open Horizon increases customer trust by allowing to query at the source (ie: larger token issuers have an official endpoint that can be queried)
+  * Control of SLA
 
 note: in this document we use "Horizon" as the example implementation of a first tier service built on top of stellar-core, but any other system would get the same benefits.
 
@@ -65,13 +67,15 @@ From an operational point of view "watchers" and "basic validators" are about th
 Watcher nodes are configured to watch the activity from the network
 
 Use cases:
-* Ephemeral instances, where having other nodes depend on those nodes is not desired
-* Potentially reduced administration cost (no or reduced SLA)
-* Real time network monitoring (which validators are present, etc)
-* Generate network meta-data for other systems (Horizon) 
+
+  * Ephemeral instances, where having other nodes depend on those nodes is not desired
+  * Potentially reduced administration cost (no or reduced SLA)
+  * Real time network monitoring (which validators are present, etc)
+  * Generate network meta-data for other systems (Horizon)
 
 **Operational requirements**:
-* a [database](#database)
+
+  * a [database](#database)
 
 #### Archiver nodes
 
@@ -80,30 +84,34 @@ The purpose of Archiver nodes is to record the activity of the network in long t
 [History Archives](#history-archives) contain snapshots of the ledger, all transactions and their results.
 
 Use cases:
-* Everything that a watcher node can do
-* Need for a low cost compliance story
-* Participate to the network’s resiliency
-* Analysis of historical data
+
+  * Everything that a watcher node can do
+  * Need for a low cost compliance story
+  * Participate to the network’s resiliency
+  * Analysis of historical data
 
 **Operational requirements**:
-* requires an additional internet facing blob store
-* a [database](#database)
+
+  * requires an additional internet facing blob store
+  * a [database](#database)
 
 #### Basic validators
 Nodes configured to actively vote on the network.
 
 Use cases:
-* Everything that a watcher node can do
-* Increase the network reliability
-* Enables deeper integrations by clients and business partners
-* Official endorsement of specific ledgers in real time (via signatures)
-* Quorum Set aligned with business priorities
-* Additional checks/invariants enabled
-  * Validator can halt and/or signal that for example (in the case of an issuer) that it does not agree to something.
+
+  * Everything that a watcher node can do
+  * Increase the network reliability
+  * Enables deeper integrations by clients and business partners
+  * Official endorsement of specific ledgers in real time (via signatures)
+  * Quorum Set aligned with business priorities
+  * Additional checks/invariants enabled
+    * Validator can halt and/or signal that for example (in the case of an issuer) that it does not agree to something.
 
 **Operational requirements**: 
-* secret key management (used for signing messages on the network)
-* a [database](#database)
+
+  * secret key management (used for signing messages on the network)
+  * a [database](#database)
 
 #### Full validators
 
@@ -112,15 +120,17 @@ Nodes fully participating in the network.
 Full validators are the true measure of how decentralized and redundant the network is as they are the only type of validators that perform all functions on the network.
 
 Use cases:
-* All other use cases
-* Some full validators required to be v-blocking (~ N full validators, M other validators on the network -> require at least M+1 threshold)
-* Branding - strongest association with the network
-* Mutually beneficial - best way to support the network’s health and resilience
+
+  * All other use cases
+  * Some full validators required to be v-blocking (~ N full validators, M other validators on the network -> require at least M+1 threshold)
+  * Branding - strongest association with the network
+  * Mutually beneficial - best way to support the network’s health and resilience
 
 **Operational requirements**:
-* requires an additional internet facing blob store 
-* secret key management (used for signing messages on the network)
-* a [database](#database)
+
+  * requires an additional internet facing blob store
+  * secret key management (used for signing messages on the network)
+  * a [database](#database)
 
 ## Instance setup
 Regardless of how you install stellar-core (apt, source, docker, etc), you will need to configure the instance hosting it roughly the same way.
@@ -135,18 +145,19 @@ Storage wise, 20 GB seems to be an excellent working set as it leaves plenty of 
 ### Network access
 
 #### Interaction with the peer to peer network
-* **inbound**: stellar-core needs to allow all ips to connect to its `PEER_PORT` (default 11625) over TCP.
-* **outbound**: stellar-core needs access to connect to other peers on the internet on `PEER_PORT` (most use the default as well) over TCP.
+
+  * **inbound**: stellar-core needs to allow all ips to connect to its `PEER_PORT` (default 11625) over TCP.
+  * **outbound**: stellar-core needs access to connect to other peers on the internet on `PEER_PORT` (most use the default as well) over TCP.
 
 #### Interaction with other internal systems
 
-* **outbound**:
-  * stellar-core needs access to a database (postgresql for example), which may reside on a different machine on the network
-  * other connections can safely be blocked
-* **inbound**: stellar-core exposes an *unauthenticated* HTTP endpoint on port `HTTP_PORT` (default 11626)
-  * it is used by other systems (such as Horizon) to submit transactions (so may have to be exposed to the rest of your internal ips)
-  *  query information (info, metrics, ...) for humans and automation
-  *  perform administrative commands (schedule upgrades, change log levels, ...)
+  * **outbound**:
+    * stellar-core needs access to a database (postgresql for example), which may reside on a different machine on the network
+    * other connections can safely be blocked
+  * **inbound**: stellar-core exposes an *unauthenticated* HTTP endpoint on port `HTTP_PORT` (default 11626)
+    * it is used by other systems (such as Horizon) to submit transactions (so may have to be exposed to the rest of your internal ips)
+    *  query information (info, metrics, ...) for humans and automation
+    *  perform administrative commands (schedule upgrades, change log levels, ...)
 
 Note on exposing the HTTP endpoint:
 if you need to expose this endpoint to other hosts in your local network, it is recommended to use an intermediate reverse proxy server to implement authentication. Don't expose the HTTP endpoint to the raw and cruel open internet.
@@ -158,9 +169,10 @@ if you need to expose this endpoint to other hosts in your local network, it is 
 In general you should aim to run the latest [release](https://github.com/stellar/stellar-core/releases) as builds are backward compatible and are cummulative.
 
 The version number scheme that we follow is `protocol_version.release_number.patch_number`, where
-* `protocol_version` is the maximum protocol version supported by that release (all versions are 100% backward compatible),
-* `release_number` is bumped when a set of new features or bug fixes not impacting the protocol are included in the release,
-* `patch_number` is used when a critical fix has to be deployed 
+
+  * `protocol_version` is the maximum protocol version supported by that release (all versions are 100% backward compatible),
+  * `release_number` is bumped when a set of new features or bug fixes not impacting the protocol are included in the release,
+  * `patch_number` is used when a critical fix has to be deployed
 
 ### Installing from source
 See the [INSTALL](https://github.com/stellar/stellar-core/blob/master/INSTALL.md) for build instructions.
@@ -172,8 +184,9 @@ See [detailed installation instructions](https://github.com/stellar/packages#sdf
 
 ### Container based installation
 Docker images are maintained in a few places, good starting points are:
- * the [quickstart image](https://github.com/stellar/docker-stellar-core-horizon)
- * the [standalone image](https://github.com/stellar/docker-stellar-core). **Warning**: this only tracks the latest master, so you have to find the image based on the [release](https://github.com/stellar/stellar-core/releases) that you want to use.
+
+   * the [quickstart image](https://github.com/stellar/docker-stellar-core-horizon)
+   * the [standalone image](https://github.com/stellar/docker-stellar-core). **Warning**: this only tracks the latest master, so you have to find the image based on the [release](https://github.com/stellar/stellar-core/releases) that you want to use.
 
 ## Configuring
 
@@ -232,29 +245,36 @@ This section describes how to configure the quorum set for a validator and assum
 #### Validator list
 
 You will find lists of validators in a few places:
-* [list of validators](https://github.com/stellar/docs/blob/master/validators.md)
-* the [Stellar Dashboard](https://dashboard.stellar.org/)
+
+  * [list of validators](https://github.com/stellar/docs/blob/master/validators.md)
+  * the [Stellar Dashboard](https://dashboard.stellar.org/)
 
 #### Understanding requirements for a good quorum
 
 The way quorum sets are configured is explained in detail in the [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg).
 
 As an administrator what you need to do is ensure that your quorum configuration:
-* is aligned with how you want to trust other nodes on the network
-* gives good guarantees on the quorum intersection property of the network
-* provides the right properties in the event of arbitrary node failures
+
+  * is aligned with how you want to trust other nodes on the network
+  * gives good guarantees on the quorum intersection property of the network
+  * provides the right properties in the event of arbitrary node failures
 
 If you are running multiple validators, the availability model of your organization as a "group of validators" (the way people are likely to refer to your validators) is not like traditional web services:
-* traditional web services stay available down to the last node
-* in the consensus world, for your group to be available, 67% of your nodes have to agree to each other
+
+  * traditional web services stay available down to the last node
+  * in the consensus world, for your group to be available, 67% of your nodes have to agree to each other
 
 #### Recommended pattern for building a quorum set
 
 Divide the validators into two categories:
-* [full validators](#full-validators)
-* [basic validators](#basic-validators) 
+
+  * [full validators](#full-validators)
+  * [basic validators](#basic-validators)
 
 One of the goals is to ensure that there will always be some full validators in any given quorum (from your node's point of view).
+
+**Important** For each full validator you add in your quorum set, make sure that you are also configuring your node to point to their [history archive](#history-archives).
+This ensures that if your node falls out of sync for any reason, you will be able to rejoin the network regardless of its state.
 
 As the way quorum sets are specified using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
 
@@ -301,20 +321,22 @@ VALIDATORS= [ ... ]
 #### Picking thresholds
 
 Thresholds and groupings go hand in hand, and balance:
- * liveness - network doesn't halt when some nodes are missing (during maintenance for example)
- * safety - resistance to bad votes, some nodes being more important (full validators) for the normal operation of the network
+
+   * liveness - network doesn't halt when some nodes are missing (during maintenance for example)
+   * safety - resistance to bad votes, some nodes being more important (full validators) for the normal operation of the network
 
 Liveness pushes thresholds lower and safety pushes thresholds higher.
 
 On the safety front, ideally any group (regardless of its composition), can suffer a 33% byzantine failure, but in some cases this is not practical and a different configuration needs to be picked.
 
 You may have to change the grouping in order to achieve the expected properties:
-* merging groups typically makes the group more resilient, compare:
-  * [51%, [51%, A, B, C, D], [51%, E, F, G, H]] # group of 4 has a threshold of 3 nodes -> 2 nodes missing enough to halt
-  * [51%, A, B, C, D, E, F, G, H] # 8 nodes -> 5 nodes threshold -> 4 nodes missing to halt 
-* splitting groups can also be useful to make certain entities optional, compare:
-  * [100%, [51%, A, B, C], [50%, D, E]] # requires D or E to agree
-  * [ 67%, A, B, C, [50%, D, E]] # D or E only required if one of A,B,C doesn't agree (the [D,E] group acts as a tie breaker)
+
+  * merging groups typically makes the group more resilient, compare:
+    * [51%, [51%, A, B, C, D], [51%, E, F, G, H]] # group of 4 has a threshold of 3 nodes -> 2 nodes missing enough to halt
+    * [51%, A, B, C, D, E, F, G, H] # 8 nodes -> 5 nodes threshold -> 4 nodes missing to halt
+  * splitting groups can also be useful to make certain entities optional, compare:
+    * [100%, [51%, A, B, C], [50%, D, E]] # requires D or E to agree
+    * [ 67%, A, B, C, [50%, D, E]] # D or E only required if one of A,B,C doesn't agree (the [D,E] group acts as a tie breaker)
 
 #### Quorum and overlay network
 
@@ -327,12 +349,14 @@ Without those settings, your validator depends on other nodes on the network to 
 #### Special considerations during quorum set updates
 
 Sometimes an organization needs to make changes that impact other's quorum sets:
-* taking a validator down for long period of time
-* adding new validators to their pool
+
+  * taking a validator down for long period of time
+  * adding new validators to their pool
 
 In both cases, it's crucial to stage the changes to preserve quorum intersection and general good health of the network:
-* removing too many nodes from your quorum set *before* the nodes are taken down : if different people remove different sets the remaining sets may not overlap between nodes and may cause network splits 
-* adding too many nodes in your quorum set at the same time : if not done carefully can cause those nodes to overpower your configuration
+
+  * removing too many nodes from your quorum set *before* the nodes are taken down : if different people remove different sets the remaining sets may not overlap between nodes and may cause network splits
+  * adding too many nodes in your quorum set at the same time : if not done carefully can cause those nodes to overpower your configuration
 
 Recommended steps are for the entity that adds/removes nodes to do so first between their own nodes, and then have people reflect those changes gradually (over several rounds) in their quorum configuration.
 
@@ -340,13 +364,14 @@ Recommended steps are for the entity that adds/removes nodes to do so first betw
 
 ### stellar-core configuration
 Cross reference your validator settings, in particular:
-* environment specific settings
-  * network passphrase
-  * known peers
-* quorum set
-  * public keys of the validators that you manage grouped properly
-* seed defined if validating
-* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjunction with a downstream system like Horizon.
+
+  * environment specific settings
+    * network passphrase
+    * known peers
+  * quorum set
+    * public keys of the validators that you manage grouped properly
+  * seed defined if validating
+  * [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjunction with a downstream system like Horizon.
 
 ### Database and local state
 
@@ -409,6 +434,15 @@ least, if you are joining an existing network in a read-only capacity, you
 will still need to configure a `get` command to access that network's history 
 archives.
 
+#### Configuring to get data from an archive
+
+You can configure any number of archives to download from: stellar-core will automatically round-robin between them.
+
+At a minimum you should configure `get` archives for each full validator referenced from your quorum set (see [crafting  a quorum set](#crafting-a-quorum-set) for more detail).
+
+Note: if you notice a lot of errors related to downloading archives, you should check that all archives in your configuration are up to date.
+
+
 #### Configuring to publish to an archive
 Archive sections can also be configured with `put` and `mkdir` commands to
  cause the instance to publish to that archive (for nodes configured as [archiver nodes](#archiver-nodes) or [full validators](#full-validators)).
@@ -417,19 +451,19 @@ The very first time you want to use your archive *before starting your node* you
 `$ stellar-core new-hist <historyarchive>`
 
 **IMPORTANT:**
- * make sure that you configure both `put` and `mkdir` if `put` doesn't
- automatically create sub-folders
- * writing to the same archive from different nodes is not supported and
- will result in undefined behavior, *potentially data loss*.
- * do not run `newhist` on an existing archive unless you want to erase it.
+
+   * make sure that you configure both `put` and `mkdir` if `put` doesn't automatically create sub-folders
+   * writing to the same archive from different nodes is not supported and will result in undefined behavior, *potentially data loss*.
+   * do not run `newhist` on an existing archive unless you want to erase it.
 
 ### Other preparation
 
 In addition, your should ensure that your operating environment is also functional.
 
 In no particular order:
-* logging and log rotation
-* monitoring and alerting infrastructure
+
+  * logging and log rotation
+  * monitoring and alerting infrastructure
 
 ## Starting your node
 
@@ -591,10 +625,10 @@ The output will look something like
 `ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example.
 
 notable fields in ledger are:
-* `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
-* `num` : ledger number
-* `version` : protocol version supported by this ledger
 
+  * `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
+  * `num` : ledger number
+  * `version` : protocol version supported by this ledger
 
 The state of a fresh node (reset with `newdb`), will look something like this:
 ```json
@@ -610,9 +644,10 @@ The state of a fresh node (reset with `newdb`), will look something like this:
 ```
 
 Additional fields typically used by downstream systems:
-* `build` is the build number for this stellar-core instance
-* `network` is the network passphrase that this core instance is connecting to
-* `protocol_version` is the maximum version of the protocol that this instance recognizes
+
+  * `build` is the build number for this stellar-core instance
+  * `network` is the network passphrase that this core instance is connecting to
+  * `protocol_version` is the maximum version of the protocol that this instance recognizes
 
 In some cases, nodes will display additional status information:
 
@@ -688,6 +723,7 @@ The output looks something like:
 ```
 
 Entries to watch for are:
+
   * `agree` : the number of nodes in the quorum set that agree with this instance.
   * `delayed` : the nodes that are participating to consensus but seem to be behind.
   * `disagree`: the nodes that were participating but disagreed with this instance.
@@ -700,11 +736,11 @@ In the example above, 6 nodes are functioning properly, one is down (`donovan`),
  the instance will fail if any two nodes out of the ones still working fail as well.
 
 If a node is stuck in state `Joining SCP`, this command allows to quickly find the reason:
-* too many validators missing (down or without a good connectivity), solutions are:
-  * [adjust quorum set](#crafting-a-quorum-set) (thresholds, grouping, etc) based on the nodes that are not missing
-  * try to get a [better connectivity path](#quorum-and-overlay-network) to the missing validators
 
-* network split would cause SCP to be stuck because of nodes that disagree. This would happen if either there is a bug in SCP, the network does not have quorum intersection or the disagreeing nodes are misbehaving (compromised, etc)
+  * too many validators missing (down or without a good connectivity), solutions are:
+    * [adjust quorum set](#crafting-a-quorum-set) (thresholds, grouping, etc) based on the nodes that are not missing
+    * try to get a [better connectivity path](#quorum-and-overlay-network) to the missing validators
+  * network split would cause SCP to be stuck because of nodes that disagree. This would happen if either there is a bug in SCP, the network does not have quorum intersection or the disagreeing nodes are misbehaving (compromised, etc)
 
 Note that the node not being able to reach consensus does not mean that the network
 as a whole will not be able to reach consensus (and the opposite is true, the network
@@ -731,12 +767,12 @@ If you're changing your quorum set configuration, also read the [section on what
 
 We recommend performing the following steps in order (repeat sequentially as needed if you run multiple nodes).
 
-1. Advertise your intention to others that may depend on you. Some coordination is required to avoid situations where too many nodes go down at the same time.
-2. Dependencies should assess the health of their quorum, refer to the section
- "Understanding quorum and reliability".
-3. If there is no objection, take your instance down
-4. When done, start your instance that should rejoin the network
-5. The instance will be completely caught up when it's both `Synced` and *there is no backlog in uploading history*.
+  1. Advertise your intention to others that may depend on you. Some coordination is required to avoid situations where too many nodes go down at the same time.
+  2. Dependencies should assess the health of their quorum, refer to the section
+     "Understanding quorum and reliability".
+  3. If there is no objection, take your instance down
+  4. When done, start your instance that should rejoin the network
+  5. The instance will be completely caught up when it's both `Synced` and *there is no backlog in uploading history*.
 
 ## Network configuration
 
@@ -747,10 +783,11 @@ This is performed by validators voting for and agreeing to new values the same w
 A node can be configured to vote for upgrades using the `upgrades` endpoint . see [`commands.md`](commands.md) for more information.
 
 The network settings are:
- * the version of the protocol used to process transactions
- * the maximum number of transactions that can be included in a given ledger close
- * the cost (fee) associated with processing operations
- * the base reserve used to calculate the lumen balance needed to store things in the ledger
+
+  * the version of the protocol used to process transactions
+  * the maximum number of transactions that can be included in a given ledger close
+  * the cost (fee) associated with processing operations
+  * the base reserve used to calculate the lumen balance needed to store things in the ledger
 
 When the network time is later than the `upgradetime` specified in
 the upgrade settings, the validator will vote to update the network
@@ -764,13 +801,15 @@ For a new value to be adopted, the same level of consensus between nodes needs t
 
 Changes to network wide settings have to be orchestrated properly between
 validators as well as non validating nodes:
-* a change is vetted between operators (changes can be bundled)
-* an effective date in the future is picked for the change to take effect (controlled by `upgradetime`)
-* if applicable, communication is sent out to all network users
+
+  * a change is vetted between operators (changes can be bundled)
+  * an effective date in the future is picked for the change to take effect (controlled by `upgradetime`)
+  * if applicable, communication is sent out to all network users
 
 An improper plan may cause issues such as:
-* nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
-* network reconfiguration taking effect at a non deterministic time (causing fees to change ahead of schedule for example)
+
+  * nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
+  * network reconfiguration taking effect at a non deterministic time (causing fees to change ahead of schedule for example)
 
 For more information look at [`docs/versioning.md`](../versioning.md).
 
@@ -778,9 +817,9 @@ For more information look at [`docs/versioning.md`](../versioning.md).
 
 Example here is to upgrade the protocol version to version 9 on January-31-2018.
 
-1. `$ stellar-core http-command 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
+  1. `$ stellar-core http-command 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
+  2. `$ stellar-core http-command info`
 
-2. `$ stellar-core http-command info`
 At this point `info` will tell you that the node is setup to vote for this upgrade:
 ```json
       "status" : [

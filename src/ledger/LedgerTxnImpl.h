@@ -4,7 +4,8 @@
 
 #include "database/Database.h"
 #include "ledger/LedgerTxn.h"
-#include "util/lrucache.hpp"
+#include "util/RandomEvictionCache.h"
+#include <list>
 #ifdef USE_POSTGRES
 #include <iomanip>
 #include <libpq-fe.h>
@@ -15,11 +16,15 @@
 namespace stellar
 {
 
-// Precondition: The keys associated with entries are unique and consitute a
+// Precondition: The keys associated with entries are unique and constitute a
 // subset of keys
 std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
+
+// A defensive heuristic to ensure prefetching stops if entry cache is filling
+// up.
+static const double ENTRY_CACHE_FILL_RATIO = 0.5;
 
 class EntryIterator::AbstractImpl
 {
@@ -232,9 +237,6 @@ class LedgerTxn::Impl
     // - the entry cache may be, but is not guaranteed to be, cleared.
     LedgerEntryChanges getChanges();
 
-    // getDeadEntries has the strong exception safety guarantee
-    std::vector<LedgerKey> getDeadEntries();
-
     // getDelta has the basic exception safety guarantee. If it throws an
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -266,8 +268,10 @@ class LedgerTxn::Impl
     std::vector<InflationWinner> queryInflationWinners(size_t maxWinners,
                                                        int64_t minBalance);
 
-    // getLiveEntries has the strong exception safety guarantee
-    std::vector<LedgerEntry> getLiveEntries();
+    // getAllEntries has the strong exception safety guarantee
+    void getAllEntries(std::vector<LedgerEntry>& initEntries,
+                       std::vector<LedgerEntry>& liveEntries,
+                       std::vector<LedgerKey>& deadEntries);
 
     // getNewestVersion has the basic exception safety guarantee. If it throws
     // an exception, then
@@ -376,9 +380,25 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 // been lost.
 class LedgerTxnRoot::Impl
 {
-    typedef std::string EntryCacheKey;
-    typedef cache::lru_cache<EntryCacheKey, std::shared_ptr<LedgerEntry const>>
-        EntryCache;
+    struct KeyAccesses
+    {
+        uint64_t hits{0};
+        uint64_t misses{0};
+    };
+
+    enum class LoadType
+    {
+        IMMEDIATE,
+        PREFETCH
+    };
+
+    struct CacheEntry
+    {
+        std::shared_ptr<LedgerEntry const> entry;
+        LoadType type;
+    };
+
+    typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
     typedef std::string BestOffersCacheKey;
     struct BestOffersCacheEntry
@@ -386,12 +406,18 @@ class LedgerTxnRoot::Impl
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef cache::lru_cache<std::string, BestOffersCacheEntry> BestOffersCache;
+    typedef RandomEvictionCache<std::string, BestOffersCacheEntry>
+        BestOffersCache;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
     mutable BestOffersCache mBestOffersCache;
+    mutable std::unordered_map<LedgerKey, KeyAccesses> mPrefetchMetrics;
+    mutable uint64_t mTotalPrefetchHits{0};
+
+    size_t mMaxCacheSize;
+    size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
 
@@ -445,11 +471,11 @@ class LedgerTxnRoot::Impl
     //  - It is therefore always kept in exact correspondence with the
     //    database for the keyset that it has entries for. It's a precise
     //    image of a subset of the database.
-    EntryCacheKey getEntryCacheKey(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const>
-    getFromEntryCache(EntryCacheKey const& key) const;
-    void putInEntryCache(EntryCacheKey const& key,
-                         std::shared_ptr<LedgerEntry const> const& entry) const;
+    getFromEntryCache(LedgerKey const& key) const;
+    void putInEntryCache(LedgerKey const& key,
+                         std::shared_ptr<LedgerEntry const> const& entry,
+                         LoadType type) const;
 
     BestOffersCacheEntry&
     getFromBestOffersCache(Asset const& buying, Asset const& selling,
@@ -466,7 +492,8 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Database& db, size_t entryCacheSize, size_t bestOfferCacheSize);
+    Impl(Database& db, size_t entryCacheSize, size_t bestOfferCacheSize,
+         size_t prefetchBatchSize);
 
     ~Impl();
 
@@ -554,6 +581,19 @@ class LedgerTxnRoot::Impl
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
     void encodeHomeDomainsBase64();
+
+    // writeOffersIntoSimplifiedOffersTable has the basic exception safety
+    // guarantee. If it throws an exception, then
+    // - the prepared statement cache may be, but is not guaranteed to be,
+    //   modified
+    void writeOffersIntoSimplifiedOffersTable();
+
+    // Prefetch some or all of given keys in batches. Note that no prefetching
+    // could occur if the cache is at its fill ratio. Returns number of keys
+    // prefetched.
+    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+
+    double getPrefetchHitRate() const;
 };
 
 #ifdef USE_POSTGRES

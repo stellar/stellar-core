@@ -53,12 +53,17 @@ class TestAccount
 
     void bumpSequence(SequenceNumber to);
 
-    uint64_t
-    manageOffer(uint64_t offerID, Asset const& selling, Asset const& buying,
+    int64_t
+    manageOffer(int64_t offerID, Asset const& selling, Asset const& buying,
                 Price const& price, int64_t amount,
                 ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
 
-    uint64_t
+    int64_t
+    manageBuyOffer(int64_t offerID, Asset const& selling, Asset const& buying,
+                   Price const& price, int64_t amount,
+                   ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
+
+    int64_t
     createPassiveOffer(Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount,
                        ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);

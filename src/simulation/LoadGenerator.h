@@ -32,9 +32,6 @@ class LoadGenerator
     LoadGenerator(Application& app);
     ~LoadGenerator();
     void clear();
-    bool maybeAdjustRate(double target, double actual, uint32_t& rate,
-                         bool increaseOk);
-    void inspectRate(uint32_t ledgerNum, uint32_t& txRate);
 
     struct TxInfo;
     using TestAccountPtr = std::shared_ptr<TestAccount>;
@@ -47,20 +44,19 @@ class LoadGenerator
     uint64_t mLastSecond;
 
     void createRootAccount();
-    uint32_t getTxPerStep(uint32_t txRate);
+    int64_t getTxPerStep(uint32_t txRate);
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                 uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                                uint32_t batchSize, bool autoRate);
+                                uint32_t batchSize);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
     // with the remainder.
     void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
-                      uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
-                      bool autoRate);
+                      uint32_t nTxs, uint32_t txRate, uint32_t batchSize);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
@@ -76,7 +72,7 @@ class LoadGenerator
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void handleFailedSubmission(TestAccountPtr sourceAccount,
-                                Herder::TransactionSubmitStatus status,
+                                TransactionQueue::AddResult status,
                                 TransactionResultCode code);
     TxInfo creationTransaction(uint64_t startAccount, uint64_t numItems,
                                uint32_t ledgerNum);
@@ -110,13 +106,17 @@ class LoadGenerator
     {
         TestAccountPtr mFrom;
         std::vector<Operation> mOps;
-        Herder::TransactionSubmitStatus execute(Application& app, bool isCreate,
-                                                TransactionResultCode& code,
-                                                int32_t batchSize);
+        TransactionQueue::AddResult execute(Application& app, bool isCreate,
+                                            TransactionResultCode& code,
+                                            int32_t batchSize);
     };
 
   protected:
     Application& mApp;
+    int64_t mTotalSubmitted;
+    // Set when load generation actually begins
+    std::unique_ptr<VirtualClock::time_point> mStartTime;
+
     TestAccountPtr mRoot;
     // Accounts cache
     std::map<uint64_t, TestAccountPtr> mAccounts;

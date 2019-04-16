@@ -27,7 +27,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     if (header.current().ledgerVersion == 3)
@@ -42,10 +42,19 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         if (!data)
         { // create a new data entry
             auto sourceAccount = loadSourceAccount(ltx, header);
-            if (!addNumEntries(header, sourceAccount, 1))
+            switch (addNumEntries(header, sourceAccount, 1))
             {
+            case AddSubentryResult::SUCCESS:
+                break;
+            case AddSubentryResult::LOW_RESERVE:
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
                 return false;
+            case AddSubentryResult::TOO_MANY_SUBENTRIES:
+                mResult.code(opTOO_MANY_SUBENTRIES);
+                return false;
+            default:
+                throw std::runtime_error(
+                    "Unexpected result from addNumEntries");
             }
 
             LedgerEntry newData;
@@ -79,7 +88,7 @@ ManageDataOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+ManageDataOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (ledgerVersion < 2)
     {
@@ -95,5 +104,12 @@ ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
     }
 
     return true;
+}
+
+void
+ManageDataOpFrame::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    keys.emplace(dataKey(getSourceID(), mManageData.dataName));
 }
 }

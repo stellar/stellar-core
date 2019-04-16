@@ -7,6 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
+#include "main/ErrorMessages.h"
 #include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
@@ -72,8 +73,8 @@ Slot::setStateFromEnvelope(SCPEnvelope const& e)
     }
     else
     {
-        if (Logging::logDebug("SCP"))
-            CLOG(DEBUG, "SCP")
+        if (Logging::logTrace("SCP"))
+            CLOG(TRACE, "SCP")
                 << "Slot::setStateFromEnvelope invalid envelope"
                 << " i: " << getSlotIndex() << " " << mSCP.envToStr(e);
     }
@@ -89,6 +90,17 @@ Slot::getCurrentState() const
     return res;
 }
 
+SCPEnvelope const*
+Slot::getLatestMessage(NodeID const& id) const
+{
+    auto m = mBallotProtocol.getLatestMessage(id);
+    if (m == nullptr)
+    {
+        m = mNominationProtocol.getLatestMessage(id);
+    }
+    return m;
+}
+
 std::vector<SCPEnvelope>
 Slot::getExternalizingState() const
 {
@@ -100,6 +112,10 @@ Slot::recordStatement(SCPStatement const& st)
 {
     mStatementsHistory.emplace_back(
         HistoricalStatement{std::time(nullptr), st, mFullyValidated});
+    CLOG(DEBUG, "SCP") << "new statement: "
+                       << " i: " << getSlotIndex()
+                       << " st: " << mSCP.envToStr(st, false) << " validated: "
+                       << (mFullyValidated ? "true" : "false");
 }
 
 SCP::EnvelopeState
@@ -107,8 +123,8 @@ Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
 {
     dbgAssert(envelope.statement.slotIndex == mSlotIndex);
 
-    if (Logging::logDebug("SCP"))
-        CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
+    if (Logging::logTrace("SCP"))
+        CLOG(TRACE, "SCP") << "Slot::processEnvelope"
                            << " i: " << getSlotIndex() << " "
                            << mSCP.envToStr(envelope);
 
@@ -129,11 +145,12 @@ Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
     }
     catch (...)
     {
-        auto info = getJsonInfo();
-        CLOG(ERROR, "SCP") << "Exception in processEnvelope "
-                           << "state: " << info.toStyledString()
-                           << " processing envelope: "
-                           << mSCP.envToStr(envelope);
+        CLOG(FATAL, "SCP") << "SCP context:";
+        CLOG(FATAL, "SCP") << getJsonInfo().toStyledString();
+        CLOG(FATAL, "SCP") << "Exception processing SCP messages at "
+                           << mSlotIndex
+                           << ", envelope: " << mSCP.envToStr(envelope);
+        CLOG(FATAL, "SCP") << REPORT_INTERNAL_BUG;
 
         throw;
     }
@@ -181,29 +198,6 @@ void
 Slot::setFullyValidated(bool fullyValidated)
 {
     mFullyValidated = fullyValidated;
-}
-
-SCP::TriBool
-Slot::isNodeInQuorum(NodeID const& node)
-{
-    // build the mapping between nodes and envelopes
-    std::map<NodeID, std::vector<SCPStatement const*>> m;
-    // this may be reduced to the pair (at most) of the latest
-    // statements for each protocol
-    for (auto const& e : mStatementsHistory)
-    {
-        auto& n = m[e.mStatement.nodeID];
-        n.emplace_back(&e.mStatement);
-    }
-    return mSCP.getLocalNode()->isNodeInQuorum(
-        node,
-        [this](SCPStatement const& st) {
-            // uses the companion set here as we want to consider
-            // nodes that were used up to EXTERNALIZE
-            Hash h = getCompanionQuorumSetHashFromStatement(st);
-            return getSCPDriver().getQSet(h);
-        },
-        m);
 }
 
 SCPEnvelope
@@ -295,7 +289,7 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st)
 }
 
 Json::Value
-Slot::getJsonInfo()
+Slot::getJsonInfo(bool fullKeys)
 {
     Json::Value ret;
     std::map<Hash, SCPQuorumSetPtr> qSetsUsed;
@@ -305,7 +299,7 @@ Slot::getJsonInfo()
     {
         Json::Value& v = ret["statements"][count++];
         v.append((Json::UInt64)item.mWhen);
-        v.append(mSCP.envToStr(item.mStatement));
+        v.append(mSCP.envToStr(item.mStatement, fullKeys));
         v.append(item.mValidated);
 
         Hash const& qSetHash =
@@ -320,7 +314,7 @@ Slot::getJsonInfo()
     auto& qSets = ret["quorum_sets"];
     for (auto const& q : qSetsUsed)
     {
-        qSets[hexAbbrev(q.first)] = getLocalNode()->toJson(*q.second);
+        qSets[hexAbbrev(q.first)] = getLocalNode()->toJson(*q.second, fullKeys);
     }
 
     ret["validated"] = mFullyValidated;
@@ -331,9 +325,9 @@ Slot::getJsonInfo()
 }
 
 Json::Value
-Slot::getJsonQuorumInfo(NodeID const& id, bool summary)
+Slot::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
 {
-    Json::Value ret = mBallotProtocol.getJsonQuorumInfo(id, summary);
+    Json::Value ret = mBallotProtocol.getJsonQuorumInfo(id, summary, fullKeys);
     if (getLocalNode()->isValidator())
     {
         ret["validated"] = isFullyValidated();

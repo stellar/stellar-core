@@ -31,7 +31,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     innerResult().code(PATH_PAYMENT_SUCCESS);
 
@@ -80,7 +80,14 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         auto destination = stellar::loadAccount(ltx, mPathPayment.destination);
         if (!addBalance(ltx.loadHeader(), destination, curBReceived))
         {
-            innerResult().code(PATH_PAYMENT_MALFORMED);
+            if (ltx.loadHeader().current().ledgerVersion >= 11)
+            {
+                innerResult().code(PATH_PAYMENT_LINE_FULL);
+            }
+            else
+            {
+                innerResult().code(PATH_PAYMENT_MALFORMED);
+            }
             return false;
         }
     }
@@ -143,6 +150,18 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
             }
         }
 
+        int64_t maxOffersToCross = INT64_MAX;
+        if (ltx.loadHeader().current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS)
+        {
+            size_t offersCrossed = innerResult().success().offers.size();
+            // offersCrossed will never be bigger than INT64_MAX because
+            // - the machine would have run out of memory
+            // - the limit, which cannot exceed INT64_MAX, should be enforced
+            // so this subtraction is safe because MAX_OFFERS_TO_CROSS >= 0
+            maxOffersToCross = MAX_OFFERS_TO_CROSS - offersCrossed;
+        }
+
         // curA -> curB
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
@@ -158,7 +177,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
                 }
                 return OfferFilterResult::eKeep;
             },
-            offerTrail);
+            offerTrail, maxOffersToCross);
 
         assert(curASent >= 0);
 
@@ -174,6 +193,9 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         // fall through
         case ConvertResult::ePartial:
             innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
+            return false;
+        case ConvertResult::eCrossedTooMany:
+            mResult.code(opEXCEEDED_WORK_LIMIT);
             return false;
         }
         assert(curBReceived == actualCurBReceived);
@@ -265,7 +287,7 @@ PathPaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-PathPaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+PathPaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
@@ -285,5 +307,35 @@ PathPaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
         return false;
     }
     return true;
+}
+
+void
+PathPaymentOpFrame::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    keys.emplace(accountKey(mPathPayment.destination));
+
+    auto processAsset = [&](Asset const& asset) {
+        if (asset.type() != ASSET_TYPE_NATIVE)
+        {
+            auto issuer = getIssuer(asset);
+            keys.emplace(accountKey(issuer));
+        }
+    };
+
+    processAsset(mPathPayment.sendAsset);
+    processAsset(mPathPayment.destAsset);
+    std::for_each(mPathPayment.path.begin(), mPathPayment.path.end(),
+                  processAsset);
+
+    if (mPathPayment.destAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        keys.emplace(
+            trustlineKey(mPathPayment.destination, mPathPayment.destAsset));
+    }
+    if (mPathPayment.sendAsset.type() != ASSET_TYPE_NATIVE)
+    {
+        keys.emplace(trustlineKey(getSourceID(), mPathPayment.sendAsset));
+    }
 }
 }

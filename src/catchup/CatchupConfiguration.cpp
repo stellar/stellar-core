@@ -11,13 +11,14 @@ namespace stellar
 {
 
 CatchupConfiguration::CatchupConfiguration(LedgerNumHashPair ledgerHashPair,
-                                           uint32_t count)
-    : mCount{count}, mLedgerHashPair{ledgerHashPair}
+                                           uint32_t count, Mode mode)
+    : mCount{count}, mLedgerHashPair{ledgerHashPair}, mMode{mode}
 {
 }
 
-CatchupConfiguration::CatchupConfiguration(uint32_t toLedger, uint32_t count)
-    : mCount{count}, mLedgerHashPair{toLedger, nullptr}
+CatchupConfiguration::CatchupConfiguration(uint32_t toLedger, uint32_t count,
+                                           Mode mode)
+    : mCount{count}, mLedgerHashPair{toLedger, nullptr}, mMode{mode}
 {
 }
 
@@ -26,9 +27,10 @@ CatchupConfiguration::resolve(uint32_t remoteCheckpoint) const
 {
     if (toLedger() == CatchupConfiguration::CURRENT)
     {
-        return CatchupConfiguration{remoteCheckpoint, count()};
+        return CatchupConfiguration{remoteCheckpoint, count(), mMode};
     }
-    return CatchupConfiguration{LedgerNumHashPair(toLedger(), hash()), count()};
+    return CatchupConfiguration{LedgerNumHashPair(toLedger(), hash()), count(),
+                                mode()};
 }
 
 uint32_t

@@ -13,6 +13,7 @@
 #include "test.h"
 #include "test/TestUtils.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/TmpDir.h"
 
 #include <cstdlib>
@@ -42,6 +43,39 @@ SimpleTestReporter::~SimpleTestReporter()
 
 namespace stellar
 {
+
+// We use a Catch event-listener to re-seed all the PRNGs we know about on every
+// test, to minimize nondeterministic bleed from one test to the next.
+struct ReseedPRNGListener : Catch::TestEventListenerBase
+{
+    using TestEventListenerBase::TestEventListenerBase;
+    static unsigned int sCommandLineSeed;
+    static void
+    reseed()
+    {
+        if (sCommandLineSeed == 0)
+        {
+            srand(1);
+            gRandomEngine.seed(gRandomEngine.default_seed);
+            Catch::rng().seed(Catch::rng().default_seed);
+        }
+        else
+        {
+            srand(sCommandLineSeed);
+            gRandomEngine.seed(sCommandLineSeed);
+            Catch::rng().seed(sCommandLineSeed);
+        }
+    }
+    virtual void
+    testCaseStarting(Catch::TestCaseInfo const& testInfo) override
+    {
+        reseed();
+    }
+};
+
+unsigned int ReseedPRNGListener::sCommandLineSeed = 0;
+
+CATCH_REGISTER_LISTENER(ReseedPRNGListener)
 
 static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
@@ -107,8 +141,18 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             DEFAULT_PEER_PORT + instanceNumber * 2 + 1);
 
         // We set a secret key by default as FORCE_SCP is true by
-        // default and we do need a NODE_SEED to start a new network
-        thisConfig.NODE_SEED = SecretKey::random();
+        // default and we do need a NODE_SEED to start a new network.
+        //
+        // Because test configs are built lazily and cached / persist across
+        // tests, we do _not_ use the reset-per-test global PRNG to derive their
+        // secret keys (this would produce inter-test coupling, including
+        // collisions). Instead we derive each from command-line seed and test
+        // config instance number, and try to avoid zero, one, or other default
+        // seeds the global PRNG might have been seeded with by default (which
+        // could thereby collide).
+        thisConfig.NODE_SEED = SecretKey::pseudoRandomForTestingFromSeed(
+            0xFFFF0000 +
+            (instanceNumber ^ ReseedPRNGListener::sCommandLineSeed));
         thisConfig.NODE_IS_VALIDATOR = true;
 
         // single node setup
@@ -177,7 +221,8 @@ test(int argc, char* const* argv, el::Level ll,
     auto r = session.applyCommandLine(argc, argv);
     if (r != 0)
         return r;
-
+    ReseedPRNGListener::sCommandLineSeed = session.configData().rngSeed;
+    ReseedPRNGListener::reseed();
     if (gVersionsToTest.empty())
     {
         gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
@@ -185,6 +230,11 @@ test(int argc, char* const* argv, el::Level ll,
     r = session.run();
     gTestRoots.clear();
     gTestCfg->clear();
+    if (r != 0 && ReseedPRNGListener::sCommandLineSeed != 0)
+    {
+        LOG(FATAL) << "Nonzero test result with --rng-seed "
+                   << ReseedPRNGListener::sCommandLineSeed;
+    }
     return r;
 }
 
@@ -243,6 +293,7 @@ runTest(CommandLineArgs const& args)
     Config const& cfg = getTestConfig();
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(logLevel, nullptr);
+    auto seed = session.configData().rngSeed;
 
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
@@ -251,10 +302,18 @@ runTest(CommandLineArgs const& args)
     {
         gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     }
+    if (seed != 0)
+    {
+        stellar::gRandomEngine.seed(seed);
+    }
 
     auto r = session.run();
     gTestRoots.clear();
     gTestCfg->clear();
+    if (r != 0 && seed != 0)
+    {
+        LOG(FATAL) << "Nonzero test result with --rng-seed " << seed;
+    }
     return r;
 }
 
@@ -286,6 +345,12 @@ for_all_versions(Application& app, std::function<void(void)> const& f)
 }
 
 void
+for_all_versions(Config const& cfg, std::function<void(Config const&)> const& f)
+{
+    for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, cfg, f);
+}
+
+void
 for_versions(uint32 from, uint32 to, Application& app,
              std::function<void(void)> const& f)
 {
@@ -298,6 +363,21 @@ for_versions(uint32 from, uint32 to, Application& app,
     std::iota(std::begin(versions), std::end(versions), from);
 
     for_versions(versions, app, f);
+}
+
+void
+for_versions(uint32 from, uint32 to, Config const& cfg,
+             std::function<void(Config const&)> const& f)
+{
+    if (from > to)
+    {
+        return;
+    }
+    auto versions = std::vector<uint32>{};
+    versions.resize(to - from + 1);
+    std::iota(std::begin(versions), std::end(versions), from);
+
+    for_versions(versions, cfg, f);
 }
 
 void
@@ -333,6 +413,27 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         LedgerTxn ltx(app.getLedgerTxnRoot());
         ltx.loadHeader().current().ledgerVersion = previousVersion;
         ltx.commit();
+    }
+}
+
+void
+for_versions(std::vector<uint32> const& versions, Config const& cfg,
+             std::function<void(Config const&)> const& f)
+{
+    for (auto v : versions)
+    {
+        if (!gTestAllVersions &&
+            std::find(gVersionsToTest.begin(), gVersionsToTest.end(), v) ==
+                gVersionsToTest.end())
+        {
+            continue;
+        }
+        SECTION("protocol version " + std::to_string(v))
+        {
+            Config vcfg = cfg;
+            vcfg.LEDGER_PROTOCOL_VERSION = v;
+            f(vcfg);
+        }
     }
 }
 

@@ -6,6 +6,7 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ErrorMessages.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "overlay/LoadManager.h"
@@ -41,7 +42,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << address.toString();
     assertThreadIsMain();
-    auto socket = make_shared<SocketType>(app.getClock().getIOService());
+    auto socket = make_shared<SocketType>(app.getClock().getIOContext());
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
     result->startIdleTimer();
@@ -134,6 +135,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     {
         CLOG(ERROR, "Overlay")
             << "Trying to send message to " << toString() << " after drop";
+        CLOG(ERROR, "Overlay") << REPORT_INTERNAL_BUG;
         return;
     }
 
@@ -163,6 +165,7 @@ TCPPeer::shutdown()
     {
         // should not happen, leave here for debugging purposes
         CLOG(ERROR, "Overlay") << "Double schedule of shutdown " << toString();
+        CLOG(ERROR, "Overlay") << REPORT_INTERNAL_BUG;
         return;
     }
 
@@ -191,7 +194,7 @@ TCPPeer::shutdown()
                 asio::ip::tcp::socket::shutdown_both, ec);
             if (ec)
             {
-                CLOG(ERROR, "Overlay")
+                CLOG(DEBUG, "Overlay")
                     << "TCPPeer::drop shutdown socket failed: " << ec.message();
             }
             self->getApp().postOnMainThread(
@@ -209,7 +212,7 @@ TCPPeer::shutdown()
                     self->mSocket->close(ec2);
                     if (ec2)
                     {
-                        CLOG(ERROR, "Overlay")
+                        CLOG(DEBUG, "Overlay")
                             << "TCPPeer::drop close socket failed: "
                             << ec2.message();
                     }
@@ -287,7 +290,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // errors during shutdown or connection are common/expected.
             mErrorWrite.Mark();
             CLOG(ERROR, "Overlay")
-                << "TCPPeer::writeHandler error to " << toString();
+                << "Error during sending message to " << toString();
         }
         if (mDelayedShutdown)
         {
@@ -297,7 +300,8 @@ TCPPeer::writeHandler(asio::error_code const& error,
         else
         {
             // no delayed shutdown - we can drop normally
-            drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+            drop("error during write", Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
     }
     else if (bytes_transferred != 0)
@@ -355,7 +359,8 @@ TCPPeer::getIncomingMsgLength()
         CLOG(ERROR, "Overlay")
             << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
-        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
         length = 0;
     }
     return (length);
@@ -398,11 +403,12 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
-            CLOG(ERROR, "Overlay")
-                << "readHeaderHandler error: " << error.message() << " :"
+            CLOG(DEBUG, "Overlay")
+                << "readHeaderHandler error: " << error.message() << ": "
                 << toString();
         }
-        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -434,7 +440,8 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
                 << "readBodyHandler error: " << error.message() << " :"
                 << toString();
         }
-        drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+        drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
@@ -453,13 +460,14 @@ TCPPeer::recvMessage()
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
-        Peer::drop(ERR_DATA, "received corrupt XDR",
-                   Peer::DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(ERR_DATA, "received corrupt XDR",
+                         Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
 
 void
-TCPPeer::drop(DropMode dropMode)
+TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
+              DropMode dropMode)
 {
     assertThreadIsMain();
     if (shouldAbort())
@@ -467,8 +475,21 @@ TCPPeer::drop(DropMode dropMode)
         return;
     }
 
-    CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
-                           << mState << " we called:" << mRole;
+    if (mState != GOT_AUTH)
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
+                               << mState << " we called:" << mRole;
+    }
+    else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
+    {
+        CLOG(INFO, "Overlay")
+            << "Dropping peer " << toString() << "; reason: " << reason;
+    }
+    else
+    {
+        CLOG(INFO, "Overlay")
+            << "Peer " << toString() << " dropped us; reason: " << reason;
+    }
 
     mState = CLOSING;
 

@@ -9,6 +9,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
+#include "main/ErrorMessages.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
@@ -35,7 +36,8 @@ checkInitialized(Application::pointer app)
     catch (...)
     {
         LOG(INFO) << "* ";
-        LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
+        LOG(INFO) << "* The database has not yet been initialized. Try "
+                     "stellar-core newdb";
         LOG(INFO) << "* ";
         return false;
     }
@@ -48,6 +50,13 @@ runWithConfig(Config cfg)
 {
     if (cfg.MANUAL_CLOSE)
     {
+        if (!cfg.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting stellar-core in MANUAL_CLOSE mode requires "
+                          "NODE_IS_VALIDATOR to be set";
+            return 1;
+        }
+
         // in manual close mode, we set FORCE_SCP
         // so that the node starts fully in sync
         // (this is to avoid to force scp all the time when testing)
@@ -85,10 +94,11 @@ runWithConfig(Config cfg)
     catch (std::exception& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
         return 1;
     }
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
     while (!io.stopped())
     {
         clock.crank();
@@ -335,7 +345,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 
     try
     {
-        app->getLedgerManager().startCatchup(cc, true);
+        app->getLedgerManager().startCatchup(cc);
     }
     catch (std::invalid_argument const&)
     {
@@ -350,9 +360,9 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     }
 
     auto& clock = app->getClock();
-    auto& io = clock.getIOService();
+    auto& io = clock.getIOContext();
     auto synced = false;
-    asio::io_service::work mainWork(io);
+    asio::io_context::work mainWork(io);
     auto done = false;
     while (!done && clock.crank(true))
     {
@@ -365,27 +375,16 @@ catchup(Application::pointer app, CatchupConfiguration cc,
         }
         case LedgerManager::LM_SYNCED_STATE:
         {
+            done = true;
+            synced = true;
             break;
         }
         case LedgerManager::LM_CATCHING_UP_STATE:
         {
-            switch (app->getLedgerManager().getCatchupState())
+            if (app->getLedgerManager().getCatchupState() ==
+                LedgerManager::CatchupState::NONE)
             {
-            case LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER:
-            {
-                done = true;
-                synced = true;
-                break;
-            }
-            case LedgerManager::CatchupState::NONE:
-            {
-                done = true;
-                break;
-            }
-            default:
-            {
-                break;
-            }
+                abort();
             }
             break;
         }
@@ -420,8 +419,8 @@ publish(Application::pointer app)
     app->start();
 
     auto& clock = app->getClock();
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
+    auto& io = clock.getIOContext();
+    asio::io_context::work mainWork(io);
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
     auto isCheckpoint =

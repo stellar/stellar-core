@@ -23,8 +23,10 @@ class PaymentOpFrame : public OperationFrame
     PaymentOpFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);
 
-    bool doApply(Application& app, AbstractLedgerTxn& ltx) override;
-    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
+    bool doApply(AbstractLedgerTxn& ltx) override;
+    bool doCheckValid(uint32_t ledgerVersion) override;
+    void insertLedgerKeysToPrefetch(
+        std::unordered_set<LedgerKey>& keys) const override;
 
     static PaymentResultCode
     getInnerCode(OperationResult const& res)

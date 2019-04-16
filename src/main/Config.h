@@ -113,6 +113,12 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
 
+    // A config parameter that avoids counting level 0 merge events and those
+    // within Bucket::fresh; this option exists only for calculating adjustments
+    // to the expected count of merges when stopping and resuming merges,
+    // and should be false in all normal cases.
+    bool ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
+
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;
@@ -152,7 +158,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string BUCKET_DIR_PATH;
     uint32_t TESTING_UPGRADE_DESIRED_FEE; // in stroops
     uint32_t TESTING_UPGRADE_RESERVE;     // in stroops
-    uint32_t TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    uint32_t TESTING_UPGRADE_MAX_TX_SET_SIZE;
     unsigned short HTTP_PORT; // what port to listen for commands
     bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
     int HTTP_MAX_CLIENT;      // maximum number of http clients, i.e backlog
@@ -167,7 +173,9 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short MAX_OUTBOUND_PENDING_CONNECTIONS;
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
+    unsigned short PEER_STRAGGLER_TIMEOUT;
     static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
+    static constexpr auto const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
     // Peers we will always try to stay connected to
     std::vector<std::string> PREFERRED_PEERS;
@@ -187,8 +195,11 @@ class Config : public std::enable_shared_from_this<Config>
     // totally insensitive to overloading.
     uint32_t MINIMUM_IDLE_PERCENT;
 
+    // thread-management config
+    int WORKER_THREADS;
+
     // process-management config
-    size_t MAX_CONCURRENT_SUBPROCESSES;
+    int MAX_CONCURRENT_SUBPROCESSES;
 
     // SCP config
     SecretKey NODE_SEED;
@@ -217,6 +228,12 @@ class Config : public std::enable_shared_from_this<Config>
     //   associated with a single Asset pair
     size_t ENTRY_CACHE_SIZE;
     size_t BEST_OFFERS_CACHE_SIZE;
+
+    // Data layer prefetcher configuration
+    // - PREFETCH_BATCH_SIZE determines how many records we'll prefetch per
+    // SQL load. Note that it should be significantly smaller than size of
+    // the entry cache
+    size_t PREFETCH_BATCH_SIZE;
 
     Config();
 

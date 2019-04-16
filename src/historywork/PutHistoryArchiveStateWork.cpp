@@ -6,6 +6,7 @@
 #include "history/HistoryArchive.h"
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
+#include "main/ErrorMessages.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -47,7 +48,8 @@ PutHistoryArchiveStateWork::onRun()
         catch (std::runtime_error& e)
         {
             CLOG(ERROR, "History")
-                << "error loading history state: " << e.what();
+                << "Error saving history state: " << e.what();
+            CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
             scheduleFailure();
         }
     }

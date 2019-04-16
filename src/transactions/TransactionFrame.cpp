@@ -104,16 +104,31 @@ TransactionFrame::getEnvelope()
 }
 
 uint32_t
-TransactionFrame::getFee() const
+TransactionFrame::getFeeBid() const
 {
     return mEnvelope.tx.fee;
 }
 
 int64_t
-TransactionFrame::getMinFee(LedgerTxnHeader const& header) const
+TransactionFrame::getMinFee(LedgerHeader const& header) const
 {
-    return ((int64_t)header.current().baseFee) *
-           std::max<int64_t>(1, mOperations.size());
+    return ((int64_t)header.baseFee) * std::max<int64_t>(1, mOperations.size());
+}
+
+int64_t
+TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
+{
+    if (header.ledgerVersion < 11)
+    {
+        return getFeeBid();
+    }
+    else
+    {
+        int64_t adjustedFee =
+            baseFee * std::max<int64_t>(1, mOperations.size());
+
+        return std::min<int64_t>(getFeeBid(), adjustedFee);
+    }
 }
 
 void
@@ -209,7 +224,7 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
 }
 
 void
-TransactionFrame::resetResults()
+TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 {
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
@@ -228,12 +243,11 @@ TransactionFrame::resetResults()
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    getResult().feeCharged = getFee();
+    getResult().feeCharged = getFee(header, baseFee);
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
-                                       bool forApply)
+TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
@@ -261,7 +275,7 @@ TransactionFrame::commonValidPreSeqNum(Application& app, AbstractLedgerTxn& ltx,
         }
     }
 
-    if (mEnvelope.tx.fee < getMinFee(header))
+    if (mEnvelope.tx.fee < getMinFee(header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
@@ -293,7 +307,6 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 
 bool
 TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
-                                    Application& app,
                                     AbstractLedgerTxn& ltxOuter)
 {
     auto allOpsValid = true;
@@ -306,7 +319,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
 
         for (auto& op : mOperations)
         {
-            if (!op->checkSignature(signatureChecker, app, ltx, false))
+            if (!op->checkSignature(signatureChecker, ltx, false))
             {
                 allOpsValid = false;
             }
@@ -332,13 +345,13 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
 
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                              Application& app, AbstractLedgerTxn& ltxOuter,
+                              AbstractLedgerTxn& ltxOuter,
                               SequenceNumber current, bool applying)
 {
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(app, ltx, applying))
+    if (!commonValidPreSeqNum(ltx, applying))
     {
         return res;
     }
@@ -391,12 +404,13 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 }
 
 void
-TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx)
+TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
 {
     mCachedAccount.reset();
-    resetResults();
 
     auto header = ltx.loadHeader();
+    resetResults(header.current(), baseFee);
+
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)
     {
@@ -473,7 +487,7 @@ TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
     if (it != std::end(acc.signers))
     {
         auto removed = stellar::addNumEntries(header, account, -1);
-        assert(removed);
+        assert(removed == AddSubentryResult::SUCCESS);
         acc.signers.erase(it);
         return true;
     }
@@ -482,22 +496,24 @@ TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
 }
 
 bool
-TransactionFrame::checkValid(Application& app, AbstractLedgerTxn& ltxOuter,
+TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current)
 {
     mCachedAccount.reset();
-    resetResults();
 
     LedgerTxn ltx(ltxOuter);
+    auto minBaseFee = ltx.loadHeader().current().baseFee;
+    resetResults(ltx.loadHeader().current(), minBaseFee);
+
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(), mEnvelope.signatures};
-    bool res = commonValid(signatureChecker, app, ltx, current, false) ==
+    bool res = commonValid(signatureChecker, ltx, current, false) ==
                ValidationType::kFullyValid;
     if (res)
     {
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, app, ltx, false))
+            if (!op->checkValid(signatureChecker, ltx, false))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -559,7 +575,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     {
         auto time = opTimer.TimeScope();
         LedgerTxn ltxOp(ltxTx);
-        bool txRes = op->apply(signatureChecker, app, ltxOp);
+        bool txRes = op->apply(signatureChecker, ltxOp);
 
         if (!txRes)
         {
@@ -616,13 +632,13 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
-        auto cv = commonValid(signatureChecker, app, ltxTx, 0, true);
+        auto cv = commonValid(signatureChecker, ltxTx, 0, true);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);
         }
         auto signaturesValid = cv >= (ValidationType::kInvalidPostAuth) &&
-                               processSignatures(signatureChecker, app, ltxTx);
+                               processSignatures(signatureChecker, ltxTx);
         meta.txChanges = ltxTx.getChanges();
         ltxTx.commit();
         valid = signaturesValid && (cv == ValidationType::kFullyValid);

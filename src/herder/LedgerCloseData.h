@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TxSetFrame.h"
+#include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include <string>
 
@@ -46,7 +47,7 @@ class LedgerCloseData
     StellarValue mValue;
 };
 
-std::string stellarValueToString(StellarValue const& sv);
+std::string stellarValueToString(Config const& c, StellarValue const& sv);
 
 #define emptyUpgradeSteps (xdr::xvector<UpgradeType, 6>(0))
 }

@@ -41,7 +41,7 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
@@ -132,11 +132,21 @@ SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
                     innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
                     return false;
                 }
-                if (!addNumEntries(header, sourceAccount, 1))
+                switch (addNumEntries(header, sourceAccount, 1))
                 {
+                case AddSubentryResult::SUCCESS:
+                    break;
+                case AddSubentryResult::LOW_RESERVE:
                     innerResult().code(SET_OPTIONS_LOW_RESERVE);
                     return false;
+                case AddSubentryResult::TOO_MANY_SUBENTRIES:
+                    mResult.code(opTOO_MANY_SUBENTRIES);
+                    return false;
+                default:
+                    throw std::runtime_error(
+                        "Unexpected result from addNumEntries");
                 }
+
                 signers.push_back(*mSetOptions.signer);
             }
         }
@@ -165,7 +175,7 @@ SetOptionsOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+SetOptionsOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mSetOptions.setFlags)
     {

@@ -20,7 +20,7 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
-#include "transactions/ManageOfferOpFrame.h"
+#include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
@@ -130,7 +130,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     AccountEntry srcAccountBefore;
     {
         LedgerTxn ltxFeeProc(ltx);
-        check = tx->checkValid(app, ltxFeeProc, 0);
+        check = tx->checkValid(ltxFeeProc, 0);
         checkResult = tx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
@@ -148,7 +148,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                                    .data.account();
 
             // no account -> can't process the fee
-            tx->processFeeSeqNum(ltxFeeProc);
+            auto baseFee = ltxFeeProc.loadHeader().current().baseFee;
+            tx->processFeeSeqNum(ltxFeeProc, baseFee);
             uint32_t ledgerVersion =
                 ltxFeeProc.loadHeader().current().ledgerVersion;
 
@@ -293,7 +294,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     auto shouldValidateOk = validationResult.code == txSUCCESS;
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(app, ltx, 0) == shouldValidateOk);
+        REQUIRE(tx->checkValid(ltx, 0) == shouldValidateOk);
     }
     REQUIRE(tx->getResult().result.code() == validationResult.code);
     REQUIRE(tx->getResult().feeCharged == validationResult.fee);
@@ -336,7 +337,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     REQUIRE(txSet->checkValid(app));
 
     StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
-                    emptyUpgradeSteps, 0);
+                    emptyUpgradeSteps, STELLAR_VALUE_BASIC);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
@@ -365,7 +366,7 @@ getRoot(Hash const& networkID)
 }
 
 SecretKey
-getAccount(const char* n)
+getAccount(std::string const& n)
 {
     // stretch seed to 32 bytes
     std::string seed(n);
@@ -546,35 +547,49 @@ createPassiveOffer(Asset const& selling, Asset const& buying,
                    Price const& price, int64_t amount)
 {
     Operation op;
-    op.body.type(CREATE_PASSIVE_OFFER);
-    op.body.createPassiveOfferOp().amount = amount;
-    op.body.createPassiveOfferOp().selling = selling;
-    op.body.createPassiveOfferOp().buying = buying;
-    op.body.createPassiveOfferOp().price = price;
+    op.body.type(CREATE_PASSIVE_SELL_OFFER);
+    op.body.createPassiveSellOfferOp().amount = amount;
+    op.body.createPassiveSellOfferOp().selling = selling;
+    op.body.createPassiveSellOfferOp().buying = buying;
+    op.body.createPassiveSellOfferOp().price = price;
 
     return op;
 }
 
 Operation
-manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
             Price const& price, int64_t amount)
 {
     Operation op;
-    op.body.type(MANAGE_OFFER);
-    op.body.manageOfferOp().amount = amount;
-    op.body.manageOfferOp().selling = selling;
-    op.body.manageOfferOp().buying = buying;
-    op.body.manageOfferOp().offerID = offerId;
-    op.body.manageOfferOp().price = price;
+    op.body.type(MANAGE_SELL_OFFER);
+    op.body.manageSellOfferOp().amount = amount;
+    op.body.manageSellOfferOp().selling = selling;
+    op.body.manageSellOfferOp().buying = buying;
+    op.body.manageSellOfferOp().offerID = offerId;
+    op.body.manageSellOfferOp().price = price;
 
     return op;
 }
 
-static ManageOfferResult
-applyCreateOfferHelper(Application& app, uint64 offerId,
-                       SecretKey const& source, Asset const& selling,
-                       Asset const& buying, Price const& price, int64_t amount,
-                       SequenceNumber seq)
+Operation
+manageBuyOffer(int64 offerId, Asset const& selling, Asset const& buying,
+               Price const& price, int64_t amount)
+{
+    Operation op;
+    op.body.type(MANAGE_BUY_OFFER);
+    op.body.manageBuyOfferOp().buyAmount = amount;
+    op.body.manageBuyOfferOp().selling = selling;
+    op.body.manageBuyOfferOp().buying = buying;
+    op.body.manageBuyOfferOp().offerID = offerId;
+    op.body.manageBuyOfferOp().price = price;
+
+    return op;
+}
+
+static ManageSellOfferResult
+applyCreateOfferHelper(Application& app, int64 offerId, SecretKey const& source,
+                       Asset const& selling, Asset const& buying,
+                       Price const& price, int64_t amount, SequenceNumber seq)
 {
     auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -604,9 +619,9 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     REQUIRE(results.size() == 1);
 
-    auto& manageOfferResult = results[0].tr().manageOfferResult();
+    auto& manageSellOfferResult = results[0].tr().manageSellOfferResult();
 
-    auto& offerResult = manageOfferResult.success().offer;
+    auto& offerResult = manageSellOfferResult.success().offer;
 
     switch (offerResult.effect())
     {
@@ -635,16 +650,16 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
         abort();
     }
 
-    return manageOfferResult;
+    return manageSellOfferResult;
 }
 
-uint64_t
-applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
+int64_t
+applyManageOffer(Application& app, int64 offerId, SecretKey const& source,
                  Asset const& selling, Asset const& buying, Price const& price,
                  int64_t amount, SequenceNumber seq,
                  ManageOfferEffect expectedEffect)
 {
-    ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
+    ManageSellOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, offerId, source, selling, buying, price, amount, seq);
 
     auto& success = createOfferRes.success().offer;
@@ -653,7 +668,74 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
                                                     : 0;
 }
 
-uint64_t
+int64_t
+applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
+                    Asset const& selling, Asset const& buying,
+                    Price const& price, int64_t amount, SequenceNumber seq,
+                    ManageOfferEffect expectedEffect)
+{
+    auto getIdPool = [&]() {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        return ltx.loadHeader().current().idPool;
+    };
+    auto lastGeneratedID = getIdPool();
+    auto expectedOfferID = lastGeneratedID + 1;
+    if (offerId != 0)
+    {
+        expectedOfferID = offerId;
+    }
+
+    auto op = manageBuyOffer(offerId, selling, buying, price, amount);
+    auto tx = transactionFromOperations(app, source, seq, {op});
+
+    try
+    {
+        applyTx(tx, app);
+    }
+    catch (...)
+    {
+        REQUIRE(getIdPool() == lastGeneratedID);
+        throw;
+    }
+
+    auto& results = tx->getResult().result.results();
+    REQUIRE(results.size() == 1);
+    auto& manageBuyOfferResult = results[0].tr().manageBuyOfferResult();
+    auto& success = manageBuyOfferResult.success().offer;
+
+    REQUIRE(success.effect() == expectedEffect);
+    switch (success.effect())
+    {
+    case MANAGE_OFFER_CREATED:
+    case MANAGE_OFFER_UPDATED:
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        auto offer =
+            stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID);
+        REQUIRE(offer);
+        auto& offerEntry = offer.current().data.offer();
+        REQUIRE(offerEntry == success.offer());
+        REQUIRE(offerEntry.price == Price{price.d, price.n});
+        REQUIRE(offerEntry.selling == selling);
+        REQUIRE(offerEntry.buying == buying);
+    }
+    break;
+    case MANAGE_OFFER_DELETED:
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        REQUIRE(
+            !stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID));
+    }
+    break;
+    default:
+        abort();
+    }
+
+    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
+                                                    : 0;
+}
+
+int64_t
 applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Asset const& selling, Asset const& buying,
                         Price const& price, int64_t amount, SequenceNumber seq,
@@ -683,11 +765,12 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     REQUIRE(results.size() == 1);
 
-    auto& createPassiveOfferResult = results[0].tr().manageOfferResult();
+    auto& createPassiveSellOfferResult =
+        results[0].tr().manageSellOfferResult();
 
-    if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
+    if (createPassiveSellOfferResult.code() == MANAGE_SELL_OFFER_SUCCESS)
     {
-        auto& offerResult = createPassiveOfferResult.success().offer;
+        auto& offerResult = createPassiveSellOfferResult.success().offer;
 
         switch (offerResult.effect())
         {
@@ -718,7 +801,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         }
     }
 
-    auto& success = createPassiveOfferResult.success().offer;
+    auto& success = createPassiveSellOfferResult.success().offer;
 
     REQUIRE(success.effect() == expectedEffect);
 

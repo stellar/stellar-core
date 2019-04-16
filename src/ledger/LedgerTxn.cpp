@@ -610,32 +610,6 @@ LedgerTxn::Impl::getChanges()
     return changes;
 }
 
-std::vector<LedgerKey>
-LedgerTxn::getDeadEntries()
-{
-    return getImpl()->getDeadEntries();
-}
-
-std::vector<LedgerKey>
-LedgerTxn::Impl::getDeadEntries()
-{
-    throwIfNotExactConsistency();
-    std::vector<LedgerKey> res;
-    res.reserve(mEntry.size());
-    maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
-        for (auto const& kv : entries)
-        {
-            auto const& key = kv.first;
-            auto const& entry = kv.second;
-            if (!entry)
-            {
-                res.push_back(key);
-            }
-        }
-    });
-    return res;
-}
-
 LedgerTxnDelta
 LedgerTxn::getDelta()
 {
@@ -839,28 +813,50 @@ LedgerTxn::Impl::queryInflationWinners(size_t maxWinners, int64_t minVotes)
     return getInflationWinners(maxWinners, minVotes);
 }
 
-std::vector<LedgerEntry>
-LedgerTxn::getLiveEntries()
+void
+LedgerTxn::getAllEntries(std::vector<LedgerEntry>& initEntries,
+                         std::vector<LedgerEntry>& liveEntries,
+                         std::vector<LedgerKey>& deadEntries)
 {
-    return getImpl()->getLiveEntries();
+    getImpl()->getAllEntries(initEntries, liveEntries, deadEntries);
 }
 
-std::vector<LedgerEntry>
-LedgerTxn::Impl::getLiveEntries()
+void
+LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
+                               std::vector<LedgerEntry>& liveEntries,
+                               std::vector<LedgerKey>& deadEntries)
 {
-    std::vector<LedgerEntry> res;
-    res.reserve(mEntry.size());
-    maybeUpdateLastModifiedThenInvokeThenSeal([&res](EntryMap const& entries) {
+    std::vector<LedgerEntry> resInit, resLive;
+    std::vector<LedgerKey> resDead;
+    resInit.reserve(mEntry.size());
+    resLive.reserve(mEntry.size());
+    resDead.reserve(mEntry.size());
+    maybeUpdateLastModifiedThenInvokeThenSeal([&](EntryMap const& entries) {
         for (auto const& kv : entries)
         {
+            auto const& key = kv.first;
             auto const& entry = kv.second;
             if (entry)
             {
-                res.push_back(*entry);
+                auto previous = mParent.getNewestVersion(key);
+                if (previous)
+                {
+                    resLive.emplace_back(*entry);
+                }
+                else
+                {
+                    resInit.emplace_back(*entry);
+                }
+            }
+            else
+            {
+                resDead.emplace_back(key);
             }
         }
     });
-    return res;
+    initEntries.swap(resInit);
+    liveEntries.swap(resLive);
+    deadEntries.swap(resDead);
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -1261,17 +1257,21 @@ LedgerTxn::Impl::EntryIteratorImpl::clone() const
 
 // Implementation of LedgerTxnRoot ------------------------------------------
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
-                             size_t bestOfferCacheSize)
-    : mImpl(std::make_unique<Impl>(db, entryCacheSize, bestOfferCacheSize))
+                             size_t bestOfferCacheSize,
+                             size_t prefetchBatchSize)
+    : mImpl(std::make_unique<Impl>(db, entryCacheSize, bestOfferCacheSize,
+                                   prefetchBatchSize))
 {
 }
 
 LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
-                          size_t bestOfferCacheSize)
+                          size_t bestOfferCacheSize, size_t prefetchBatchSize)
     : mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
     , mBestOffersCache(bestOfferCacheSize)
+    , mMaxCacheSize(entryCacheSize)
+    , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
 {
 }
@@ -1425,8 +1425,12 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
-        mTransaction->commit();
+        // NB: we want to clear the prepared statement cache _before_
+        // committing; on postgres this doesn't matter but on SQLite the passive
+        // WAL-auto-checkpointing-at-commit behaviour will starve if there are
+        // still prepared statements open at commit time.
         mDatabase.clearPreparedStatementCache();
+        mTransaction->commit();
     }
     catch (std::exception& e)
     {
@@ -1442,6 +1446,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // Clearing the cache does not throw
     mBestOffersCache.clear();
     mEntryCache.clear();
+    mPrefetchMetrics.clear();
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
@@ -1558,6 +1563,112 @@ LedgerTxnRoot::dropTrustLines()
     mImpl->dropTrustLines();
 }
 
+uint32_t
+LedgerTxnRoot::prefetch(std::unordered_set<LedgerKey> const& keys)
+{
+    return mImpl->prefetch(keys);
+}
+
+uint32_t
+LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
+{
+    uint32_t total = 0;
+
+    std::unordered_set<LedgerKey> accounts;
+    std::unordered_set<LedgerKey> offers;
+    std::unordered_set<LedgerKey> trustlines;
+    std::unordered_set<LedgerKey> data;
+
+    auto cacheResult =
+        [&](std::unordered_map<LedgerKey,
+                               std::shared_ptr<LedgerEntry const>> const& res) {
+            for (auto const& item : res)
+            {
+                putInEntryCache(item.first, item.second, LoadType::PREFETCH);
+                ++total;
+            }
+        };
+
+    auto insertIfNotLoaded = [&](std::unordered_set<LedgerKey>& keys,
+                                 LedgerKey const& key) {
+        if (!mEntryCache.exists(key, false))
+        {
+            keys.insert(key);
+        }
+    };
+
+    for (auto const& key : keys)
+    {
+        if ((static_cast<double>(mEntryCache.size()) / mMaxCacheSize) >=
+            ENTRY_CACHE_FILL_RATIO)
+        {
+            return total;
+        }
+
+        switch (key.type())
+        {
+        case ACCOUNT:
+            insertIfNotLoaded(accounts, key);
+            if (accounts.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadAccounts(accounts));
+                accounts.clear();
+            }
+            break;
+        case OFFER:
+            insertIfNotLoaded(offers, key);
+            if (offers.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadOffers(offers));
+                offers.clear();
+            }
+            break;
+        case TRUSTLINE:
+            insertIfNotLoaded(trustlines, key);
+            if (trustlines.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadTrustLines(trustlines));
+                trustlines.clear();
+            }
+            break;
+        case DATA:
+            insertIfNotLoaded(data, key);
+            if (data.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadData(data));
+                data.clear();
+            }
+            break;
+        }
+    }
+
+    //  Prefetch whatever is remaining
+    cacheResult(bulkLoadAccounts(accounts));
+    cacheResult(bulkLoadOffers(offers));
+    cacheResult(bulkLoadTrustLines(trustlines));
+    cacheResult(bulkLoadData(data));
+
+    return total;
+}
+
+double
+LedgerTxnRoot::getPrefetchHitRate() const
+{
+    return mImpl->getPrefetchHitRate();
+}
+
+double
+LedgerTxnRoot::Impl::getPrefetchHitRate() const
+{
+    auto totalMisses = mEntryCache.getCounters().mMisses;
+    if (totalMisses == 0 && mTotalPrefetchHits == 0)
+    {
+        return 0;
+    }
+    return static_cast<double>(mTotalPrefetchHits) /
+           (totalMisses + mTotalPrefetchHits);
+}
+
 std::unordered_map<LedgerKey, LedgerEntry>
 LedgerTxnRoot::getAllOffers()
 {
@@ -1657,6 +1768,11 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         }
         res = findIncludedOffer(newOfferIter, offers.cend(), exclude);
     }
+
+    if (res)
+    {
+        putInEntryCache(LedgerEntryKey(*res), res, LoadType::IMMEDIATE);
+    }
     return res;
 }
 
@@ -1743,10 +1859,14 @@ LedgerTxnRoot::getNewestVersion(LedgerKey const& key) const
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getNewestVersion(LedgerKey const& key) const
 {
-    auto cacheKey = getEntryCacheKey(key);
-    if (mEntryCache.exists(cacheKey))
+    if (mEntryCache.exists(key))
     {
-        return getFromEntryCache(cacheKey);
+        return getFromEntryCache(key);
+    }
+    else
+    {
+        auto& metrics = mPrefetchMetrics[key];
+        ++metrics.misses;
     }
 
     std::shared_ptr<LedgerEntry const> entry;
@@ -1782,7 +1902,7 @@ LedgerTxnRoot::Impl::getNewestVersion(LedgerKey const& key) const
                            "LedgerTxnRoot");
     }
 
-    putInEntryCache(cacheKey, entry);
+    putInEntryCache(key, entry, LoadType::IMMEDIATE);
     return entry;
 }
 
@@ -1814,18 +1934,24 @@ LedgerTxnRoot::Impl::rollbackChild()
     mChild = nullptr;
 }
 
-LedgerTxnRoot::Impl::EntryCacheKey
-LedgerTxnRoot::Impl::getEntryCacheKey(LedgerKey const& key) const
-{
-    return binToHex(xdr::xdr_to_opaque(key));
-}
-
 std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::Impl::getFromEntryCache(EntryCacheKey const& cacheKey) const
+LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
 {
     try
     {
-        return mEntryCache.get(cacheKey);
+        auto cached = mEntryCache.get(key);
+        if (cached.type == LoadType::PREFETCH)
+        {
+            auto metric = mPrefetchMetrics.find(key);
+            if (metric == mPrefetchMetrics.end())
+            {
+                throw std::runtime_error(
+                    "Inconsistent state when retrieving entry from cache");
+            }
+            ++metric->second.hits;
+            ++mTotalPrefetchHits;
+        }
+        return cached.entry;
     }
     catch (...)
     {
@@ -1836,12 +1962,21 @@ LedgerTxnRoot::Impl::getFromEntryCache(EntryCacheKey const& cacheKey) const
 
 void
 LedgerTxnRoot::Impl::putInEntryCache(
-    EntryCacheKey const& cacheKey,
-    std::shared_ptr<LedgerEntry const> const& entry) const
+    LedgerKey const& key, std::shared_ptr<LedgerEntry const> const& entry,
+    LoadType type) const
 {
     try
     {
-        mEntryCache.put(cacheKey, entry);
+        mEntryCache.put(key, {entry, type});
+        if (type == LoadType::PREFETCH)
+        {
+            if (mPrefetchMetrics.find(key) != mPrefetchMetrics.end())
+            {
+                throw std::runtime_error(
+                    "Inconsistent state when putting entry into cache");
+            }
+            mPrefetchMetrics.emplace(key, KeyAccesses{});
+        }
     }
     catch (...)
     {
@@ -1890,5 +2025,11 @@ void
 LedgerTxnRoot::encodeHomeDomainsBase64()
 {
     mImpl->encodeHomeDomainsBase64();
+}
+
+void
+LedgerTxnRoot::writeOffersIntoSimplifiedOffersTable()
+{
+    mImpl->writeOffersIntoSimplifiedOffersTable();
 }
 }

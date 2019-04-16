@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
+#include "herder/QuorumTracker.h"
 #include "lib/json/json.h"
 #include "lib/util/lrucache.hpp"
 #include "overlay/ItemFetcher.h"
@@ -51,16 +52,13 @@ class PendingEnvelopes
     // all the txsets we have learned about per ledger#
     cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
 
-    // NodeIDs that are in quorum
-    cache::lru_cache<NodeID, bool> mNodesInQuorum;
+    bool mRebuildQuorum;
+    QuorumTracker mQuorumTracker;
 
     medida::Counter& mProcessedCount;
     medida::Counter& mDiscardedCount;
     medida::Counter& mFetchingCount;
     medida::Counter& mReadyCount;
-
-    // returns true if we think that the node is in quorum
-    bool isNodeInQuorum(NodeID const& node);
 
     // discards all SCP envelopes thats use QSet with given hash,
     // as it is not sane QSet
@@ -137,5 +135,14 @@ class PendingEnvelopes
 
     TxSetFramePtr getTxSet(Hash const& hash);
     SCPQuorumSetPtr getQSet(Hash const& hash);
+
+    // returns true if we think that the node is in the transitive quorum for
+    // sure
+    bool isNodeDefinitelyInQuorum(NodeID const& node);
+
+    QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const;
+
+    // updates internal state when an envelope was succesfuly processed
+    void envelopeProcessed(SCPEnvelope const& env);
 };
 }

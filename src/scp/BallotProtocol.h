@@ -88,7 +88,8 @@ class BallotProtocol
     Json::Value getJsonInfo();
 
     // returns information about the quorum for a given node
-    Json::Value getJsonQuorumInfo(NodeID const& id, bool summary);
+    Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
+                                  bool fullKeys = false);
 
     // returns the hash of the QuorumSet that should be downloaded
     // with the statement.
@@ -109,6 +110,10 @@ class BallotProtocol
     void setStateFromEnvelope(SCPEnvelope const& e);
 
     std::vector<SCPEnvelope> getCurrentState() const;
+
+    // returns the latest message from a node
+    // or nullptr if not found
+    SCPEnvelope const* getLatestMessage(NodeID const& id) const;
 
     std::vector<SCPEnvelope> getExternalizingState() const;
 

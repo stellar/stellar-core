@@ -123,7 +123,9 @@ LoadManager::maybeShedExcessLoad(Application& app)
                 .NewMeter({"overlay", "drop", "load-shed"}, "drop")
                 .Mark();
 
-            victim->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+            victim->drop("causing too much load",
+                         Peer::DropDirection::WE_DROPPED_REMOTE,
+                         Peer::DropMode::IGNORE_WRITE_QUEUE);
 
             app.getClock().resetIdleCrankPercent();
         }

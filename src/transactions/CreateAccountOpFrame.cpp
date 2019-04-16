@@ -30,7 +30,7 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     if (!stellar::loadAccount(ltx, mCreateAccount.destination))
     {
@@ -89,7 +89,7 @@ CreateAccountOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-CreateAccountOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+CreateAccountOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mCreateAccount.startingBalance <= 0)
     {
@@ -104,5 +104,12 @@ CreateAccountOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
     }
 
     return true;
+}
+
+void
+CreateAccountOpFrame::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    keys.emplace(accountKey(mCreateAccount.destination));
 }
 }

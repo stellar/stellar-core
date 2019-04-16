@@ -104,7 +104,7 @@ class VirtualClock
     };
 
   private:
-    asio::io_service mIOService;
+    asio::io_context mIOContext;
     Mode mMode;
 
     uint32_t mRecentCrankCount;
@@ -145,7 +145,7 @@ class VirtualClock
     void noteCrankOccurred(bool hadIdle);
     uint32_t recentIdleCrankPercent() const;
     void resetIdleCrankPercent();
-    asio::io_service& getIOService();
+    asio::io_context& getIOContext();
 
     // Note: this is not a static method, which means that VirtualClock is
     // not an implementation of the C++ `Clock` concept; there is no global
@@ -226,7 +226,7 @@ class VirtualTimer : private NonMovableOrCopyable
 class RealTimer : public asio::basic_waitable_timer<std::chrono::system_clock>
 {
   public:
-    RealTimer(asio::io_service& io)
+    RealTimer(asio::io_context& io)
         : asio::basic_waitable_timer<std::chrono::system_clock>(io)
     {
     }

@@ -476,7 +476,55 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
         beforeThresholds.wheatStays, isPathPayment);
 }
 
-// See comment before exchangeV10.
+// See comment before exchangeV10 for proof of some important properties. We
+// will prove here that wheatReceive == 0 if and only if sheepSend == 0.
+//
+// We first consider the case (wheatStays && price.n > price.d). Then it follows
+// from wheatReceive = 0 that
+//     sheepSend = ceil(wheatReceive * price.n / price.d)
+// so sheepSend = 0. Similarly, if sheepSend = 0 then
+//     sheepSend = ceil(wheatReceive * price.n / price.d)
+//               >= ceil(wheatReceive)
+//               = wheatReceive
+// so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
+//
+// We now consider the case (wheatStays && price.n <= price.d && isPathPayment).
+// Then it follows from wheatReceive = 0 that
+//     sheepSend = ceil(wheatReceive * price.n / price.d)
+// so sheepSend = 0. Similarly, if sheepSend = 0 then
+//     sheepSend = ceil(wheatReceive * price.n / price.d)
+//               >= ceil(wheatReceive * 1 / INT32_MAX)
+//               = ceil(wheatReceive / INT32_MAX)
+// Suppose that wheatReceive > 0. Then
+//     sheepSend >= ceil(1 / INT32_MAX) = 1
+// which is a contradiction, so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
+//
+// Next consider the case (wheatStays && price.n <= price.d && !isPathPayment).
+// Then it follows from sheepSend = 0 that
+//     wheatReceive = floor(sheepSend * price.d / price.n)
+// so wheatReceive = 0. Similarly, if wheatReceive = 0 then
+//     wheatReceive = floor(sheepSend * price.d / price.n)
+//                  >= floor(sheepSend)
+//                  = sheepSend
+// so 0 <= sheepSend <= 0 implies sheepSend = 0.
+//
+// We now turn to the case (!wheatStays && price.n > price.d). Then it follows
+// from wheatReceive = 0 that
+//     sheepSend = floor(wheatReceive * price.n / price.d)
+// so sheepSend = 0. Similarly, if sheepSend = 0 then
+//     sheepSend = floor(wheatReceive * price.n / price.d)
+//               >= floor(wheatReceive)
+//               = wheatReceive
+// so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
+//
+// Finally, we investigate the case (!wheatStays && price.n <= price.d). Then it
+// follows from sheepSend = 0 that
+//     wheatReceive = ceil(sheepSend * price.d / price.n)
+// so wheatReceive = 0. Similary, if wheatReceive = 0 then
+//     wheatReceive = ceil(sheepSend * price.d / price.n)
+//                  >= ceil(sheepSend)
+//                  = sheepSend
+// so 0 <= sheepSend <= 0 implies sheepSend = 0.
 ExchangeResultV10
 exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
                                        int64_t maxWheatReceive,
@@ -587,6 +635,9 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     }
     else
     {
+        // Based on the proof proceeding exchangeV10WithoutPriceErrorThresholds,
+        // we should already have wheatReceive = 0 and sheepSend = 0. We set it
+        // explicitly for clarity.
         wheatReceive = 0;
         sheepSend = 0;
     }
@@ -809,7 +860,7 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     Asset sheep = offer.buying;
     Asset wheat = offer.selling;
     AccountID accountBID = offer.sellerID;
-    uint64_t offerID = offer.offerID;
+    int64_t offerID = offer.offerID;
 
     int64_t newAmount = offer.amount;
     {
@@ -924,7 +975,7 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     Asset sheep = offer.buying;
     Asset wheat = offer.selling;
     AccountID accountBID = offer.sellerID;
-    uint64_t offerID = offer.offerID;
+    int64_t offerID = offer.offerID;
 
     if (!stellar::loadAccountWithoutRecord(ltx, accountBID))
     {
@@ -1045,8 +1096,12 @@ convertWithOffers(
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
     int64_t& wheatReceived, bool isPathPayment,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
-    std::vector<ClaimOfferAtom>& offerTrail)
+    std::vector<ClaimOfferAtom>& offerTrail, int64_t maxOffersToCross)
 {
+    // If offerTrail is not empty at the start, then the limit maxOffersToCross
+    // will not be imposed correctly.
+    assert(offerTrail.empty());
+
     sheepSend = 0;
     wheatReceived = 0;
 
@@ -1062,6 +1117,12 @@ convertWithOffers(
         if (filter && filter(wheatOffer) == OfferFilterResult::eStop)
         {
             return ConvertResult::eFilterStop;
+        }
+
+        // Note: maxOffersToCross == INT64_MAX before protocol version 11
+        if (offerTrail.size() >= static_cast<uint64_t>(maxOffersToCross))
+        {
+            return ConvertResult::eCrossedTooMany;
         }
 
         int64_t numWheatReceived;

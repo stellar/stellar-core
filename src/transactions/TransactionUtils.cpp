@@ -15,39 +15,64 @@
 namespace stellar
 {
 
-LedgerTxnEntry
-loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
+LedgerKey
+accountKey(AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
-    return ltx.load(key);
+    return key;
+}
+
+LedgerKey
+trustlineKey(AccountID const& accountID, Asset const& asset)
+{
+    LedgerKey key(TRUSTLINE);
+    key.trustLine().accountID = accountID;
+    key.trustLine().asset = asset;
+    return key;
+}
+
+LedgerKey
+offerKey(AccountID const& sellerID, uint64_t offerID)
+{
+    LedgerKey key(OFFER);
+    key.offer().sellerID = sellerID;
+    key.offer().offerID = offerID;
+    return key;
+}
+
+LedgerKey
+dataKey(AccountID const& accountID, std::string const& dataName)
+{
+    LedgerKey key(DATA);
+    key.data().accountID = accountID;
+    key.data().dataName = dataName;
+    return key;
+}
+
+LedgerTxnEntry
+loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
+{
+    return ltx.load(accountKey(accountID));
 }
 
 ConstLedgerTxnEntry
 loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
-    LedgerKey key(ACCOUNT);
-    key.account().accountID = accountID;
-    return ltx.loadWithoutRecord(key);
+    return ltx.loadWithoutRecord(accountKey(accountID));
 }
 
 LedgerTxnEntry
 loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
          std::string const& dataName)
 {
-    LedgerKey key(DATA);
-    key.data().accountID = accountID;
-    key.data().dataName = dataName;
-    return ltx.load(key);
+    return ltx.load(dataKey(accountID, dataName));
 }
 
 LedgerTxnEntry
-loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, uint64_t offerID)
+loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, int64_t offerID)
 {
-    LedgerKey key(OFFER);
-    key.offer().sellerID = sellerID;
-    key.offer().offerID = offerID;
-    return ltx.load(key);
+    return ltx.load(offerKey(sellerID, offerID));
 }
 
 TrustLineWrapper
@@ -293,14 +318,20 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
 }
 
-bool
+AddSubentryResult
 addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
 {
     auto& acc = entry.current().data.account();
-    int newEntriesCount = acc.numSubEntries + count;
+    int newEntriesCount = unsignedToSigned(acc.numSubEntries) + count;
     if (newEntriesCount < 0)
     {
         throw std::runtime_error("invalid account state");
+    }
+    if (header.current().ledgerVersion >=
+            FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS &&
+        count > 0 && newEntriesCount > ACCOUNT_SUBENTRY_LIMIT)
+    {
+        return AddSubentryResult::TOO_MANY_SUBENTRIES;
     }
 
     int64_t effMinBalance = getMinBalance(header, newEntriesCount);
@@ -313,10 +344,10 @@ addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
     if (count > 0 && acc.balance < effMinBalance)
     {
         // balance too low
-        return false;
+        return AddSubentryResult::LOW_RESERVE;
     }
     acc.numSubEntries = newEntriesCount;
-    return true;
+    return AddSubentryResult::SUCCESS;
 }
 
 bool

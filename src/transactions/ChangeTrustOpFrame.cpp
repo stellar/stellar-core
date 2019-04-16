@@ -24,7 +24,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 }
 
 bool
-ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     auto issuerID = getIssuer(mChangeTrust.line);
@@ -106,10 +106,18 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
         }
 
         auto sourceAccount = loadSourceAccount(ltx, header);
-        if (!addNumEntries(header, sourceAccount, 1))
+        switch (addNumEntries(header, sourceAccount, 1))
         {
+        case AddSubentryResult::SUCCESS:
+            break;
+        case AddSubentryResult::LOW_RESERVE:
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
             return false;
+        case AddSubentryResult::TOO_MANY_SUBENTRIES:
+            mResult.code(opTOO_MANY_SUBENTRIES);
+            return false;
+        default:
+            throw std::runtime_error("Unexpected result from addNumEntries");
         }
 
         LedgerEntry trustLineEntry;
@@ -131,7 +139,7 @@ ChangeTrustOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mChangeTrust.limit < 0)
     {

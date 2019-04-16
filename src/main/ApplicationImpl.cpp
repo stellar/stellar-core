@@ -40,17 +40,21 @@
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
-#include "simulation/LoadGenerator.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
+#include "util/Logging.h"
 #include "util/StatusManager.h"
+#include "util/Thread.h"
+#include "util/TmpDir.h"
 #include "work/WorkManager.h"
 
-#include "util/Logging.h"
-#include "util/TmpDir.h"
+#ifdef BUILD_TESTS
+#include "simulation/LoadGenerator.h"
+#endif
 
 #include <set>
 #include <string>
+#include <util/format.h>
 
 static const int SHUTDOWN_DELAY_SECONDS = 1;
 
@@ -60,10 +64,10 @@ namespace stellar
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
-    , mWorkerIOService(std::thread::hardware_concurrency())
-    , mWork(std::make_unique<asio::io_service::work>(mWorkerIOService))
+    , mWorkerIOContext(mConfig.WORKER_THREADS)
+    , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
     , mWorkerThreads()
-    , mStopSignals(clock.getIOService(), SIGINT)
+    , mStopSignals(clock.getIOContext(), SIGINT)
     , mStarted(false)
     , mStopping(false)
     , mStoppingTimer(*this)
@@ -88,9 +92,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
 
-    unsigned t = std::thread::hardware_concurrency();
-    LOG(DEBUG) << "Application constructing "
-               << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
         {
@@ -99,9 +100,16 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         }
     });
 
+    auto t = mConfig.WORKER_THREADS;
+    LOG(DEBUG) << "Application constructing "
+               << "(worker threads: " << t << ")";
     while (t--)
     {
-        mWorkerThreads.emplace_back([this, t]() { this->runWorkerThread(t); });
+        auto thread = std::thread{[this]() {
+            runCurrentThreadWithLowPriority();
+            mWorkerIOContext.run();
+        }};
+        mWorkerThreads.emplace_back(std::move(thread));
     }
 }
 
@@ -126,7 +134,8 @@ ApplicationImpl::initialize()
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
     mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-        *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.BEST_OFFERS_CACHE_SIZE);
+        *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.BEST_OFFERS_CACHE_SIZE,
+        mConfig.PREFETCH_BATCH_SIZE);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -179,7 +188,8 @@ ApplicationImpl::reportCfgMetrics()
 
     if (reportAvailableMetrics)
     {
-        LOG(INFO) << "Available metrics: ";
+        LOG(INFO) << "Update REPORT_METRICS value in configuration file to "
+                     "only include available metrics:";
         for (auto const& n : allMetrics)
         {
             LOG(INFO) << "    " << n;
@@ -246,8 +256,9 @@ ApplicationImpl::getJsonInfo()
     }
 
     auto& herder = getHerder();
-    auto q = herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(),
-                                      true, herder.getCurrentLedgerSeq());
+    auto q =
+        herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
+                                 false, herder.getCurrentLedgerSeq());
     if (q["slots"].size() != 0)
     {
         info["quorum"] = q["slots"];
@@ -286,7 +297,7 @@ ApplicationImpl::~ApplicationImpl()
         mProcessManager->shutdown();
     }
     reportCfgMetrics();
-    shutdownMainIOService();
+    shutdownMainIOContext();
     joinAllThreads();
     LOG(INFO) << "Application destroyed";
 }
@@ -317,6 +328,12 @@ ApplicationImpl::start()
     if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
         "true")
     {
+        if (!mConfig.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting stellar-core in FORCE_SCP mode requires "
+                          "NODE_IS_VALIDATOR to be set";
+            throw std::invalid_argument("NODE_IS_VALIDATOR not set");
+        }
         mConfig.FORCE_SCP = true;
     }
 
@@ -390,12 +407,6 @@ ApplicationImpl::start()
 }
 
 void
-ApplicationImpl::runWorkerThread(unsigned i)
-{
-    mWorkerIOService.run();
-}
-
-void
 ApplicationImpl::gracefulStop()
 {
     if (mStopping)
@@ -420,19 +431,19 @@ ApplicationImpl::gracefulStop()
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
 
     mStoppingTimer.async_wait(
-        std::bind(&ApplicationImpl::shutdownMainIOService, this),
+        std::bind(&ApplicationImpl::shutdownMainIOContext, this),
         VirtualTimer::onFailureNoop);
 }
 
 void
-ApplicationImpl::shutdownMainIOService()
+ApplicationImpl::shutdownMainIOContext()
 {
-    if (!mVirtualClock.getIOService().stopped())
+    if (!mVirtualClock.getIOContext().stopped())
     {
         // Drain all events; things are shutting down.
         while (mVirtualClock.cancelAllEvents())
             ;
-        mVirtualClock.getIOService().stop();
+        mVirtualClock.getIOContext().stop();
     }
 }
 
@@ -466,14 +477,15 @@ ApplicationImpl::manualClose()
     return false;
 }
 
+#ifdef BUILD_TESTS
 void
 ApplicationImpl::generateLoad(bool isCreate, uint32_t nAccounts,
                               uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                              uint32_t batchSize, bool autoRate)
+                              uint32_t batchSize)
 {
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
     getLoadGenerator().generateLoad(isCreate, nAccounts, offset, nTxs, txRate,
-                                    batchSize, autoRate);
+                                    batchSize);
 }
 
 LoadGenerator&
@@ -485,6 +497,7 @@ ApplicationImpl::getLoadGenerator()
     }
     return *mLoadGenerator;
 }
+#endif
 
 void
 ApplicationImpl::applyCfgCommands()
@@ -720,10 +733,10 @@ ApplicationImpl::getStatusManager()
     return *mStatusManager;
 }
 
-asio::io_service&
-ApplicationImpl::getWorkerIOService()
+asio::io_context&
+ApplicationImpl::getWorkerIOContext()
 {
-    return mWorkerIOService;
+    return mWorkerIOContext;
 }
 
 void
@@ -756,7 +769,7 @@ ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
 {
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    getWorkerIOService().post([ this, f = std::move(f), isSlow ]() {
+    asio::post(getWorkerIOContext(), [ this, f = std::move(f), isSlow ]() {
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });

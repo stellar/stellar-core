@@ -23,9 +23,8 @@ class SCPDriver
     {
     }
 
-    // Envelope signature/verification
+    // Envelope signature
     virtual void signEnvelope(SCPEnvelope& envelope) = 0;
-    virtual bool verifyEnvelope(SCPEnvelope const& envelope) = 0;
 
     // Retrieves a quorum set from its hash
     //
@@ -86,6 +85,9 @@ class SCPDriver
     // `getValueString` is used for debugging
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;
+
+    // `toStrKey` returns StrKey encoded string representation
+    virtual std::string toStrKey(PublicKey const& pk) const;
 
     // `toShortString` converts to the common name of a key if found
     virtual std::string toShortString(PublicKey const& pk) const;

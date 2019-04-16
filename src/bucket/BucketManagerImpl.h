@@ -45,6 +45,7 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
+    MergeCounters mMergeCounters;
 
     std::set<Hash> getReferencedBuckets() const;
     void cleanupStaleFiles();
@@ -64,6 +65,8 @@ class BucketManagerImpl : public BucketManager
     std::string const& getBucketDir() override;
     BucketList& getBucketList() override;
     medida::Timer& getMergeTimer() override;
+    MergeCounters readMergeCounters() override;
+    void incrMergeCounters(MergeCounters const&) override;
     TmpDirManager& getTmpDirManager() override;
     std::shared_ptr<Bucket> adoptFileAsBucket(std::string const& filename,
                                               uint256 const& hash,
@@ -73,13 +76,16 @@ class BucketManagerImpl : public BucketManager
 
     void forgetUnreferencedBuckets() override;
     void addBatch(Application& app, uint32_t currLedger,
+                  uint32_t currLedgerProtocol,
+                  std::vector<LedgerEntry> const& initEntries,
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
 
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void assumeState(HistoryArchiveState const& has) override;
+    void assumeState(HistoryArchiveState const& has,
+                     uint32_t maxProtocolVersion) override;
     void shutdown() override;
 };
 

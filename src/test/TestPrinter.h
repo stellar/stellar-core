@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupWork.h"
-#include "history/HistoryTestsUtils.h"
+#include "history/test/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"

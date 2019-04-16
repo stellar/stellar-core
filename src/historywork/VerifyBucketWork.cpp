@@ -7,6 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include <medida/meter.h>
@@ -75,6 +76,7 @@ VerifyBucketWork::onStart()
                         << "expected hash: " << binToHex(hash);
                     CLOG(WARNING, "History")
                         << "computed hash: " << binToHex(vHash);
+                    CLOG(WARNING, "History") << POSSIBLY_CORRUPTED_HISTORY;
                     ec = std::make_error_code(std::errc::io_error);
                 }
             }
@@ -93,7 +95,9 @@ VerifyBucketWork::onRun()
 Work::State
 VerifyBucketWork::onSuccess()
 {
-    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
+    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash,
+                                                       /*objectsPut=*/0,
+                                                       /*bytesPut=*/0);
     mBuckets[binToHex(mHash)] = b;
     mVerifyBucketSuccess.Mark();
     return WORK_SUCCESS;

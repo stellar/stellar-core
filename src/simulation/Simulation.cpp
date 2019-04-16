@@ -48,8 +48,8 @@ Simulation::~Simulation()
     mNodes.clear();
 
     // tear down main app/clock
-    mClock.getIOService().poll_one();
-    mClock.getIOService().stop();
+    mClock.getIOContext().poll_one();
+    mClock.getIOContext().stop();
     while (mClock.cancelAllEvents())
         ;
 }
@@ -190,7 +190,8 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
                 PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
             if (peer)
             {
-                peer->drop(Peer::DropMode::IGNORE_WRITE_QUEUE);
+                peer->drop("drop", Peer::DropDirection::WE_DROPPED_REMOTE,
+                           Peer::DropMode::IGNORE_WRITE_QUEUE);
             }
         }
     }
@@ -338,7 +339,7 @@ Simulation::crankAllNodes(int nbTicks)
         // work was performed
         // or we've triggered the next scheduled event
 
-        if (mClock.getIOService().stopped())
+        if (mClock.getIOContext().stopped())
         {
             return 0;
         }
@@ -366,7 +367,7 @@ Simulation::crankAllNodes(int nbTicks)
             for (auto& p : mNodes)
             {
                 auto clock = p.second.mClock;
-                if (clock->getIOService().stopped())
+                if (clock->getIOContext().stopped())
                 {
                     continue;
                 }

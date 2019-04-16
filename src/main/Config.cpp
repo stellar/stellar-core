@@ -24,7 +24,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 10;
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 11;
 
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
@@ -45,7 +45,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 7;
-    OVERLAY_PROTOCOL_VERSION = 8;
+    OVERLAY_PROTOCOL_VERSION = 9;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -60,6 +60,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
+    ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = false;
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
@@ -71,7 +72,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     TESTING_UPGRADE_DESIRED_FEE = LedgerManager::GENESIS_LEDGER_BASE_FEE;
     TESTING_UPGRADE_RESERVE = LedgerManager::GENESIS_LEDGER_BASE_RESERVE;
-    TESTING_UPGRADE_MAX_TX_PER_LEDGER = 50;
+    TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
@@ -84,17 +85,20 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_INBOUND_PENDING_CONNECTIONS = 0;
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
+    PEER_STRAGGLER_TIMEOUT = 120;
     PREFERRED_PEERS_ONLY = false;
 
     MINIMUM_IDLE_PERCENT = 0;
 
+    WORKER_THREADS = 10;
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
 
     DATABASE = SecretValue{"sqlite3://:memory:"};
 
-    ENTRY_CACHE_SIZE = 4096;
+    ENTRY_CACHE_SIZE = 100000;
     BEST_OFFERS_CACHE_SIZE = 64;
+    PREFETCH_BATCH_SIZE = 1000;
 }
 
 namespace
@@ -253,6 +257,23 @@ Config::load(std::string const& filename)
 
     LOG(DEBUG) << "Loading config from: " << filename;
 
+    auto logIfSet = [](auto& item, auto const& message) {
+        if (item.second->template as<bool>())
+        {
+            if (item.second->template as<bool>()->value())
+            {
+                LOG(INFO) << fmt::format(
+                    "{} enabled in configuration file - {}", item.first,
+                    message);
+            }
+        }
+        else
+        {
+            LOG(INFO) << fmt::format("{} set in configuration file - {}",
+                                     item.first, message);
+        }
+    };
+
     try
     {
         cpptoml::toml_group g;
@@ -272,15 +293,13 @@ Config::load(std::string const& filename)
             LOG(DEBUG) << "Config item: " << item.first;
             if (TESTING_ONLY_OPTIONS.count(item.first) > 0)
             {
-                LOG(INFO) << item.first
-                          << " enabled in configuration file - node will not "
-                             "function properly with most networks";
+                logIfSet(item,
+                         "node will not function properly with most networks");
             }
             else if (TESTING_SUGGESTED_OPTIONS.count(item.first) > 0)
             {
-                LOG(INFO) << item.first
-                          << " enabled in configuration file - node may not "
-                             "be configured for production use";
+                logIfSet(item,
+                         "node may not function properly with most networks");
             }
 
             if (item.first == "PEER_PORT")
@@ -417,6 +436,11 @@ Config::load(std::string const& filename)
                 PEER_TIMEOUT = readInt<unsigned short>(
                     item, 1, std::numeric_limits<unsigned short>::max());
             }
+            else if (item.first == "PEER_STRAGGLER_TIMEOUT")
+            {
+                PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
+                    item, 1, std::numeric_limits<unsigned short>::max());
+            }
             else if (item.first == "PREFERRED_PEERS")
             {
                 PREFERRED_PEERS = readStringArray(item);
@@ -441,10 +465,13 @@ Config::load(std::string const& filename)
             {
                 COMMANDS = readStringArray(item);
             }
+            else if (item.first == "WORKER_THREADS")
+            {
+                WORKER_THREADS = readInt<int>(item, 1, 1000);
+            }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
-                MAX_CONCURRENT_SUBPROCESSES =
-                    static_cast<size_t>(readInt<int>(item, 1));
+                MAX_CONCURRENT_SUBPROCESSES = readInt<int>(item, 1);
             }
             else if (item.first == "MINIMUM_IDLE_PERCENT")
             {
@@ -517,6 +544,10 @@ Config::load(std::string const& filename)
             else if (item.first == "BEST_OFFERS_CACHE_SIZE")
             {
                 BEST_OFFERS_CACHE_SIZE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "PREFETCH_BATCH_SIZE")
+            {
+                PREFETCH_BATCH_SIZE = readInt<uint32_t>(item);
             }
             else
             {

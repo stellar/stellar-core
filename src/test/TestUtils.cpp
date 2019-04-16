@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
-#include "overlay/LoopbackPeer.h"
+#include "overlay/test/LoopbackPeer.h"
 
 namespace stellar
 {

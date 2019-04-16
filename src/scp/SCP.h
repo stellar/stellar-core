@@ -76,12 +76,12 @@ class SCP
     // returns the local node descriptor
     std::shared_ptr<LocalNode> getLocalNode();
 
-    Json::Value getJsonInfo(size_t limit);
+    Json::Value getJsonInfo(size_t limit, bool fullKeys = false);
 
     // summary: only return object counts
     // index = 0 for returning information for all slots
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
-                                  uint64 index = 0);
+                                  bool fullKeys = false, uint64 index = 0);
 
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex`.
@@ -115,23 +115,21 @@ class SCP
     // returns all messages for the slot
     std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
 
+    // returns the latest message from a node
+    // or nullptr if not found
+    SCPEnvelope const* getLatestMessage(NodeID const& id);
+
     // returns messages that contributed to externalizing the slot
     // (or empty if the slot didn't externalize)
     std::vector<SCPEnvelope> getExternalizingState(uint64 slotIndex);
-
-    // returns if a node is in the (transitive) quorum originating at
-    // the local node, scanning the known slots.
-    // TB_TRUE iff n is in the quorum
-    // TB_FALSE iff n is not in the quorum
-    // TB_MAYBE iff the quorum cannot be computed
-    TriBool isNodeInQuorum(NodeID const& node);
 
     // ** helper methods to stringify ballot for logging
     std::string getValueString(Value const& v) const;
     std::string ballotToStr(SCPBallot const& ballot) const;
     std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
-    std::string envToStr(SCPEnvelope const& envelope) const;
-    std::string envToStr(SCPStatement const& st) const;
+    std::string envToStr(SCPEnvelope const& envelope,
+                         bool fullKeys = false) const;
+    std::string envToStr(SCPStatement const& st, bool fullKeys = false) const;
 
   protected:
     std::shared_ptr<LocalNode> mLocalNode;

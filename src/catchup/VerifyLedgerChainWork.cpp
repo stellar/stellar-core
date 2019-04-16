@@ -7,6 +7,7 @@
 #include "historywork/Progress.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <medida/meter.h>
@@ -320,26 +321,31 @@ VerifyLedgerChainWork::onSuccess()
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "unsupported ledger version, propagating "
                                   "failure";
+        CLOG(ERROR, "History") << UPGRADE_STELLAR_CORE;
         mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
         CLOG(ERROR, "History") << "Catchup material failed verification - hash "
                                   "mismatch, propagating failure";
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
         mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "overshot, propagating failure";
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
         mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "undershot, propagating failure";
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
         mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
         CLOG(ERROR, "History") << "Catchup material failed verification - "
                                   "missing entries, propagating failure";
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
         mVerifyLedgerChainFailure.Mark();
         return WORK_FAILURE_FATAL;
     default:

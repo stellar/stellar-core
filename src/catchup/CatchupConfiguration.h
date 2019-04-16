@@ -28,13 +28,26 @@ namespace stellar
 // which means that CatchupWork will get latest checkpoint from history archive
 // and catchup to that instead of destination ledger. This is usefull when
 // doing offline commandline catchups with stellar-core catchup command.
+//
+// Catchup can be done in two modes - ONLINE nad OFFLINE. In ONLINE mode node
+// is connected to the network. If receives ledgers during catchup and applies
+// them after history is applied. Also additional closing ledger is required
+// to mark catchup as complete and node as synced. In OFFLINE mode node is not
+// connected to network, so new ledgers are not being externalized. Only
+// buckets and transactions from history archives are applied.
 class CatchupConfiguration
 {
   public:
+    enum class Mode
+    {
+        OFFLINE,
+        ONLINE
+    };
     static const uint32_t CURRENT = 0;
 
-    CatchupConfiguration(uint32_t toLedger, uint32_t count);
-    CatchupConfiguration(LedgerNumHashPair ledgerHashPair, uint32_t count);
+    CatchupConfiguration(uint32_t toLedger, uint32_t count, Mode mode);
+    CatchupConfiguration(LedgerNumHashPair ledgerHashPair, uint32_t count,
+                         Mode mode);
 
     /**
      * If toLedger() == CatchupConfiguration::CURRENT it replaces it with
@@ -60,9 +73,16 @@ class CatchupConfiguration
         return mLedgerHashPair.second;
     }
 
+    Mode
+    mode() const
+    {
+        return mMode;
+    }
+
   private:
     uint32_t mCount;
     LedgerNumHashPair mLedgerHashPair;
+    Mode mMode;
 };
 
 uint32_t parseLedger(std::string const& str);

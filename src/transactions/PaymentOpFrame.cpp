@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/PathPaymentOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include <algorithm>
@@ -26,7 +27,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
+PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines
@@ -60,8 +61,7 @@ PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
     opRes.tr().type(PATH_PAYMENT);
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
 
-    if (!ppayment.doCheckValid(app, ledgerVersion) ||
-        !ppayment.doApply(app, ltx))
+    if (!ppayment.doCheckValid(ledgerVersion) || !ppayment.doApply(ltx))
     {
         if (ppayment.getResultCode() != opINNER)
         {
@@ -111,7 +111,7 @@ PaymentOpFrame::doApply(Application& app, AbstractLedgerTxn& ltx)
 }
 
 bool
-PaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
+PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mPayment.amount <= 0)
     {
@@ -124,5 +124,23 @@ PaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
         return false;
     }
     return true;
+}
+
+void
+PaymentOpFrame::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    keys.emplace(accountKey(mPayment.destination));
+
+    // Prefetch issuer for non-native assets
+    if (mPayment.asset.type() != ASSET_TYPE_NATIVE)
+    {
+        auto issuer = getIssuer(mPayment.asset);
+        keys.emplace(accountKey(issuer));
+
+        // These are *maybe* needed; For now, we load everything
+        keys.emplace(trustlineKey(mPayment.destination, mPayment.asset));
+        keys.emplace(trustlineKey(getSourceID(), mPayment.asset));
+    }
 }
 }
