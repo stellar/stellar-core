@@ -184,10 +184,9 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl, uint32 version) const
 std::string
 LedgerEntryIsValid::checkIsValid(OfferEntry const& oe, uint32 version) const
 {
-    if (oe.offerID > INT64_MAX)
+    if (oe.offerID <= 0)
     {
-        return fmt::format("Offer offerID ({}) exceeds limit ({})", oe.offerID,
-                           INT64_MAX);
+        return fmt::format("Offer offerID ({}) must be positive", oe.offerID);
     }
     if (!isAssetValid(oe.selling))
     {

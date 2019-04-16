@@ -34,7 +34,7 @@ LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
                         std::string const& dataName);
 
 LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
-                         uint64_t offerID);
+                         int64_t offerID);
 
 TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
                                AccountID const& accountID, Asset const& asset);

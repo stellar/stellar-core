@@ -464,7 +464,7 @@ TEST_CASE("manage buy offer matches manage sell offer when not executing",
     int64_t const availableBalance = 100;
     int64_t const availableLimit = 100;
 
-    auto checkOffer = [&](AccountID const& acc, uint64_t offerID,
+    auto checkOffer = [&](AccountID const& acc, int64_t offerID,
                           Asset const& selling, Asset const& buying,
                           Price const& price) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -581,7 +581,7 @@ TEST_CASE("manage buy offer matches manage sell offer when executing partially",
     int64_t const availableLimit = 1000;
     int64_t const offerSizeInLedger = 50;
 
-    auto checkOffer = [&](AccountID const& acc, uint64_t offerID,
+    auto checkOffer = [&](AccountID const& acc, int64_t offerID,
                           Asset const& selling, Asset const& buying,
                           Price const& price) {
         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -721,7 +721,7 @@ TEST_CASE("manage buy offer matches manage sell offer when executing entirely",
     int64_t const availableBalance = 100;
     int64_t const availableLimit = 100;
 
-    auto checkOffer = [&](AccountID const& acc, uint64_t offerID,
+    auto checkOffer = [&](AccountID const& acc, int64_t offerID,
                           Asset const& selling, Asset const& buying,
                           Price const& price) {
         LedgerTxn ltx(app->getLedgerTxnRoot());

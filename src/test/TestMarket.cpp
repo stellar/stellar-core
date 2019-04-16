@@ -117,7 +117,7 @@ TestMarket::addOffer(TestAccount& account, OfferState const& state,
 }
 
 TestMarketOffer
-TestMarket::updateOffer(TestAccount& account, uint64_t id,
+TestMarket::updateOffer(TestAccount& account, int64_t id,
                         OfferState const& state,
                         OfferState const& finishedState)
 {

@@ -860,7 +860,7 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     Asset sheep = offer.buying;
     Asset wheat = offer.selling;
     AccountID accountBID = offer.sellerID;
-    uint64_t offerID = offer.offerID;
+    int64_t offerID = offer.offerID;
 
     int64_t newAmount = offer.amount;
     {
@@ -975,7 +975,7 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     Asset sheep = offer.buying;
     Asset wheat = offer.selling;
     AccountID accountBID = offer.sellerID;
-    uint64_t offerID = offer.offerID;
+    int64_t offerID = offer.offerID;
 
     if (!stellar::loadAccountWithoutRecord(ltx, accountBID))
     {

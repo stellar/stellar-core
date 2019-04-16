@@ -134,7 +134,7 @@ case OFFER:
     struct
     {
         AccountID sellerID;
-        uint64 offerID;
+        int64 offerID;
     } offer;
 
 case DATA:

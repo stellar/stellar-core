@@ -557,7 +557,7 @@ createPassiveOffer(Asset const& selling, Asset const& buying,
 }
 
 Operation
-manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
             Price const& price, int64_t amount)
 {
     Operation op;
@@ -572,7 +572,7 @@ manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
 }
 
 Operation
-manageBuyOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+manageBuyOffer(int64 offerId, Asset const& selling, Asset const& buying,
                Price const& price, int64_t amount)
 {
     Operation op;
@@ -587,10 +587,9 @@ manageBuyOffer(uint64 offerId, Asset const& selling, Asset const& buying,
 }
 
 static ManageSellOfferResult
-applyCreateOfferHelper(Application& app, uint64 offerId,
-                       SecretKey const& source, Asset const& selling,
-                       Asset const& buying, Price const& price, int64_t amount,
-                       SequenceNumber seq)
+applyCreateOfferHelper(Application& app, int64 offerId, SecretKey const& source,
+                       Asset const& selling, Asset const& buying,
+                       Price const& price, int64_t amount, SequenceNumber seq)
 {
     auto getIdPool = [&]() {
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -654,8 +653,8 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     return manageSellOfferResult;
 }
 
-uint64_t
-applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
+int64_t
+applyManageOffer(Application& app, int64 offerId, SecretKey const& source,
                  Asset const& selling, Asset const& buying, Price const& price,
                  int64_t amount, SequenceNumber seq,
                  ManageOfferEffect expectedEffect)
@@ -669,8 +668,8 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
                                                     : 0;
 }
 
-uint64_t
-applyManageBuyOffer(Application& app, uint64 offerId, SecretKey const& source,
+int64_t
+applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
                     Asset const& selling, Asset const& buying,
                     Price const& price, int64_t amount, SequenceNumber seq,
                     ManageOfferEffect expectedEffect)
@@ -736,7 +735,7 @@ applyManageBuyOffer(Application& app, uint64 offerId, SecretKey const& source,
                                                     : 0;
 }
 
-uint64_t
+int64_t
 applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Asset const& selling, Asset const& buying,
                         Price const& price, int64_t amount, SequenceNumber seq,

@@ -19,8 +19,8 @@ namespace stellar
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
 {
-    uint64_t offerID = key.offer().offerID;
-    if (offerID > INT64_MAX)
+    int64_t offerID = key.offer().offerID;
+    if (offerID < 0)
     {
         return nullptr;
     }
@@ -34,8 +34,7 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(actIDStrKey));
-    int64_t signedOfferID = unsignedToSigned(offerID);
-    st.exchange(soci::use(signedOfferID));
+    st.exchange(soci::use(offerID));
 
     std::vector<LedgerEntry> offers;
     {
@@ -43,9 +42,8 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
         offers = loadOffers(prep);
     }
 
-    return offers.size() == 0
-               ? nullptr
-               : std::make_shared<LedgerEntry const>(offers.front());
+    return offers.empty() ? nullptr
+                          : std::make_shared<LedgerEntry const>(offers.front());
 }
 
 std::vector<LedgerEntry>
@@ -582,14 +580,14 @@ class BulkLoadOffersOperation
 {
     Database& mDb;
     std::vector<int64_t> mOfferIDs;
-    std::unordered_map<uint64_t, AccountID> mSellerIDsByOfferID;
+    std::unordered_map<int64_t, AccountID> mSellerIDsByOfferID;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
     {
         std::string sellerID, sellingAsset, buyingAsset;
         int64_t amount;
-        uint64_t offerID;
+        int64_t offerID;
         uint32_t flags, lastModified;
         Price price;
 
@@ -648,9 +646,9 @@ class BulkLoadOffersOperation
         for (auto const& k : keys)
         {
             assert(k.type() == OFFER);
-            if (k.offer().offerID <= INT64_MAX)
+            if (k.offer().offerID >= 0)
             {
-                mOfferIDs.emplace_back(unsignedToSigned(k.offer().offerID));
+                mOfferIDs.emplace_back(k.offer().offerID);
                 mSellerIDsByOfferID[mOfferIDs.back()] = k.offer().sellerID;
             }
         }

@@ -3931,7 +3931,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 }
             };
             auto validateOffer = [&](const TestAccount& account,
-                                     uint64_t offerId, int64_t difference) {
+                                     int64_t offerId, int64_t difference) {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 auto offer =
                     stellar::loadOffer(ltx, account.getPublicKey(), offerId);
@@ -3962,7 +3962,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                 int maxMultipler, bool overSendMax) {
                 SECTION(name)
                 {
-                    auto offers = std::deque<uint64_t>{};
+                    auto offers = std::deque<int64_t>{};
                     for (int i = 0; i < pathSize; i++)
                     {
                         offers.push_back(

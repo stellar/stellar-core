@@ -15,7 +15,7 @@ class ManageOfferOpFrameBase : public OperationFrame
 {
     Asset const mSheep;
     Asset const mWheat;
-    uint64_t const mOfferID;
+    int64_t const mOfferID;
     Price const mPrice;
 
     bool const mSetPassiveOnCreate;
@@ -32,7 +32,7 @@ class ManageOfferOpFrameBase : public OperationFrame
   public:
     ManageOfferOpFrameBase(Operation const& op, OperationResult& res,
                            TransactionFrame& parentTx, Asset const& sheep,
-                           Asset const& wheat, uint64_t offerID,
+                           Asset const& wheat, int64_t offerID,
                            Price const& price, bool setPassiveOnCreate);
 
     bool doCheckValid(uint32_t ledgerVersion) override;
