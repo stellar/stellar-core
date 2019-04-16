@@ -786,7 +786,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
 {
     if (configStr.size() < 2)
     {
-        throw std::invalid_argument("invalid key");
+        throw std::invalid_argument("invalid key: " + configStr);
     }
 
     // check if configStr is a PublicKey or a common name
@@ -794,13 +794,12 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
     {
         if (isSeed)
         {
-            throw std::invalid_argument("aliases only store public keys");
+            throw std::invalid_argument("aliases only store public keys: " +
+                                        configStr);
         }
         if (!resolveNodeID(configStr, retKey))
         {
-            std::stringstream msg;
-            msg << "unknown key in config: " << configStr;
-            throw std::invalid_argument(msg.str());
+            throw std::invalid_argument("unknown key in config: " + configStr);
         }
     }
     else
@@ -829,16 +828,16 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                 cName += commonName;
                 if (resolveNodeID(cName, retKey))
                 {
-                    throw std::invalid_argument("name already used");
+                    throw std::invalid_argument("name already used: " +
+                                                commonName);
                 }
 
                 if (!VALIDATOR_NAMES
                          .emplace(std::make_pair(nodestr, commonName))
                          .second)
                 {
-                    std::stringstream msg;
-                    msg << "naming node twice: " << commonName;
-                    throw std::invalid_argument(msg.str());
+                    throw std::invalid_argument("naming node twice: " +
+                                                commonName);
                 }
             }
         }
