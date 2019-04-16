@@ -196,10 +196,10 @@ struct AllowTrustOp
     {
     // ASSET_TYPE_NATIVE is not allowed
     case ASSET_TYPE_CREDIT_ALPHANUM4:
-        opaque assetCode4[4];
+        AssetCode4 assetCode4;
 
     case ASSET_TYPE_CREDIT_ALPHANUM12:
-        opaque assetCode12[12];
+        AssetCode12 assetCode12;
 
         // add other asset types here in the future
     }
