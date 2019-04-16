@@ -371,7 +371,7 @@ class StopAndRestartBucketMergesTest
     static void
     resolveAllMerges(BucketList& bl)
     {
-        for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+        for (uint32 i = 0; i < BucketList::kNumLevels; ++i)
         {
             auto& level = bl.getLevel(i);
             auto& next = level.getNext();

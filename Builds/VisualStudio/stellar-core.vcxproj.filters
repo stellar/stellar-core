@@ -927,6 +927,12 @@
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">

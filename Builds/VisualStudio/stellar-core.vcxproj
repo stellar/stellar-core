@@ -256,6 +256,8 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp" />
+    <ClCompile Include="..\..\src\bucket\test\BucketListTests.cpp" />
+    <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketTests.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyLedgerChainWork.cpp" />
