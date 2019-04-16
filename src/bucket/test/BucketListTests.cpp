@@ -321,7 +321,6 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
     for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         Application::pointer app = createTestApplication(clock, cfg);
         BucketList bl;
-        BucketManager& bm = app->getBucketManager();
         auto vers = getAppLedgerVersion(app);
         autocheck::generator<bool> flip;
         std::deque<LedgerEntry> entriesToModify;
