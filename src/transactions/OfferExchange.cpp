@@ -1106,10 +1106,24 @@ convertWithOffers(
     wheatReceived = 0;
 
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+    ltxOuter.prepareGetBestOffer(sheep, wheat);
     while (needMore)
     {
         LedgerTxn ltx(ltxOuter);
-        auto wheatOffer = ltx.loadBestOffer(sheep, wheat);
+
+        LedgerTxnEntry wheatOffer;
+        if (offerTrail.empty())
+        {
+            wheatOffer = ltx.loadBestOffer(sheep, wheat);
+        }
+        else
+        {
+            LedgerKey key(OFFER);
+            key.offer().sellerID = offerTrail.back().sellerID;
+            key.offer().offerID = offerTrail.back().offerID;
+            wheatOffer = ltx.loadBestOffer(sheep, wheat, key);
+        }
+
         if (!wheatOffer)
         {
             break;

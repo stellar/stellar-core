@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -258,9 +259,27 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
         for (; (bool)iter; ++iter)
         {
             auto const& key = iter.key();
+            if (mGetBestOffersState && key.type() == OFFER)
+            {
+                auto selfIter = mEntry.find(key);
+                if (selfIter != mEntry.end() && selfIter->second)
+                {
+                    mGetBestOffersState->mOffers.erase(*selfIter->second);
+                }
+            }
+
             if (iter.entryExists())
             {
                 mEntry[key] = std::make_shared<LedgerEntry>(iter.entry());
+                if (mGetBestOffersState && key.type() == OFFER)
+                {
+                    auto const& oe = iter.entry().data.offer();
+                    if (oe.buying == mGetBestOffersState->mBuying &&
+                        oe.selling == mGetBestOffersState->mSelling)
+                    {
+                        mGetBestOffersState->mOffers.emplace(iter.entry());
+                    }
+                }
             }
             else if (!mParent.getNewestVersion(key))
             { // Created in this LedgerTxn
@@ -270,6 +289,11 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
             { // Existed in a previous LedgerTxn
                 mEntry[key] = nullptr;
             }
+        }
+
+        if (mGetBestOffersState)
+        {
+            mGetBestOffersState->mIter = mGetBestOffersState->mOffers.cbegin();
         }
     }
     catch (std::exception& e)
@@ -315,8 +339,15 @@ LedgerTxn::Impl::create(LedgerTxn& self, LedgerEntry const& entry)
     mActive.emplace(key, toEntryImplBase(impl));
     LedgerTxnEntry ltxe(impl);
 
-    // std::shared_ptr assignment is noexcept
+    // std::shared_ptr assignment is noexcept, and map
+    // index on a single key is strong-guarantee.
     mEntry[key] = current;
+
+    // std::unique_ptr reset is noexcept so this block does not throw.
+    if (current->data.type() == OFFER)
+    {
+        mGetBestOffersState.reset();
+    }
     return ltxe;
 }
 
@@ -343,6 +374,12 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
     // std::shared_ptr assignment is noexcept, and map
     // index on a single key is strong-guarantee.
     mEntry[key] = std::make_shared<LedgerEntry>(entry);
+
+    // std::unique_ptr reset is noexcept so this block does not throw.
+    if (entry.data.type() == OFFER)
+    {
+        mGetBestOffersState.reset();
+    }
 }
 
 void
@@ -427,6 +464,12 @@ LedgerTxn::Impl::erase(LedgerKey const& key)
         // erase(iter) does not throw
         mActive.erase(activeIter);
     }
+
+    // std::unique_ptr reset is noexcept so this block does not throw.
+    if (key.type() == OFFER)
+    {
+        mGetBestOffersState.reset();
+    }
 }
 
 void
@@ -466,6 +509,12 @@ LedgerTxn::Impl::eraseWithoutLoading(LedgerKey const& key)
         mActive.erase(activeIter);
     }
     mConsistency = LedgerTxnConsistency::EXTRA_DELETES;
+
+    // std::unique_ptr reset is noexcept so this block does not throw.
+    if (key.type() == OFFER)
+    {
+        mGetBestOffersState.reset();
+    }
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>
@@ -496,68 +545,101 @@ LedgerTxn::Impl::getAllOffers()
     return offers;
 }
 
+bool
+LedgerTxn::Impl::IsBetterOffer::operator()(LedgerEntry const& lhs,
+                                           LedgerEntry const& rhs) const
+{
+    return isBetterOffer(lhs, rhs);
+}
+
+LedgerTxn::Impl::GetBestOffersState::GetBestOffersState(Asset const& buying,
+                                                        Asset const& selling)
+    : mBuying(buying), mSelling(selling)
+{
+}
+
+void
+LedgerTxn::prepareGetBestOffer(Asset const& buying, Asset const& selling)
+{
+    getImpl()->prepareGetBestOffer(buying, selling);
+}
+
+void
+LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
+{
+    auto& gbos = mGetBestOffersState;
+    if (!(gbos && gbos->mBuying == buying && gbos->mSelling == selling))
+    {
+        gbos = std::make_unique<GetBestOffersState>(buying, selling);
+
+        for (auto const& kv : mEntry)
+        {
+            auto const& key = kv.first;
+            if (key.type() == OFFER)
+            {
+                auto const& entry = kv.second;
+                if (entry && entry->data.offer().buying == buying &&
+                    entry->data.offer().selling == selling)
+                {
+                    gbos->mOffers.emplace(*entry);
+                }
+            }
+        }
+    }
+    gbos->mIter = gbos->mOffers.cbegin();
+
+    mParent.prepareGetBestOffer(buying, selling);
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
-                        std::unordered_set<LedgerKey>& exclude)
+                        LedgerKey const* exclude)
 {
     return getImpl()->getBestOffer(buying, selling, exclude);
 }
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                              std::unordered_set<LedgerKey>& exclude)
+                              LedgerKey const* exclude)
 {
-    auto end = mEntry.cend();
-    auto bestOfferIter = end;
-    if (exclude.size() + mEntry.size() > exclude.bucket_count())
+    auto const& gbos = mGetBestOffersState;
+    assert(gbos || (!mChild && mEntry.empty()));
+
+    while (gbos && gbos->mIter != gbos->mOffers.cend() && exclude &&
+           LedgerEntryKey(*gbos->mIter) == *exclude)
     {
-        // taking a best guess as a starting point for how big exclude can get
-        // this avoids rehashing when processing transactions after a lot of
-        // changes already occured
-        exclude.reserve(exclude.size() + mEntry.size());
-    }
-    for (auto iter = mEntry.cbegin(); iter != end; ++iter)
-    {
-        auto const& key = iter->first;
-        auto const& entry = iter->second;
-        if (key.type() != OFFER)
-        {
-            continue;
-        }
-
-        if (!exclude.insert(key).second)
-        {
-            continue;
-        }
-
-        if (!(entry && entry->data.offer().buying == buying &&
-              entry->data.offer().selling == selling))
-        {
-            continue;
-        }
-
-        if ((bestOfferIter == end) ||
-            isBetterOffer(*entry, *bestOfferIter->second))
-        {
-            bestOfferIter = iter;
-        }
+        ++gbos->mIter;
     }
 
-    std::shared_ptr<LedgerEntry const> bestOffer;
-    if (bestOfferIter != end)
+    auto parentBest = mParent.getBestOffer(buying, selling, exclude);
+    if (!gbos || gbos->mIter == gbos->mOffers.cend())
     {
-        bestOffer = std::make_shared<LedgerEntry const>(*bestOfferIter->second);
-    }
-
-    auto parentBestOffer = mParent.getBestOffer(buying, selling, exclude);
-    if (bestOffer && parentBestOffer)
-    {
-        return isBetterOffer(*bestOffer, *parentBestOffer) ? bestOffer
-                                                           : parentBestOffer;
+        while (parentBest)
+        {
+            auto key = LedgerEntryKey(*parentBest);
+            if (!(exclude && key == *exclude) &&
+                mEntry.find(key) == mEntry.end())
+            {
+                return parentBest;
+            }
+            parentBest = mParent.getBestOffer(buying, selling, &key);
+        }
+        return nullptr;
     }
     else
     {
-        return bestOffer ? bestOffer : parentBestOffer;
+        auto const& selfBest = *gbos->mIter;
+        while (parentBest && isBetterOffer(*parentBest, selfBest))
+        {
+            auto key = LedgerEntryKey(*parentBest);
+            if (!(exclude && key == *exclude) &&
+                mEntry.find(key) == mEntry.end())
+            {
+                return parentBest;
+            }
+            parentBest = mParent.getBestOffer(buying, selling, &key);
+        }
+        return std::make_shared<LedgerEntry const>(selfBest);
     }
 }
 
@@ -948,8 +1030,15 @@ LedgerTxn::Impl::load(LedgerTxn& self, LedgerKey const& key)
     mActive.emplace(key, toEntryImplBase(impl));
     LedgerTxnEntry ltxe(impl);
 
-    // std::shared_ptr assignment is noexcept
+    // std::shared_ptr assignment is noexcept, and map
+    // index on a single key is strong-guarantee.
     mEntry[key] = current;
+
+    // std::unique_ptr reset is noexcept so this block does not throw.
+    if (key.type() == OFFER)
+    {
+        mGetBestOffersState.reset();
+    }
     return ltxe;
 }
 
@@ -991,18 +1080,26 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
 LedgerTxnEntry
 LedgerTxn::loadBestOffer(Asset const& buying, Asset const& selling)
 {
-    return getImpl()->loadBestOffer(*this, buying, selling);
+    return getImpl()->loadBestOffer(*this, buying, selling, nullptr);
+}
+
+LedgerTxnEntry
+LedgerTxn::loadBestOffer(Asset const& buying, Asset const& selling,
+                         LedgerKey const& previousBest)
+{
+    return getImpl()->loadBestOffer(*this, buying, selling, &previousBest);
 }
 
 LedgerTxnEntry
 LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
-                               Asset const& selling)
+                               Asset const& selling,
+                               LedgerKey const* previousBest)
 {
     throwIfSealed();
     throwIfChild();
 
     std::unordered_set<LedgerKey> exclude;
-    auto le = getBestOffer(buying, selling, exclude);
+    auto le = getBestOffer(buying, selling, previousBest);
     return le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
 }
 
@@ -1447,6 +1544,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     mBestOffersCache.clear();
     mEntryCache.clear();
     mPrefetchMetrics.clear();
+    mGetBestOffersState.reset();
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
@@ -1518,18 +1616,19 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
 }
 
 void
-LedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxnRoot::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger)
 {
     return mImpl->deleteObjectsModifiedOnOrAfterLedger(ledger);
 }
 
 void
-LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger)
 {
     using namespace soci;
     throwIfChild();
     mEntryCache.clear();
     mBestOffersCache.clear();
+    mGetBestOffersState.reset();
 
     for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER})
     {
@@ -1710,7 +1809,6 @@ operator==(BestOffersCacheKey const& other) const
     return buying == other.buying && selling == other.selling;
 }
 
-// TODO(jonjove): Are we happy with the strength of this hash function?
 size_t
 LedgerTxnRoot::Impl::BestOffersCacheKeyHash::hashAsset(Asset const& asset)
 {
@@ -1745,47 +1843,64 @@ operator()(BestOffersCacheKey const& key) const
     return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
 }
 
-std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
-                            std::unordered_set<LedgerKey>& exclude)
+void
+LedgerTxnRoot::prepareGetBestOffer(Asset const& buying, Asset const& selling)
 {
-    return mImpl->getBestOffer(buying, selling, exclude);
+    mImpl->prepareGetBestOffer(buying, selling);
 }
 
-static std::shared_ptr<LedgerEntry const>
-findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
-                  std::list<LedgerEntry>::const_iterator const& end,
-                  std::unordered_set<LedgerKey> const& exclude)
-{
-    for (; iter != end; ++iter)
-    {
-        auto key = LedgerEntryKey(*iter);
-        if (exclude.find(key) == exclude.end())
-        {
-            return std::make_shared<LedgerEntry const>(*iter);
-        }
-    }
-    return {};
-}
-
-std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                  std::unordered_set<LedgerKey>& exclude)
+void
+LedgerTxnRoot::Impl::prepareGetBestOffer(Asset const& buying,
+                                         Asset const& selling)
 {
     // Note: Elements of mBestOffersCache are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).
-    BestOffersCacheEntry emptyCacheEntry{{}, false};
-    auto& cached = getFromBestOffersCache(buying, selling, emptyCacheEntry);
-    auto& offers = cached.bestOffers;
 
-    auto res = findIncludedOffer(offers.cbegin(), offers.cend(), exclude);
+    mGetBestOffersState = getFromBestOffersCache(buying, selling);
+    mGetBestOffersState->iter = mGetBestOffersState->bestOffers.cbegin();
+}
 
-    size_t const BATCH_SIZE = 5;
-    while (!res && !cached.allLoaded)
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
+                            LedgerKey const* exclude)
+{
+    return mImpl->getBestOffer(buying, selling, exclude);
+}
+
+static std::shared_ptr<LedgerEntry const>
+findIncluded(std::list<LedgerEntry>::const_iterator& begin,
+             std::list<LedgerEntry>::const_iterator const& end,
+             LedgerKey const* exclude)
+{
+    while (begin != end && exclude && LedgerEntryKey(*begin) == *exclude)
     {
+        ++begin;
+    }
+    return begin != end ? std::make_shared<LedgerEntry const>(*begin) : nullptr;
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
+                                  LedgerKey const* exclude)
+{
+    // Note: Elements of mBestOffersCache are properly sorted lists of the best
+    // offers for a certain asset pair. This function maintaints the invariant
+    // that the lists of best offers remain properly sorted. The sort order is
+    // that determined by loadBestOffers and isBetterOffer (both induce the same
+    // order).
+    auto const& cached = mGetBestOffersState;
+    auto& offers = cached->bestOffers;
+
+    auto res = findIncluded(cached->iter, offers.cend(), exclude);
+
+    while (!res && cached->iter == offers.cend() && !cached->allLoaded)
+    {
+        size_t const BATCH_SIZE =
+            std::min<size_t>(1024, std::max<size_t>(1, offers.size()));
+
         std::list<LedgerEntry>::const_iterator newOfferIter;
         try
         {
@@ -1806,15 +1921,33 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
         if (std::distance(newOfferIter, offers.cend()) < BATCH_SIZE)
         {
-            cached.allLoaded = true;
+            cached->allLoaded = true;
         }
-        res = findIncludedOffer(newOfferIter, offers.cend(), exclude);
+
+        std::unordered_set<LedgerKey> toPrefetch;
+        for (auto iter = newOfferIter; iter != offers.cend(); ++iter)
+        {
+            putInEntryCache(LedgerEntryKey(*iter),
+                            std::make_shared<LedgerEntry const>(*iter),
+                            LoadType::IMMEDIATE);
+
+            auto const& oe = iter->data.offer();
+            toPrefetch.emplace(accountKey(oe.sellerID));
+            if (oe.selling.type() != ASSET_TYPE_NATIVE)
+            {
+                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
+            }
+            if (oe.buying.type() != ASSET_TYPE_NATIVE)
+            {
+                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
+            }
+        }
+        prefetch(toPrefetch);
+
+        res = findIncluded(newOfferIter, offers.cend(), exclude);
+        cached->iter = newOfferIter;
     }
 
-    if (res)
-    {
-        putInEntryCache(LedgerEntryKey(*res), res, LoadType::IMMEDIATE);
-    }
     return res;
 }
 
@@ -1974,6 +2107,7 @@ LedgerTxnRoot::Impl::rollbackChild()
     }
 
     mChild = nullptr;
+    mGetBestOffersState.reset();
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -2027,21 +2161,22 @@ LedgerTxnRoot::Impl::putInEntryCache(
     }
 }
 
-LedgerTxnRoot::Impl::BestOffersCacheEntry&
-LedgerTxnRoot::Impl::getFromBestOffersCache(
-    Asset const& buying, Asset const& selling,
-    BestOffersCacheEntry& defaultValue) const
+LedgerTxnRoot::Impl::BestOffersCacheEntryPtr
+LedgerTxnRoot::Impl::getFromBestOffersCache(Asset const& buying,
+                                            Asset const& selling) const
 {
     try
     {
         BestOffersCacheKey cacheKey{buying, selling};
-        if (!mBestOffersCache.exists(cacheKey))
+        if (mBestOffersCache.exists(cacheKey))
         {
-            mBestOffersCache.put(cacheKey, defaultValue);
+            return mBestOffersCache.get(cacheKey);
         }
-        return mBestOffersCache.exists(cacheKey)
-                   ? mBestOffersCache.get(cacheKey)
-                   : defaultValue;
+
+        BestOffersCacheEntry empty{{}, false};
+        auto emptyPtr = std::make_shared<BestOffersCacheEntry>(empty);
+        mBestOffersCache.put(cacheKey, emptyPtr);
+        return emptyPtr;
     }
     catch (...)
     {

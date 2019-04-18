@@ -301,22 +301,27 @@ class AbstractLedgerTxnParent
     virtual void commitChild(EntryIterator iter, LedgerTxnConsistency cons) = 0;
     virtual void rollbackChild() = 0;
 
-    // getAllOffers, getBestOffer, and getOffersByAccountAndAsset are used to
-    // handle some specific queries related to Offers.
+    // getAllOffers and getOffersByAccountAndAsset are used to handle some
+    // specific queries related to Offers.
     // - getAllOffers
     //     Get XDR for every offer, grouped by account.
-    // - getBestOffer
-    //     Get XDR for the best offer with specified buying and selling assets.
     // - getOffersByAccountAndAsset
     //     Get XDR for every offer owned by the specified account that is either
     //     buying or selling the specified asset.
     virtual std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() = 0;
-    virtual std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude) = 0;
     virtual std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
+
+    // getBestOffer presents a streaming-like API to efficiently determine a
+    // sequence of best offers for a single asset-pair. To reset the stream,
+    // prepareGetBestOffer must be called. Otherwise getBestOffer will continue
+    // from its previous state.
+    virtual void prepareGetBestOffer(Asset const& buying,
+                                     Asset const& selling) = 0;
+    virtual std::shared_ptr<LedgerEntry const>
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 LedgerKey const* exclude) = 0;
 
     // getHeader returns the LedgerHeader stored by AbstractLedgerTxnParent.
     // Used to allow the LedgerHeader to propagate to a child.
@@ -452,6 +457,9 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     loadAllOffers() = 0;
     virtual LedgerTxnEntry loadBestOffer(Asset const& buying,
                                          Asset const& selling) = 0;
+    virtual LedgerTxnEntry loadBestOffer(Asset const& buying,
+                                         Asset const& selling,
+                                         LedgerKey const& previousBest) = 0;
     virtual std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) = 0;
@@ -499,9 +507,11 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
+    void prepareGetBestOffer(Asset const& buying,
+                             Asset const& selling) override;
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude) override;
+                 LedgerKey const* exclude) override;
 
     LedgerEntryChanges getChanges() override;
 
@@ -535,6 +545,8 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     LedgerTxnEntry loadBestOffer(Asset const& buying,
                                  Asset const& selling) override;
+    LedgerTxnEntry loadBestOffer(Asset const& buying, Asset const& selling,
+                                 LedgerKey const& previousBest) override;
 
     LedgerTxnHeader loadHeader() override;
 
@@ -570,7 +582,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     uint64_t countObjects(LedgerEntryType let,
                           LedgerRange const& ledgers) const;
 
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const;
+    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger);
 
     void dropAccounts();
     void dropData();
@@ -579,9 +591,11 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
+    void prepareGetBestOffer(Asset const& buying,
+                             Asset const& selling) override;
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude) override;
+                 LedgerKey const* exclude) override;
 
     std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,

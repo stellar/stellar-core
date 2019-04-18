@@ -120,14 +120,20 @@ class BulkLedgerEntryChangeAccumulator
 
 // Many functions in LedgerTxn::Impl provide a basic exception safety
 // guarantee that states that certain caches may be modified or cleared if an
-// exception is thrown. It is always safe to continue using the LedgerTxn
-// object in such a case and the results of any successful query are correct.
-// However, it should be noted that a query which would have succeeded had there
-// not been an earlier exception may fail in the case where there had been an
-// earlier exception. This could occur, for example, if in the first case the
-// query would have hit the cache but in the second case the query hits the
-// database because the cache has been cleared but the database connection has
-// been lost.
+// exception is thrown.
+//
+// Excluding the functions prepareGetBestOffer and getBestOffer, it is always
+// safe to continue using the LedgerTxn object in such a case and the results of
+// any successful query are correct. However, it should be noted that a query
+// which would have succeeded had there not been an earlier exception may fail
+// in the case where there had been an earlier exception. This could occur, for
+// example, if in the first case the query would have hit the cache but in the
+// second case the query hits the database because the cache has been cleared
+// but the database connection has been lost.
+//
+// For prepareGetBestOffer and getBestOffer, in the event of an exception it is
+// required to call prepareGetBestOffer again before attempting to load another
+// best offer.
 class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
@@ -144,6 +150,21 @@ class LedgerTxn::Impl
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
+
+    struct IsBetterOffer
+    {
+        bool operator()(LedgerEntry const& lhs, LedgerEntry const& rhs) const;
+    };
+    struct GetBestOffersState
+    {
+        Asset const mBuying;
+        Asset const mSelling;
+        std::set<LedgerEntry, IsBetterOffer> mOffers;
+        std::set<LedgerEntry, IsBetterOffer>::const_iterator mIter;
+
+        GetBestOffersState(Asset const& buying, Asset const& selling);
+    };
+    std::unique_ptr<GetBestOffersState> mGetBestOffersState;
 
     void throwIfChild() const;
     void throwIfSealed() const;
@@ -218,6 +239,17 @@ class LedgerTxn::Impl
     //   modified.
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers();
 
+    // prepareGetBestOffer has the basic exception safety guarantee. If it
+    // throws an exception, then
+    // - the best offers cache may be, but is not guaranteed to be, modified or
+    //   even cleared
+    // - the best offers state may be, but is not guaranteed to be, modified
+    // WARNING: This last possibility indicates that this basic exception safety
+    // guarantee is weaker than the guarantee from most other member functions
+    // of LedgerTxn. Be sure to call prepareGetBestOffer again if an exception
+    // occurs before trying to load additional best offers.
+    void prepareGetBestOffer(Asset const& buying, Asset const& selling);
+
     // getBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -226,9 +258,14 @@ class LedgerTxn::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
-    std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude);
+    // - the best offers state may be, but is not guaranteed to be, modified
+    // WARNING: This last possibility indicates that this basic exception safety
+    // guarantee is weaker than the guarantee from most other member functions
+    // of LedgerTxn. Be sure to call prepareGetBestOffer again if an exception
+    // occurs before trying to load additional best offers.
+    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
+                                                    Asset const& selling,
+                                                    LedgerKey const* exclude);
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -314,7 +351,8 @@ class LedgerTxn::Impl
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
     LedgerTxnEntry loadBestOffer(LedgerTxn& self, Asset const& buying,
-                                 Asset const& selling);
+                                 Asset const& selling,
+                                 LedgerKey const* previousBest);
 
     // loadHeader has the strong exception safety guarantee
     LedgerTxnHeader loadHeader(LedgerTxn& self);
@@ -412,7 +450,9 @@ class LedgerTxnRoot::Impl
     {
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
+        std::list<LedgerEntry>::const_iterator iter;
     };
+    typedef std::shared_ptr<BestOffersCacheEntry> BestOffersCacheEntryPtr;
 
     struct BestOffersCacheKeyHash
     {
@@ -421,7 +461,7 @@ class LedgerTxnRoot::Impl
         size_t operator()(BestOffersCacheKey const& key) const;
     };
 
-    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntry,
+    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntryPtr,
                                 BestOffersCacheKeyHash>
         BestOffersCache;
 
@@ -436,6 +476,8 @@ class LedgerTxnRoot::Impl
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
+
+    BestOffersCacheEntryPtr mGetBestOffersState;
 
     void throwIfChild() const;
 
@@ -493,9 +535,8 @@ class LedgerTxnRoot::Impl
                          std::shared_ptr<LedgerEntry const> const& entry,
                          LoadType type) const;
 
-    BestOffersCacheEntry&
-    getFromBestOffersCache(Asset const& buying, Asset const& selling,
-                           BestOffersCacheEntry& defaultValue) const;
+    BestOffersCacheEntryPtr getFromBestOffersCache(Asset const& buying,
+                                                   Asset const& selling) const;
 
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadAccounts(std::unordered_set<LedgerKey> const& keys) const;
@@ -525,7 +566,7 @@ class LedgerTxnRoot::Impl
                           LedgerRange const& ledgers) const;
 
     // deleteObjectsModifiedOnOrAfterLedger has no exception safety guarantees.
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const;
+    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger);
 
     // dropAccounts, dropData, dropOffers, and dropTrustLines have no exception
     // safety guarantees.
@@ -540,6 +581,17 @@ class LedgerTxnRoot::Impl
     //   modified.
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers();
 
+    // prepareGetBestOffer has the basic exception safety guarantee. If it
+    // throws an exception, then
+    // - the best offers cache may be, but is not guaranteed to be, modified or
+    //   even cleared
+    // - the best offers state may be, but is not guaranteed to be, modified
+    // WARNING: This last possibility indicates that this basic exception safety
+    // guarantee is weaker than the guarantee from most other member functions
+    // of LedgerTxn. Be sure to call prepareGetBestOffer again if an exception
+    // occurs before trying to load additional best offers.
+    void prepareGetBestOffer(Asset const& buying, Asset const& selling);
+
     // getBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
@@ -548,9 +600,14 @@ class LedgerTxnRoot::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
-    std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude);
+    // - the best offers state may be, but is not guaranteed to be, modified
+    // WARNING: This last possibility indicates that this basic exception safety
+    // guarantee is weaker than the guarantee from most other member functions
+    // of LedgerTxn. Be sure to call prepareGetBestOffer again if an exception
+    // occurs before trying to load additional best offers.
+    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
+                                                    Asset const& selling,
+                                                    LedgerKey const* exclude);
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
