@@ -232,8 +232,7 @@ int
 handleDeprecatedCommandLine(int argc, char* const* argv)
 {
     std::cerr << "Using DEPRECATED command-line syntax." << std::endl;
-    std::cerr << "For new syntax: stellar-core help" << std::endl
-              << std::endl;
+    std::cerr << "For new syntax: stellar-core help" << std::endl << std::endl;
 
     std::string cfgFile("stellar-core.cfg");
     std::string command;
