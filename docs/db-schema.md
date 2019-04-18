@@ -146,6 +146,11 @@ qsethash | CHARACTER(64) NOT NULL | hash of quorum set (HEX)
 lastledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this quorum set was last seen
 qset | TEXT NOT NULL | (XDR)
 
+## quoruminfo
+Field | Type | Description
+------|------|---------------
+nodeid | CHARACTER(56) NOT NULL | (STRKEY)
+qsethash | CHARACTER(64) NOT NULL | hash of quorum set (HEX)
 
 ## storestate
 
