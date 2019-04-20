@@ -5,13 +5,13 @@ local SQL [database](../database) in order to query the set and apply
 transactions to it.
 
 However, for two operations the "large logical set" of entries is inconvenient
-and/or intractable in its SQL storge form:
+and/or intractable in its SQL storage form:
 
-  - Efficiently calculating a cryptographic hash of the entire set, after each
-    change to it.
+- Efficiently calculating a cryptographic hash of the entire set after each
+  change to it.
 
-  - Efficiently transmitting a minimal "delta" of changes to the set, when a peer
-    is out of sync with the current ledger state and needs to "catch up".
+- Efficiently transmitting a minimal "delta" of changes to the set when a peer
+  is out of sync with the current ledger state and needs to "catch up".
 
 In order to support these two operations, the ledger entries are *redundantly*
 stored in a secondary structure called the [BucketList](BucketList.h), which is
@@ -25,6 +25,5 @@ which is stored in the [ledger header](../xdr/Stellar-ledger.x) in order to
 unambiguously denote the set of entries that exist at each ledger-close.
 
 The individual buckets that compose each level are checkpointed to history
-storage by the [history module](../history), and a subset of them -- the
-difference from the current bucket list -- is retrieved from history and applied
-in order to perform "fast" catchup.
+storage by the [history module](../history). The difference from the current bucket list (a subset
+of the buckets) is retrieved from history and applied in order to perform "fast" catchup.
