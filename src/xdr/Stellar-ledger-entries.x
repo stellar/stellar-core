@@ -19,7 +19,7 @@ typedef opaque DataValue<64>;
 typedef opaque AssetCode4[4];
 
 // 5-12 alphanumeric characters right-padded with 0 bytes
-typedef opaque AssetCode12[4];
+typedef opaque AssetCode12[12];
 
 enum AssetType
 {
