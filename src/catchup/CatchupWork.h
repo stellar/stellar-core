@@ -6,8 +6,10 @@
 
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/VerifyLedgerChainWork.h"
-#include "historywork/BucketDownloadWork.h"
+#include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
+#include "work/Work.h"
+#include "work/WorkSequence.h"
 
 namespace stellar
 {
@@ -15,6 +17,8 @@ namespace stellar
 class LedgerRange;
 class CheckpointRange;
 class HistoryManager;
+class Bucket;
+class TmpDir;
 
 // Range required to do a catchup.
 //
@@ -35,6 +39,7 @@ class HistoryManager;
 // CATCHUP_COMPLETE. If not, second is true and miminal catchup will be done
 // first.
 using CatchupRange = std::pair<LedgerRange, bool>;
+using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
 // CatchupWork does all the neccessary work to perform any type of catchup.
 // It accepts CatchupConfiguration structure to know from which ledger to which
@@ -55,8 +60,19 @@ using CatchupRange = std::pair<LedgerRange, bool>;
 //
 // After that, catchup is done and node can replay buffered ledgers and take
 // part in consensus protocol.
-class CatchupWork : public BucketDownloadWork
+
+class CatchupWork : public Work
 {
+  protected:
+    HistoryArchiveState mLocalState;
+    std::unique_ptr<TmpDir> mDownloadDir;
+    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+
+    void doReset() override;
+    BasicWork::State doWork() override;
+    void onFailureRaise() override;
+    void onSuccess() override;
+
   public:
     enum class ProgressState
     {
@@ -87,54 +103,49 @@ class CatchupWork : public BucketDownloadWork
         LedgerHeaderHistoryEntry const& lastClosed,
         CatchupConfiguration::Mode catchupMode)>;
 
-  public:
     /**
      * Preconditions:
      * * lastClosedLedger > 0
      * * configuration.toLedger() >= lastClosedLedger
      * * configuration.toLedger() != CatchupConfiguration::CURRENT
      */
+
     static CatchupRange
     makeCatchupRange(uint32_t lastClosedLedger,
                      CatchupConfiguration const& configuration,
                      HistoryManager const& historyManager);
 
-    CatchupWork(Application& app, WorkParent& parent,
-                CatchupConfiguration catchupConfiguration,
+    CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
                 ProgressHandler progressHandler, size_t maxRetries);
-    std::string getStatus() const override;
-    void onReset() override;
-    State onSuccess() override;
-    void onFailureRaise() override;
-
     ~CatchupWork();
+    std::string getStatus() const override;
 
   private:
     HistoryArchiveState mRemoteState;
     HistoryArchiveState mApplyBucketsRemoteState;
     LedgerNumHashPair mLastClosedLedgerHashPair;
     CatchupConfiguration const mCatchupConfiguration;
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgersWork;
-    std::shared_ptr<Work> mGetBucketsHistoryArchiveStateWork;
-    std::shared_ptr<Work> mDownloadBucketsWork;
-    std::shared_ptr<Work> mApplyBucketsWork;
-    std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<Work> mApplyTransactionsWork;
     LedgerHeaderHistoryEntry mVerifiedLedgerRangeStart;
     LedgerHeaderHistoryEntry mLastApplied;
     ProgressHandler mProgressHandler;
-    bool mBucketsAppliedEmitted;
+    bool mBucketsAppliedEmitted{false};
+
+    std::shared_ptr<BasicWork> mGetHistoryArchiveStateWork;
+    std::shared_ptr<BasicWork> mGetBucketStateWork;
+
+    WorkSeqPtr mDownloadVerifyLedgersSeq;
+    std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgers;
+    WorkSeqPtr mBucketVerifyApplySeq;
+    WorkSeqPtr mTransactionsVerifyApplySeq;
+    WorkSeqPtr mCatchupSeq;
 
     bool hasAnyLedgersToCatchupTo() const;
-    bool downloadLedgers(CheckpointRange const& range);
-    bool verifyLedgers(LedgerRange const& range, LedgerNumHashPair rangeEnd);
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
-    bool downloadBucketsHistoryArchiveState(uint32_t atCheckpoint);
-    bool downloadBuckets();
-    bool applyBuckets();
-    bool downloadTransactions(CheckpointRange const& range);
-    bool applyTransactions(LedgerRange const& range);
+    void assertBucketState();
+
+    void downloadVerifyLedgerChain(CatchupRange catchupRange,
+                                   LedgerNumHashPair rangeEnd);
+    WorkSeqPtr downloadApplyBuckets();
+    WorkSeqPtr downloadApplyTransactions(CatchupRange catchupRange);
 };
 }

@@ -2,40 +2,31 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "DownloadBucketsWork.h"
-#include "VerifyBucketWork.h"
+#include "historywork/DownloadBucketsWork.h"
+#include "catchup/CatchupManager.h"
+#include "history/FileTransferInfo.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
-#include "lib/util/format.h"
-#include "main/Application.h"
+#include "historywork/VerifyBucketWork.h"
+#include "util/format.h"
 
 namespace stellar
 {
 
 DownloadBucketsWork::DownloadBucketsWork(
-    Application& app, WorkParent& parent,
-    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+    Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::vector<std::string> hashes, TmpDir const& downloadDir)
-    : BatchWork{app, parent, "download-verify-buckets"}
+    : BatchWork{app, "download-verify-buckets"}
     , mBuckets{buckets}
     , mHashes{hashes}
     , mNextBucketIter{mHashes.begin()}
     , mDownloadDir{downloadDir}
-    , mDownloadBucketSuccess{app.getMetrics().NewMeter(
-          {"history", "download-bucket", "success"}, "event")}
-    , mDownloadBucketFailure{app.getMetrics().NewMeter(
-          {"history", "download-bucket", "failure"}, "event")}
 {
-}
-
-DownloadBucketsWork::~DownloadBucketsWork()
-{
-    clearChildren();
 }
 
 std::string
 DownloadBucketsWork::getStatus() const
 {
-    if (mState == WORK_RUNNING || mState == WORK_PENDING)
+    if (!isDone() && !isAborting())
     {
         if (!mHashes.empty())
         {
@@ -51,7 +42,7 @@ DownloadBucketsWork::getStatus() const
 }
 
 bool
-DownloadBucketsWork::hasNext()
+DownloadBucketsWork::hasNext() const
 {
     return mNextBucketIter != mHashes.end();
 }
@@ -62,7 +53,7 @@ DownloadBucketsWork::resetIter()
     mNextBucketIter = mHashes.begin();
 }
 
-std::string
+std::shared_ptr<BasicWork>
 DownloadBucketsWork::yieldMoreWork()
 {
     if (!hasNext())
@@ -72,35 +63,14 @@ DownloadBucketsWork::yieldMoreWork()
 
     auto hash = *mNextBucketIter;
     FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-    auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
-                                            hexToBin256(hash));
-    auto download = verify->addWork<GetAndUnzipRemoteFileWork>(ft);
+    auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft);
+    auto w2 = std::make_shared<VerifyBucketWork>(
+        mApp, mBuckets, ft.localPath_nogz(), hexToBin256(hash));
+    std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
+    auto w3 = std::make_shared<WorkSequence>(
+        mApp, "download-verify-sequence-" + hash, seq);
 
     ++mNextBucketIter;
-    return verify->getUniqueName();
-}
-
-void
-DownloadBucketsWork::notify(std::string const& child)
-{
-    auto downloadWork = mChildren.find(child);
-    if (downloadWork != mChildren.end())
-    {
-        switch (downloadWork->second->getState())
-        {
-        case Work::WORK_SUCCESS:
-            mDownloadBucketSuccess.Mark();
-            break;
-        case Work::WORK_FAILURE_RETRY:
-        case Work::WORK_FAILURE_FATAL:
-        case Work::WORK_FAILURE_RAISE:
-            mDownloadBucketFailure.Mark();
-            break;
-        default:
-            break;
-        }
-    }
-
-    BatchWork::notify(child);
+    return w3;
 }
 }
