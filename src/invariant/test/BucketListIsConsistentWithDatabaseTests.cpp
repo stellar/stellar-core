@@ -16,8 +16,10 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Decoder.h"
 #include "util/Math.h"
-#include "work/WorkManager.h"
+#include "util/XDROperators.h"
+#include "work/WorkScheduler.h"
 #include <random>
 #include <unordered_set>
 #include <vector>
@@ -30,6 +32,7 @@ namespace BucketListIsConsistentWithDatabaseTests
 struct BucketListGenerator
 {
     VirtualClock mClock;
+    VirtualClock mApplyClock;
     Application::pointer mAppGenerate;
     Application::pointer mAppApply;
     uint32_t mLedgerSeq;
@@ -38,7 +41,7 @@ struct BucketListGenerator
   public:
     BucketListGenerator()
         : mAppGenerate(createTestApplication(mClock, getTestConfig(0)))
-        , mAppApply(createTestApplication(mClock, getTestConfig(1)))
+        , mAppApply(createTestApplication(mApplyClock, getTestConfig(1)))
         , mLedgerSeq(1)
     {
         auto skey = SecretKey::fromSeed(mAppGenerate->getNetworkID());
@@ -56,7 +59,7 @@ struct BucketListGenerator
     {
         std::map<std::string, std::shared_ptr<Bucket>> buckets;
         auto has = getHistoryArchiveState();
-        auto& wm = mAppApply->getWorkManager();
+        auto& wm = mAppApply->getWorkScheduler();
         wm.executeWork<T>(buckets, has,
                           mAppApply->getConfig().LEDGER_PROTOCOL_VERSION,
                           std::forward<Args>(args)...);
@@ -271,19 +274,19 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
 
   public:
     ApplyBucketsWorkAddEntry(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         LedgerEntry const& entry)
-        : ApplyBucketsWork(app, parent, buckets, applyState, maxProtocolVersion)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
         , mEntry(entry)
         , mAdded{false}
     {
         REQUIRE(entry.lastModifiedLedgerSeq >= 2);
     }
 
-    Work::State
-    onSuccess() override
+    BasicWork::State
+    onRun() override
     {
         if (!mAdded)
         {
@@ -304,8 +307,8 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 mAdded = true;
             }
         }
-        auto r = ApplyBucketsWork::onSuccess();
-        if (r == WORK_SUCCESS)
+        auto r = ApplyBucketsWork::onRun();
+        if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mAdded);
         }
@@ -322,19 +325,19 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 
   public:
     ApplyBucketsWorkDeleteEntry(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         LedgerEntry const& target)
-        : ApplyBucketsWork(app, parent, buckets, applyState, maxProtocolVersion)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mDeleted{false}
     {
     }
 
-    Work::State
-    onSuccess() override
+    BasicWork::State
+    onRun() override
     {
         if (!mDeleted)
         {
@@ -347,8 +350,8 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
                 mDeleted = true;
             }
         }
-        auto r = ApplyBucketsWork::onSuccess();
-        if (r == WORK_SUCCESS)
+        auto r = ApplyBucketsWork::onRun();
+        if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mDeleted);
         }
@@ -408,19 +411,19 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
 
   public:
     ApplyBucketsWorkModifyEntry(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
         LedgerEntry const& target)
-        : ApplyBucketsWork(app, parent, buckets, applyState, maxProtocolVersion)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mModified{false}
     {
     }
 
-    Work::State
-    onSuccess() override
+    BasicWork::State
+    onRun() override
     {
         if (!mModified)
         {
@@ -449,8 +452,8 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 mModified = true;
             }
         }
-        auto r = ApplyBucketsWork::onSuccess();
-        if (r == WORK_SUCCESS)
+        auto r = ApplyBucketsWork::onRun();
+        if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mModified);
         }
