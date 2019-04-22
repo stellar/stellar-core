@@ -11,8 +11,8 @@ namespace stellar
 
 /**
  * WorkScheduler is a top level Work, that is in charge of scheduling
- * cranks (posting to the IO service); this is done via custom
- * implementation of `onWakeUp`, which schedules a crank if necessary.
+ * cranks (posting to the IO service); this is done via supplying any child work
+ * with a `scheduleOne` callback.
  *
  * WorkScheduler attempts fair scheduling by doing round-robin among
  * works that wish to execute.

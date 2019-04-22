@@ -101,6 +101,7 @@ VerifyBucketWork::spawnVerifier()
                         << "expected hash: " << binToHex(hash);
                     CLOG(WARNING, "History")
                         << "computed hash: " << binToHex(vHash);
+                    CLOG(WARNING, "History") << POSSIBLY_CORRUPTED_HISTORY;
                     ec = std::make_error_code(std::errc::io_error);
                 }
             }
