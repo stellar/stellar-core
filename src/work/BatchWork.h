@@ -7,30 +7,39 @@
 
 namespace stellar
 {
+/* This class performs parallel batching of Work by throttling workers.
+   Child classes must supply iteration methods, that would generate work
+   they'd like to perform. This class is simply a coordinator.
 
-class TmpDir;
-
+   Batch work will:
+   * Terminate with a failure if _any_ child work failed
+   * Finish only if all children finished
+   * Add more more if number of running children is less than bandwidth
+**/
 class BatchWork : public Work
 {
-    /* This class performs parallel batching of Work by throttling workers.
-       Child classes must supply iteration methods, that would generate work
-       they'd like to perform. This class only acts as a commander, adding more
-       work if it has bandwidth.
-    **/
+    // Keep track of children here
+    std::map<std::string, std::shared_ptr<BasicWork>> mBatch;
     void addMoreWorkIfNeeded();
 
   public:
-    BatchWork(Application& app, WorkParent& parent, std::string name);
-    ~BatchWork() override;
-    void onReset() override;
+    BatchWork(Application& app, std::string name);
+    ~BatchWork() = default;
 
-    // Note: If a subclass chooses to override notify, it needs to make sure
-    // it calls notify of BatchWork.
-    void notify(std::string const& child) override;
+    size_t
+    getNumWorksInBatch() const
+    {
+        return mBatch.size();
+    }
 
   protected:
-    virtual bool hasNext() = 0;
-    virtual std::string yieldMoreWork() = 0;
+    void doReset() final;
+    State doWork() final;
+
+    // Implementers aren't allowed to edit batching mechanism,
+    // but instead provide iteration methods.
+    virtual bool hasNext() const = 0;
+    virtual std::shared_ptr<BasicWork> yieldMoreWork() = 0;
     virtual void resetIter() = 0;
 };
 }

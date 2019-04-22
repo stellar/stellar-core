@@ -2,49 +2,41 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "BatchWork.h"
+#include "work/BatchWork.h"
 #include "catchup/CatchupManager.h"
-#include "lib/util/format.h"
-#include "main/Application.h"
 #include "util/Logging.h"
+#include "util/format.h"
 
 namespace stellar
 {
 
-BatchWork::BatchWork(Application& app, WorkParent& parent, std::string name)
-    : Work(app, parent, fmt::format("batch-work-" + name), RETRY_NEVER)
+BatchWork::BatchWork(Application& app, std::string name)
+    : Work(app, name, RETRY_NEVER)
 {
-}
-
-BatchWork::~BatchWork()
-{
-    clearChildren();
 }
 
 void
-BatchWork::onReset()
+BatchWork::doReset()
 {
+    mBatch.clear();
     resetIter();
-    clearChildren();
-    addMoreWorkIfNeeded();
 }
 
-void
-BatchWork::notify(std::string const& child)
+BasicWork::State
+BatchWork::doWork()
 {
-    auto i = mChildren.find(child);
-    if (i == mChildren.end())
+    if (anyChildRaiseFailure())
     {
-        CLOG(ERROR, "Work") << "BatchWork notified by unknown child " << child;
-        return;
+        return State::WORK_FAILURE;
     }
 
-    for (auto childIt = mChildren.begin(); childIt != mChildren.end();)
+    // Clean up completed children
+    for (auto childIt = mBatch.begin(); childIt != mBatch.end();)
     {
-        if (childIt->second->getState() == WORK_SUCCESS)
+        if (childIt->second->getState() == State::WORK_SUCCESS)
         {
-            CLOG(DEBUG, "History") << "Finished child work " << childIt->first;
-            childIt = mChildren.erase(childIt);
+            CLOG(DEBUG, "Work") << "Finished child work " << childIt->first;
+            childIt = mBatch.erase(childIt);
         }
         else
         {
@@ -54,16 +46,39 @@ BatchWork::notify(std::string const& child)
 
     addMoreWorkIfNeeded();
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-    advance();
+
+    if (allChildrenSuccessful())
+    {
+        return State::WORK_SUCCESS;
+    }
+
+    if (!anyChildRunning())
+    {
+        return State::WORK_WAITING;
+    }
+
+    return State::WORK_RUNNING;
 }
 
 void
 BatchWork::addMoreWorkIfNeeded()
 {
-    size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
-    while (mChildren.size() < nChildren && hasNext())
+    if (isAborting())
     {
-        yieldMoreWork();
+        throw std::runtime_error(getName() + " is being aborted!");
+    }
+
+    int nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
+    while (mBatch.size() < nChildren && hasNext())
+    {
+        auto w = yieldMoreWork();
+        addWork(nullptr, w);
+        if (mBatch.find(w->getName()) != mBatch.end())
+        {
+            throw std::runtime_error(
+                "BatchWork error: inserting duplicate work!");
+        }
+        mBatch.insert(std::make_pair(w->getName(), w));
     }
 }
 }
