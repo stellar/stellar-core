@@ -8,25 +8,19 @@
 namespace stellar
 {
 
-GunzipFileWork::GunzipFileWork(Application& app, WorkParent& parent,
-                               std::string const& filenameGz, bool keepExisting,
-                               size_t maxRetries)
-    : RunCommandWork(app, parent, std::string("gunzip-file ") + filenameGz,
-                     maxRetries)
+GunzipFileWork::GunzipFileWork(Application& app, std::string const& filenameGz,
+                               bool keepExisting, size_t maxRetries)
+    : RunCommandWork(app, std::string("gunzip-file ") + filenameGz, maxRetries)
     , mFilenameGz(filenameGz)
     , mKeepExisting(keepExisting)
 {
     fs::checkGzipSuffix(mFilenameGz);
 }
 
-GunzipFileWork::~GunzipFileWork()
+CommandInfo
+GunzipFileWork::getCommand()
 {
-    clearChildren();
-}
-
-void
-GunzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
-{
+    std::string cmdLine, outFile;
     cmdLine = "gzip -d ";
     if (mKeepExisting)
     {
@@ -34,6 +28,7 @@ GunzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
         outFile = mFilenameGz.substr(0, mFilenameGz.size() - 3);
     }
     cmdLine += mFilenameGz;
+    return CommandInfo{cmdLine, outFile};
 }
 
 void

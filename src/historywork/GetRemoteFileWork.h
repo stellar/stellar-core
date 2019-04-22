@@ -13,24 +13,25 @@ class HistoryArchive;
 
 class GetRemoteFileWork : public RunCommandWork
 {
-    std::string mRemote;
-    std::string mLocal;
+    std::string const mRemote;
+    std::string const mLocal;
     std::shared_ptr<HistoryArchive> mArchive;
     std::shared_ptr<HistoryArchive> mCurrentArchive;
-    void getCommand(std::string& cmdLine, std::string& outFile) override;
+    CommandInfo getCommand() override;
 
   public:
     // Passing `nullptr` for the archive argument will cause the work to
     // select a new readable history archive at random each time it runs /
     // retries.
-    GetRemoteFileWork(Application& app, WorkParent& parent,
-                      std::string const& remote, std::string const& local,
+    GetRemoteFileWork(Application& app, std::string const& remote,
+                      std::string const& local,
                       std::shared_ptr<HistoryArchive> archive = nullptr,
-                      size_t maxRetries = Work::RETRY_A_LOT);
-    ~GetRemoteFileWork();
-    void onReset() override;
+                      size_t maxRetries = BasicWork::RETRY_A_LOT);
+    ~GetRemoteFileWork() = default;
 
-    Work::State onSuccess() override;
+  protected:
+    void onReset() override;
+    void onSuccess() override;
     void onFailureRaise() override;
 };
 }

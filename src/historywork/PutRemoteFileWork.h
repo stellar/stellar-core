@@ -13,18 +13,19 @@ class HistoryArchive;
 
 class PutRemoteFileWork : public RunCommandWork
 {
-    std::string mRemote;
-    std::string mLocal;
+    std::string const mLocal;
+    std::string const mRemote;
     std::shared_ptr<HistoryArchive> mArchive;
-    void getCommand(std::string& cmdLine, std::string& outFile) override;
+    CommandInfo getCommand() override;
 
   public:
-    PutRemoteFileWork(Application& app, WorkParent& parent,
-                      std::string const& remote, std::string const& local,
+    PutRemoteFileWork(Application& app, std::string const& local,
+                      std::string const& remote,
                       std::shared_ptr<HistoryArchive> archive);
-    ~PutRemoteFileWork();
+    ~PutRemoteFileWork() = default;
 
-    Work::State onSuccess() override;
+  protected:
+    void onSuccess() override;
     void onFailureRaise() override;
 };
 }

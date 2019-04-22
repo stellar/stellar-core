@@ -11,14 +11,16 @@ namespace stellar
 
 class GzipFileWork : public RunCommandWork
 {
-    std::string mFilenameNoGz;
-    bool mKeepExisting;
-    void getCommand(std::string& cmdLine, std::string& outFile) override;
+    std::string const mFilenameNoGz;
+    bool const mKeepExisting;
+    CommandInfo getCommand() override;
 
   public:
-    GzipFileWork(Application& app, WorkParent& parent,
-                 std::string const& filenameNoGz, bool keepExisting = false);
-    ~GzipFileWork();
+    GzipFileWork(Application& app, std::string const& filenameNoGz,
+                 bool keepExisting = false);
+    ~GzipFileWork() = default;
+
+  protected:
     void onReset() override;
 };
 }

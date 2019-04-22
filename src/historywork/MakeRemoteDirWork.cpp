@@ -9,35 +9,30 @@
 namespace stellar
 {
 
-MakeRemoteDirWork::MakeRemoteDirWork(Application& app, WorkParent& parent,
-                                     std::string const& dir,
+MakeRemoteDirWork::MakeRemoteDirWork(Application& app, std::string const& dir,
                                      std::shared_ptr<HistoryArchive> archive)
-    : RunCommandWork(app, parent, std::string("make-remote-dir ") + dir)
+    : RunCommandWork(app, std::string("make-remote-dir ") + dir)
     , mDir(dir)
     , mArchive(archive)
 {
     assert(mArchive);
 }
 
-MakeRemoteDirWork::~MakeRemoteDirWork()
+CommandInfo
+MakeRemoteDirWork::getCommand()
 {
-    clearChildren();
-}
-
-void
-MakeRemoteDirWork::getCommand(std::string& cmdLine, std::string& outFile)
-{
+    std::string cmdLine;
     if (mArchive->hasMkdirCmd())
     {
         cmdLine = mArchive->mkdirCmd(mDir);
     }
+    return CommandInfo{cmdLine, std::string()};
 }
 
-Work::State
+void
 MakeRemoteDirWork::onSuccess()
 {
     mArchive->markSuccess();
-    return RunCommandWork::onSuccess();
 }
 
 void
