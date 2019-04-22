@@ -49,11 +49,15 @@ class ProcessManager : public std::enable_shared_from_this<ProcessManager>,
 {
   public:
     static std::shared_ptr<ProcessManager> create(Application& app);
-    virtual ProcessExitEvent runProcess(std::string const& cmdLine,
-                                        std::string outputFile = "") = 0;
+    virtual std::weak_ptr<ProcessExitEvent>
+    runProcess(std::string const& cmdLine, std::string outputFile) = 0;
     virtual size_t getNumRunningProcesses() = 0;
     virtual bool isShutdown() const = 0;
     virtual void shutdown() = 0;
+
+    // Depending on the state of the process, either kill the process nicely
+    // or force shutdown it
+    virtual bool tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe) = 0;
     virtual ~ProcessManager()
     {
     }
