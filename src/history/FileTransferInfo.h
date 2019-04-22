@@ -51,15 +51,10 @@ class FileTransferInfo
     {
     }
 
-    bool
-    getBucketHashName(std::string& hash) const
+    std::string
+    getType() const
     {
-        if (mHexDigits.size() == 64 && mType == HISTORY_FILE_TYPE_BUCKET)
-        {
-            hash = mHexDigits;
-            return true;
-        }
-        return false;
+        return mType;
     }
 
     std::string

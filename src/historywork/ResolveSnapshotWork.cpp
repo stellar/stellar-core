@@ -11,32 +11,44 @@ namespace stellar
 {
 
 ResolveSnapshotWork::ResolveSnapshotWork(
-    Application& app, WorkParent& parent,
-    std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, "prepare-snapshot", Work::RETRY_FOREVER)
+    Application& app, std::shared_ptr<StateSnapshot> snapshot)
+    : BasicWork(app, "prepare-snapshot", Work::RETRY_NEVER)
     , mSnapshot(snapshot)
+    , mTimer(std::make_unique<VirtualTimer>(app.getClock()))
 {
 }
 
-ResolveSnapshotWork::~ResolveSnapshotWork()
-{
-    clearChildren();
-}
-
-void
+BasicWork::State
 ResolveSnapshotWork::onRun()
 {
+    if (mEc)
+    {
+        return State::WORK_FAILURE;
+    }
+
     mSnapshot->mLocalState.resolveAnyReadyFutures();
     mSnapshot->makeLive();
     if ((mApp.getLedgerManager().getLastClosedLedgerNum() >
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
-        scheduleSuccess();
+        return State::WORK_SUCCESS;
     }
     else
     {
-        scheduleFailure();
+        std::weak_ptr<ResolveSnapshotWork> weak(
+            std::static_pointer_cast<ResolveSnapshotWork>(shared_from_this()));
+        auto handler = [weak](asio::error_code const& ec) {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->mEc = ec;
+                self->wakeUp();
+            }
+        };
+        mTimer->expires_from_now(std::chrono::seconds(1));
+        mTimer->async_wait(handler);
+        return State::WORK_WAITING;
     }
 }
 }

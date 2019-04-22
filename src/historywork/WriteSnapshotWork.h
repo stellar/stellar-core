@@ -11,15 +11,23 @@ namespace stellar
 
 struct StateSnapshot;
 
-class WriteSnapshotWork : public Work
+class WriteSnapshotWork : public BasicWork
 {
     std::shared_ptr<StateSnapshot> mSnapshot;
+    bool mDone{false};
+    bool mSuccess{true};
 
   public:
-    WriteSnapshotWork(Application& app, WorkParent& parent,
+    WriteSnapshotWork(Application& app,
                       std::shared_ptr<StateSnapshot> snapshot);
-    ~WriteSnapshotWork();
-    void onStart() override;
-    void onRun() override;
+    ~WriteSnapshotWork() = default;
+
+  protected:
+    State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
 };
 }
