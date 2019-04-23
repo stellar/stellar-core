@@ -1711,6 +1711,15 @@
     <None Include="..\..\src\overlay\readme.md">
       <Filter>overlay</Filter>
     </None>
+    <None Include="..\..\docs\software\performance.md">
+      <Filter>docs\software</Filter>
+    </None>
+    <None Include="..\..\docs\software\security-protocol-release-notes.md">
+      <Filter>docs\software</Filter>
+    </None>
+    <None Include="..\..\docs\stellar-core.1.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
