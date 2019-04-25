@@ -73,7 +73,7 @@ class ProcessExitEvent::Impl
         , mCmdLine(cmdLine)
         , mOutFile(outFile)
 #ifdef _WIN32
-        , mProcessHandle(outerTimer->get_io_context())
+        , mProcessHandle(outerTimer->get_executor())
 #endif
         , mProcManagerImpl(pm)
     {
