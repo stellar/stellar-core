@@ -299,8 +299,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
-    <ClCompile Include="..\..\src\historywork\BatchWork.cpp" />
-    <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp" />
+    <ClCompile Include="..\..\src\work\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.cpp" />
@@ -308,6 +307,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\GetRemoteFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\GzipAndPutFilesWork.cpp" />
     <ClCompile Include="..\..\src\historywork\MakeRemoteDirWork.cpp" />
     <ClCompile Include="..\..\src\historywork\Progress.cpp" />
     <ClCompile Include="..\..\src\historywork\PublishWork.cpp" />
@@ -543,9 +543,10 @@ exit /b 0
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
     <ClCompile Include="..\..\src\work\test\WorkTests.cpp" />
+    <ClCompile Include="..\..\src\work\BasicWork.cpp" />
     <ClCompile Include="..\..\src\work\Work.cpp" />
-    <ClCompile Include="..\..\src\work\WorkManagerImpl.cpp" />
-    <ClCompile Include="..\..\src\work\WorkParent.cpp" />
+    <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
+    <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\catch.hpp" />
@@ -595,8 +596,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
-    <ClInclude Include="..\..\src\historywork\BatchWork.h" />
-    <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h" />
+    <ClInclude Include="..\..\src\work\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h" />
     <ClInclude Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.h" />
@@ -604,6 +604,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\GetRemoteFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GunzipFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GzipFileWork.h" />
+    <ClInclude Include="..\..\src\historywork\GzipAndPutFilesWork.h" />
     <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h" />
     <ClInclude Include="..\..\src\historywork\Progress.h" />
     <ClInclude Include="..\..\src\historywork\PublishWork.h" />
@@ -762,10 +763,10 @@ exit /b 0
     <ClInclude Include="..\..\src\util\MetricResetter.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
     <ClInclude Include="..\..\src\util\RandomEvictionCache.h" />
+    <ClInclude Include="..\..\src\work\BasicWork.h" />
     <ClInclude Include="..\..\src\work\Work.h" />
-    <ClInclude Include="..\..\src\work\WorkManager.h" />
-    <ClInclude Include="..\..\src\work\WorkManagerImpl.h" />
-    <ClInclude Include="..\..\src\work\WorkParent.h" />
+    <ClInclude Include="..\..\src\work\WorkScheduler.h" />
+    <ClInclude Include="..\..\src\work\WorkSequence.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger-entries.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger.h" />
     <ClInclude Include="src\generated\xdr\Stellar-overlay.h" />

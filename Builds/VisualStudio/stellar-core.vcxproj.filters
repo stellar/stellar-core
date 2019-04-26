@@ -267,13 +267,16 @@
     <ClCompile Include="..\..\lib\util\crc16.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\work\BasicWork.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\work\Work.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkManagerImpl.cpp">
+    <ClCompile Include="..\..\src\work\WorkScheduler.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkParent.cpp">
+    <ClCompile Include="..\..\src\work\WorkSequence.cpp">
       <Filter>work</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp">
@@ -354,11 +357,8 @@
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\historywork\BatchWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp">
-      <Filter>historyWork</Filter>
+    <ClCompile Include="..\..\src\work\BatchWork.cpp">
+      <Filter>work</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp">
       <Filter>historyWork</Filter>
@@ -376,6 +376,9 @@
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\GzipAndPutFilesWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp">
@@ -1088,16 +1091,16 @@
     <ClInclude Include="..\..\lib\catch.hpp">
       <Filter>lib</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\work\BasicWork.h">
+      <Filter>work</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\work\Work.h">
       <Filter>work</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\work\WorkManager.h">
+    <ClInclude Include="..\..\src\work\WorkScheduler.h">
       <Filter>work</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\work\WorkManagerImpl.h">
-      <Filter>work</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\work\WorkParent.h">
+    <ClInclude Include="..\..\src\work\WorkSequence.h">
       <Filter>work</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
@@ -1193,11 +1196,8 @@
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\historywork\BatchWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h">
-      <Filter>historyWork</Filter>
+    <ClInclude Include="..\..\src\work\BatchWork.h">
+      <Filter>work</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h">
       <Filter>historyWork</Filter>
@@ -1218,6 +1218,9 @@
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\GzipFileWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\GzipAndPutFilesWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h">
