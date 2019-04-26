@@ -18,7 +18,6 @@ class PutSnapshotFilesWork : public Work
     std::shared_ptr<StateSnapshot> mSnapshot;
     HistoryArchiveState mRemoteState;
     bool mStarted{false};
-    bool mSomeFailed{false};
 
   public:
     PutSnapshotFilesWork(Application& app,
