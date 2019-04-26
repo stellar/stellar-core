@@ -20,7 +20,7 @@
 #include "test/test.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include <medida/metrics_registry.h>
 
@@ -170,25 +170,29 @@ TestBucketGenerator::generateBucket(TestBucketState state)
     {
         FileTransferInfo ft{mTmpDir->getName(), HISTORY_FILE_TYPE_BUCKET,
                             binToHex(hash)};
-        auto& wm = mApp.getWorkManager();
+        auto& wm = mApp.getWorkScheduler();
         auto archive =
             mApp.getHistoryArchiveManager().getHistoryArchive("test");
-        auto put = wm.addWork<PutRemoteFileWork>(filename + ".gz",
-                                                 ft.remoteName(), archive);
-        auto mkdir = put->addWork<MakeRemoteDirWork>(ft.remoteDir(), archive);
+        auto put = std::make_shared<PutRemoteFileWork>(
+            mApp, filename + ".gz", ft.remoteName(), archive);
+        auto mkdir =
+            std::make_shared<MakeRemoteDirWork>(mApp, ft.remoteDir(), archive);
+
+        std::vector<std::shared_ptr<BasicWork>> seq;
 
         if (state != TestBucketState::CORRUPTED_ZIPPED_FILE)
         {
-            auto gzip = mkdir->addWork<GzipFileWork>(filename, true);
-            gzip->advance();
+            seq = {std::make_shared<GzipFileWork>(mApp, filename, true), mkdir,
+                   put};
         }
         else
         {
             std::ofstream out(filename + ".gz");
             out.close();
-            mkdir->advance();
+            seq = {mkdir, put};
         }
 
+        wm.scheduleWork<WorkSequence>("bucket-publish-seq", seq);
         while (!mApp.getClock().getIOContext().stopped() &&
                !wm.allChildrenDone())
         {
@@ -526,7 +530,7 @@ void
 CatchupSimulation::ensurePublishesComplete()
 {
     auto& hm = mApp.getHistoryManager();
-    while (!mApp.getWorkManager().allChildrenDone() ||
+    while (!mApp.getWorkScheduler().allChildrenDone() ||
            (hm.getPublishSuccessCount() < hm.getPublishQueueCount()))
     {
         REQUIRE(hm.getPublishFailureCount() == 0);
@@ -565,7 +569,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
                               VirtualClock::duration timeout)
 {
     auto start = std::chrono::system_clock::now();
-    while (!app->getWorkManager().allChildrenDone() || !predicate())
+    while (!app->getWorkScheduler().allChildrenDone() || !predicate())
     {
         app->getClock().crank(false);
         auto current = std::chrono::system_clock::now();
@@ -593,8 +597,10 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
     mCfgs.back().LEDGER_PROTOCOL_VERSION = protocolVersion;
+    mSpawnedAppsClocks.emplace_front();
     return createTestApplication(
-        mClock, mHistoryConfigurator->configure(mCfgs.back(), false));
+        mSpawnedAppsClocks.front(),
+        mHistoryConfigurator->configure(mCfgs.back(), false));
 }
 
 bool

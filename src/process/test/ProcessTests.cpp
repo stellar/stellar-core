@@ -27,8 +27,9 @@ TEST_CASE("subprocess", "[process]")
     Application::pointer app = createTestApplication(clock, cfg);
     bool exited = false;
     bool failed = false;
-    auto evt = app->getProcessManager().runProcess("hostname");
-    evt.async_wait([&](asio::error_code ec) {
+    auto evt = app->getProcessManager().runProcess("hostname", "").lock();
+    REQUIRE(evt);
+    evt->async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
         {
@@ -52,8 +53,11 @@ TEST_CASE("subprocess fails", "[process]")
     Application::pointer app = createTestApplication(clock, cfg);
     bool exited = false;
     bool failed = false;
-    auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
-    evt.async_wait([&](asio::error_code ec) {
+    auto evt = app->getProcessManager()
+                   .runProcess("hostname -xsomeinvalid", "")
+                   .lock();
+    REQUIRE(evt);
+    evt->async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
         {
@@ -78,8 +82,9 @@ TEST_CASE("subprocess redirect to file", "[process]")
     Application& app = *appPtr;
     std::string filename("hostname.txt");
     bool exited = false;
-    auto evt = app.getProcessManager().runProcess("hostname", filename);
-    evt.async_wait([&](asio::error_code ec) {
+    auto evt = app.getProcessManager().runProcess("hostname", filename).lock();
+    REQUIRE(evt);
+    evt->async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
         {
@@ -126,8 +131,11 @@ TEST_CASE("subprocess storm", "[process]")
             std::ofstream out(src);
             out << i;
         }
-        auto evt = app.getProcessManager().runProcess("mv " + src + " " + dst);
-        evt.async_wait([&](asio::error_code ec) {
+        auto evt = app.getProcessManager()
+                       .runProcess("mv " + src + " " + dst, "")
+                       .lock();
+        REQUIRE(evt);
+        evt->async_wait([&](asio::error_code ec) {
             CLOG(INFO, "Process") << "process exited: " << ec;
             if (ec)
             {
@@ -161,11 +169,13 @@ TEST_CASE("subprocess storm", "[process]")
 
 TEST_CASE("shutdown while process running", "[process]")
 {
-    VirtualClock clock;
+    VirtualClock clock1;
+    VirtualClock clock2;
+
     auto const& cfg1 = getTestConfig(0);
     auto const& cfg2 = getTestConfig(1);
-    auto app1 = createTestApplication(clock, cfg1);
-    auto app2 = createTestApplication(clock, cfg2);
+    auto app1 = createTestApplication(clock1, cfg1);
+    auto app2 = createTestApplication(clock2, cfg2);
 #ifdef _WIN32
     std::string command = "waitfor /T 10 pause";
 #else
@@ -173,12 +183,13 @@ TEST_CASE("shutdown while process running", "[process]")
 #endif
     std::vector<asio::error_code> errorCodes;
     size_t exitedCount = 0;
-    std::vector<ProcessExitEvent> events = {
-        app1->getProcessManager().runProcess(command),
-        app2->getProcessManager().runProcess(command)};
-    for (auto& event : events)
+    std::vector<std::shared_ptr<ProcessExitEvent>> events = {
+        app1->getProcessManager().runProcess(command, "").lock(),
+        app2->getProcessManager().runProcess(command, "").lock()};
+    for (auto const& event : events)
     {
-        event.async_wait([&](asio::error_code ec) {
+        REQUIRE(event);
+        event->async_wait([&](asio::error_code ec) {
             CLOG(DEBUG, "Process") << "process exited: " << ec;
             if (ec)
             {
@@ -196,13 +207,54 @@ TEST_CASE("shutdown while process running", "[process]")
     app1->getProcessManager().shutdown();
     app2->getProcessManager().shutdown();
 
-    while (exitedCount < events.size() && !clock.getIOContext().stopped())
+    while (exitedCount < events.size() && !clock1.getIOContext().stopped() &&
+           !clock2.getIOContext().stopped())
     {
-        clock.crank(true);
+        clock1.crank(true);
+        clock2.crank(true);
     }
     REQUIRE(exitedCount == events.size());
     for (auto const& errorCode : errorCodes)
     {
         REQUIRE(errorCode == asio::error::operation_aborted);
     }
+}
+
+TEST_CASE("ProcessManager::tryProcessShutdown test", "[process]")
+{
+    VirtualClock clock;
+    auto const& cfg = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg);
+
+#ifdef _WIN32
+    std::string command = "waitfor /T 10 pause";
+#else
+    std::string command = "sleep 10";
+#endif
+    std::shared_ptr<ProcessExitEvent> event =
+        app->getProcessManager().runProcess(command, "").lock();
+
+    asio::error_code errorCode;
+    bool exited = false;
+
+    REQUIRE(event);
+    event->async_wait([&](asio::error_code ec) {
+        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        if (ec)
+        {
+            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+        }
+        errorCode = ec;
+        exited = true;
+    });
+
+    // Wait, just in case the processes haven't started yet
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    app->getProcessManager().tryProcessShutdown(event);
+    while (!exited && !clock.getIOContext().stopped())
+    {
+        clock.crank(true);
+    }
+    REQUIRE(errorCode == asio::error::operation_aborted);
 }

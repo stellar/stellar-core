@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "catchup/CatchupConfiguration.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerRange.h"
 #include "work/Work.h"
@@ -23,7 +22,7 @@ struct LedgerHeaderHistoryEntry;
 // This class verifies ledger chain of a given range by checking the hashes.
 // Note that verification is done starting with the latest checkpoint in the
 // range, and working its way backwards to the beginning of the range.
-class VerifyLedgerChainWork : public Work
+class VerifyLedgerChainWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
     LedgerRange const mRange;
@@ -46,19 +45,27 @@ class VerifyLedgerChainWork : public Work
     HistoryManager::LedgerVerificationStatus verifyHistoryOfSingleCheckpoint();
 
   public:
-    VerifyLedgerChainWork(Application& app, WorkParent& parent,
-                          TmpDir const& downloadDir, LedgerRange range,
+    VerifyLedgerChainWork(Application& app, TmpDir const& downloadDir,
+                          LedgerRange range,
                           LedgerNumHashPair const& lastClosedLedger,
                           LedgerNumHashPair ledgerRangeEnd);
-    ~VerifyLedgerChainWork() override;
+    ~VerifyLedgerChainWork() override = default;
     std::string getStatus() const override;
-    void onReset() override;
-    Work::State onSuccess() override;
 
     LedgerHeaderHistoryEntry
     getVerifiedLedgerRangeStart()
     {
         return mVerifiedLedgerRangeStart;
     }
+
+  protected:
+    void onReset() override;
+
+    BasicWork::State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
 };
 }

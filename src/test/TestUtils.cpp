@@ -4,6 +4,8 @@
 
 #include "TestUtils.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "test/test.h"
+#include "work/WorkScheduler.h"
 
 namespace stellar
 {
@@ -20,6 +22,17 @@ crankSome(VirtualClock& clock)
           clock.crank(false) > 0);
          ++i)
         ;
+}
+
+void
+shutdownWorkScheduler(Application& app)
+{
+    REQUIRE(!app.getClock().getIOContext().stopped());
+    app.getWorkScheduler().shutdown();
+    while (app.getWorkScheduler().getState() != BasicWork::State::WORK_ABORTED)
+    {
+        app.getClock().crank();
+    }
 }
 
 void

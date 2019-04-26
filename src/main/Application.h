@@ -37,7 +37,7 @@ class OverlayManager;
 class Database;
 class PersistentState;
 class CommandHandler;
-class WorkManager;
+class WorkScheduler;
 class BanManager;
 class StatusManager;
 class LedgerTxnRoot;
@@ -208,7 +208,7 @@ class Application
     virtual Database& getDatabase() const = 0;
     virtual PersistentState& getPersistentState() = 0;
     virtual CommandHandler& getCommandHandler() = 0;
-    virtual WorkManager& getWorkManager() = 0;
+    virtual WorkScheduler& getWorkScheduler() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
 

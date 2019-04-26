@@ -23,10 +23,10 @@ namespace stellar
 {
 
 ApplyBucketsWork::ApplyBucketsWork(
-    Application& app, WorkParent& parent,
+    Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
     HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
-    : Work(app, parent, std::string("apply-buckets"))
+    : BasicWork(app, "apply-buckets", RETRY_A_FEW)
     , mBuckets(buckets)
     , mApplyState(applyState)
     , mApplying(false)
@@ -41,11 +41,6 @@ ApplyBucketsWork::ApplyBucketsWork(
           {"history", "bucket-apply", "failure"}, "event"))
     , mCounters(app.getClock().now())
 {
-}
-
-ApplyBucketsWork::~ApplyBucketsWork()
-{
-    clearChildren();
 }
 
 BucketLevel&
@@ -76,18 +71,21 @@ ApplyBucketsWork::onReset()
     mLastAppliedSizeMb = 0;
     mLastPos = 0;
 
-    auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
-        if (bucket->getSize() > 0)
-        {
-            mTotalBuckets++;
-            mTotalSize += bucket->getSize();
-        }
-    };
-
-    for (auto const& hsb : mApplyState.currentBuckets)
+    if (!isAborting())
     {
-        addBucket(getBucket(hsb.snap));
-        addBucket(getBucket(hsb.curr));
+        auto addBucket = [this](std::shared_ptr<Bucket const> const& bucket) {
+            if (bucket->getSize() > 0)
+            {
+                mTotalBuckets++;
+                mTotalSize += bucket->getSize();
+            }
+        };
+
+        for (auto const& hsb : mApplyState.currentBuckets)
+        {
+            addBucket(getBucket(hsb.snap));
+            addBucket(getBucket(hsb.curr));
+        }
     }
 
     mLevel = BucketList::kNumLevels - 1;
@@ -99,8 +97,11 @@ ApplyBucketsWork::onReset()
 }
 
 void
-ApplyBucketsWork::onStart()
+ApplyBucketsWork::startLevel()
 {
+    assert(isLevelComplete());
+
+    CLOG(DEBUG, "History") << "ApplyBuckets : starting level " << mLevel;
     auto& level = getBucketLevel(mLevel);
     HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
 
@@ -139,9 +140,15 @@ ApplyBucketsWork::onStart()
     }
 }
 
-void
+BasicWork::State
 ApplyBucketsWork::onRun()
 {
+    // Check if we're at the beginning of the new level
+    if (isLevelComplete())
+    {
+        startLevel();
+    }
+
     // The structure of these if statements is motivated by the following:
     // 1. mCurrApplicator should never be advanced if mSnapApplicator is
     //    not false. Otherwise it is possible for curr to modify the
@@ -150,24 +157,50 @@ ApplyBucketsWork::onRun()
     //    if there is nothing to be applied.
     if (mSnapApplicator)
     {
-        advance("snap", *mSnapApplicator);
+        if (*mSnapApplicator)
+        {
+            advance("snap", *mSnapApplicator);
+            return State::WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+            mSnapBucket, mApplyState.currentLedger, mLevel, false);
+        mSnapApplicator.reset();
+        mSnapBucket.reset();
+        mBucketApplySuccess.Mark();
     }
-    else if (mCurrApplicator)
+    if (mCurrApplicator)
     {
-        advance("curr", *mCurrApplicator);
+        if (*mCurrApplicator)
+        {
+            advance("curr", *mCurrApplicator);
+            return State::WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+            mCurrBucket, mApplyState.currentLedger, mLevel, true);
+        mCurrApplicator.reset();
+        mCurrBucket.reset();
+        mBucketApplySuccess.Mark();
     }
-    scheduleSuccess();
+
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+    if (mLevel != 0)
+    {
+        --mLevel;
+        CLOG(DEBUG, "History")
+            << "ApplyBuckets : starting next level: " << mLevel;
+        return State::WORK_RUNNING;
+    }
+
+    CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
+    mApp.getBucketManager().assumeState(mApplyState, mMaxProtocolVersion);
+    return State::WORK_SUCCESS;
 }
 
 void
 ApplyBucketsWork::advance(std::string const& bucketName,
                           BucketApplicator& applicator)
 {
-    if (!applicator)
-    {
-        return;
-    }
-
+    assert(applicator);
     assert(mTotalSize != 0);
     auto sz = applicator.advance(mCounters);
     mAppliedEntries += sz;
@@ -206,60 +239,21 @@ ApplyBucketsWork::advance(std::string const& bucketName,
     }
 }
 
-Work::State
-ApplyBucketsWork::onSuccess()
+bool
+ApplyBucketsWork::isLevelComplete()
 {
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-
-    if (mSnapApplicator)
-    {
-        if (*mSnapApplicator)
-        {
-            return WORK_RUNNING;
-        }
-        mApp.getInvariantManager().checkOnBucketApply(
-            mSnapBucket, mApplyState.currentLedger, mLevel, false);
-        mSnapApplicator.reset();
-        mSnapBucket.reset();
-        mBucketApplySuccess.Mark();
-    }
-    if (mCurrApplicator)
-    {
-        if (*mCurrApplicator)
-        {
-            return WORK_RUNNING;
-        }
-        mApp.getInvariantManager().checkOnBucketApply(
-            mCurrBucket, mApplyState.currentLedger, mLevel, true);
-        mCurrApplicator.reset();
-        mCurrBucket.reset();
-        mBucketApplySuccess.Mark();
-    }
-
-    if (mLevel != 0)
-    {
-        --mLevel;
-        CLOG(DEBUG, "History")
-            << "ApplyBuckets : starting next level: " << mLevel;
-        return WORK_PENDING;
-    }
-
-    CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    mApp.getBucketManager().assumeState(mApplyState, mMaxProtocolVersion);
-    return WORK_SUCCESS;
-}
-
-void
-ApplyBucketsWork::onFailureRetry()
-{
-    mBucketApplyFailure.Mark();
-    Work::onFailureRetry();
+    return !(mApplying) || !(mSnapApplicator || mCurrApplicator);
 }
 
 void
 ApplyBucketsWork::onFailureRaise()
 {
     mBucketApplyFailure.Mark();
-    Work::onFailureRaise();
+}
+
+void
+ApplyBucketsWork::onFailureRetry()
+{
+    mBucketApplyFailure.Mark();
 }
 }

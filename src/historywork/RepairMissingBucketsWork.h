@@ -4,26 +4,38 @@
 
 #pragma once
 
-#include "historywork/BucketDownloadWork.h"
+#include "history/HistoryArchive.h"
+#include "work/Work.h"
 
 namespace stellar
 {
 
+class Bucket;
+class TmpDir;
+
 struct HistoryArchiveState;
 
-class RepairMissingBucketsWork : public BucketDownloadWork
+class RepairMissingBucketsWork : public Work
 {
+    using Handler = std::function<void(asio::error_code const& ec)>;
+    Handler mEndHandler;
+    bool mChildrenStarted{false};
 
-    typedef std::function<void(asio::error_code const& ec)> handler;
-    handler mEndHandler;
+    HistoryArchiveState mLocalState;
+    std::unique_ptr<TmpDir> mDownloadDir;
+    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
 
   public:
-    RepairMissingBucketsWork(Application& app, WorkParent& parent,
+    RepairMissingBucketsWork(Application& app,
                              HistoryArchiveState const& localState,
-                             handler endHandler);
-    ~RepairMissingBucketsWork();
-    void onReset() override;
+                             Handler endHandler);
+    ~RepairMissingBucketsWork() = default;
+
+  protected:
+    void doReset() override;
+    State doWork() override;
+
     void onFailureRaise() override;
-    Work::State onSuccess() override;
+    void onSuccess() override;
 };
 }

@@ -15,7 +15,7 @@
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "util/Logging.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include <lib/http/HttpClient.h>
 #include <locale>
@@ -246,12 +246,12 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
     }
 
     auto state = HistoryArchiveState{};
-    auto& wm = app->getWorkManager();
+    auto& wm = app->getWorkScheduler();
     auto getHistoryArchiveStateWork =
-        wm.executeWork<GetHistoryArchiveStateWork>(
-            "get-history-archive-state-work", state);
+        wm.executeWork<GetHistoryArchiveStateWork>(state);
 
-    auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
+    auto ok = getHistoryArchiveStateWork->getState() ==
+              BasicWork::State::WORK_SUCCESS;
     if (ok)
     {
         std::string filename = outputFile.empty() ? "-" : outputFile;

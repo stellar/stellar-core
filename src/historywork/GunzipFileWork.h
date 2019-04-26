@@ -11,15 +11,17 @@ namespace stellar
 
 class GunzipFileWork : public RunCommandWork
 {
-    std::string mFilenameGz;
-    bool mKeepExisting;
-    void getCommand(std::string& cmdLine, std::string& outFile) override;
+    std::string const mFilenameGz;
+    bool const mKeepExisting;
+    CommandInfo getCommand() override;
 
   public:
-    GunzipFileWork(Application& app, WorkParent& parent,
-                   std::string const& filenameGz, bool keepExisting = false,
+    GunzipFileWork(Application& app, std::string const& filenameGz,
+                   bool keepExisting = false,
                    size_t maxRetries = Work::RETRY_NEVER);
-    ~GunzipFileWork();
+    ~GunzipFileWork() = default;
+
+  protected:
     void onReset() override;
 };
 }

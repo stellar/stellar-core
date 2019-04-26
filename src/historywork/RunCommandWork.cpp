@@ -9,36 +9,71 @@
 namespace stellar
 {
 
-RunCommandWork::RunCommandWork(Application& app, WorkParent& parent,
-                               std::string const& uniqueName, size_t maxRetries)
-    : Work(app, parent, uniqueName, maxRetries)
+RunCommandWork::RunCommandWork(Application& app, std::string const& name,
+                               size_t maxRetries)
+    : BasicWork(app, name, maxRetries)
 {
 }
 
-RunCommandWork::~RunCommandWork()
+BasicWork::State
+RunCommandWork::onRun()
 {
-    clearChildren();
-}
-
-void
-RunCommandWork::onStart()
-{
-    std::string cmd, outfile;
-    getCommand(cmd, outfile);
-    if (!cmd.empty())
+    if (mDone)
     {
-        auto exit = mApp.getProcessManager().runProcess(cmd, outfile);
-        exit.async_wait(callComplete());
+        return mEc ? State::WORK_FAILURE : State::WORK_SUCCESS;
     }
     else
     {
-        scheduleSuccess();
+        CommandInfo commandInfo = getCommand();
+        auto cmd = commandInfo.mCommand;
+        auto outfile = commandInfo.mOutFile;
+        if (!cmd.empty())
+        {
+            mExitEvent = mApp.getProcessManager().runProcess(cmd, outfile);
+            auto exit = mExitEvent.lock();
+            if (!exit)
+            {
+                return State::WORK_FAILURE;
+            }
+
+            std::weak_ptr<RunCommandWork> weak(
+                std::static_pointer_cast<RunCommandWork>(shared_from_this()));
+            exit->async_wait([weak](asio::error_code const& ec) {
+                auto self = weak.lock();
+                if (self)
+                {
+                    self->mEc = ec;
+                    self->mDone = true;
+                    self->wakeUp();
+                }
+            });
+            return State::WORK_WAITING;
+        }
+        else
+        {
+            return State::WORK_SUCCESS;
+        }
     }
 }
 
 void
-RunCommandWork::onRun()
+RunCommandWork::onReset()
 {
-    // Do nothing: we ran the command in onStart().
+    mDone = false;
+    mEc = asio::error_code();
+    mExitEvent.reset();
+}
+
+bool
+RunCommandWork::onAbort()
+{
+    auto process = mExitEvent.lock();
+    if (!process)
+    {
+        // Process is already destroyed, complete abort
+        return true;
+    }
+
+    return mApp.getProcessManager().tryProcessShutdown(process);
 }
 }

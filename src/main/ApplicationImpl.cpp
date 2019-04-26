@@ -46,7 +46,7 @@
 #include "util/StatusManager.h"
 #include "util/Thread.h"
 #include "util/TmpDir.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #ifdef BUILD_TESTS
 #include "simulation/LoadGenerator.h"
@@ -130,7 +130,7 @@ ApplicationImpl::initialize()
     mMaintainer = std::make_unique<Maintainer>(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
-    mWorkManager = WorkManager::create(*this);
+    mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
     mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
@@ -292,6 +292,7 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    shutdownWorkScheduler();
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -418,6 +419,7 @@ ApplicationImpl::gracefulStop()
     {
         mOverlayManager->shutdown();
     }
+    shutdownWorkScheduler();
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -444,6 +446,20 @@ ApplicationImpl::shutdownMainIOContext()
         while (mVirtualClock.cancelAllEvents())
             ;
         mVirtualClock.getIOContext().stop();
+    }
+}
+
+void
+ApplicationImpl::shutdownWorkScheduler()
+{
+    if (mWorkScheduler)
+    {
+        mWorkScheduler->shutdown();
+
+        while (mWorkScheduler->getState() != BasicWork::State::WORK_ABORTED)
+        {
+            mVirtualClock.crank();
+        }
     }
 }
 
@@ -715,10 +731,10 @@ ApplicationImpl::getCommandHandler()
     return *mCommandHandler;
 }
 
-WorkManager&
-ApplicationImpl::getWorkManager()
+WorkScheduler&
+ApplicationImpl::getWorkScheduler()
 {
-    return *mWorkManager;
+    return *mWorkScheduler;
 }
 
 BanManager&

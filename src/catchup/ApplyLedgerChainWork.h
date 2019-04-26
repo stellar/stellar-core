@@ -42,10 +42,11 @@ struct LedgerHeaderHistoryEntry;
  * history)
  * * lastApplied - reference to last applied ledger header (which is LCL)
  */
-class ApplyLedgerChainWork : public Work
+
+class ApplyLedgerChainWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
-    LedgerRange mRange;
+    LedgerRange const mRange;
     uint32_t mCurrSeq;
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
@@ -55,19 +56,26 @@ class ApplyLedgerChainWork : public Work
     medida::Meter& mApplyLedgerSuccess;
     medida::Meter& mApplyLedgerFailure;
 
+    bool mFilesOpen{false};
+
     TxSetFramePtr getCurrentTxSet();
     void openCurrentInputFiles();
     bool applyHistoryOfSingleLedger();
 
   public:
-    ApplyLedgerChainWork(Application& app, WorkParent& parent,
-                         TmpDir const& downloadDir, LedgerRange range,
+    ApplyLedgerChainWork(Application& app, TmpDir const& downloadDir,
+                         LedgerRange range,
                          LedgerHeaderHistoryEntry& lastApplied);
-    ~ApplyLedgerChainWork();
+    ~ApplyLedgerChainWork() = default;
     std::string getStatus() const override;
+
+  protected:
     void onReset() override;
-    void onStart() override;
-    void onRun() override;
-    Work::State onSuccess() override;
+    State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
 };
 }

@@ -21,10 +21,10 @@ class Bucket;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
-class ApplyBucketsWork : public Work
+class ApplyBucketsWork : public BasicWork
 {
     std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
-    const HistoryArchiveState& mApplyState;
+    HistoryArchiveState const& mApplyState;
 
     bool mApplying;
     size_t mTotalBuckets;
@@ -46,22 +46,28 @@ class ApplyBucketsWork : public Work
     medida::Meter& mBucketApplyFailure;
     BucketApplicator::Counters mCounters;
 
+    void advance(std::string const& name, BucketApplicator& applicator);
     std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(uint32_t level);
-    void advance(std::string const& name, BucketApplicator& applicator);
+    void startLevel();
+    bool isLevelComplete();
 
   public:
     ApplyBucketsWork(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
-    ~ApplyBucketsWork();
+    ~ApplyBucketsWork() = default;
 
+  protected:
     void onReset() override;
-    void onStart() override;
-    void onRun() override;
-    Work::State onSuccess() override;
-    void onFailureRetry() override;
+    BasicWork::State onRun() override;
+    bool
+    onAbort() override
+    {
+        return true;
+    };
     void onFailureRaise() override;
+    void onFailureRetry() override;
 };
 }

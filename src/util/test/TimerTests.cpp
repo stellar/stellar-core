@@ -186,6 +186,9 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     CHECK(app1Event == 2);
     CHECK(app2Event == 1);
     CHECK(timerFired == 2);
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("timer cancels", "[timer]")

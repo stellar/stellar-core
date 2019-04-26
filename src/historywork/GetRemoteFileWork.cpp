@@ -10,27 +10,20 @@
 
 namespace stellar
 {
-
-GetRemoteFileWork::GetRemoteFileWork(Application& app, WorkParent& parent,
+GetRemoteFileWork::GetRemoteFileWork(Application& app,
                                      std::string const& remote,
                                      std::string const& local,
                                      std::shared_ptr<HistoryArchive> archive,
                                      size_t maxRetries)
-    : RunCommandWork(app, parent, std::string("get-remote-file ") + remote,
-                     maxRetries)
+    : RunCommandWork(app, std::string("get-remote-file ") + remote, maxRetries)
     , mRemote(remote)
     , mLocal(local)
     , mArchive(archive)
 {
 }
 
-GetRemoteFileWork::~GetRemoteFileWork()
-{
-    clearChildren();
-}
-
-void
-GetRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
+CommandInfo
+GetRemoteFileWork::getCommand()
 {
     mCurrentArchive = mArchive;
     if (!mCurrentArchive)
@@ -40,21 +33,24 @@ GetRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
     }
     assert(mCurrentArchive);
     assert(mCurrentArchive->hasGetCmd());
-    cmdLine = mCurrentArchive->getFileCmd(mRemote, mLocal);
+    auto cmdLine = mCurrentArchive->getFileCmd(mRemote, mLocal);
+
+    return CommandInfo{cmdLine, std::string()};
 }
 
 void
 GetRemoteFileWork::onReset()
 {
     std::remove(mLocal.c_str());
+    RunCommandWork::onReset();
 }
 
-Work::State
+void
 GetRemoteFileWork::onSuccess()
 {
     assert(mCurrentArchive);
     mCurrentArchive->markSuccess();
-    return RunCommandWork::onSuccess();
+    RunCommandWork::onSuccess();
 }
 
 void

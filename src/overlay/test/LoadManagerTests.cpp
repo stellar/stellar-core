@@ -54,4 +54,8 @@ TEST_CASE("disconnect peer when overloaded", "[overlay][LoadManager]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "load-shed"}, "drop")
                 .count() != 0);
+
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }

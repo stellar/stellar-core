@@ -20,7 +20,6 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/optional.h"
-#include "work/WorkManager.h"
 
 #ifdef BUILD_TESTS
 #include "test/fuzz.h"

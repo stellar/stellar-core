@@ -18,14 +18,13 @@ class FetchRecentQsetsWork : public Work
     std::unique_ptr<TmpDir> mDownloadDir;
     InferredQuorum& mInferredQuorum;
     HistoryArchiveState mRemoteState;
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
-    std::shared_ptr<Work> mDownloadSCPMessagesWork;
+    std::shared_ptr<BasicWork> mGetHistoryArchiveStateWork;
+    std::shared_ptr<BasicWork> mDownloadSCPMessagesWork;
 
   public:
-    FetchRecentQsetsWork(Application& app, WorkParent& parent,
-                         InferredQuorum& iq);
-    ~FetchRecentQsetsWork();
-    void onReset() override;
-    Work::State onSuccess() override;
+    FetchRecentQsetsWork(Application& app, InferredQuorum& iq);
+    ~FetchRecentQsetsWork() = default;
+    void doReset() override;
+    BasicWork::State doWork() override;
 };
 }

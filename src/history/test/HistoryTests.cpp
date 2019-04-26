@@ -21,7 +21,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Fs.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include "historywork/DownloadBucketsWork.h"
 #include <lib/catch.hpp>
@@ -29,43 +29,6 @@
 
 using namespace stellar;
 using namespace historytestutils;
-
-namespace historytests
-{
-class TestBatchWork : public BatchWork
-{
-  public:
-    int mCount{0};
-
-    TestBatchWork(Application& app, WorkParent& parent,
-                  std::string const& uniqueName)
-        : BatchWork(app, parent, uniqueName)
-    {
-    }
-
-  protected:
-    bool
-    hasNext() override
-    {
-        return mCount < mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES * 2;
-    }
-
-    void
-    resetIter() override
-    {
-        mCount = 0;
-    }
-
-    std::string
-    yieldMoreWork() override
-    {
-        return addWork<Work>(fmt::format("child-{:d}", mCount++), 0)
-            ->getUniqueName();
-    }
-};
-}
-
-using namespace historytests;
 
 TEST_CASE("next checkpoint ledger", "[history]")
 {
@@ -98,14 +61,14 @@ TEST_CASE("HistoryManager compress", "[history]")
         out.write(s.data(), s.size());
     }
     std::string compressed = fname + ".gz";
-    auto& wm = catchupSimulation.getApp().getWorkManager();
+    auto& wm = catchupSimulation.getApp().getWorkScheduler();
     auto g = wm.executeWork<GzipFileWork>(fname);
-    REQUIRE(g->getState() == Work::WORK_SUCCESS);
+    REQUIRE(g->getState() == BasicWork::State::WORK_SUCCESS);
     REQUIRE(!fs::exists(fname));
     REQUIRE(fs::exists(compressed));
 
     auto u = wm.executeWork<GunzipFileWork>(compressed);
-    REQUIRE(u->getState() == Work::WORK_SUCCESS);
+    REQUIRE(u->getState() == BasicWork::State::WORK_SUCCESS);
     REQUIRE(fs::exists(fname));
     REQUIRE(!fs::exists(compressed));
 }
@@ -124,14 +87,13 @@ TEST_CASE("HistoryArchiveState get_put", "[history]")
 
     has.resolveAllFutures();
 
-    auto& wm = catchupSimulation.getApp().getWorkManager();
+    auto& wm = catchupSimulation.getApp().getWorkScheduler();
     auto put = wm.executeWork<PutHistoryArchiveStateWork>(has, archive);
-    REQUIRE(put->getState() == Work::WORK_SUCCESS);
+    REQUIRE(put->getState() == BasicWork::State::WORK_SUCCESS);
 
     HistoryArchiveState has2;
-    auto get = wm.executeWork<GetHistoryArchiveStateWork>(
-        "get-history-archive-state", has2, 0, archive);
-    REQUIRE(get->getState() == Work::WORK_SUCCESS);
+    auto get = wm.executeWork<GetHistoryArchiveStateWork>(has2, 0, archive);
+    REQUIRE(get->getState() == BasicWork::State::WORK_SUCCESS);
     REQUIRE(has2.currentLedger == 0x1234);
 }
 
@@ -151,27 +113,13 @@ TEST_CASE("History bucket verification",
     auto bucketGenerator = TestBucketGenerator{
         *app, app->getHistoryArchiveManager().getHistoryArchive("test")};
     std::vector<std::string> hashes;
-    auto& wm = app->getWorkManager();
+    auto& wm = app->getWorkScheduler();
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
 
-    // Helper for failed cases
-    auto downloadStatusCheck = [](DownloadBucketsWork& parent, bool success) {
-        for (auto const& child : parent.getChildren())
-        {
-            REQUIRE(child.second->getState() == Work::WORK_FAILURE_RAISE);
-            if (success)
-            {
-                REQUIRE(child.second->allChildrenSuccessful());
-            }
-            else
-            {
-                REQUIRE_FALSE(child.second->allChildrenSuccessful());
-            }
-        }
-    };
-
+    // TODO unfortunately, we do not have visibility into internals of batch
+    // work
     SECTION("successful download and verify")
     {
         hashes.push_back(bucketGenerator.generateBucket(
@@ -180,7 +128,7 @@ TEST_CASE("History bucket verification",
             TestBucketState::CONTENTS_AND_HASH_OK));
         auto verify =
             wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == Work::WORK_SUCCESS);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
     }
     SECTION("download fails file not found")
     {
@@ -189,8 +137,7 @@ TEST_CASE("History bucket verification",
 
         auto verify =
             wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == Work::WORK_FAILURE_RAISE);
-        downloadStatusCheck(*verify, false);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
     }
     SECTION("download succeeds but unzip fails")
     {
@@ -199,8 +146,7 @@ TEST_CASE("History bucket verification",
 
         auto verify =
             wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == Work::WORK_FAILURE_RAISE);
-        downloadStatusCheck(*verify, false);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
     }
     SECTION("verify fails hash mismatch")
     {
@@ -209,33 +155,15 @@ TEST_CASE("History bucket verification",
 
         auto verify =
             wm.executeWork<DownloadBucketsWork>(mBuckets, hashes, *tmpDir);
-        REQUIRE(verify->getState() == Work::WORK_FAILURE_RAISE);
-        downloadStatusCheck(*verify, true);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
     }
     SECTION("no hashes to verify")
     {
         // Ensure proper behavior when no hashes are passed in
         auto verify = wm.executeWork<DownloadBucketsWork>(
             mBuckets, std::vector<std::string>(), *tmpDir);
-        REQUIRE(verify->getState() == Work::WORK_SUCCESS);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
     }
-}
-
-TEST_CASE("Work batching", "[batching]")
-{
-    VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, getTestConfig());
-    auto& wm = app->getWorkManager();
-
-    auto verify = wm.addWork<TestBatchWork>("test-batch");
-    wm.advanceChildren();
-    while (!clock.getIOContext().stopped() && !wm.allChildrenDone())
-    {
-        clock.crank(true);
-        REQUIRE(verify->getChildren().size() <=
-                app->getConfig().MAX_CONCURRENT_SUBPROCESSES);
-    }
-    REQUIRE(verify->getState() == Work::WORK_SUCCESS);
 }
 
 TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
@@ -248,7 +176,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
 
     auto tmpDir = app->getTmpDirManager().tmpDir("tmp-chain-test");
-    auto& wm = app->getWorkManager();
+    auto& wm = app->getWorkScheduler();
 
     LedgerHeaderHistoryEntry firstVerified{};
     LedgerHeaderHistoryEntry verifiedAhead{};
@@ -279,37 +207,37 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
-        checkExpectedBehavior(Work::WORK_SUCCESS, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_SUCCESS, lcl, last);
     }
     SECTION("invalid link due to bad hash")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_HASH);
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("invalid ledger version")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("overshot")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_OVERSHOT);
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("undershot")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT);
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("missing entries")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES);
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("chain does not agree with LCL")
     {
@@ -317,7 +245,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
             HistoryManager::VERIFY_STATUS_OK);
         lcl.hash = HashUtils::random();
 
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("chain does not agree with LCL on checkpoint boundary")
     {
@@ -326,7 +254,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         lcl.header.ledgerSeq +=
             app->getHistoryManager().getCheckpointFrequency() - 1;
         lcl.hash = HashUtils::random();
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("chain does not agree with LCL outside of range")
     {
@@ -334,14 +262,14 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
             HistoryManager::VERIFY_STATUS_OK);
         lcl.header.ledgerSeq -= 1;
         lcl.hash = HashUtils::random();
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
     SECTION("chain does not agree with trusted hash")
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         last.hash = HashUtils::random();
-        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last);
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
 }
 
@@ -388,7 +316,7 @@ TEST_CASE("History catchup", "[history][historycatchup]")
 {
     // needs REAL_TIME here, as prepare-snapshot works will fail for one of the
     // sections again and again - as it is set to RETRY_FOREVER it can generate
-    // megabytes of unneccessary log entries
+    // megabytes of unnecessary log entries
     CatchupSimulation catchupSimulation{VirtualClock::REAL_TIME};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
     auto app = catchupSimulation.createCatchupApplication(
@@ -711,15 +639,16 @@ TEST_CASE("Repair missing buckets via history",
 
     auto cfg = getTestConfig(1);
     cfg.BUCKET_DIR_PATH += "2";
+    VirtualClock clock;
     auto app = createTestApplication(
-        catchupSimulation.getClock(),
+        clock,
         catchupSimulation.getHistoryConfigurator().configure(cfg, false));
     app->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        state);
 
     app->start();
     catchupSimulation.crankUntil(
-        app, [&]() { return app->getWorkManager().allChildrenDone(); },
+        app, [&]() { return app->getWorkScheduler().allChildrenDone(); },
         std::chrono::seconds(30));
 
     auto hash1 = catchupSimulation.getBucketListAtLastPublish().getHash();
@@ -750,9 +679,10 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
     fs::deltree(dir + "/bucket");
 
     auto cfg = getTestConfig(1);
+    VirtualClock clock;
     cfg.BUCKET_DIR_PATH += "2";
     auto app = createTestApplication(
-        catchupSimulation.getClock(),
+        clock,
         catchupSimulation.getHistoryConfigurator().configure(cfg, false));
     app->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        state);
@@ -867,8 +797,6 @@ TEST_CASE("catchup with a gap", "[history][catchupstall]")
     LOG(INFO) << "Starting catchup (with gap) from " << init;
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 10));
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 82);
-
-    app->getWorkManager().clearChildren();
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);

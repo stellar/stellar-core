@@ -1017,7 +1017,6 @@ TEST_CASE("bucket persistence over app restart",
     std::vector<stellar::LedgerKey> emptySet;
     std::vector<stellar::LedgerEntry> emptySetEntry;
 
-    VirtualClock clock;
     Config cfg0(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     for_versions_with_differing_bucket_logic(cfg0, [&](Config const& cfg0) {
 
@@ -1047,6 +1046,7 @@ TEST_CASE("bucket persistence over app restart",
         // First, run an application through two ledger closes, picking up
         // the bucket and ledger closes at each.
         {
+            VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg0);
             app->start();
             BucketList& bl = app->getBucketManager().getBucketList();
@@ -1082,6 +1082,7 @@ TEST_CASE("bucket persistence over app restart",
         // Next run a new app with a disjoint config one ledger close, and
         // stop it. It should have acquired the same state and ledger.
         {
+            VirtualClock clock;
             Application::pointer app = createTestApplication(clock, cfg1);
             app->start();
             BucketList& bl = app->getBucketManager().getBucketList();
@@ -1107,6 +1108,7 @@ TEST_CASE("bucket persistence over app restart",
         // pick up the bucket list correctly.
         cfg1.FORCE_SCP = false;
         {
+            VirtualClock clock;
             Application::pointer app = Application::create(clock, cfg1, false);
             app->start();
             BucketList& bl = app->getBucketManager().getBucketList();

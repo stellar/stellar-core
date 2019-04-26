@@ -8,36 +8,30 @@
 
 namespace stellar
 {
-
-PutRemoteFileWork::PutRemoteFileWork(Application& app, WorkParent& parent,
-                                     std::string const& local,
+PutRemoteFileWork::PutRemoteFileWork(Application& app, std::string const& local,
                                      std::string const& remote,
                                      std::shared_ptr<HistoryArchive> archive)
-    : RunCommandWork(app, parent, std::string("put-remote-file ") + remote)
-    , mRemote(remote)
+    : RunCommandWork(app, std::string("put-remote-file ") + remote)
     , mLocal(local)
+    , mRemote(remote)
     , mArchive(archive)
 {
     assert(mArchive);
     assert(mArchive->hasPutCmd());
 }
 
-PutRemoteFileWork::~PutRemoteFileWork()
+CommandInfo
+PutRemoteFileWork::getCommand()
 {
-    clearChildren();
+    auto cmdLine = mArchive->putFileCmd(mLocal, mRemote);
+    return CommandInfo{cmdLine, std::string()};
 }
 
 void
-PutRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
-{
-    cmdLine = mArchive->putFileCmd(mLocal, mRemote);
-}
-
-Work::State
 PutRemoteFileWork::onSuccess()
 {
     mArchive->markSuccess();
-    return RunCommandWork::onSuccess();
+    RunCommandWork::onSuccess();
 }
 
 void

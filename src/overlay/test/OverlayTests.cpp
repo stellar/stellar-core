@@ -77,6 +77,9 @@ TEST_CASE("loopback peer hello", "[overlay][connections]")
 
     REQUIRE(knowsAsOutbound(*app1, *app2));
     REQUIRE(knowsAsInbound(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("loopback peer with 0 port", "[overlay][connections]")
@@ -94,6 +97,9 @@ TEST_CASE("loopback peer with 0 port", "[overlay][connections]")
 
     REQUIRE(!conn.getInitiator()->isAuthenticated());
     REQUIRE(!conn.getAcceptor()->isAuthenticated());
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
@@ -113,6 +119,9 @@ TEST_CASE("loopback peer send auth before hello", "[overlay][connections]")
 
     REQUIRE(doesNotKnow(*app1, *app2));
     REQUIRE(doesNotKnow(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("failed auth", "[overlay][connections]")
@@ -133,6 +142,9 @@ TEST_CASE("failed auth", "[overlay][connections]")
 
     REQUIRE(knowsAsOutbound(*app1, *app2));
     REQUIRE(knowsAsInbound(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject non preferred peer", "[overlay][connections]")
@@ -157,6 +169,9 @@ TEST_CASE("reject non preferred peer", "[overlay][connections]")
 
         REQUIRE(knowsAsOutbound(*app1, *app2));
         REQUIRE(knowsAsInbound(*app2, *app1));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 
     SECTION("outbound")
@@ -170,6 +185,9 @@ TEST_CASE("reject non preferred peer", "[overlay][connections]")
 
         REQUIRE(knowsAsInbound(*app1, *app2));
         REQUIRE(knowsAsOutbound(*app2, *app1));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 }
 
@@ -196,6 +214,9 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
 
         REQUIRE(knowsAsOutbound(*app1, *app2));
         REQUIRE(knowsAsInbound(*app2, *app1));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 
     SECTION("outbound")
@@ -208,6 +229,9 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
 
         REQUIRE(knowsAsInbound(*app1, *app2));
         REQUIRE(knowsAsOutbound(*app2, *app1));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 }
 
@@ -241,6 +265,10 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
         REQUIRE(knowsAsInbound(*app2, *app1));
         REQUIRE(knowsAsOutbound(*app3, *app2));
         REQUIRE(knowsAsInbound(*app2, *app3));
+
+        testutil::shutdownWorkScheduler(*app3);
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 
     SECTION("outbound")
@@ -266,6 +294,10 @@ TEST_CASE("reject peers beyond max", "[overlay][connections]")
         REQUIRE(knowsAsOutbound(*app2, *app1));
         REQUIRE(knowsAsInbound(*app3, *app2));
         REQUIRE(knowsAsOutbound(*app2, *app3));
+
+        testutil::shutdownWorkScheduler(*app3);
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 }
 
@@ -304,6 +336,10 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(knowsAsInbound(*app2, *app1));
             REQUIRE(knowsAsOutbound(*app3, *app2));
             REQUIRE(knowsAsInbound(*app2, *app3));
+
+            testutil::shutdownWorkScheduler(*app3);
+            testutil::shutdownWorkScheduler(*app2);
+            testutil::shutdownWorkScheduler(*app1);
         }
 
         SECTION("outbound")
@@ -331,6 +367,10 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(knowsAsOutbound(*app2, *app1));
             REQUIRE(knowsAsInbound(*app3, *app2));
             REQUIRE(knowsAsOutbound(*app2, *app3));
+
+            testutil::shutdownWorkScheduler(*app3);
+            testutil::shutdownWorkScheduler(*app2);
+            testutil::shutdownWorkScheduler(*app1);
         }
     }
 
@@ -362,6 +402,10 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(knowsAsInbound(*app2, *app1));
             REQUIRE(knowsAsOutbound(*app3, *app2));
             REQUIRE(knowsAsInbound(*app2, *app3));
+
+            testutil::shutdownWorkScheduler(*app3);
+            testutil::shutdownWorkScheduler(*app2);
+            testutil::shutdownWorkScheduler(*app1);
         }
 
         SECTION("outbound")
@@ -390,6 +434,10 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
             REQUIRE(knowsAsOutbound(*app2, *app1));
             REQUIRE(knowsAsInbound(*app3, *app2));
             REQUIRE(knowsAsOutbound(*app2, *app3));
+
+            testutil::shutdownWorkScheduler(*app3);
+            testutil::shutdownWorkScheduler(*app2);
+            testutil::shutdownWorkScheduler(*app1);
         }
     }
 }
@@ -452,6 +500,12 @@ TEST_CASE("allow inbound pending peers up to max", "[overlay][connections]")
     REQUIRE(knowsAsInbound(*app2, *app4));
     REQUIRE(doesNotKnow(*app5, *app2)); // didn't get to hello phase
     REQUIRE(doesNotKnow(*app2, *app5)); // didn't get to hello phase
+
+    testutil::shutdownWorkScheduler(*app5);
+    testutil::shutdownWorkScheduler(*app4);
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("allow inbound pending peers over max if possibly preferred",
@@ -520,6 +574,12 @@ TEST_CASE("allow inbound pending peers over max if possibly preferred",
     REQUIRE(knowsAsInbound(*app2, *app4));
     REQUIRE(knowsAsOutbound(*app5, *app2));
     REQUIRE(knowsAsInbound(*app2, *app5));
+
+    testutil::shutdownWorkScheduler(*app5);
+    testutil::shutdownWorkScheduler(*app4);
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
@@ -581,6 +641,12 @@ TEST_CASE("allow outbound pending peers up to max", "[overlay][connections]")
     REQUIRE(knowsAsOutbound(*app2, *app4));
     REQUIRE(doesNotKnow(*app5, *app2)); // corked
     REQUIRE(doesNotKnow(*app2, *app5)); // corked
+
+    testutil::shutdownWorkScheduler(*app5);
+    testutil::shutdownWorkScheduler(*app4);
+    testutil::shutdownWorkScheduler(*app3);
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers with differing network passphrases",
@@ -603,6 +669,9 @@ TEST_CASE("reject peers with differing network passphrases",
 
     REQUIRE(doesNotKnow(*app1, *app2));
     REQUIRE(doesNotKnow(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers with invalid cert", "[overlay][connections]")
@@ -623,6 +692,9 @@ TEST_CASE("reject peers with invalid cert", "[overlay][connections]")
 
     REQUIRE(doesNotKnow(*app1, *app2));
     REQUIRE(knowsAsInbound(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject banned peers", "[overlay][connections]")
@@ -643,6 +715,9 @@ TEST_CASE("reject banned peers", "[overlay][connections]")
 
     REQUIRE(doesNotKnow(*app1, *app2));
     REQUIRE(knowsAsInbound(*app2, *app1));
+
+    testutil::shutdownWorkScheduler(*app2);
+    testutil::shutdownWorkScheduler(*app1);
 }
 
 TEST_CASE("reject peers with incompatible overlay versions",
@@ -669,6 +744,9 @@ TEST_CASE("reject peers with incompatible overlay versions",
 
         REQUIRE(doesNotKnow(*app1, *app2));
         REQUIRE(doesNotKnow(*app2, *app1));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     };
     SECTION("cfg2 above")
     {
@@ -715,6 +793,9 @@ TEST_CASE("reject peers who dont handshake quickly", "[overlay][connections]")
 
         REQUIRE(doesNotKnow(*app1, *app2));
         REQUIRE(doesNotKnow(*app2, *app1));
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     };
 
     SECTION("2 seconds timeout")
@@ -793,6 +874,9 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
         REQUIRE(app2->getMetrics()
                     .NewMeter({"overlay", "timeout", "straggler"}, "timeout")
                     .count() != 0);
+
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     };
 
     SECTION("60 seconds straggle timeout")
@@ -843,6 +927,10 @@ TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
         REQUIRE(knowsAsInbound(*app2, *app1));
         REQUIRE(knowsAsOutbound(*app3, *app2));
         REQUIRE(knowsAsInbound(*app2, *app3));
+
+        testutil::shutdownWorkScheduler(*app3);
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 
     SECTION("outbound")
@@ -864,6 +952,10 @@ TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
         REQUIRE(knowsAsOutbound(*app2, *app1));
         REQUIRE(knowsAsInbound(*app3, *app2));
         REQUIRE(knowsAsOutbound(*app2, *app3));
+
+        testutil::shutdownWorkScheduler(*app3);
+        testutil::shutdownWorkScheduler(*app2);
+        testutil::shutdownWorkScheduler(*app1);
     }
 }
 
