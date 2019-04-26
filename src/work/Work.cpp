@@ -59,13 +59,12 @@ Work::onRun()
     {
         CLOG(DEBUG, "Work") << "Running " << getName();
         auto state = doWork();
-        bool childrenDone = allChildrenDone();
         if (state == State::WORK_SUCCESS)
         {
-            assert(childrenDone);
+            assert(allChildrenSuccessful());
             clearChildren();
         }
-        else if (state == State::WORK_FAILURE && !childrenDone)
+        else if (state == State::WORK_FAILURE && !allChildrenDone())
         {
             CLOG(DEBUG, "Work")
                 << "A child of " << getName()
