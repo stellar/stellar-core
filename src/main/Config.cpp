@@ -104,7 +104,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 namespace
 {
 
-using ConfigItem = std::pair<std::string, std::shared_ptr<cpptoml::toml_base>>;
+using ConfigItem = std::pair<std::string, std::shared_ptr<cpptoml::base>>;
 
 bool
 readBool(ConfigItem const& item)
@@ -113,7 +113,7 @@ readBool(ConfigItem const& item)
     {
         throw std::invalid_argument(fmt::format("invalid {}", item.first));
     }
-    return item.second->as<bool>()->value();
+    return item.second->as<bool>()->get();
 }
 
 std::string
@@ -123,7 +123,7 @@ readString(ConfigItem const& item)
     {
         throw std::invalid_argument(fmt::format("invalid {}", item.first));
     }
-    return item.second->as<std::string>()->value();
+    return item.second->as<std::string>()->get();
 }
 
 std::vector<std::string>
@@ -135,14 +135,14 @@ readStringArray(ConfigItem const& item)
         throw std::invalid_argument(
             fmt::format("{} must be an array", item.first));
     }
-    for (auto v : item.second->as_array()->array())
+    for (auto v : item.second->as_array()->get())
     {
         if (!v->as<std::string>())
         {
             throw std::invalid_argument(
                 fmt::format("invalid element of {}", item.first));
         }
-        result.push_back(v->as<std::string>()->value());
+        result.push_back(v->as<std::string>()->get());
     }
     return result;
 }
@@ -156,7 +156,7 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
     {
         throw std::invalid_argument(fmt::format("invalid {}", item.first));
     }
-    int64_t v = item.second->as<int64_t>()->value();
+    int64_t v = item.second->as<int64_t>()->get();
     if (v < min || v > max)
     {
         throw std::invalid_argument(fmt::format("bad {}", item.first));
@@ -166,7 +166,7 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
 }
 
 void
-Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
+Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                  int level)
 {
     if (!group)
@@ -190,7 +190,7 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
             {
                 throw std::invalid_argument("invalid THRESHOLD_PERCENT");
             }
-            int64_t f = item.second->as<int64_t>()->value();
+            int64_t f = item.second->as<int64_t>()->get();
             if (f <= 0 || f > 100)
             {
                 throw std::invalid_argument("invalid THRESHOLD_PERCENT");
@@ -211,13 +211,13 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         { // must be a subset
             try
             {
-                if (!item.second->is_group())
+                if (!item.second->is_table())
                 {
                     throw std::invalid_argument(
                         "invalid quorum set, should be a group");
                 }
                 qset.innerSets.resize((uint32_t)qset.innerSets.size() + 1);
-                loadQset(item.second->as_group(),
+                loadQset(item.second->as_table(),
                          qset.innerSets[qset.innerSets.size() - 1], level + 1);
             }
             catch (std::exception& e)
@@ -260,7 +260,7 @@ Config::load(std::string const& filename)
     auto logIfSet = [](auto& item, auto const& message) {
         if (item.second->template as<bool>())
         {
-            if (item.second->template as<bool>()->value())
+            if (item.second->template as<bool>()->get())
             {
                 LOG(INFO) << fmt::format(
                     "{} enabled in configuration file - {}", item.first,
@@ -276,19 +276,23 @@ Config::load(std::string const& filename)
 
     try
     {
-        cpptoml::toml_group g;
+        std::shared_ptr<cpptoml::table> t;
         if (filename == "-")
         {
             cpptoml::parser p(std::cin);
-            g = p.parse();
+            t = p.parse();
         }
         else
         {
-            g = cpptoml::parse_file(filename);
+            t = cpptoml::parse_file(filename);
+        }
+        if (!t)
+        {
+            throw std::runtime_error("Could not parse toml");
         }
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
-        for (auto& item : g)
+        for (auto& item : *t)
         {
             LOG(DEBUG) << "Config item: " << item.first;
             if (TESTING_ONLY_OPTIONS.count(item.first) > 0)
@@ -479,13 +483,13 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "HISTORY")
             {
-                auto hist = item.second->as_group();
+                auto hist = item.second->as_table();
                 if (hist)
                 {
                     for (auto const& archive : *hist)
                     {
                         LOG(DEBUG) << "History archive: " << archive.first;
-                        auto tab = archive.second->as_group();
+                        auto tab = archive.second->as_table();
                         if (!tab)
                         {
                             throw std::invalid_argument(
@@ -496,15 +500,15 @@ Config::load(std::string const& filename)
                         {
                             if (c.first == "get")
                             {
-                                get = c.second->as<std::string>()->value();
+                                get = c.second->as<std::string>()->get();
                             }
                             else if (c.first == "put")
                             {
-                                put = c.second->as<std::string>()->value();
+                                put = c.second->as<std::string>()->get();
                             }
                             else if (c.first == "mkdir")
                             {
-                                mkdir = c.second->as<std::string>()->value();
+                                mkdir = c.second->as<std::string>()->get();
                             }
                             else
                             {
@@ -558,9 +562,9 @@ Config::load(std::string const& filename)
             }
         }
         // process elements that potentially depend on others
-        if (g.contains("PREFERRED_PEER_KEYS"))
+        if (t->contains("PREFERRED_PEER_KEYS"))
         {
-            auto pkeys = g.get("PREFERRED_PEER_KEYS");
+            auto pkeys = t->get("PREFERRED_PEER_KEYS");
             if (pkeys)
             {
                 auto values =
@@ -573,19 +577,19 @@ Config::load(std::string const& filename)
                 }
             }
         }
-        if (g.contains("QUORUM_SET"))
+        if (t->contains("QUORUM_SET"))
         {
-            auto qset = g.get("QUORUM_SET");
+            auto qset = t->get("QUORUM_SET");
             if (qset)
             {
-                loadQset(qset->as_group(), QUORUM_SET, 0);
+                loadQset(qset->as_table(), QUORUM_SET, 0);
             }
         }
 
         adjust();
         validateConfig();
     }
-    catch (cpptoml::toml_parse_exception& ex)
+    catch (cpptoml::parse_exception& ex)
     {
         std::string err("Failed to parse '");
         err += filename;
