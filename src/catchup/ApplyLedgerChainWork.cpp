@@ -13,6 +13,7 @@
 #include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
+#include "util/FileSystemException.h"
 
 #include <lib/util/format.h>
 #include <medida/meter.h>
@@ -263,6 +264,11 @@ ApplyLedgerChainWork::onRun()
         // already displayed e.what()
         CLOG(ERROR, "History") << "Replay failed";
         throw;
+    }
+    catch (FileSystemException& e)
+    {
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+        return State::WORK_FAILURE;
     }
     catch (std::exception& e)
     {

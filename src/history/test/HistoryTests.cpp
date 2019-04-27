@@ -271,6 +271,17 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         last.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
+    SECTION("missing file")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER,
+                            last.header.ledgerSeq);
+        std::remove(ft.localPath_nogz().c_str());
+
+        // No crash
+        checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
+    }
 }
 
 TEST_CASE("History publish", "[history]")

@@ -8,6 +8,8 @@
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
+#include "util/FileSystemException.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 
@@ -74,7 +76,16 @@ FetchRecentQsetsWork::doWork()
         CLOG(INFO, "History") << "Scanning for QSets in checkpoint: " << i;
         XDRInputFileStream in;
         FileTransferInfo fi(*mDownloadDir, HISTORY_FILE_TYPE_SCP, i);
-        in.open(fi.localPath_nogz());
+        try
+        {
+            in.open(fi.localPath_nogz());
+        }
+        catch (FileSystemException&)
+        {
+            CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+            return State::WORK_FAILURE;
+        }
+
         SCPHistoryEntry tmp;
         while (in && in.readOne(tmp))
         {

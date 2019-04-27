@@ -6,6 +6,7 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
+#include "util/FileSystemException.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
@@ -50,7 +51,7 @@ class XDRInputFileStream
             msg += ", reason: ";
             msg += std::to_string(errno);
             CLOG(ERROR, "Fs") << msg;
-            throw std::runtime_error(msg);
+            throw FileSystemException(msg);
         }
 
         mSize = fs::size(mIn);
@@ -137,7 +138,7 @@ class XDROutputFileStream
             std::string msg("failed to close XDR file");
             msg += ", reason: ";
             msg += std::to_string(errno);
-            throw std::runtime_error(msg);
+            throw FileSystemException(msg);
         }
     }
 
@@ -155,7 +156,7 @@ class XDROutputFileStream
             msg += ", reason: ";
             msg += std::to_string(errno);
             CLOG(FATAL, "Fs") << msg;
-            throw std::runtime_error(msg);
+            throw FileSystemException(msg);
         }
     }
 

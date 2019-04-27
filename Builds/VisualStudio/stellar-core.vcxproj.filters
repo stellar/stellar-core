@@ -1490,6 +1490,9 @@
     <ClInclude Include="..\..\src\util\Thread.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\FileSystemException.h">
+      <Filter>util</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
