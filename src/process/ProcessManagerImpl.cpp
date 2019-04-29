@@ -408,8 +408,8 @@ ProcessExitEvent::Impl::run()
 void
 ProcessManagerImpl::handleProcessTermination(int pid, int /*status*/)
 {
-    std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
-    mImpls.erase(pid);
+    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    mProcesses.erase(pid);
 }
 
 bool
