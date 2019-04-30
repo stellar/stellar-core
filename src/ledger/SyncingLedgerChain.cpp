@@ -31,7 +31,7 @@ SyncingLedgerChain::pop()
 }
 
 SyncingLedgerChainAddResult
-SyncingLedgerChain::push(LedgerCloseData lcd)
+SyncingLedgerChain::push(LedgerCloseData const& lcd)
 {
     if (mChain.empty() ||
         mChain.back().getLedgerSeq() + 1 == lcd.getLedgerSeq())

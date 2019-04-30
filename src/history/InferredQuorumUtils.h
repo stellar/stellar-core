@@ -11,7 +11,7 @@ namespace stellar
 
 class Config;
 
-void checkQuorumIntersection(Config cfg);
-void inferQuorumAndWrite(Config cfg);
-void writeQuorumGraph(Config cfg, std::string const& outputFile);
+void checkQuorumIntersection(Config const& cfg);
+void inferQuorumAndWrite(Config const& cfg);
+void writeQuorumGraph(Config const& cfg, std::string const& outputFile);
 }
