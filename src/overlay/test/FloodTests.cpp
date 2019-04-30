@@ -244,10 +244,11 @@ TEST_CASE("Flooding", "[flood][overlay]")
             Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
 
             // build an SCP message for the next ledger
-
-            StellarValue sv(txSet.getContentsHash(),
-                            lcl.header.scpValue.closeTime + 1,
-                            emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+            auto ct = std::max<uint64>(
+                lcl.header.scpValue.closeTime + 1,
+                VirtualClock::to_time_t(inApp->getClock().now()));
+            StellarValue sv(txSet.getContentsHash(), ct, emptyUpgradeSteps,
+                            STELLAR_VALUE_BASIC);
 
             SCPEnvelope envelope;
 

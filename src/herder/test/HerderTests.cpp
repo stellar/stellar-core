@@ -871,15 +871,15 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
 
         auto addToCandidates = [&](TxPair const& p) {
             candidates.emplace(p.first);
-            auto envelope =
-                makeEnvelope(herder, p, {}, herder.getCurrentLedgerSeq(), true);
+            auto envelope = makeEnvelope(
+                herder, p, {}, herder.getCurrentLedgerSeq() + 1, true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
         };
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
-        addToCandidates(makeTxPair(herder, txSet0, 100, withSCPsignature));
+        addToCandidates(makeTxPair(herder, txSet0, 10, withSCPsignature));
 
         Value v;
         StellarValue sv;
@@ -887,20 +887,20 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
-        REQUIRE(sv.closeTime == 100);
+        REQUIRE(sv.closeTime == 10);
         REQUIRE(sv.txSetHash == txSet0->getContentsHash());
 
         TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10, 1, 100);
 
-        addToCandidates(makeTxPair(herder, txSet1, 10, withSCPsignature));
+        addToCandidates(makeTxPair(herder, txSet1, 5, withSCPsignature));
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
-        REQUIRE(sv.closeTime == 100);
+        REQUIRE(sv.closeTime == 10);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
 
         TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5, 3, 100);
-        addToCandidates(makeTxPair(herder, txSet2, 1000, withSCPsignature));
+        addToCandidates(makeTxPair(herder, txSet2, 20, withSCPsignature));
 
         auto biggestTxSet = txSet1;
         if (biggestTxSet->size(lcl.header) < txSet2->size(lcl.header))
@@ -912,7 +912,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
-        REQUIRE(sv.closeTime == 1000);
+        REQUIRE(sv.closeTime == 20);
         REQUIRE(sv.txSetHash == biggestTxSet->getContentsHash());
         REQUIRE(biggestTxSet->sizeOp() == expectedOps);
 
@@ -920,11 +920,10 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         {
             TxSetFramePtr txSetL =
                 makeTransactions(lcl.hash, maxTxSize, 1, 101);
-            addToCandidates(makeTxPair(herder, txSetL, 1000, withSCPsignature));
+            addToCandidates(makeTxPair(herder, txSetL, 20, withSCPsignature));
             TxSetFramePtr txSetL2 =
                 makeTransactions(lcl.hash, maxTxSize, 1, 1000);
-            addToCandidates(
-                makeTxPair(herder, txSetL2, 1000, withSCPsignature));
+            addToCandidates(makeTxPair(herder, txSetL2, 20, withSCPsignature));
             v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
             xdr::xdr_from_opaque(v, sv);
             REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
@@ -1046,14 +1045,15 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto transactions2 = makeTransactions(lcl.hash, 4, 1, 100);
         auto p1 = makeTxPair(herder, transactions1, 10, withSCPsignature);
         auto p2 = makeTxPair(herder, transactions1, 10, withSCPsignature);
-        auto saneEnvelopeQ1T1 = makeEnvelope(
-            herder, p1, saneQSet1Hash, herder.getCurrentLedgerSeq(), true);
-        auto saneEnvelopeQ1T2 = makeEnvelope(
-            herder, p2, saneQSet1Hash, herder.getCurrentLedgerSeq(), true);
-        auto saneEnvelopeQ2T1 = makeEnvelope(
-            herder, p1, saneQSet2Hash, herder.getCurrentLedgerSeq(), true);
-        auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash,
-                                        herder.getCurrentLedgerSeq(), true);
+        // use current + 1 to allow for any value (old values get filtered more)
+        auto lseq = herder.getCurrentLedgerSeq() + 1;
+        auto saneEnvelopeQ1T1 =
+            makeEnvelope(herder, p1, saneQSet1Hash, lseq, true);
+        auto saneEnvelopeQ1T2 =
+            makeEnvelope(herder, p2, saneQSet1Hash, lseq, true);
+        auto saneEnvelopeQ2T1 =
+            makeEnvelope(herder, p1, saneQSet2Hash, lseq, true);
+        auto bigEnvelope = makeEnvelope(herder, p1, bigQSetHash, lseq, true);
 
         SECTION("return FETCHING until fetched")
         {
