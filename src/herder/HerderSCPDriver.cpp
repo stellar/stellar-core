@@ -675,6 +675,20 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     return xdr::xdr_to_opaque(comp);
 }
 
+bool
+HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
+{
+    try
+    {
+        xdr::xdr_from_opaque(v, sv);
+    }
+    catch (...)
+    {
+        return false;
+    }
+    return true;
+}
+
 void
 HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 {

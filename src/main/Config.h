@@ -149,6 +149,10 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t LEDGER_PROTOCOL_VERSION;
     VirtualClock::time_point TESTING_UPGRADE_DATETIME;
 
+    // maximum allowed drift for close time when joining the network for the
+    // first time
+    uint64 MAXIMUM_LEDGER_CLOSETIME_DRIFT;
+
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
     uint32_t OVERLAY_PROTOCOL_MIN_VERSION; // min overlay version understood

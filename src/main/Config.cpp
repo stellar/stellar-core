@@ -44,6 +44,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
 
+    MAXIMUM_LEDGER_CLOSETIME_DRIFT = 50;
+
     OVERLAY_PROTOCOL_MIN_VERSION = 7;
     OVERLAY_PROTOCOL_VERSION = 9;
 
@@ -552,6 +554,10 @@ Config::load(std::string const& filename)
             else if (item.first == "PREFETCH_BATCH_SIZE")
             {
                 PREFETCH_BATCH_SIZE = readInt<uint32_t>(item);
+            }
+            else if (item.first == "MAXIMUM_LEDGER_CLOSETIME_DRIFT")
+            {
+                MAXIMUM_LEDGER_CLOSETIME_DRIFT = readInt<int64_t>(item, 0);
             }
             else
             {

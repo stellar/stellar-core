@@ -134,6 +134,14 @@ class HerderSCPDriver : public SCPDriver
 
     optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
+    // converts a Value into a StellarValue
+    // returns false on error
+    bool toStellarValue(Value const& v, StellarValue& sv);
+
+    // validate close time as much as possible
+    bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
+                        StellarValue const& b) const;
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
@@ -192,9 +200,6 @@ class HerderSCPDriver : public SCPDriver
     std::unique_ptr<ConsensusData> mLastTrackingSCP;
 
     void stateChanged();
-
-    bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
-                        StellarValue const& b) const;
 
     SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
                                                    StellarValue const& sv,

@@ -294,6 +294,110 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     return result;
 }
 
+bool
+HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
+{
+    using std::placeholders::_1;
+    auto const& st = envelope.statement;
+
+    uint64_t ctCutoff = 0;
+
+    if (enforceRecent)
+    {
+        ctCutoff = VirtualClock::to_time_t(mApp.getClock().now());
+        if (ctCutoff >= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT)
+        {
+            ctCutoff -= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT;
+        }
+    }
+
+    auto envLedgerIndex = envelope.statement.slotIndex;
+    auto& scpD = getHerderSCPDriver();
+
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
+    auto lastCloseIndex = lcl.ledgerSeq;
+    auto lastCloseTime = lcl.scpValue.closeTime;
+
+    // see if we can get a better estimate of lastCloseTime for validating this
+    // statement using consensus data:
+    // update lastCloseIndex/lastCloseTime to be the highest possible but still
+    // be less than envLedgerIndex
+    auto adjustLastCloseTime = [&](HerderSCPDriver::ConsensusData const* cd) {
+        if (cd && envLedgerIndex >= cd->mConsensusIndex &&
+            cd->mConsensusIndex > lastCloseIndex)
+        {
+            lastCloseIndex = static_cast<uint32>(cd->mConsensusIndex);
+            lastCloseTime = cd->mConsensusValue.closeTime;
+        }
+    };
+    adjustLastCloseTime(mHerderSCPDriver.trackingSCP());
+    adjustLastCloseTime(mHerderSCPDriver.lastTrackingSCP());
+
+    StellarValue sv;
+    // performs the most conservative check:
+    // returns true if one of the values is valid
+    auto checkCTHelper = [&](std::vector<Value> const& values) {
+        return std::any_of(values.begin(), values.end(), [&](Value const& e) {
+            auto r = scpD.toStellarValue(e, sv);
+            // sv must be after cutoff
+            r = r && sv.closeTime >= ctCutoff;
+            if (r)
+            {
+                // statement received after the fact, only keep externalized
+                // value
+                r = (lastCloseIndex == envLedgerIndex &&
+                     lastCloseTime == sv.closeTime);
+                // for older messages, just ensure that they occured before
+                r = r || (lastCloseIndex > envLedgerIndex &&
+                          lastCloseTime > sv.closeTime);
+                // for future message, perform the same validity check than
+                // within SCP
+                r = r || scpD.checkCloseTime(envLedgerIndex, lastCloseTime, sv);
+            }
+            return r;
+        });
+    };
+
+    bool b;
+
+    switch (st.pledges.type())
+    {
+    case SCP_ST_NOMINATE:
+        b = checkCTHelper(st.pledges.nominate().accepted) ||
+            checkCTHelper(st.pledges.nominate().votes);
+        break;
+    case SCP_ST_PREPARE:
+    {
+        auto& prep = st.pledges.prepare();
+        b = checkCTHelper({prep.ballot.value});
+        if (!b && prep.prepared)
+        {
+            b = checkCTHelper({prep.prepared->value});
+        }
+        if (!b && prep.preparedPrime)
+        {
+            b = checkCTHelper({prep.preparedPrime->value});
+        }
+    }
+    break;
+    case SCP_ST_CONFIRM:
+        b = checkCTHelper({st.pledges.confirm().ballot.value});
+        break;
+    case SCP_ST_EXTERNALIZE:
+        b = checkCTHelper({st.pledges.externalize().commit.value});
+        break;
+    default:
+        abort();
+    }
+
+    if (!b && Logging::logTrace("Herder"))
+    {
+        CLOG(TRACE, "Herder")
+            << "Invalid close time processing " << getSCP().envToStr(st);
+    }
+    return b;
+}
+
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
@@ -327,6 +431,16 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
 
+    if (!checkCloseTime(envelope, false))
+    {
+        // if the envelope contains an invalid close time, don't bother
+        // processing it as we're not going to forward it anyways and it's
+        // going to just sit in our SCP state not contributing anything useful.
+        CLOG(DEBUG, "Herder")
+            << "skipping invalid close time (incompatible with current state)";
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
     if (mHerderSCPDriver.trackingSCP())
     {
         // when tracking, we can filter messages based on the information we got
@@ -338,6 +452,16 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // ledger closing
         maxLedgerSeq = mHerderSCPDriver.nextConsensusLedgerIndex() +
                        LEDGER_VALIDITY_BRACKET;
+    }
+    else if (!checkCloseTime(envelope,
+                             minLedgerSeq <= LedgerManager::GENESIS_LEDGER_SEQ))
+    {
+        // if we've never been in sync, we can be more aggressive in how we
+        // filter messages: we can ignore messages that are unlikely to be
+        // the latest messages from the network
+        CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping invalid close time "
+                                 "(check MAXIMUM_LEDGER_CLOSETIME_DRIFT)";
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     // If envelopes are out of our validity brackets, we just ignore them.
@@ -830,6 +954,14 @@ HerderImpl::restoreSCPState()
 {
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    if (!mApp.getConfig().FORCE_SCP &&
+        lcl.header.ledgerSeq == LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        // if we're on genesis ledger, there is no point in claiming
+        // that we're "in sync"
+        return;
+    }
+
     mHerderSCPDriver.restoreSCPState(lcl.header.ledgerSeq, lcl.header.scpValue);
 
     trackingHeartBeat();

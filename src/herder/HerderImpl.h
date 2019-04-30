@@ -109,6 +109,11 @@ class HerderImpl : public Herder
     void signStellarValue(SecretKey const& s, StellarValue& sv);
 
   private:
+    // return true if values referenced by envelope have a valid close time:
+    // * it's within the allowed range (using lcl if possible)
+    // * it's recent enough (if `enforceRecent` is set)
+    bool checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent);
+
     void ledgerClosed();
 
     void startRebroadcastTimer();
