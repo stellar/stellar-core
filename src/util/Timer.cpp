@@ -138,6 +138,7 @@ VirtualClock::isoStringToTm(std::string const& iso)
     {
         throw std::invalid_argument("Could not parse iso date");
     }
+    std::memset(&res, 0, sizeof(res));
     res.tm_year = y - 1900;
     res.tm_mon = M - 1;
     res.tm_mday = d;

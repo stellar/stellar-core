@@ -14,7 +14,7 @@
 namespace stellar
 {
 
-PeerBareAddress::PeerBareAddress() : mType{Type::EMPTY}
+PeerBareAddress::PeerBareAddress() : mType{Type::EMPTY}, mPort{0}
 {
 }
 

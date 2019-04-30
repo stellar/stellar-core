@@ -110,7 +110,7 @@ class VirtualClock
     uint32_t mRecentCrankCount;
     uint32_t mRecentIdleCrankCount;
 
-    size_t nRealTimerCancelEvents;
+    size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;
 
     bool mDelayExecution{true};
