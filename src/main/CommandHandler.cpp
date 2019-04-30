@@ -497,6 +497,7 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     }
     else
     {
+        partition = Logging::normalizePartition(partition);
         el::Level level = Logging::getLLfromString(levelStr);
         if (partition.size())
         {

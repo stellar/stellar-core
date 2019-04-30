@@ -305,4 +305,17 @@ Logging::rotate()
                                        std::to_string(prevMaxFileSize));
     }
 }
+
+std::string
+Logging::normalizePartition(std::string const& partition)
+{
+    for (auto& p : kPartitionNames)
+    {
+        if (iequals(partition, p))
+        {
+            return p;
+        }
+    }
+    throw std::invalid_argument("not a valid partition");
+}
 }
