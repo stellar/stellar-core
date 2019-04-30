@@ -109,6 +109,10 @@ class HerderImpl : public Herder
     void signStellarValue(SecretKey const& s, StellarValue& sv);
 
   private:
+    // return true if values referenced by envelope are after the minimum
+    // allowed close time
+    bool checkMinCloseTime(SCPEnvelope const& envelope);
+
     void ledgerClosed();
 
     void startRebroadcastTimer();
