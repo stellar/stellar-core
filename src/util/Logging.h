@@ -37,5 +37,7 @@ class Logging
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
     static void rotate();
+
+    static std::array<std::string const, 13> const kPartitionNames;
 };
 }
