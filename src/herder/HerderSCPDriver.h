@@ -134,6 +134,10 @@ class HerderSCPDriver : public SCPDriver
 
     optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
 
+    // converts a Value into a StellarValue
+    // returns false on error
+    bool toStellarValue(Value const& v, StellarValue& sv);
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
