@@ -89,9 +89,8 @@ class HerderImpl : public Herder
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
     Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;
-    Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
-                                  bool fullKeys = false,
-                                  uint64 index = 0) override;
+    Json::Value getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
+                                  uint64 index) override;
 
 #ifdef BUILD_TESTS
     // used for testing

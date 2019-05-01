@@ -71,6 +71,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
     addRoute("bans", &CommandHandler::bans);
+    addRoute("clearmetrics", &CommandHandler::clearMetrics);
     addRoute("connect", &CommandHandler::connect);
     addRoute("dropcursor", &CommandHandler::dropcursor);
     addRoute("droppeer", &CommandHandler::dropPeer);
@@ -81,14 +82,13 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("maintenance", &CommandHandler::maintenance);
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
-    addRoute("clearmetrics", &CommandHandler::clearMetrics);
     addRoute("peers", &CommandHandler::peers);
     addRoute("quorum", &CommandHandler::quorum);
     addRoute("setcursor", &CommandHandler::setcursor);
     addRoute("scp", &CommandHandler::scpInfo);
     addRoute("tx", &CommandHandler::tx);
-    addRoute("upgrades", &CommandHandler::upgrades);
     addRoute("unban", &CommandHandler::unban);
+    addRoute("upgrades", &CommandHandler::upgrades);
 
 #ifdef BUILD_TESTS
     addRoute("generateload", &CommandHandler::generateLoad);
@@ -461,7 +461,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
     }
 
     auto root = mApp.getHerder().getJsonQuorumInfo(
-        n, retMap["compact"] == "true", retMap["fullkeys"] == "true");
+        n, retMap["compact"] == "true", retMap["fullkeys"] == "true", 0);
     retStr = root.toStyledString();
 }
 
