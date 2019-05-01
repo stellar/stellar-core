@@ -697,8 +697,9 @@ This list is the result of both inbound connections from other peers and outboun
 }
 ```
 
-### Quorum set Health
+### Quorum Health
 
+#### Quorum set diagnostics
 The `quorum` command allows to diagnose problems with the quorum set of the local node.
 
 Run
@@ -750,6 +751,80 @@ You can get a sense of the quorum set health of a different node by doing
 `$ stellar-core http-command 'quorum?node=$sdf1` or `$ stellar-core http-command 'quorum?node=@GABCDE` 
 
 Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for other nodes is not reliable).
+
+#### Overall quorum analysis
+
+The quorum endpoint can also retrieve information for the transitive quorum.
+
+This is a easier to process format than what `scp` returns as it doesn't contain all SCP messages.
+
+`$ stellar-core http-command 'quorum?transitive=true'`
+
+The output looks something like:
+```json
+ "nodes" : [
+      {
+         "distance" : 0,
+         "heard" : 121235,
+         "node" : "GB7LI",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      },
+      {
+         "distance" : 1,
+         "heard" : 121235,
+         "node" : "sdf2",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      },
+      {
+         "distance" : 1,
+         "heard" : 121235,
+         "node" : "sdf3",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      },
+      {
+         "distance" : 1,
+         "heard" : 121235,
+         "node" : "sdf1",
+         "qset" : {
+            "t" : 2,
+            "v" : [ "sdf1", "sdf2", "sdf3" ]
+         },
+         "status" : "tracking",
+         "value" : "[ txH: d99591, ct: 1557426183, upgrades: [ ] ]",
+         "value_id" : 1
+      }
+   ]
+```
+
+The output represents a walk of the transitive quorum centered on a given node.
+
+Fields are:
+
+* `node` : the identity of the validator
+* `distance` : how far that node is from the root node (ie. how many quorum set hops)
+* `heard` : the latest ledger sequence number that this node voted at
+* `qset` : the node's quorum set
+* `status` : one of `behind|tracking|ahead` (compared to the root node) or `missing|unknown` (when there are no recent SCP messages for that node)
+* `value_id` : a unique ID for what the node is voting for (allows to quickly tell if nodes are voting for the same thing)
+* `value` : what the node is voting for
 
 ## Validator maintenance
 

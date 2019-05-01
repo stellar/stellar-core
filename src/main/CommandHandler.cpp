@@ -460,8 +460,17 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
         }
     }
 
-    auto root = mApp.getHerder().getJsonQuorumInfo(
-        n, retMap["compact"] == "true", retMap["fullkeys"] == "true", 0);
+    Json::Value root;
+    if (retMap["transitive"] == "true")
+    {
+        root = mApp.getHerder().getJsonTransitiveQuorumInfo(
+            n, retMap["compact"] == "true", retMap["fullkeys"] == "true");
+    }
+    else
+    {
+        root = mApp.getHerder().getJsonQuorumInfo(
+            n, retMap["compact"] == "true", retMap["fullkeys"] == "true", 0);
+    }
     retStr = root.toStyledString();
 }
 

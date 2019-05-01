@@ -91,6 +91,9 @@ class HerderImpl : public Herder
     Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                                   uint64 index) override;
+    virtual Json::Value getJsonTransitiveQuorumInfo(NodeID const& id,
+                                                    bool summary,
+                                                    bool fullKeys) override;
 
 #ifdef BUILD_TESTS
     // used for testing
