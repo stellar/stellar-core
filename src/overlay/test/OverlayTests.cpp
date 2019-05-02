@@ -1005,22 +1005,39 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
     auto headId = simulation->addNode(vHeadSecretKey, qSet, &headCfg)
                       ->getConfig()
                       .NODE_SEED.getPublicKey();
+
     simulation->addNode(vNode1SecretKey, qSet, &node1Cfg);
-    simulation->addNode(vNode2SecretKey, qSet, &node2Cfg);
-    simulation->addNode(vNode3SecretKey, qSet, &node3Cfg);
 
     simulation->addPendingConnection(vNode1NodeID, vHeadNodeID);
-    simulation->addPendingConnection(vNode2NodeID, vHeadNodeID);
-    simulation->addPendingConnection(vNode3NodeID, vHeadNodeID);
-
     simulation->startAllNodes();
-    simulation->crankForAtLeast(std::chrono::seconds{15}, false);
-    simulation->removeNode(headId);
-    simulation->crankForAtLeast(std::chrono::seconds{15}, false);
+    // 1 connects to h
+    simulation->crankUntil(
+        [&]() { return numberOfSimulationConnections() == 2; },
+        std::chrono::seconds{3}, false);
 
-    // all three (two-way) connections are made
-    REQUIRE(numberOfSimulationConnections() == 6);
-    simulation->crankForAtLeast(std::chrono::seconds{1}, true);
+    simulation->addNode(vNode2SecretKey, qSet, &node2Cfg);
+    simulation->addPendingConnection(vNode2NodeID, vHeadNodeID);
+    simulation->startAllNodes();
+    // 2 connects to 1
+    simulation->crankUntil(
+        [&]() { return numberOfSimulationConnections() == 4; },
+        std::chrono::seconds{10}, false);
+
+    simulation->addNode(vNode3SecretKey, qSet, &node3Cfg);
+    simulation->addPendingConnection(vNode3NodeID, vHeadNodeID);
+    simulation->startAllNodes();
+    // 3 connects to 2
+    simulation->crankUntil(
+        [&]() { return numberOfSimulationConnections() == 6; },
+        std::chrono::seconds{15}, false);
+
+    simulation->removeNode(headId);
+    // wait for node to be disconnected
+    simulation->crankForAtLeast(std::chrono::seconds{2}, false);
+    // wait for 1 to connect to 3
+    simulation->crankUntil(
+        [&]() { return numberOfSimulationConnections() == 6; },
+        std::chrono::seconds{15}, true);
 }
 
 TEST_CASE("inbounds nodes can be promoted to ouboundvalid", "[overlay]")
