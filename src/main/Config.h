@@ -167,6 +167,14 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
 
+    // A config parameter that forces replay to use the newest bucket logic;
+    // this implicitly means that replay will _not_ check bucket-list hashes
+    // along the way, but rather will use the stated hashes from ledger headers
+    // _in place of_ the real bucket list hash. This should only be enabled when
+    // testing since it completely defeats the state-integrity checking of the
+    // system.
+    bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
+
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;

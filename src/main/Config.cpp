@@ -29,9 +29,12 @@ const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 11;
 
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
-    "RUN_STANDALONE", "MANUAL_CLOSE", "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
+    "RUN_STANDALONE",
+    "MANUAL_CLOSE",
+    "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
-    "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING"};
+    "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
+    "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -96,6 +99,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = false;
+    ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING = false;
     ALLOW_LOCALHOST_FOR_TESTING = false;
     USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
@@ -693,6 +697,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING =
                     readInt<uint32_t>(item, 0, UINT32_MAX - 1);
+            }
+            else if (item.first ==
+                     "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING")
+            {
+                ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING =
+                    readBool(item);
             }
             else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
             {

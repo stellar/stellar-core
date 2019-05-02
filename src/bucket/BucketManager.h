@@ -139,6 +139,14 @@ class BucketManager : NonMovableOrCopyable
     // state of the bucket list.
     virtual void snapshotLedger(LedgerHeader& currentHeader) = 0;
 
+#ifdef BUILD_TESTS
+    // Install a fake/assumed ledger version and bucket list hash to use in next
+    // call to addBatch and snapshotLedger. This interface exists only for
+    // testing in a specific type of history replay.
+    virtual void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
+                                                      uint256 const& hash) = 0;
+#endif
+
     // Check for missing bucket files that would prevent `assumeState` from
     // succeeding
     virtual std::vector<std::string>
