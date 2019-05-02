@@ -15,9 +15,12 @@ int runWithConfig(Config cfg);
 void setForceSCPFlag(Config cfg, bool set);
 void initializeDatabase(Config cfg);
 void httpCommand(std::string const& command, unsigned short port);
-void loadXdr(Config cfg, std::string const& bucketFile);
 void showOfflineInfo(Config cfg);
 int reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile);
+#ifdef BUILD_TESTS
+void loadXdr(Config cfg, std::string const& bucketFile);
+int rebuildLedgerFromBuckets(Config cfg);
+#endif
 void genSeed();
 int initializeHistories(Config cfg,
                         std::vector<std::string> const& newHistories);

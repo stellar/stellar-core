@@ -599,19 +599,6 @@ runInferQuorum(CommandLineArgs const& args)
 }
 
 int
-runLoadXDR(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    std::string xdr;
-
-    return runWithHelp(
-        args, {configurationParser(configOption), fileNameParser(xdr)}, [&] {
-            loadXdr(configOption.getConfig(), xdr);
-            return 0;
-        });
-}
-
-int
 runNewDB(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -776,6 +763,30 @@ runWriteQuorum(CommandLineArgs const& args)
 
 #ifdef BUILD_TESTS
 int
+runLoadXDR(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string xdr;
+
+    return runWithHelp(
+        args, {configurationParser(configOption), fileNameParser(xdr)}, [&] {
+            loadXdr(configOption.getConfig(), xdr);
+            return 0;
+        });
+}
+
+int
+runRebuildLedgerFromBuckets(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        rebuildLedgerFromBuckets(configOption.getConfig());
+        return 0;
+    });
+}
+
+int
 runFuzz(CommandLineArgs const& args)
 {
     el::Level logLevel{el::Level::Info};
@@ -825,7 +836,6 @@ handleCommandLine(int argc, char* const* argv)
           runHttpCommand},
          {"infer-quorum", "print a quorum set inferred from history",
           runInferQuorum},
-         {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
@@ -850,6 +860,10 @@ handleCommandLine(int argc, char* const* argv)
          {"upgrade-db", "upgade database schema to current version",
           runUpgradeDB},
 #ifdef BUILD_TESTS
+         {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
+         {"rebuild-ledger-from-buckets",
+          "rebuild the current database ledger from the bucket list",
+          runRebuildLedgerFromBuckets},
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},
