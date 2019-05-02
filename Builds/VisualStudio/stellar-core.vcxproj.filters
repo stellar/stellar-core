@@ -315,9 +315,6 @@
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
       <Filter>invariant</Filter>
     </ClCompile>

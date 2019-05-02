@@ -12,7 +12,10 @@ namespace stellar
 class InvariantDoesNotHold : public std::runtime_error
 {
   public:
-    explicit InvariantDoesNotHold(std::string const& msg);
-    virtual ~InvariantDoesNotHold() override;
+    explicit InvariantDoesNotHold(std::string const& msg)
+        : std::runtime_error{msg}
+    {
+    }
+    virtual ~InvariantDoesNotHold() = default;
 };
 }
