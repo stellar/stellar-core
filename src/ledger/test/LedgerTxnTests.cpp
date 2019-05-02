@@ -1602,6 +1602,7 @@ testBestOffer(
     }
     else
     {
+        ltx.prepareGetBestOffer(buying, selling);
         auto offer = ltx.loadBestOffer(buying, selling);
         if (offer)
         {
@@ -1688,6 +1689,7 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         LedgerTxn ltx2(ltx1);
+        ltx2.prepareGetBestOffer(buying, selling);
         REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
                           std::runtime_error);
     }
@@ -1700,6 +1702,7 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
 
         LedgerTxn ltx1(app->getLedgerTxnRoot());
         ltx1.getDelta();
+        ltx1.prepareGetBestOffer(buying, selling);
         REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
                           std::runtime_error);
     }
@@ -2654,9 +2657,14 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
 
         size_t numOffers = 0;
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        while (auto le = ltx.loadBestOffer(buying, selling))
+        ltx.prepareGetBestOffer(buying, selling);
+
+        std::unique_ptr<LedgerKey> key;
+        while (auto le = key ? ltx.loadBestOffer(buying, selling, *key)
+                             : ltx.loadBestOffer(buying, selling))
         {
             REQUIRE(le.current() == sortedOffers[numOffers]);
+            key = std::make_unique<LedgerKey>(LedgerEntryKey(le.current()));
             ++numOffers;
             le.erase();
         }
