@@ -256,8 +256,11 @@ Simulation::startAllNodes()
     for (auto const& it : mNodes)
     {
         auto app = it.second.mApp;
-        app->start();
-        app->getLoadGenerator().updateMinBalance();
+        if (app->getState() == Application::APP_CREATED_STATE)
+        {
+            app->start();
+            app->getLoadGenerator().updateMinBalance();
+        }
     }
 
     for (auto const& pair : mPendingConnections)
