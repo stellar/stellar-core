@@ -46,3 +46,16 @@ branches:
  only:
  - auto
 
+stages:
+  - compile
+  - test
+
+matrix:
+  fast_finish: true
+  include:
+    - stage: compile
+      compiler: clang
+      script: ./travis-build.sh --disable-tests
+    - stage: compile
+      compiler: gcc
+      script: ./travis-build.sh --disable-tests
