@@ -418,12 +418,6 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
 // been lost.
 class LedgerTxnRoot::Impl
 {
-    struct KeyAccesses
-    {
-        uint64_t hits{0};
-        uint64_t misses{0};
-    };
-
     enum class LoadType
     {
         IMMEDIATE,
@@ -469,7 +463,6 @@ class LedgerTxnRoot::Impl
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
     mutable BestOffersCache mBestOffersCache;
-    mutable std::unordered_map<LedgerKey, KeyAccesses> mPrefetchMetrics;
     mutable uint64_t mTotalPrefetchHits{0};
 
     size_t mMaxCacheSize;
