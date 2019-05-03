@@ -39,9 +39,9 @@ llvm-symbolizer --version || true
 
 # Create postgres databases
 if test $CXX = 'clang++'; then
-    RUN_PARTITIONS="0 1"
+    RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
 elif test $CXX = 'g++'; then
-    RUN_PARTITIONS="2 3"
+    RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
 fi
 export PGUSER=postgres
 psql -c "create database test;"
@@ -92,7 +92,7 @@ time make -j$(($NPROCS + 1))
 ccache -s
 export ALL_VERSIONS=1
 export TEMP_POSTGRES=0
-export NUM_PARTITIONS=4
+export NUM_PARTITIONS=$((NPROCS*2))
 export RUN_PARTITIONS
 time make check
 
