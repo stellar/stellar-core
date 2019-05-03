@@ -465,7 +465,6 @@ class LedgerTxnRoot::Impl
     mutable BestOffersCache mBestOffersCache;
     mutable uint64_t mTotalPrefetchHits{0};
 
-    size_t mMaxCacheSize;
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;

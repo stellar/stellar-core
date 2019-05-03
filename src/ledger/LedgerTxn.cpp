@@ -1367,7 +1367,6 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
     , mBestOffersCache(bestOfferCacheSize)
-    , mMaxCacheSize(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
 {
@@ -1670,7 +1669,15 @@ LedgerTxnRoot::prefetch(std::unordered_set<LedgerKey> const& keys)
 uint32_t
 LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
 {
-    uint32_t total = 0;
+    size_t const maxSize = ENTRY_CACHE_FILL_RATIO * mEntryCache.maxSize();
+    size_t const initialSize = mEntryCache.size();
+    if (initialSize >= maxSize)
+    {
+        return 0;
+    }
+
+    size_t const remainingSize = maxSize - initialSize;
+    size_t added = 0;
 
     std::unordered_set<LedgerKey> accounts;
     std::unordered_set<LedgerKey> offers;
@@ -1683,7 +1690,6 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
             for (auto const& item : res)
             {
                 putInEntryCache(item.first, item.second, LoadType::PREFETCH);
-                ++total;
             }
         };
 
@@ -1692,15 +1698,15 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
         if (!mEntryCache.exists(key, false))
         {
             keys.insert(key);
+            ++added;
         }
     };
 
     for (auto const& key : keys)
     {
-        if ((static_cast<double>(mEntryCache.size()) / mMaxCacheSize) >=
-            ENTRY_CACHE_FILL_RATIO)
+        if (added >= remainingSize)
         {
-            return total;
+            break;
         }
 
         switch (key.type())
@@ -1746,7 +1752,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
     cacheResult(bulkLoadTrustLines(trustlines));
     cacheResult(bulkLoadData(data));
 
-    return total;
+    return added;
 }
 
 double
