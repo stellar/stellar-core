@@ -29,6 +29,59 @@ class Application;
  *  that hints the next desired state, and `onAbort`, that cancels ongoing
  *  work.
  *
+ *  The implementer's return value from `onRun` is the `State` type, which
+ *  has only 5 values (WORK_{RUNNING,WAITING,SUCCESS,FAILURE,ABORTED}),
+ *  each of which has a corresponding InternalState value.
+ *
+ *  BasicWork _internally_ uses the `InternalState` type, which has 8 values
+ *  (the values of the State type, plus PENDING, RETRYING and ABORTING). It
+ *  uses these to provide central treatments of (re)initialization, retrying
+ *  and aborting.
+ *
+ *  The legal state transitions (and event edges) are as follows:
+ *
+ *
+ *       +--------------------------startWork--------------------------+
+ *       |                                                             |
+ *       v                                               +----------+  |
+ *  +---------+                                          |*SUCCESS* |  |
+ *  | PENDING |>-+                  +-onSuccess--------->|  (done)  |>-+
+ *  +---------+  |                  |                    +----------+  |
+ *       v       |                  |                    +----------+  |
+ *       |    onReset,              |                    |*FAILURE* |  |
+ *       |   retries=0   +-------+  +-onFailureRaise,--->|  (done)  |>-+
+ *       |       |       |       |  |     onReset        +----------+  |
+ *       |       |       v       |  |                    +----------+  |
+ *       |       |  +---------+  |  |                    |*ABORTED* |  |
+ *       |       +->| RUNNING |>-+--+-----------------+  |  (done)  |>-+
+ *       |       |  +---------+                       |  +----------+
+ *       |       |       v                            |        ^
+ *       |       |       |                            |        |
+ *       |       |       +-onFailureRetry,--+     shutdown     |
+ *       |       |       |     onReset      |         |        |
+ *       |       |       |                  v         |        |
+ *       |       |       |            +-----------+   |        |
+ *       |       |       |            | RETRYING  |   |        |
+ *       |    wakeUp,    |            +-----------+   |        |
+ *       |    notify     |                  v         v    onAbort
+ *       |       |       |                  |         |    (true),
+ *       |       |       +--waitForRetry----+         |    onReset
+ *       |       |       |                            |        |
+ *       |       |       v                            |        |
+ *       |       | +-----------+                      |        |
+ *       |       | |  WAITING  |>------shutdown-------+        |
+ *       |       | +-----------+                      |        |
+ *       |       |       v                            |        |
+ *       |       |       |                            v        |
+ *       |       +-------+                      +-----------+  |
+ *       +----------------------shutdown-----+->| ABORTING  |>-+
+ *                                           |  +-----------+
+ *                                           |        v
+ *                                           |        |
+ *                                           +onAbort-+
+ *                                            (false)
+ *
+ *
  *  BasicWork is a bulding block of task execution; Other notable works
  * available for implementers:
  *  - Work: BasicWork that allows adding and managing children.
