@@ -1111,19 +1111,7 @@ convertWithOffers(
     {
         LedgerTxn ltx(ltxOuter);
 
-        LedgerTxnEntry wheatOffer;
-        if (offerTrail.empty())
-        {
-            wheatOffer = ltx.loadBestOffer(sheep, wheat);
-        }
-        else
-        {
-            LedgerKey key(OFFER);
-            key.offer().sellerID = offerTrail.back().sellerID;
-            key.offer().offerID = offerTrail.back().offerID;
-            wheatOffer = ltx.loadBestOffer(sheep, wheat, key);
-        }
-
+        auto wheatOffer = ltx.loadBestOffer(sheep, wheat);
         if (!wheatOffer)
         {
             break;

@@ -1085,26 +1085,18 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
 LedgerTxnEntry
 LedgerTxn::loadBestOffer(Asset const& buying, Asset const& selling)
 {
-    return getImpl()->loadBestOffer(*this, buying, selling, nullptr);
-}
-
-LedgerTxnEntry
-LedgerTxn::loadBestOffer(Asset const& buying, Asset const& selling,
-                         LedgerKey const& previousBest)
-{
-    return getImpl()->loadBestOffer(*this, buying, selling, &previousBest);
+    return getImpl()->loadBestOffer(*this, buying, selling);
 }
 
 LedgerTxnEntry
 LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
-                               Asset const& selling,
-                               LedgerKey const* previousBest)
+                               Asset const& selling)
 {
     throwIfSealed();
     throwIfChild();
 
     std::unordered_set<LedgerKey> exclude;
-    auto le = getBestOffer(buying, selling, previousBest);
+    auto le = getBestOffer(buying, selling, nullptr);
     return le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
 }
 

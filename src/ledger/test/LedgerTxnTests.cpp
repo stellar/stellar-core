@@ -2689,13 +2689,9 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         size_t numOffers = 0;
         LedgerTxn ltx(app.getLedgerTxnRoot());
         ltx.prepareGetBestOffer(buying, selling);
-
-        std::unique_ptr<LedgerKey> key;
-        while (auto le = key ? ltx.loadBestOffer(buying, selling, *key)
-                             : ltx.loadBestOffer(buying, selling))
+        while (auto le = ltx.loadBestOffer(buying, selling))
         {
             REQUIRE(le.current() == sortedOffers[numOffers]);
-            key = std::make_unique<LedgerKey>(LedgerEntryKey(le.current()));
             ++numOffers;
             le.erase();
         }

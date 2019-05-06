@@ -457,9 +457,6 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     loadAllOffers() = 0;
     virtual LedgerTxnEntry loadBestOffer(Asset const& buying,
                                          Asset const& selling) = 0;
-    virtual LedgerTxnEntry loadBestOffer(Asset const& buying,
-                                         Asset const& selling,
-                                         LedgerKey const& previousBest) = 0;
     virtual std::vector<LedgerTxnEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) = 0;
@@ -545,8 +542,6 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     LedgerTxnEntry loadBestOffer(Asset const& buying,
                                  Asset const& selling) override;
-    LedgerTxnEntry loadBestOffer(Asset const& buying, Asset const& selling,
-                                 LedgerKey const& previousBest) override;
 
     LedgerTxnHeader loadHeader() override;
 

@@ -351,8 +351,7 @@ class LedgerTxn::Impl
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
     LedgerTxnEntry loadBestOffer(LedgerTxn& self, Asset const& buying,
-                                 Asset const& selling,
-                                 LedgerKey const* previousBest);
+                                 Asset const& selling);
 
     // loadHeader has the strong exception safety guarantee
     LedgerTxnHeader loadHeader(LedgerTxn& self);
