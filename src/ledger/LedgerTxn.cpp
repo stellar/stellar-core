@@ -264,7 +264,12 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 auto selfIter = mEntry.find(key);
                 if (selfIter != mEntry.end() && selfIter->second)
                 {
-                    mGetBestOffersState->mOffers.erase(*selfIter->second);
+                    auto const& oe = selfIter->second->data.offer();
+                    if (oe.buying == mGetBestOffersState->mBuying &&
+                        oe.selling == mGetBestOffersState->mSelling)
+                    {
+                        mGetBestOffersState->mOffers.erase(*selfIter->second);
+                    }
                 }
             }
 

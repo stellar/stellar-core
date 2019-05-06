@@ -2208,6 +2208,37 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgerstate]")
     }
 }
 
+TEST_CASE("LedgerTxn update get best offers state during commit",
+          "[ledgerstate]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    LedgerEntry le1;
+    le1.data.type(OFFER);
+    le1.data.offer() = LedgerTestUtils::generateValidOfferEntry(5);
+    auto const& oe1 = le1.data.offer();
+
+    LedgerEntry le2;
+    le2.data.type(OFFER);
+    le2.data.offer() = LedgerTestUtils::generateValidOfferEntry(5);
+    auto& oe2 = le2.data.offer();
+    oe2.buying = oe1.selling;
+    oe2.selling = oe1.buying;
+
+    LedgerTxn ltx1(app->getLedgerTxnRoot());
+    ltx1.create(le1);
+    ltx1.create(le2);
+    ltx1.prepareGetBestOffer(oe1.buying, oe1.selling);
+
+    {
+        LedgerTxn ltx2(ltx1);
+        ltx2.load(LedgerEntryKey(le2));
+        ltx2.commit();
+    }
+}
+
 TEST_CASE("Create performance benchmark", "[!hide][createbench]")
 {
     auto runTest = [&](Config::TestDbMode mode, bool loading) {
