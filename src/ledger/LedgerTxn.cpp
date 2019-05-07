@@ -617,7 +617,10 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                               LedgerKey const* exclude)
 {
     auto const& gbos = mGetBestOffersState;
-    assert(gbos || (!mChild && mEntry.empty()));
+    if (!gbos && (mChild || !mEntry.empty()))
+    {
+        throw std::runtime_error("Invalid GetBestOffersState");
+    }
 
     while (gbos && gbos->mIter != gbos->mOffers.cend() && exclude &&
            LedgerEntryKey(*gbos->mIter) == *exclude)
