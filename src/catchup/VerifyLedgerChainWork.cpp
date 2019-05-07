@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
+#include "util/FileSystemException.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <medida/meter.h>
@@ -296,7 +297,22 @@ VerifyLedgerChainWork::onRun()
             "Verification undershot first ledger in the range.");
     }
 
-    switch (verifyHistoryOfSingleCheckpoint())
+    HistoryManager::LedgerVerificationStatus result;
+
+    // Catch FS-related errors to gracefully fail Work instead of crashing
+    try
+    {
+        result = verifyHistoryOfSingleCheckpoint();
+    }
+    catch (FileSystemException&)
+    {
+        CLOG(ERROR, "History") << "Catchup material failed verification";
+        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+        mVerifyLedgerChainFailure.Mark();
+        return BasicWork::State::WORK_FAILURE;
+    }
+
+    switch (result)
     {
     case HistoryManager::VERIFY_STATUS_OK:
         if (mCurrCheckpoint ==
