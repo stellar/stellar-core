@@ -476,6 +476,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\CrossOffersBenchmark.cpp" />
     <ClCompile Include="..\..\src\transactions\test\AllowTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\BumpSequenceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\ChangeTrustTests.cpp" />
