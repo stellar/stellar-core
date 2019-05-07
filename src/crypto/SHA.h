@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/ByteSlice.h"
+#include "crypto/XDRHasher.h"
 #include "xdr/Stellar-types.h"
 #include <memory>
 
@@ -24,6 +25,36 @@ class SHA256
     virtual void add(ByteSlice const& bin) = 0;
     virtual uint256 finish() = 0;
 };
+
+// Helper for xdrSha256 below.
+struct XDRSHA256 : XDRHasher<XDRSHA256>
+{
+    std::unique_ptr<SHA256> state;
+    XDRSHA256() : state(SHA256::create())
+    {
+    }
+    void
+    hashBytes(unsigned char const* bytes, size_t size)
+    {
+        state->add(ByteSlice(bytes, size));
+    }
+};
+
+// Equivalent to `sha256(xdr_to_opaque(t))` on any XDR object `t` but
+// without allocating a temporary buffer.
+//
+// NB: This is not an overload of `sha256` to avoid ambiguity when called
+// with xdrpp-provided types like opaque_vec, which will convert to a ByteSlice
+// if demanded, but can also be passed to XDRSHA256.
+template <typename T>
+uint256
+xdrSha256(T const& t)
+{
+    XDRSHA256 xs;
+    xdr::archive(xs, t);
+    xs.flush();
+    return xs.state->finish();
+}
 
 // HMAC-SHA256 (keyed)
 HmacSha256Mac hmacSha256(HmacSha256Key const& key, ByteSlice const& bin);
