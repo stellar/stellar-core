@@ -1095,7 +1095,6 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
     throwIfSealed();
     throwIfChild();
 
-    std::unordered_set<LedgerKey> exclude;
     auto le = getBestOffer(buying, selling, nullptr);
     return le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
 }
