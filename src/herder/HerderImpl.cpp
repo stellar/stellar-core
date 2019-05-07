@@ -731,7 +731,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     auto proposedSet = mTransactionQueue.toTxSet(lcl.hash);
     auto removed = proposedSet->trimInvalid(mApp);
-    mTransactionQueue.remove(removed);
+    mTransactionQueue.ban(removed);
 
     proposedSet->surgePricingFilter(mApp);
 
@@ -1311,7 +1311,7 @@ HerderImpl::updateTransactionQueue(
     std::vector<TransactionFramePtr> const& applied)
 {
     // remove all these tx from mTransactionQueue
-    mTransactionQueue.remove(applied);
+    mTransactionQueue.removeAndReset(applied);
     mTransactionQueue.shift();
 
     // rebroadcast entries, sorted in apply-order to maximize chances of

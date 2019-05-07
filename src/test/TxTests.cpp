@@ -409,12 +409,16 @@ getAccountSigners(PublicKey const& k, Application& app)
 
 TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
-                          SequenceNumber seq, const std::vector<Operation>& ops)
+                          SequenceNumber seq, const std::vector<Operation>& ops,
+                          int fee)
 {
     auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = static_cast<uint32_t>(
-        (ops.size() * app.getLedgerManager().getLastTxFee()) & UINT32_MAX);
+    e.tx.fee = fee != 0
+                   ? fee
+                   : static_cast<uint32_t>(
+                         (ops.size() * app.getLedgerManager().getLastTxFee()) &
+                         UINT32_MAX);
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
