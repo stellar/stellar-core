@@ -70,4 +70,36 @@ template <> class hash<stellar::LedgerKey>
         return res;
     }
 };
+
+template <> class hash<stellar::Asset>
+{
+  public:
+    size_t
+    operator()(stellar::Asset const& asset) const
+    {
+        size_t res = asset.type();
+        switch (asset.type())
+        {
+        case stellar::ASSET_TYPE_NATIVE:
+            break;
+        case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+        {
+            auto& a4 = asset.alphaNum4();
+            res ^= stellar::shortHash::computeHash(
+                stellar::ByteSlice(a4.issuer.ed25519().data(), 8));
+            res ^= a4.assetCode[0];
+            break;
+        }
+        case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+        {
+            auto& a12 = asset.alphaNum12();
+            res ^= stellar::shortHash::computeHash(
+                stellar::ByteSlice(a12.issuer.ed25519().data(), 8));
+            res ^= a12.assetCode[0];
+            break;
+        }
+        }
+        return res;
+    }
+};
 }

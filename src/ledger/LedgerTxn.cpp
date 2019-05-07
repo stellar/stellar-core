@@ -1812,36 +1812,10 @@ operator==(BestOffersCacheKey const& other) const
 }
 
 size_t
-LedgerTxnRoot::Impl::BestOffersCacheKeyHash::hashAsset(Asset const& asset)
-{
-    size_t res = asset.type();
-    switch (asset.type())
-    {
-    case ASSET_TYPE_NATIVE:
-        break;
-    case ASSET_TYPE_CREDIT_ALPHANUM4:
-    {
-        auto& a4 = asset.alphaNum4();
-        res ^= shortHash::computeHash(ByteSlice(a4.issuer.ed25519().data(), 8));
-        res ^= a4.assetCode[0];
-        break;
-    }
-    case ASSET_TYPE_CREDIT_ALPHANUM12:
-    {
-        auto& a12 = asset.alphaNum12();
-        res ^=
-            shortHash::computeHash(ByteSlice(a12.issuer.ed25519().data(), 8));
-        res ^= a12.assetCode[0];
-        break;
-    }
-    }
-    return res;
-}
-
-size_t
 LedgerTxnRoot::Impl::BestOffersCacheKeyHash::
 operator()(BestOffersCacheKey const& key) const
 {
+    std::hash<Asset> hashAsset;
     return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
 }
 

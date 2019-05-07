@@ -449,8 +449,6 @@ class LedgerTxnRoot::Impl
 
     struct BestOffersCacheKeyHash
     {
-        static size_t hashAsset(Asset const& asset);
-
         size_t operator()(BestOffersCacheKey const& key) const;
     };
 
