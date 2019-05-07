@@ -572,6 +572,15 @@ LedgerTxn::prepareGetBestOffer(Asset const& buying, Asset const& selling)
 void
 LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
 {
+    for (auto const& kv : mActive)
+    {
+        if (kv.first.type() == OFFER)
+        {
+            throw std::runtime_error(
+                "Active offer found during prepareGetBestOffer");
+        }
+    }
+
     auto& gbos = mGetBestOffersState;
     if (!(gbos && gbos->mBuying == buying && gbos->mSelling == selling))
     {
