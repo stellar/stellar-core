@@ -143,6 +143,13 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     // up once finished.
     void startWork(std::function<void()> notificationCallback);
 
+    // A helper method that implementers can use if they plan to utilize
+    // WAITING state. This tells the work to return to RUNNING state, and
+    // propagate the notification up to the scheduler. An example use of
+    // this would be RunCommandWork: a timer is used to async_wait for a
+    // process to exit, with a call to `wakeUp` upon completion.
+    void wakeUp(std::function<void()> innerCallback = nullptr);
+
     // Prepare work for destruction. Implementers overriding this method
     // are expected to call it on all work they might have created.
     // Note `BasicWork::shutdown` must also be called, as it changes the
@@ -184,13 +191,6 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     virtual void onFailureRaise();
     virtual void onSuccess();
 
-    // A helper method that implementers can use if they plan to utilize
-    // WAITING state. This tells the work to return to RUNNING state, and
-    // propagate the notification up to the scheduler. An example use of
-    // this would be RunCommandWork: a timer is used to async_wait for a
-    // process to exit, with a call to `wakeUp` upon completion.
-    void wakeUp(std::function<void()> innerCallback = nullptr);
-
     // Default wakeUp callback that implementers can use
     std::function<void()>
     wakeSelfUpCallback(std::function<void()> innerCallback = nullptr);
@@ -207,7 +207,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         RUNNING,
         WAITING,
         // Work is shutting down. During this stage, Work is prevented from
-        // making any furhter progress. This means that any attempts to call
+        // making any further progress. This means that any attempts to call
         // wake, add child work or invoke a callback will result in a no-op.
         ABORTING,
         ABORTED,
