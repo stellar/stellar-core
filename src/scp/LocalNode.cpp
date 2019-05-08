@@ -378,9 +378,7 @@ LocalNode::toJson(SCPQuorumSet const& qSet, bool fullKeys) const
     auto& entries = ret["v"];
     for (auto const& v : qSet.validators)
     {
-        std::string nodeID = fullKeys ? mSCP->getDriver().toStrKey(v)
-                                      : mSCP->getDriver().toShortString(v);
-        entries.append(nodeID);
+        entries.append(mSCP->getDriver().toStrKey(v, fullKeys));
     }
     for (auto const& s : qSet.innerSets)
     {

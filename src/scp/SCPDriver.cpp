@@ -24,9 +24,9 @@ SCPDriver::getValueString(Value const& v) const
 }
 
 std::string
-SCPDriver::toStrKey(PublicKey const& pk) const
+SCPDriver::toStrKey(PublicKey const& pk, bool fullKey) const
 {
-    return KeyUtils::toStrKey(pk);
+    return fullKey ? KeyUtils::toStrKey(pk) : SCPDriver::toShortString(pk);
 }
 
 std::string

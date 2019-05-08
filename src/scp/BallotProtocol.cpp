@@ -2036,7 +2036,7 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
         {
             if (!summary)
             {
-                missing.append(mSlot.getSCPDriver().toShortString(n));
+                missing.append(mSlot.getSCPDriver().toStrKey(n, fullKeys));
             }
             n_missing++;
         }
@@ -2053,7 +2053,8 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
                 {
                     if (!summary)
                     {
-                        delayed.append(mSlot.getSCPDriver().toShortString(n));
+                        delayed.append(
+                            mSlot.getSCPDriver().toStrKey(n, fullKeys));
                     }
                     n_delayed++;
                 }
@@ -2062,7 +2063,7 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
             {
                 if (!summary)
                 {
-                    disagree.append(mSlot.getSCPDriver().toShortString(n));
+                    disagree.append(mSlot.getSCPDriver().toStrKey(n, fullKeys));
                 }
                 n_disagree++;
             }
@@ -2088,10 +2089,7 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
         auto& f_ex = ret["fail_with"];
         for (auto const& n : f)
         {
-            std::string nodeID = fullKeys
-                                     ? mSlot.getSCPDriver().toStrKey(n)
-                                     : mSlot.getSCPDriver().toShortString(n);
-            f_ex.append(nodeID);
+            f_ex.append(mSlot.getSCPDriver().toStrKey(n, fullKeys));
         }
         ret["value"] = getLocalNode()->toJson(*qSet, fullKeys);
     }
