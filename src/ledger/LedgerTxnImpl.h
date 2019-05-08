@@ -164,6 +164,16 @@ class LedgerTxn::Impl
 
         GetBestOffersState(Asset const& buying, Asset const& selling);
     };
+
+    // mGetBestOffersState stores three pieces of state:
+    // 1. An asset pair (mBuying, mSelling)
+    // 2. An ordered set mOffers, ordered by the is-better-offer relationship,
+    //    of all offers that
+    //    a) are recorded in this LedgerTxn
+    //    b) are not erased
+    //    c) are buying asset mBuying
+    //    d) are selling asset mSelling
+    // 3. An iterator mIter pointing to the current best offer during streaming
     std::unique_ptr<GetBestOffersState> mGetBestOffersState;
 
     void throwIfChild() const;

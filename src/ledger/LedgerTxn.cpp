@@ -572,6 +572,9 @@ LedgerTxn::prepareGetBestOffer(Asset const& buying, Asset const& selling)
 void
 LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
 {
+    // It is not safe to prepare the GetBestOffersState if any offers are active
+    // because they can be modified so as to make the GetBestOffersState
+    // inaccurate.
     for (auto const& kv : mActive)
     {
         if (kv.first.type() == OFFER)
@@ -583,6 +586,9 @@ LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
 
     std::unique_ptr<GetBestOffersState> gbos = std::move(mGetBestOffersState);
 
+    // The GetBestOffersState will be reset in create, erase, and load (and some
+    // other similar functions) if it can no longer be guaranteed to be accurate
+    // so we can accept it as accurate if it meets these conditions.
     if (!(gbos && gbos->mBuying == buying && gbos->mSelling == selling))
     {
         gbos = std::make_unique<GetBestOffersState>(buying, selling);
@@ -601,8 +607,17 @@ LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
             }
         }
     }
+
+    // Calling prepareGetBestOffer must always reset the stream to the beginning.
     gbos->mIter = gbos->mOffers.cbegin();
 
+    // At this point mGetBestOffersState = nullptr but the pending value of
+    // mGetBestOffersState has already been computed. Therefore we can say the
+    // following:
+    // - If self or any parent throws an exception during prepareGetBestOffer
+    //   then mGetBestOffersState = nullptr
+    // - Otherwise mGetBestOffersState satisfies conditions 2a, 2b, 2c, and 2d
+    //   from the documentation of mGetBestOffersState
     mParent.prepareGetBestOffer(buying, selling);
 
     // Move-assignment of std::unique_ptr<...> never throws
@@ -635,31 +650,88 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     auto parentBest = mParent.getBestOffer(buying, selling, exclude);
     if (!gbos || gbos->mIter == gbos->mOffers.cend())
     {
+        // 1. If !gbos then the above guarantees that mEntry.empty() which means
+        //    this LedgerTxn must have no offers recorded, so it is at the end
+        //    of its stream of offers.
+        // 2. If gbos->mIter == gbos->mOffers.cend() then this LedgerTxn is at
+        //    the end of its stream of offers.
+        // Therefore it is vacuously true that every best offer originating from
+        // any ancestor LedgerTxn is better than any offer remaining in the
+        // stream of offers for this LedgerTxn.
         while (parentBest)
         {
             auto key = LedgerEntryKey(*parentBest);
+
+            // 1. It is an invariant of getBestOffer that we will not return a
+            //    best offer that has been explicitly excluded.
+            // 2. If mEntry.find(key) != mEntry.end() then *parentBest was
+            //    modified or erased in this LedgerTxn. But since this LedgerTxn
+            //    is at the end of its stream of offers, we know that either
+            //    - It was modified to a better price, in which case *parentBest
+            //      was already returned
+            //    - It was erased or the assets were modified, in which case
+            //      *parentBest should not be returned
+            //    In either case, it must be excluded from the stream.
             if (!(exclude && key == *exclude) &&
                 mEntry.find(key) == mEntry.end())
             {
                 return parentBest;
             }
+
+            // Advance to the next best offer originating from any ancestor
+            // LedgerTxn by explicitly excluding the key of the current best
+            // offer.
             parentBest = mParent.getBestOffer(buying, selling, &key);
         }
+
+        // No best offer originating from any ancestor LedgerTxn can be returned
+        // so we must return nullptr because the stream of offers in this
+        // LedgerTxn has already been exhausted.
         return nullptr;
     }
     else
     {
         auto const& selfBest = *gbos->mIter;
+
+        // If (gbos && gbos->mIter != gbos->mOffers.cend()) then there is at
+        // least one offer remaining in the stream of offers for this LedgerTxn.
+        // Because the stream of offers for this LedgerTxn is sorted, we know
+        // that selfBest is the best offer remaining in the stream of offers for
+        // this LedgerTxn. Furthermore, we already checked above that this offer
+        // is not explicitly excluded. Therefore if at any point the best offer
+        // originating from any ancestor LedgerTxn is worse than selfBest, then
+        // we can simply return selfBest.
         while (parentBest && isBetterOffer(*parentBest, selfBest))
         {
             auto key = LedgerEntryKey(*parentBest);
+
+            // 1. It is an invariant of getBestOffer that we will not return a
+            //    best offer that has been explicitly excluded.
+            // 2. If mEntry.find(key) != mEntry.end() then *parentBest was
+            //    modified or erased in this LedgerTxn. But since *parentBest
+            //    is a better offer than selfBest, we know that either
+            //    - It was modified to a better price, in which case *parentBest
+            //      was already returned
+            //    - It was modified to a worse price, in which case *parentBest
+            //      should not yet be returned
+            //    - It was erased or the assets were modified, in which case
+            //      *parentBest should not be returned
+            //    In any case, it must be excluded from the stream.
             if (!(exclude && key == *exclude) &&
                 mEntry.find(key) == mEntry.end())
             {
                 return parentBest;
             }
+
+            // Advance to the next best offer originating from any ancestor
+            // LedgerTxn by explicitly excluding the key of the current best
+            // offer.
             parentBest = mParent.getBestOffer(buying, selling, &key);
         }
+
+        // Either no best offer originating from any ancestor LedgerTxn can be
+        // returned, or the best offer originating from any ancestor LedgerTxn
+        // is worse than selfBest so we must return selfBest.
         return std::make_shared<LedgerEntry const>(selfBest);
     }
 }

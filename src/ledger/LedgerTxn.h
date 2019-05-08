@@ -313,10 +313,10 @@ class AbstractLedgerTxnParent
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
 
-    // getBestOffer presents a streaming-like API to efficiently determine a
-    // sequence of best offers for a single asset-pair. To reset the stream,
-    // prepareGetBestOffer must be called. Otherwise getBestOffer will continue
-    // from its previous state.
+    // prepareGetBestOffer and getBestOffer are used in conjunction to provide a
+    // stream-like API to efficiently determine a sequence of best offers for a
+    // single asset-pair. prepareGetBestOffer resets the stream, whereas
+    // getBestOffer is used to access the next result in the stream.
     virtual void prepareGetBestOffer(Asset const& buying,
                                      Asset const& selling) = 0;
     virtual std::shared_ptr<LedgerEntry const>
