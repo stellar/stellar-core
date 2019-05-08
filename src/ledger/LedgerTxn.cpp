@@ -581,7 +581,8 @@ LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
         }
     }
 
-    auto& gbos = mGetBestOffersState;
+    std::unique_ptr<GetBestOffersState> gbos = std::move(mGetBestOffersState);
+
     if (!(gbos && gbos->mBuying == buying && gbos->mSelling == selling))
     {
         gbos = std::make_unique<GetBestOffersState>(buying, selling);
@@ -603,6 +604,9 @@ LedgerTxn::Impl::prepareGetBestOffer(Asset const& buying, Asset const& selling)
     gbos->mIter = gbos->mOffers.cbegin();
 
     mParent.prepareGetBestOffer(buying, selling);
+
+    // Move-assignment of std::unique_ptr<...> never throws
+    mGetBestOffersState = std::move(gbos);
 }
 
 std::shared_ptr<LedgerEntry const>

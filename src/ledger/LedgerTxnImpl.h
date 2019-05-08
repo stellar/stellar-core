@@ -243,7 +243,7 @@ class LedgerTxn::Impl
     // throws an exception, then
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
-    // - the best offers state may be, but is not guaranteed to be, modified
+    // - the best offers state is cleared
     // WARNING: This last possibility indicates that this basic exception safety
     // guarantee is weaker than the guarantee from most other member functions
     // of LedgerTxn. Be sure to call prepareGetBestOffer again if an exception
