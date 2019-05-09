@@ -20,13 +20,9 @@ Levels:
 namespace stellar
 {
 
-namespace
-{
-
-static const std::vector<std::string> kLoggers = {
+std::array<std::string const, 13> const Logging::kPartitionNames = {
     "Fs",      "SCP",    "Bucket", "Database", "History", "Process",  "Ledger",
     "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant"};
-}
 
 el::Configurations Logging::gDefaultConf;
 
@@ -102,7 +98,7 @@ Logging::init()
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
 
-    for (auto const& logger : kLoggers)
+    for (auto const& logger : kPartitionNames)
     {
         el::Loggers::getLogger(logger);
     }
@@ -271,7 +267,8 @@ Logging::getLLfromString(std::string const& levelName)
 void
 Logging::rotate()
 {
-    auto loggers = kLoggers;
+    std::vector<std::string> loggers(kPartitionNames.begin(),
+                                     kPartitionNames.end());
     loggers.insert(loggers.begin(), "default");
 
     // Lock the loggers while we rotate; this is needed to
@@ -307,5 +304,18 @@ Logging::rotate()
                                        el::ConfigurationType::MaxLogFileSize,
                                        std::to_string(prevMaxFileSize));
     }
+}
+
+std::string
+Logging::normalizePartition(std::string const& partition)
+{
+    for (auto& p : kPartitionNames)
+    {
+        if (iequals(partition, p))
+        {
+            return p;
+        }
+    }
+    throw std::invalid_argument("not a valid partition");
 }
 }

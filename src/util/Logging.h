@@ -37,5 +37,9 @@ class Logging
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
     static void rotate();
+    // throws if partition name is not recognized
+    static std::string normalizePartition(std::string const& partition);
+
+    static std::array<std::string const, 13> const kPartitionNames;
 };
 }
