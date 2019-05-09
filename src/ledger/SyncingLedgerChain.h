@@ -30,7 +30,7 @@ class SyncingLedgerChain final
     LedgerCloseData const& front() const;
     LedgerCloseData const& back() const;
     void pop();
-    SyncingLedgerChainAddResult push(LedgerCloseData lcd);
+    SyncingLedgerChainAddResult push(LedgerCloseData const& lcd);
 
     size_t size() const;
     bool empty() const;

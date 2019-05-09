@@ -18,44 +18,47 @@ namespace stellar
 {
 
 void
-checkQuorumIntersection(Config cfg)
+checkQuorumIntersection(Config const& cfg)
 {
     VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Config cfg2(cfg);
+    cfg2.setNoListen();
+    Application::pointer app = Application::create(clock, cfg2, false);
     InferredQuorum iq = app->getHistoryManager().inferQuorum();
-    iq.checkQuorumIntersection(cfg);
+    iq.checkQuorumIntersection(cfg2);
 }
 
 void
-inferQuorumAndWrite(Config cfg)
+inferQuorumAndWrite(Config const& cfg)
 {
+    Config cfg2(cfg);
     InferredQuorum iq;
     {
         VirtualClock clock;
-        cfg.setNoListen();
-        Application::pointer app = Application::create(clock, cfg, false);
+        cfg2.setNoListen();
+        Application::pointer app = Application::create(clock, cfg2, false);
         iq = app->getHistoryManager().inferQuorum();
     }
     LOG(INFO) << "Inferred quorum";
-    std::cout << iq.toString(cfg) << std::endl;
+    std::cout << iq.toString(cfg2) << std::endl;
 }
 
 void
-writeQuorumGraph(Config cfg, std::string const& outputFile)
+writeQuorumGraph(Config const& cfg, std::string const& outputFile)
 {
+    Config cfg2(cfg);
     InferredQuorum iq;
     {
         VirtualClock clock;
-        cfg.setNoListen();
-        Application::pointer app = Application::create(clock, cfg, false);
+        cfg2.setNoListen();
+        Application::pointer app = Application::create(clock, cfg2, false);
         iq = app->getHistoryManager().inferQuorum();
     }
     std::string filename = outputFile.empty() ? "-" : outputFile;
     if (filename == "-")
     {
         std::stringstream out;
-        iq.writeQuorumGraph(cfg, out);
+        iq.writeQuorumGraph(cfg2, out);
         LOG(INFO) << "*";
         LOG(INFO) << "* Quorum graph: " << out.str();
         LOG(INFO) << "*";
@@ -63,7 +66,7 @@ writeQuorumGraph(Config cfg, std::string const& outputFile)
     else
     {
         std::ofstream out(filename);
-        iq.writeQuorumGraph(cfg, out);
+        iq.writeQuorumGraph(cfg2, out);
         LOG(INFO) << "*";
         LOG(INFO) << "* Wrote quorum graph to " << filename;
         LOG(INFO) << "*";
