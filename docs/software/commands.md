@@ -164,11 +164,16 @@ format.
   Returns the list of known peers in JSON format.
 
 * **quorum**
-  `/quorum?[node=NODE_ID][&compact=true][&fullkeys=true]`<br>
-  Returns information about the quorum for node NODE_ID (this node by default).
-  NODE_ID is either a full key (`GABCD...`), an alias (`$name`) or an
-  abbreviated ID (`@GABCD`). If compact is set, only returns a summary version.
-  Outputs unshortened public keys if fullkeys is set.
+  `/quorum?[node=NODE_ID][&compact=true][&fullkeys=true][&transitive=true]`<br>
+  Returns information about the quorum for `NODE_ID` (local node by default).
+  If `transitive` is set, information is for the transitive quorum centered on `NODE_ID`, otherwise only for nodes in the quorum set of `NODE_ID`.
+
+  `NODE_ID` is either a full key (`GABCD...`), an alias (`$name`) or an
+  abbreviated ID (`@GABCD`).
+
+  If `compact` is set, only returns a summary version.
+
+  If `fullkeys` is set, outputs unshortened public keys.
 
 * **setcursor**
   `/setcursor?id=ID&cursor=N`<br>

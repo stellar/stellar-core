@@ -892,6 +892,125 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     return ret;
 }
 
+Json::Value
+HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
+                                        bool fullKeys)
+{
+    Json::Value ret;
+    Json::Value& nodes = ret["nodes"];
+
+    auto& q = mPendingEnvelopes.getCurrentlyTrackedQuorum();
+
+    auto rootLatest = getSCP().getLatestMessage(rootID);
+    std::map<Value, int> knownValues;
+
+    // walk the quorum graph, starting at id
+    std::unordered_set<NodeID> visited;
+    std::vector<NodeID> next;
+    next.push_back(rootID);
+    visited.emplace(rootID);
+    int distance = 0;
+    int valGenID = 0;
+    while (!next.empty())
+    {
+        std::vector<NodeID> frontier(std::move(next));
+        next.clear();
+        std::sort(frontier.begin(), frontier.end());
+        for (auto const& id : frontier)
+        {
+            Json::Value cur;
+            valGenID++;
+            cur["node"] = fullKeys ? mApp.getConfig().toStrKey(id)
+                                   : mApp.getConfig().toShortString(id);
+            if (!summary)
+            {
+                cur["distance"] = distance;
+            }
+            auto it = q.find(id);
+            std::string status;
+            if (it != q.end())
+            {
+                auto qSet = it->second;
+                if (qSet)
+                {
+                    if (!summary)
+                    {
+                        cur["qset"] =
+                            getSCP().getLocalNode()->toJson(*qSet, fullKeys);
+                    }
+                    LocalNode::forAllNodes(*qSet, [&](NodeID const& n) {
+                        auto b = visited.emplace(n);
+                        if (b.second)
+                        {
+                            next.emplace_back(n);
+                        }
+                    });
+                }
+                auto latest = getSCP().getLatestMessage(id);
+                if (latest)
+                {
+                    auto vals = Slot::getStatementValues(latest->statement);
+                    // updates the `knownValues` map, and generate a unique ID
+                    // for the value (heuristic to group votes)
+                    int trackingValID = -1;
+                    Value const* trackingValue = nullptr;
+                    for (auto const& v : vals)
+                    {
+                        auto p =
+                            knownValues.insert(std::make_pair(v, valGenID));
+                        if (p.first->second > trackingValID)
+                        {
+                            trackingValID = p.first->second;
+                            trackingValue = &v;
+                        }
+                    }
+
+                    cur["heard"] =
+                        static_cast<Json::UInt64>(latest->statement.slotIndex);
+                    if (!summary)
+                    {
+                        cur["value"] = trackingValue
+                                           ? mHerderSCPDriver.getValueString(
+                                                 *trackingValue)
+                                           : "";
+                        cur["value_id"] = trackingValID;
+                    }
+                    // give a sense of how this node is doing compared to rootID
+                    if (rootLatest)
+                    {
+                        if (latest->statement.slotIndex <
+                            rootLatest->statement.slotIndex)
+                        {
+                            status = "behind";
+                        }
+                        else if (latest->statement.slotIndex >
+                                 rootLatest->statement.slotIndex)
+                        {
+                            status = "ahead";
+                        }
+                        else
+                        {
+                            status = "tracking";
+                        }
+                    }
+                }
+                else
+                {
+                    status = "missing";
+                }
+            }
+            else
+            {
+                status = "unknown";
+            }
+            cur["status"] = status;
+            nodes.append(cur);
+        }
+        distance++;
+    }
+    return ret;
+}
+
 void
 HerderImpl::persistSCPState(uint64 slot)
 {
