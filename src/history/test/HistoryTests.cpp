@@ -874,38 +874,24 @@ TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
 TEST_CASE("Catchup manual", "[history][catchupmanual]")
 {
     CatchupSimulation catchupSimulation{};
-    auto checkpointLedger1 = catchupSimulation.getLastCheckpointLedger(6);
-    auto checkpointLedger2 = catchupSimulation.getLastCheckpointLedger(8);
-    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger2);
-
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(6);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
     auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
 
-    for (auto const& test : stellar::gCatchupRangeCases)
+    // Test every 10th scenario
+    for (auto i = 0; i < stellar::gCatchupRangeCases.size(); i += 10)
     {
-        // test only 5% of those configurations
-        if (std::rand() % 20 == 0)
-        {
-            auto lastClosedLedger = test.first;
-            auto configuration = test.second;
-            auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
-                                    lastClosedLedger, configuration.toLedger(),
-                                    configuration.count());
-
-            SECTION(name)
-            {
-                // manual catchup-recent
-                auto app = catchupSimulation.createCatchupApplication(
-                    configuration.count(), dbMode, name);
-                REQUIRE(catchupSimulation.catchupOffline(
-                    app, configuration.toLedger()));
-                // manual catchup to first checkpoint
-                REQUIRE(
-                    catchupSimulation.catchupOffline(app, checkpointLedger1));
-                // manual catchup to second checkpoint
-                REQUIRE(
-                    catchupSimulation.catchupOffline(app, checkpointLedger2));
-            }
-        }
+        auto test = stellar::gCatchupRangeCases[i];
+        auto configuration = test.second;
+        auto name =
+            fmt::format("lcl = {}, to ledger = {}, count = {}", test.first,
+                        configuration.toLedger(), configuration.count());
+        LOG(INFO) << "Catchup configuration: " << name;
+        // manual catchup-recent
+        auto app = catchupSimulation.createCatchupApplication(
+            configuration.count(), dbMode, name);
+        REQUIRE(
+            catchupSimulation.catchupOffline(app, configuration.toLedger()));
     }
 }
 
