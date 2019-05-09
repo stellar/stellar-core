@@ -5,7 +5,9 @@
 #include "ledger/CheckpointRange.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerRange.h"
+
 #include <cassert>
+#include <util/format.h>
 
 namespace stellar
 {
@@ -22,14 +24,20 @@ CheckpointRange::CheckpointRange(uint32_t first, uint32_t last,
 
 CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
                                  HistoryManager const& historyManager)
-    : mFirst{historyManager.checkpointContainingLedger(ledgerRange.first())}
-    , mLast{historyManager.checkpointContainingLedger(ledgerRange.last())}
+    : mFirst{historyManager.checkpointContainingLedger(ledgerRange.mFirst)}
+    , mLast{historyManager.checkpointContainingLedger(ledgerRange.mLast)}
     , mFrequency{historyManager.getCheckpointFrequency()}
 {
     assert(mFirst > 0);
     assert(mLast >= mFirst);
     assert((mFirst + 1) % mFrequency == 0);
     assert((mLast + 1) % mFrequency == 0);
+}
+
+std::string
+CheckpointRange::toString() const
+{
+    return fmt::format("{}..{}", mFirst + 1 - mFrequency, mLast);
 }
 
 bool

@@ -14,26 +14,16 @@ namespace stellar
 // history entry, useful for catchup and ledger verification purposes.
 using LedgerNumHashPair = std::pair<uint32_t, optional<Hash>>;
 
-class LedgerRange final
+struct LedgerRange final
 {
   public:
+    uint32_t const mFirst;
+    uint32_t const mLast;
+
     LedgerRange(uint32_t first, uint32_t last);
+    std::string toString() const;
+
     friend bool operator==(LedgerRange const& x, LedgerRange const& y);
     friend bool operator!=(LedgerRange const& x, LedgerRange const& y);
-
-    uint32_t
-    first() const
-    {
-        return mFirst;
-    }
-    uint32_t
-    last() const
-    {
-        return mLast;
-    }
-
-  private:
-    uint32_t mFirst;
-    uint32_t mLast;
 };
 }

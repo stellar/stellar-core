@@ -63,6 +63,7 @@ GetHistoryArchiveStateWork::doWork()
     {
         auto name = mSeq == 0 ? HistoryArchiveState::wellKnownRemoteName()
                               : HistoryArchiveState::remoteName(mSeq);
+        CLOG(INFO, "History") << "Downloading history archive state: " << name;
         mGetRemoteFile = addWork<GetRemoteFileWork>(name, mLocalFilename,
                                                     mArchive, mRetries);
         return State::WORK_RUNNING;

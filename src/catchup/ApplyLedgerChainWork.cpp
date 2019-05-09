@@ -42,7 +42,7 @@ ApplyLedgerChainWork::getStatus() const
     if (getState() == State::WORK_RUNNING)
     {
         std::string task = "applying checkpoint";
-        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
+        return fmtProgress(mApp, task, mRange.mFirst, mRange.mLast, mCurrSeq);
     }
     return BasicWork::getStatus();
 }
@@ -50,17 +50,16 @@ ApplyLedgerChainWork::getStatus() const
 void
 ApplyLedgerChainWork::onReset()
 {
-    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
     auto& lm = mApp.getLedgerManager();
     auto& hm = mApp.getHistoryManager();
 
-    CLOG(INFO, "History") << "Replaying contents of "
-                          << CheckpointRange{mRange, hm}.count()
-                          << " transaction-history files from LCL "
-                          << LedgerManager::ledgerAbbrev(
-                                 lm.getLastClosedLedgerHeader());
-    mCurrSeq =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
+    CLOG(INFO, "History") << fmt::format(
+        "Applying transactions for ledgers {}, LCL is {}", mRange.toString(),
+        LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader()));
+
+    mLastApplied = lm.getLastClosedLedgerHeader();
+
+    mCurrSeq = hm.checkpointContainingLedger(mRange.mFirst);
     mHdrIn.close();
     mTxIn.close();
     mFilesOpen = false;
@@ -253,7 +252,7 @@ ApplyLedgerChainWork::onRun()
 
         auto& lm = mApp.getLedgerManager();
         auto const& lclHeader = lm.getLastClosedLedgerHeader();
-        if (lclHeader.header.ledgerSeq == mRange.last())
+        if (lclHeader.header.ledgerSeq == mRange.mLast)
         {
             return State::WORK_SUCCESS;
         }

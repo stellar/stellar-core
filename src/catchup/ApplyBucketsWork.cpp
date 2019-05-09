@@ -63,6 +63,8 @@ ApplyBucketsWork::getBucket(std::string const& hash)
 void
 ApplyBucketsWork::onReset()
 {
+    CLOG(INFO, "History") << "Applying buckets";
+
     mTotalBuckets = 0;
     mAppliedBuckets = 0;
     mAppliedEntries = 0;

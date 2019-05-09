@@ -212,7 +212,7 @@ class Database;
 struct InflationVotes;
 struct LedgerEntry;
 struct LedgerKey;
-class LedgerRange;
+struct LedgerRange;
 
 bool isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry);
 

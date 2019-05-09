@@ -3,7 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerRange.h"
+
 #include <cassert>
+#include <util/format.h>
 
 namespace stellar
 {
@@ -13,6 +15,12 @@ LedgerRange::LedgerRange(uint32_t first, uint32_t last)
 {
     assert(mFirst > 0);
     assert(mLast >= mFirst);
+}
+
+std::string
+LedgerRange::toString() const
+{
+    return fmt::format("{}..{}", mFirst, mLast);
 }
 
 bool
