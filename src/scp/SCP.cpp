@@ -318,8 +318,7 @@ SCP::envToStr(SCPStatement const& st, bool fullKeys) const
 
     Hash const& qSetHash = Slot::getCompanionQuorumSetHashFromStatement(st);
 
-    std::string nodeId = fullKeys ? mDriver.toStrKey(st.nodeID)
-                                  : mDriver.toShortString(st.nodeID);
+    std::string nodeId = mDriver.toStrKey(st.nodeID, fullKeys);
 
     oss << "{ENV@" << nodeId << " | "
         << " i: " << st.slotIndex;
