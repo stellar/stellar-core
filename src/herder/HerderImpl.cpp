@@ -624,15 +624,6 @@ HerderImpl::ledgerClosed()
         return;
     }
 
-    // If we are not a validating node and just watching SCP we don't call
-    // triggerNextLedger. Likewise if we are not in synced state.
-    if (!getSCP().isValidator())
-    {
-        CLOG(DEBUG, "Herder")
-            << "Non-validating node, not triggering ledger-close.";
-        return;
-    }
-
     if (!mLedgerManager.isSynced())
     {
         CLOG(DEBUG, "Herder")
@@ -794,12 +785,21 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
+    getHerderSCPDriver().recordSCPEvent(slotIndex, true);
+
+    // If we are not a validating node we stop here and don't start nomination
+    if (!getSCP().isValidator())
+    {
+        CLOG(DEBUG, "Herder")
+            << "Non-validating node, skipping nomination (SCP).";
+        return;
+    }
+
     if (lcl.header.ledgerVersion >= 11)
     {
         // version 11 and above require values to be signed during nomination
         signStellarValue(mApp.getConfig().NODE_SEED, newProposedValue);
     }
-    getHerderSCPDriver().recordSCPEvent(slotIndex, true);
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
 }
