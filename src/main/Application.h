@@ -159,7 +159,7 @@ class Application
 
     virtual ~Application(){};
 
-    virtual void initialize() = 0;
+    virtual void initialize(bool createNewDB) = 0;
 
     // Return the time in seconds since the POSIX epoch, according to the
     // VirtualClock this Application is bound to. Convenience method.
@@ -274,8 +274,6 @@ class Application
     // instances
     virtual Hash const& getNetworkID() const = 0;
 
-    virtual void newDB() = 0;
-
     virtual LedgerTxnRoot& getLedgerTxnRoot() = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
@@ -287,9 +285,7 @@ class Application
     create(VirtualClock& clock, Config const& cfg, bool newDB = true)
     {
         auto ret = std::make_shared<T>(clock, cfg);
-        ret->initialize();
-        if (newDB || cfg.DATABASE.value == "sqlite3://:memory:")
-            ret->newDB();
+        ret->initialize(newDB);
         validateNetworkPassphrase(ret);
 
         return ret;

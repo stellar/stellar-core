@@ -23,28 +23,6 @@
 namespace stellar
 {
 
-namespace
-{
-bool
-checkInitialized(Application::pointer app)
-{
-    try
-    {
-        // check to see if the state table exists
-        app->getPersistentState().getState(PersistentState::kDatabaseSchema);
-    }
-    catch (...)
-    {
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* The database has not yet been initialized. Try "
-                     "stellar-core newdb";
-        LOG(INFO) << "* ";
-        return false;
-    }
-    return true;
-}
-}
-
 int
 runWithConfig(Config cfg)
 {
@@ -70,26 +48,19 @@ runWithConfig(Config cfg)
     {
         app = Application::create(clock, cfg, false);
 
-        if (!checkInitialized(app))
+        if (!app->getHistoryArchiveManager().checkSensibleConfig())
         {
-            return 0;
+            return 1;
         }
-        else
+        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
         {
-            if (!app->getHistoryArchiveManager().checkSensibleConfig())
-            {
-                return 1;
-            }
-            if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-            {
-                LOG(WARNING) << "Artificial acceleration of time enabled "
-                             << "(for testing only)";
-            }
-
-            app->start();
-
-            app->applyCfgCommands();
+            LOG(WARNING) << "Artificial acceleration of time enabled "
+                         << "(for testing only)";
         }
+
+        app->start();
+
+        app->applyCfgCommands();
     }
     catch (std::exception& e)
     {
@@ -159,16 +130,10 @@ loadXdr(Config cfg, std::string const& bucketFile)
     VirtualClock clock;
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    if (checkInitialized(app))
-    {
-        uint256 zero;
-        Bucket bucket(bucketFile, zero);
-        bucket.apply(*app);
-    }
-    else
-    {
-        LOG(INFO) << "Database is not initialized";
-    }
+
+    uint256 zero;
+    Bucket bucket(bucketFile, zero);
+    bucket.apply(*app);
 }
 
 void
@@ -178,29 +143,26 @@ setForceSCPFlag(Config cfg, bool set)
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
-    if (checkInitialized(app))
+    app->getPersistentState().setState(PersistentState::kForceSCPOnNextLaunch,
+                                       (set ? "true" : "false"));
+    if (set)
     {
-        app->getPersistentState().setState(
-            PersistentState::kForceSCPOnNextLaunch, (set ? "true" : "false"));
-        if (set)
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* The `force scp` flag has been set in the db.";
-            LOG(INFO) << "* ";
-            LOG(INFO)
-                << "* The next launch will start scp from the account balances";
-            LOG(INFO) << "* as they stand in the db now, without waiting to "
-                         "hear from";
-            LOG(INFO) << "* the network.";
-            LOG(INFO) << "* ";
-        }
-        else
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* The `force scp` flag has been cleared.";
-            LOG(INFO) << "* The next launch will start normally.";
-            LOG(INFO) << "* ";
-        }
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The `force scp` flag has been set in the db.";
+        LOG(INFO) << "* ";
+        LOG(INFO)
+            << "* The next launch will start scp from the account balances";
+        LOG(INFO) << "* as they stand in the db now, without waiting to "
+                     "hear from";
+        LOG(INFO) << "* the network.";
+        LOG(INFO) << "* ";
+    }
+    else
+    {
+        LOG(INFO) << "* ";
+        LOG(INFO) << "* The `force scp` flag has been cleared.";
+        LOG(INFO) << "* The next launch will start normally.";
+        LOG(INFO) << "* ";
     }
 }
 
@@ -223,14 +185,7 @@ showOfflineInfo(Config cfg)
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-    if (checkInitialized(app))
-    {
-        app->reportInfo();
-    }
-    else
-    {
-        LOG(INFO) << "Database is not initialized";
-    }
+    app->reportInfo();
 }
 
 int
@@ -239,11 +194,6 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
-
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
 
     auto state = HistoryArchiveState{};
     auto& wm = app->getWorkScheduler();
@@ -336,11 +286,6 @@ int
 catchup(Application::pointer app, CatchupConfiguration cc,
         Json::Value& catchupInfo)
 {
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
     app->start();
 
     try
@@ -411,11 +356,6 @@ catchup(Application::pointer app, CatchupConfiguration cc,
 int
 publish(Application::pointer app)
 {
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
     app->start();
 
     auto& clock = app->getClock();

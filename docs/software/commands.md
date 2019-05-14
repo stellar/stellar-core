@@ -100,6 +100,8 @@ Command options can only by placed after command.
   * For example this will run just the tests tagged with `[tx]` using protocol
     versions 9 and 10 and stop after the first failure:
     `stellar-core --test -a --version 9 --version 10 "[tx]"`
+* **upgrade-db**: Upgrades local database to current schema version. This is
+  usually done automatically during stellar-core run or other command.
 * **version**: Print version info and then exit.
 * **write-quorum**: Print a quorum set graph from history.
 

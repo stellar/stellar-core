@@ -255,6 +255,7 @@ Database::upgradeToCurrentSchema()
         applySchemaUpgrade(vers);
         putSchemaVersion(vers);
     }
+    CLOG(INFO, "Database") << "DB schema is in current version";
     assert(vers == SCHEMA_VERSION);
 }
 
@@ -268,11 +269,11 @@ Database::putSchemaVersion(unsigned long vers)
 unsigned long
 Database::getDBSchemaVersion()
 {
-    auto vstr =
-        mApp.getPersistentState().getState(PersistentState::kDatabaseSchema);
     unsigned long vers = 0;
     try
     {
+        auto vstr = mApp.getPersistentState().getState(
+            PersistentState::kDatabaseSchema);
         vers = std::stoul(vstr);
     }
     catch (...)
@@ -280,7 +281,8 @@ Database::getDBSchemaVersion()
     }
     if (vers == 0)
     {
-        throw std::runtime_error("No DB schema version found, try --newdb");
+        throw std::runtime_error(
+            "No DB schema version found, try stellar-core new-db");
     }
     return vers;
 }
@@ -402,6 +404,10 @@ Database::initialize()
     mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
     putSchemaVersion(6);
+
+    LOG(INFO) << "* ";
+    LOG(INFO) << "* The database has been initialized";
+    LOG(INFO) << "* ";
 }
 
 soci::session&
