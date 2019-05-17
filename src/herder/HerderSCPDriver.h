@@ -14,6 +14,7 @@ namespace medida
 class Counter;
 class Meter;
 class Timer;
+class Histogram;
 }
 
 namespace stellar
@@ -169,10 +170,20 @@ class HerderSCPDriver : public SCPDriver
 
     SCPMetrics mSCPMetrics;
 
+    // Nomination timeouts per ledger
+    medida::Histogram& mNominateTimeout;
+    // Prepare timeouts per ledger
+    medida::Histogram& mPrepareTimeout;
+
     struct SCPTiming
     {
         optional<VirtualClock::time_point> mNominationStart;
         optional<VirtualClock::time_point> mPrepareStart;
+
+        // Nomination timeouts before first prepare
+        int64_t mNominationTimeoutCount{0};
+        // Prepare timeouts before externalize
+        int64_t mPrepareTimeoutCount{0};
     };
 
     // Map of time points for each slot to measure key protocol metrics:
