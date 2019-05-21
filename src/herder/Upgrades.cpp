@@ -245,77 +245,90 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
     return res;
 }
 
-bool
-Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
-                  bool nomination, Config const& cfg,
-                  LedgerHeader const& header) const
+Upgrades::UpgradeValidity
+Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
+                          LedgerUpgrade& upgrade, LedgerHeader const& header,
+                          uint32_t maxLedgerVersion)
 {
-    if (nomination && !timeForUpgrade(header.scpValue.closeTime))
-    {
-        return false;
-    }
-
-    LedgerUpgrade lupgrade;
-
     try
     {
-        xdr::xdr_from_opaque(upgrade, lupgrade);
+        xdr::xdr_from_opaque(opaqueUpgrade, upgrade);
     }
     catch (xdr::xdr_runtime_error&)
     {
-        return false;
+        return UpgradeValidity::XDR_INVALID;
     }
 
     bool res = true;
-    switch (lupgrade.type())
+    switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
     {
-        uint32 newVersion = lupgrade.newLedgerVersion();
-        if (nomination)
-        {
-            res = mParams.mProtocolVersion &&
-                  (newVersion == *mParams.mProtocolVersion);
-        }
+        uint32 newVersion = upgrade.newLedgerVersion();
         // only allow upgrades to a supported version of the protocol
-        res = res && (newVersion <= cfg.LEDGER_PROTOCOL_VERSION);
+        res = res && (newVersion <= maxLedgerVersion);
         // and enforce versions to be strictly monotonic
         res = res && (newVersion > header.ledgerVersion);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
-    {
-        uint32 newFee = lupgrade.newBaseFee();
-        if (nomination)
-        {
-            res = mParams.mBaseFee && (newFee == *mParams.mBaseFee);
-        }
-        res = res && (newFee != 0);
-    }
-    break;
+        res = res && (upgrade.newBaseFee() != 0);
+        break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-    {
-        uint32 newMax = lupgrade.newMaxTxSetSize();
-        if (nomination)
-        {
-            res = mParams.mMaxTxSize && (newMax == *mParams.mMaxTxSize);
-        }
-        res = res && (newMax != 0);
-    }
-    break;
+        res = res && (upgrade.newMaxTxSetSize() != 0);
+        break;
     case LEDGER_UPGRADE_BASE_RESERVE:
-    {
-        uint32 newReserve = lupgrade.newBaseReserve();
-        if (nomination)
-        {
-            res = mParams.mBaseReserve && (newReserve == *mParams.mBaseReserve);
-        }
-        res = res && (newReserve != 0);
-    }
-    break;
+        res = res && (upgrade.newBaseReserve() != 0);
+        break;
     default:
         res = false;
     }
+
+    return res ? UpgradeValidity::VALID : UpgradeValidity::INVALID;
+}
+
+bool
+Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
+                               LedgerHeader const& header) const
+{
+    if (!timeForUpgrade(header.scpValue.closeTime))
+    {
+        return false;
+    }
+
+    switch (upgrade.type())
+    {
+    case LEDGER_UPGRADE_VERSION:
+        return mParams.mProtocolVersion &&
+               (upgrade.newLedgerVersion() == *mParams.mProtocolVersion);
+    case LEDGER_UPGRADE_BASE_FEE:
+        return mParams.mBaseFee && (upgrade.newBaseFee() == *mParams.mBaseFee);
+    case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+        return mParams.mMaxTxSize &&
+               (upgrade.newMaxTxSetSize() == *mParams.mMaxTxSize);
+    case LEDGER_UPGRADE_BASE_RESERVE:
+        return mParams.mBaseReserve &&
+               (upgrade.newBaseReserve() == *mParams.mBaseReserve);
+    default:
+        return false;
+    }
+}
+
+bool
+Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
+                  bool nomination, Config const& cfg,
+                  LedgerHeader const& header) const
+{
+    LedgerUpgrade lupgrade;
+    bool res =
+        isValidForApply(upgrade, lupgrade, header,
+                        cfg.LEDGER_PROTOCOL_VERSION) == UpgradeValidity::VALID;
+
+    if (nomination)
+    {
+        res = res && isValidForNomination(lupgrade, header);
+    }
+
     if (res)
     {
         upgradeType = lupgrade.type();
