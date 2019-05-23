@@ -58,10 +58,6 @@ TEST_CASE("payment", "[tx][payment]")
     const int64_t minBalance2 =
         app->getLedgerManager().getLastMinBalance(2) + 10 * txfee;
 
-    // minimum balance necessary to hold 2 trust lines and an offer
-    const int64_t minBalance3 =
-        app->getLedgerManager().getLastMinBalance(3) + 10 * txfee;
-
     const int64_t paymentAmount = minBalance2;
 
     // create an account

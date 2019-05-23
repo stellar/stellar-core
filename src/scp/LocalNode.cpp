@@ -326,7 +326,8 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
     struct orderBySize
     {
         bool
-        operator()(std::vector<NodeID> const& v1, std::vector<NodeID> const& v2)
+        operator()(std::vector<NodeID> const& v1,
+                   std::vector<NodeID> const& v2) const
         {
             return v1.size() < v2.size();
         }
