@@ -13,6 +13,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "crypto/KeyVerification.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"

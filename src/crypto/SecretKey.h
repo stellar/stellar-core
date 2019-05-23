@@ -110,13 +110,6 @@ template <> struct KeyFunctions<PublicKey>
 // public key utility functions
 namespace PubKeyUtils
 {
-// Return true iff `signature` is valid for `bin` under `key`.
-bool verifySig(PublicKey const& key, Signature const& signature,
-               ByteSlice const& bin);
-
-void clearVerifySigCache();
-void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
-
 PublicKey random();
 }
 

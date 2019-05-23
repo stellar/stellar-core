@@ -7,6 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "crypto/KeyVerification.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"

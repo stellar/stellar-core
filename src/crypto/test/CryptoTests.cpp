@@ -4,6 +4,7 @@
 
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "crypto/KeyVerification.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"

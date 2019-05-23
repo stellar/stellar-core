@@ -5,6 +5,7 @@
 #include "herder/HerderImpl.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "crypto/KeyVerification.h"
 #include "crypto/SHA.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"

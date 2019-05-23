@@ -5,6 +5,7 @@
 #include "transactions/SignatureUtils.h"
 
 #include "crypto/SHA.h"
+#include "crypto/KeyVerification.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "xdr/Stellar-transaction.h"
