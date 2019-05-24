@@ -69,7 +69,7 @@ source directory and its own dedicated `readme.md`.
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
   buckets by multiple background threads
-  (See [`src/buckets/readme.md`](/src/buckets/readme.md)).
+  (See [`src/bucket/readme.md`](/src/bucket/readme.md)).
 
 * **Transactions** implements all the various transaction types (See
   [src/transactions/readme.md](/src/transactions/readme.md)).
