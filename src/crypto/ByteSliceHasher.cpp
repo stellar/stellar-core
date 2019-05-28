@@ -13,7 +13,7 @@ static unsigned char sKey[crypto_shorthash_KEYBYTES];
 void
 initialize()
 {
-    crypto_shorthash_keygen(sKey);
+    randombytes_buf(sKey, crypto_shorthash_KEYBYTES);
 }
 uint64_t
 computeHash(stellar::ByteSlice const& b)
