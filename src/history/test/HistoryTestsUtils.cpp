@@ -14,6 +14,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
+#include "main/ApplicationUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -618,11 +619,15 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger)
     lm.startCatchup(catchupConfiguration);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
-    auto caughtUp = [&]() { return lm.isSynced(); };
-    crankUntil(app, caughtUp, std::chrono::seconds{30});
+    auto finished = [&]() {
+        return lm.isSynced() ||
+               lm.getState() == LedgerManager::LM_BOOTING_STATE;
+    };
+    crankUntil(app, finished, std::chrono::seconds{30});
 
-    auto result = caughtUp();
-    if (result)
+    // Finished succesfully
+    auto success = lm.isSynced();
+    if (success)
     {
         CLOG(INFO, "History") << "Caught up";
 
@@ -636,7 +641,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger)
     }
 
     validateCatchup(app);
-    return result;
+    return success;
 }
 
 bool

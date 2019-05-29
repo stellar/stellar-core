@@ -8,6 +8,7 @@
 #include "ledger/CheckpointRange.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Logging.h"
 #include "util/Timer.h"
 #include <lib/catch.hpp>
 #include <lib/util/format.h>
@@ -137,10 +138,10 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchupWork]")
         auto lastClosedLedger = test.first;
         auto configuration = test.second;
 
-        auto sectionName = fmt::format(
-            "lcl = {}, to ledger = {}, count = {}", lastClosedLedger,
-            configuration.toLedger(), configuration.count());
-        SECTION(sectionName)
+        auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
+                                lastClosedLedger, configuration.toLedger(),
+                                configuration.count());
+        LOG(DEBUG) << "Catchup configuration: " << name;
         {
             auto range = CatchupWork::makeCatchupRange(
                 lastClosedLedger, configuration, historyManager);

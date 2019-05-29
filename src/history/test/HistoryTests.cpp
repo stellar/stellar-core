@@ -21,6 +21,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Fs.h"
+#include "util/Logging.h"
 #include "work/WorkScheduler.h"
 
 #include "historywork/DownloadBucketsWork.h"
@@ -118,8 +119,6 @@ TEST_CASE("History bucket verification",
     auto tmpDir =
         std::make_unique<TmpDir>(app->getTmpDirManager().tmpDir("bucket-test"));
 
-    // TODO unfortunately, we do not have visibility into internals of batch
-    // work
     SECTION("successful download and verify")
     {
         hashes.push_back(bucketGenerator.generateBucket(
@@ -203,43 +202,43 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     };
 
     LedgerHeaderHistoryEntry lcl, last;
-    SECTION("fully valid")
+    LOG(DEBUG) << "fully valid";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         checkExpectedBehavior(BasicWork::State::WORK_SUCCESS, lcl, last);
     }
-    SECTION("invalid link due to bad hash")
+    LOG(DEBUG) << "invalid link due to bad hash";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_HASH);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("invalid ledger version")
+    LOG(DEBUG) << "invalid ledger version";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("overshot")
+    LOG(DEBUG) << "overshot";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_OVERSHOT);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("undershot")
+    LOG(DEBUG) << "undershot";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("missing entries")
+    LOG(DEBUG) << "missing entries";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("chain does not agree with LCL")
+    LOG(DEBUG) << "chain does not agree with LCL";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -247,7 +246,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
 
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("chain does not agree with LCL on checkpoint boundary")
+    LOG(DEBUG) << "chain does not agree with LCL on checkpoint boundary";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -256,7 +255,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         lcl.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("chain does not agree with LCL outside of range")
+    LOG(DEBUG) << "chain does not agree with LCL outside of range";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -264,14 +263,14 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         lcl.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("chain does not agree with trusted hash")
+    LOG(DEBUG) << "chain does not agree with trusted hash";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         last.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    SECTION("missing file")
+    LOG(DEBUG) << "missing file";
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -390,11 +389,7 @@ TEST_CASE("History catchup", "[history][historycatchup]")
         // 1 ledger is for publish-trigger, 1 ledger is catchup-trigger ledger
         catchupSimulation.ensureLedgerAvailable(checkpointLedger + 2);
         catchupSimulation.ensurePublishesComplete();
-
-        SECTION("online")
-        {
-            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
-        }
+        REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger));
     }
 
     SECTION("when enough publishes has been performed, 3 ledgers are buffered "
@@ -404,11 +399,7 @@ TEST_CASE("History catchup", "[history][historycatchup]")
         // 3 ledgers are buffered
         catchupSimulation.ensureLedgerAvailable(checkpointLedger + 5);
         catchupSimulation.ensurePublishesComplete();
-
-        SECTION("online")
-        {
-            REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger, 3));
-        }
+        REQUIRE(!catchupSimulation.catchupOnline(app, checkpointLedger, 3));
     }
 
     SECTION("when enough publishes has been performed, 3 ledgers are buffered "
@@ -418,11 +409,7 @@ TEST_CASE("History catchup", "[history][historycatchup]")
         // 3 ledgers are buffered, 1 ledger is cloding
         catchupSimulation.ensureLedgerAvailable(checkpointLedger + 6);
         catchupSimulation.ensurePublishesComplete();
-
-        SECTION("online")
-        {
-            REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
-        }
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3));
     }
 }
 
@@ -852,7 +839,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(5);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
-    for (auto app : apps)
+    for (auto const& app : apps)
     {
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
     }
@@ -862,7 +849,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(30);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
-    for (auto app : apps)
+    for (auto const& app : apps)
     {
         REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
     }
