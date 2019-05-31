@@ -604,11 +604,7 @@ TransactionQueue::AddResult
 LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
                                TransactionResultCode& code, int32_t batchSize)
 {
-    auto seqNum = mFrom->getLastSequenceNumber();
-    mFrom->setSequenceNumber(seqNum + 1);
-
-    TransactionFramePtr txf =
-        transactionFromOperations(app, mFrom->getSecretKey(), seqNum + 1, mOps);
+    auto txf = mFrom->tx(mOps);
     TxMetrics txm(app.getMetrics());
 
     // Record tx metrics.

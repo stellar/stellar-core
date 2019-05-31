@@ -3,12 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestAccount.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 
 #include <lib/catch.hpp>
@@ -53,15 +55,72 @@ TestAccount::exists() const
     return doesAccountExist(mApp, getPublicKey());
 }
 
-TransactionFramePtr
-TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
+DecoratedSignature
+TestAccount::getSignature(TransactionFramePtr const& tx)
+{
+    return SignatureUtils::sign(*this, tx->getContentsHash());
+}
+
+void
+TestAccount::sign(TransactionFramePtr const& tx)
+{
+    tx->addSignature(getSignature(tx));
+}
+
+Transaction
+TestAccount::rawTx(std::vector<Operation> const& ops, SequenceNumber sn,
+                   int fee)
 {
     if (sn == 0)
     {
         sn = nextSequenceNumber();
     }
 
-    return transactionFromOperations(mApp, getSecretKey(), sn, ops);
+    auto tx = Transaction{};
+    tx.sourceAccount = getPublicKey();
+    tx.fee = fee != 0
+                 ? fee
+                 : static_cast<uint32_t>(
+                       (ops.size() * mApp.getLedgerManager().getLastTxFee()) &
+                       UINT32_MAX);
+    tx.seqNum = sn;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(tx.operations));
+
+    return tx;
+}
+
+TransactionFramePtr
+TestAccount::tx(Transaction const& tx)
+{
+    auto result = unsignedTx(tx);
+    sign(result);
+    return result;
+}
+
+TransactionFramePtr
+TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn, int fee)
+{
+    auto res = unsignedTx(ops, sn, fee);
+    sign(res);
+    return res;
+}
+
+TransactionFramePtr
+TestAccount::unsignedTx(Transaction const& tx)
+{
+    auto env = TransactionEnvelope{};
+    env.tx = tx;
+    return TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(), env);
+}
+
+TransactionFramePtr
+TestAccount::unsignedTx(std::vector<Operation> const& ops, SequenceNumber sn,
+                        int fee)
+{
+    auto env = TransactionEnvelope{};
+    env.tx = rawTx(ops, sn, fee);
+    return TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(), env);
 }
 
 Operation
@@ -218,9 +277,67 @@ TestAccount::manageOffer(int64_t offerID, Asset const& selling,
                          Asset const& buying, Price const& price,
                          int64_t amount, ManageOfferEffect expectedEffect)
 {
-    return applyManageOffer(mApp, offerID, getSecretKey(), selling, buying,
-                            price, amount, nextSequenceNumber(),
-                            expectedEffect);
+    auto getIdPool = [&]() {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        return ltx.loadHeader().current().idPool;
+    };
+    auto lastGeneratedID = getIdPool();
+    auto expectedofferID = lastGeneratedID + 1;
+    if (offerID != 0)
+    {
+        expectedofferID = offerID;
+    }
+
+    auto op = txtest::manageOffer(offerID, selling, buying, price, amount);
+    auto txFrame = tx({op});
+
+    try
+    {
+        applyTx(txFrame, mApp);
+    }
+    catch (...)
+    {
+        REQUIRE(getIdPool() == lastGeneratedID);
+        throw;
+    }
+
+    auto& results = txFrame->getResult().result.results();
+
+    REQUIRE(results.size() == 1);
+
+    auto& manageSellOfferResult = results[0].tr().manageSellOfferResult();
+
+    auto& offerResult = manageSellOfferResult.success().offer;
+
+    switch (offerResult.effect())
+    {
+    case MANAGE_OFFER_CREATED:
+    case MANAGE_OFFER_UPDATED:
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto offer = stellar::loadOffer(ltx, getPublicKey(), expectedofferID);
+        REQUIRE(offer);
+        auto& offerEntry = offer.current().data.offer();
+        REQUIRE(offerEntry == offerResult.offer());
+        REQUIRE(offerEntry.price == price);
+        REQUIRE(offerEntry.selling == selling);
+        REQUIRE(offerEntry.buying == buying);
+    }
+    break;
+    case MANAGE_OFFER_DELETED:
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        REQUIRE(!stellar::loadOffer(ltx, getPublicKey(), expectedofferID));
+    }
+    break;
+    default:
+        abort();
+    }
+
+    auto& success = manageSellOfferResult.success().offer;
+    REQUIRE(success.effect() == expectedEffect);
+    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
+                                                    : 0;
 }
 
 int64_t
@@ -228,9 +345,63 @@ TestAccount::manageBuyOffer(int64_t offerID, Asset const& selling,
                             Asset const& buying, Price const& price,
                             int64_t amount, ManageOfferEffect expectedEffect)
 {
-    return applyManageBuyOffer(mApp, offerID, getSecretKey(), selling, buying,
-                               price, amount, nextSequenceNumber(),
-                               expectedEffect);
+    auto getIdPool = [&]() {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        return ltx.loadHeader().current().idPool;
+    };
+    auto lastGeneratedID = getIdPool();
+    auto expectedofferID = lastGeneratedID + 1;
+    if (offerID != 0)
+    {
+        expectedofferID = offerID;
+    }
+
+    auto op = txtest::manageBuyOffer(offerID, selling, buying, price, amount);
+    auto txFrame = tx({op});
+
+    try
+    {
+        applyTx(txFrame, mApp);
+    }
+    catch (...)
+    {
+        REQUIRE(getIdPool() == lastGeneratedID);
+        throw;
+    }
+
+    auto& results = txFrame->getResult().result.results();
+    REQUIRE(results.size() == 1);
+    auto& manageBuyOfferResult = results[0].tr().manageBuyOfferResult();
+    auto& success = manageBuyOfferResult.success().offer;
+
+    REQUIRE(success.effect() == expectedEffect);
+    switch (success.effect())
+    {
+    case MANAGE_OFFER_CREATED:
+    case MANAGE_OFFER_UPDATED:
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto offer = stellar::loadOffer(ltx, getPublicKey(), expectedofferID);
+        REQUIRE(offer);
+        auto& offerEntry = offer.current().data.offer();
+        REQUIRE(offerEntry == success.offer());
+        REQUIRE(offerEntry.price == Price{price.d, price.n});
+        REQUIRE(offerEntry.selling == selling);
+        REQUIRE(offerEntry.buying == buying);
+    }
+    break;
+    case MANAGE_OFFER_DELETED:
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        REQUIRE(!stellar::loadOffer(ltx, getPublicKey(), expectedofferID));
+    }
+    break;
+    default:
+        abort();
+    }
+
+    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
+                                                    : 0;
 }
 
 int64_t
@@ -238,9 +409,71 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount,
                                 ManageOfferEffect expectedEffect)
 {
-    return applyCreatePassiveOffer(mApp, getSecretKey(), selling, buying, price,
-                                   amount, nextSequenceNumber(),
-                                   expectedEffect);
+    auto getIdPool = [&]() {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        return ltx.loadHeader().current().idPool;
+    };
+    auto lastGeneratedID = getIdPool();
+    auto expectedofferID = lastGeneratedID + 1;
+
+    auto op = txtest::createPassiveOffer(selling, buying, price, amount);
+    auto txFrame = tx({op});
+
+    try
+    {
+        applyTx(txFrame, mApp);
+    }
+    catch (...)
+    {
+        REQUIRE(getIdPool() == lastGeneratedID);
+        throw;
+    }
+
+    auto& results = txFrame->getResult().result.results();
+
+    REQUIRE(results.size() == 1);
+
+    auto& createPassiveSellOfferResult =
+        results[0].tr().manageSellOfferResult();
+
+    if (createPassiveSellOfferResult.code() == MANAGE_SELL_OFFER_SUCCESS)
+    {
+        auto& offerResult = createPassiveSellOfferResult.success().offer;
+
+        switch (offerResult.effect())
+        {
+        case MANAGE_OFFER_CREATED:
+        case MANAGE_OFFER_UPDATED:
+        {
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            auto offer =
+                stellar::loadOffer(ltx, getPublicKey(), expectedofferID);
+            REQUIRE(offer);
+            auto& offerEntry = offer.current().data.offer();
+            REQUIRE(offerEntry == offerResult.offer());
+            REQUIRE(offerEntry.price == price);
+            REQUIRE(offerEntry.selling == selling);
+            REQUIRE(offerEntry.buying == buying);
+            REQUIRE((offerEntry.flags & PASSIVE_FLAG) != 0);
+        }
+        break;
+        case MANAGE_OFFER_DELETED:
+        {
+            LedgerTxn ltx(mApp.getLedgerTxnRoot());
+            REQUIRE(!stellar::loadOffer(ltx, getPublicKey(), expectedofferID));
+        }
+        break;
+        default:
+            abort();
+        }
+    }
+
+    auto& success = createPassiveSellOfferResult.success().offer;
+
+    REQUIRE(success.effect() == expectedEffect);
+
+    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID
+                                                    : 0;
 }
 
 void

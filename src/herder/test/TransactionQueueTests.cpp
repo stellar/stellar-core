@@ -22,17 +22,15 @@ TransactionFramePtr
 transaction(Application& app, TestAccount& account, int sequenceDelta,
             int amount, int fee)
 {
-    return transactionFromOperations(
-        app, account, account.getLastSequenceNumber() + sequenceDelta,
-        {payment(account.getPublicKey(), amount)}, fee);
+    return account.tx({payment(account.getPublicKey(), amount)},
+                      account.getLastSequenceNumber() + sequenceDelta, fee);
 }
 
 TransactionFramePtr
 invalidTransaction(Application& app, TestAccount& account, int sequenceDelta)
 {
-    return transactionFromOperations(
-        app, account, account.getLastSequenceNumber() + sequenceDelta,
-        {payment(account.getPublicKey(), -1)});
+    return account.tx({payment(account.getPublicKey(), -1)},
+                      account.getLastSequenceNumber() + sequenceDelta);
 }
 
 class TransactionQueueTest

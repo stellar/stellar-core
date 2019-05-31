@@ -328,8 +328,8 @@ TEST_CASE("manage buy offer liabilities", "[tx][offers]")
             }
 
             auto op = manageBuyOffer(0, cur1, cur2, price, buyAmount);
-            auto tx = transactionFromOperations(
-                *app, SecretKey::pseudoRandomForTesting(), 1, {op});
+            auto tx = TestAccount{*app, SecretKey::pseudoRandomForTesting()}.tx(
+                {op}, 1);
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());

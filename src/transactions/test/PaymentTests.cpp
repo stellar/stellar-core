@@ -219,7 +219,7 @@ TEST_CASE("payment", "[tx][payment]")
         closeLedgerOn(*app, 3, 1, 2, 2016);
 
         auto txFrame = a1.tx({payment(b1, 200), b1.op(accountMerge(a1))});
-        txFrame->addSignature(b1);
+        b1.sign(txFrame);
 
         for_all_versions(*app, [&] {
             applyCheck(txFrame, *app);
@@ -551,7 +551,7 @@ TEST_CASE("payment", "[tx][payment]")
                                   createAccount(sourceAccount, createAmount)),
                               payAndMergeDestination.op(payment(
                                   payAndMergeDestination, pay2Amount))});
-        tx->addSignature(payAndMergeDestination);
+        payAndMergeDestination.sign(tx);
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
@@ -674,7 +674,7 @@ TEST_CASE("payment", "[tx][payment]")
                               payAndMergeDestination.op(
                                   createAccount(sourceAccount, createAmount)),
                               payment(payAndMergeDestination, pay2Amount)});
-        tx->addSignature(payAndMergeDestination);
+        payAndMergeDestination.sign(tx);
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
@@ -803,7 +803,7 @@ TEST_CASE("payment", "[tx][payment]")
              accountMerge(payAndMergeDestination),
              secondSourceAccount.op(createAccount(sourceAccount, createAmount)),
              payment(payAndMergeDestination, pay2Amount)});
-        tx->addSignature(secondSourceAccount);
+        secondSourceAccount.sign(tx);
 
         for_versions_to(7, *app, [&] {
             REQUIRE(applyCheck(tx, *app));
@@ -940,9 +940,9 @@ TEST_CASE("payment", "[tx][payment]")
             payDestination.op(accountMerge(createSource)),
             createSource.op(createAccount(payDestination, create2Amount)),
         });
-        tx->addSignature(createSource);
-        tx->addSignature(createDestination);
-        tx->addSignature(payDestination);
+        createSource.sign(tx);
+        createDestination.sign(tx);
+        payDestination.sign(tx);
 
         for_all_versions(*app, [&] {
             REQUIRE(applyCheck(tx, *app));

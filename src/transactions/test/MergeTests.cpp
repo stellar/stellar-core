@@ -85,7 +85,7 @@ TEST_CASE("merge", "[tx][merge]")
             a1.tx({a1.op(accountMerge(b1)),
                    b1.op(createAccount(a1.getPublicKey(), createBalance)),
                    a1.op(accountMerge(b1))});
-        txFrame->addSignature(b1.getSecretKey());
+        b1.sign(txFrame);
 
         for_versions_to(5, *app, [&] {
             auto applyResult = expectedResult(
@@ -137,7 +137,7 @@ TEST_CASE("merge", "[tx][merge]")
             a1.tx({a1.op(accountMerge(b1)),
                    b1.op(createAccount(a1.getPublicKey(), createBalance)),
                    b1.op(accountMerge(a1))});
-        txFrame->addSignature(b1.getSecretKey());
+        b1.sign(txFrame);
 
         for_all_versions(*app, [&] {
             // a1 gets re-created so we disable sequence number checks
@@ -565,7 +565,7 @@ TEST_CASE("merge", "[tx][merge]")
             auto maxSeqNum = curStartSeqNum - 1;
 
             auto txFrame = root.tx({a1.op(accountMerge(b1))});
-            txFrame->addSignature(a1.getSecretKey());
+            a1.sign(txFrame);
 
             SECTION("at max = success")
             {

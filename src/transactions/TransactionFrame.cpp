@@ -18,7 +18,6 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
-#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Algoritm.h"
 #include "util/Decoder.h"
@@ -74,14 +73,6 @@ TransactionFrame::getContentsHash() const
     return (mContentsHash);
 }
 
-void
-TransactionFrame::clearCached()
-{
-    Hash zero;
-    mContentsHash = zero;
-    mFullHash = zero;
-}
-
 TransactionResultPair
 TransactionFrame::getResultPair() const
 {
@@ -93,12 +84,6 @@ TransactionFrame::getResultPair() const
 
 TransactionEnvelope const&
 TransactionFrame::getEnvelope() const
-{
-    return mEnvelope;
-}
-
-TransactionEnvelope&
-TransactionFrame::getEnvelope()
 {
     return mEnvelope;
 }
@@ -129,14 +114,6 @@ TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
 
         return std::min<int64_t>(getFeeBid(), adjustedFee);
     }
-}
-
-void
-TransactionFrame::addSignature(SecretKey const& secretKey)
-{
-    clearCached();
-    auto sig = SignatureUtils::sign(secretKey, getContentsHash());
-    addSignature(sig);
 }
 
 void

@@ -30,8 +30,18 @@ class TestAccount
         mAccountID = KeyUtils::toStrKey(mSk.getPublicKey());
     }
 
-    TransactionFramePtr tx(std::vector<Operation> const& ops,
-                           SequenceNumber sn = 0);
+    Transaction rawTx(std::vector<Operation> const& ops, SequenceNumber sn = 0,
+                      int fee = 0);
+    DecoratedSignature getSignature(TransactionFramePtr const& tx);
+    void sign(TransactionFramePtr const& tx);
+
+    TransactionFramePtr tx(Transaction const& tx);
+    TransactionFramePtr tx(std::vector<Operation> const& ops = {},
+                           SequenceNumber sn = 0, int fee = 0);
+    TransactionFramePtr unsignedTx(Transaction const& tx);
+    TransactionFramePtr unsignedTx(std::vector<Operation> const& ops = {},
+                                   SequenceNumber sn = 0, int fee = 0);
+
     Operation op(Operation operation);
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);

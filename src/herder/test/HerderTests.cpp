@@ -224,7 +224,7 @@ TEST_CASE("standalone", "[herder][acceptance]")
     });
 }
 
-static TransactionFramePtr
+static Transaction
 makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
                  int nbOps, int64 paymentBase, uint32 extraFee, uint32 feeMult)
 {
@@ -233,12 +233,10 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
     {
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
-    auto tx = src.tx(ops);
-    tx->getEnvelope().tx.fee *= feeMult;
-    tx->getEnvelope().tx.fee += extraFee;
-    tx->getEnvelope().signatures.clear();
-    tx->addSignature(src);
-    return tx;
+    auto rawTx = src.rawTx(ops);
+    rawTx.fee *= feeMult;
+    rawTx.fee += extraFee;
+    return rawTx;
 }
 
 static void
@@ -337,9 +335,9 @@ testTxSet(uint32 protocolVersion)
         {
             SECTION("gap after")
             {
-                auto tx = accounts[0].tx({payment(accounts[0], 1)});
-                tx->getEnvelope().tx.seqNum += 5;
-                txSet->add(tx);
+                auto rawTx = accounts[0].rawTx({payment(accounts[0], 1)});
+                rawTx.seqNum += 5;
+                txSet->add(accounts[0].tx(rawTx));
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
@@ -390,9 +388,13 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = txSet->mTransactions[0];
-            tx->getEnvelope().tx.timeBounds.activate().maxTime = UINT64_MAX;
-            tx->clearCached();
+            auto const& env = txSet->mTransactions[0]->getEnvelope();
+            auto rawTx = env.tx;
+            rawTx.timeBounds.activate().maxTime = UINT64_MAX;
+            auto tx = accounts[0].tx(rawTx);
+            tx->addSignature(env.signatures[0]);
+
+            txSet->add(tx);
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
         }
@@ -449,7 +451,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
             auto aI = root.create(nameI, startingBalance);
             accounts.push_back(aI);
 
-            auto tx = makeMultiPayment(aI, aI, 1, 1000, 0, 10);
+            auto tx = aI.tx(makeMultiPayment(aI, aI, 1, 1000, 0, 10));
             txSet->add(tx);
         }
 
@@ -459,7 +461,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
             auto aI = root.create(nameI, startingBalance);
             accounts.push_back(aI);
 
-            auto tx = makeMultiPayment(aI, aI, 2, 1000, k, 100);
+            auto tx = aI.tx(makeMultiPayment(aI, aI, 2, 1000, k, 100));
             txSet->add(tx);
         }
 
@@ -634,7 +636,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     auto addRootTxs = [&]() {
         for (uint32_t n = 0; n < 2 * nbTxs; n++)
         {
-            txSet->add(multiPaymentTx(root, n + 1, 10000 + 1000 * n));
+            txSet->add(root.tx(multiPaymentTx(root, n + 1, 10000 + 1000 * n)));
         }
     };
 
@@ -667,11 +669,9 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         addRootTxs();
         for (uint32_t n = 0; n < nbTxs; n++)
         {
-            auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
-            tx->getEnvelope().tx.fee -= 1;
-            tx->getEnvelope().signatures.clear();
-            tx->addSignature(accountB);
-            txSet->add(tx);
+            auto rawTx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
+            rawTx.fee -= 1;
+            txSet->add(accountB.tx(rawTx));
         }
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
@@ -691,16 +691,14 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         addRootTxs();
         for (uint32_t n = 0; n < nbTxs; n++)
         {
-            auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
+            auto rawTx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
             // find corresponding root tx (should have 1 less op)
             auto rTx = txSet->mTransactions[n];
             REQUIRE(rTx->getEnvelope().tx.operations.size() == n + 1);
-            REQUIRE(tx->getEnvelope().tx.operations.size() == n + 2);
+            REQUIRE(rawTx.operations.size() == n + 2);
             // use the same fee
-            tx->getEnvelope().tx.fee = rTx->getEnvelope().tx.fee;
-            tx->getEnvelope().signatures.clear();
-            tx->addSignature(accountB);
-            txSet->add(tx);
+            rawTx.fee = rTx->getEnvelope().tx.fee;
+            txSet->add(accountB.tx(rawTx));
         }
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
@@ -722,18 +720,16 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto refSeqNumB = accountB.getLastSequenceNumber();
         for (uint32_t n = 0; n < nbTxs; n++)
         {
-            auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
+            auto rawTx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
             {
-                tx->getEnvelope().tx.fee -= 1;
+                rawTx.fee -= 1;
             }
             else
             {
-                tx->getEnvelope().tx.fee += 1;
+                rawTx.fee += 1;
             }
-            tx->getEnvelope().signatures.clear();
-            tx->addSignature(accountB);
-            txSet->add(tx);
+            txSet->add(accountB.tx(rawTx));
         }
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app));
@@ -850,8 +846,8 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
                       std::end(txSet->mTransactions), [&]() {
-                          return makeMultiPayment(root, root, nbOps, 1000, 0,
-                                                  feeMulti);
+                          return root.tx(makeMultiPayment(root, root, nbOps,
+                                                          1000, 0, feeMulti));
                       });
     };
     auto makeTransactions = [&](Hash hash, int n, int nbOps, uint32 feeMulti) {

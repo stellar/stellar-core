@@ -114,9 +114,6 @@ class TransactionFrame
     makeTransactionFromWire(Hash const& networkID,
                             TransactionEnvelope const& msg);
 
-    // clear pre-computed hashes
-    void clearCached();
-
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
 
@@ -146,7 +143,6 @@ class TransactionFrame
 
     TransactionResultPair getResultPair() const;
     TransactionEnvelope const& getEnvelope() const;
-    TransactionEnvelope& getEnvelope();
 
     SequenceNumber
     getSeqNum() const
@@ -166,7 +162,6 @@ class TransactionFrame
 
     virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee) const;
 
-    void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,

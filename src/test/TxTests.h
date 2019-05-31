@@ -89,12 +89,6 @@ bool doesAccountExist(Application& app, PublicKey const& k);
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr transactionFromOperations(Application& app,
-                                              SecretKey const& from,
-                                              SequenceNumber seq,
-                                              std::vector<Operation> const& ops,
-                                              int fee = 0);
-
 Operation changeTrust(Asset const& asset, int64_t limit);
 
 Operation allowTrust(PublicKey const& trustor, Asset const& asset,
@@ -114,15 +108,6 @@ Operation payment(PublicKey const& to, int64_t amount);
 
 Operation payment(PublicKey const& to, Asset const& asset, int64_t amount);
 
-TransactionFramePtr createPaymentTx(Application& app, SecretKey const& from,
-                                    PublicKey const& to, SequenceNumber seq,
-                                    int64_t amount);
-
-TransactionFramePtr createCreditPaymentTx(Application& app,
-                                          SecretKey const& from,
-                                          PublicKey const& to, Asset const& ci,
-                                          SequenceNumber seq, int64_t amount);
-
 Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
                       std::vector<Asset> const& path);
@@ -136,25 +121,6 @@ Operation manageBuyOffer(int64 offerId, Asset const& selling,
 Operation createPassiveOffer(Asset const& selling, Asset const& buying,
                              Price const& price, int64_t amount);
 
-// returns the ID of the new offer if created
-int64_t applyManageOffer(Application& app, int64 offerId,
-                         SecretKey const& source, Asset const& selling,
-                         Asset const& buying, Price const& price,
-                         int64_t amount, SequenceNumber seq,
-                         ManageOfferEffect expectedEffect);
-
-int64_t applyManageBuyOffer(Application& app, int64 offerId,
-                            SecretKey const& source, Asset const& selling,
-                            Asset const& buying, Price const& price,
-                            int64_t amount, SequenceNumber seq,
-                            ManageOfferEffect expectedEffect);
-
-// returns the ID of the new offer if created
-int64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
-                                Asset const& selling, Asset const& buying,
-                                Price const& price, int64_t amount,
-                                SequenceNumber seq,
-                                ManageOfferEffect expectedEffect);
 Operation setOptions(SetOptionsArguments const& arguments);
 
 SetOptionsArguments setMasterWeight(int master);

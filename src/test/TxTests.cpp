@@ -25,6 +25,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -407,27 +408,6 @@ getAccountSigners(PublicKey const& k, Application& app)
     return account.current().data.account().signers;
 }
 
-TransactionFramePtr
-transactionFromOperations(Application& app, SecretKey const& from,
-                          SequenceNumber seq, const std::vector<Operation>& ops,
-                          int fee)
-{
-    auto e = TransactionEnvelope{};
-    e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = fee != 0
-                   ? fee
-                   : static_cast<uint32_t>(
-                         (ops.size() * app.getLedgerManager().getLastTxFee()) &
-                         UINT32_MAX);
-    e.tx.seqNum = seq;
-    std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(e.tx.operations));
-
-    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-    res->addSignature(from);
-    return res;
-}
-
 Operation
 changeTrust(Asset const& asset, int64_t limit)
 {
@@ -484,22 +464,6 @@ payment(PublicKey const& to, Asset const& asset, int64_t amount)
     op.body.paymentOp().destination = to;
     op.body.paymentOp().asset = asset;
     return op;
-}
-
-TransactionFramePtr
-createPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
-                SequenceNumber seq, int64_t amount)
-{
-    return transactionFromOperations(app, from, seq, {payment(to, amount)});
-}
-
-TransactionFramePtr
-createCreditPaymentTx(Application& app, SecretKey const& from,
-                      PublicKey const& to, Asset const& asset,
-                      SequenceNumber seq, int64_t amount)
-{
-    auto op = payment(to, asset, amount);
-    return transactionFromOperations(app, from, seq, {op});
 }
 
 Asset
@@ -588,229 +552,6 @@ manageBuyOffer(int64 offerId, Asset const& selling, Asset const& buying,
     op.body.manageBuyOfferOp().price = price;
 
     return op;
-}
-
-static ManageSellOfferResult
-applyCreateOfferHelper(Application& app, int64 offerId, SecretKey const& source,
-                       Asset const& selling, Asset const& buying,
-                       Price const& price, int64_t amount, SequenceNumber seq)
-{
-    auto getIdPool = [&]() {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        return ltx.loadHeader().current().idPool;
-    };
-    auto lastGeneratedID = getIdPool();
-    auto expectedOfferID = lastGeneratedID + 1;
-    if (offerId != 0)
-    {
-        expectedOfferID = offerId;
-    }
-
-    auto op = manageOffer(offerId, selling, buying, price, amount);
-    auto tx = transactionFromOperations(app, source, seq, {op});
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (...)
-    {
-        REQUIRE(getIdPool() == lastGeneratedID);
-        throw;
-    }
-
-    auto& results = tx->getResult().result.results();
-
-    REQUIRE(results.size() == 1);
-
-    auto& manageSellOfferResult = results[0].tr().manageSellOfferResult();
-
-    auto& offerResult = manageSellOfferResult.success().offer;
-
-    switch (offerResult.effect())
-    {
-    case MANAGE_OFFER_CREATED:
-    case MANAGE_OFFER_UPDATED:
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto offer =
-            stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID);
-        REQUIRE(offer);
-        auto& offerEntry = offer.current().data.offer();
-        REQUIRE(offerEntry == offerResult.offer());
-        REQUIRE(offerEntry.price == price);
-        REQUIRE(offerEntry.selling == selling);
-        REQUIRE(offerEntry.buying == buying);
-    }
-    break;
-    case MANAGE_OFFER_DELETED:
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(
-            !stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID));
-    }
-    break;
-    default:
-        abort();
-    }
-
-    return manageSellOfferResult;
-}
-
-int64_t
-applyManageOffer(Application& app, int64 offerId, SecretKey const& source,
-                 Asset const& selling, Asset const& buying, Price const& price,
-                 int64_t amount, SequenceNumber seq,
-                 ManageOfferEffect expectedEffect)
-{
-    ManageSellOfferResult const& createOfferRes = applyCreateOfferHelper(
-        app, offerId, source, selling, buying, price, amount, seq);
-
-    auto& success = createOfferRes.success().offer;
-    REQUIRE(success.effect() == expectedEffect);
-    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
-                                                    : 0;
-}
-
-int64_t
-applyManageBuyOffer(Application& app, int64 offerId, SecretKey const& source,
-                    Asset const& selling, Asset const& buying,
-                    Price const& price, int64_t amount, SequenceNumber seq,
-                    ManageOfferEffect expectedEffect)
-{
-    auto getIdPool = [&]() {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        return ltx.loadHeader().current().idPool;
-    };
-    auto lastGeneratedID = getIdPool();
-    auto expectedOfferID = lastGeneratedID + 1;
-    if (offerId != 0)
-    {
-        expectedOfferID = offerId;
-    }
-
-    auto op = manageBuyOffer(offerId, selling, buying, price, amount);
-    auto tx = transactionFromOperations(app, source, seq, {op});
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (...)
-    {
-        REQUIRE(getIdPool() == lastGeneratedID);
-        throw;
-    }
-
-    auto& results = tx->getResult().result.results();
-    REQUIRE(results.size() == 1);
-    auto& manageBuyOfferResult = results[0].tr().manageBuyOfferResult();
-    auto& success = manageBuyOfferResult.success().offer;
-
-    REQUIRE(success.effect() == expectedEffect);
-    switch (success.effect())
-    {
-    case MANAGE_OFFER_CREATED:
-    case MANAGE_OFFER_UPDATED:
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        auto offer =
-            stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID);
-        REQUIRE(offer);
-        auto& offerEntry = offer.current().data.offer();
-        REQUIRE(offerEntry == success.offer());
-        REQUIRE(offerEntry.price == Price{price.d, price.n});
-        REQUIRE(offerEntry.selling == selling);
-        REQUIRE(offerEntry.buying == buying);
-    }
-    break;
-    case MANAGE_OFFER_DELETED:
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(
-            !stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID));
-    }
-    break;
-    default:
-        abort();
-    }
-
-    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
-                                                    : 0;
-}
-
-int64_t
-applyCreatePassiveOffer(Application& app, SecretKey const& source,
-                        Asset const& selling, Asset const& buying,
-                        Price const& price, int64_t amount, SequenceNumber seq,
-                        ManageOfferEffect expectedEffect)
-{
-    auto getIdPool = [&]() {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        return ltx.loadHeader().current().idPool;
-    };
-    auto lastGeneratedID = getIdPool();
-    auto expectedOfferID = lastGeneratedID + 1;
-
-    auto op = createPassiveOffer(selling, buying, price, amount);
-    auto tx = transactionFromOperations(app, source, seq, {op});
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (...)
-    {
-        REQUIRE(getIdPool() == lastGeneratedID);
-        throw;
-    }
-
-    auto& results = tx->getResult().result.results();
-
-    REQUIRE(results.size() == 1);
-
-    auto& createPassiveSellOfferResult =
-        results[0].tr().manageSellOfferResult();
-
-    if (createPassiveSellOfferResult.code() == MANAGE_SELL_OFFER_SUCCESS)
-    {
-        auto& offerResult = createPassiveSellOfferResult.success().offer;
-
-        switch (offerResult.effect())
-        {
-        case MANAGE_OFFER_CREATED:
-        case MANAGE_OFFER_UPDATED:
-        {
-            LedgerTxn ltx(app.getLedgerTxnRoot());
-            auto offer =
-                stellar::loadOffer(ltx, source.getPublicKey(), expectedOfferID);
-            REQUIRE(offer);
-            auto& offerEntry = offer.current().data.offer();
-            REQUIRE(offerEntry == offerResult.offer());
-            REQUIRE(offerEntry.price == price);
-            REQUIRE(offerEntry.selling == selling);
-            REQUIRE(offerEntry.buying == buying);
-            REQUIRE((offerEntry.flags & PASSIVE_FLAG) != 0);
-        }
-        break;
-        case MANAGE_OFFER_DELETED:
-        {
-            LedgerTxn ltx(app.getLedgerTxnRoot());
-            REQUIRE(!stellar::loadOffer(ltx, source.getPublicKey(),
-                                        expectedOfferID));
-        }
-        break;
-        default:
-            abort();
-        }
-    }
-
-    auto& success = createPassiveSellOfferResult.success().offer;
-
-    REQUIRE(success.effect() == expectedEffect);
-
-    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID
-                                                    : 0;
 }
 
 SetOptionsArguments
