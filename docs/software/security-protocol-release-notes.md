@@ -53,6 +53,19 @@ It then follows that:
 
 # List of releases
 
+## v11.0.0 (2019-04-24)
+
+* `Ledger` - protocol - implementing CAP0005 (Transaction pricing improvement)
+
+* `Ledger` - protocol - implementing CAP0006 (ManageBuyOffer)
+
+* `Ledger` - protocol - implementing CAP0020 (Bucket Initial Entries)
+
+* `Overlay` - security - memory exhaustion from validators not in Quorum (DDoS)
+    * exploited: no
+    * mitigation: code fix
+    * bug bounty: [ahook](https://hackerone.com/ahook)
+
 ## v10.0.0 (2018-09-05)
 
 * `Ledger` - protocol - new `bumpSeqOp`, implementing CAP0001
