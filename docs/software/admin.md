@@ -166,7 +166,7 @@ if you need to expose this endpoint to other hosts in your local network, it is 
 
 ### Release version
 
-In general you should aim to run the latest [release](https://github.com/stellar/stellar-core/releases) as builds are backward compatible and are cummulative.
+In general you should aim to run the latest [release](https://github.com/stellar/stellar-core/releases) as builds are backward compatible and are cumulative.
 
 The version number scheme that we follow is `protocol_version.release_number.patch_number`, where
 
