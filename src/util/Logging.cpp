@@ -20,9 +20,9 @@ Levels:
 namespace stellar
 {
 
-std::array<std::string const, 13> const Logging::kPartitionNames = {
-    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",  "Ledger",
-    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant"};
+std::array<std::string const, 14> const Logging::kPartitionNames = {
+    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",   "Ledger",
+    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant", "Perf"};
 
 el::Configurations Logging::gDefaultConf;
 
