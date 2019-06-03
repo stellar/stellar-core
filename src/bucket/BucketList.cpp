@@ -154,9 +154,8 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         }
     }
 
-    mNextCurr =
-        FutureBucket(app, curr, snap, shadows, currLedgerProtocol,
-                     BucketList::keepDeadEntries(mLevel), countMergeEvents);
+    mNextCurr = FutureBucket(app, curr, snap, shadows, currLedgerProtocol,
+                             countMergeEvents, mLevel);
     assert(mNextCurr.isMerging());
 }
 
@@ -559,7 +558,7 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion)
         auto& next = level.getNext();
         if (next.hasHashes() && !next.isLive())
         {
-            next.makeLive(app, maxProtocolVersion, keepDeadEntries(i));
+            next.makeLive(app, maxProtocolVersion, i);
             if (next.isMerging())
             {
                 CLOG(INFO, "Bucket")

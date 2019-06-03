@@ -34,6 +34,10 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
 
+    medida::Timer& mEnqueueToPublishTimer;
+    std::unordered_map<uint32_t, std::chrono::steady_clock::time_point>
+        mEnqueueTimes;
+
     PublishQueueBuckets::BucketCount loadBucketsReferencedByPublishQueue();
 
   public:

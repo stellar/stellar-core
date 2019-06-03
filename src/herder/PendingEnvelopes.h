@@ -6,6 +6,7 @@
 #include "lib/util/lrucache.hpp"
 #include "overlay/ItemFetcher.h"
 #include <autocheck/function.hpp>
+#include <chrono>
 #include <map>
 #include <medida/medida.h>
 #include <queue>
@@ -29,7 +30,8 @@ struct SlotEnvelopes
     // list of envelopes we have discarded already
     std::set<SCPEnvelope> mDiscardedEnvelopes;
     // list of envelopes we are fetching right now
-    std::set<SCPEnvelope> mFetchingEnvelopes;
+    std::map<SCPEnvelope, std::chrono::steady_clock::time_point>
+        mFetchingEnvelopes;
     // list of ready envelopes that haven't been sent to SCP yet
     std::vector<SCPEnvelope> mReadyEnvelopes;
 };
@@ -59,6 +61,7 @@ class PendingEnvelopes
     medida::Counter& mDiscardedCount;
     medida::Counter& mFetchingCount;
     medida::Counter& mReadyCount;
+    medida::Timer& mFetchDuration;
 
     // discards all SCP envelopes thats use QSet with given hash,
     // as it is not sane QSet

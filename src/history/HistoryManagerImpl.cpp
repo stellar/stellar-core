@@ -73,6 +73,8 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
           app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
     , mPublishFailure(
           app.getMetrics().NewMeter({"history", "publish", "failure"}, "event"))
+    , mEnqueueToPublishTimer(
+          app.getMetrics().NewTimer({"history", "publish", "time"}))
 {
 }
 
@@ -254,6 +256,8 @@ HistoryManagerImpl::queueCurrentHistory()
 
     auto ledger = has.currentLedger;
     CLOG(DEBUG, "History") << "Queueing publish state for ledger " << ledger;
+    mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
+
     auto state = has.toString();
     auto timer = mApp.getDatabase().getInsertTimer("publishqueue");
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -396,6 +400,18 @@ HistoryManagerImpl::historyPublished(
 {
     if (success)
     {
+        auto iter = mEnqueueTimes.find(ledgerSeq);
+        if (iter != mEnqueueTimes.end())
+        {
+            auto now = std::chrono::steady_clock::now();
+            CLOG(DEBUG, "Perf")
+                << "Published history for ledger " << ledgerSeq << " in "
+                << std::chrono::duration<double>(now - iter->second).count()
+                << " seconds";
+            mEnqueueToPublishTimer.Update(now - iter->second);
+            mEnqueueTimes.erase(iter);
+        }
+
         this->mPublishSuccess.Mark();
         auto timer = mApp.getDatabase().getDeleteTimer("publishqueue");
         auto prep = mApp.getDatabase().getPreparedStatement(

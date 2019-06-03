@@ -88,6 +88,15 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewCounter({"overlay", "connection", "pending"}))
     , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
           {"overlay", "connection", "authenticated"}))
+
+    , mUniqueFloodBytesRecv(app.getMetrics().NewMeter(
+          {"overlay", "flood", "unique-recv"}, "byte"))
+    , mDuplicateFloodBytesRecv(app.getMetrics().NewMeter(
+          {"overlay", "flood", "duplicate-recv"}, "byte"))
+    , mUniqueFetchBytesRecv(app.getMetrics().NewMeter(
+          {"overlay", "fetch", "unique-recv"}, "byte"))
+    , mDuplicateFetchBytesRecv(app.getMetrics().NewMeter(
+          {"overlay", "fetch", "duplicate-recv"}, "byte"))
 {
 }
 }

@@ -74,7 +74,7 @@ class FutureBucket
     void checkHashesMatch() const;
     void checkState() const;
     void startMerge(Application& app, uint32_t maxProtocolVersion,
-                    bool keepDeadEntries, bool countMergeEvents);
+                    bool countMergeEvents, uint32_t level);
 
     void clearInputs();
     void clearOutput();
@@ -84,8 +84,8 @@ class FutureBucket
     FutureBucket(Application& app, std::shared_ptr<Bucket> const& curr,
                  std::shared_ptr<Bucket> const& snap,
                  std::vector<std::shared_ptr<Bucket>> const& shadows,
-                 uint32_t maxProtocolVersion, bool keepDeadEntries,
-                 bool countMergeEvents);
+                 uint32_t maxProtocolVersion, bool countMergeEvents,
+                 uint32_t level);
 
     FutureBucket() = default;
     FutureBucket(FutureBucket const& other) = default;
@@ -118,7 +118,7 @@ class FutureBucket
 
     // Precondition: !isLive(); transitions from FB_HASH_FOO to FB_LIVE_FOO
     void makeLive(Application& app, uint32_t maxProtocolVersion,
-                  bool keepDeadEntries);
+                  uint32_t level);
 
     // Return all hashes referenced by this future.
     std::vector<std::string> getHashes() const;

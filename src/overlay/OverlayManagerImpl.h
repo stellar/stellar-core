@@ -15,7 +15,10 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
+#include "util/Logging.h"
 #include "util/Timer.h"
+
+#include "lib/util/lrucache.hpp"
 
 #include <future>
 #include <set>
@@ -79,6 +82,11 @@ class OverlayManagerImpl : public OverlayManager
 
     OverlayMetrics mOverlayMetrics;
 
+    // NOTE: bool is used here as a placeholder, since no ValueType is needed.
+    cache::lru_cache<uint64_t, bool> mMessageCache;
+    uint32_t mCheckPerfLogLevelCounter;
+    el::Level mPerfLogLevel;
+
     void tick();
     VirtualTimer mTimer;
     VirtualTimer mPeerIPTimer;
@@ -133,6 +141,9 @@ class OverlayManagerImpl : public OverlayManager
     void shutdown() override;
 
     bool isShuttingDown() const override;
+
+    void
+    recordDuplicateMessageMetric(StellarMessage const& stellarMsg) override;
 
   private:
     struct ResolvedPeers

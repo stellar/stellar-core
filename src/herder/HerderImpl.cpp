@@ -137,22 +137,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     // record metrics
     getHerderSCPDriver().recordSCPExecutionMetrics(slotIndex);
 
-    // dump SCP information if this ledger took a long time
-    auto now = mApp.getClock().now();
-    auto gap =
-        std::chrono::duration_cast<std::chrono::seconds>(now - mLastExternalize)
-            .count();
-    if (gap > DUMP_SCP_TIMEOUT_SECONDS)
-    {
-        auto slotInfo = getJsonQuorumInfo(getSCP().getLocalNodeID(), false,
-                                          false, slotIndex);
-        Json::FastWriter fw;
-        CLOG(WARNING, "Herder")
-            << fmt::format("Ledger took {} seconds, SCP information:{}", gap,
-                           fw.write(slotInfo));
-    }
-    mLastExternalize = now;
-
     // called both here and at the end (this one is in case of an exception)
     trackingHeartBeat();
 
@@ -195,12 +179,29 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         }
     }
 
+    // dump SCP information if this ledger took a long time
+    auto gap =
+        std::chrono::duration<double>(mApp.getClock().now() - mLastExternalize)
+            .count();
+    if (gap > DUMP_SCP_TIMEOUT_SECONDS)
+    {
+        auto slotInfo = getJsonQuorumInfo(getSCP().getLocalNodeID(), false,
+                                          false, slotIndex);
+        Json::FastWriter fw;
+        CLOG(WARNING, "Herder")
+            << fmt::format("Ledger took {} seconds, SCP information:{}", gap,
+                           fw.write(slotInfo));
+    }
+
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(mHerderSCPDriver.lastConsensusLedgerIndex(),
                                externalizedSet, value);
     mLedgerManager.valueExternalized(ledgerData);
+
+    // start timing next externalize from this point
+    mLastExternalize = mApp.getClock().now();
 
     // perform cleanups
     updateTransactionQueue(externalizedSet->mTransactions);
