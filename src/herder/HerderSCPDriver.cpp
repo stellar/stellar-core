@@ -13,6 +13,7 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "scp/SCP.h"
+#include "scp/Slot.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -46,9 +47,13 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
     , mPendingEnvelopes{pendingEnvelopes}
-    , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
-           mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
+    , mSCP{*this, mApp.getConfig().NODE_SEED.getPublicKey(),
+           mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET}
     , mSCPMetrics{mApp}
+    , mNominateTimeout{mApp.getMetrics().NewHistogram(
+          {"scp", "timeout", "nominate"})}
+    , mPrepareTimeout{
+          mApp.getMetrics().NewHistogram({"scp", "timeout", "prepare"})}
 {
 }
 
@@ -469,6 +474,25 @@ HerderSCPDriver::timerCallbackWrapper(uint64_t slotIndex, int timerID,
     }
     else
     {
+        auto SCPTimingIt = mSCPExecutionTimes.find(slotIndex);
+        if (SCPTimingIt != mSCPExecutionTimes.end())
+        {
+            auto& SCPTiming = SCPTimingIt->second;
+            if (timerID == Slot::BALLOT_PROTOCOL_TIMER)
+            {
+                // Timeout happened in between first prepare and externalize
+                ++SCPTiming.mPrepareTimeoutCount;
+            }
+            else
+            {
+                if (!SCPTiming.mPrepareStart)
+                {
+                    // Timeout happened between nominate and first prepare
+                    ++SCPTiming.mNominationTimeoutCount;
+                }
+            }
+        }
+
         cb();
     }
 }
@@ -897,6 +921,9 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     }
 
     auto& SCPTiming = SCPTimingIt->second;
+
+    mNominateTimeout.Update(SCPTiming.mNominationTimeoutCount);
+    mPrepareTimeout.Update(SCPTiming.mPrepareTimeoutCount);
 
     auto recordTiming = [&](VirtualClock::time_point start,
                             VirtualClock::time_point end, medida::Timer& timer,

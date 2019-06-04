@@ -42,6 +42,8 @@ scp.value.invalid                        | meter     | SCP value is invalid
 scp.nomination.combinecandidates         | meter     | number of candidates per call
 scp.timing.nominated                     | timer     | time spent in nomination
 scp.timing.externalized                  | timer     | time spent in ballot protocol
+scp.timeout.nominate                     | meter     | timeouts in nomination
+scp.timeout.prepare                      | meter     | timeouts in ballot protocol
 scp.pending.processed                    | counter   | number of already processed envelopes
 scp.pending.discarded                    | counter   | number of discarded envelopes
 scp.pending.fetching                     | counter   | number of incomplete envelopes
