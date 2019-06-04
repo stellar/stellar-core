@@ -17,7 +17,7 @@ namespace stellar
 
 RepairMissingBucketsWork::RepairMissingBucketsWork(
     Application& app, HistoryArchiveState const& localState, Handler endHandler)
-    : Work(app, "repair-buckets")
+    : Work(app, "repair-buckets", RETRY_NEVER)
     , mEndHandler(endHandler)
     , mLocalState(localState)
     , mDownloadDir(std::make_unique<TmpDir>(
