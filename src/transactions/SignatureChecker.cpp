@@ -103,11 +103,13 @@ SignatureChecker::checkSignature(AccountID const& accountID,
         return true;
     }
 
-    verified = verifyAll(
-        signers[SIGNER_KEY_TYPE_ED25519],
-        [&](DecoratedSignature const& sig, Signer const& signerKey) {
-            return SignatureUtils::verify(sig, signerKey.key, mContentsHash);
-        });
+    verified =
+        verifyAll(signers[SIGNER_KEY_TYPE_ED25519],
+                  [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                      return SignatureUtils::verify(
+                          sig, KeyUtils::convertKey<PublicKey>(signerKey.key),
+                          mContentsHash);
+                  });
     if (verified)
     {
         return true;

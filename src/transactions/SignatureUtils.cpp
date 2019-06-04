@@ -25,14 +25,13 @@ sign(SecretKey const& secretKey, Hash const& hash)
 }
 
 bool
-verify(DecoratedSignature const& sig, SignerKey const& signerKey,
+verify(DecoratedSignature const& sig, PublicKey const& publicKey,
        Hash const& hash)
 {
-    auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    if (!doesHintMatch(pubKey.ed25519(), sig.hint))
+    if (!doesHintMatch(publicKey.ed25519(), sig.hint))
         return false;
 
-    return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
+    return PubKeyUtils::verifySig(publicKey, sig.signature, hash);
 }
 
 DecoratedSignature

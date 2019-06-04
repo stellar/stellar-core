@@ -23,10 +23,8 @@ TEST_CASE("Pubkey signature", "[signature]")
             auto hash = sha256(std::string{"HASH_"} + std::to_string(i) +
                                std::to_string(j));
             auto signature = SignatureUtils::sign(secretKey, hash);
-            REQUIRE(SignatureUtils::verify(
-                signature,
-                KeyUtils::convertKey<SignerKey>(secretKey.getPublicKey()),
-                hash));
+            REQUIRE(SignatureUtils::verify(signature, secretKey.getPublicKey(),
+                                           hash));
         }
     }
 }

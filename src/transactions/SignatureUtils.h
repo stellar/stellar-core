@@ -18,7 +18,7 @@ namespace SignatureUtils
 {
 
 DecoratedSignature sign(SecretKey const& secretKey, Hash const& hash);
-bool verify(DecoratedSignature const& sig, SignerKey const& signerKey,
+bool verify(DecoratedSignature const& sig, PublicKey const& publicKey,
             Hash const& hash);
 
 DecoratedSignature signHashX(const ByteSlice& x);
