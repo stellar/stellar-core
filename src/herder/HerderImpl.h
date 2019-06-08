@@ -139,7 +139,7 @@ class HerderImpl : public Herder
     void getMoreSCPState();
 
     // last slot that was persisted into the database
-    // only keep track of the most recent slot
+    // keep track of all messages for MAX_SLOTS_TO_REMEMBER slots
     uint64 mLastSlotSaved;
 
     // timer that detects that we're stuck on an SCP slot
