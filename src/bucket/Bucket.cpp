@@ -392,7 +392,7 @@ calculateMergeProtocolVersion(
 // not scrutinizing the entry type further.
 static bool
 mergeCasesWithDefaultAcceptance(
-    BucketEntryIdCmp& cmp, MergeCounters& mc, BucketInputIterator& oi,
+    BucketEntryIdCmp const& cmp, MergeCounters& mc, BucketInputIterator& oi,
     BucketInputIterator& ni, BucketOutputIterator& out,
     std::vector<BucketInputIterator>& shadowIterators, uint32_t protocolVersion,
     bool keepShadowedLifecycleEntries)

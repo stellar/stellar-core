@@ -11,14 +11,12 @@ namespace stellar
 namespace decoder
 {
 
-inline size_t
-encoded_size32(size_t rawsize)
+inline size_t constexpr encoded_size32(size_t rawsize)
 {
     return ((rawsize + 4) / 5 * 8);
 }
 
-inline size_t
-encoded_size64(size_t rawsize)
+inline size_t constexpr encoded_size64(size_t rawsize)
 {
     return ((rawsize + 2) / 3 * 4);
 }
