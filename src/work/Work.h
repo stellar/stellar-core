@@ -111,8 +111,8 @@ class Work : public BasicWork
     std::list<std::shared_ptr<BasicWork>> mChildren;
     std::list<std::shared_ptr<BasicWork>>::const_iterator mNextChild;
 
-    uint32_t mDoneChildren{0};
-    uint32_t mTotalChildren{0};
+    size_t mDoneChildren{0};
+    size_t mTotalChildren{0};
 
     std::shared_ptr<BasicWork> yieldNextRunningChild();
     void addChild(std::shared_ptr<BasicWork> child);
