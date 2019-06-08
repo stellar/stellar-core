@@ -1,10 +1,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.26730.12
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28803.202
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stellar-core", "stellar-core.vcxproj", "{916B91AB-A300-422C-B9C2-D683924DC109}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsodium", "..\..\lib\libsodium\builds\msvc\vs2017\libsodium\libsodium.vcxproj", "{A185B162-6CB6-4502-B03F-B56F7699A8D9}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xdrpp", "..\..\lib\xdrpp\msvc_xdrpp\xdrpp\xdrpp.vcxproj", "{79708037-97A3-4B19-8E9E-252D00E2E007}"
 EndProject
@@ -20,6 +18,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsoci_postgresql", "libso
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libmedida", "libmedida\libmedida.vcxproj", "{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libsodium", "..\..\lib\libsodium\builds\msvc\vs2019\libsodium\libsodium.vcxproj", "{A185B162-6CB6-4502-B03F-B56F7699A8D9}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -33,12 +33,6 @@ Global
 		{916B91AB-A300-422C-B9C2-D683924DC109}.DebugNoPostgres|x64.Build.0 = DebugNoPostgres|x64
 		{916B91AB-A300-422C-B9C2-D683924DC109}.Release|x64.ActiveCfg = Release|x64
 		{916B91AB-A300-422C-B9C2-D683924DC109}.Release|x64.Build.0 = Release|x64
-		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Debug|x64.ActiveCfg = DebugLIB|x64
-		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Debug|x64.Build.0 = DebugLIB|x64
-		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.DebugNoPostgres|x64.ActiveCfg = DebugLIB|x64
-		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.DebugNoPostgres|x64.Build.0 = DebugLIB|x64
-		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Release|x64.ActiveCfg = ReleaseLTCG|x64
-		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Release|x64.Build.0 = ReleaseLTCG|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.Debug|x64.ActiveCfg = Debug|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.Debug|x64.Build.0 = Debug|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.DebugNoPostgres|x64.ActiveCfg = Debug|x64
@@ -80,6 +74,12 @@ Global
 		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.DebugNoPostgres|x64.Build.0 = DebugNoPostgres|x64
 		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Release|x64.ActiveCfg = Release|x64
 		{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}.Release|x64.Build.0 = Release|x64
+		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Debug|x64.ActiveCfg = DebugLIB|x64
+		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Debug|x64.Build.0 = DebugLIB|x64
+		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.DebugNoPostgres|x64.ActiveCfg = DebugLIB|x64
+		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.DebugNoPostgres|x64.Build.0 = DebugLIB|x64
+		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Release|x64.ActiveCfg = ReleaseLIB|x64
+		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Release|x64.Build.0 = ReleaseLIB|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
