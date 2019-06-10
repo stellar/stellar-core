@@ -12,6 +12,7 @@
 #include "main/ExternalQueue.h"
 #include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -865,6 +866,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         }
 
         auto autoQSet = generateQuorumSet(validators);
+        auto autoQSetStr = toString(autoQSet);
+
         if (t->contains("QUORUM_SET"))
         {
             auto qset = t->get("QUORUM_SET");
@@ -872,9 +875,24 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 loadQset(qset->as_table(), QUORUM_SET, 0);
             }
+            auto s = toString(QUORUM_SET);
+            LOG(INFO) << "Using QUORUM_SET: " << s;
+            if (s != autoQSetStr && !validators.empty())
+            {
+                LOG(WARNING) << "Differs from generated: " << autoQSetStr;
+                if (!UNSAFE_QUORUM)
+                {
+                    LOG(ERROR) << "Can't override [[VALIDATORS]] with "
+                                  "QUORUM_SET unless you also set "
+                                  "UNSAFE_QUORUM=true. Be sure you know what "
+                                  "you are doing!";
+                    throw std::invalid_argument("SCP unsafe");
+                }
+            }
         }
         else
         {
+            LOG(INFO) << "Generated QUORUM_SET: " << autoQSetStr;
             QUORUM_SET = autoQSet;
         }
 
@@ -1321,5 +1339,14 @@ Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
         todo.begin(), todo.end(), ValidatorQuality::VALIDATOR_HIGH_QUALITY);
     normalizeQSet(res);
     return res;
+}
+
+std::string
+Config::toString(SCPQuorumSet const& qset)
+{
+    auto json = LocalNode::toJson(
+        qset, [&](PublicKey const& k) { return toShortString(k); });
+    Json::StyledWriter fw;
+    return fw.write(json);
 }
 }
