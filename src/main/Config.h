@@ -39,6 +39,9 @@ class Config : public std::enable_shared_from_this<Config>
                      bool isSeed);
 
     std::string expandNodeID(std::string const& s) const;
+    void addHistoryArchive(std::string const& name, std::string const& get,
+                           std::string const& put, std::string const& mkdir);
+
 
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;

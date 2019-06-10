@@ -279,6 +279,19 @@ Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
 }
 
 void
+Config::addHistoryArchive(std::string const& name, std::string const& get,
+                          std::string const& put, std::string const& mkdir)
+{
+    auto r = HISTORY.insert(std::make_pair(
+        name, HistoryArchiveConfiguration{name, get, put, mkdir}));
+    if (!r.second)
+    {
+        throw std::invalid_argument(
+            fmt::format("Conflicting archive name {}", name));
+    }
+}
+
+void
 Config::load(std::string const& filename)
 {
     if (filename != "-" && !fs::exists(filename))
@@ -581,8 +594,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                                 throw std::invalid_argument(err);
                             }
                         }
-                        HISTORY[archive.first] = HistoryArchiveConfiguration{
-                            archive.first, get, put, mkdir};
+                        addHistoryArchive(archive.first, get, put, mkdir);
                     }
                 }
                 else
@@ -634,7 +646,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 auto values =
                     readStringArray(ConfigItem{"PREFERRED_PEER_KEYS", pkeys});
-                for (auto v : values)
+                for (auto const& v : values)
                 {
                     PublicKey nodeID;
                     parseNodeID(v, nodeID);
