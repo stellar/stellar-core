@@ -1,6 +1,13 @@
-## Before Creating an Issue
+---
+name: Bug Report
+about: Create a report to help us improve stellar-core
+title: "[Short Description] (Version: [stellar-core version])"
+labels: bug
+assignees: ''
 
-First, what kind of issue are you bringing up?
+---
+
+## Before Creating an Issue
 
 ### Hey, I have a question!
 
@@ -14,7 +21,7 @@ you:
   Exchange][2].
 * If your question is non-developer centric, take a look at [Stellar's Community][3].
 
-In general, we close any issues that are questions best served elsewhere — we have a small
+In general, we close any issues that are questions best served elsewhere — we have a small
 community of people that manages issues, and we want to ensure that the issues that remain open are
 high quality (so we actually get around to implementing them!)
 
@@ -29,57 +36,31 @@ high quality (so we actually get around to implementing them!)
 * When possible, re-open an old issue if there's been a regression. Be sure to include additional
   details on what was supposed to be working.
 
-### I'd like to request new functionality in stellar-core!
+## Issue Description
 
-First, you have to ask whether what you're trying to file is an issue related to Stellar's Protocol
-OR if it's related to `stellar-core`, the C++ implementation that's in this repository.
+*Describe your bug/feature request in detail.*
 
-Typically a request that changes how the core protocol works (such as adding a new operation,
-changing the way transactions work, etc) is best filed in the [Stellar Protocol repository][4]
+## Steps to Reproduce
+*List in detail the exact steps to reproduce the unexpected behavior of the software.*
 
-However, if your change is related to the implementation (say you'd like to see a new command line
-flag or HTTP command added to stellar-core), this is the place.
+## Expected Result
+*Explain in detail what behavior you expected to happen.*
 
-* Please check existing and closed issues in Github! You may have to remove the `is:open` filter.
-* Check the releases page to see if your request has already been added in a later release.
+## Actual Result
+*Explain in detail what behavior actually happened.*
 
-[4]: https://github.com/stellar/stellar-protocol/issues
+## Your Environment and Setup
 
-## Issue Type
-* Bug
-* Feature Request
-* Documentation
-
-## Version
+### stellar-core Version
 * If using a standard release, please add the version returned by `./stellar-core --version`
 * If working off of master, please add the git hash of the version you're running using `git
   rev-parse HEAD`
 
-## Your Environment and Setup
+### Environment
 * Operation System & Version (You can usually obtain from `uname -a`):
 * Are you running from the command line? From a container?
 * Did you pass in special parameters when building the app?
-
-## Issue description
-*Describe your bug/feature request in detail.*
-
-### Bug
-
-#### Steps to Reproduce
-*List in detail the exact steps to reproduce the unexpected behavior of the software.*
-
-#### Expected Result
-*Explain in detail what behavior you expected to happen.*
-
-#### Actual Result
-*Explain in detail what behavior actually happened.*
-
-### Feature Request
-
-*Explain in detail the additional functionality you would like to see in stellar-core.*
-
-Be descriptive, including the interface you'd like to see, as well as any suggestions you may have
-with regard to its implementation.
+* Please add any additional relevant configuration related to this bug report.
 
 ## Supporting Files
 
@@ -90,3 +71,6 @@ Potential items to attach:
 * Configuration files (**DON'T FORGET TO REMOVE SECRETS**)
 * Log files - it is best is to have logs running at DEBUG level when reproducing an issue (`-ll
   DEBUG` on the command line).
+
+## Additional context
+Add any other context about the problem here.
