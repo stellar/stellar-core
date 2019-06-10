@@ -930,6 +930,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         auto autoQSet = generateQuorumSet(validators);
         auto autoQSetStr = toString(autoQSet);
+        bool mixedDomains;
 
         if (t->contains("QUORUM_SET"))
         {
@@ -952,16 +953,25 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     throw std::invalid_argument("SCP unsafe");
                 }
             }
+            mixedDomains =
+                true; // assume validators are from different entities
         }
         else
         {
             LOG(INFO) << "Generated QUORUM_SET: " << autoQSetStr;
             QUORUM_SET = autoQSet;
             verifyHistoryValidatorsBlocking(validators);
+            // count the number of domains
+            std::unordered_set<std::string> domains;
+            for (auto const& v : validators)
+            {
+                domains.insert(v.mHomeDomain);
+            }
+            mixedDomains = domains.size() > 1;
         }
 
         adjust();
-        validateConfig();
+        validateConfig(mixedDomains);
     }
     catch (cpptoml::parse_exception& ex)
     {
@@ -1074,7 +1084,7 @@ Config::logBasicInfo()
 }
 
 void
-Config::validateConfig()
+Config::validateConfig(bool mixed)
 {
     std::set<NodeID> nodes;
     LocalNode::forAllNodes(QUORUM_SET,
@@ -1090,14 +1100,15 @@ Config::validateConfig()
     auto selfID = NODE_SEED.getPublicKey();
     auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes, nullptr);
 
+    unsigned int minSize = computeDefaultThreshold(QUORUM_SET, !mixed);
+
     if (FAILURE_SAFETY == -1)
     {
         // calculates default value for safety giving the top level entities
         // the same weight
-        // n = 3f+1 <=> f = (n-1)/3
         auto topLevelCount =
             QUORUM_SET.validators.size() + QUORUM_SET.innerSets.size();
-        FAILURE_SAFETY = (static_cast<uint32>(topLevelCount) - 1) / 3;
+        FAILURE_SAFETY = topLevelCount - minSize;
 
         LOG(INFO) << "Assigning calculated value of " << FAILURE_SAFETY
                   << " to FAILURE_SAFETY";
@@ -1126,7 +1137,6 @@ Config::validateConfig()
                 throw std::invalid_argument("SCP unsafe");
             }
 
-            unsigned int minSize = computeDefaultThreshold(QUORUM_SET, false);
             if (QUORUM_SET.threshold < minSize)
             {
                 LOG(ERROR) << "Your THRESHOLD_PERCENTAGE is too low. If you "
