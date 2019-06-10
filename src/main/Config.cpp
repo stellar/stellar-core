@@ -36,6 +36,38 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
     "ALLOW_LOCALHOST_FOR_TESTING"};
 
+namespace
+{
+// compute a default threshold for qset:
+// if simpleMajority is set and there are no inner sets, only require majority
+// (>50%) otherwise assume byzantine failures (~67%)
+unsigned int
+computeDefaultThreshold(SCPQuorumSet const& qset, bool simpleMajority)
+{
+    unsigned int res = 0;
+    unsigned int topSize = static_cast<unsigned int>(qset.validators.size() +
+                                                     qset.innerSets.size());
+    if (topSize == 0)
+    {
+        // leave the quorum set empty
+        return 0;
+    }
+    if (simpleMajority && qset.innerSets.empty())
+    {
+        // n=2f+1
+        // compute res = n - f
+        res = topSize - (topSize - 1) / 2;
+    }
+    else
+    {
+        // n=3f+1
+        // compute res = n - f
+        res = topSize - (topSize - 1) / 3;
+    }
+    return res;
+}
+}
+
 Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
@@ -784,16 +816,12 @@ Config::validateConfig()
                 throw std::invalid_argument("SCP unsafe");
             }
 
-            unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
-                                                  QUORUM_SET.innerSets.size());
-            unsigned int minSize = 1 + (topSize * 2 - 1) / 3;
+            unsigned int minSize = computeDefaultThreshold(QUORUM_SET, false);
             if (QUORUM_SET.threshold < minSize)
             {
-                LOG(ERROR)
-                    << "Your THRESHOLD_PERCENTAGE is too low. If you really "
-                       "want "
-                       "this set UNSAFE_QUORUM=true. Be sure you know what you "
-                       "are doing!";
+                LOG(ERROR) << "Your THRESHOLD_PERCENTAGE is too low. If you "
+                              "really want this set UNSAFE_QUORUM=true. Be "
+                              "sure you know what you are doing!";
                 throw std::invalid_argument("SCP unsafe");
             }
         }
