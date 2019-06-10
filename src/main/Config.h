@@ -62,9 +62,13 @@ class Config : public std::enable_shared_from_this<Config>
     std::string toString(ValidatorQuality q) const;
     ValidatorQuality parseQuality(std::string const& q) const;
 
-    std::vector<ValidatorEntry> parseValidators(
-        std::shared_ptr<cpptoml::base> validators);
+    std::vector<ValidatorEntry>
+    parseValidators(std::shared_ptr<cpptoml::base> validators,
+                    std::unordered_map<std::string, ValidatorQuality> const&
+                        domainQualityMap);
 
+    std::unordered_map<std::string, ValidatorQuality>
+    parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality);
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
 

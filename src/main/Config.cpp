@@ -320,7 +320,8 @@ Config::parseQuality(std::string const& q) const
 
 std::vector<Config::ValidatorEntry>
 Config::parseValidators(
-    std::shared_ptr<cpptoml::base> validators)
+    std::shared_ptr<cpptoml::base> validators,
+    std::unordered_map<std::string, ValidatorQuality> const& domainQualityMap)
 {
     std::vector<ValidatorEntry> res;
 
@@ -385,6 +386,22 @@ Config::parseValidators(
             throw std::invalid_argument(
                 fmt::format("malformed VALIDATORS entry {}", ve.mName));
         }
+        auto globQualityIt = domainQualityMap.find(ve.mHomeDomain);
+        if (globQualityIt != domainQualityMap.end())
+        {
+            if (qualitySet)
+            {
+                throw std::invalid_argument(
+                    fmt::format("malformed VALIDATORS entry {}: quality "
+                                "already defined in home domain {}",
+                                ve.mName, ve.mHomeDomain));
+            }
+            else
+            {
+                ve.mQuality = globQualityIt->second;
+                qualitySet = true;
+            }
+        }
         if (!qualitySet)
         {
             throw std::invalid_argument(fmt::format(
@@ -409,6 +426,59 @@ Config::parseValidators(
     }
     return res;
 }
+
+std::unordered_map<std::string, Config::ValidatorQuality>
+Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
+{
+    std::unordered_map<std::string, ValidatorQuality> res;
+    auto tarr = domainsQuality->as_table_array();
+    if (!tarr)
+    {
+        throw std::invalid_argument("malformed HOME_DOMAINS");
+    }
+    for (auto const& valRaw : *tarr)
+    {
+        auto home_domain = valRaw->as_table();
+        if (!home_domain)
+        {
+            throw std::invalid_argument("malformed HOME_DOMAINS");
+        }
+        std::string domain;
+        ValidatorQuality quality;
+        bool qualitySet = false;
+        for (auto const& f : *home_domain)
+        {
+            if (f.first == "QUALITY")
+            {
+                auto q = readString(f);
+                quality = parseQuality(q);
+                qualitySet = true;
+            }
+            else if (f.first == "HOME_DOMAIN")
+            {
+                domain = readString(f);
+            }
+            else
+            {
+                throw std::invalid_argument(
+                    fmt::format("Unknown field {} in HOME_DOMAINS", f.first));
+            }
+        }
+        if (!qualitySet || domain.empty())
+        {
+            throw std::invalid_argument(
+                fmt::format("Malformed HOME_DOMAINS {}", domain));
+        }
+        auto p = res.emplace(std::make_pair(domain, quality));
+        if (!p.second)
+        {
+            throw std::invalid_argument(
+                fmt::format("Malformed HOME_DOMAINS: duplicate {}", domain));
+        }
+    }
+    return res;
+}
+
 void
 Config::load(std::string const& filename)
 {
@@ -483,6 +553,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error("Could not parse toml");
         }
         std::vector<ValidatorEntry> validators;
+        std::unordered_map<std::string, ValidatorQuality> domainQualityMap;
+
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
         for (auto& item : *t)
@@ -755,6 +827,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 // processed later (may depend on HOME_DOMAINS)
             }
+            else if (item.first == "HOME_DOMAINS")
+            {
+                domainQualityMap = parseDomainsQuality(item.second);
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -769,7 +845,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             auto vals = t->get("VALIDATORS");
             if (vals)
             {
-                validators = parseValidators(vals);
+                validators = parseValidators(vals, domainQualityMap);
             }
         }
         if (t->contains("PREFERRED_PEER_KEYS"))
