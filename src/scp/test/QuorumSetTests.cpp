@@ -8,6 +8,7 @@
 #include "lib/catch.hpp"
 #include "scp/QuorumSetUtils.h"
 #include "xdr/Stellar-SCP.h"
+#include <algorithm>
 
 namespace stellar
 {
@@ -32,6 +33,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     {
         keys.push_back(makePublicKey(i));
     }
+    std::sort(keys.begin(), keys.end());
 
     auto check = [&](SCPQuorumSet const& qSetCheck, bool expected,
                      SCPQuorumSet const& expectedSelfQSet) {
