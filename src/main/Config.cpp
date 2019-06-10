@@ -863,6 +863,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 }
             }
         }
+
+        auto autoQSet = generateQuorumSet(validators);
         if (t->contains("QUORUM_SET"))
         {
             auto qset = t->get("QUORUM_SET");
@@ -870,6 +872,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 loadQset(qset->as_table(), QUORUM_SET, 0);
             }
+        }
+        else
+        {
+            QUORUM_SET = autoQSet;
         }
 
         adjust();
@@ -994,7 +1000,8 @@ Config::validateConfig()
 
     if (nodes.size() == 0)
     {
-        throw std::invalid_argument("QUORUM_SET not configured");
+        throw std::invalid_argument(
+            "no validators defined in VALIDATORS/QUORUM_SET");
     }
 
     // calculates nodes that would break quorum
@@ -1241,5 +1248,78 @@ Config::setNoListen()
     RUN_STANDALONE = true;
     HTTP_PORT = 0;
     MANUAL_CLOSE = true;
+}
+
+SCPQuorumSet
+Config::generateQuorumSetHelper(
+    std::vector<ValidatorEntry>::const_iterator begin,
+    std::vector<ValidatorEntry>::const_iterator end,
+    ValidatorQuality curQuality)
+{
+    auto it = begin;
+    SCPQuorumSet ret;
+    while (it != end && it->mQuality == curQuality)
+    {
+        SCPQuorumSet innerSet;
+        auto& vals = innerSet.validators;
+        auto it2 = it;
+        for (; it2 != end && it2->mHomeDomain == it->mHomeDomain; it2++)
+        {
+            if (it2->mQuality != it->mQuality)
+            {
+                throw std::invalid_argument(
+                    fmt::format("Validators {} and {} must have same quality",
+                                it->mName, it2->mName));
+            }
+            vals.emplace_back(it2->mKey);
+        }
+        if (vals.size() < 3 &&
+            it->mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY)
+        {
+            throw std::invalid_argument(fmt::format(
+                "High quality validator {} must have redundancy of at least 3",
+                it->mName));
+        }
+        innerSet.threshold = computeDefaultThreshold(innerSet, true);
+        ret.innerSets.emplace_back(innerSet);
+        it = it2;
+    }
+    if (it != end)
+    {
+        if (it->mQuality > curQuality)
+        {
+            throw std::invalid_argument(fmt::format(
+                "invalid validator quality for {} (must be ascending)",
+                it->mName));
+        }
+        auto lowQ = generateQuorumSetHelper(it, end, it->mQuality);
+        ret.innerSets.emplace_back(lowQ);
+    }
+    ret.threshold = computeDefaultThreshold(ret, false);
+    return ret;
+}
+
+SCPQuorumSet
+Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
+{
+    auto todo = validators;
+    // first, sort by quality (desc), homedomain (asc)
+    std::sort(todo.begin(), todo.end(),
+              [](ValidatorEntry const& l, ValidatorEntry const& r) {
+                  if (l.mQuality > r.mQuality)
+                  {
+                      return true;
+                  }
+                  else if (l.mQuality < r.mQuality)
+                  {
+                      return false;
+                  }
+                  return l.mHomeDomain < r.mHomeDomain;
+              });
+
+    auto res = generateQuorumSetHelper(
+        todo.begin(), todo.end(), ValidatorQuality::VALIDATOR_HIGH_QUALITY);
+    normalizeQSet(res);
+    return res;
 }
 }

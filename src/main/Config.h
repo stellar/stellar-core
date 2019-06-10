@@ -69,6 +69,14 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::unordered_map<std::string, ValidatorQuality>
     parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality);
+
+    static SCPQuorumSet
+    generateQuorumSetHelper(std::vector<ValidatorEntry>::const_iterator begin,
+                            std::vector<ValidatorEntry>::const_iterator end,
+                            ValidatorQuality curQuality);
+
+    static SCPQuorumSet
+    generateQuorumSet(std::vector<ValidatorEntry> const& validators);
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
 
