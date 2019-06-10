@@ -4,14 +4,12 @@
 * try Settings -> System -> About and look under System Type
 * When in doubt, see http://www.tenforums.com/tutorials/4399-system-type-32-bit-x86-64-bit-x64-windows-10-a.html
 
-## Download and install `Visual Studio 2017` (for Visual C++) ; the Community Edition is free and fully functional.
+## Download and install `Visual Studio 2019` (for Visual C++) ; the Community Edition is free and fully functional.
 * See https://www.visualstudio.com/downloads/
 * When installing, you will need to select:
     * Desktop Development with C++
     * C++ Profiling (optional)
-    * Windows 8.1 SDK
-    * Visual C++ tools for Cmake
-    * Visual C++ ATL Support
+    * Windows 10 SDK
     * C++/CLI Support
 
 ## Download and install PostgreSQL

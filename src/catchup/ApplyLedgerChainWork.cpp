@@ -265,7 +265,7 @@ ApplyLedgerChainWork::onRun()
         CLOG(ERROR, "History") << "Replay failed";
         throw;
     }
-    catch (FileSystemException& e)
+    catch (FileSystemException&)
     {
         CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
         return State::WORK_FAILURE;
