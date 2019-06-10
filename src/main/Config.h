@@ -32,6 +32,8 @@ class Config : public std::enable_shared_from_this<Config>
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   int level);
 
+    void processConfig(std::shared_ptr<cpptoml::table>);
+
     void parseNodeID(std::string configStr, PublicKey& retKey);
     void parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                      bool isSeed);
@@ -242,6 +244,7 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
+    void load(std::istream& in);
 
     // fixes values of connection-relates settings
     void adjust();

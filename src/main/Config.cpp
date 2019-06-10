@@ -258,7 +258,44 @@ Config::load(std::string const& filename)
     }
 
     LOG(DEBUG) << "Loading config from: " << filename;
+    try
+    {
+        if (filename == "-")
+        {
+            load(std::cin);
+        }
+        else
+        {
+            std::ifstream ifs(filename);
+            if (!ifs.is_open())
+            {
+                throw std::runtime_error("could not open file");
+            }
+            load(ifs);
+        }
+    }
+    catch (std::exception const& ex)
+    {
+        std::string err("Failed to parse '");
+        err += filename;
+        err += "' :";
+        err += ex.what();
+        throw std::invalid_argument(err);
+    }
+}
 
+void
+Config::load(std::istream& in)
+{
+    std::shared_ptr<cpptoml::table> t;
+    cpptoml::parser p(in);
+    t = p.parse();
+    processConfig(t);
+}
+
+void
+Config::processConfig(std::shared_ptr<cpptoml::table> t)
+{
     auto logIfSet = [](auto& item, auto const& message) {
         if (item.second->template as<bool>())
         {
@@ -278,16 +315,6 @@ Config::load(std::string const& filename)
 
     try
     {
-        std::shared_ptr<cpptoml::table> t;
-        if (filename == "-")
-        {
-            cpptoml::parser p(std::cin);
-            t = p.parse();
-        }
-        else
-        {
-            t = cpptoml::parse_file(filename);
-        }
         if (!t)
         {
             throw std::runtime_error("Could not parse toml");
@@ -597,11 +624,7 @@ Config::load(std::string const& filename)
     }
     catch (cpptoml::parse_exception& ex)
     {
-        std::string err("Failed to parse '");
-        err += filename;
-        err += "' :";
-        err += ex.what();
-        throw std::invalid_argument(err);
+        throw std::invalid_argument(ex.what());
     }
 }
 
