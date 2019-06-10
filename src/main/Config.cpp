@@ -528,6 +528,29 @@ Config::load(std::istream& in)
 }
 
 void
+Config::addSelfToValidators(
+    std::vector<ValidatorEntry>& validators,
+    std::unordered_map<std::string, ValidatorQuality> const& domainQualityMap)
+{
+    auto it = domainQualityMap.find(NODE_HOME_DOMAIN);
+    ValidatorEntry self;
+    self.mKey = NODE_SEED.getPublicKey();
+    self.mHomeDomain = NODE_HOME_DOMAIN;
+    self.mName = "self";
+    self.mHasHistory = false;
+    if (it != domainQualityMap.end())
+    {
+        self.mQuality = it->second;
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify a matching HOME_DOMAINS for self");
+    }
+    validators.emplace_back(self);
+}
+
+void
 Config::verifyHistoryValidatorsBlocking(
     std::vector<ValidatorEntry> const& validators)
 {
@@ -710,6 +733,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 NODE_IS_VALIDATOR = readBool(item);
             }
+            else if (item.first == "NODE_HOME_DOMAIN")
+            {
+                NODE_HOME_DOMAIN = readString(item);
+            }
             else if (item.first == "TARGET_PEER_CONNECTIONS")
             {
                 TARGET_PEER_CONNECTIONS = readInt<unsigned short>(item, 1);
@@ -877,6 +904,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 validators = parseValidators(vals, domainQualityMap);
             }
         }
+
+        // if only QUORUM_SET is specified: we don't populate validators at all
+        if (NODE_IS_VALIDATOR &&
+            !(validators.empty() && t->contains("QUORUM_SET")))
+        {
+            addSelfToValidators(validators, domainQualityMap);
+        }
+
         if (t->contains("PREFERRED_PEER_KEYS"))
         {
             auto pkeys = t->get("PREFERRED_PEER_KEYS");
@@ -1045,7 +1080,7 @@ Config::validateConfig()
     LocalNode::forAllNodes(QUORUM_SET,
                            [&](NodeID const& n) { nodes.insert(n); });
 
-    if (nodes.size() == 0)
+    if (nodes.empty())
     {
         throw std::invalid_argument(
             "no validators defined in VALIDATORS/QUORUM_SET");

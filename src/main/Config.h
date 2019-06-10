@@ -78,6 +78,11 @@ class Config : public std::enable_shared_from_this<Config>
     static SCPQuorumSet
     generateQuorumSet(std::vector<ValidatorEntry> const& validators);
 
+    void
+    addSelfToValidators(std::vector<ValidatorEntry>& validators,
+                        std::unordered_map<std::string, ValidatorQuality> const&
+                            domainQualityMap);
+
     void verifyHistoryValidatorsBlocking(
         std::vector<ValidatorEntry> const& validators);
 
@@ -252,6 +257,8 @@ class Config : public std::enable_shared_from_this<Config>
     SecretKey NODE_SEED;
     bool NODE_IS_VALIDATOR;
     stellar::SCPQuorumSet QUORUM_SET;
+    // this node's home domain
+    std::string NODE_HOME_DOMAIN;
 
     // Invariants
     std::vector<std::string> INVARIANT_CHECKS;
