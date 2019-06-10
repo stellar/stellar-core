@@ -528,6 +528,34 @@ Config::load(std::istream& in)
 }
 
 void
+Config::verifyHistoryValidatorsBlocking(
+    std::vector<ValidatorEntry> const& validators)
+{
+    std::vector<NodeID> archives;
+    for (auto const& v : validators)
+    {
+        if (v.mHasHistory)
+        {
+            archives.emplace_back(v.mKey);
+        }
+    }
+    if (!LocalNode::isVBlocking(QUORUM_SET, archives))
+    {
+        LOG(WARNING) << "Quorum can be reached without validators with "
+                        "an archive";
+        if (!UNSAFE_QUORUM)
+        {
+            LOG(ERROR) << "Potentially unsafe configuration: "
+                          "validators with known archives should be "
+                          "included in all quorums. If this is really "
+                          "what you want, set UNSAFE_QUORUM=true. Be "
+                          "sure you know what you are doing!";
+            throw std::invalid_argument("SCP unsafe");
+        }
+    }
+}
+
+void
 Config::processConfig(std::shared_ptr<cpptoml::table> t)
 {
     auto logIfSet = [](auto& item, auto const& message) {
@@ -894,6 +922,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         {
             LOG(INFO) << "Generated QUORUM_SET: " << autoQSetStr;
             QUORUM_SET = autoQSet;
+            verifyHistoryValidatorsBlocking(validators);
         }
 
         adjust();

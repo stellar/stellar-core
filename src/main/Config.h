@@ -77,6 +77,10 @@ class Config : public std::enable_shared_from_this<Config>
 
     static SCPQuorumSet
     generateQuorumSet(std::vector<ValidatorEntry> const& validators);
+
+    void verifyHistoryValidatorsBlocking(
+        std::vector<ValidatorEntry> const& validators);
+
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
 
