@@ -854,6 +854,23 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
 }
 
 void
+Config::addValidatorName(std::string const& pubKeyStr, std::string const& name)
+{
+    PublicKey k;
+    std::string cName = "$";
+    cName += name;
+    if (resolveNodeID(cName, k))
+    {
+        throw std::invalid_argument("name already used: " + name);
+    }
+
+    if (!VALIDATOR_NAMES.emplace(std::make_pair(pubKeyStr, name)).second)
+    {
+        throw std::invalid_argument("naming node twice: " + name);
+    }
+}
+
+void
 Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                     bool isSeed)
 {
@@ -897,21 +914,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
             iss >> commonName;
             if (commonName.size())
             {
-                std::string cName = "$";
-                cName += commonName;
-                if (resolveNodeID(cName, retKey))
-                {
-                    throw std::invalid_argument("name already used: " +
-                                                commonName);
-                }
-
-                if (!VALIDATOR_NAMES
-                         .emplace(std::make_pair(nodestr, commonName))
-                         .second)
-                {
-                    throw std::invalid_argument("naming node twice: " +
-                                                commonName);
-                }
+                addValidatorName(nodestr, commonName);
             }
         }
     }
