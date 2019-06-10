@@ -1726,6 +1726,9 @@
     <None Include="..\..\docs\stellar-core_testnet_legacy.cfg">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\docs\stellar-core_example_validators.cfg">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">

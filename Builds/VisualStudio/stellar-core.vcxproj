@@ -800,6 +800,7 @@ exit /b 0
     <None Include="..\..\docs\software\testnet.md" />
     <None Include="..\..\docs\stellar-core.1.md" />
     <None Include="..\..\docs\stellar-core_example.cfg" />
+    <None Include="..\..\docs\stellar-core_example_validators.cfg" />
     <None Include="..\..\docs\stellar-core_standalone.cfg" />
     <None Include="..\..\docs\stellar-core_testnet.cfg" />
     <None Include="..\..\docs\stellar-core_testnet_legacy.cfg" />
