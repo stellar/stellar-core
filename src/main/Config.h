@@ -28,6 +28,21 @@ struct HistoryArchiveConfiguration
 
 class Config : public std::enable_shared_from_this<Config>
 {
+    enum class ValidatorQuality : int
+    {
+        VALIDATOR_LOW_QUALITY = 0,
+        VALIDATOR_MED_QUALITY = 1,
+        VALIDATOR_HIGH_QUALITY = 2
+    };
+    struct ValidatorEntry
+    {
+        std::string mName;
+        std::string mHomeDomain;
+        ValidatorQuality mQuality;
+        PublicKey mKey;
+        bool mHasHistory;
+    };
+
     void validateConfig();
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   int level);
@@ -44,6 +59,11 @@ class Config : public std::enable_shared_from_this<Config>
     void addHistoryArchive(std::string const& name, std::string const& get,
                            std::string const& put, std::string const& mkdir);
 
+    std::string toString(ValidatorQuality q) const;
+    ValidatorQuality parseQuality(std::string const& q) const;
+
+    std::vector<ValidatorEntry> parseValidators(
+        std::shared_ptr<cpptoml::base> validators);
 
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;

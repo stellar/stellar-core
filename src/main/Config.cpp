@@ -291,6 +291,124 @@ Config::addHistoryArchive(std::string const& name, std::string const& get,
     }
 }
 
+static std::array<std::string, 3> const kQualities = {"LOW", "MEDIUM", "HIGH"};
+
+std::string
+Config::toString(ValidatorQuality q) const
+{
+    return kQualities[static_cast<int>(q)];
+}
+
+Config::ValidatorQuality
+Config::parseQuality(std::string const& q) const
+{
+    auto it = std::find(kQualities.begin(), kQualities.end(), q);
+
+    ValidatorQuality res;
+
+    if (it != kQualities.end())
+    {
+        res = static_cast<Config::ValidatorQuality>(
+            std::distance(kQualities.begin(), it));
+    }
+    else
+    {
+        throw std::invalid_argument(fmt::format("Unknown QUALITY {}", q));
+    }
+    return res;
+}
+
+std::vector<Config::ValidatorEntry>
+Config::parseValidators(
+    std::shared_ptr<cpptoml::base> validators)
+{
+    std::vector<ValidatorEntry> res;
+
+    auto tarr = validators->as_table_array();
+    if (!tarr)
+    {
+        throw std::invalid_argument("malformed VALIDATORS");
+    }
+    for (auto const& valRaw : *tarr)
+    {
+        auto validator = valRaw->as_table();
+        if (!validator)
+        {
+            throw std::invalid_argument("malformed VALIDATORS");
+        }
+        ValidatorEntry ve;
+        std::string pubKey, hist;
+        bool qualitySet = false;
+        for (auto const& f : *validator)
+        {
+            if (f.first == "NAME")
+            {
+                ve.mName = readString(f);
+            }
+            else if (f.first == "HOME_DOMAIN")
+            {
+                ve.mHomeDomain = readString(f);
+            }
+            else if (f.first == "QUALITY")
+            {
+                auto q = readString(f);
+                ve.mQuality = parseQuality(q);
+                qualitySet = true;
+            }
+            else if (f.first == "PUBLIC_KEY")
+            {
+                pubKey = readString(f);
+            }
+            else if (f.first == "ADDRESS")
+            {
+                auto address = readString(f);
+                KNOWN_PEERS.emplace_back(address);
+            }
+            else if (f.first == "HISTORY")
+            {
+                hist = readString(f);
+            }
+            else
+            {
+                throw std::invalid_argument(fmt::format(
+                    "malformed VALIDATORS entry, unknown element '{}'",
+                    f.first));
+            }
+        }
+        if (ve.mName.empty())
+        {
+            throw std::invalid_argument(
+                "malformed VALIDATORS entry: missing 'NAME'");
+        }
+        if (pubKey.empty() || ve.mHomeDomain.empty())
+        {
+            throw std::invalid_argument(
+                fmt::format("malformed VALIDATORS entry {}", ve.mName));
+        }
+        if (!qualitySet)
+        {
+            throw std::invalid_argument(fmt::format(
+                "malformed VALIDATORS entry {} (missing quality)", ve.mName));
+        }
+        addValidatorName(pubKey, ve.mName);
+        ve.mKey = KeyUtils::fromStrKey<PublicKey>(pubKey);
+        ve.mHasHistory = !hist.empty();
+        if (ve.mHasHistory)
+        {
+            addHistoryArchive(ve.mName, hist, "", "");
+        }
+        if (ve.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY &&
+            hist.empty())
+        {
+            throw std::invalid_argument(
+                fmt::format("malformed VALIDATORS entry {} (high quality must "
+                            "have an archive)",
+                            ve.mName));
+        }
+        res.emplace_back(ve);
+    }
+    return res;
+}
 void
 Config::load(std::string const& filename)
 {
@@ -364,6 +482,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
         {
             throw std::runtime_error("Could not parse toml");
         }
+        std::vector<ValidatorEntry> validators;
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
         for (auto& item : *t)
@@ -533,7 +652,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "KNOWN_PEERS")
             {
-                KNOWN_PEERS = readStringArray(item);
+                auto peers = readStringArray(item);
+                KNOWN_PEERS.insert(KNOWN_PEERS.begin(), peers.begin(),
+                                   peers.end());
             }
             else if (item.first == "QUORUM_SET")
             {
@@ -630,6 +751,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 MAXIMUM_LEDGER_CLOSETIME_DRIFT = readInt<int64_t>(item, 0);
             }
+            else if (item.first == "VALIDATORS")
+            {
+                // processed later (may depend on HOME_DOMAINS)
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -639,6 +764,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
         }
         // process elements that potentially depend on others
+        if (t->contains("VALIDATORS"))
+        {
+            auto vals = t->get("VALIDATORS");
+            if (vals)
+            {
+                validators = parseValidators(vals);
+            }
+        }
         if (t->contains("PREFERRED_PEER_KEYS"))
         {
             auto pkeys = t->get("PREFERRED_PEER_KEYS");
