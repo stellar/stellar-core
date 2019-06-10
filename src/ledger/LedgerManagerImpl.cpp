@@ -786,7 +786,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // If we do not support ledger version, we can't apply that ledger, fail!
     if (header.current().ledgerVersion >
-        Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        mApp.getConfig().LEDGER_PROTOCOL_VERSION)
     {
         CLOG(ERROR, "Ledger")
             << "Unknown ledger version: " << header.current().ledgerVersion;
@@ -853,15 +853,20 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
-        try
+        auto valid = Upgrades::isValidForApply(
+            sv.upgrades[i], lupgrade, ltx.loadHeader().current(),
+            mApp.getConfig().LEDGER_PROTOCOL_VERSION);
+        switch (valid)
         {
-            xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
-        }
-        catch (xdr::xdr_runtime_error)
-        {
-            CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
-            CLOG(FATAL, "Ledger") << REPORT_INTERNAL_BUG;
-            throw;
+        case Upgrades::UpgradeValidity::VALID:
+            break;
+        case Upgrades::UpgradeValidity::XDR_INVALID:
+            throw std::runtime_error("Unknown upgrade at index " +
+                                     std::to_string(i));
+        case Upgrades::UpgradeValidity::INVALID:
+            throw std::runtime_error("Invalid upgrade at index " +
+                                     std::to_string(i) + ": " +
+                                     xdr::xdr_to_string(lupgrade));
         }
 
         try

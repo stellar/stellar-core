@@ -70,21 +70,6 @@ TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
     return mCfg;
 }
 
-ProtocolVersionTmpDirHistoryConfigurator::
-    ProtocolVersionTmpDirHistoryConfigurator(uint32_t version)
-    : mProtocolVersion(version)
-{
-}
-
-Config&
-ProtocolVersionTmpDirHistoryConfigurator::configure(Config& mCfg,
-                                                    bool writable) const
-{
-    TmpDirHistoryConfigurator::configure(mCfg, writable);
-    mCfg.LEDGER_PROTOCOL_VERSION = mProtocolVersion;
-    return mCfg;
-}
-
 Config&
 S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
 {
@@ -107,6 +92,15 @@ S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
     }
     mCfg.HISTORY["test"] =
         HistoryArchiveConfiguration{"test", getCmd, putCmd, mkdirCmd};
+    return mCfg;
+}
+
+Config&
+RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
+                                                bool writable) const
+{
+    TmpDirHistoryConfigurator::configure(mCfg, writable);
+    mCfg.USE_CONFIG_FOR_GENESIS = false;
     return mCfg;
 }
 
@@ -427,7 +421,7 @@ CatchupSimulation::getLastCheckpointLedger(uint32_t checkpointIndex) const
 }
 
 void
-CatchupSimulation::generateRandomLedger()
+CatchupSimulation::generateRandomLedger(uint32_t version)
 {
     auto& lm = mApp.getLedgerManager();
     TxSetFramePtr txSet =
@@ -478,7 +472,16 @@ CatchupSimulation::generateRandomLedger()
                            << " with " << txSet->sizeTx() << " txs (txhash:"
                            << hexAbbrev(txSet->getContentsHash()) << ")";
 
-    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+    auto upgrades = xdr::xvector<UpgradeType, 6>{};
+    if (version > 0)
+    {
+        auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+        ledgerUpgrade.newLedgerVersion() = version;
+        auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+        upgrades.push_back(UpgradeType{v.begin(), v.end()});
+    }
+
+    StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
                     STELLAR_VALUE_BASIC);
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
     lm.closeLedger(mLedgerCloseDatas.back());
@@ -585,8 +588,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
 Application::pointer
 CatchupSimulation::createCatchupApplication(uint32_t count,
                                             Config::TestDbMode dbMode,
-                                            std::string const& appName,
-                                            uint32_t protocolVersion)
+                                            std::string const& appName)
 {
     CLOG(INFO, "History") << "****";
     CLOG(INFO, "History") << "**** Create app for catchup: '" << appName << "'";
@@ -597,7 +599,6 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
     mCfgs.back().CATCHUP_COMPLETE =
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
-    mCfgs.back().LEDGER_PROTOCOL_VERSION = protocolVersion;
     mSpawnedAppsClocks.emplace_front();
     return createTestApplication(
         mSpawnedAppsClocks.front(),

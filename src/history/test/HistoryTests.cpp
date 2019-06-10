@@ -488,9 +488,13 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
         Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY;
     uint32_t oldProto = newProto - 1;
     auto configurator =
-        std::make_shared<ProtocolVersionTmpDirHistoryConfigurator>(oldProto);
+        std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
     CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
                                         configurator};
+
+    // Upgrade to oldProto
+    catchupSimulation.generateRandomLedger(oldProto);
+
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
 
@@ -502,8 +506,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
         auto a = catchupSimulation.createCatchupApplication(
             count, Config::TESTDB_IN_MEMORY_SQLITE,
             std::string("full, ") + resumeModeName(count) + ", " +
-                dbModeName(Config::TESTDB_IN_MEMORY_SQLITE),
-            newProto);
+                dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
         REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger - 2));
 
         // Check that during catchup/replay, we did not use any INITENTRY code,

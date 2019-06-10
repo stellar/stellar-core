@@ -288,7 +288,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
     // Do our setup in version 1 so that for_all_versions below does not
     // try to downgrade us from >1 to 1.
-    cfg.LEDGER_PROTOCOL_VERSION = 1;
+    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock::time_point inflationStart;
     // inflation starts on 1-jul-2014

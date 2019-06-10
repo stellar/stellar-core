@@ -75,13 +75,9 @@ class TmpDirHistoryConfigurator : public HistoryConfigurator
     Config& configure(Config& cfg, bool writable) const override;
 };
 
-class ProtocolVersionTmpDirHistoryConfigurator
-    : public TmpDirHistoryConfigurator
+class RealGenesisTmpDirHistoryConfigurator : public TmpDirHistoryConfigurator
 {
-    uint32_t mProtocolVersion;
-
   public:
-    ProtocolVersionTmpDirHistoryConfigurator(uint32_t protocolVersion);
     Config& configure(Config& cfg, bool writable) const override;
 };
 
@@ -255,7 +251,7 @@ class CatchupSimulation
 
     uint32_t getLastCheckpointLedger(uint32_t checkpointIndex) const;
 
-    void generateRandomLedger();
+    void generateRandomLedger(uint32_t version = 0);
 
     void ensurePublishesComplete();
     void ensureLedgerAvailable(uint32_t targetLedger);
@@ -263,9 +259,9 @@ class CatchupSimulation
     void ensureOnlineCatchupPossible(uint32_t targetLedger,
                                      uint32_t bufferLedgers = 0);
 
-    Application::pointer createCatchupApplication(
-        uint32_t count, Config::TestDbMode dbMode, std::string const& appName,
-        uint32_t protocol = Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    Application::pointer createCatchupApplication(uint32_t count,
+                                                  Config::TestDbMode dbMode,
+                                                  std::string const& appName);
     bool catchupOffline(Application::pointer app, uint32_t toLedger);
     bool catchupOnline(Application::pointer app, uint32_t initLedger,
                        uint32_t bufferLedgers = 0, uint32_t gapLedger = 0);
