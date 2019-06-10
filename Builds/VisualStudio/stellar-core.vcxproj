@@ -802,6 +802,7 @@ exit /b 0
     <None Include="..\..\docs\stellar-core_example.cfg" />
     <None Include="..\..\docs\stellar-core_standalone.cfg" />
     <None Include="..\..\docs\stellar-core_testnet.cfg" />
+    <None Include="..\..\docs\stellar-core_testnet_legacy.cfg" />
     <None Include="..\..\docs\transaction.md" />
     <None Include="..\..\docs\versioning.md" />
     <None Include="..\..\INSTALL.md" />
