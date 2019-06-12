@@ -524,7 +524,6 @@ exit /b 0
     <ClCompile Include="..\..\src\test\TestUtils.cpp" />
     <ClCompile Include="..\..\src\test\TxTests.cpp" />
     <ClCompile Include="..\..\lib\util\crc16.cpp" />
-    <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp" />
     <ClCompile Include="..\..\src\util\Fs.cpp" />
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp" />
     <ClCompile Include="..\..\src\util\HashOfHash.cpp" />
@@ -534,7 +533,6 @@ exit /b 0
     <ClCompile Include="..\..\src\util\StatusManager.cpp" />
     <ClCompile Include="..\..\src\util\test\BalanceTests.cpp" />
     <ClCompile Include="..\..\src\util\test\BigDivideTests.cpp" />
-    <ClCompile Include="..\..\src\util\test\BitsetEnumeratorTests.cpp" />
     <ClCompile Include="..\..\src\util\test\DecoderTests.cpp" />
     <ClCompile Include="..\..\src\util\test\FsTests.cpp" />
     <ClCompile Include="..\..\src\util\test\StatusManagerTest.cpp" />
@@ -751,7 +749,6 @@ exit /b 0
     <ClInclude Include="..\..\src\util\asio.h" />
     <ClInclude Include="..\..\lib\util\basen.h" />
     <ClInclude Include="..\..\lib\util\crc16.h" />
-    <ClInclude Include="..\..\src\util\BitsetEnumerator.h" />
     <ClCompile Include="..\..\src\util\BitSet.h" />
     <ClInclude Include="..\..\src\util\Fs.h" />
     <ClInclude Include="..\..\src\util\GlobalChecks.h" />

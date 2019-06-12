@@ -2,10 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/Herder.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "scp/QuorumSetUtils.h"
+#include "scp/QuorumIntersectionChecker.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-SCP.h"
@@ -24,8 +25,11 @@ checkQuorumIntersection(Config const& cfg)
     Config cfg2(cfg);
     cfg2.setNoListen();
     Application::pointer app = Application::create(clock, cfg2, false);
-    InferredQuorum iq = app->getHistoryManager().inferQuorum();
-    iq.checkQuorumIntersection(cfg2);
+    LOG(INFO) << "Checking last-heard quorum from herder";
+    app->start();
+    auto qic = QuorumIntersectionChecker::create(
+        app->getHerder().getCurrentlyTrackedQuorum(), cfg);
+    qic->networkEnjoysQuorumIntersection();
 }
 
 void
