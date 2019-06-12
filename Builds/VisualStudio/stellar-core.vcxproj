@@ -332,7 +332,6 @@ exit /b 0
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp" />
-    <ClCompile Include="..\..\src\history\test\InferredQuorumTests.cpp" />
     <ClCompile Include="..\..\src\history\test\SerializeTests.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
@@ -508,6 +507,7 @@ exit /b 0
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
     <ClCompile Include="..\..\src\scp\SCPDriver.cpp" />
     <ClCompile Include="..\..\src\scp\Slot.cpp" />
+    <ClCompile Include="..\..\src\scp\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\QuorumSetTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\SCPTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\SCPUnitTests.cpp" />
