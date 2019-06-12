@@ -125,7 +125,17 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     MINIMUM_IDLE_PERCENT = 0;
 
-    WORKER_THREADS = 10;
+    // WORKER_THREADS: setting this too low risks a form of priority inversion
+    // where a long-running background task occupies all worker threads and
+    // we're not able to do short high-priority background tasks like merging
+    // small buckets to be ready for the next ledger close. To attempt to
+    // mitigate this, we make sure we have as many worker threads as the worst
+    // case long-running parallelism we're going to encounter, and let the OS
+    // deal with time-slicing between the threads if there aren't enough cores
+    // for it.
+    //
+    // Worst case = 10 concurrent merges + 1 quorum intersection calculation.
+    WORKER_THREADS = 11;
     MAX_CONCURRENT_SUBPROCESSES = 16;
     NODE_IS_VALIDATOR = false;
 
