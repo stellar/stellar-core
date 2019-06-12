@@ -267,13 +267,9 @@ ApplicationImpl::getJsonInfo()
     }
 
     auto& herder = getHerder();
-    auto q =
+    info["quorum"] =
         herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
                                  false, herder.getCurrentLedgerSeq());
-    if (q["slots"].size() != 0)
-    {
-        info["quorum"] = q["slots"];
-    }
 
     auto invariantFailures = getInvariantManager().getJsonInfo();
     if (!invariantFailures.empty())

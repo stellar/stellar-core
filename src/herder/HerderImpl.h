@@ -91,6 +91,7 @@ class HerderImpl : public Herder
     Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                                   uint64 index) override;
+    Json::Value getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const;
     virtual Json::Value getJsonTransitiveQuorumInfo(NodeID const& id,
                                                     bool summary,
                                                     bool fullKeys) override;

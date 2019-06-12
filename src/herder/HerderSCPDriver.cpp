@@ -789,17 +789,13 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
     std::string res;
     auto v = mApp.getHerder().getJsonQuorumInfo(mSCP.getLocalNodeID(), true,
                                                 false, index);
-    auto slots = v.get("slots", "");
-    if (!slots.empty())
+    auto qset = v.get("qset", "");
+    if (!qset.empty())
     {
         std::string indexs = std::to_string(static_cast<uint32>(index));
-        auto i = slots.get(indexs, "");
-        if (!i.empty())
-        {
-            Json::FastWriter fw;
-            CLOG(INFO, "Herder")
-                << "Quorum information for " << index << " : " << fw.write(i);
-        }
+        Json::FastWriter fw;
+        CLOG(INFO, "Herder")
+            << "Quorum information for " << index << " : " << fw.write(qset);
     }
 }
 
