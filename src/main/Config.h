@@ -260,6 +260,9 @@ class Config : public std::enable_shared_from_this<Config>
     // this node's home domain
     std::string NODE_HOME_DOMAIN;
 
+    // Whether to run online quorum intersection checks.
+    bool QUORUM_INTERSECTION_CHECKER;
+
     // Invariants
     std::vector<std::string> INVARIANT_CHECKS;
 

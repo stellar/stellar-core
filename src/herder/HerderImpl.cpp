@@ -1090,6 +1090,10 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
 void
 HerderImpl::checkAndMaybeReanalyzeQuorumMap()
 {
+    if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
+    {
+        return;
+    }
     if (!mLastQuorumMapIntersectionState.mRecalculating)
     {
         QuorumTracker::QuorumMap const& qmap = getCurrentlyTrackedQuorum();
