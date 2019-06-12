@@ -6,6 +6,7 @@
 
 #include "TxSetFrame.h"
 #include "Upgrades.h"
+#include "herder/QuorumTracker.h"
 #include "herder/TransactionQueue.h"
 #include "lib/json/json-forwards.h"
 #include "overlay/Peer.h"
@@ -144,5 +145,7 @@ class Herder
     virtual Json::Value getJsonTransitiveQuorumInfo(NodeID const& id,
                                                     bool summary,
                                                     bool fullKeys) = 0;
+    virtual QuorumTracker::QuorumMap const&
+    getCurrentlyTrackedQuorum() const = 0;
 };
 }

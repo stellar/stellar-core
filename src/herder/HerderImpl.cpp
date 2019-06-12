@@ -1011,6 +1011,12 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
     return ret;
 }
 
+QuorumTracker::QuorumMap const&
+HerderImpl::getCurrentlyTrackedQuorum() const
+{
+    return mPendingEnvelopes.getCurrentlyTrackedQuorum();
+}
+
 void
 HerderImpl::persistSCPState(uint64 slot)
 {

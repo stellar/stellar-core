@@ -94,6 +94,7 @@ class HerderImpl : public Herder
     virtual Json::Value getJsonTransitiveQuorumInfo(NodeID const& id,
                                                     bool summary,
                                                     bool fullKeys) override;
+    QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const override;
 
 #ifdef BUILD_TESTS
     // used for testing
