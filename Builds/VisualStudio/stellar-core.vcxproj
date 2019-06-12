@@ -503,6 +503,7 @@ exit /b 0
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
     <ClCompile Include="..\..\src\scp\NominationProtocol.cpp" />
+    <ClCompile Include="..\..\src\scp\QuorumIntersectionChecker.cpp" />
     <ClCompile Include="..\..\src\scp\QuorumSetUtils.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
     <ClCompile Include="..\..\src\scp\SCPDriver.cpp" />
@@ -709,6 +710,7 @@ exit /b 0
     <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
     <ClInclude Include="..\..\src\scp\NominationProtocol.h" />
+    <ClInclude Include="..\..\src\scp\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\scp\QuorumSetUtils.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
     <ClInclude Include="..\..\src\scp\SCPDriver.h" />
