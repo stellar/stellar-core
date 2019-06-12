@@ -366,6 +366,7 @@ exit /b 0
     <ClCompile Include="..\..\lib\http\request_parser.cpp" />
     <ClCompile Include="..\..\lib\http\server.cpp" />
     <ClCompile Include="..\..\lib\json\jsoncpp.cpp" />
+    <ClCompile Include="..\..\lib\util\cbitset.c" />
     <ClCompile Include="..\..\lib\util\format.cc" />
     <ClCompile Include="..\..\lib\util\getopt_long.c" />
     <ClCompile Include="..\..\lib\util\uint128_t.cpp" />
@@ -496,6 +497,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\TxResultsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
+    <ClCompile Include="..\..\src\util\test\BitSetTests.cpp" />
     <ClCompile Include="..\..\src\util\test\CacheTests.cpp" />
     <ClCompile Include="..\..\src\process\test\ProcessTests.cpp" />
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
@@ -676,6 +678,8 @@ exit /b 0
     <ClInclude Include="..\..\lib\http\server.hpp" />
     <ClInclude Include="..\..\lib\json\json-forwards.h" />
     <ClInclude Include="..\..\lib\json\json.h" />
+    <ClInclude Include="..\..\lib\util\cbitset.h" />
+    <ClInclude Include="..\..\lib\util\cbitset_portability.h" />
     <ClInclude Include="..\..\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\lib\util\format.h" />
@@ -746,6 +750,7 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\basen.h" />
     <ClInclude Include="..\..\lib\util\crc16.h" />
     <ClInclude Include="..\..\src\util\BitsetEnumerator.h" />
+    <ClCompile Include="..\..\src\util\BitSet.h" />
     <ClInclude Include="..\..\src\util\Fs.h" />
     <ClInclude Include="..\..\src\util\GlobalChecks.h" />
     <ClInclude Include="..\..\src\util\HashOfHash.h" />
