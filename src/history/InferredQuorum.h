@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "herder/QuorumTracker.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "util/HashOfHash.h"
@@ -26,5 +27,6 @@ struct InferredQuorum
     std::string toString(Config const& cfg) const;
     void writeQuorumGraph(Config const& cfg, std::ostream& out) const;
     bool checkQuorumIntersection(Config const& cfg) const;
+    QuorumTracker::QuorumMap getQuorumMap() const;
 };
 }

@@ -362,4 +362,19 @@ InferredQuorum::writeQuorumGraph(Config const& cfg, std::ostream& out) const
     }
     out << "}" << std::endl;
 }
+
+QuorumTracker::QuorumMap
+InferredQuorum::getQuorumMap() const
+{
+    QuorumTracker::QuorumMap qm;
+    for (auto const& pair : mQsetHashes) {
+        auto qi = mQsets.find(pair.second);
+        if (qi != mQsets.end()) {
+            SCPQuorumSetPtr p = std::make_shared<SCPQuorumSet>(qi->second);
+            qm.insert(std::make_pair(pair.first, p));
+        }
+    }
+    return qm;
+}
+
 }
