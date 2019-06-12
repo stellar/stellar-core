@@ -193,6 +193,13 @@ disableBucketGCParser(bool& disableBucketGC)
         "keeps all, even old, buckets on disk");
 }
 
+clara::Opt
+historyLedgerNumber(uint32_t& ledgerNum)
+{
+    return clara::Opt{ledgerNum, "HISTORY-LEDGER"}["--history-ledger"](
+        "specify a ledger number to examine in history");
+}
+
 clara::Parser
 configurationParser(CommandLine::ConfigOption& configOption)
 {
@@ -502,11 +509,14 @@ int
 runCheckQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        checkQuorumIntersection(configOption.getConfig());
-        return 0;
-    });
+    uint32_t ledgerNum = 0;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
+        [&] {
+            checkQuorumIntersection(configOption.getConfig(), ledgerNum);
+            return 0;
+        });
 }
 
 int
@@ -578,11 +588,14 @@ int
 runInferQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
-
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        inferQuorumAndWrite(configOption.getConfig());
-        return 0;
-    });
+    uint32_t ledgerNum = 0;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
+        [&] {
+            inferQuorumAndWrite(configOption.getConfig(), ledgerNum);
+            return 0;
+        });
 }
 
 int
@@ -750,11 +763,13 @@ runWriteQuorum(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     std::string outputFile;
-
+    uint32_t ledgerNum = 0;
     return runWithHelp(
-        args, {configurationParser(configOption), outputFileParser(outputFile)},
+        args,
+        {configurationParser(configOption), historyLedgerNumber(ledgerNum),
+         outputFileParser(outputFile)},
         [&] {
-            writeQuorumGraph(configOption.getConfig(), outputFile);
+            writeQuorumGraph(configOption.getConfig(), outputFile, ledgerNum);
             return 0;
         });
 }
@@ -796,7 +811,7 @@ handleCommandLine(int argc, char* const* argv)
           "execute catchup from history archives without connecting to "
           "network",
           runCatchup},
-         {"check-quorum", "check quorum intersection from history",
+         {"check-quorum", "check quorum intersection of last network activity",
           runCheckQuorum},
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},

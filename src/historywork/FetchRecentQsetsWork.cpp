@@ -17,8 +17,11 @@ namespace stellar
 {
 
 FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app,
-                                           InferredQuorum& inferredQuorum)
-    : Work(app, "fetch-recent-qsets"), mInferredQuorum(inferredQuorum)
+                                           InferredQuorum& inferredQuorum,
+                                           uint32_t ledgerNum)
+    : Work(app, "fetch-recent-qsets")
+    , mInferredQuorum(inferredQuorum)
+    , mLedgerNum(ledgerNum)
 {
 }
 
@@ -47,18 +50,19 @@ FetchRecentQsetsWork::doWork()
         return mGetHistoryArchiveStateWork->getState();
     }
 
-    // Phase 2: download some SCP messages; for now we just pull the past
-    // 100 checkpoints = 9 hours of history. A more sophisticated view
-    // would survey longer time periods at lower resolution.
+    // Phase 2: download some SCP messages; for now we just pull the past 100
+    // checkpoints = 9 hours of history, which should be enough to see a message
+    // about every active qset. A more sophisticated view would survey longer
+    // time periods at lower resolution.
     uint32_t numCheckpoints = 100;
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     uint32_t window = numCheckpoints * step;
-    uint32_t lastSeq = mRemoteState.currentLedger;
+    uint32_t lastSeq = mLedgerNum;
     uint32_t firstSeq = lastSeq < window ? (step - 1) : (lastSeq - window);
 
     if (!mDownloadSCPMessagesWork)
     {
-        CLOG(INFO, "History") << "Downloading recent SCP messages: ["
+        CLOG(INFO, "History") << "Downloading historical SCP messages: ["
                               << firstSeq << ", " << lastSeq << "]";
         auto range = CheckpointRange{firstSeq, lastSeq, step};
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
@@ -89,6 +93,10 @@ FetchRecentQsetsWork::doWork()
         SCPHistoryEntry tmp;
         while (in && in.readOne(tmp))
         {
+            if (tmp.v0().ledgerMessages.ledgerSeq > mLedgerNum)
+            {
+                break;
+            }
             mInferredQuorum.noteSCPHistory(tmp);
         }
     }

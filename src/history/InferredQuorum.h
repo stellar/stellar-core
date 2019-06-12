@@ -17,8 +17,10 @@ namespace stellar
 
 struct InferredQuorum
 {
+    InferredQuorum();
+    InferredQuorum(QuorumTracker::QuorumMap const& qmap);
     std::unordered_map<Hash, SCPQuorumSet> mQsets;
-    std::unordered_multimap<PublicKey, Hash> mQsetHashes;
+    std::unordered_map<PublicKey, std::vector<Hash>> mQsetHashes;
     std::unordered_map<PublicKey, size_t> mPubKeys;
     void noteSCPHistory(SCPHistoryEntry const& hist);
     void noteQset(SCPQuorumSet const& qset);

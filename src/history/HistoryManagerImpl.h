@@ -78,7 +78,7 @@ class HistoryManagerImpl : public HistoryManager
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const override;
 
-    InferredQuorum inferQuorum() override;
+    InferredQuorum inferQuorum(uint32_t ledgerNum) override;
 
     std::string const& getTmpDir() override;
 

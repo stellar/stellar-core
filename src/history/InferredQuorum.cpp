@@ -8,6 +8,24 @@
 namespace stellar
 {
 
+InferredQuorum::InferredQuorum()
+{
+}
+
+InferredQuorum::InferredQuorum(QuorumTracker::QuorumMap const& qmap)
+{
+    for (auto const& pair : qmap)
+    {
+        notePubKey(pair.first);
+        if (pair.second)
+        {
+            noteQset(*pair.second);
+            Hash qSetHash = sha256(xdr::xdr_to_opaque(*pair.second));
+            noteQsetHash(pair.first, qSetHash);
+        }
+    }
+}
+
 void
 InferredQuorum::noteSCPHistory(SCPHistoryEntry const& hist)
 {
@@ -41,16 +59,16 @@ InferredQuorum::noteSCPHistory(SCPHistoryEntry const& hist)
 void
 InferredQuorum::noteQsetHash(PublicKey const& pk, Hash const& qsetHash)
 {
-    auto range = mQsetHashes.equal_range(pk);
-    for (auto i = range.first; i != range.second; ++i)
+    auto& v = mQsetHashes[pk];
+    for (auto const& h : v)
     {
-        if (i->second == qsetHash)
+        if (h == qsetHash)
         {
             // Already noted, quit now.
             return;
         }
     }
-    mQsetHashes.insert(std::make_pair(pk, qsetHash));
+    v.emplace_back(qsetHash);
 }
 
 void
@@ -135,21 +153,24 @@ InferredQuorum::writeQuorumGraph(Config const& cfg, std::ostream& out) const
     out << "digraph {" << std::endl;
     for (auto const& pkq : mQsetHashes)
     {
-        auto qp = mQsets.find(pkq.second);
-        if (qp != mQsets.end())
+        for (auto pkqv : pkq.second)
         {
-            auto src = cfg.toShortString(pkq.first);
-            for (auto const& dst : qp->second.validators)
+            auto qp = mQsets.find(pkqv);
+            if (qp != mQsets.end())
             {
-                out << src << " -> " << cfg.toShortString(dst) << ";"
-                    << std::endl;
-            }
-            for (auto const& iqs : qp->second.innerSets)
-            {
-                for (auto const& dst : iqs.validators)
+                auto src = cfg.toShortString(pkq.first);
+                for (auto const& dst : qp->second.validators)
                 {
                     out << src << " -> " << cfg.toShortString(dst) << ";"
                         << std::endl;
+                }
+                for (auto const& iqs : qp->second.innerSets)
+                {
+                    for (auto const& dst : iqs.validators)
+                    {
+                        out << src << " -> " << cfg.toShortString(dst) << ";"
+                            << std::endl;
+                    }
                 }
             }
         }
@@ -161,14 +182,20 @@ QuorumTracker::QuorumMap
 InferredQuorum::getQuorumMap() const
 {
     QuorumTracker::QuorumMap qm;
-    for (auto const& pair : mQsetHashes) {
-        auto qi = mQsets.find(pair.second);
-        if (qi != mQsets.end()) {
-            SCPQuorumSetPtr p = std::make_shared<SCPQuorumSet>(qi->second);
-            qm.insert(std::make_pair(pair.first, p));
+    for (auto const& pair : mQsetHashes)
+    {
+        qm[pair.first] = nullptr;
+        for (auto i = pair.second.rbegin(); i != pair.second.rend(); ++i)
+        {
+            auto qi = mQsets.find(*i);
+            if (qi != mQsets.end())
+            {
+                SCPQuorumSetPtr p = std::make_shared<SCPQuorumSet>(qi->second);
+                qm[pair.first] = p;
+                break;
+            }
         }
     }
     return qm;
 }
-
 }
