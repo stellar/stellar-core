@@ -5,6 +5,8 @@
 #include "PersistentState.h"
 
 #include "database/Database.h"
+#include "herder/Herder.h"
+#include "ledger/LedgerManager.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -12,12 +14,12 @@ namespace stellar
 
 using namespace std;
 
-string PersistentState::mapping[kLastEntry] = {
+std::string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger", "historyarchivestate", "forcescponnextlaunch",
     "lastscpdata",      "databaseschema",      "networkpassphrase",
     "ledgerupgrades"};
 
-string PersistentState::kSQLCreateStatement =
+std::string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
     "statename   CHARACTER(32) PRIMARY KEY,"
     "state       TEXT"
@@ -36,29 +38,101 @@ PersistentState::dropAll(Database& db)
     st.execute(true);
 }
 
-string
-PersistentState::getStoreStateName(PersistentState::Entry n)
+std::string
+PersistentState::getStoreStateName(PersistentState::Entry n, int subscript)
 {
     if (n < 0 || n >= kLastEntry)
     {
         throw out_of_range("unknown entry");
     }
-    return mapping[n];
+    auto res = mapping[n];
+    if (n == kLastSCPData && subscript > 0)
+    {
+        res += std::to_string(subscript);
+    }
+    return res;
 }
 
-string
+std::string
 PersistentState::getState(PersistentState::Entry entry)
 {
-    string res;
+    return getFromDb(getStoreStateName(entry));
+}
 
-    string sn(getStoreStateName(entry));
+void
+PersistentState::setState(PersistentState::Entry entry,
+                          std::string const& value)
+{
+    updateDb(getStoreStateName(entry), value);
+}
+
+std::vector<std::string>
+PersistentState::getSCPStateAllSlots()
+{
+    // Collect all slots persisted
+    std::vector<std::string> states;
+    for (int i = 0; i <= Herder::MAX_SLOTS_TO_REMEMBER; i++)
+    {
+        auto val = getFromDb(getStoreStateName(kLastSCPData, i));
+        if (!val.empty())
+        {
+            states.push_back(val);
+        }
+    }
+
+    return states;
+}
+
+void
+PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
+{
+    auto slotIdx = static_cast<int>(slot % (Herder::MAX_SLOTS_TO_REMEMBER + 1));
+    updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
+}
+
+void
+PersistentState::updateDb(std::string const& entry, std::string const& value)
+{
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "UPDATE storestate SET state = :v WHERE statename = :n;");
+
+    auto& st = prep.statement();
+    st.exchange(soci::use(value));
+    st.exchange(soci::use(entry));
+    st.define_and_bind();
+    {
+        auto timer = mApp.getDatabase().getUpdateTimer("state");
+        st.execute(true);
+    }
+
+    if (st.get_affected_rows() != 1 && getFromDb(entry).empty())
+    {
+        auto timer = mApp.getDatabase().getInsertTimer("state");
+        auto prep2 = mApp.getDatabase().getPreparedStatement(
+            "INSERT INTO storestate (statename, state) VALUES (:n, :v);");
+        auto& st2 = prep2.statement();
+        st2.exchange(soci::use(entry));
+        st2.exchange(soci::use(value));
+        st2.define_and_bind();
+        st2.execute(true);
+        if (st2.get_affected_rows() != 1)
+        {
+            throw std::runtime_error("Could not insert data in SQL");
+        }
+    }
+}
+
+std::string
+PersistentState::getFromDb(std::string const& entry)
+{
+    std::string res;
 
     auto& db = mApp.getDatabase();
     auto prep = db.getPreparedStatement(
         "SELECT state FROM storestate WHERE statename = :n;");
     auto& st = prep.statement();
     st.exchange(soci::into(res));
-    st.exchange(soci::use(sn));
+    st.exchange(soci::use(entry));
     st.define_and_bind();
     {
         auto timer = db.getSelectTimer("state");
@@ -71,38 +145,5 @@ PersistentState::getState(PersistentState::Entry entry)
     }
 
     return res;
-}
-
-void
-PersistentState::setState(PersistentState::Entry entry, string const& value)
-{
-    string sn(getStoreStateName(entry));
-    auto prep = mApp.getDatabase().getPreparedStatement(
-        "UPDATE storestate SET state = :v WHERE statename = :n;");
-
-    auto& st = prep.statement();
-    st.exchange(soci::use(value));
-    st.exchange(soci::use(sn));
-    st.define_and_bind();
-    {
-        auto timer = mApp.getDatabase().getUpdateTimer("state");
-        st.execute(true);
-    }
-
-    if (st.get_affected_rows() != 1 && getState(entry).empty())
-    {
-        auto timer = mApp.getDatabase().getInsertTimer("state");
-        auto prep2 = mApp.getDatabase().getPreparedStatement(
-            "INSERT INTO storestate (statename, state) VALUES (:n, :v);");
-        auto& st2 = prep2.statement();
-        st2.exchange(soci::use(sn));
-        st2.exchange(soci::use(value));
-        st2.define_and_bind();
-        st2.execute(true);
-        if (st2.get_affected_rows() != 1)
-        {
-            throw std::runtime_error("Could not insert data in SQL");
-        }
-    }
 }
 }

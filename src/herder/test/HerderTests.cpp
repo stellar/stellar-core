@@ -1214,6 +1214,8 @@ TEST_CASE("SCP State", "[herder]")
     }
 
     LedgerHeaderHistoryEntry lcl;
+    uint32_t numLedgers = 5;
+    uint32_t expectedLedger = LedgerManager::GENESIS_LEDGER_SEQ + numLedgers;
 
     auto doTest = [&](bool forceSCP) {
         // add node0 and node1, in lockstep
@@ -1229,17 +1231,18 @@ TEST_CASE("SCP State", "[herder]")
         }
 
         sim->startAllNodes();
-        // wait to close exactly once
 
-        sim->crankUntil([&]() { return sim->haveAllExternalized(2, 1); },
-                        std::chrono::seconds(1), true);
+        // wait to close a few ledgers
+        sim->crankUntil(
+            [&]() { return sim->haveAllExternalized(expectedLedger, 1); },
+            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         REQUIRE(sim->getNode(nodeIDs[0])
                     ->getLedgerManager()
-                    .getLastClosedLedgerNum() == 2);
+                    .getLastClosedLedgerNum() == expectedLedger);
         REQUIRE(sim->getNode(nodeIDs[1])
                     ->getLedgerManager()
-                    .getLastClosedLedgerNum() == 2);
+                    .getLastClosedLedgerNum() == expectedLedger);
 
         lcl = sim->getNode(nodeIDs[0])
                   ->getLedgerManager()
@@ -1280,7 +1283,7 @@ TEST_CASE("SCP State", "[herder]")
         // nodes 0 and 1 have lost their SCP state as they got restarted
         // yet they should have their own last statements that should be
         // forwarded to node 2 when they connect to it
-        // causing node 2 to externalize ledger #2
+        // causing node 2 to externalize ledger #6
 
         sim->addNode(nodeKeys[0], qSetAll, &nodeCfgs[0], false);
         sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1], false);
@@ -1297,17 +1300,18 @@ TEST_CASE("SCP State", "[herder]")
 
         // then let the nodes run a bit more, they should all externalize the
         // next ledger
-        sim->crankUntil([&]() { return sim->haveAllExternalized(3, 2); },
-                        Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+        sim->crankUntil(
+            [&]() { return sim->haveAllExternalized(expectedLedger + 1, 5); },
+            2 * numLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
-        // nodes are at least on ledger 3 (some may be on 4)
+        // nodes are at least on ledger 7 (some may be on 8)
         for (int i = 0; i <= 2; i++)
         {
             auto const& actual = sim->getNode(nodeIDs[i])
                                      ->getLedgerManager()
                                      .getLastClosedLedgerHeader()
                                      .header;
-            if (actual.ledgerSeq == 3)
+            if (actual.ledgerSeq == expectedLedger + 1)
             {
                 REQUIRE(actual.previousLedgerHash == lcl.hash);
             }
@@ -1317,14 +1321,14 @@ TEST_CASE("SCP State", "[herder]")
     SECTION("No Force SCP")
     {
         // node 0 and 1 don't try to close, causing all nodes
-        // to get stuck at ledger #2
+        // to get stuck at ledger #6
         doTest(false);
 
         sim->crankUntil(
             [&]() {
                 return sim->getNode(nodeIDs[2])
                            ->getLedgerManager()
-                           .getLastClosedLedgerNum() == 2;
+                           .getLastClosedLedgerNum() == expectedLedger;
             },
             std::chrono::seconds(1), false);
 
@@ -1352,17 +1356,19 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     qSet.threshold = 1;
     qSet.validators.push_back(validatorKey.getPublicKey());
 
-    auto validator = simulation->addNode(validatorKey, qSet);
-    auto listener = simulation->addNode(listenerKey, qSet);
+    simulation->addNode(validatorKey, qSet);
+    simulation->addNode(listenerKey, qSet);
     simulation->addPendingConnection(validatorKey.getPublicKey(),
                                      listenerKey.getPublicKey());
     simulation->startAllNodes();
 
     auto currentValidatorLedger = [&]() {
-        return validator->getLedgerManager().getLastClosedLedgerNum();
+        auto app = simulation->getNode(validatorKey.getPublicKey());
+        return app->getLedgerManager().getLastClosedLedgerNum();
     };
     auto currentListenerLedger = [&]() {
-        return listener->getLedgerManager().getLastClosedLedgerNum();
+        auto app = simulation->getNode(listenerKey.getPublicKey());
+        return app->getLedgerManager().getLastClosedLedgerNum();
     };
     auto waitForLedgersOnValidator = [&](int nLedgers) {
         auto destinationLedger = currentValidatorLedger() + nLedgers;
