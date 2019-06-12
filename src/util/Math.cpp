@@ -10,7 +10,6 @@ namespace stellar
 
 std::default_random_engine gRandomEngine;
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
-std::bernoulli_distribution bernoulliDistribution{0.5};
 
 double
 rand_fraction()
@@ -32,6 +31,6 @@ rand_pareto(float alpha, size_t max)
 bool
 rand_flip()
 {
-    return bernoulliDistribution(gRandomEngine);
+    return (gRandomEngine() & 1);
 }
 }
