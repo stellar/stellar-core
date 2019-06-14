@@ -116,7 +116,7 @@ class CatchupWork : public Work
                      HistoryManager const& historyManager);
 
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
-                ProgressHandler progressHandler, size_t maxRetries);
+                ProgressHandler progressHandler);
     ~CatchupWork();
     std::string getStatus() const override;
 

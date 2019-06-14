@@ -648,7 +648,10 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     if (ec)
     {
         CLOG(ERROR, "Ledger") << "Error catching up: " << ec.message();
-        CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+        if (ec == std::make_error_code(std::errc::timed_out))
+        {
+            CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+        }
         setState(LM_BOOTING_STATE);
         mApp.getCatchupManager().historyCaughtup();
         mSyncingLedgers = {};
