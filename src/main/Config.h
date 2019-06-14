@@ -28,15 +28,63 @@ struct HistoryArchiveConfiguration
 
 class Config : public std::enable_shared_from_this<Config>
 {
-    void validateConfig();
+    enum class ValidatorQuality : int
+    {
+        VALIDATOR_LOW_QUALITY = 0,
+        VALIDATOR_MED_QUALITY = 1,
+        VALIDATOR_HIGH_QUALITY = 2
+    };
+    struct ValidatorEntry
+    {
+        std::string mName;
+        std::string mHomeDomain;
+        ValidatorQuality mQuality;
+        PublicKey mKey;
+        bool mHasHistory;
+    };
+
+    void validateConfig(bool mixed);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   int level);
+
+    void processConfig(std::shared_ptr<cpptoml::table>);
 
     void parseNodeID(std::string configStr, PublicKey& retKey);
     void parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                      bool isSeed);
 
     std::string expandNodeID(std::string const& s) const;
+    void addValidatorName(std::string const& pubKeyStr,
+                          std::string const& name);
+    void addHistoryArchive(std::string const& name, std::string const& get,
+                           std::string const& put, std::string const& mkdir);
+
+    std::string toString(ValidatorQuality q) const;
+    ValidatorQuality parseQuality(std::string const& q) const;
+
+    std::vector<ValidatorEntry>
+    parseValidators(std::shared_ptr<cpptoml::base> validators,
+                    std::unordered_map<std::string, ValidatorQuality> const&
+                        domainQualityMap);
+
+    std::unordered_map<std::string, ValidatorQuality>
+    parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality);
+
+    static SCPQuorumSet
+    generateQuorumSetHelper(std::vector<ValidatorEntry>::const_iterator begin,
+                            std::vector<ValidatorEntry>::const_iterator end,
+                            ValidatorQuality curQuality);
+
+    static SCPQuorumSet
+    generateQuorumSet(std::vector<ValidatorEntry> const& validators);
+
+    void
+    addSelfToValidators(std::vector<ValidatorEntry>& validators,
+                        std::unordered_map<std::string, ValidatorQuality> const&
+                            domainQualityMap);
+
+    void verifyHistoryValidatorsBlocking(
+        std::vector<ValidatorEntry> const& validators);
 
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
@@ -209,6 +257,8 @@ class Config : public std::enable_shared_from_this<Config>
     SecretKey NODE_SEED;
     bool NODE_IS_VALIDATOR;
     stellar::SCPQuorumSet QUORUM_SET;
+    // this node's home domain
+    std::string NODE_HOME_DOMAIN;
 
     // Invariants
     std::vector<std::string> INVARIANT_CHECKS;
@@ -242,6 +292,7 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
+    void load(std::istream& in);
 
     // fixes values of connection-relates settings
     void adjust();
@@ -255,5 +306,8 @@ class Config : public std::enable_shared_from_this<Config>
 
     void logBasicInfo();
     void setNoListen();
+
+    // function to stringify a quorum set
+    std::string toString(SCPQuorumSet const& qset);
 };
 }

@@ -12,6 +12,7 @@
 #include "main/ExternalQueue.h"
 #include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -35,6 +36,38 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
     "ALLOW_LOCALHOST_FOR_TESTING"};
+
+namespace
+{
+// compute a default threshold for qset:
+// if simpleMajority is set and there are no inner sets, only require majority
+// (>50%) otherwise assume byzantine failures (~67%)
+unsigned int
+computeDefaultThreshold(SCPQuorumSet const& qset, bool simpleMajority)
+{
+    unsigned int res = 0;
+    unsigned int topSize = static_cast<unsigned int>(qset.validators.size() +
+                                                     qset.innerSets.size());
+    if (topSize == 0)
+    {
+        // leave the quorum set empty
+        return 0;
+    }
+    if (simpleMajority && qset.innerSets.empty())
+    {
+        // n=2f+1
+        // compute res = n - f
+        res = topSize - (topSize - 1) / 2;
+    }
+    else
+    {
+        // n=3f+1
+        // compute res = n - f
+        res = topSize - (topSize - 1) / 3;
+    }
+    return res;
+}
+}
 
 Config::Config() : NODE_SEED(SecretKey::random())
 {
@@ -247,6 +280,207 @@ Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
 }
 
 void
+Config::addHistoryArchive(std::string const& name, std::string const& get,
+                          std::string const& put, std::string const& mkdir)
+{
+    auto r = HISTORY.insert(std::make_pair(
+        name, HistoryArchiveConfiguration{name, get, put, mkdir}));
+    if (!r.second)
+    {
+        throw std::invalid_argument(
+            fmt::format("Conflicting archive name {}", name));
+    }
+}
+
+static std::array<std::string, 3> const kQualities = {"LOW", "MEDIUM", "HIGH"};
+
+std::string
+Config::toString(ValidatorQuality q) const
+{
+    return kQualities[static_cast<int>(q)];
+}
+
+Config::ValidatorQuality
+Config::parseQuality(std::string const& q) const
+{
+    auto it = std::find(kQualities.begin(), kQualities.end(), q);
+
+    ValidatorQuality res;
+
+    if (it != kQualities.end())
+    {
+        res = static_cast<Config::ValidatorQuality>(
+            std::distance(kQualities.begin(), it));
+    }
+    else
+    {
+        throw std::invalid_argument(fmt::format("Unknown QUALITY {}", q));
+    }
+    return res;
+}
+
+std::vector<Config::ValidatorEntry>
+Config::parseValidators(
+    std::shared_ptr<cpptoml::base> validators,
+    std::unordered_map<std::string, ValidatorQuality> const& domainQualityMap)
+{
+    std::vector<ValidatorEntry> res;
+
+    auto tarr = validators->as_table_array();
+    if (!tarr)
+    {
+        throw std::invalid_argument("malformed VALIDATORS");
+    }
+    for (auto const& valRaw : *tarr)
+    {
+        auto validator = valRaw->as_table();
+        if (!validator)
+        {
+            throw std::invalid_argument("malformed VALIDATORS");
+        }
+        ValidatorEntry ve;
+        std::string pubKey, hist;
+        bool qualitySet = false;
+        for (auto const& f : *validator)
+        {
+            if (f.first == "NAME")
+            {
+                ve.mName = readString(f);
+            }
+            else if (f.first == "HOME_DOMAIN")
+            {
+                ve.mHomeDomain = readString(f);
+            }
+            else if (f.first == "QUALITY")
+            {
+                auto q = readString(f);
+                ve.mQuality = parseQuality(q);
+                qualitySet = true;
+            }
+            else if (f.first == "PUBLIC_KEY")
+            {
+                pubKey = readString(f);
+            }
+            else if (f.first == "ADDRESS")
+            {
+                auto address = readString(f);
+                KNOWN_PEERS.emplace_back(address);
+            }
+            else if (f.first == "HISTORY")
+            {
+                hist = readString(f);
+            }
+            else
+            {
+                throw std::invalid_argument(fmt::format(
+                    "malformed VALIDATORS entry, unknown element '{}'",
+                    f.first));
+            }
+        }
+        if (ve.mName.empty())
+        {
+            throw std::invalid_argument(
+                "malformed VALIDATORS entry: missing 'NAME'");
+        }
+        if (pubKey.empty() || ve.mHomeDomain.empty())
+        {
+            throw std::invalid_argument(
+                fmt::format("malformed VALIDATORS entry {}", ve.mName));
+        }
+        auto globQualityIt = domainQualityMap.find(ve.mHomeDomain);
+        if (globQualityIt != domainQualityMap.end())
+        {
+            if (qualitySet)
+            {
+                throw std::invalid_argument(
+                    fmt::format("malformed VALIDATORS entry {}: quality "
+                                "already defined in home domain {}",
+                                ve.mName, ve.mHomeDomain));
+            }
+            else
+            {
+                ve.mQuality = globQualityIt->second;
+                qualitySet = true;
+            }
+        }
+        if (!qualitySet)
+        {
+            throw std::invalid_argument(fmt::format(
+                "malformed VALIDATORS entry {} (missing quality)", ve.mName));
+        }
+        addValidatorName(pubKey, ve.mName);
+        ve.mKey = KeyUtils::fromStrKey<PublicKey>(pubKey);
+        ve.mHasHistory = !hist.empty();
+        if (ve.mHasHistory)
+        {
+            addHistoryArchive(ve.mName, hist, "", "");
+        }
+        if (ve.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY &&
+            hist.empty())
+        {
+            throw std::invalid_argument(
+                fmt::format("malformed VALIDATORS entry {} (high quality must "
+                            "have an archive)",
+                            ve.mName));
+        }
+        res.emplace_back(ve);
+    }
+    return res;
+}
+
+std::unordered_map<std::string, Config::ValidatorQuality>
+Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
+{
+    std::unordered_map<std::string, ValidatorQuality> res;
+    auto tarr = domainsQuality->as_table_array();
+    if (!tarr)
+    {
+        throw std::invalid_argument("malformed HOME_DOMAINS");
+    }
+    for (auto const& valRaw : *tarr)
+    {
+        auto home_domain = valRaw->as_table();
+        if (!home_domain)
+        {
+            throw std::invalid_argument("malformed HOME_DOMAINS");
+        }
+        std::string domain;
+        ValidatorQuality quality;
+        bool qualitySet = false;
+        for (auto const& f : *home_domain)
+        {
+            if (f.first == "QUALITY")
+            {
+                auto q = readString(f);
+                quality = parseQuality(q);
+                qualitySet = true;
+            }
+            else if (f.first == "HOME_DOMAIN")
+            {
+                domain = readString(f);
+            }
+            else
+            {
+                throw std::invalid_argument(
+                    fmt::format("Unknown field {} in HOME_DOMAINS", f.first));
+            }
+        }
+        if (!qualitySet || domain.empty())
+        {
+            throw std::invalid_argument(
+                fmt::format("Malformed HOME_DOMAINS {}", domain));
+        }
+        auto p = res.emplace(std::make_pair(domain, quality));
+        if (!p.second)
+        {
+            throw std::invalid_argument(
+                fmt::format("Malformed HOME_DOMAINS: duplicate {}", domain));
+        }
+    }
+    return res;
+}
+
+void
 Config::load(std::string const& filename)
 {
     if (filename != "-" && !fs::exists(filename))
@@ -258,7 +492,95 @@ Config::load(std::string const& filename)
     }
 
     LOG(DEBUG) << "Loading config from: " << filename;
+    try
+    {
+        if (filename == "-")
+        {
+            load(std::cin);
+        }
+        else
+        {
+            std::ifstream ifs(filename);
+            if (!ifs.is_open())
+            {
+                throw std::runtime_error("could not open file");
+            }
+            load(ifs);
+        }
+    }
+    catch (std::exception const& ex)
+    {
+        std::string err("Failed to parse '");
+        err += filename;
+        err += "' :";
+        err += ex.what();
+        throw std::invalid_argument(err);
+    }
+}
 
+void
+Config::load(std::istream& in)
+{
+    std::shared_ptr<cpptoml::table> t;
+    cpptoml::parser p(in);
+    t = p.parse();
+    processConfig(t);
+}
+
+void
+Config::addSelfToValidators(
+    std::vector<ValidatorEntry>& validators,
+    std::unordered_map<std::string, ValidatorQuality> const& domainQualityMap)
+{
+    auto it = domainQualityMap.find(NODE_HOME_DOMAIN);
+    ValidatorEntry self;
+    self.mKey = NODE_SEED.getPublicKey();
+    self.mHomeDomain = NODE_HOME_DOMAIN;
+    self.mName = "self";
+    self.mHasHistory = false;
+    if (it != domainQualityMap.end())
+    {
+        self.mQuality = it->second;
+    }
+    else
+    {
+        throw std::invalid_argument(
+            "Must specify a matching HOME_DOMAINS for self");
+    }
+    validators.emplace_back(self);
+}
+
+void
+Config::verifyHistoryValidatorsBlocking(
+    std::vector<ValidatorEntry> const& validators)
+{
+    std::vector<NodeID> archives;
+    for (auto const& v : validators)
+    {
+        if (v.mHasHistory)
+        {
+            archives.emplace_back(v.mKey);
+        }
+    }
+    if (!LocalNode::isVBlocking(QUORUM_SET, archives))
+    {
+        LOG(WARNING) << "Quorum can be reached without validators with "
+                        "an archive";
+        if (!UNSAFE_QUORUM)
+        {
+            LOG(ERROR) << "Potentially unsafe configuration: "
+                          "validators with known archives should be "
+                          "included in all quorums. If this is really "
+                          "what you want, set UNSAFE_QUORUM=true. Be "
+                          "sure you know what you are doing!";
+            throw std::invalid_argument("SCP unsafe");
+        }
+    }
+}
+
+void
+Config::processConfig(std::shared_ptr<cpptoml::table> t)
+{
     auto logIfSet = [](auto& item, auto const& message) {
         if (item.second->template as<bool>())
         {
@@ -278,20 +600,13 @@ Config::load(std::string const& filename)
 
     try
     {
-        std::shared_ptr<cpptoml::table> t;
-        if (filename == "-")
-        {
-            cpptoml::parser p(std::cin);
-            t = p.parse();
-        }
-        else
-        {
-            t = cpptoml::parse_file(filename);
-        }
         if (!t)
         {
             throw std::runtime_error("Could not parse toml");
         }
+        std::vector<ValidatorEntry> validators;
+        std::unordered_map<std::string, ValidatorQuality> domainQualityMap;
+
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first
         for (auto& item : *t)
@@ -418,6 +733,10 @@ Config::load(std::string const& filename)
             {
                 NODE_IS_VALIDATOR = readBool(item);
             }
+            else if (item.first == "NODE_HOME_DOMAIN")
+            {
+                NODE_HOME_DOMAIN = readString(item);
+            }
             else if (item.first == "TARGET_PEER_CONNECTIONS")
             {
                 TARGET_PEER_CONNECTIONS = readInt<unsigned short>(item, 1);
@@ -461,7 +780,9 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "KNOWN_PEERS")
             {
-                KNOWN_PEERS = readStringArray(item);
+                auto peers = readStringArray(item);
+                KNOWN_PEERS.insert(KNOWN_PEERS.begin(), peers.begin(),
+                                   peers.end());
             }
             else if (item.first == "QUORUM_SET")
             {
@@ -522,8 +843,7 @@ Config::load(std::string const& filename)
                                 throw std::invalid_argument(err);
                             }
                         }
-                        HISTORY[archive.first] = HistoryArchiveConfiguration{
-                            archive.first, get, put, mkdir};
+                        addHistoryArchive(archive.first, get, put, mkdir);
                     }
                 }
                 else
@@ -559,6 +879,14 @@ Config::load(std::string const& filename)
             {
                 MAXIMUM_LEDGER_CLOSETIME_DRIFT = readInt<int64_t>(item, 0);
             }
+            else if (item.first == "VALIDATORS")
+            {
+                // processed later (may depend on HOME_DOMAINS)
+            }
+            else if (item.first == "HOME_DOMAINS")
+            {
+                domainQualityMap = parseDomainsQuality(item.second);
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -568,6 +896,22 @@ Config::load(std::string const& filename)
             }
         }
         // process elements that potentially depend on others
+        if (t->contains("VALIDATORS"))
+        {
+            auto vals = t->get("VALIDATORS");
+            if (vals)
+            {
+                validators = parseValidators(vals, domainQualityMap);
+            }
+        }
+
+        // if only QUORUM_SET is specified: we don't populate validators at all
+        if (NODE_IS_VALIDATOR &&
+            !(validators.empty() && t->contains("QUORUM_SET")))
+        {
+            addSelfToValidators(validators, domainQualityMap);
+        }
+
         if (t->contains("PREFERRED_PEER_KEYS"))
         {
             auto pkeys = t->get("PREFERRED_PEER_KEYS");
@@ -575,7 +919,7 @@ Config::load(std::string const& filename)
             {
                 auto values =
                     readStringArray(ConfigItem{"PREFERRED_PEER_KEYS", pkeys});
-                for (auto v : values)
+                for (auto const& v : values)
                 {
                     PublicKey nodeID;
                     parseNodeID(v, nodeID);
@@ -583,6 +927,11 @@ Config::load(std::string const& filename)
                 }
             }
         }
+
+        auto autoQSet = generateQuorumSet(validators);
+        auto autoQSetStr = toString(autoQSet);
+        bool mixedDomains;
+
         if (t->contains("QUORUM_SET"))
         {
             auto qset = t->get("QUORUM_SET");
@@ -590,18 +939,43 @@ Config::load(std::string const& filename)
             {
                 loadQset(qset->as_table(), QUORUM_SET, 0);
             }
+            auto s = toString(QUORUM_SET);
+            LOG(INFO) << "Using QUORUM_SET: " << s;
+            if (s != autoQSetStr && !validators.empty())
+            {
+                LOG(WARNING) << "Differs from generated: " << autoQSetStr;
+                if (!UNSAFE_QUORUM)
+                {
+                    LOG(ERROR) << "Can't override [[VALIDATORS]] with "
+                                  "QUORUM_SET unless you also set "
+                                  "UNSAFE_QUORUM=true. Be sure you know what "
+                                  "you are doing!";
+                    throw std::invalid_argument("SCP unsafe");
+                }
+            }
+            mixedDomains =
+                true; // assume validators are from different entities
+        }
+        else
+        {
+            LOG(INFO) << "Generated QUORUM_SET: " << autoQSetStr;
+            QUORUM_SET = autoQSet;
+            verifyHistoryValidatorsBlocking(validators);
+            // count the number of domains
+            std::unordered_set<std::string> domains;
+            for (auto const& v : validators)
+            {
+                domains.insert(v.mHomeDomain);
+            }
+            mixedDomains = domains.size() > 1;
         }
 
         adjust();
-        validateConfig();
+        validateConfig(mixedDomains);
     }
     catch (cpptoml::parse_exception& ex)
     {
-        std::string err("Failed to parse '");
-        err += filename;
-        err += "' :";
-        err += ex.what();
-        throw std::invalid_argument(err);
+        throw std::invalid_argument(ex.what());
     }
 }
 
@@ -710,29 +1084,31 @@ Config::logBasicInfo()
 }
 
 void
-Config::validateConfig()
+Config::validateConfig(bool mixed)
 {
     std::set<NodeID> nodes;
     LocalNode::forAllNodes(QUORUM_SET,
                            [&](NodeID const& n) { nodes.insert(n); });
 
-    if (nodes.size() == 0)
+    if (nodes.empty())
     {
-        throw std::invalid_argument("QUORUM_SET not configured");
+        throw std::invalid_argument(
+            "no validators defined in VALIDATORS/QUORUM_SET");
     }
 
     // calculates nodes that would break quorum
     auto selfID = NODE_SEED.getPublicKey();
     auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes, nullptr);
 
+    unsigned int minSize = computeDefaultThreshold(QUORUM_SET, !mixed);
+
     if (FAILURE_SAFETY == -1)
     {
         // calculates default value for safety giving the top level entities
         // the same weight
-        // n = 3f+1 <=> f = (n-1)/3
         auto topLevelCount =
             QUORUM_SET.validators.size() + QUORUM_SET.innerSets.size();
-        FAILURE_SAFETY = (static_cast<uint32>(topLevelCount) - 1) / 3;
+        FAILURE_SAFETY = topLevelCount - minSize;
 
         LOG(INFO) << "Assigning calculated value of " << FAILURE_SAFETY
                   << " to FAILURE_SAFETY";
@@ -761,16 +1137,11 @@ Config::validateConfig()
                 throw std::invalid_argument("SCP unsafe");
             }
 
-            unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
-                                                  QUORUM_SET.innerSets.size());
-            unsigned int minSize = 1 + (topSize * 2 - 1) / 3;
             if (QUORUM_SET.threshold < minSize)
             {
-                LOG(ERROR)
-                    << "Your THRESHOLD_PERCENTAGE is too low. If you really "
-                       "want "
-                       "this set UNSAFE_QUORUM=true. Be sure you know what you "
-                       "are doing!";
+                LOG(ERROR) << "Your THRESHOLD_PERCENTAGE is too low. If you "
+                              "really want this set UNSAFE_QUORUM=true. Be "
+                              "sure you know what you are doing!";
                 throw std::invalid_argument("SCP unsafe");
             }
         }
@@ -788,6 +1159,23 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
 {
     SecretKey k;
     parseNodeID(configStr, retKey, k, false);
+}
+
+void
+Config::addValidatorName(std::string const& pubKeyStr, std::string const& name)
+{
+    PublicKey k;
+    std::string cName = "$";
+    cName += name;
+    if (resolveNodeID(cName, k))
+    {
+        throw std::invalid_argument("name already used: " + name);
+    }
+
+    if (!VALIDATOR_NAMES.emplace(std::make_pair(pubKeyStr, name)).second)
+    {
+        throw std::invalid_argument("naming node twice: " + name);
+    }
 }
 
 void
@@ -834,21 +1222,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
             iss >> commonName;
             if (commonName.size())
             {
-                std::string cName = "$";
-                cName += commonName;
-                if (resolveNodeID(cName, retKey))
-                {
-                    throw std::invalid_argument("name already used: " +
-                                                commonName);
-                }
-
-                if (!VALIDATOR_NAMES
-                         .emplace(std::make_pair(nodestr, commonName))
-                         .second)
-                {
-                    throw std::invalid_argument("naming node twice: " +
-                                                commonName);
-                }
+                addValidatorName(nodestr, commonName);
             }
         }
     }
@@ -966,5 +1340,87 @@ Config::setNoListen()
     RUN_STANDALONE = true;
     HTTP_PORT = 0;
     MANUAL_CLOSE = true;
+}
+
+SCPQuorumSet
+Config::generateQuorumSetHelper(
+    std::vector<ValidatorEntry>::const_iterator begin,
+    std::vector<ValidatorEntry>::const_iterator end,
+    ValidatorQuality curQuality)
+{
+    auto it = begin;
+    SCPQuorumSet ret;
+    while (it != end && it->mQuality == curQuality)
+    {
+        SCPQuorumSet innerSet;
+        auto& vals = innerSet.validators;
+        auto it2 = it;
+        for (; it2 != end && it2->mHomeDomain == it->mHomeDomain; it2++)
+        {
+            if (it2->mQuality != it->mQuality)
+            {
+                throw std::invalid_argument(
+                    fmt::format("Validators {} and {} must have same quality",
+                                it->mName, it2->mName));
+            }
+            vals.emplace_back(it2->mKey);
+        }
+        if (vals.size() < 3 &&
+            it->mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY)
+        {
+            throw std::invalid_argument(fmt::format(
+                "High quality validator {} must have redundancy of at least 3",
+                it->mName));
+        }
+        innerSet.threshold = computeDefaultThreshold(innerSet, true);
+        ret.innerSets.emplace_back(innerSet);
+        it = it2;
+    }
+    if (it != end)
+    {
+        if (it->mQuality > curQuality)
+        {
+            throw std::invalid_argument(fmt::format(
+                "invalid validator quality for {} (must be ascending)",
+                it->mName));
+        }
+        auto lowQ = generateQuorumSetHelper(it, end, it->mQuality);
+        ret.innerSets.emplace_back(lowQ);
+    }
+    ret.threshold = computeDefaultThreshold(ret, false);
+    return ret;
+}
+
+SCPQuorumSet
+Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
+{
+    auto todo = validators;
+    // first, sort by quality (desc), homedomain (asc)
+    std::sort(todo.begin(), todo.end(),
+              [](ValidatorEntry const& l, ValidatorEntry const& r) {
+                  if (l.mQuality > r.mQuality)
+                  {
+                      return true;
+                  }
+                  else if (l.mQuality < r.mQuality)
+                  {
+                      return false;
+                  }
+                  return l.mHomeDomain < r.mHomeDomain;
+              });
+
+    auto res = generateQuorumSetHelper(
+        todo.begin(), todo.end(), ValidatorQuality::VALIDATOR_HIGH_QUALITY);
+    normalizeQSet(res);
+    return res;
+}
+
+std::string
+Config::toString(SCPQuorumSet const& qset)
+{
+    auto json = LocalNode::toJson(
+        qset, [&](PublicKey const& k) { return toShortString(k); });
+    Json::StyledWriter fw;
+    return fw.write(json);
 }
 }

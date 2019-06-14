@@ -39,7 +39,7 @@ PersistentState::dropAll(Database& db)
 }
 
 std::string
-PersistentState::getStoreStateName(PersistentState::Entry n, int subscript)
+PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
 {
     if (n < 0 || n >= kLastEntry)
     {
@@ -71,7 +71,7 @@ PersistentState::getSCPStateAllSlots()
 {
     // Collect all slots persisted
     std::vector<std::string> states;
-    for (int i = 0; i <= Herder::MAX_SLOTS_TO_REMEMBER; i++)
+    for (uint32 i = 0; i <= Herder::MAX_SLOTS_TO_REMEMBER; i++)
     {
         auto val = getFromDb(getStoreStateName(kLastSCPData, i));
         if (!val.empty())
@@ -86,7 +86,8 @@ PersistentState::getSCPStateAllSlots()
 void
 PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 {
-    auto slotIdx = static_cast<int>(slot % (Herder::MAX_SLOTS_TO_REMEMBER + 1));
+    auto slotIdx =
+        static_cast<uint32>(slot % (Herder::MAX_SLOTS_TO_REMEMBER + 1));
     updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
 }
 
