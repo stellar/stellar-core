@@ -88,8 +88,6 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3]")
         simulation->addPendingConnection(keys[0].getPublicKey(),
                                          keys[1].getPublicKey());
 
-        auto tBegin = std::chrono::system_clock::now();
-
         LOG(INFO) << "#######################################################";
 
         simulation->startAllNodes();
@@ -100,8 +98,6 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3]")
                 return simulation->haveAllExternalized(nLedgers + 1, 5);
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
-
-        // printStats(nLedgers, tBegin, simulation);
 
         REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 5));
     }
@@ -124,8 +120,6 @@ TEST_CASE("core topology 4 ledgers at scales 2 to 4", "[simulation]")
 
     for (int size = 2; size <= 4; size++)
     {
-        auto tBegin = std::chrono::system_clock::now();
-
         Simulation::pointer sim = Topologies::core(size, 1.0, mode, networkID);
         sim->startAllNodes();
 
@@ -137,8 +131,6 @@ TEST_CASE("core topology 4 ledgers at scales 2 to 4", "[simulation]")
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
-
-        // printStats(nLedgers, tBegin, sim);
     }
 }
 
@@ -239,7 +231,6 @@ hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
                      Hash const& networkID)
 {
     LOG(DEBUG) << "starting topo test " << nLedgers << " : " << nBranches;
-    auto tBegin = std::chrono::system_clock::now();
 
     Simulation::pointer sim =
         Topologies::hierarchicalQuorum(nBranches, mode, networkID);
@@ -252,8 +243,6 @@ hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
         20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
-
-    // printStats(nLedgers, tBegin, sim);
 }
 
 TEST_CASE("hierarchical topology scales 1 to 3", "[simulation]")
@@ -286,7 +275,6 @@ hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
                            Simulation::Mode mode, Hash const& networkID)
 {
     LOG(DEBUG) << "starting simplified test " << nLedgers << " : " << nbCore;
-    auto tBegin = std::chrono::system_clock::now();
 
     Simulation::pointer sim = Topologies::hierarchicalQuorumSimplified(
         nbCore, nbOuterNodes, mode, networkID);
@@ -299,8 +287,6 @@ hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
         20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
     REQUIRE(sim->haveAllExternalized(nLedgers + 1, 3));
-
-    // printStats(nLedgers, tBegin, sim);
 }
 
 TEST_CASE("core nodes with outer nodes", "[simulation]")
