@@ -21,6 +21,7 @@
 #include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumIntersectionChecker.h"
 #include "scp/Slot.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -211,6 +212,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     }
 
     ledgerClosed();
+
+    // Check to see if quorums have changed and we need to reanalyze.
+    checkAndMaybeReanalyzeQuorumMap();
 
     // heart beat *after* doing all the work (ensures that we do not include
     // the overhead of externalization in the way we track SCP)
@@ -883,12 +887,53 @@ HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 }
 
 Json::Value
+HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
+{
+    Json::Value ret;
+    ret["intersection"] =
+        mLastQuorumMapIntersectionState.enjoysQuorunIntersection();
+    ret["node_count"] =
+        static_cast<Json::UInt64>(mLastQuorumMapIntersectionState.mNumNodes);
+    ret["last_check_ledger"] = static_cast<Json::UInt64>(
+        mLastQuorumMapIntersectionState.mLastCheckLedger);
+    if (!mLastQuorumMapIntersectionState.enjoysQuorunIntersection())
+    {
+        ret["last_good_ledger"] = static_cast<Json::UInt64>(
+            mLastQuorumMapIntersectionState.mLastGoodLedger);
+        Json::Value split, a, b;
+        auto const& pair = mLastQuorumMapIntersectionState.mPotentialSplit;
+        for (auto const& k : pair.first)
+        {
+            auto s = (fullKeys ? mApp.getConfig().toStrKey(k)
+                               : mApp.getConfig().toShortString(k));
+            a.append(s);
+        }
+        for (auto const& k : pair.second)
+        {
+            auto s = (fullKeys ? mApp.getConfig().toStrKey(k)
+                               : mApp.getConfig().toShortString(k));
+            b.append(s);
+        }
+        split.append(a);
+        split.append(b);
+        ret["potential_split"] = split;
+    }
+    return ret;
+}
+
+Json::Value
 HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                               uint64 index)
 {
     Json::Value ret;
-    ret["node"] = mApp.getConfig().toStrKey(id);
-    ret["slots"] = getSCP().getJsonQuorumInfo(id, summary, fullKeys, index);
+    ret["node"] = (fullKeys ? mApp.getConfig().toStrKey(id)
+                            : mApp.getConfig().toShortString(id));
+    ret["qset"] = getSCP().getJsonQuorumInfo(id, summary, fullKeys, index);
+    bool isSelf = id == mApp.getConfig().NODE_SEED.getPublicKey();
+    if (isSelf && mLastQuorumMapIntersectionState.hasAnyResults())
+    {
+        ret["transitive"] = getJsonTransitiveQuorumIntersectionInfo(fullKeys);
+    }
     return ret;
 }
 
@@ -897,6 +942,12 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
                                         bool fullKeys)
 {
     Json::Value ret;
+    bool isSelf = rootID == mApp.getConfig().NODE_SEED.getPublicKey();
+    if (isSelf && mLastQuorumMapIntersectionState.hasAnyResults())
+    {
+        ret = getJsonTransitiveQuorumIntersectionInfo(fullKeys);
+    }
+
     Json::Value& nodes = ret["nodes"];
 
     auto& q = mPendingEnvelopes.getCurrentlyTrackedQuorum();
@@ -1009,6 +1060,75 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
         distance++;
     }
     return ret;
+}
+
+QuorumTracker::QuorumMap const&
+HerderImpl::getCurrentlyTrackedQuorum() const
+{
+    return mPendingEnvelopes.getCurrentlyTrackedQuorum();
+}
+
+static Hash
+getQmapHash(QuorumTracker::QuorumMap const& qmap)
+{
+    std::unique_ptr<SHA256> hasher = SHA256::create();
+    for (auto const& pair : qmap)
+    {
+        hasher->add(xdr::xdr_to_opaque(pair.first));
+        if (pair.second)
+        {
+            hasher->add(xdr::xdr_to_opaque(*pair.second));
+        }
+        else
+        {
+            hasher->add("\0");
+        }
+    }
+    return hasher->finish();
+}
+
+void
+HerderImpl::checkAndMaybeReanalyzeQuorumMap()
+{
+    if (!mApp.getConfig().QUORUM_INTERSECTION_CHECKER)
+    {
+        return;
+    }
+    if (!mLastQuorumMapIntersectionState.mRecalculating)
+    {
+        QuorumTracker::QuorumMap const& qmap = getCurrentlyTrackedQuorum();
+        Hash curr = getQmapHash(qmap);
+        if (mLastQuorumMapIntersectionState.mLastCheckQuorumMapHash != curr)
+        {
+            CLOG(INFO, "Herder")
+                << "Transitive closure of quorum has changed, re-analyzing.";
+            mLastQuorumMapIntersectionState.mRecalculating = true;
+            auto& cfg = mApp.getConfig();
+            auto ledger = getCurrentLedgerSeq();
+            auto nNodes = qmap.size();
+            auto qic = QuorumIntersectionChecker::create(qmap, cfg);
+            auto& hState = mLastQuorumMapIntersectionState;
+            auto& app = mApp;
+            auto worker = [curr, ledger, nNodes, qic, &app, &hState] {
+                bool ok = qic->networkEnjoysQuorumIntersection();
+                auto split = qic->getPotentialSplit();
+                app.postOnMainThread(
+                    [ok, curr, ledger, nNodes, split, &hState] {
+                        hState.mRecalculating = false;
+                        hState.mNumNodes = nNodes;
+                        hState.mLastCheckLedger = ledger;
+                        hState.mLastCheckQuorumMapHash = curr;
+                        hState.mPotentialSplit = split;
+                        if (ok)
+                        {
+                            hState.mLastGoodLedger = ledger;
+                        }
+                    },
+                    "QuorumIntersectionChecker");
+            };
+            mApp.postOnBackgroundThread(worker, "QuorumIntersectionChecker");
+        }
+    }
 }
 
 void
@@ -1128,6 +1248,7 @@ HerderImpl::restoreSCPState()
                                     "proceeding without them : "
                                  << e.what();
         }
+        mPendingEnvelopes.rebuildQuorumTrackerState();
     }
 
     startRebroadcastTimer();

@@ -172,3 +172,11 @@ lib/util/crc16.cpp
   Copyright 2010-2012 Salvatore Sanfilippo
   Licensed under the 3-clause BSD license
   (http://opensource.org/licenses/BSD-3-Clause)
+
+lib/util/cbitset.{c,h} and cbitset_portability.h
+
+  A simple bitset library in C
+  2016-2019 Daniel Lemire (lemire@gmail.com)
+  https://github.com/lemire/cbitset
+  Licensed under the Apache License, Version 2.0
+  (https://www.apache.org/licenses/LICENSE-2.0)

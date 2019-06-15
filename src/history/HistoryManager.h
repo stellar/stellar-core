@@ -289,7 +289,7 @@ class HistoryManager
     virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
 
     // Infer a quorum set by reading SCP messages in history archives.
-    virtual InferredQuorum inferQuorum() = 0;
+    virtual InferredQuorum inferQuorum(uint32_t ledgerNum) = 0;
 
     // Return the name of the HistoryManager's tmpdir (used for storing files in
     // transit).

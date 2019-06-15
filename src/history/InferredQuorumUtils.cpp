@@ -2,10 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/Herder.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "scp/QuorumSetUtils.h"
+#include "scp/QuorumIntersectionChecker.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-SCP.h"
@@ -17,19 +18,35 @@
 namespace stellar
 {
 
+static stellar::QuorumTracker::QuorumMap
+getQuorumMapForLedger(Application::pointer app, uint32_t ledgerNum)
+{
+    if (ledgerNum == 0)
+    {
+        return app->getHerder().getCurrentlyTrackedQuorum();
+    }
+    else
+    {
+        return app->getHistoryManager().inferQuorum(ledgerNum).getQuorumMap();
+    }
+}
+
 void
-checkQuorumIntersection(Config const& cfg)
+checkQuorumIntersection(Config const& cfg, uint32_t ledgerNum)
 {
     VirtualClock clock;
     Config cfg2(cfg);
     cfg2.setNoListen();
     Application::pointer app = Application::create(clock, cfg2, false);
-    InferredQuorum iq = app->getHistoryManager().inferQuorum();
-    iq.checkQuorumIntersection(cfg2);
+    LOG(INFO) << "Checking last-heard quorum from herder";
+    app->start();
+    auto qmap = getQuorumMapForLedger(app, ledgerNum);
+    auto qic = QuorumIntersectionChecker::create(qmap, cfg);
+    qic->networkEnjoysQuorumIntersection();
 }
 
 void
-inferQuorumAndWrite(Config const& cfg)
+inferQuorumAndWrite(Config const& cfg, uint32_t ledgerNum)
 {
     Config cfg2(cfg);
     InferredQuorum iq;
@@ -37,14 +54,16 @@ inferQuorumAndWrite(Config const& cfg)
         VirtualClock clock;
         cfg2.setNoListen();
         Application::pointer app = Application::create(clock, cfg2, false);
-        iq = app->getHistoryManager().inferQuorum();
+        auto qmap = getQuorumMapForLedger(app, ledgerNum);
+        iq = InferredQuorum(qmap);
     }
     LOG(INFO) << "Inferred quorum";
     std::cout << iq.toString(cfg2) << std::endl;
 }
 
 void
-writeQuorumGraph(Config const& cfg, std::string const& outputFile)
+writeQuorumGraph(Config const& cfg, std::string const& outputFile,
+                 uint32_t ledgerNum)
 {
     Config cfg2(cfg);
     InferredQuorum iq;
@@ -52,7 +71,8 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile)
         VirtualClock clock;
         cfg2.setNoListen();
         Application::pointer app = Application::create(clock, cfg2, false);
-        iq = app->getHistoryManager().inferQuorum();
+        auto qmap = getQuorumMapForLedger(app, ledgerNum);
+        iq = InferredQuorum(qmap);
     }
     std::string filename = outputFile.empty() ? "-" : outputFile;
     if (filename == "-")

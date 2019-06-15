@@ -91,9 +91,11 @@ class HerderImpl : public Herder
     Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                                   uint64 index) override;
+    Json::Value getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const;
     virtual Json::Value getJsonTransitiveQuorumInfo(NodeID const& id,
                                                     bool summary,
                                                     bool fullKeys) override;
+    QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const override;
 
 #ifdef BUILD_TESTS
     // used for testing
@@ -188,5 +190,33 @@ class HerderImpl : public Herder
     };
 
     SCPMetrics mSCPMetrics;
+
+    // Check that the quorum map intersection state is up to date, and if not
+    // run a background job that re-analyzes the current quorum map.
+    void checkAndMaybeReanalyzeQuorumMap();
+
+    struct QuorumMapIntersectionState
+    {
+        uint32_t mLastCheckLedger{0};
+        uint32_t mLastGoodLedger{0};
+        size_t mNumNodes{0};
+        Hash mLastCheckQuorumMapHash{};
+        bool mRecalculating{false};
+        std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
+            mPotentialSplit{};
+
+        bool
+        hasAnyResults() const
+        {
+            return mLastGoodLedger != 0;
+        }
+
+        bool
+        enjoysQuorunIntersection() const
+        {
+            return mLastCheckLedger == mLastGoodLedger;
+        }
+    };
+    QuorumMapIntersectionState mLastQuorumMapIntersectionState;
 };
 }

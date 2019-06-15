@@ -443,11 +443,11 @@ handleDeprecatedCommandLine(int argc, char* const* argv)
             if ((result == 0) && !loadXdrBucket.empty())
                 loadXdr(cfg, loadXdrBucket);
             if ((result == 0) && inferQuorum)
-                inferQuorumAndWrite(cfg);
+                inferQuorumAndWrite(cfg, 0);
             if ((result == 0) && checkQuorum)
-                checkQuorumIntersection(cfg);
+                checkQuorumIntersection(cfg, 0);
             if ((result == 0) && graphQuorum)
-                writeQuorumGraph(cfg, outputFile);
+                writeQuorumGraph(cfg, outputFile, 0);
             return result;
         }
         else if (!newHistories.empty())

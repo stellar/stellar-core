@@ -136,8 +136,8 @@ SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
         for (auto& item : mKnownSlots)
         {
             auto& slot = *item.second;
-            ret[std::to_string(slot.getSlotIndex())] =
-                slot.getJsonQuorumInfo(id, summary, fullKeys);
+            ret = slot.getJsonQuorumInfo(id, summary, fullKeys);
+            ret["ledger"] = static_cast<Json::UInt64>(slot.getSlotIndex());
         }
     }
     else
@@ -145,8 +145,8 @@ SCP::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
         auto s = getSlot(index, false);
         if (s)
         {
-            ret[std::to_string(index)] =
-                s->getJsonQuorumInfo(id, summary, fullKeys);
+            ret = s->getJsonQuorumInfo(id, summary, fullKeys);
+            ret["ledger"] = static_cast<Json::UInt64>(index);
         }
     }
     return ret;

@@ -332,7 +332,6 @@ exit /b 0
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp" />
-    <ClCompile Include="..\..\src\history\test\InferredQuorumTests.cpp" />
     <ClCompile Include="..\..\src\history\test\SerializeTests.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
@@ -366,6 +365,7 @@ exit /b 0
     <ClCompile Include="..\..\lib\http\request_parser.cpp" />
     <ClCompile Include="..\..\lib\http\server.cpp" />
     <ClCompile Include="..\..\lib\json\jsoncpp.cpp" />
+    <ClCompile Include="..\..\lib\util\cbitset.c" />
     <ClCompile Include="..\..\lib\util\format.cc" />
     <ClCompile Include="..\..\lib\util\getopt_long.c" />
     <ClCompile Include="..\..\lib\util\uint128_t.cpp" />
@@ -496,15 +496,18 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\test\TxResultsTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
+    <ClCompile Include="..\..\src\util\test\BitSetTests.cpp" />
     <ClCompile Include="..\..\src\util\test\CacheTests.cpp" />
     <ClCompile Include="..\..\src\process\test\ProcessTests.cpp" />
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
     <ClCompile Include="..\..\src\scp\NominationProtocol.cpp" />
+    <ClCompile Include="..\..\src\scp\QuorumIntersectionChecker.cpp" />
     <ClCompile Include="..\..\src\scp\QuorumSetUtils.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
     <ClCompile Include="..\..\src\scp\SCPDriver.cpp" />
     <ClCompile Include="..\..\src\scp\Slot.cpp" />
+    <ClCompile Include="..\..\src\scp\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\QuorumSetTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\SCPTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\SCPUnitTests.cpp" />
@@ -521,7 +524,6 @@ exit /b 0
     <ClCompile Include="..\..\src\test\TestUtils.cpp" />
     <ClCompile Include="..\..\src\test\TxTests.cpp" />
     <ClCompile Include="..\..\lib\util\crc16.cpp" />
-    <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp" />
     <ClCompile Include="..\..\src\util\Fs.cpp" />
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp" />
     <ClCompile Include="..\..\src\util\HashOfHash.cpp" />
@@ -531,7 +533,6 @@ exit /b 0
     <ClCompile Include="..\..\src\util\StatusManager.cpp" />
     <ClCompile Include="..\..\src\util\test\BalanceTests.cpp" />
     <ClCompile Include="..\..\src\util\test\BigDivideTests.cpp" />
-    <ClCompile Include="..\..\src\util\test\BitsetEnumeratorTests.cpp" />
     <ClCompile Include="..\..\src\util\test\DecoderTests.cpp" />
     <ClCompile Include="..\..\src\util\test\FsTests.cpp" />
     <ClCompile Include="..\..\src\util\test\StatusManagerTest.cpp" />
@@ -676,6 +677,8 @@ exit /b 0
     <ClInclude Include="..\..\lib\http\server.hpp" />
     <ClInclude Include="..\..\lib\json\json-forwards.h" />
     <ClInclude Include="..\..\lib\json\json.h" />
+    <ClInclude Include="..\..\lib\util\cbitset.h" />
+    <ClInclude Include="..\..\lib\util\cbitset_portability.h" />
     <ClInclude Include="..\..\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\lib\util\format.h" />
@@ -705,6 +708,7 @@ exit /b 0
     <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
     <ClInclude Include="..\..\src\scp\NominationProtocol.h" />
+    <ClInclude Include="..\..\src\scp\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\scp\QuorumSetUtils.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
     <ClInclude Include="..\..\src\scp\SCPDriver.h" />
@@ -745,7 +749,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\asio.h" />
     <ClInclude Include="..\..\lib\util\basen.h" />
     <ClInclude Include="..\..\lib\util\crc16.h" />
-    <ClInclude Include="..\..\src\util\BitsetEnumerator.h" />
+    <ClCompile Include="..\..\src\util\BitSet.h" />
     <ClInclude Include="..\..\src\util\Fs.h" />
     <ClInclude Include="..\..\src\util\GlobalChecks.h" />
     <ClInclude Include="..\..\src\util\HashOfHash.h" />

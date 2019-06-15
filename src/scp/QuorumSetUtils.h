@@ -8,6 +8,7 @@
 
 namespace stellar
 {
+class Config;
 
 bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks);
 

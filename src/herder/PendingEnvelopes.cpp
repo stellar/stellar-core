@@ -164,38 +164,7 @@ PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
 {
     if (mRebuildQuorum)
     {
-        // rebuild quorum information using data sources starting with the
-        // freshest source
-        mQuorumTracker.rebuild([&](NodeID const& id) -> SCPQuorumSetPtr {
-            SCPQuorumSetPtr res;
-            if (id == mHerder.getSCP().getLocalNodeID())
-            {
-                res = getQSet(
-                    mHerder.getSCP().getLocalNode()->getQuorumSetHash());
-            }
-            else
-            {
-                auto m = mHerder.getSCP().getLatestMessage(id);
-                if (m != nullptr)
-                {
-                    auto h = Slot::getCompanionQuorumSetHashFromStatement(
-                        m->statement);
-                    res = getQSet(h);
-                }
-                if (res == nullptr)
-                {
-                    // see if we had some information for that node
-                    auto& db = mApp.getDatabase();
-                    auto h = HerderPersistence::getNodeQuorumSet(
-                        db, db.getSession(), id);
-                    if (h)
-                    {
-                        res = getQSet(*h);
-                    }
-                }
-            }
-            return res;
-        });
+        rebuildQuorumTrackerState();
         mRebuildQuorum = false;
     }
     return mQuorumTracker.isNodeDefinitelyInQuorum(node);
@@ -550,6 +519,42 @@ PendingEnvelopes::getJsonInfo(size_t limit)
         }
     }
     return ret;
+}
+
+void
+PendingEnvelopes::rebuildQuorumTrackerState()
+{
+    // rebuild quorum information using data sources starting with the
+    // freshest source
+    mQuorumTracker.rebuild([&](NodeID const& id) -> SCPQuorumSetPtr {
+        SCPQuorumSetPtr res;
+        if (id == mHerder.getSCP().getLocalNodeID())
+        {
+            res = getQSet(mHerder.getSCP().getLocalNode()->getQuorumSetHash());
+        }
+        else
+        {
+            auto m = mHerder.getSCP().getLatestMessage(id);
+            if (m != nullptr)
+            {
+                auto h =
+                    Slot::getCompanionQuorumSetHashFromStatement(m->statement);
+                res = getQSet(h);
+            }
+            if (res == nullptr)
+            {
+                // see if we had some information for that node
+                auto& db = mApp.getDatabase();
+                auto h = HerderPersistence::getNodeQuorumSet(
+                    db, db.getSession(), id);
+                if (h)
+                {
+                    res = getQSet(*h);
+                }
+            }
+        }
+        return res;
+    });
 }
 
 QuorumTracker::QuorumMap const&

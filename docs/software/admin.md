@@ -515,7 +515,8 @@ Until the node sees a quorum, it will say
 After observing consensus, a new field `quorum` will be set with information on what the network decided on, at this point the node will switch to "*Catching up*":
 ```json
       "quorum" : {
-         "22267866" : {
+         "qset" : {
+            "ledger" : 22267866,
             "agree" : 5,
             "delayed" : 0,
             "disagree" : 0,
@@ -523,6 +524,11 @@ After observing consensus, a new field `quorum` will be set with information on 
             "hash" : "980a24",
             "missing" : 0,
             "phase" : "EXTERNALIZE"
+         },
+         "transitive" : {
+            "intersection" : true,
+            "last_check_ledger" : 22267866,
+            "node_count" : 21
          }
       },
       "state" : "Catching up",
@@ -582,19 +588,20 @@ Information provided here can be used for both human operators and programmatic 
 ### General node information
 Run `$ stellar-core http-command 'info'`
 The output will look something like
+
 ```json
 {
-      "build" : "v10.2.0",
+      "build" : "v11.1.0",
       "history_failure_rate" : "0",
       "ledger" : {
-         "age" : 1549052313,
+         "age" : 3,
          "baseFee" : 100,
-         "baseReserve" : 100000000,
-         "closeTime" : 0,
-         "hash" : "39c2a3cd4141b2853e70d84601faa44744660334b48f3228e0309342e3f4eb48",
-         "maxTxSetSize" : 100,
-         "num" : 1,
-         "version" : 0
+         "baseReserve" : 5000000,
+         "closeTime" : 1560350852,
+         "hash" : "40d884f6eb105da56bea518513ba9c5cda9a4e45ac824e5eac8f7262c713cc60",
+         "maxTxSetSize" : 1000,
+         "num" : 24311579,
+         "version" : 11
       },
       "network" : "Public Global Stellar Network ; September 2015",
       "peers" : {
@@ -603,59 +610,44 @@ The output will look something like
       },
       "protocol_version" : 10,
       "quorum" : {
-         "22267866" : {
-            "agree" : 5,
+         "qset" : {
+            "agree" : 6,
             "delayed" : 0,
             "disagree" : 0,
-            "fail_at" : 3,
-            "hash" : "980a24",
-            "missing" : 0,
+            "fail_at" : 2,
+            "hash" : "d5c247",
+            "ledger" : 24311579,
+            "missing" : 1,
             "phase" : "EXTERNALIZE"
+         },
+         "transitive" : {
+            "intersection" : true,
+            "last_check_ledger" : 24311536,
+            "node_count" : 21
          }
       },
-      "startedOn" : "2019-02-01T20:13:43Z",
+      "startedOn" : "2019-06-10T17:40:29Z",
       "state" : "Catching up",
       "status" : [ "Catching up: downloading and verifying buckets: 30/30 (100%)" ]
    }
 }
 ```
 
-`peers` gives information on the connectivity to the network, `authenticated_count` are live connections while `pending_count` are connections that are not fully established yet.
-
-`ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example.
-
-notable fields in ledger are:
-
-  * `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
-  * `num` : ledger number
-  * `version` : protocol version supported by this ledger
-
-The state of a fresh node (reset with `newdb`), will look something like this:
-```json
-"ledger" : {
-         "age" : 1519857653,
-         "baseFee" : 100,
-         "baseReserve" : 100000000,
-         "closeTime" : 0,
-         "hash" : "63d98f536ee68d1b27b5b89f23af5311b7569a24faf1403ad0b52b633b07be99",
-         "num" : 2,
-         "version" : 0
-      },
-```
-
-Additional fields typically used by downstream systems:
+Some notable fields in `info` are:
 
   * `build` is the build number for this stellar-core instance
+  * `ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example. Some important sub-fields:
+    * `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
+    * `num` : ledger number
+    * `version` : protocol version supported by this ledger
   * `network` is the network passphrase that this core instance is connecting to
+  * `peers` gives information on the connectivity to the network
+    * `authenticated_count` are live connections
+    * `pending_count` are connections that are not fully established yet
   * `protocol_version` is the maximum version of the protocol that this instance recognizes
+  * `state` : indicates the node's synchronization status relative to the network.
+  * `quorum` : summarizes the state of the SCP protocol participants, the same as the information returned by the `quorum` command (see below).
 
-In some cases, nodes will display additional status information:
-
-```json
-      "status" : [
-         "Armed with network upgrades: upgradetime=2018-01-31T20:00:00Z, protocolversion=9"
-      ]
-```
 ### Overlay information
 
 The `peers` command returns information on the peers the instance is connected to.
@@ -707,23 +699,46 @@ Run
 `$ stellar-core http-command 'quorum'`
 
 The output looks something like:
+
 ```json
-"474313" : {
-         "agree" : 6,
-         "delayed" : null,
-         "disagree" : null,
-         "fail_at" : 2,
-         "fail_with" : [ "lab1", "lab2" ],
-         "hash" : "d1dacb",
-         "missing" : [ "donovan" ],
-         "phase" : "EXTERNALIZE",
-         "value" : {
-            "t" : 5,
-            "v" : [ "lab1", "lab2", "lab3", "donovan", "GDVFV", "nelisky1", "nelisky2" ]
-         }
+{
+   "node" : "GCTSFJ36M7ZMTSX7ZKG6VJKPIDBDA26IEWRGV65DVX7YVVLBPE5ZWMIO",
+   "qset" : {
+      "agree" : 6,
+      "delayed" : null,
+      "disagree" : null,
+      "fail_at" : 2,
+      "fail_with" : [ "sdf_watcher1", "sdf_watcher2" ],
+      "hash" : "d5c247",
+      "ledger" : 24311847,
+      "missing" : [ "stronghold1" ],
+      "phase" : "EXTERNALIZE",
+      "value" : {
+         "t" : 3,
+         "v" : [
+            "sdf_watcher1",
+            "sdf_watcher2",
+            "sdf_watcher3",
+            {
+               "t" : 3,
+               "v" : [ "stronghold1", "eno", "tempo.eu.com", "satoshipay" ]
+            }
+         ]
+      }
+   },
+   "transitive" : {
+      "intersection" : true,
+      "last_check_ledger" : 24311536,
+      "node_count" : 21
+   }
+}
 ```
 
-Entries to watch for are:
+This output has two main sections: `qset` and `transitive`. The former describes the node and its quorum set. The latter describes the transitive closure of the node's quorum set.
+
+##### Per-node quorum-set information
+
+Entries to watch for in the `qset` section -- describing the node and its quorum set -- are:
 
   * `agree` : the number of nodes in the quorum set that agree with this instance.
   * `delayed` : the nodes that are participating to consensus but seem to be behind.
@@ -733,8 +748,8 @@ Entries to watch for are:
   * `missing` : the nodes that were missing during this consensus round.
   * `value` : the quorum set used by this node (`t` is the threshold expressed as a number of nodes).
 
-In the example above, 6 nodes are functioning properly, one is down (`donovan`), and
- the instance will fail if any two nodes out of the ones still working fail as well.
+In the example above, 6 nodes are functioning properly, one is down (`stronghold1`), and
+ the instance will fail if any two nodes still working (or one node and one inner-quorum-set) fail as well.
 
 If a node is stuck in state `Joining SCP`, this command allows to quickly find the reason:
 
@@ -750,18 +765,37 @@ may fail because of a different set of validators failing).
 You can get a sense of the quorum set health of a different node by doing
 `$ stellar-core http-command 'quorum?node=$sdf1` or `$ stellar-core http-command 'quorum?node=@GABCDE` 
 
-Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for other nodes is not reliable).
+Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for 
+other nodes is not reliable).
 
-#### Overall quorum analysis
+##### Transitive closure summary information
 
-The quorum endpoint can also retrieve information for the transitive quorum.
+When showing quorum-set information about the local node rather than some other
+node, a summary of the transitive closure of the quorum set is also provided in
+the `transitive` field. This has several important sub-fields:
 
-This is a easier to process format than what `scp` returns as it doesn't contain all SCP messages.
+  * `last_check_ledger` : the last ledger in which the transitive closure was checked for quorum intersection. This will reset when the node boots and whenever a node in the transitive quorum changes its quorum set. It may lag behind the last-closed ledger by a few ledgers depending on the computational cost of checking quorum intersection.
+  * `node_count` : the number of nodes in the transitive closure, which are considered when calculating quorum intersection.
+  * `intersection` : whether or not the transitive closure enjoyed quorum intersection at the most recent check. This is of **critical importance** in preventing network splits. It should always be true. If it is ever false, one or more nodes in the transitive closure of the quorum set is misconfigured, and the network is at risk of splitting. Corrective action should be taken immediately, for which two additional sub-fields will be present to help suggest remedies:
+    * `last_good_ledger` : this will note the last ledger for which the `intersection` field was evaluated as true; if some node reconfigured at or around that ledger, reverting that configuration change is the easiest corrective action to take.
+    * `potential_split` : this will contain a pair of lists of validator IDs, which is a potential pair of disjoint quorums that allowed by the current configuration. In other words, a possible split in consensus allowed by the current configuration. This may help narrow down the cause of the misconfiguration: likely the misconfiguration involves too-low a consensus threshold in one of the two potential quorums, and/or the absence of a mandatory trust relationship that would bridge the two.
+
+
+#### Detailed transitive quorum analysis
+
+The quorum endpoint can also retrieve detailed information for the transitive quorum.
+
+This is an easier to process format than what `scp` returns as it doesn't contain all SCP messages.
 
 `$ stellar-core http-command 'quorum?transitive=true'`
 
 The output looks something like:
+
 ```json
+{
+ "intersection" : true,
+ "last_check_ledger" : 121235,
+ "node_count" : 4,
  "nodes" : [
       {
          "distance" : 0,
@@ -812,9 +846,13 @@ The output looks something like:
          "value_id" : 1
       }
    ]
+}
 ```
 
-The output represents a walk of the transitive quorum centered on a given node.
+The output begins with the same summary information as in the `transitive` block
+of the non-transitive query (if queried for the local node), but also includes
+a `nodes` array that represents a walk of the transitive quorum centered on
+the query node.
 
 Fields are:
 

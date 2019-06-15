@@ -140,6 +140,7 @@ class PendingEnvelopes
     // sure
     bool isNodeDefinitelyInQuorum(NodeID const& node);
 
+    void rebuildQuorumTrackerState();
     QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const;
 
     // updates internal state when an envelope was succesfuly processed

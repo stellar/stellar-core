@@ -183,11 +183,11 @@ HistoryManagerImpl::getLastClosedHistoryArchiveState() const
 }
 
 InferredQuorum
-HistoryManagerImpl::inferQuorum()
+HistoryManagerImpl::inferQuorum(uint32_t ledgerNum)
 {
     InferredQuorum iq;
     CLOG(INFO, "History") << "Starting FetchRecentQsetsWork";
-    mApp.getWorkScheduler().executeWork<FetchRecentQsetsWork>(iq);
+    mApp.getWorkScheduler().executeWork<FetchRecentQsetsWork>(iq, ledgerNum);
     return iq;
 }
 
