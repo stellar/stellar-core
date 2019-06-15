@@ -21,8 +21,8 @@ StringMaker<stellar::OfferState>::convert(stellar::OfferState const& os)
 std::string
 StringMaker<stellar::CatchupRange>::convert(stellar::CatchupRange const& cr)
 {
-    return fmt::format("[{}..{}], applyBuckets: {}", cr.first.first(),
-                       cr.first.last(), cr.second);
+    return fmt::format("[{}..{}], applyBuckets: {}", cr.mLedgers.mFirst,
+                       cr.getLast(), cr.getBucketApplyLedger());
 }
 
 std::string

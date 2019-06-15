@@ -5,16 +5,20 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <cstdint>
+#include <string>
 
 namespace stellar
 {
 
 class HistoryManager;
-class LedgerRange;
+struct LedgerRange;
 
-class CheckpointRange final
+struct CheckpointRange final
 {
-  public:
+    uint32_t const mFirst;
+    uint32_t const mLast;
+    uint32_t const mFrequency;
+
     CheckpointRange(uint32_t first, uint32_t last, uint32_t frequency);
     CheckpointRange(LedgerRange const& ledgerRange,
                     HistoryManager const& historyManager);
@@ -22,29 +26,11 @@ class CheckpointRange final
     friend bool operator!=(CheckpointRange const& x, CheckpointRange const& y);
 
     uint32_t
-    first() const
-    {
-        return mFirst;
-    }
-    uint32_t
-    last() const
-    {
-        return mLast;
-    }
-    uint32_t
-    frequency() const
-    {
-        return mFrequency;
-    }
-    uint32_t
     count() const
     {
-        return (last() - first()) / frequency() + 1;
+        return (mLast - mFirst) / mFrequency + 1;
     }
 
-  private:
-    uint32_t mFirst;
-    uint32_t mLast;
-    uint32_t mFrequency;
+    std::string toString() const;
 };
 }

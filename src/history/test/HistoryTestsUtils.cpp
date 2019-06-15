@@ -261,11 +261,11 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
     LedgerHeaderHistoryEntry beginRange;
 
     LedgerHeaderHistoryEntry first, last;
-    for (auto i = mCheckpointRange.first(); i <= mCheckpointRange.last();
+    for (auto i = mCheckpointRange.mFirst; i <= mCheckpointRange.mLast;
          i += mApp.getHistoryManager().getCheckpointFrequency())
     {
         // Only corrupt first checkpoint (last to be verified)
-        if (i != mCheckpointRange.first())
+        if (i != mCheckpointRange.mFirst)
         {
             state = HistoryManager::VERIFY_STATUS_OK;
         }
@@ -885,34 +885,37 @@ CatchupSimulation::computeCatchupPerformedWork(
     uint32_t lastClosedLedger, CatchupConfiguration const& catchupConfiguration,
     HistoryManager const& historyManager)
 {
-    auto catchupRange = CatchupWork::makeCatchupRange(
-        lastClosedLedger, catchupConfiguration, historyManager);
-    auto checkpointRange = CheckpointRange{catchupRange.first, historyManager};
+    auto catchupRange =
+        CatchupRange{lastClosedLedger, catchupConfiguration, historyManager};
+    auto verifyCheckpointRange = CheckpointRange{
+        {catchupRange.mLedgers.mFirst - 1, catchupRange.getLast()},
+        historyManager};
+    auto applyCheckpointRange = CheckpointRange{
+        {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, historyManager};
 
     uint32_t historyArchiveStatesDownloaded = 1;
-    if (catchupRange.second &&
-        checkpointRange.first() != checkpointRange.last())
+    if (catchupRange.mApplyBuckets &&
+        verifyCheckpointRange.mFirst != verifyCheckpointRange.mLast)
     {
         historyArchiveStatesDownloaded++;
     }
 
-    auto filesDownloaded = checkpointRange.count();
-    auto firstVerifiedLedger = std::max(
-        LedgerManager::GENESIS_LEDGER_SEQ,
-        checkpointRange.first() + 1 - historyManager.getCheckpointFrequency());
+    auto ledgersDownloaded = verifyCheckpointRange.count();
+    auto transactionsDownloaded = applyCheckpointRange.count();
+    auto firstVerifiedLedger =
+        std::max(LedgerManager::GENESIS_LEDGER_SEQ,
+                 verifyCheckpointRange.mFirst + 1 -
+                     historyManager.getCheckpointFrequency());
     auto ledgersVerified =
         catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
-    auto transactionsApplied =
-        catchupRange.second
-            ? catchupConfiguration.toLedger() - checkpointRange.first()
-            : catchupConfiguration.toLedger() - lastClosedLedger;
+    auto transactionsApplied = catchupRange.mLedgers.mCount;
     return {historyArchiveStatesDownloaded,
-            filesDownloaded,
+            ledgersDownloaded,
             ledgersVerified,
             0,
-            catchupRange.second,
-            catchupRange.second,
-            filesDownloaded,
+            catchupRange.mApplyBuckets,
+            catchupRange.mApplyBuckets,
+            transactionsDownloaded,
             transactionsApplied};
 }
 }

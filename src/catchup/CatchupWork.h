@@ -14,31 +14,58 @@
 namespace stellar
 {
 
-class LedgerRange;
-class CheckpointRange;
 class HistoryManager;
 class Bucket;
 class TmpDir;
+struct LedgerRange;
+struct CheckpointRange;
 
 // Range required to do a catchup.
 //
-// If second is true, this catchup requires downloading and applying buckets
-// for the first.first() and then downloading and applying transactions.
+// For initial catchup (after new-db) we have lastClosedLedger ==
+// LedgerManager.GENESIS_LEDGER_SEQ. In that case CatchupConfiguration::count()
+// and CatchupConfiguration::toLedger() are taken into consideration. Depending
+// on all of those values only one of "apply buckets" and "apply transactions"
+// can be executed, or both of them. The values are calculated in such a way
+// that transactions from at least count() ledgers are available in txhistory
+// table.
 //
-// If second is false, this catchup requires downloading and applying
-// transactions for whole range of ledgers.
+// If mApplyBuckets is true, this catchup requires downloading and applying
+// buckets for the getBucketApplyLedger() (which is equal to
+// mApplyLedgers.mFirst - 1).
 //
-// When (first.first() == first.last()) && second this is equivalent to old
-// CATCHUP_MIMIMAL.
+// Then all ledgers in range mApplyLedgers are downloaded and applied.
 //
-// For old CATCHUP_COMPLETE second is always false, as CATCHUP_COMPLETE only
-// applies transactions.
-//
-// For old CATCHUP_RECENT value of second depends on value of last closed
-// ledger - if CATCHUP_RECENT would go before it, it behaves exactly as
-// CATCHUP_COMPLETE. If not, second is true and miminal catchup will be done
-// first.
-using CatchupRange = std::pair<LedgerRange, bool>;
+struct CatchupRange final
+{
+    struct Ledgers
+    {
+        uint32_t const mFirst;
+        uint32_t const mCount;
+    };
+
+    Ledgers mLedgers;
+    bool const mApplyBuckets;
+
+    /**
+     * Preconditions:
+     * * lastClosedLedger > 0
+     * * configuration.toLedger() >= lastClosedLedger
+     * * configuration.toLedger() != CatchupConfiguration::CURRENT
+     */
+    explicit CatchupRange(uint32_t lastClosedLedger,
+                          CatchupConfiguration const& configuration,
+                          HistoryManager const& historyManager);
+
+    bool
+    applyLedgers() const
+    {
+        return mLedgers.mCount > 0;
+    }
+
+    uint32_t getLast() const;
+    uint32_t getBucketApplyLedger() const;
+};
 using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
 // CatchupWork does all the neccessary work to perform any type of catchup.
@@ -103,18 +130,6 @@ class CatchupWork : public Work
         LedgerHeaderHistoryEntry const& lastClosed,
         CatchupConfiguration::Mode catchupMode)>;
 
-    /**
-     * Preconditions:
-     * * lastClosedLedger > 0
-     * * configuration.toLedger() >= lastClosedLedger
-     * * configuration.toLedger() != CatchupConfiguration::CURRENT
-     */
-
-    static CatchupRange
-    makeCatchupRange(uint32_t lastClosedLedger,
-                     CatchupConfiguration const& configuration,
-                     HistoryManager const& historyManager);
-
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
                 ProgressHandler progressHandler, size_t maxRetries);
     ~CatchupWork();
@@ -143,9 +158,9 @@ class CatchupWork : public Work
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     void assertBucketState();
 
-    void downloadVerifyLedgerChain(CatchupRange catchupRange,
+    void downloadVerifyLedgerChain(CatchupRange const& catchupRange,
                                    LedgerNumHashPair rangeEnd);
     WorkSeqPtr downloadApplyBuckets();
-    WorkSeqPtr downloadApplyTransactions(CatchupRange catchupRange);
+    WorkSeqPtr downloadApplyTransactions(CatchupRange const& catchupRange);
 };
 }

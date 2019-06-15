@@ -19,9 +19,12 @@ Common options can be placed at any place in the command line.
 Command options can only by placed after command.
 
 * **catchup <DESTINATION-LEDGER/LEDGER-COUNT>**: Perform catchup from history
-  archives without connecting to network. This option will catchup to
-  DESTINATION-LEDGER keeping history from DESTINATION-LEDGER-LEDGER-COUNT or
-  from the last closed ledger (whichever value is biggest).
+  archives without connecting to network. For new instances (with empty history
+  tables - only ledger 1 present in the database) it will respect LEDGER-COUNT
+  configuration and it will perform bucket application on such a checkpoint
+  that at least LEDGER-COUNT entries are present in history table afterwards.
+  For instances that already have some history entries, all ledgers since last
+  closed ledger will be replayed.
 * **check-quorum**:   Check quorum intersection from history to ensure there is
   closure over all the validators in the network.
 * **convert-id <ID>**: Will output the passed ID in all known forms and then

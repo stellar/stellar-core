@@ -106,10 +106,6 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {63, {320, max, CatchupConfiguration::Mode::OFFLINE}},
 
     // one checkpoint and one ledger in database
-    // catchup to ledger at start of second checkpoint
-    {64, {64, 0, CatchupConfiguration::Mode::OFFLINE}},
-    {64, {64, 1, CatchupConfiguration::Mode::OFFLINE}},
-    {64, {64, max, CatchupConfiguration::Mode::OFFLINE}},
     // catchup to ledger at end of some checkpoint
     {64, {319, 0, CatchupConfiguration::Mode::OFFLINE}},
     {64, {319, 1, CatchupConfiguration::Mode::OFFLINE}},
@@ -127,7 +123,7 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
     {64, {320, max, CatchupConfiguration::Mode::OFFLINE}}};
 }
 
-TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchupWork]")
+TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -143,29 +139,29 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchupWork]")
                                 configuration.count());
         LOG(DEBUG) << "Catchup configuration: " << name;
         {
-            auto range = CatchupWork::makeCatchupRange(
-                lastClosedLedger, configuration, historyManager);
+            auto range =
+                CatchupRange{lastClosedLedger, configuration, historyManager};
 
             // we need to finish where we wanted to finish
-            REQUIRE(configuration.toLedger() == range.first.last());
+            REQUIRE(configuration.toLedger() == range.getLast());
 
-            // if LCL was later than our first checkpoint, we would either
-            // apply buckets at or before LCL, or do a lot of unnecessary
-            // attempts to apply transactions
-            REQUIRE(lastClosedLedger <= range.first.first());
-
-            if (range.second)
+            if (range.mApplyBuckets)
             {
-                // this contains 1 bucket apply operation and
-                // stopAt - firstCheckpoint ledger apply operations
-                auto appliedCount =
-                    range.first.last() - range.first.first() + 1;
+                // we only apply buckets when lcl is GENESIS
+                REQUIRE(lastClosedLedger == LedgerManager::GENESIS_LEDGER_SEQ);
 
-                // we aren't applying buckets just after lcl...
-                REQUIRE(range.first.first() > lastClosedLedger + 1);
+                // buckets can only by applied on checkpoint boundary
+                REQUIRE(historyManager.checkpointContainingLedger(
+                            range.getBucketApplyLedger()) ==
+                        range.getBucketApplyLedger());
 
-                // we are applying at least configuration.count()
-                REQUIRE(appliedCount >= configuration.count());
+                // we apply ledgers just after apply buckets checkpoint
+                REQUIRE(range.mLedgers.mFirst ==
+                        range.getBucketApplyLedger() + 1);
+
+                // we are applying at least configuration.count(), mCount comes
+                // from applying ledgers, 1 from applying buckets
+                REQUIRE(range.mLedgers.mCount + 1 >= configuration.count());
 
                 if (std::numeric_limits<uint32_t>::max() -
                         historyManager.getCheckpointFrequency() >=
@@ -173,35 +169,15 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchupWork]")
                 {
                     // but at most count + getCheckpointFrequency
                     // doing more would mean we are doing non-needed work
-                    REQUIRE(appliedCount <=
+                    REQUIRE(range.mLedgers.mCount <=
                             configuration.count() +
                                 historyManager.getCheckpointFrequency());
                 }
             }
             else
             {
-                // if buckets are not applied we need to apply ledgers
-                // starting from lastClosedLedger + 1, so lastClosedLedger + 1
-                // must be in first checkpoint
-                auto checkpointRange =
-                    CheckpointRange{range.first, historyManager};
-                REQUIRE(lastClosedLedger +
-                            historyManager.getCheckpointFrequency() >=
-                        checkpointRange.first());
-                if (std::numeric_limits<uint32_t>::max() -
-                        historyManager.getCheckpointFrequency() >=
-                    configuration.count())
-                {
-                    // and we are applying at most count() +
-                    //   getCheckpointFrequency() ledgers
-                    // more would mean we are doing non-needed work
-                    // less just means that lastClosedLedger is too close to
-                    // target ledger
-                    auto appliedCount = range.first.last() - lastClosedLedger;
-                    REQUIRE(appliedCount <=
-                            configuration.count() +
-                                historyManager.getCheckpointFrequency());
-                }
+                // we apply ledgers just after LCL
+                REQUIRE(lastClosedLedger + 1 == range.mLedgers.mFirst);
             }
         }
     }

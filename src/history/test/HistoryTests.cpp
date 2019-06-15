@@ -322,7 +322,7 @@ dbModeName(Config::TestDbMode mode)
     }
 }
 
-TEST_CASE("History catchup", "[history][historycatchup]")
+TEST_CASE("History catchup", "[history][catchup]")
 {
     // needs REAL_TIME here, as prepare-snapshot works will fail for one of the
     // sections again and again - as it is set to RETRY_FOREVER it can generate
@@ -413,7 +413,7 @@ TEST_CASE("History catchup", "[history][historycatchup]")
     }
 }
 
-TEST_CASE("History catchup with different modes", "[history][historycatchup]")
+TEST_CASE("History catchup with different modes", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
@@ -446,7 +446,7 @@ TEST_CASE("History catchup with different modes", "[history][historycatchup]")
     }
 }
 
-TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
+TEST_CASE("History prefix catchup", "[history][catchup][prefixcatchup]")
 {
     CatchupSimulation catchupSimulation{};
 
@@ -564,7 +564,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
 }
 
 TEST_CASE("Publish catchup alternation with stall",
-          "[history][historycatchup][catchupalternation]")
+          "[history][catchup][catchupalternation]")
 {
     CatchupSimulation catchupSimulation{};
     auto& lm = catchupSimulation.getApp().getLedgerManager();
@@ -742,7 +742,7 @@ TEST_CASE("persist publish queue", "[history]")
 
     {
         VirtualClock clock;
-        Application::pointer app1 = Application::create(clock, cfg, false);
+        Application::pointer app1 = Application::create(clock, cfg, 0);
         app1->getHistoryArchiveManager().initializeHistoryArchive("test");
         for (size_t i = 0; i < 100; ++i)
             clock.crank(false);
@@ -775,7 +775,7 @@ TEST_CASE("persist publish queue", "[history]")
 // The idea with this test is that we join a network and somehow get a gap
 // in the SCP voting sequence while we're trying to catchup. This will let
 // system catchup just before the gap.
-TEST_CASE("catchup with a gap", "[history][catchupstall]")
+TEST_CASE("catchup with a gap", "[history][catchup][catchupstall]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
@@ -811,7 +811,7 @@ TEST_CASE("catchup with a gap", "[history][catchupstall]")
  * Test a variety of orderings of CATCHUP_RECENT mode, to shake out boundary
  * cases.
  */
-TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
+TEST_CASE("Catchup recent", "[history][catchup][catchuprecent][!hide]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -861,7 +861,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent][!hide]")
 /*
  * Test a variety of LCL/initLedger/count modes.
  */
-TEST_CASE("Catchup manual", "[history][catchupmanual]")
+TEST_CASE("Catchup manual", "[history][catchup][catchupmanual]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(6);

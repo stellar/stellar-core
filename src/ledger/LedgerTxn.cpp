@@ -1511,8 +1511,8 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
                         tableFromLedgerEntryType(let) +
                         " WHERE lastmodified >= :v1 AND lastmodified <= :v2;";
     uint64_t count = 0;
-    int first = static_cast<int>(ledgers.first());
-    int last = static_cast<int>(ledgers.last());
+    int first = static_cast<int>(ledgers.mFirst);
+    int last = static_cast<int>(ledgers.mLast);
     mDatabase.getSession() << query, into(count), use(first), use(last);
     return count;
 }

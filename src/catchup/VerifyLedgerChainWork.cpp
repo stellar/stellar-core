@@ -85,7 +85,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrCheckpoint(
-          mApp.getHistoryManager().checkpointContainingLedger(mRange.last()))
+          mApp.getHistoryManager().checkpointContainingLedger(mRange.mLast))
     , mLastClosed(lastClosedLedger)
     , mTrustedEndLedger(ledgerRangeEnd)
     , mVerifyLedgerSuccess(app.getMetrics().NewMeter(
@@ -95,7 +95,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
           {"history", "verify-ledger-chain", "failure"}, "event"))
 {
-    assert(range.last() == ledgerRangeEnd.first);
+    assert(range.mLast == ledgerRangeEnd.first);
     assert(lastClosedLedger.second); // LCL hash must be provided
 }
 
@@ -105,8 +105,8 @@ VerifyLedgerChainWork::getStatus() const
     if (getState() == State::WORK_RUNNING)
     {
         std::string task = "verifying checkpoint";
-        return fmtProgress(mApp, task, mRange.first(), mRange.last(),
-                           (mRange.last() - mCurrCheckpoint));
+        return fmtProgress(mApp, task, mRange.mFirst, mRange.mLast,
+                           (mRange.mLast - mCurrCheckpoint));
     }
     return BasicWork::getStatus();
 }
@@ -114,10 +114,12 @@ VerifyLedgerChainWork::getStatus() const
 void
 VerifyLedgerChainWork::onReset()
 {
+    CLOG(INFO, "History") << "Verifying ledgers " << mRange.toString();
+
     mVerifiedAhead = LedgerNumHashPair(0, nullptr);
     mVerifiedLedgerRangeStart = {};
     mCurrCheckpoint =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.last());
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.mLast);
 }
 
 HistoryManager::LedgerVerificationStatus
@@ -227,25 +229,25 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         prev = curr;
 
         // No need to keep verifying if the range is covered
-        if (curr.header.ledgerSeq == mRange.last())
+        if (curr.header.ledgerSeq == mRange.mLast)
         {
             break;
         }
     }
 
     if (curr.header.ledgerSeq != mCurrCheckpoint &&
-        curr.header.ledgerSeq != mRange.last())
+        curr.header.ledgerSeq != mRange.mLast)
     {
         // We can end at mCurrCheckpoint if checkpoint was valid
-        // or at mRange.last() if history chain file was valid and we
+        // or at mRange.mLast if history chain file was valid and we
         // reached last ledger in the range. Any other ledger here means
         // that file is corrupted.
         CLOG(ERROR, "History") << "History chain did not end with "
-                               << mCurrCheckpoint << " or " << mRange.last();
+                               << mCurrCheckpoint << " or " << mRange.mLast;
         return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 
-    if (curr.header.ledgerSeq == mRange.last())
+    if (curr.header.ledgerSeq == mRange.mLast)
     {
         assert(nextCheckpointFirstLedger.first == 0);
         nextCheckpointFirstLedger = mTrustedEndLedger;
@@ -277,7 +279,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
 
     if (mCurrCheckpoint ==
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
     {
         mVerifiedLedgerRangeStart = curr;
     }
@@ -291,7 +293,7 @@ VerifyLedgerChainWork::onRun()
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
     if (mCurrCheckpoint <
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
     {
         throw std::runtime_error(
             "Verification undershot first ledger in the range.");
@@ -316,10 +318,10 @@ VerifyLedgerChainWork::onRun()
     {
     case HistoryManager::VERIFY_STATUS_OK:
         if (mCurrCheckpoint ==
-            mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
+            mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
         {
-            CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
-                                  << mRange.last() << "] verified";
+            CLOG(INFO, "History") << "History chain [" << mRange.mFirst << ","
+                                  << mRange.mLast << "] verified";
             mVerifyLedgerChainSuccess.Mark();
             return BasicWork::State::WORK_SUCCESS;
         }

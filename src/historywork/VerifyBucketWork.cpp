@@ -10,6 +10,8 @@
 #include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include "util/format.h"
+
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 
@@ -77,6 +79,9 @@ VerifyBucketWork::spawnVerifier()
             auto hasher = SHA256::create();
             asio::error_code ec;
             {
+                CLOG(INFO, "History")
+                    << fmt::format("Verifying bucket {}", binToHex(hash));
+
                 // ensure that the stream gets its own scope to avoid race with
                 // main thread
                 std::ifstream in(filename, std::ifstream::binary);
