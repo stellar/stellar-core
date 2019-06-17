@@ -395,14 +395,14 @@ struct TarjanSCCCalculator
 {
     struct SCCNode
     {
-        ssize_t mIndex = {-1};
-        ssize_t mLowLink = {-1};
+        int mIndex = {-1};
+        int mLowLink = {-1};
         bool mOnStack = {false};
     };
 
     std::vector<SCCNode> mNodes;
     std::vector<size_t> mStack;
-    size_t mIndex = {0};
+    int mIndex = {0};
     std::vector<BitSet> mSCCs;
     QGraph const& mGraph;
 
