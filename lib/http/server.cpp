@@ -110,9 +110,10 @@ server::handle_request(const request& req, reply& rep)
         params = request_path.substr(pos);
     }
 
-    if (mRoutes.find(command) != mRoutes.end())
+    auto it = mRoutes.find(command);
+    if (it != mRoutes.end())
     {
-        mRoutes[command](params, rep.content);
+        it->second(params, rep.content);
 
         rep.status = reply::ok;
         rep.headers.resize(2);
@@ -123,9 +124,10 @@ server::handle_request(const request& req, reply& rep)
     }
     else
     {
-        if(mRoutes.find("404") != mRoutes.end())
+        it = mRoutes.find("404");
+        if (it != mRoutes.end())
         {
-            mRoutes["404"](params, rep.content);
+            it->second(params, rep.content);
 
             rep.status = reply::ok;
             rep.headers.resize(2);
