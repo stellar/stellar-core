@@ -279,9 +279,6 @@
     <ClCompile Include="..\..\src\work\WorkSequence.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\StatusManager.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -636,9 +633,6 @@
     <ClCompile Include="..\..\src\history\test\HistoryTestsUtils.cpp">
       <Filter>history\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\test\InferredQuorumTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\history\test\SerializeTests.cpp">
       <Filter>history\tests</Filter>
     </ClCompile>
@@ -709,9 +703,6 @@
       <Filter>util\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\test\BigDivideTests.cpp">
-      <Filter>util\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\test\BitsetEnumeratorTests.cpp">
       <Filter>util\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\test\DecoderTests.cpp">
@@ -933,6 +924,21 @@
     <ClCompile Include="..\..\src\bucket\test\BucketManagerTests.cpp">
       <Filter>bucket\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\BitSet.h">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\util\cbitset.c">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\BitSetTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\test\QuorumIntersectionTests.cpp">
+      <Filter>scp\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\QuorumIntersectionCheckerImpl.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1099,9 +1105,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\work\WorkSequence.h">
       <Filter>work</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
-      <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\StatusManager.h">
       <Filter>util</Filter>
@@ -1609,6 +1612,18 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\QuorumTracker.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\cbitset.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\cbitset_portability.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\QuorumIntersectionChecker.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\QuorumIntersectionCheckerImpl.h">
+      <Filter>scp</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

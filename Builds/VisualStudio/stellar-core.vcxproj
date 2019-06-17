@@ -303,6 +303,8 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
+    <ClCompile Include="..\..\src\scp\QuorumIntersectionCheckerImpl.cpp" />
+    <ClCompile Include="..\..\src\scp\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\work\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
@@ -502,12 +504,10 @@ exit /b 0
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
     <ClCompile Include="..\..\src\scp\NominationProtocol.cpp" />
-    <ClCompile Include="..\..\src\scp\QuorumIntersectionChecker.cpp" />
     <ClCompile Include="..\..\src\scp\QuorumSetUtils.cpp" />
     <ClCompile Include="..\..\src\scp\SCP.cpp" />
     <ClCompile Include="..\..\src\scp\SCPDriver.cpp" />
     <ClCompile Include="..\..\src\scp\Slot.cpp" />
-    <ClCompile Include="..\..\src\scp\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\QuorumSetTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\SCPTests.cpp" />
     <ClCompile Include="..\..\src\scp\test\SCPUnitTests.cpp" />
@@ -600,6 +600,8 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
+    <ClInclude Include="..\..\src\scp\QuorumIntersectionChecker.h" />
+    <ClInclude Include="..\..\src\scp\QuorumIntersectionCheckerImpl.h" />
     <ClInclude Include="..\..\src\work\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h" />
@@ -708,7 +710,6 @@ exit /b 0
     <ClInclude Include="..\..\src\scp\BallotProtocol.h" />
     <ClInclude Include="..\..\src\scp\LocalNode.h" />
     <ClInclude Include="..\..\src\scp\NominationProtocol.h" />
-    <ClInclude Include="..\..\src\scp\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\scp\QuorumSetUtils.h" />
     <ClInclude Include="..\..\src\scp\SCP.h" />
     <ClInclude Include="..\..\src\scp\SCPDriver.h" />
