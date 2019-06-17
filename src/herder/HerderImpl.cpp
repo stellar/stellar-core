@@ -351,7 +351,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
                 // value
                 r = (lastCloseIndex == envLedgerIndex &&
                      lastCloseTime == sv.closeTime);
-                // for older messages, just ensure that they occured before
+                // for older messages, just ensure that they occurred before
                 r = r || (lastCloseIndex > envLedgerIndex &&
                           lastCloseTime > sv.closeTime);
                 // for future message, perform the same validity check than

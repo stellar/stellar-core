@@ -60,8 +60,8 @@ class TransactionQueue
     explicit TransactionQueue(Application& app, int pendingDepth, int banDepth);
 
     AddResult tryAdd(TransactionFramePtr tx);
-    // it is responsibility of the caller to always remove such sets of
-    // transactions that remaining ones have theis sequence numbers increasing
+    // it is the responsibility of the caller to always remove such sets of
+    // transactions that remaining ones have their sequence numbers increasing
     // by one
     void remove(std::vector<TransactionFramePtr> const& txs);
     // remove oldest transactions and move all other transactions to slots older
