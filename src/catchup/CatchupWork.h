@@ -50,7 +50,7 @@ struct CatchupRange final
     /**
      * Preconditions:
      * * lastClosedLedger > 0
-     * * configuration.toLedger() >= lastClosedLedger
+     * * configuration.toLedger() > lastClosedLedger
      * * configuration.toLedger() != CatchupConfiguration::CURRENT
      */
     explicit CatchupRange(uint32_t lastClosedLedger,
