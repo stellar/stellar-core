@@ -4,9 +4,9 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/QuorumIntersectionChecker.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
-#include "scp/QuorumIntersectionChecker.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -21,7 +21,7 @@ using VQ = xdr::xvector<QS>;
 using VK = xdr::xvector<PublicKey>;
 using std::make_shared;
 
-TEST_CASE("quorum intersection basic 4-node", "[scp][quorumintersection]")
+TEST_CASE("quorum intersection basic 4-node", "[herder][quorumintersection]")
 {
     QuorumTracker::QuorumMap qm;
 
@@ -41,7 +41,7 @@ TEST_CASE("quorum intersection basic 4-node", "[scp][quorumintersection]")
 }
 
 TEST_CASE("quorum intersection 6-node with subquorums",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     QuorumTracker::QuorumMap qm;
 
@@ -80,7 +80,8 @@ TEST_CASE("quorum intersection 6-node with subquorums",
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
-TEST_CASE("quorum non intersection basic 6-node", "[scp][quorumintersection]")
+TEST_CASE("quorum non intersection basic 6-node",
+          "[herder][quorumintersection]")
 {
     QuorumTracker::QuorumMap qm;
 
@@ -104,7 +105,7 @@ TEST_CASE("quorum non intersection basic 6-node", "[scp][quorumintersection]")
 }
 
 TEST_CASE("quorum non intersection 6-node with subquorums",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     QuorumTracker::QuorumMap qm;
 
@@ -146,7 +147,7 @@ TEST_CASE("quorum non intersection 6-node with subquorums",
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
-TEST_CASE("quorum plausible non intersection", "[scp][quorumintersection]")
+TEST_CASE("quorum plausible non intersection", "[herder][quorumintersection]")
 {
     QuorumTracker::QuorumMap qm;
 
@@ -341,7 +342,7 @@ interconnectOrgsBidir(xdr::xvector<xdr::xvector<PublicKey>> const& orgs,
 }
 
 TEST_CASE("quorum intersection 4-org fully-connected, elide all minquorums",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Generate a typical all-to-all multi-org graph that checks quickly: every
     // quorum is a fair bit larger than half the SCC, so it will actually trim
@@ -356,7 +357,7 @@ TEST_CASE("quorum intersection 4-org fully-connected, elide all minquorums",
 }
 
 TEST_CASE("quorum intersection 3-org 3-node open line",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Network: org0 <--> org1 <--> org2
     //
@@ -373,7 +374,7 @@ TEST_CASE("quorum intersection 3-org 3-node open line",
 }
 
 TEST_CASE("quorum intersection 3-org 2-node open line",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Network: org0 <--> org1 <--> org2
     //
@@ -389,7 +390,7 @@ TEST_CASE("quorum intersection 3-org 2-node open line",
 }
 
 TEST_CASE("quorum intersection 3-org 3-node closed ring",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Network: org0 <--> org1 <--> org2
     //           ^                   ^
@@ -408,7 +409,7 @@ TEST_CASE("quorum intersection 3-org 3-node closed ring",
 }
 
 TEST_CASE("quorum intersection 3-org 3-node closed one-way ring",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Network: org0 --> org1 --> org2
     //           ^                  |
@@ -432,7 +433,7 @@ TEST_CASE("quorum intersection 3-org 3-node closed one-way ring",
 }
 
 TEST_CASE("quorum intersection 3-org 2-node closed one-way ring",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Network: org0 --> org1 --> org2
     //           ^                  |
@@ -456,7 +457,7 @@ TEST_CASE("quorum intersection 3-org 2-node closed one-way ring",
 }
 
 TEST_CASE("quorum intersection 3-org 2-node 2-of-3 asymmetric",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     //           +-------------------+
     //           |                   v
@@ -485,7 +486,7 @@ TEST_CASE("quorum intersection 3-org 2-node 2-of-3 asymmetric",
 }
 
 TEST_CASE("quorum intersection 8-org core-and-periphery dangling",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // This configuration "looks kinda strong" -- there's a fully-connected
     // "core" org set and the "periphery" orgs are all set to 3/3 between their
@@ -531,7 +532,7 @@ TEST_CASE("quorum intersection 8-org core-and-periphery dangling",
 }
 
 TEST_CASE("quorum intersection 8-org core-and-periphery balanced",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // This configuration strengthens the previous just a bit by making each of
     // the core orgs have _two_ periphery relationships, in a specific
@@ -583,7 +584,7 @@ TEST_CASE("quorum intersection 8-org core-and-periphery balanced",
 }
 
 TEST_CASE("quorum intersection 8-org core-and-periphery unbalanced",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // This configuration weakens the previous again, just a _tiny_ bit,
     // by un-balancing the periphery-org structure. It's enough to re-introduce
@@ -630,7 +631,7 @@ TEST_CASE("quorum intersection 8-org core-and-periphery unbalanced",
 }
 
 TEST_CASE("quorum intersection 6-org 1-node 4-null qsets",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Generating the following topology with dependencies from the core nodes
     // org0..org1 bidirectionally to one another, but also one-way outwards to
@@ -683,7 +684,7 @@ TEST_CASE("quorum intersection 6-org 1-node 4-null qsets",
 }
 
 TEST_CASE("quorum intersection 4-org 1-node 4-null qsets",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     // Generating the following topology with dependencies from the core nodes
     // org0..org1 bidirectionally to one another, but also one-way outwards to
@@ -728,7 +729,7 @@ TEST_CASE("quorum intersection 4-org 1-node 4-null qsets",
 }
 
 TEST_CASE("quorum intersection 6-org 3-node fully-connected",
-          "[scp][quorumintersection]")
+          "[herder][quorumintersection]")
 {
     auto orgs = generateOrgs(6, {3});
     auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
@@ -739,7 +740,7 @@ TEST_CASE("quorum intersection 6-org 3-node fully-connected",
 }
 
 TEST_CASE("quorum intersection scaling test",
-          "[scp][quorumintersectionbench][!hide]")
+          "[herder][quorumintersectionbench][!hide]")
 {
     // Same as above but with 3-or-5-own-node orgs, so more possible nodes,
     // bigger search space for performance testing.

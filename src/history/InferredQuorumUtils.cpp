@@ -3,10 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/Herder.h"
+#include "herder/QuorumIntersectionChecker.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "scp/QuorumIntersectionChecker.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-SCP.h"
