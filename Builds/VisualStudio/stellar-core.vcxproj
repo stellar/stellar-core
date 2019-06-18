@@ -784,6 +784,9 @@ exit /b 0
     <ClInclude Include="src\generated\xdr\Stellar-types.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\bug-report.md" />
+    <None Include="..\..\.github\ISSUE_TEMPLATE\documentation.md" />
+    <None Include="..\..\.github\ISSUE_TEMPLATE\feature-request.md" />
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\ChangeLog" />
@@ -814,7 +817,6 @@ exit /b 0
     <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
-    <None Include="..\..\.github\ISSUE_TEMPLATE.md" />
     <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md" />
     <None Include="..\..\performance-eval\performance-eval.md" />
     <None Include="..\..\README" />

@@ -139,6 +139,9 @@
     <Filter Include="util\tests">
       <UniqueIdentifier>{856b0ad5-10a9-49a4-a36e-e98d7840bc83}</UniqueIdentifier>
     </Filter>
+    <Filter Include="github">
+      <UniqueIdentifier>{2f5780ba-6cc8-45ba-b70b-aa50af3af3ce}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -1696,8 +1699,6 @@
     <None Include="..\..\CONTRIBUTING.md" />
     <None Include="..\..\README" />
     <None Include="..\..\travis-build.sh" />
-    <None Include="..\..\.github\ISSUE_TEMPLATE.md" />
-    <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md" />
     <None Include="..\..\src\history\serialize-tests\stellar-history.livenet.15686975.json">
       <Filter>history\tests\serialize-tests</Filter>
     </None>
@@ -1743,6 +1744,18 @@
     </None>
     <None Include="..\..\docs\stellar-core_example_validators.cfg">
       <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\bug-report.md">
+      <Filter>github</Filter>
+    </None>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\documentation.md">
+      <Filter>github</Filter>
+    </None>
+    <None Include="..\..\.github\ISSUE_TEMPLATE\feature-request.md">
+      <Filter>github</Filter>
+    </None>
+    <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md">
+      <Filter>github</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
