@@ -407,7 +407,6 @@ bitset_symmetric_difference_count(const bitset_t* b1, const bitset_t* b2)
 bool
 bitset_equal(const bitset_t* b1, const bitset_t* b2)
 {
-    size_t answer = 0;
     size_t minlength =
         b1->arraysize < b2->arraysize ? b1->arraysize : b2->arraysize;
     for (size_t k = 0; k < minlength; ++k)
@@ -421,7 +420,6 @@ bitset_equal(const bitset_t* b1, const bitset_t* b2)
 bool
 bitset_subseteq(const bitset_t* b1, const bitset_t* b2)
 {
-    size_t answer = 0;
     size_t minlength =
         b1->arraysize < b2->arraysize ? b1->arraysize : b2->arraysize;
     for (size_t k = 0; k < minlength; ++k)

@@ -6,12 +6,13 @@
 
 // C++ value-semantic / convenience wrapper around C bitset_t
 
+#include <functional>
 #include <memory>
 #include <ostream>
 #include <set>
 
 extern "C" {
-#include "cbitset.h"
+#include "util/cbitset.h"
 };
 
 class BitSet

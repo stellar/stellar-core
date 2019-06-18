@@ -116,7 +116,7 @@ TarjanSCCCalculator::scc(size_t i)
     {
         BitSet newScc;
         newScc.set(i);
-        size_t j = -1;
+        size_t j = 0;
         do
         {
             j = mStack.back();

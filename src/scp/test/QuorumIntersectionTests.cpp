@@ -221,10 +221,11 @@ TEST_CASE("quorum plausible non intersection", "[scp][quorumintersection]")
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
-size_t
+uint32
 roundUpPct(size_t n, size_t pct)
 {
-    return size_t(1) + (((n * pct) - size_t(1)) / size_t(100));
+    return static_cast<uint32>(size_t(1) +
+                               (((n * pct) - size_t(1)) / size_t(100)));
 }
 
 static xdr::xvector<xdr::xvector<PublicKey>>
