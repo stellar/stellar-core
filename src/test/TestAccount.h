@@ -32,13 +32,13 @@ class TestAccount
 
     Transaction rawTx(std::vector<Operation> const& ops, SequenceNumber sn = 0,
                       int fee = 0);
-    DecoratedSignature getSignature(TransactionFramePtr const& tx);
-    void sign(TransactionFramePtr const& tx);
+    DecoratedSignature getSignature(TransactionFramePtr const& tx) const;
+    void sign(TransactionFramePtr const& tx) const;
 
-    TransactionFramePtr tx(Transaction const& tx);
+    TransactionFramePtr tx(Transaction const& tx) const;
     TransactionFramePtr tx(std::vector<Operation> const& ops = {},
                            SequenceNumber sn = 0, int fee = 0);
-    TransactionFramePtr unsignedTx(Transaction const& tx);
+    TransactionFramePtr unsignedTx(Transaction const& tx) const;
     TransactionFramePtr unsignedTx(std::vector<Operation> const& ops = {},
                                    SequenceNumber sn = 0, int fee = 0);
 

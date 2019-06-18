@@ -56,13 +56,13 @@ TestAccount::exists() const
 }
 
 DecoratedSignature
-TestAccount::getSignature(TransactionFramePtr const& tx)
+TestAccount::getSignature(TransactionFramePtr const& tx) const
 {
     return SignatureUtils::sign(*this, tx->getContentsHash());
 }
 
 void
-TestAccount::sign(TransactionFramePtr const& tx)
+TestAccount::sign(TransactionFramePtr const& tx) const
 {
     tx->addSignature(getSignature(tx));
 }
@@ -91,7 +91,7 @@ TestAccount::rawTx(std::vector<Operation> const& ops, SequenceNumber sn,
 }
 
 TransactionFramePtr
-TestAccount::tx(Transaction const& tx)
+TestAccount::tx(Transaction const& tx) const
 {
     auto result = unsignedTx(tx);
     sign(result);
@@ -107,7 +107,7 @@ TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn, int fee)
 }
 
 TransactionFramePtr
-TestAccount::unsignedTx(Transaction const& tx)
+TestAccount::unsignedTx(Transaction const& tx) const
 {
     auto env = TransactionEnvelope{};
     env.tx = tx;

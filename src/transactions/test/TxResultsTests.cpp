@@ -89,7 +89,7 @@ variations(int count, std::vector<T> values)
     return result;
 }
 
-TEST_CASE("txresults", "[tx][txresults]")
+TEST_CASE("txresults - errors", "[tx][txresults]")
 {
     auto const& cfg = getTestConfig();
 
@@ -99,7 +99,6 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     auto& lm = app->getLedgerManager();
     const int64_t baseReserve = lm.getLastReserve();
-    const int64_t baseFee = lm.getLastTxFee();
     const int64_t startAmount = baseReserve * 100;
 
     {
@@ -112,6 +111,236 @@ TEST_CASE("txresults", "[tx][txresults]")
         LedgerTxn ltx(app->getLedgerTxnRoot());
         return ltx.loadHeader().current().scpValue.closeTime;
     };
+
+    // set up world
+    auto root = TestAccount::createRoot(*app);
+    auto nonExisting = TestAccount{*app, getAccount("nonExisting")};
+    auto nonEnoughBalance =
+        root.create("nonEnoughBalance", lm.getLastMinBalance(0));
+    auto enoughBalance = root.create("enoughBalance", startAmount);
+    auto extraSignature = TestAccount{*app, getAccount("extraSignature")};
+
+    auto validateError = [&](TestAccount const& account,
+                             Transaction const& rawTx, int authLevel,
+                             ValidationResult const& validationResult,
+                             TransactionResult const& applyResult = {}) {
+        auto tx = account.unsignedTx(rawTx);
+
+        for_all_versions(*app, [&] {
+            auto version = [&]() {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                return ltx.loadHeader().current().ledgerVersion;
+            }();
+
+            SECTION("no signatures")
+            {
+                if (version == 7 || authLevel < 1)
+                {
+                    validateTxResults(tx, *app, validationResult, applyResult);
+                }
+                else
+                {
+                    validateTxResults(tx, *app,
+                                      {validationResult.fee, txBAD_AUTH});
+                }
+            }
+
+            SECTION("one signature")
+            {
+                account.sign(tx);
+                validateTxResults(tx, *app, validationResult, applyResult);
+            }
+
+            SECTION("double signature")
+            {
+                account.sign(tx);
+                account.sign(tx);
+
+                if (version == 7 || authLevel < 2)
+                {
+                    validateTxResults(tx, *app, validationResult, applyResult);
+                }
+                else
+                {
+                    validateTxResults(tx, *app,
+                                      {validationResult.fee, txBAD_AUTH_EXTRA});
+                }
+            }
+
+            SECTION("extra signature")
+            {
+                account.sign(tx);
+                extraSignature.sign(tx);
+
+                if (version == 7 || authLevel < 2)
+                {
+                    validateTxResults(tx, *app, validationResult, applyResult);
+                }
+                else
+                {
+                    validateTxResults(tx, *app,
+                                      {validationResult.fee, txBAD_AUTH_EXTRA});
+                }
+            }
+        });
+    };
+
+    SECTION("transaction errors")
+    {
+        SECTION("non existing")
+        {
+            SECTION("all possible bugs")
+            {
+                auto rawTx = nonExisting.rawTx({}, 4);
+                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
+                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
+                rawTx.fee = 1;
+
+                validateError(nonExisting, rawTx, 0, {1, txMISSING_OPERATION});
+            }
+
+            SECTION("txMISSING_OPERATION solved")
+            {
+                auto rawTx = nonExisting.rawTx({payment(root, 0)}, 4);
+                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
+                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
+                rawTx.fee = 1;
+
+                validateError(nonExisting, rawTx, 0, {1, txTOO_EARLY});
+            }
+
+            SECTION("txTOO_EARLY solved")
+            {
+                auto rawTx = nonExisting.rawTx({payment(root, 0)}, 4);
+                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
+                rawTx.fee = 1;
+
+                validateError(nonExisting, rawTx, 0, {1, txTOO_LATE});
+            }
+
+            SECTION("txTOO_LATE solved")
+            {
+                auto rawTx = nonExisting.rawTx({payment(root, 0)}, 4);
+                rawTx.fee = 1;
+
+                validateError(nonExisting, rawTx, 0, {1, txINSUFFICIENT_FEE});
+            }
+
+            SECTION("txINSUFFICIENT_FEE solved")
+            {
+                auto rawTx = nonExisting.rawTx({payment(root, 0)}, 4);
+
+                validateError(nonExisting, rawTx, 0, {100, txNO_ACCOUNT});
+            }
+        }
+
+        SECTION("existing")
+        {
+            SECTION("all possible bugs")
+            {
+                auto rawTx = nonEnoughBalance.rawTx(
+                    {}, nonEnoughBalance.getLastSequenceNumber());
+                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
+                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
+                rawTx.fee = 1;
+
+                validateError(nonEnoughBalance, rawTx, 0,
+                              {1, txMISSING_OPERATION});
+            }
+
+            SECTION("txMISSING_OPERATION solved")
+            {
+                auto rawTx = nonEnoughBalance.rawTx(
+                    {payment(root, 0)},
+                    nonEnoughBalance.getLastSequenceNumber());
+                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
+                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
+                rawTx.fee = 1;
+
+                validateError(nonEnoughBalance, rawTx, 0, {1, txTOO_EARLY});
+            }
+
+            SECTION("txTOO_EARLY solved")
+            {
+                auto rawTx = nonEnoughBalance.rawTx(
+                    {payment(root, 0)},
+                    nonEnoughBalance.getLastSequenceNumber());
+                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
+                rawTx.fee = 1;
+
+                validateError(nonEnoughBalance, rawTx, 0, {1, txTOO_LATE});
+            }
+
+            SECTION("txTOO_LATE solved")
+            {
+                auto rawTx = nonEnoughBalance.rawTx(
+                    {payment(root, 0)},
+                    nonEnoughBalance.getLastSequenceNumber());
+                rawTx.fee = 1;
+
+                validateError(nonEnoughBalance, rawTx, 0,
+                              {1, txINSUFFICIENT_FEE});
+            }
+
+            SECTION("txINSUFFICIENT_FEE solved")
+            {
+                auto rawTx = nonEnoughBalance.rawTx(
+                    {payment(root, 0)},
+                    nonEnoughBalance.getLastSequenceNumber());
+
+                validateError(nonEnoughBalance, rawTx, 0, {100, txBAD_SEQ});
+            }
+
+            SECTION("txBAD_SEQ solved")
+            {
+                auto rawTx = nonEnoughBalance.rawTx({payment(root, 0)});
+
+                validateError(nonEnoughBalance, rawTx, 1,
+                              {100, txINSUFFICIENT_BALANCE});
+            }
+
+            SECTION("txINSUFFICIENT_BALANCE solved")
+            {
+                auto rawTx = enoughBalance.rawTx({payment(root, 0)});
+
+                validateError(enoughBalance, rawTx, 1, {100, txFAILED});
+            }
+
+            SECTION("txFAILED solved")
+            {
+                auto rawTx = enoughBalance.rawTx({payment(root, 1)});
+
+                validateError(
+                    enoughBalance, rawTx, 2, {100, txSUCCESS},
+                    expectedResult(100, 1, txSUCCESS, {PAYMENT_SUCCESS}));
+            }
+
+            SECTION("txFAILED solved with time constraints")
+            {
+                auto rawTx = enoughBalance.rawTx({payment(root, 1)});
+                rawTx.timeBounds.activate().minTime = getCloseTime() - 1;
+                rawTx.timeBounds.activate().maxTime = getCloseTime() + 1;
+
+                validateError(
+                    enoughBalance, rawTx, 2, {100, txSUCCESS},
+                    expectedResult(100, 1, txSUCCESS, {PAYMENT_SUCCESS}));
+            }
+        }
+    }
+}
+
+TEST_CASE("txresults - complex", "[tx][txresults]")
+{
+    auto const& cfg = getTestConfig();
+
+    VirtualClock clock;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto& lm = app->getLedgerManager();
+    const int64_t baseReserve = lm.getLastReserve();
+    const int64_t baseFee = lm.getLastTxFee();
+    const int64_t startAmount = baseReserve * 100;
 
     auto amount = [&](PaymentValidity t) {
         switch (t)
@@ -258,262 +487,6 @@ TEST_CASE("txresults", "[tx][txresults]")
                               opResults);
     };
 
-    // set up world
-    auto root = TestAccount::createRoot(*app);
-    auto a = root.create("a", startAmount);
-    auto b = root.create("b", startAmount);
-    auto c = root.create("c", startAmount);
-    auto d = root.create("d", startAmount);
-    auto e = root.create("e", startAmount);
-    auto f = TestAccount{*app, getAccount("f")};
-    auto g = root.create("g", lm.getLastMinBalance(0));
-
-    SECTION("transaction errors")
-    {
-        SECTION("signed")
-        {
-            SECTION("missing operation")
-            {
-                auto tx = a.tx();
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {0, txMISSING_OPERATION});
-                });
-            }
-
-            SECTION("too early")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
-                auto tx = a.tx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
-                });
-            }
-
-            SECTION("too late")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
-                auto tx = a.tx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txTOO_LATE});
-                });
-            }
-
-            SECTION("insufficent fee")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.fee--;
-                auto tx = a.tx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app,
-                                      {baseFee - 1, txINSUFFICIENT_FEE});
-                });
-            }
-
-            SECTION("no account")
-            {
-                auto tx = f.tx({payment(root, 1)});
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
-                });
-            }
-
-            SECTION("bad seq")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.seqNum++;
-                auto tx = a.tx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
-                });
-            }
-
-            SECTION("insufficent balance")
-            {
-                auto tx = g.tx({payment(root, 1)});
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app,
-                                      {baseFee, txINSUFFICIENT_BALANCE});
-                });
-            }
-        }
-
-        SECTION("not signed")
-        {
-            SECTION("missing operation")
-            {
-                auto tx = a.unsignedTx();
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {0, txMISSING_OPERATION});
-                });
-            }
-
-            SECTION("too early")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
-                auto tx = a.unsignedTx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
-                });
-            }
-
-            SECTION("too late")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
-                auto tx = a.unsignedTx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txTOO_LATE});
-                });
-            }
-
-            SECTION("insufficent fee")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.fee--;
-                auto tx = a.unsignedTx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app,
-                                      {baseFee - 1, txINSUFFICIENT_FEE});
-                });
-            }
-
-            SECTION("no account")
-            {
-                auto rawTx = f.rawTx({payment(root, 1)});
-                auto tx = f.unsignedTx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
-                });
-            }
-
-            SECTION("bad seq")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.seqNum++;
-                auto tx = a.unsignedTx(rawTx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
-                });
-            }
-
-            SECTION("insufficent balance")
-            {
-                auto tx = g.unsignedTx({payment(root, 1)});
-                for_versions_to(6, *app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txBAD_AUTH});
-                });
-                for_versions({7}, *app, [&] {
-                    validateTxResults(tx, *app,
-                                      {baseFee, txINSUFFICIENT_BALANCE});
-                });
-                for_versions_from(8, *app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txBAD_AUTH});
-                });
-            }
-        }
-
-        SECTION("double signed")
-        {
-            SECTION("missing operation")
-            {
-                auto tx = a.tx();
-                a.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {0, txMISSING_OPERATION});
-                });
-            }
-
-            SECTION("too early")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.timeBounds.activate().minTime = getCloseTime() + 1;
-                auto tx = a.unsignedTx(rawTx);
-                a.sign(tx);
-                a.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
-                });
-            }
-
-            SECTION("too late")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.timeBounds.activate().maxTime = getCloseTime() - 1;
-                auto tx = a.unsignedTx(rawTx);
-                a.sign(tx);
-                a.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txTOO_LATE});
-                });
-            }
-
-            SECTION("insufficent fee")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.fee--;
-                auto tx = a.unsignedTx(rawTx);
-                a.sign(tx);
-                a.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app,
-                                      {baseFee - 1, txINSUFFICIENT_FEE});
-                });
-            }
-
-            SECTION("no account")
-            {
-                auto tx = f.tx({payment(root, 1)});
-                f.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
-                });
-            }
-
-            SECTION("bad seq")
-            {
-                auto rawTx = a.rawTx({payment(root, 1)});
-                rawTx.seqNum++;
-                auto tx = a.unsignedTx(rawTx);
-                a.sign(tx);
-                a.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
-                });
-            }
-
-            SECTION("insufficent balance")
-            {
-                auto tx = g.tx({payment(root, 1)});
-                g.sign(tx);
-
-                for_all_versions(*app, [&] {
-                    validateTxResults(tx, *app,
-                                      {baseFee, txINSUFFICIENT_BALANCE});
-                });
-            }
-        }
-    }
-
     auto sign3 = variations<Signed>(3, signedTypes);
     auto op3 = variations<PaymentValidity>(3, paymentValidityTypes);
 
@@ -531,6 +504,15 @@ TEST_CASE("txresults", "[tx][txresults]")
                       paymentValidityNames[ops[i]];
         return result;
     };
+
+    // set up world
+    auto root = TestAccount::createRoot(*app);
+    auto a = root.create("a", startAmount);
+    auto b = root.create("b", startAmount);
+    auto c = root.create("c", startAmount);
+    auto d = root.create("d", startAmount);
+    auto e = root.create("e", startAmount);
+    auto f = TestAccount{*app, getAccount("f")};
 
     auto accounts = std::vector<TestAccount*>{&a, &b, &c, &d, &e};
     auto makeTx = [&](std::vector<Signed> const& signs,
