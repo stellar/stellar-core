@@ -12,8 +12,10 @@
 #include "bucket/FutureBucket.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
+#include "main/ErrorMessages.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/format.h"
 
 #include <chrono>
 
@@ -283,15 +285,27 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                 << "Worker merging curr=" << hexAbbrev(curr->getHash())
                 << " with snap=" << hexAbbrev(snap->getHash());
 
-            auto res =
-                Bucket::merge(bm, maxProtocolVersion, curr, snap, shadows,
-                              keepDeadEntries, countMergeEvents);
+            try
+            {
+                auto res =
+                    Bucket::merge(bm, maxProtocolVersion, curr, snap, shadows,
+                                  keepDeadEntries, countMergeEvents);
 
-            CLOG(TRACE, "Bucket")
-                << "Worker finished merging curr=" << hexAbbrev(curr->getHash())
-                << " with snap=" << hexAbbrev(snap->getHash());
+                CLOG(TRACE, "Bucket")
+                    << "Worker finished merging curr="
+                    << hexAbbrev(curr->getHash())
+                    << " with snap=" << hexAbbrev(snap->getHash());
 
-            return res;
+                return res;
+            }
+            catch (std::exception const& e)
+            {
+                throw std::runtime_error(fmt::format(
+                    "Error merging bucket curr={} with snap={}: "
+                    "{}. {}",
+                    hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
+                    e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
+            };
         });
 
     mOutputBucket = task->get_future().share();
