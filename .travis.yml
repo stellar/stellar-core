@@ -24,6 +24,7 @@ addons:
     - libpq5
     - libstdc++6
     - libtool
+    - llvm-5.0
     - pkg-config
     - clang-format-5.0
     - pandoc
@@ -35,7 +36,6 @@ script: ./travis-build.sh
 cache:
   directories:
   - $HOME/.ccache
-  - .libs
 
 notifications:
   email: false
@@ -59,3 +59,4 @@ matrix:
     - stage: compile
       compiler: gcc
       script: ./travis-build.sh --disable-tests
+
