@@ -62,17 +62,26 @@ runWithConfig(Config cfg)
 
         app->applyCfgCommands();
     }
-    catch (std::exception& e)
+    catch (std::exception const& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
         LOG(FATAL) << REPORT_INTERNAL_BUG;
         return 1;
     }
-    auto& io = clock.getIOContext();
-    asio::io_context::work mainWork(io);
-    while (!io.stopped())
+
+    try
     {
-        clock.crank();
+        auto& io = clock.getIOContext();
+        asio::io_context::work mainWork(io);
+        while (!io.stopped())
+        {
+            clock.crank();
+        }
+    }
+    catch (std::exception const& e)
+    {
+        LOG(FATAL) << "Got an exception: " << e.what();
+        throw; // propagate exception (core dump, etc)
     }
     return 0;
 }
