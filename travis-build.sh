@@ -77,6 +77,14 @@ export LSAN_OPTIONS=detect_leaks=0
 
 echo "config_flags = $config_flags"
 
+#### ccache config
+export CCACHE_COMPRESS=true
+export CCACHE_COMPILERCHECK="string:$CXX"
+export CCACHE_MAXSIZE=900M
+export CCACHE_CPP2=true
+
+ccache -p
+
 ccache -s
 date
 time ./autogen.sh
@@ -90,7 +98,6 @@ then
     exit 1
 fi
 
-ccache -p
 date
 time make -j$(($NPROCS + 1))
 
