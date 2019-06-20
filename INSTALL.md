@@ -89,6 +89,7 @@ When building on OSX, here's some dependencies you'll need:
 - brew install pkg-config
 - brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
 - brew install pandoc
+- brew install parallel (required for running tests)
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
