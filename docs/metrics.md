@@ -71,7 +71,8 @@ ledger.memory.queued-ledgers             | counter   | number of ledgers queued 
 app.state.current                        | counter   | state (BOOTING=0, JOIN_SCP=1, LEDGER_SYNC=2, CATCHING_UP=3, SYNCED=4, STOPPING=5)
 app.post-on-main-thread.delay            | timer     | time to start task posted to current crank of main thread
 app.post-on-main-thread-with-delay.delay | timer     | time to start task posted to next crank of main thread
-app.post-on-background-thread.delay      | timer     | time to start task posted to background threadoverlay.memory.flood-known        | counter   | number of known flooded entries
+app.post-on-background-thread.delay      | timer     | time to start task posted to background thread
+overlay.memory.flood-known               | counter   | number of known flooded entries
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
 overlay.message.broadcast                | meter     | message broadcasted
 overlay.inbound.attempt                  | meter     | inbound connection attempted (accepted on socket)
