@@ -585,9 +585,6 @@
     <ClCompile Include="..\..\src\main\Config.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\dumpxdr.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -1446,9 +1443,6 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">
-      <Filter>main</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\dumpxdr.h">

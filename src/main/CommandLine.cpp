@@ -803,7 +803,7 @@ runGenFuzz(CommandLineArgs const& args)
 }
 #endif
 
-optional<int>
+int
 handleCommandLine(int argc, char* const* argv)
 {
     auto commandLine = CommandLine{
@@ -862,7 +862,7 @@ handleCommandLine(int argc, char* const* argv)
     auto command = commandLine.selectCommand(ajustedCommandLine.first);
     if (!command)
     {
-        return nullopt<int>();
+        command = commandLine.selectCommand("help");
     }
 
     auto exeName = "stellar-core";
@@ -872,18 +872,18 @@ handleCommandLine(int argc, char* const* argv)
     if (command->name() == "run")
     {
         // run outside of catch block so that we properly capture crashes
-        return make_optional<int>(command->run(args));
+        return command->run(args);
     }
 
     try
     {
-        return make_optional<int>(command->run(args));
+        return command->run(args);
     }
     catch (std::exception& e)
     {
         LOG(FATAL) << "Got an exception: " << e.what();
         LOG(FATAL) << REPORT_INTERNAL_BUG;
-        return make_optional<int>(1);
+        return 1;
     }
 }
 }

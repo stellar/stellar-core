@@ -430,7 +430,6 @@ exit /b 0
     <ClCompile Include="..\..\src\main\CommandHandler.cpp" />
     <ClCompile Include="..\..\src\main\CommandLine.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
-    <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
@@ -662,7 +661,6 @@ exit /b 0
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\CommandLine.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
-    <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h" />
     <ClInclude Include="..\..\src\main\dumpxdr.h" />
     <ClInclude Include="..\..\src\main\ErrorMessages.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />

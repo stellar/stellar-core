@@ -21,7 +21,7 @@ struct CommandLineArgs
     std::vector<std::string> mArgs;
 };
 
-optional<int> handleCommandLine(int argc, char* const* argv);
+int handleCommandLine(int argc, char* const* argv);
 
 void writeWithTextFlow(std::ostream& os, std::string const& text);
 }
