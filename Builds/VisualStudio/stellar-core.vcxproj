@@ -444,6 +444,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\LoadManager.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
+    <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerAuth.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp" />
@@ -692,6 +693,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\LoadManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
+    <ClInclude Include="..\..\src\overlay\OverlayMetrics.h" />
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerAuth.h" />
     <ClInclude Include="..\..\src\overlay\PeerBareAddress.h" />

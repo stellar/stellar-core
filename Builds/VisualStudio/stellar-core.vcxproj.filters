@@ -885,6 +885,9 @@
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\overlay\Peer.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
@@ -1575,6 +1578,9 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\OverlayMetrics.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Peer.h">
