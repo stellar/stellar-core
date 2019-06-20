@@ -933,11 +933,11 @@
     <ClCompile Include="..\..\src\util\test\BitSetTests.cpp">
       <Filter>util\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\scp\test\QuorumIntersectionTests.cpp">
-      <Filter>scp\tests</Filter>
+    <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp">
+      <Filter>herder\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\scp\QuorumIntersectionCheckerImpl.cpp">
-      <Filter>scp</Filter>
+    <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp">
+      <Filter>herder</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1616,11 +1616,11 @@
     <ClInclude Include="..\..\lib\util\cbitset_portability.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\scp\QuorumIntersectionChecker.h">
-      <Filter>scp</Filter>
+    <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h">
+      <Filter>herder</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\scp\QuorumIntersectionCheckerImpl.h">
-      <Filter>scp</Filter>
+    <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
