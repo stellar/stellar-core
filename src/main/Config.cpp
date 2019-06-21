@@ -1120,8 +1120,8 @@ Config::validateConfig(bool mixed)
     {
         // calculates default value for safety giving the top level entities
         // the same weight
-        auto topLevelCount =
-            QUORUM_SET.validators.size() + QUORUM_SET.innerSets.size();
+        auto topLevelCount = static_cast<uint32>(QUORUM_SET.validators.size() +
+                                                 QUORUM_SET.innerSets.size());
         FAILURE_SAFETY = topLevelCount - minSize;
 
         LOG(INFO) << "Assigning calculated value of " << FAILURE_SAFETY
