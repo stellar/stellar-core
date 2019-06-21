@@ -15,6 +15,7 @@
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
+#include "util/format.h"
 #include "util/types.h"
 #include <fstream>
 #include <map>
@@ -56,7 +57,17 @@ BucketManagerImpl::initialize()
     // there are many reasons the lock can fail so let lockFile throw
     // directly for more clear error messages since we end up just raising
     // a runtime exception anyway
-    fs::lockFile(lock);
+    try
+    {
+        fs::lockFile(lock);
+    }
+    catch (std::exception const& e)
+    {
+        throw std::runtime_error(
+            fmt::format("{}. This can be caused by access rights issues or "
+                        "another stellar-core process already running",
+                        e.what()));
+    }
 
     mLockedBucketDir = std::make_unique<std::string>(d);
     mTmpDirManager = std::make_unique<TmpDirManager>(d + "/tmp");
