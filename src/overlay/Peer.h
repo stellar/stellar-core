@@ -89,7 +89,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mLastEmpty;
 
     OverlayMetrics& getOverlayMetrics();
-    medida::Meter& mTimeoutStraggler;
 
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
