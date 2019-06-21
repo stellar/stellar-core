@@ -50,8 +50,6 @@ Peer::Peer(Application& app, PeerRole role)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mLastEmpty(app.getClock().now())
-    , mTimeoutStraggler(app.getMetrics().NewMeter(
-          {"overlay", "timeout", "straggler"}, "timeout"))
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
