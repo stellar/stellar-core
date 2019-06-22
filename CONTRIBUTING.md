@@ -1,4 +1,4 @@
-# How to contribute
+# How to contribute 
 
 We're striving to keep master's history with minimal merge bubbles. To achieve this, we're asking PRs to be submitted rebased on top of master.
 
@@ -37,7 +37,7 @@ Try to separate logically distinct changes into separate commits and thematicall
 
 # Performance impacting changes
 
-When submitting changes that may impact performance, you need to also provide some evidence of the improvement (which also implies no regression). See the [performance evaluation](../performance-eval/performance-eval.md) document for more details.
+When submitting changes that may impact performance, you need to also provide some evidence of the improvement. See the [performance evaluation](../performance-eval/performance-eval.md) document for more details.
 
 # Submitting Changes
 
@@ -93,8 +93,6 @@ For memcheck to work, you will need to compile your own version of `libc++` (see
     ./configure --disable-postgres --enable-memcheck LIBCXX_PATH=/home/user/src/llvm/libcxx_msan/lib
 
 If you do not have an instrumented version of `libpq` (postgres client library), you may get false positives as well (disabling postgres is a good workaround).
-
-What the configure script does under the cover is use the custom version of your library at link time, but still uses the system headers - so make sure that the two don't conflict!
 
 #### Building a custom `libc++`
 
