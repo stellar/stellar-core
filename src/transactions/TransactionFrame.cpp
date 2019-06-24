@@ -223,6 +223,13 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
     }
 }
 
+std::shared_ptr<OperationFrame>
+TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
+                                size_t index)
+{
+    return OperationFrame::makeHelper(op, res, *this);
+}
+
 void
 TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 {
@@ -236,14 +243,36 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
     // bind operations to the results
     for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
     {
-        mOperations.push_back(
-            OperationFrame::makeHelper(mEnvelope.tx.operations[i],
-                                       getResult().result.results()[i], *this));
+        mOperations.push_back(makeOperation(
+            mEnvelope.tx.operations[i], getResult().result.results()[i], i));
     }
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
     getResult().feeCharged = getFee(header, baseFee);
+}
+
+bool
+TransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
+{
+    if (mEnvelope.tx.timeBounds)
+    {
+        uint64 closeTime = header.current().scpValue.closeTime;
+        return mEnvelope.tx.timeBounds->minTime > closeTime;
+    }
+    return false;
+}
+
+bool
+TransactionFrame::isTooLate(LedgerTxnHeader const& header) const
+{
+    if (mEnvelope.tx.timeBounds)
+    {
+        uint64 closeTime = header.current().scpValue.closeTime;
+        return mEnvelope.tx.timeBounds->maxTime &&
+               (mEnvelope.tx.timeBounds->maxTime < closeTime);
+    }
+    return false;
 }
 
 bool
@@ -259,20 +288,15 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
     }
 
     auto header = ltx.loadHeader();
-    if (mEnvelope.tx.timeBounds)
+    if (isTooEarly(header))
     {
-        uint64 closeTime = header.current().scpValue.closeTime;
-        if (mEnvelope.tx.timeBounds->minTime > closeTime)
-        {
-            getResult().result.code(txTOO_EARLY);
-            return false;
-        }
-        if (mEnvelope.tx.timeBounds->maxTime &&
-            (mEnvelope.tx.timeBounds->maxTime < closeTime))
-        {
-            getResult().result.code(txTOO_LATE);
-            return false;
-        }
+        getResult().result.code(txTOO_EARLY);
+        return false;
+    }
+    if (isTooLate(header))
+    {
+        getResult().result.code(txTOO_LATE);
+        return false;
     }
 
     if (mEnvelope.tx.fee < getMinFee(header.current()))
@@ -343,6 +367,12 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
     return true;
 }
 
+bool
+TransactionFrame::isBadSeq(int64_t seqNum) const
+{
+    return seqNum == INT64_MAX || seqNum + 1 != mEnvelope.tx.seqNum;
+}
+
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               AbstractLedgerTxn& ltxOuter,
@@ -367,7 +397,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         {
             current = sourceAccount.current().data.account().seqNum;
         }
-        if (current == INT64_MAX || current + 1 != mEnvelope.tx.seqNum)
+        if (isBadSeq(current))
         {
             getResult().result.code(txBAD_SEQ);
             return res;
