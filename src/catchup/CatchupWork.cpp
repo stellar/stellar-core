@@ -210,6 +210,28 @@ CatchupWork::doWork()
     // Step 2: Compare local and remote states
     if (!hasAnyLedgersToCatchupTo())
     {
+        CLOG(INFO, "History") << "*";
+        CLOG(INFO, "History")
+            << "* Target ledger " << mRemoteState.currentLedger
+            << " is not newer than last closed ledger "
+            << mLastClosedLedgerHashPair.first << " - nothing to do";
+
+        if (mCatchupConfiguration.toLedger() == CatchupConfiguration::CURRENT)
+        {
+            CLOG(INFO, "History")
+                << "* Wait until next checkpoint before retrying";
+        }
+        else
+        {
+            CLOG(INFO, "History") << "* If you really want to catchup to "
+                                  << mCatchupConfiguration.toLedger()
+                                  << " run stellar-core new-db";
+        }
+
+        CLOG(INFO, "History") << "*";
+
+        CLOG(ERROR, "History") << "Nothing to catchup to ";
+
         return State::WORK_FAILURE;
     }
 
@@ -258,7 +280,7 @@ CatchupWork::doWork()
             if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS &&
                 !mBucketsAppliedEmitted)
             {
-                mProgressHandler({}, ProgressState::APPLIED_BUCKETS,
+                mProgressHandler(ProgressState::APPLIED_BUCKETS,
                                  mVerifiedLedgerRangeStart,
                                  mCatchupConfiguration.mode());
                 mBucketsAppliedEmitted = true;
@@ -309,27 +331,10 @@ CatchupWork::doWork()
 void
 CatchupWork::onFailureRaise()
 {
+    CLOG(WARNING, "History") << "Catchup failed";
+
     mApp.getCatchupManager().historyCaughtup();
-    asio::error_code ec = std::make_error_code(std::errc::timed_out);
-
-    if (mGetHistoryArchiveStateWork &&
-        mGetHistoryArchiveStateWork->getState() == State::WORK_SUCCESS &&
-        !hasAnyLedgersToCatchupTo())
-    {
-        ec = std::make_error_code(std::errc::invalid_argument);
-
-        CLOG(INFO, "History") << "*";
-        CLOG(INFO, "History")
-            << "* Target ledger " << mRemoteState.currentLedger
-            << " is not newer than last closed ledger "
-            << mLastClosedLedgerHashPair.first << " - nothing to do";
-        CLOG(INFO, "History") << "* Wait until next checkpoint before retrying";
-        CLOG(INFO, "History") << "*";
-
-        CLOG(ERROR, "History") << "Nothing to catchup to ";
-    }
-
-    mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{},
+    mProgressHandler(ProgressState::FAILED, LedgerHeaderHistoryEntry{},
                      mCatchupConfiguration.mode());
     Work::onFailureRaise();
 }
@@ -337,9 +342,11 @@ CatchupWork::onFailureRaise()
 void
 CatchupWork::onSuccess()
 {
-    mProgressHandler({}, ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
+    CLOG(INFO, "History") << "Catchup finished";
+
+    mProgressHandler(ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
                      mCatchupConfiguration.mode());
-    mProgressHandler({}, ProgressState::FINISHED, mLastApplied,
+    mProgressHandler(ProgressState::FINISHED, mLastApplied,
                      mCatchupConfiguration.mode());
     mApp.getCatchupManager().historyCaughtup();
     Work::onSuccess();

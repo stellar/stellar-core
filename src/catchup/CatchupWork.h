@@ -78,7 +78,8 @@ class CatchupWork : public Work
     {
         APPLIED_BUCKETS,
         APPLIED_TRANSACTIONS,
-        FINISHED
+        FINISHED,
+        FAILED
     };
 
     // ProgressHandler is called in different phases of catchup with following
@@ -99,8 +100,7 @@ class CatchupWork : public Work
     // In case of error this callback is called with non-zero ec parameter and
     // the rest of them does not matter.
     using ProgressHandler = std::function<void(
-        asio::error_code const& ec, ProgressState progressState,
-        LedgerHeaderHistoryEntry const& lastClosed,
+        ProgressState progressState, LedgerHeaderHistoryEntry const& lastClosed,
         CatchupConfiguration::Mode catchupMode)>;
 
     /**

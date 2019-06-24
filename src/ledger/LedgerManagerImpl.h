@@ -59,8 +59,7 @@ class LedgerManagerImpl : public LedgerManager
     void addToSyncingLedgers(LedgerCloseData const& ledgerData);
     void startCatchupIf(uint32_t lastReceivedLedgerSeq);
 
-    void historyCaughtup(asio::error_code const& ec,
-                         CatchupWork::ProgressState progressState,
+    void historyCaughtup(CatchupWork::ProgressState progressState,
                          LedgerHeaderHistoryEntry const& lastClosed,
                          CatchupConfiguration::Mode catchupMode);
 
