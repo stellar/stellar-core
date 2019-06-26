@@ -61,7 +61,7 @@ After installing packages, head to [building with clang and libc++](#building-wi
 
 #### Installing packages
     # common packages
-    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev
+    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel
     # if using clang
     sudo apt-get install clang-5.0
     # clang with libstdc++
