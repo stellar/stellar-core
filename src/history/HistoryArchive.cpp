@@ -55,22 +55,6 @@ formatString(std::string const& templateString, Tokens const&... tokens)
 }
 
 bool
-HistoryArchiveState::futuresAllReady() const
-{
-    for (auto const& level : currentBuckets)
-    {
-        if (level.next.isMerging())
-        {
-            if (!level.next.mergeComplete())
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-bool
 HistoryArchiveState::futuresAllResolved() const
 {
     for (auto const& level : currentBuckets)
