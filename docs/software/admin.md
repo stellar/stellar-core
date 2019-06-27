@@ -342,6 +342,10 @@ Once you add validators to your configuration, stellar core automatically genera
 * The combined weight of MEDIUM quality entities equals a single HIGH quality entity  
 * The combined weight of LOW quality entities equals a single MEDIUM quality entity
 
+Here's a diagram depicting the nested quality levels and how they interact:
+
+![Diagram Automatic Quorum Set Generation](https://github.com/stellar/docs/blob/master/guides/walkthroughs/assets/validator_complete.png)
+
 
 #### Quorum and overlay network
 
