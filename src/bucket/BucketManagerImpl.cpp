@@ -238,6 +238,45 @@ MergeCounters::operator+=(MergeCounters const& delta)
     return *this;
 }
 
+bool
+MergeCounters::operator==(MergeCounters const& other) const
+{
+    return (
+        mPreInitEntryProtocolMerges == other.mPreInitEntryProtocolMerges &&
+        mPostInitEntryProtocolMerges == other.mPostInitEntryProtocolMerges &&
+
+        mNewMetaEntries == other.mNewMetaEntries &&
+        mNewInitEntries == other.mNewInitEntries &&
+        mNewLiveEntries == other.mNewLiveEntries &&
+        mNewDeadEntries == other.mNewDeadEntries &&
+        mOldMetaEntries == other.mOldMetaEntries &&
+        mOldInitEntries == other.mOldInitEntries &&
+        mOldLiveEntries == other.mOldLiveEntries &&
+        mOldDeadEntries == other.mOldDeadEntries &&
+
+        mOldEntriesDefaultAccepted == other.mOldEntriesDefaultAccepted &&
+        mNewEntriesDefaultAccepted == other.mNewEntriesDefaultAccepted &&
+        mNewInitEntriesMergedWithOldDead ==
+            other.mNewInitEntriesMergedWithOldDead &&
+        mOldInitEntriesMergedWithNewLive ==
+            other.mOldInitEntriesMergedWithNewLive &&
+        mOldInitEntriesMergedWithNewDead ==
+            other.mOldInitEntriesMergedWithNewDead &&
+        mNewEntriesMergedWithOldNeitherInit ==
+            other.mNewEntriesMergedWithOldNeitherInit &&
+
+        mShadowScanSteps == other.mShadowScanSteps &&
+        mMetaEntryShadowElisions == other.mMetaEntryShadowElisions &&
+        mLiveEntryShadowElisions == other.mLiveEntryShadowElisions &&
+        mInitEntryShadowElisions == other.mInitEntryShadowElisions &&
+        mDeadEntryShadowElisions == other.mDeadEntryShadowElisions &&
+
+        mOutputIteratorTombstoneElisions ==
+            other.mOutputIteratorTombstoneElisions &&
+        mOutputIteratorBufferUpdates == other.mOutputIteratorBufferUpdates &&
+        mOutputIteratorActualWrites == other.mOutputIteratorActualWrites);
+}
+
 void
 BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 {

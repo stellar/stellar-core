@@ -55,6 +55,7 @@ struct MergeCounters
     uint64_t mOutputIteratorBufferUpdates{0};
     uint64_t mOutputIteratorActualWrites{0};
     MergeCounters& operator+=(MergeCounters const& delta);
+    bool operator==(MergeCounters const& other) const;
 };
 
 /**
