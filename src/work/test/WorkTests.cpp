@@ -14,9 +14,6 @@
 #include "historywork/RunCommandWork.h"
 #include "work/BatchWork.h"
 #include <cstdio>
-#include <fstream>
-#include <random>
-#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 
@@ -728,6 +725,89 @@ TEST_CASE("WorkSequence test", "[work]")
 
         REQUIRE(work->getState() == TestBasicWork::State::WORK_ABORTED);
         REQUIRE(wm.getState() == TestBasicWork::State::WORK_ABORTED);
+    }
+}
+
+TEST_CASE("WorkSequence test with predicates", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    auto w1 = std::make_shared<TestBasicWork>(*appPtr, "test-work-1");
+    auto w2 = std::make_shared<TestBasicWork>(*appPtr, "test-work-2");
+    std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
+    std::vector<ConditionFn> cond;
+
+    SECTION("condition satisfied")
+    {
+        auto success = []() { return true; };
+        cond = {nullptr, success};
+
+        auto work =
+            wm.scheduleWork<WorkSequence>("test-work-sequence", seq, cond);
+        while (!wm.allChildrenSuccessful())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(w1->getState() == BasicWork::State::WORK_SUCCESS);
+        REQUIRE(w2->getState() == BasicWork::State::WORK_SUCCESS);
+    }
+    SECTION("condition failed")
+    {
+        auto parent = wm.scheduleWork<TestWork>("parent-work");
+        auto w = parent->addTestWork<TestBasicWork>("other-work",
+                                                    /* will fail */ true, 100);
+
+        auto success = [&]() {
+            return w->getState() == TestBasicWork::State::WORK_SUCCESS;
+        };
+        cond = {nullptr, success};
+        auto seqWork =
+            parent->addTestWork<WorkSequence>("test-work-sequence", seq, cond);
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        // w1 did not depend on anything
+        REQUIRE(w1->getState() == BasicWork::State::WORK_SUCCESS);
+        // w2 was never started (internally, in PENDING state, enforced by its
+        // destructor)
+        REQUIRE(w2->getState() == BasicWork::State::WORK_RUNNING);
+        // Failure of `w` triggered abort of `seqWork`
+        REQUIRE(seqWork->getState() == BasicWork::State::WORK_ABORTED);
+        // Parent work simply propagated failure
+        REQUIRE(w->getState() == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("shutdown")
+    {
+        // Let blocking work run for a few cranks
+        auto w = wm.scheduleWork<TestBasicWork>("other-work", false, 100);
+        auto status = [&]() {
+            return w->getState() == TestBasicWork::State::WORK_SUCCESS;
+        };
+        cond = {nullptr, status};
+
+        auto workSeq =
+            wm.scheduleWork<WorkSequence>("test-work-sequence", seq, cond);
+        while (workSeq->getState() != BasicWork::State::WORK_WAITING)
+        {
+            clock.crank();
+        }
+        wm.shutdown();
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(workSeq->getState() == BasicWork::State::WORK_ABORTED);
+        REQUIRE(wm.getState() == BasicWork::State::WORK_ABORTED);
+        REQUIRE(w->getState() == BasicWork::State::WORK_ABORTED);
     }
 }
 

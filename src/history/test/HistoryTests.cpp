@@ -165,7 +165,7 @@ TEST_CASE("History bucket verification",
     }
 }
 
-TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
+TEST_CASE("Ledger chain verification", "[ledgerheaderverification][history]")
 {
     Config cfg(getTestConfig(0));
     VirtualClock clock;
