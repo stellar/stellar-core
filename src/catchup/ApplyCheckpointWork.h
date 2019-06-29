@@ -40,18 +40,19 @@ struct LedgerHeaderHistoryEntry;
  * * downloadDir - directory containing ledger and transaction files
  * * range - range of ledgers to apply (low boundary can overlap with local
  * history)
- * * lastApplied - reference to last applied ledger header (which is LCL)
+ * * checkpoint - checkpoint to apply
  */
 
-class ApplyLedgerChainWork : public BasicWork
+class ApplyCheckpointWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
-    LedgerRange const mRange;
-    uint32_t mCurrSeq;
+    uint32_t mCheckpoint;
+    // Apply checkpoint until given ledger. Otherwise, apply checkpoint in full
+    // (default boundary 0)
+    uint32_t const mApplyUntil;
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
-    LedgerHeaderHistoryEntry& mLastApplied;
 
     medida::Meter& mApplyLedgerSuccess;
     medida::Meter& mApplyLedgerFailure;
@@ -63,15 +64,16 @@ class ApplyLedgerChainWork : public BasicWork
     bool applyHistoryOfSingleLedger();
 
   public:
-    ApplyLedgerChainWork(Application& app, TmpDir const& downloadDir,
-                         LedgerRange range,
-                         LedgerHeaderHistoryEntry& lastApplied);
-    ~ApplyLedgerChainWork() = default;
+    ApplyCheckpointWork(Application& app, TmpDir const& downloadDir,
+                        uint32_t checkpoint, uint32_t boundary = 0);
+    ~ApplyCheckpointWork() = default;
     std::string getStatus() const override;
 
   protected:
     void onReset() override;
     State onRun() override;
+    void onSuccess() override;
+
     bool
     onAbort() override
     {
