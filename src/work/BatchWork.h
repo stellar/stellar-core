@@ -38,7 +38,7 @@ class BatchWork : public Work
 
     // Implementers aren't allowed to edit batching mechanism,
     // but instead provide iteration methods.
-    virtual bool hasNext() const = 0;
+    virtual bool hasNext() = 0;
     virtual std::shared_ptr<BasicWork> yieldMoreWork() = 0;
     virtual void resetIter() = 0;
 };

@@ -29,7 +29,7 @@ class DownloadBucketsWork : public BatchWork
     std::string getStatus() const override;
 
   protected:
-    bool hasNext() const override;
+    bool hasNext() override;
     std::shared_ptr<BasicWork> yieldMoreWork() override;
     void resetIter() override;
 };

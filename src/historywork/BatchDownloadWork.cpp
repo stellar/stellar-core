@@ -40,7 +40,7 @@ BatchDownloadWork::yieldMoreWork()
 {
     if (!hasNext())
     {
-        CLOG(WARNING, "Work")
+        CLOG(ERROR, "Work")
             << getName() << " has no more children to iterate over! ";
         return nullptr;
     }
@@ -56,7 +56,7 @@ BatchDownloadWork::yieldMoreWork()
 }
 
 bool
-BatchDownloadWork::hasNext() const
+BatchDownloadWork::hasNext()
 {
     return mNext <= mRange.mLast;
 }

@@ -42,7 +42,7 @@ DownloadBucketsWork::getStatus() const
 }
 
 bool
-DownloadBucketsWork::hasNext() const
+DownloadBucketsWork::hasNext()
 {
     return mNextBucketIter != mHashes.end();
 }

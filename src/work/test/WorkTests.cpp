@@ -749,7 +749,7 @@ class TestBatchWork : public BatchWork
 
   protected:
     bool
-    hasNext() const override
+    hasNext() override
     {
         return mCount < mTotalWorks;
     }
