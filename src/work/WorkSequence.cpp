@@ -3,17 +3,26 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "WorkSequence.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
 
 WorkSequence::WorkSequence(Application& app, std::string name,
                            std::vector<std::shared_ptr<BasicWork>> sequence,
+                           std::vector<ConditionFn> conditions,
                            size_t maxRetries)
     : BasicWork(app, std::move(name), maxRetries)
     , mSequenceOfWork(std::move(sequence))
+    , mConditions(std::move(conditions))
     , mNextInSequence(mSequenceOfWork.begin())
 {
+    if (mConditions.size() != mSequenceOfWork.size() && !mConditions.empty())
+    {
+        throw std::runtime_error("Invalid arguments: please provide a list of "
+                                 "conditions for each work in sequence or an "
+                                 "empty list (no conditions)");
+    }
 }
 
 BasicWork::State
@@ -29,8 +38,35 @@ WorkSequence::onRun()
     assert(w);
     if (!mCurrentExecuting)
     {
-        w->startWork(wakeSelfUpCallback());
-        mCurrentExecuting = w;
+        bool conditionSatisfied = true;
+        try
+        {
+            // No pre-condition, or condition satisfied
+            if (!mConditions.empty())
+            {
+                auto i =
+                    std::distance(mSequenceOfWork.cbegin(), mNextInSequence);
+                conditionSatisfied = !mConditions.at(i) || mConditions.at(i)();
+            }
+        }
+        catch (std::exception& e)
+        {
+            CLOG(ERROR, "Work")
+                << "WorkSequence: condition function for " << w->getName()
+                << " threw an exception: " << e.what();
+            return State::WORK_FAILURE;
+        }
+
+        if (conditionSatisfied)
+        {
+            w->startWork(wakeSelfUpCallback());
+            mCurrentExecuting = w;
+        }
+        else
+        {
+            // We'll be woken up when condition is satisfied
+            return State::WORK_WAITING;
+        }
     }
     else
     {

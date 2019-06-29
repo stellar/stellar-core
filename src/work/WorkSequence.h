@@ -9,21 +9,30 @@
 namespace stellar
 {
 
+using ConditionFn = std::function<bool()>;
+
 /*
  * WorkSequence is a helper class, that implementers can use if they
  * wish to enforce the order of work execution. Users are required to pass
  * a vector of BasicWork pointers in the expected execution order.
+ *
+ * Additionally, WorkSequence allows passing a list of conditions before
+ * executing each work. The work will go into WAITING mode if condition is
+ * not satisfied, so it is parent's responsibility to wake its child.
  */
 class WorkSequence : public BasicWork
 {
     std::vector<std::shared_ptr<BasicWork>> mSequenceOfWork;
+    std::vector<ConditionFn> mConditions;
     std::vector<std::shared_ptr<BasicWork>>::const_iterator mNextInSequence;
     std::shared_ptr<BasicWork> mCurrentExecuting;
 
   public:
-    WorkSequence(Application& app, std::string name,
-                 std::vector<std::shared_ptr<BasicWork>> sequence,
-                 size_t maxRetries = RETRY_A_FEW);
+    WorkSequence(
+        Application& app, std::string name,
+        std::vector<std::shared_ptr<BasicWork>> sequence,
+        std::vector<ConditionFn> conditions = std::vector<ConditionFn>(),
+        size_t maxRetries = RETRY_A_FEW);
     ~WorkSequence() = default;
 
     std::string getStatus() const override;
