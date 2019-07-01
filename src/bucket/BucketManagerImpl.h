@@ -51,6 +51,12 @@ class BucketManagerImpl : public BucketManager
     void cleanupStaleFiles();
     void cleanDir();
 
+#ifdef BUILD_TESTS
+    bool mUseFakeTestValuesForNextClose{false};
+    uint32_t mFakeTestProtocolVersion;
+    uint256 mFakeTestBucketListHash;
+#endif
+
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
     std::string bucketFilename(std::string const& bucketHexHash);
@@ -81,6 +87,14 @@ class BucketManagerImpl : public BucketManager
                   std::vector<LedgerEntry> const& liveEntries,
                   std::vector<LedgerKey> const& deadEntries) override;
     void snapshotLedger(LedgerHeader& currentHeader) override;
+
+#ifdef BUILD_TESTS
+    // Install a fake/assumed ledger version and bucket list hash to use in next
+    // call to addBatch and snapshotLedger. This interface exists only for
+    // testing in a specific type of history replay.
+    void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
+                                              uint256 const& hash) override;
+#endif
 
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;

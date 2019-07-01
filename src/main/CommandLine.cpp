@@ -478,6 +478,17 @@ runCatchup(CommandLineArgs const& args)
             config.setNoListen();
             config.DISABLE_BUCKET_GC = disableBucketGC;
 
+            if (config.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
+                config.AUTOMATIC_MAINTENANCE_COUNT > 0)
+            {
+                // If the user did not _disable_ maintenance, turn the dial up
+                // to be much more aggressive about running maintenance during a
+                // bulk catchup, otherwise the DB is likely to overflow with
+                // unwanted history.
+                config.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{30};
+                config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
+            }
+
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto app = Application::create(clock, config, false);
             Json::Value catchupInfo;
@@ -594,19 +605,6 @@ runInferQuorum(CommandLineArgs const& args)
         {configurationParser(configOption), historyLedgerNumber(ledgerNum)},
         [&] {
             inferQuorumAndWrite(configOption.getConfig(), ledgerNum);
-            return 0;
-        });
-}
-
-int
-runLoadXDR(CommandLineArgs const& args)
-{
-    CommandLine::ConfigOption configOption;
-    std::string xdr;
-
-    return runWithHelp(
-        args, {configurationParser(configOption), fileNameParser(xdr)}, [&] {
-            loadXdr(configOption.getConfig(), xdr);
             return 0;
         });
 }
@@ -776,6 +774,30 @@ runWriteQuorum(CommandLineArgs const& args)
 
 #ifdef BUILD_TESTS
 int
+runLoadXDR(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    std::string xdr;
+
+    return runWithHelp(
+        args, {configurationParser(configOption), fileNameParser(xdr)}, [&] {
+            loadXdr(configOption.getConfig(), xdr);
+            return 0;
+        });
+}
+
+int
+runRebuildLedgerFromBuckets(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        rebuildLedgerFromBuckets(configOption.getConfig());
+        return 0;
+    });
+}
+
+int
 runFuzz(CommandLineArgs const& args)
 {
     el::Level logLevel{el::Level::Info};
@@ -825,7 +847,6 @@ handleCommandLine(int argc, char* const* argv)
           runHttpCommand},
          {"infer-quorum", "print a quorum set inferred from history",
           runInferQuorum},
-         {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"new-db", "creates or restores the DB to the genesis ledger",
           runNewDB},
          {"new-hist", "initialize history archives", runNewHist},
@@ -850,6 +871,10 @@ handleCommandLine(int argc, char* const* argv)
          {"upgrade-db", "upgade database schema to current version",
           runUpgradeDB},
 #ifdef BUILD_TESTS
+         {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
+         {"rebuild-ledger-from-buckets",
+          "rebuild the current database ledger from the bucket list",
+          runRebuildLedgerFromBuckets},
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
          {"test", "execute test suite", runTest},

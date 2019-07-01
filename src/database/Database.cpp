@@ -399,7 +399,6 @@ Database::initialize()
     LedgerHeaderUtils::dropAll(*this);
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
-    mApp.getBucketManager().dropAll();
     HerderPersistence::dropAll(*this);
     mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);

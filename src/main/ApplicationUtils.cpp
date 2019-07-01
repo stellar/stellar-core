@@ -4,7 +4,9 @@
 
 #include "main/ApplicationUtils.h"
 #include "bucket/Bucket.h"
+#include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
+#include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
@@ -134,18 +136,6 @@ httpCommand(std::string const& command, unsigned short port)
 }
 
 void
-loadXdr(Config cfg, std::string const& bucketFile)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-
-    uint256 zero;
-    Bucket bucket(bucketFile, zero);
-    bucket.apply(*app);
-}
-
-void
 setForceSCPFlag(Config cfg, bool set)
 {
     VirtualClock clock;
@@ -196,6 +186,78 @@ showOfflineInfo(Config cfg)
     Application::pointer app = Application::create(clock, cfg, false);
     app->reportInfo();
 }
+
+#ifdef BUILD_TESTS
+void
+loadXdr(Config cfg, std::string const& bucketFile)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+
+    uint256 zero;
+    Bucket bucket(bucketFile, zero);
+    bucket.apply(*app);
+}
+
+int
+rebuildLedgerFromBuckets(Config cfg)
+{
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+
+    auto& ps = app->getPersistentState();
+    auto lcl = ps.getState(PersistentState::kLastClosedLedger);
+    auto hasStr = ps.getState(PersistentState::kHistoryArchiveState);
+    auto pass = ps.getState(PersistentState::kNetworkPassphrase);
+
+    LOG(INFO) << "Re-initializing database ledger tables.";
+    auto& db = app->getDatabase();
+    auto& session = app->getDatabase().getSession();
+    soci::transaction tx(session);
+
+    db.initialize();
+    db.upgradeToCurrentSchema();
+    db.clearPreparedStatementCache();
+    LOG(INFO) << "Re-initialized database ledger tables.";
+
+    LOG(INFO) << "Re-storing persistent state.";
+    ps.setState(PersistentState::kLastClosedLedger, lcl);
+    ps.setState(PersistentState::kHistoryArchiveState, hasStr);
+    ps.setState(PersistentState::kNetworkPassphrase, pass);
+
+    LOG(INFO) << "Applying buckets from LCL bucket list.";
+    std::map<std::string, std::shared_ptr<Bucket>> localBuckets;
+    auto& ws = app->getWorkScheduler();
+
+    HistoryArchiveState has;
+    has.fromString(hasStr);
+
+    auto applyBucketsWork = ws.executeWork<ApplyBucketsWork>(
+        localBuckets, has, Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    auto ok = applyBucketsWork->getState() == BasicWork::State::WORK_SUCCESS;
+    if (ok)
+    {
+        tx.commit();
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Rebuilt ledger from buckets successfully.";
+        LOG(INFO) << "*";
+    }
+    else
+    {
+        tx.rollback();
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Rebuild of ledger failed.";
+        LOG(INFO) << "*";
+    }
+
+    app->gracefulStop();
+    while (clock.crank(true))
+        ;
+    return ok ? 0 : 1;
+}
+#endif
 
 int
 reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)

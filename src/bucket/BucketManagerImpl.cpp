@@ -448,6 +448,12 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
                             std::vector<LedgerEntry> const& liveEntries,
                             std::vector<LedgerKey> const& deadEntries)
 {
+#ifdef BUILD_TESTS
+    if (mUseFakeTestValuesForNextClose)
+    {
+        currLedgerProtocol = mFakeTestProtocolVersion;
+    }
+#endif
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
@@ -455,12 +461,31 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
                          liveEntries, deadEntries);
 }
 
+#ifdef BUILD_TESTS
+void
+BucketManagerImpl::setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
+                                                        uint256 const& hash)
+{
+    mUseFakeTestValuesForNextClose = true;
+    mFakeTestProtocolVersion = protocolVers;
+    mFakeTestBucketListHash = hash;
+}
+#endif
+
 // updates the given LedgerHeader to reflect the current state of the bucket
 // list
 void
 BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
     currentHeader.bucketListHash = mBucketList.getHash();
+#ifdef BUILD_TESTS
+    if (mUseFakeTestValuesForNextClose)
+    {
+        // Copy fake value and disarm for next close.
+        currentHeader.bucketListHash = mFakeTestBucketListHash;
+        mUseFakeTestValuesForNextClose = false;
+    }
+#endif
     calculateSkipValues(currentHeader);
 }
 

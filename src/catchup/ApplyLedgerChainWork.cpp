@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/ApplyLedgerChainWork.h"
+#include "bucket/BucketManager.h"
 #include "herder/LedgerCloseData.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
@@ -210,6 +211,20 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
             header.ledgerSeq, hexAbbrev(txset->getContentsHash()),
             hexAbbrev(header.scpValue.txSetHash)));
     }
+
+#ifdef BUILD_TESTS
+    if (mApp.getConfig()
+            .ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING)
+    {
+        auto& bm = mApp.getBucketManager();
+        CLOG(INFO, "History")
+            << "Forcing bucket manager to use version "
+            << Config::CURRENT_LEDGER_PROTOCOL_VERSION << " with hash "
+            << hexAbbrev(header.bucketListHash);
+        bm.setNextCloseVersionAndHashForTesting(
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION, header.bucketListHash);
+    }
+#endif
 
     LedgerCloseData closeData(header.ledgerSeq, txset, header.scpValue);
     lm.closeLedger(closeData);
