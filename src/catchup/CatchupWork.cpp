@@ -24,8 +24,8 @@ namespace stellar
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
-                         ProgressHandler progressHandler, size_t maxRetries)
-    : Work(app, "catchup", maxRetries)
+                         ProgressHandler progressHandler)
+    : Work(app, "catchup", Work::RETRY_NEVER)
     , mLocalState{app.getHistoryManager().getLastClosedHistoryArchiveState()}
     , mDownloadDir{std::make_unique<TmpDir>(
           mApp.getTmpDirManager().tmpDir(getName()))}
@@ -73,18 +73,7 @@ CatchupWork::hasAnyLedgersToCatchupTo() const
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == State::WORK_SUCCESS);
 
-    if (mLastClosedLedgerHashPair.first <= mRemoteState.currentLedger)
-    {
-        return true;
-    }
-
-    CLOG(INFO, "History")
-        << "Last closed ledger is later than current checkpoint: "
-        << mLastClosedLedgerHashPair.first << " > "
-        << mRemoteState.currentLedger;
-    CLOG(INFO, "History") << "Wait until next checkpoint before retrying ";
-    CLOG(ERROR, "History") << "Nothing to catchup to ";
-    return false;
+    return mLastClosedLedgerHashPair.first <= mRemoteState.currentLedger;
 }
 
 void
@@ -203,12 +192,29 @@ CatchupWork::doWork()
     // Step 2: Compare local and remote states
     if (!hasAnyLedgersToCatchupTo())
     {
-        mApp.getCatchupManager().historyCaughtup();
-        asio::error_code ec = std::make_error_code(std::errc::invalid_argument);
-        mProgressHandler(ec, ProgressState::FINISHED,
-                         LedgerHeaderHistoryEntry{},
-                         mCatchupConfiguration.mode());
-        return State::WORK_SUCCESS;
+        CLOG(INFO, "History") << "*";
+        CLOG(INFO, "History")
+            << "* Target ledger " << mRemoteState.currentLedger
+            << " is not newer than last closed ledger "
+            << mLastClosedLedgerHashPair.first << " - nothing to do";
+
+        if (mCatchupConfiguration.toLedger() == CatchupConfiguration::CURRENT)
+        {
+            CLOG(INFO, "History")
+                << "* Wait until next checkpoint before retrying";
+        }
+        else
+        {
+            CLOG(INFO, "History") << "* If you really want to catchup to "
+                                  << mCatchupConfiguration.toLedger()
+                                  << " run stellar-core new-db";
+        }
+
+        CLOG(INFO, "History") << "*";
+
+        CLOG(ERROR, "History") << "Nothing to catchup to ";
+
+        return State::WORK_FAILURE;
     }
 
     auto resolvedConfiguration =
@@ -256,7 +262,7 @@ CatchupWork::doWork()
             if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS &&
                 !mBucketsAppliedEmitted)
             {
-                mProgressHandler({}, ProgressState::APPLIED_BUCKETS,
+                mProgressHandler(ProgressState::APPLIED_BUCKETS,
                                  mVerifiedLedgerRangeStart,
                                  mCatchupConfiguration.mode());
                 mBucketsAppliedEmitted = true;
@@ -312,9 +318,10 @@ CatchupWork::doWork()
 void
 CatchupWork::onFailureRaise()
 {
+    CLOG(WARNING, "History") << "Catchup failed";
+
     mApp.getCatchupManager().historyCaughtup();
-    asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{},
+    mProgressHandler(ProgressState::FAILED, LedgerHeaderHistoryEntry{},
                      mCatchupConfiguration.mode());
     Work::onFailureRaise();
 }
@@ -322,9 +329,11 @@ CatchupWork::onFailureRaise()
 void
 CatchupWork::onSuccess()
 {
-    mProgressHandler({}, ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
+    CLOG(INFO, "History") << "Catchup finished";
+
+    mProgressHandler(ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
                      mCatchupConfiguration.mode());
-    mProgressHandler({}, ProgressState::FINISHED, mLastApplied,
+    mProgressHandler(ProgressState::FINISHED, mLastApplied,
                      mCatchupConfiguration.mode());
     mApp.getCatchupManager().historyCaughtup();
     Work::onSuccess();

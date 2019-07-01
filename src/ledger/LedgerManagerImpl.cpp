@@ -60,10 +60,6 @@ catching up to network:
     3) Replay or force-apply deltas, depending on catchup mode
 
 */
-using std::placeholders::_1;
-using std::placeholders::_2;
-using std::placeholders::_3;
-using std::placeholders::_4;
 using namespace std;
 
 namespace stellar
@@ -632,77 +628,78 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration)
         configuration.mode() == CatchupConfiguration::Mode::OFFLINE;
     assert(offlineCatchup == mSyncingLedgers.empty());
 
+    using namespace std::placeholders;
     mApp.getCatchupManager().catchupHistory(
         configuration,
-        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3, _4));
+        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
 }
 
 void
-LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
-                                   CatchupWork::ProgressState progressState,
+LedgerManagerImpl::historyCaughtup(CatchupWork::ProgressState progressState,
                                    LedgerHeaderHistoryEntry const& lastClosed,
                                    CatchupConfiguration::Mode catchupMode)
 {
     assert(mCatchupState == CatchupState::APPLYING_HISTORY);
 
-    if (ec)
+    switch (progressState)
     {
-        CLOG(ERROR, "Ledger") << "Error catching up: " << ec.message();
-        CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+    case CatchupWork::ProgressState::APPLIED_BUCKETS:
+    {
+        LedgerTxn ltx(mApp.getLedgerTxnRoot());
+        auto header = ltx.loadHeader();
+        header.current() = lastClosed.header;
+        storeCurrentLedger(header.current());
+        ltx.commit();
+
+        mLastClosedLedger = lastClosed;
+        return;
+    }
+    case CatchupWork::ProgressState::APPLIED_TRANSACTIONS:
+    {
+        // In this case we should actually have been caught-up during the
+        // replay process and, if judged successful, our LCL should be the
+        // one provided as well.
+        assert(lastClosed.hash == mLastClosedLedger.hash);
+        assert(lastClosed.header == mLastClosedLedger.header);
+        return;
+    }
+    case CatchupWork::ProgressState::FINISHED:
+    {
+        break;
+    }
+    case CatchupWork::ProgressState::FAILED:
+    {
+        if (catchupMode == CatchupConfiguration::Mode::ONLINE)
+        {
+            CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+        }
+
         setState(LM_BOOTING_STATE);
         mApp.getCatchupManager().historyCaughtup();
         mSyncingLedgers = {};
         mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+        return;
+    }
+    default:
+    {
+        assert(false);
+    }
+    }
+
+    CLOG(INFO, "Ledger") << "Caught up to LCL from history: "
+                         << ledgerAbbrev(mLastClosedLedger);
+    mApp.getCatchupManager().historyCaughtup();
+
+    if (catchupMode == CatchupConfiguration::Mode::ONLINE)
+    {
+        CLOG(INFO, "Ledger") << "Catchup will apply buffered ledgers";
+        setCatchupState(CatchupState::APPLYING_BUFFERED_LEDGERS);
+        applyBufferedLedgers();
     }
     else
     {
-        switch (progressState)
-        {
-        case CatchupWork::ProgressState::APPLIED_BUCKETS:
-        {
-            LedgerTxn ltx(mApp.getLedgerTxnRoot());
-            auto header = ltx.loadHeader();
-            header.current() = lastClosed.header;
-            storeCurrentLedger(header.current());
-            ltx.commit();
-
-            mLastClosedLedger = lastClosed;
-            return;
-        }
-        case CatchupWork::ProgressState::APPLIED_TRANSACTIONS:
-        {
-            // In this case we should actually have been caught-up during the
-            // replay process and, if judged successful, our LCL should be the
-            // one provided as well.
-            assert(lastClosed.hash == mLastClosedLedger.hash);
-            assert(lastClosed.header == mLastClosedLedger.header);
-            return;
-        }
-        case CatchupWork::ProgressState::FINISHED:
-        {
-            break;
-        }
-        default:
-        {
-            assert(false);
-        }
-        }
-
-        CLOG(INFO, "Ledger") << "Caught up to LCL from history: "
-                             << ledgerAbbrev(mLastClosedLedger);
-        mApp.getCatchupManager().historyCaughtup();
-
-        if (catchupMode == CatchupConfiguration::Mode::ONLINE)
-        {
-            CLOG(INFO, "Ledger") << "Catchup will apply buffered ledgers";
-            setCatchupState(CatchupState::APPLYING_BUFFERED_LEDGERS);
-            applyBufferedLedgers();
-        }
-        else
-        {
-            CLOG(INFO, "Ledger") << "Catchup finished";
-            setState(LM_SYNCED_STATE);
-        }
+        CLOG(INFO, "Ledger") << "Catchup finished";
+        setState(LM_SYNCED_STATE);
     }
 }
 

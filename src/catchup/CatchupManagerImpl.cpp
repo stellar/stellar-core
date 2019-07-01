@@ -52,7 +52,7 @@ CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
     }
 
     mCatchupWork = mApp.getWorkScheduler().scheduleWork<CatchupWork>(
-        catchupConfiguration, handler, Work::RETRY_NEVER);
+        catchupConfiguration, handler);
 }
 
 std::string
