@@ -88,6 +88,15 @@ ApplyTransactionsWork::getNextLedger(
         }
 
         upgrades = mHeaderHistory.header.scpValue.upgrades;
+        upgrades.erase(
+            std::remove_if(upgrades.begin(), upgrades.end(),
+                           [](auto const& opaqueUpgrade) {
+                               LedgerUpgrade upgrade;
+                               xdr::xdr_from_opaque(opaqueUpgrade, upgrade);
+                               return (upgrade.type() ==
+                                       LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+                           }),
+            upgrades.end());
         if (!upgrades.empty())
         {
             return true;
@@ -98,6 +107,39 @@ ApplyTransactionsWork::getNextLedger(
 void
 ApplyTransactionsWork::onReset()
 {
+    // Upgrade max transaction set size if necessary
+    auto& lm = mApp.getLedgerManager();
+    auto const& lclHeader = lm.getLastClosedLedgerHeader();
+    auto const& header = lclHeader.header;
+
+    // If ledgerVersion < 11 then we need to support at least mMaxOperations
+    // transactions to guarantee we can support mMaxOperations operations no
+    // matter how they are distributed (worst case one per transaction).
+    //
+    // If ledgerVersion >= 11 then we need to support at least mMaxOperations
+    // operations.
+    //
+    // So we can do the same upgrade in both cases.
+    if (header.maxTxSetSize < mMaxOperations)
+    {
+        LedgerUpgrade upgrade(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        upgrade.newMaxTxSetSize() = mMaxOperations;
+        auto opaqueUpgrade = xdr::xdr_to_opaque(upgrade);
+
+        TransactionSet txSetXDR;
+        txSetXDR.previousLedgerHash = lclHeader.hash;
+        auto txSet = std::make_shared<TxSetFrame>(mNetworkID, txSetXDR);
+
+        StellarValue sv;
+        sv.txSetHash = txSet->getContentsHash();
+        sv.closeTime = header.scpValue.closeTime + 1;
+        sv.upgrades.emplace_back(opaqueUpgrade.begin(), opaqueUpgrade.end());
+
+        LedgerCloseData closeData(header.ledgerSeq + 1, txSet, sv);
+        lm.closeLedger(closeData);
+    }
+
+    // Prepare the HistoryArchiveStream
     mStream = std::make_unique<HistoryArchiveStream>(mDownloadDir, mRange,
                                                      mApp.getHistoryManager());
 }
@@ -115,16 +157,17 @@ ApplyTransactionsWork::onRun()
 
     auto& lm = mApp.getLedgerManager();
     auto const& lclHeader = lm.getLastClosedLedgerHeader();
+    auto const& header = lclHeader.header;
 
     auto txSet = std::make_shared<SimulationTxSetFrame>(
         mNetworkID, lclHeader.hash, transactions, results);
 
     StellarValue sv;
     sv.txSetHash = txSet->getContentsHash();
-    sv.closeTime = lclHeader.header.scpValue.closeTime + 1;
+    sv.closeTime = header.scpValue.closeTime + 1;
     sv.upgrades.insert(sv.upgrades.begin(), upgrades.begin(), upgrades.end());
 
-    LedgerCloseData closeData(lclHeader.header.ledgerSeq + 1, txSet, sv);
+    LedgerCloseData closeData(header.ledgerSeq + 1, txSet, sv);
     lm.closeLedger(closeData);
     return State::WORK_RUNNING;
 }
