@@ -395,11 +395,6 @@ CommandLine::adjustCommandLine(clara::detail::Args const& args)
 optional<CommandLine::Command>
 CommandLine::selectCommand(std::string const& commandName)
 {
-    if (commandName.empty())
-    {
-        return nullopt<Command>();
-    }
-
     auto command = std::find_if(
         std::begin(mCommands), std::end(mCommands),
         [&](Command const& command) { return command.name() == commandName; });
@@ -883,17 +878,14 @@ handleCommandLine(int argc, char* const* argv)
           runWriteQuorum},
          {"version", "print version information", runVersion}}};
 
-    auto ajustedCommandLine = commandLine.adjustCommandLine({argc, argv});
-    auto command = commandLine.selectCommand(ajustedCommandLine.first);
-    if (!command)
-    {
-        command = commandLine.selectCommand("help");
-    }
+    auto adjustedCommandLine = commandLine.adjustCommandLine({argc, argv});
+    auto command = commandLine.selectCommand(adjustedCommandLine.first);
+    bool didDefaultToHelp = command->name() != adjustedCommandLine.first;
 
     auto exeName = "stellar-core";
     auto commandName = fmt::format("{0} {1}", exeName, command->name());
     auto args = CommandLineArgs{exeName, commandName, command->description(),
-                                ajustedCommandLine.second};
+                                adjustedCommandLine.second};
     if (command->name() == "run")
     {
         // run outside of catch block so that we properly capture crashes
@@ -902,7 +894,8 @@ handleCommandLine(int argc, char* const* argv)
 
     try
     {
-        return command->run(args);
+        int res = command->run(args);
+        return didDefaultToHelp ? 1 : res;
     }
     catch (std::exception& e)
     {
