@@ -161,8 +161,8 @@ ApplicationImpl::newDB()
 {
     mDatabase->initialize();
     mDatabase->upgradeToCurrentSchema();
-    mLedgerManager->startNewLedger();
     mBucketManager->dropAll();
+    mLedgerManager->startNewLedger();
 }
 
 void
