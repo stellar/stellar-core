@@ -69,6 +69,13 @@ tryRead(XDRInputFileStream& in, StellarMessage& m)
     }
 }
 
+void
+seedRandomness()
+{
+    srand(1);
+    gRandomEngine.seed(1);
+}
+
 #define PERSIST_MAX 10000000
 #define INITIATOR 1
 #define ACCEPTOR 0
@@ -80,6 +87,8 @@ fuzz(std::string const& filename, el::Level logLevel,
     Logging::setLogLevel(logLevel, nullptr);
     LOG(INFO) << "Fuzzing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Fuzz input is in " << filename;
+
+    seedRandomness();
 
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto confGen = [](int instanceNumber) {
@@ -139,6 +148,8 @@ fuzz(std::string const& filename, el::Level logLevel,
         while (tryRead(in, msg))
         {
             LOG(INFO) << "Fuzzer injecting message." << msgSummary(msg);
+
+            seedRandomness();
 
             auto nodeids = simulation->getNodeIDs();
 
