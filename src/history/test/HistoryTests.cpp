@@ -98,8 +98,7 @@ TEST_CASE("HistoryArchiveState get_put", "[history]")
     REQUIRE(has2.currentLedger == 0x1234);
 }
 
-TEST_CASE("History bucket verification",
-          "[history][bucketverification][batching]")
+TEST_CASE("History bucket verification", "[history][catchup]")
 {
     /* Tests bucket verification stage of catchup. Assumes ledger chain
      * verification was successful. **/
@@ -283,7 +282,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     }
 }
 
-TEST_CASE("History publish", "[history]")
+TEST_CASE("History publish", "[history][publish]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
@@ -447,7 +446,7 @@ TEST_CASE("History catchup with different modes",
     }
 }
 
-TEST_CASE("History prefix catchup", "[history][catchup][prefixcatchup]")
+TEST_CASE("History prefix catchup", "[history][catchup]")
 {
     CatchupSimulation catchupSimulation{};
 
@@ -483,7 +482,7 @@ TEST_CASE("History prefix catchup", "[history][catchup][prefixcatchup]")
 }
 
 TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
-          "[history][historyinitentry][acceptance]")
+          "[history][bucket][acceptance]")
 {
     uint32_t newProto =
         Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY;
@@ -565,7 +564,7 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
 }
 
 TEST_CASE("Publish catchup alternation with stall",
-          "[history][catchup][catchupalternation][acceptance]")
+          "[history][catchup][acceptance]")
 {
     CatchupSimulation catchupSimulation{};
     auto& lm = catchupSimulation.getApp().getLedgerManager();
@@ -622,8 +621,7 @@ TEST_CASE("Publish catchup alternation with stall",
     REQUIRE(catchupSimulation.catchupOnline(minimalApp, targetLedger, 5));
 }
 
-TEST_CASE("Repair missing buckets via history",
-          "[history][historybucketrepair]")
+TEST_CASE("Repair missing buckets via history", "[history][bucket]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
@@ -658,7 +656,7 @@ TEST_CASE("Repair missing buckets via history",
     REQUIRE(hash1 == hash2);
 }
 
-TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
+TEST_CASE("Repair missing buckets fails", "[history][bucket]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
@@ -755,7 +753,7 @@ TEST_CASE("HAS in publish queue is resolved", "[history]")
     REQUIRE(has.allBuckets() == pqb);
 }
 
-TEST_CASE("persist publish queue", "[history][acceptance]")
+TEST_CASE("persist publish queue", "[history][publish][acceptance]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
@@ -825,7 +823,7 @@ TEST_CASE("persist publish queue", "[history][acceptance]")
 // The idea with this test is that we join a network and somehow get a gap
 // in the SCP voting sequence while we're trying to catchup. This will let
 // system catchup just before the gap.
-TEST_CASE("catchup with a gap", "[history][catchup][catchupstall][acceptance]")
+TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
@@ -861,7 +859,7 @@ TEST_CASE("catchup with a gap", "[history][catchup][catchupstall][acceptance]")
  * Test a variety of orderings of CATCHUP_RECENT mode, to shake out boundary
  * cases.
  */
-TEST_CASE("Catchup recent", "[history][catchup][catchuprecent][acceptance]")
+TEST_CASE("Catchup recent", "[history][catchup][acceptance]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -911,7 +909,7 @@ TEST_CASE("Catchup recent", "[history][catchup][catchuprecent][acceptance]")
 /*
  * Test a variety of LCL/initLedger/count modes.
  */
-TEST_CASE("Catchup manual", "[history][catchup][catchupmanual][acceptance]")
+TEST_CASE("Catchup manual", "[history][catchup][acceptance]")
 {
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(6);
