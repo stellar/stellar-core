@@ -147,6 +147,18 @@ fuzz(std::string const& filename, el::Level logLevel,
         StellarMessage msg;
         while (tryRead(in, msg))
         {
+            // HELLO, AUTH and ERROR_MSG messages cause the connection between
+            // the peers to drop. Since peer connections are only established
+            // preceding the persistent loop, a dropped peer is not only
+            // inconvenient, it also confuses the fuzzer. Consider a msg A sent
+            // before a peer is dropped and after a peer is dropped. The two,
+            // even though the same message, will take drastically different
+            // execution paths -- the fuzzer's main metric for determinism
+            // (stability) and binary coverage.
+            if (msg.type() == HELLO || msg.type() == AUTH ||
+                msg.type() == ERROR_MSG)
+                continue;
+
             LOG(INFO) << "Fuzzer injecting message." << msgSummary(msg);
 
             seedRandomness();
@@ -193,6 +205,14 @@ genfuzz(std::string const& filename)
         try
         {
             StellarMessage m(gen(10));
+            // As more thoroughly explained above, we filter these messages
+            // since they cause peers to drop, leading to non-deterministic
+            // message injections, confusing the fuzzer.
+            while ((m.type() == HELLO || m.type() == AUTH ||
+                    m.type() == ERROR_MSG))
+            {
+                m = gen(10);
+            }
             out.writeOne(m);
             LOG(INFO) << "Message " << i << ": " << msgSummary(m);
         }
