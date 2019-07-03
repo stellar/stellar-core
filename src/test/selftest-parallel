@@ -13,7 +13,7 @@ if [[ -z "$RUN_PARTITIONS" ]]; then
     RUN_PARTITIONS=$(seq 0 $((NUM_PARTITIONS-1)));
 fi
 if [[ -z "$TEST_SPEC" ]]; then
-    TEST_SPEC="~[.]" # All non-hidden tests by default
+    TEST_SPEC="~[acceptance]~[.]" # All non-hidden non-acceptance tests by default
 fi
 if [[ -z "$BATCHSIZE" ]]; then
     # number of tests to run per run per job slot
