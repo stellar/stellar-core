@@ -52,6 +52,9 @@ class Simulation
     std::vector<NodeID> getNodeIDs();
 
     void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
+    // Returns LoopbackPeerConnection given initiator, acceptor pair or nullptr
+    std::shared_ptr<LoopbackPeerConnection>
+    getLoopbackConnection(NodeID const& initiator, NodeID const& acceptor);
     void startAllNodes();
     void stopAllNodes();
     void removeNode(NodeID const& id);
