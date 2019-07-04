@@ -19,6 +19,10 @@ class QuorumIntersectionChecker
     create(stellar::QuorumTracker::QuorumMap const& qmap,
            stellar::Config const& cfg, bool quiet = false);
 
+    static std::set<std::set<PublicKey>>
+    getIntersectionCriticalGroups(stellar::QuorumTracker::QuorumMap const& qmap,
+                                  stellar::Config const& cfg);
+
     virtual ~QuorumIntersectionChecker(){};
     virtual bool networkEnjoysQuorumIntersection() const = 0;
     virtual size_t getMaxQuorumsFound() const = 0;
