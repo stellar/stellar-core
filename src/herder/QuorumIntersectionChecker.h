@@ -17,7 +17,7 @@ class QuorumIntersectionChecker
   public:
     static std::shared_ptr<QuorumIntersectionChecker>
     create(stellar::QuorumTracker::QuorumMap const& qmap,
-           stellar::Config const& cfg);
+           stellar::Config const& cfg, bool quiet = false);
 
     virtual ~QuorumIntersectionChecker(){};
     virtual bool networkEnjoysQuorumIntersection() const = 0;

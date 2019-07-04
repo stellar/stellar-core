@@ -486,6 +486,10 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     mutable Stats mStats;
     bool mLogTrace;
 
+    // When run as a subroutine of criticality-checking, we inhibit
+    // INFO/ERROR/WARNING level messages.
+    bool mQuiet;
+
     // State to capture a counterexample found during search, for later
     // reporting.
     mutable std::pair<std::vector<stellar::PublicKey>,
@@ -521,7 +525,8 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
 
   public:
     QuorumIntersectionCheckerImpl(stellar::QuorumTracker::QuorumMap const& qmap,
-                                  stellar::Config const& cfg);
+                                  stellar::Config const& cfg,
+                                  bool quiet = false);
     bool networkEnjoysQuorumIntersection() const override;
 
     std::pair<std::vector<stellar::PublicKey>, std::vector<stellar::PublicKey>>

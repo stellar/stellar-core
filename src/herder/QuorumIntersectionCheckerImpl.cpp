@@ -330,8 +330,11 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 ////////////////////////////////////////////////////////////////////////////////
 
 QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
-    QuorumTracker::QuorumMap const& qmap, Config const& cfg)
-    : mCfg(cfg), mLogTrace(Logging::logTrace("SCP")), mTSC(mGraph)
+    QuorumTracker::QuorumMap const& qmap, Config const& cfg, bool quiet)
+    : mCfg(cfg)
+    , mLogTrace(Logging::logTrace("SCP"))
+    , mQuiet(quiet)
+    , mTSC(mGraph)
 {
     buildGraph(qmap);
     buildSCCs();
@@ -553,7 +556,10 @@ QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
         out << this->nodeName(i);
         this->mPotentialSplit.second.emplace_back(this->mBitNumPubKeys.at(i));
     });
-    CLOG(ERROR, "SCP") << err.str();
+    if (!mQuiet)
+    {
+        CLOG(ERROR, "SCP") << err.str();
+    }
 }
 
 bool
@@ -695,9 +701,11 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
     // and filter out nodes that aren't in the main SCC.
     bool foundDisjoint = false;
     size_t nNodes = mPubKeyBitNums.size();
-    CLOG(INFO, "SCP") << "Calculating " << nNodes
-                      << "-node network quorum intersection";
-
+    if (!mQuiet)
+    {
+        CLOG(INFO, "SCP") << "Calculating " << nNodes
+                          << "-node network quorum intersection";
+    }
     for (auto const& scc : mTSC.mSCCs)
     {
         if (scc == mMaxSCC)
@@ -737,8 +745,11 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
         // We vacuously "enjoy quorum intersection" if there are no quorums,
         // though this is probably enough of a potential problem itself that
         // it's worth warning about.
-        CLOG(WARNING, "SCP")
-            << "No quorum found in transitive closure (possible network halt)";
+        if (!mQuiet)
+        {
+            CLOG(WARNING, "SCP") << "No quorum found in transitive closure "
+                                    "(possible network halt)";
+        }
         return true;
     }
 
@@ -759,8 +770,8 @@ namespace stellar
 {
 std::shared_ptr<QuorumIntersectionChecker>
 QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
-                                  Config const& cfg)
+                                  Config const& cfg, bool quiet)
 {
-    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg);
+    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg, quiet);
 }
 }
