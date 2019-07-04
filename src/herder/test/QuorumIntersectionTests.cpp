@@ -7,6 +7,7 @@
 #include "herder/QuorumIntersectionChecker.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
+#include "scp/LocalNode.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -750,4 +751,92 @@ TEST_CASE("quorum intersection scaling test",
     cfg = configureShortNames(cfg, orgs);
     auto qic = QuorumIntersectionChecker::create(qm, cfg);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
+}
+
+static void
+debugQmap(Config const& cfg, QuorumTracker::QuorumMap const& qm)
+{
+    for (auto const& pair : qm)
+    {
+        if (pair.second)
+        {
+            auto str =
+                LocalNode::toJson(*pair.second, [&cfg](PublicKey const& k) {
+                    return cfg.toShortString(k);
+                });
+            CLOG(DEBUG, "SCP")
+                << "qmap[" << cfg.toShortString(pair.first) << "] = " << str;
+        }
+        else
+        {
+            CLOG(DEBUG, "SCP")
+                << "qmap[" << cfg.toShortString(pair.first) << "] = nullptr";
+        }
+    }
+}
+
+TEST_CASE("quorum intersection criticality",
+          "[herder][quorumintersectioncriticality]")
+{
+    // An org is "critical" if the network splits when it is made "fickle".
+    //
+    // Fickleness means reducing a node's threshold to "2 of {self} + {others}"
+    // where "{others}" is an innerset with threshold of 1 and containing the
+    // set of nodes depending on self. This over-approximates "bad
+    // configuration", is as bad as we can imagine making a configuration
+    // without making the node actually byzantine.
+    //
+    // Here we build a graph with two main "groups" of orgs {0,1,2} and {4,5,6},
+    // with a critical org3 that, under normal/good configuration, will be a
+    // bridge between the groups.
+    //
+    // The {4,5,6} group is fully connected so can meet a 3-of-3 quorum on its
+    // own (at 67%) but the {0,1,2} isn't fully connected: each node in it needs
+    // the agreement of org3, and org3 itself requires 5/6 agreement, so will
+    // always agree with both groups, bridging them.
+    //
+    // IOW, in "good" configuration, this graph enjoys quorum intersection.
+    //
+    // But if org3 becomes misconfigured (fickle) it can decide it has adequate
+    // quorum with only the {0,1,2} group, splitting them off from the {4,5,6}
+    // group, which will continue along on their own.
+    //
+    //
+    //   org0 <-+  +-> org4 <-+
+    //    ^     |  |    ^     |
+    //    |     |  |    |     |
+    //    v     v  v    v     |
+    // org1 <-> org3   org5   |
+    //    ^     ^  ^    ^     |
+    //    |     |  |    |     |
+    //    v     |  |    v     |
+    //   org2 <-+  +-> org6 <-+
+    //
+
+    auto orgs = generateOrgs(7, {1});
+    auto qm = interconnectOrgsBidir(orgs, {
+                                              {0, 1},
+                                              {1, 2},
+
+                                              {4, 5},
+                                              {4, 6},
+                                              {5, 6},
+
+                                              {0, 3},
+                                              {1, 3},
+                                              {2, 3},
+                                              {4, 3},
+                                              {6, 3},
+                                          });
+
+    Config cfg(getTestConfig());
+    cfg = configureShortNames(cfg, orgs);
+    debugQmap(cfg, qm);
+    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    REQUIRE(qic->networkEnjoysQuorumIntersection());
+
+    auto groups =
+        QuorumIntersectionChecker::getIntersectionCriticalGroups(qm, cfg);
+    REQUIRE(groups.size() == 1);
+    REQUIRE(groups == std::set<std::set<PublicKey>>{{orgs[3][0]}});
 }
