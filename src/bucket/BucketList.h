@@ -406,6 +406,13 @@ class BucketList
     // catching up from buckets loaded over the network.
     void restartMerges(Application& app, uint32_t maxProtocolVersion);
 
+    // Run through the levels and check for FutureBuckets that are done merging;
+    // if so, call resolve() on them, changing state from FB_LIVE_INPUTS to
+    // FB_LIVE_OUTPUT. This helps eagerly release no-longer-needed inputs and
+    // avoid propagating partially-completed BucketList states to
+    // HistoryArchiveStates, that can cause repeated merges when re-activated.
+    void resolveAnyReadyFutures();
+
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing
     // `currLedger`. The bucketlist will incorporate these into the smallest

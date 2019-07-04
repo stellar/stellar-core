@@ -411,6 +411,18 @@ BucketList::getLevel(uint32_t i)
 }
 
 void
+BucketList::resolveAnyReadyFutures()
+{
+    for (auto& level : mLevels)
+    {
+        if (level.getNext().isMerging() && level.getNext().mergeComplete())
+        {
+            level.getNext().resolve();
+        }
+    }
+}
+
+void
 BucketList::addBatch(Application& app, uint32_t currLedger,
                      uint32_t currLedgerProtocol,
                      std::vector<LedgerEntry> const& initEntries,
