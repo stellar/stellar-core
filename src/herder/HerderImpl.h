@@ -204,6 +204,7 @@ class HerderImpl : public Herder
         bool mRecalculating{false};
         std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
             mPotentialSplit{};
+        std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};
 
         bool
         hasAnyResults() const
