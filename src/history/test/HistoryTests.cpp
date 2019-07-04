@@ -705,6 +705,55 @@ TEST_CASE("Publish catchup via s3", "[!hide][s3]")
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 }
 
+TEST_CASE("HAS in publish queue is resolved", "[history]")
+{
+    // In this test we generate some buckets and cause a checkpoint to be
+    // published, checking that the (cached) set of buckets referenced by the
+    // publish queue is/was equal to the set we'd expect from a fully-resolved
+    // HAS. This test is unfortunately quite "aware" of the internals of the
+    // subsystems it's touching; they don't really have well-developed testing
+    // interfaces. It's also a bit sensitive to the amount of work done in a
+    // single crank and the fact that we're stopping the crank just before
+    // firing the callback that clears the cached set of buckets referenced by
+    // the publish queue.
+
+    Config cfg(getTestConfig(0));
+    cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
+    TmpDirHistoryConfigurator tcfg;
+    cfg = tcfg.configure(cfg, true);
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    app->start();
+    auto& hm = app->getHistoryManager();
+    auto& lm = app->getLedgerManager();
+    auto& bl = app->getBucketManager().getBucketList();
+
+    while (hm.getPublishQueueCount() != 1)
+    {
+        uint32_t ledger = lm.getLastClosedLedgerNum() + 1;
+        bl.addBatch(*app, ledger, cfg.LEDGER_PROTOCOL_VERSION, {},
+                    LedgerTestUtils::generateValidLedgerEntries(8), {});
+
+        // This serves as a synchronization barrier on the worker threads doing
+        // merges, while _not_ intrusively modifying the BucketList. Without
+        // this barrier there's still a possible race between a merge started
+        // at some ledger and the publsih-capture of the FutureBucket, but this
+        // is only going to be a problem for a short/small merge it's not very
+        // bad to re-run at publish time.
+        HistoryArchiveState has(
+            app->getLedgerManager().getLastClosedLedgerNum(),
+            app->getBucketManager().getBucketList());
+        has.resolveAllFutures();
+
+        clock.crank(true);
+    }
+    auto pqb = hm.getBucketsReferencedByPublishQueue();
+    HistoryArchiveState has(app->getLedgerManager().getLastClosedLedgerNum(),
+                            app->getBucketManager().getBucketList());
+    has.resolveAllFutures();
+    REQUIRE(has.allBuckets() == pqb);
+}
+
 TEST_CASE("persist publish queue", "[history]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
