@@ -315,6 +315,70 @@ throwIf(BumpSequenceResult const& result)
 }
 
 void
+throwIf(OperationResult const& result)
+{
+    switch (result.code())
+    {
+    case opINNER:
+        break;
+    case opBAD_AUTH:
+        throw ex_opBAD_AUTH{};
+        break;
+    case opNO_ACCOUNT:
+        throw ex_opNO_ACCOUNT{};
+        break;
+    case opNOT_SUPPORTED:
+        throw ex_opNOT_SUPPORTED{};
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    };
+
+    switch (result.tr().type())
+    {
+    case CREATE_ACCOUNT:
+        throwIf(result.tr().createAccountResult());
+        break;
+    case PAYMENT:
+        throwIf(result.tr().paymentResult());
+        break;
+    case PATH_PAYMENT:
+        throwIf(result.tr().pathPaymentResult());
+        break;
+    case MANAGE_SELL_OFFER:
+        throwIf(result.tr().manageSellOfferResult());
+        break;
+    case CREATE_PASSIVE_SELL_OFFER:
+        throwIf(result.tr().createPassiveSellOfferResult());
+        break;
+    case SET_OPTIONS:
+        throwIf(result.tr().setOptionsResult());
+        break;
+    case CHANGE_TRUST:
+        throwIf(result.tr().changeTrustResult());
+        break;
+    case ALLOW_TRUST:
+        throwIf(result.tr().allowTrustResult());
+        break;
+    case ACCOUNT_MERGE:
+        throwIf(result.tr().accountMergeResult());
+        break;
+    case INFLATION:
+        throwIf(result.tr().inflationResult());
+        break;
+    case MANAGE_DATA:
+        throwIf(result.tr().manageDataResult());
+        break;
+    case BUMP_SEQUENCE:
+        throwIf(result.tr().bumpSeqResult());
+        break;
+    case MANAGE_BUY_OFFER:
+        throwIf(result.tr().manageBuyOfferResult());
+        break;
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -336,65 +400,9 @@ throwIf(TransactionResult const& result)
         throw ex_UNKNOWN{};
     }
 
-    auto opResult = result.result.results()[0];
-    switch (opResult.code())
+    for (auto const& opResult : result.result.results())
     {
-    case opINNER:
-        break;
-    case opBAD_AUTH:
-        throw ex_opBAD_AUTH{};
-        break;
-    case opNO_ACCOUNT:
-        throw ex_opNO_ACCOUNT{};
-        break;
-    case opNOT_SUPPORTED:
-        throw ex_opNOT_SUPPORTED{};
-        break;
-    default:
-        throw ex_UNKNOWN{};
-    };
-
-    switch (opResult.tr().type())
-    {
-    case CREATE_ACCOUNT:
-        throwIf(opResult.tr().createAccountResult());
-        break;
-    case PAYMENT:
-        throwIf(opResult.tr().paymentResult());
-        break;
-    case PATH_PAYMENT:
-        throwIf(opResult.tr().pathPaymentResult());
-        break;
-    case MANAGE_SELL_OFFER:
-        throwIf(opResult.tr().manageSellOfferResult());
-        break;
-    case CREATE_PASSIVE_SELL_OFFER:
-        throwIf(opResult.tr().createPassiveSellOfferResult());
-        break;
-    case SET_OPTIONS:
-        throwIf(opResult.tr().setOptionsResult());
-        break;
-    case CHANGE_TRUST:
-        throwIf(opResult.tr().changeTrustResult());
-        break;
-    case ALLOW_TRUST:
-        throwIf(opResult.tr().allowTrustResult());
-        break;
-    case ACCOUNT_MERGE:
-        throwIf(opResult.tr().accountMergeResult());
-        break;
-    case INFLATION:
-        throwIf(opResult.tr().inflationResult());
-        break;
-    case MANAGE_DATA:
-        throwIf(opResult.tr().manageDataResult());
-        break;
-    case BUMP_SEQUENCE:
-        throwIf(opResult.tr().bumpSeqResult());
-        break;
-    case MANAGE_BUY_OFFER:
-        throwIf(opResult.tr().manageBuyOfferResult());
-        break;
+        throwIf(opResult);
     }
 }
 }

@@ -125,7 +125,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     // by advancing the ledgerSeq.
     ++ltx.loadHeader().current().ledgerSeq;
 
-    bool check = false;
+    auto check = false;
+    auto earlyFailure = false;
     TransactionResult checkResult;
     TransactionResultCode code;
     AccountEntry srcAccountBefore;
@@ -142,7 +143,11 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         // the same way)
         // * a valid tx can fail later
         code = checkResult.result.code();
-        if (code != txNO_ACCOUNT)
+        earlyFailure = code == txMISSING_OPERATION || code == txTOO_EARLY ||
+                       code == txTOO_LATE || code == txINSUFFICIENT_FEE ||
+                       code == txNO_ACCOUNT || code == txBAD_SEQ;
+
+        if (!earlyFailure)
         {
             srcAccountBefore = loadAccount(ltxFeeProc, tx->getSourceID(), true)
                                    .current()
@@ -192,25 +197,47 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         }
         REQUIRE((!res || tx->getResultCode() == txSUCCESS));
 
-        // checks that the failure is the same if pre checks failed
         if (!check)
         {
-            if (tx->getResultCode() != txFAILED)
+            if (checkResult.result.code() == txFAILED &&
+                tx->getResultCode() == txFAILED)
             {
-                REQUIRE(checkResult == tx->getResult());
-            }
-            else
-            {
+                // should be equal up to first failure
                 auto const& txResults = tx->getResult().result.results();
                 auto const& checkResults = checkResult.result.results();
                 for (auto i = 0u; i < txResults.size(); i++)
                 {
-                    REQUIRE(checkResults[i] == txResults[i]);
-                    if (checkResults[i].code() == opBAD_AUTH)
+                    try
                     {
-                        // results may not match after first opBAD_AUTH
+                        throwIf(checkResults[i]);
+                        throwIf(txResults[i]);
+                    }
+                    catch (...)
+                    {
                         break;
                     }
+
+                    REQUIRE(checkResults[i] == txResults[i]);
+                }
+            }
+            else
+            {
+                auto header = ltxTx.loadHeader();
+                if (tx->getResult().result.code() != txBAD_AUTH_EXTRA &&
+                    checkResult.result.code() != txBAD_AUTH_EXTRA &&
+                    (checkResult.result.code() != txBAD_SEQ ||
+                     header.current().ledgerVersion >= 10))
+                {
+                    REQUIRE(checkResult == tx->getResult());
+                }
+                else
+                {
+                    // see "merge one of signing accounts"/"by source, signed by
+                    // both case" here checkValid() can give txBAD_AUTH_EXTRA,
+                    // but all signatures are used during applying this cannot
+                    // happen in real life as transaction that didn't pass
+                    // checkValid() aren't applied this makes me wonder: why are
+                    // we checking results of apply here for !check?
                 }
             }
         }
@@ -221,10 +248,6 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 loadAccount(ltxTx, srcAccountBefore.accountID, false);
             if (srcAccountAfter)
             {
-                bool earlyFailure =
-                    (code == txMISSING_OPERATION || code == txTOO_EARLY ||
-                     code == txTOO_LATE || code == txINSUFFICIENT_FEE ||
-                     code == txBAD_SEQ);
                 // verify that the sequence number changed (v10+)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
@@ -300,6 +323,9 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     REQUIRE(tx->getResult().result.code() == validationResult.code);
     REQUIRE(tx->getResult().feeCharged == validationResult.fee);
 
+    auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
+    auto applyOk = applyCheck(tx, app);
+
     // do not try to apply if checkValid returned false
     if (!shouldValidateOk)
     {
@@ -316,8 +342,6 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
         break;
     }
 
-    auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
-    auto applyOk = applyCheck(tx, app);
     REQUIRE(tx->getResult() == applyResult);
     REQUIRE(applyOk == shouldApplyOk);
 };

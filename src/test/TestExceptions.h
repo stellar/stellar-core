@@ -12,6 +12,7 @@ namespace stellar
 namespace txtest
 {
 
+void throwIf(OperationResult const& result);
 void throwIf(TransactionResult const& result);
 
 class ex_txException
