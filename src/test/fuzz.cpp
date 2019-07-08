@@ -29,11 +29,11 @@
  *
  * It has two modes:
  *
- *   - In --genfuzz mode it spits out a small file containing a handful of
+ *   - In gen-fuzz mode it spits out a small file containing a handful of
  *     random StellarMessages. This is the mode you use to generate seed data
  *     for the external fuzzer's corpus.
  *
- *   - In --fuzz mode it reads back a file and appplies it to a pair of of
+ *   - In fuzz mode it reads back a file and appplies it to a pair of of
  *     stellar-cores in loopback mode, cranking the I/O loop to simulate
  *     receiving the messages one by one. It exits when it's read the input.
  *     This is the mode the external fuzzer will run its mutant inputs through.

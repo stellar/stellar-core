@@ -18,7 +18,7 @@ Of course feel free to make your own issues if you think something needs to adde
 
 # Basic quality checks
 
-Please ensure that all tests pass before submitting changes. The local testsuite can be run as `make check` or `src/stellar-core --test`,
+Please ensure that all tests pass before submitting changes. The local testsuite can be run as `make check` or `src/stellar-core test`,
 see [README](./README.md) for details on running tests.
 
 Code formatting wise, we have a `.clang-format` config file that you should use on modified files.
@@ -106,26 +106,26 @@ When done, note the path to `libc++.so` and `libc++abi.so` (that will be passed 
 
 ## Running tests basics
 run tests with:
-  `src/stellar-core --test`
+  `src/stellar-core test`
 
 run one test with:
-  `src/stellar-core --test  testName`
+  `src/stellar-core test  testName`
 
 run one test category with:
-  `src/stellar-core --test '[categoryName]'`
+  `src/stellar-core test '[categoryName]'`
 
 Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by comma-listing).
 
 Tests tagged as [.] or [hide] are not part of the default test test.
 
 supported test options can be seen with
-  `src/stellar-core --test --help`
+  `src/stellar-core test --help`
 
 display tests timing information:
-  `src/stellar-core --test -d yes '[categoryName]'`
+  `src/stellar-core test -d yes '[categoryName]'`
 
 xml test output (includes nested section information):
-  `src/stellar-core --test -r xml '[categoryName]'`
+  `src/stellar-core test -r xml '[categoryName]'`
 
 ## Running tests against postgreSQL
 
@@ -168,7 +168,7 @@ There are a few special stress tests included in the test suite. Those are *subs
 We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide].
 
 Then, running
-* `stellar-core --test [stress]` will run all the stress tests,
-* `stellar-core --test [foo-stress]` will run the stress tests for subsystem foo alone, and
-* neither `stellar-core --test` nor `stellar-core --test [foo]` will run stress tests.
+* `stellar-core test [stress]` will run all the stress tests,
+* `stellar-core test [foo-stress]` will run the stress tests for subsystem foo alone, and
+* neither `stellar-core test` nor `stellar-core test [foo]` will run stress tests.
 
