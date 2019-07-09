@@ -140,7 +140,12 @@ fuzz(std::string const& filename, el::Level logLevel,
         },
         std::chrono::milliseconds{500}, false);
 
+// "To make this work, the library and this shim need to be compiled in LLVM
+// mode using afl-clang-fast (other compiler wrappers will *not* work)."
+// -- AFL docs
+#ifdef AFL_LLVM_MODE
     while (__AFL_LOOP(PERSIST_MAX))
+#endif // AFL_LLVM_MODE
     {
         XDRInputFileStream in(MAX_MESSAGE_SIZE);
         in.open(filename);
