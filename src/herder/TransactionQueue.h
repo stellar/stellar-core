@@ -27,6 +27,28 @@ namespace stellar
 
 class Application;
 
+/**
+ * This class keeps recevied transaction that were not yet added into ledger
+ * and that are valid.
+ *
+ * Each account has an associated queue of transactions (with increasing
+ * sequence numbers), a cached value of total fees for those transactions and
+ * an age used to determine how long transaction should be kept before banning.
+ *
+ * After receiving transaction from network it should be added to this queue
+ * by tryAdd operation. If that succeds, it can be later removed from it in one
+ * of three ways:
+ * * removeAndReset() should be called after transaction is successully
+ *   included into some leger
+ * * ban() should be called after transaction became invalid for some reason
+ *   (i.e. its source account cannot afford it anymore)
+ * * shift() should be called after each ledger close, it bans transcations
+ *   that have associated age greater or equal to pendingDepth and removes
+ *   transactions that were banned for more than banDepth ledgers
+ *
+ * Current value of total fees, age and last sequence number of transaction in
+ * queue for given account can be returned by getAccountTransactionQueueInfo.
+ */
 class TransactionQueue
 {
   public:
@@ -39,33 +61,47 @@ class TransactionQueue
         ADD_STATUS_COUNT
     };
 
+    /*
+     * Information about queue of transaction for given account. mAge and
+     * mTotlaFees are stored in queue, byt mMaxSeq must be computed each
+     * time (its O(1) anyway).
+     */
     struct AccountTxQueueInfo
     {
         SequenceNumber mMaxSeq{0};
         int64_t mTotalFees{0};
+        int mAge{0};
 
         friend bool operator==(AccountTxQueueInfo const& x,
                                AccountTxQueueInfo const& y);
     };
 
-    struct TxMap
+    /**
+     * Queue of transaction for given account. mTotalFees is a sum of all
+     * feeBid() values from mTransactions. mAge is incremented each time
+     * shift() is called and allows for banning transactions.
+     */
+    struct AccountTransactions
     {
-        AccountTxQueueInfo mCurrentQInfo;
-        std::unordered_map<Hash, TransactionFramePtr> mTransactions;
-        void addTx(TransactionFramePtr);
-        void recalculate();
+        using Transactions = std::vector<TransactionFramePtr>;
+
+        int64_t mTotalFees{0};
+        int mAge{0};
+        Transactions mTransactions;
     };
-    typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
     explicit TransactionQueue(Application& app, int pendingDepth, int banDepth);
 
     AddResult tryAdd(TransactionFramePtr tx);
-    // it is the responsibility of the caller to always remove such sets of
-    // transactions that remaining ones have their sequence numbers increasing
-    // by one
-    void remove(std::vector<TransactionFramePtr> const& txs);
-    // remove oldest transactions and move all other transactions to slots older
-    // by one, this results in newest queue slot being empty
+    void removeAndReset(std::vector<TransactionFramePtr> const& txs);
+    void ban(std::vector<TransactionFramePtr> const& txs);
+
+    /**
+     * Increse age of each transaction queue. If that age now is equal to
+     * pendingDepth, all ot transaction on that queue are banned. Also
+     * increments age for each banned transaction and if that age became equal
+     * to banDepth, transaction get unbanned.
+     */
     void shift();
 
     AccountTxQueueInfo
@@ -73,15 +109,38 @@ class TransactionQueue
 
     int countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
+
     std::shared_ptr<TxSetFrame> toTxSet(Hash const& lclHash) const;
 
   private:
-    Application& mApp;
-    std::vector<medida::Counter*> mSizeByAge;
-    std::deque<AccountTxMap> mPendingTransactions;
-    std::deque<std::unordered_set<Hash>> mBannedTransactions;
+    /**
+     * Per account queue. Each queue has its own age, so it is easy to reset it
+     * when transaction for given account was included in ledger. It also
+     * allows for fast banning of all transaction that depend (have bigger
+     * sequence number) of just-removed invalid one in ban().
+     */
+    using PendingTransactions =
+        std::unordered_map<AccountID, AccountTransactions>;
+    /**
+     * Banned transactions are stored in deque of depth banDepth, so it is easy
+     * to unban all transactions that were banned for long enoug.
+     */
+    using BannedTransactions = std::deque<std::unordered_set<Hash>>;
 
-    bool contains(TransactionFramePtr tx) const;
+    Application& mApp;
+    int mPendingDepth;
+    std::vector<medida::Counter*> mSizeByAge;
+    PendingTransactions mPendingTransactions;
+    BannedTransactions mBannedTransactions;
+
+    bool contains(TransactionFramePtr tx);
+
+    using FindResult = std::pair<PendingTransactions::iterator,
+                                 AccountTransactions::Transactions::iterator>;
+    FindResult find(TransactionFramePtr const& tx);
+    using ExtractResult = std::pair<PendingTransactions::iterator,
+                                    std::vector<TransactionFramePtr>>;
+    ExtractResult extract(TransactionFramePtr const& tx);
 };
 
 static const char* TX_STATUS_STRING[static_cast<int>(

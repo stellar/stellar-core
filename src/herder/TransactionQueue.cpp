@@ -14,79 +14,14 @@
 #include <lib/util/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
+#include <numeric>
 
 namespace stellar
 {
 
-static uint64_t
-countTxs(TransactionQueue::AccountTxMap const& acc)
-{
-    uint64_t sz = 0;
-    for (auto const& a : acc)
-    {
-        sz += a.second->mTransactions.size();
-    }
-    return sz;
-}
-
-static std::shared_ptr<TransactionQueue::TxMap>
-findOrAdd(TransactionQueue::AccountTxMap& acc, AccountID const& aid)
-{
-    std::shared_ptr<TransactionQueue::TxMap> txmap;
-    auto i = acc.find(aid);
-    if (i == acc.end())
-    {
-        txmap = std::make_shared<TransactionQueue::TxMap>();
-        acc.emplace(std::make_pair(aid, txmap));
-    }
-    else
-    {
-        txmap = i->second;
-    }
-    return txmap;
-}
-
-bool
-TransactionQueue::isBanned(Hash const& hash) const
-{
-    return std::any_of(
-        std::begin(mBannedTransactions), std::end(mBannedTransactions),
-        [&](std::unordered_set<Hash> const& transactions) {
-            return transactions.find(hash) != std::end(transactions);
-        });
-}
-
-void
-TransactionQueue::TxMap::addTx(TransactionFramePtr tx)
-{
-    auto const& h = tx->getFullHash();
-    if (mTransactions.find(h) != mTransactions.end())
-    {
-        return;
-    }
-    mTransactions.emplace(std::make_pair(h, tx));
-    mCurrentQInfo.mMaxSeq = std::max(tx->getSeqNum(), mCurrentQInfo.mMaxSeq);
-    mCurrentQInfo.mTotalFees += tx->getFeeBid();
-}
-
-void
-TransactionQueue::TxMap::recalculate()
-{
-    mCurrentQInfo.mMaxSeq = 0;
-    mCurrentQInfo.mTotalFees = 0;
-    for (auto const& pair : mTransactions)
-    {
-        mCurrentQInfo.mMaxSeq =
-            std::max(pair.second->getSeqNum(), mCurrentQInfo.mMaxSeq);
-        mCurrentQInfo.mTotalFees += pair.second->getFeeBid();
-    }
-}
-
 TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
                                    int banDepth)
-    : mApp(app)
-    , mPendingTransactions(pendingDepth)
-    , mBannedTransactions(banDepth)
+    : mApp(app), mPendingDepth(pendingDepth), mBannedTransactions(banDepth)
 {
     for (auto i = 0; i < pendingDepth; i++)
     {
@@ -123,91 +58,118 @@ TransactionQueue::tryAdd(TransactionFramePtr tx)
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
-    auto map = findOrAdd(mPendingTransactions[0], tx->getSourceID());
-    map->addTx(tx);
-
+    auto& pendingForAccount = mPendingTransactions[tx->getSourceID()];
+    mSizeByAge[pendingForAccount.mAge]->inc();
+    pendingForAccount.mTotalFees += tx->getFeeBid();
+    pendingForAccount.mTransactions.emplace_back(tx);
     return TransactionQueue::AddResult::ADD_STATUS_PENDING;
 }
 
 void
-TransactionQueue::remove(std::vector<TransactionFramePtr> const& dropTxs)
+TransactionQueue::removeAndReset(
+    std::vector<TransactionFramePtr> const& dropTxs)
 {
-    for (auto& m : mPendingTransactions)
+    for (auto const& tx : dropTxs)
     {
-        if (m.empty())
+        auto extracted = extract(tx);
+        if (extracted.first != std::end(mPendingTransactions))
         {
-            continue;
+            extracted.first->second.mAge = 0;
         }
+    }
+}
 
-        std::unordered_set<std::shared_ptr<TxMap>> toRecalculate;
-
-        for (auto const& tx : dropTxs)
+void
+TransactionQueue::ban(std::vector<TransactionFramePtr> const& dropTxs)
+{
+    auto& bannedFront = mBannedTransactions.front();
+    for (auto const& tx : dropTxs)
+    {
+        for (auto const& extracted : extract(tx).second)
         {
-            auto const& acc = tx->getSourceID();
-            auto const& txID = tx->getFullHash();
-            auto i = m.find(acc);
-            if (i != m.end())
-            {
-                auto& txs = i->second->mTransactions;
-                auto j = txs.find(txID);
-                if (j != txs.end())
-                {
-                    txs.erase(j);
-                    if (txs.empty())
-                    {
-                        m.erase(i);
-                    }
-                    else
-                    {
-                        toRecalculate.insert(i->second);
-                    }
-                }
-            }
-        }
-
-        for (auto txm : toRecalculate)
-        {
-            txm->recalculate();
+            bannedFront.insert(extracted->getFullHash());
         }
     }
 }
 
 bool
-TransactionQueue::contains(TransactionFramePtr tx) const
+TransactionQueue::contains(TransactionFramePtr tx)
 {
-    return std::any_of(std::begin(mPendingTransactions),
-                       std::end(mPendingTransactions),
-                       [&](AccountTxMap const& map) {
-                           auto txMap = map.find(tx->getSourceID());
-                           if (txMap == map.end())
-                           {
-                               return false;
-                           }
+    return find(tx).first != std::end(mPendingTransactions);
+}
 
-                           auto& transactions = txMap->second->mTransactions;
-                           return transactions.find(tx->getFullHash()) !=
-                                  std::end(transactions);
-                       });
+TransactionQueue::FindResult
+TransactionQueue::find(TransactionFramePtr const& tx)
+{
+    auto const& acc = tx->getSourceID();
+    auto accIt = mPendingTransactions.find(acc);
+    if (accIt == std::end(mPendingTransactions))
+    {
+        return {std::end(mPendingTransactions), {}};
+    }
+
+    auto& txs = accIt->second.mTransactions;
+    auto txIt =
+        std::find_if(std::begin(txs), std::end(txs), [&](auto const& t) {
+            return tx->getSeqNum() == t->getSeqNum();
+        });
+    if (txIt == std::end(txs))
+    {
+        return {std::end(mPendingTransactions), {}};
+    }
+
+    if ((*txIt)->getFullHash() != tx->getFullHash())
+    {
+        return {std::end(mPendingTransactions), {}};
+    }
+
+    return {accIt, txIt};
+}
+
+TransactionQueue::ExtractResult
+TransactionQueue::extract(TransactionFramePtr const& tx)
+{
+    auto it = find(tx);
+    auto accIt = it.first;
+    if (accIt == std::end(mPendingTransactions))
+    {
+        return {std::end(mPendingTransactions), {}};
+    }
+
+    auto& txs = accIt->second.mTransactions;
+    auto txIt = it.second;
+    auto feeBid =
+        std::accumulate(txIt, std::end(txs), int64_t{0},
+                        [](int64_t fee, TransactionFramePtr const& tx) {
+                            return fee + tx->getFeeBid();
+                        });
+    accIt->second.mTotalFees -= feeBid;
+
+    auto movedTxs = std::vector<TransactionFramePtr>{};
+    std::move(txIt, std::end(txs), std::back_inserter(movedTxs));
+    txs.erase(txIt, std::end(txs));
+
+    if (accIt->second.mTransactions.empty())
+    {
+        mPendingTransactions.erase(accIt);
+        accIt = std::end(mPendingTransactions);
+    }
+
+    return {accIt, std::move(movedTxs)};
 }
 
 TransactionQueue::AccountTxQueueInfo
 TransactionQueue::getAccountTransactionQueueInfo(
     AccountID const& accountID) const
 {
-    AccountTxQueueInfo info;
-
-    for (auto& map : mPendingTransactions)
+    auto i = mPendingTransactions.find(accountID);
+    if (i == std::end(mPendingTransactions))
     {
-        auto i = map.find(accountID);
-        if (i != map.end())
-        {
-            auto& txmap = i->second;
-            info.mTotalFees += txmap->mCurrentQInfo.mTotalFees;
-            info.mMaxSeq = std::max(info.mMaxSeq, txmap->mCurrentQInfo.mMaxSeq);
-        }
+        return {0, 0, 0};
     }
 
-    return info;
+    return {i->second.mTransactions.back()->getSeqNum(), i->second.mTotalFees,
+            i->second.mAge};
 }
 
 void
@@ -216,21 +178,34 @@ TransactionQueue::shift()
     mBannedTransactions.pop_back();
     mBannedTransactions.emplace_front();
 
+    auto sizes = std::vector<int64_t>{};
+    sizes.resize(mPendingDepth);
+
     auto& bannedFront = mBannedTransactions.front();
-    for (auto const& map : mPendingTransactions.back())
+    auto end = std::end(mPendingTransactions);
+    auto it = std::begin(mPendingTransactions);
+    while (it != end)
     {
-        for (auto const& toBan : map.second->mTransactions)
+        if (mPendingDepth == ++(it->second.mAge))
         {
-            bannedFront.insert(toBan.first);
+            for (auto const& toBan : it->second.mTransactions)
+            {
+                bannedFront.insert(toBan->getFullHash());
+            }
+
+            it = mPendingTransactions.erase(it);
+        }
+        else
+        {
+            sizes[it->second.mAge] +=
+                static_cast<int64_t>(it->second.mTransactions.size());
+            ++it;
         }
     }
 
-    mPendingTransactions.pop_back();
-    mPendingTransactions.emplace_front();
-
-    for (auto i = 0; i < mPendingTransactions.size(); i++)
+    for (auto i = 0; i < sizes.size(); i++)
     {
-        mSizeByAge[i]->set_count(countTxs(mPendingTransactions[i]));
+        mSizeByAge[i]->set_count(sizes[i]);
     }
 }
 
@@ -240,6 +215,16 @@ TransactionQueue::countBanned(int index) const
     return static_cast<int>(mBannedTransactions[index].size());
 }
 
+bool
+TransactionQueue::isBanned(Hash const& hash) const
+{
+    return std::any_of(
+        std::begin(mBannedTransactions), std::end(mBannedTransactions),
+        [&](std::unordered_set<Hash> const& transactions) {
+            return transactions.find(hash) != std::end(transactions);
+        });
+}
+
 std::shared_ptr<TxSetFrame>
 TransactionQueue::toTxSet(Hash const& lclHash) const
 {
@@ -247,12 +232,9 @@ TransactionQueue::toTxSet(Hash const& lclHash) const
 
     for (auto const& m : mPendingTransactions)
     {
-        for (auto const& pair : m)
+        for (auto const& tx : m.second.mTransactions)
         {
-            for (auto const& tx : pair.second->mTransactions)
-            {
-                result->add(tx.second);
-            }
+            result->add(tx);
         }
     }
 

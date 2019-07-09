@@ -89,10 +89,11 @@ bool doesAccountExist(Application& app, PublicKey const& k);
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr
-transactionFromOperations(Application& app, SecretKey const& from,
-                          SequenceNumber seq,
-                          std::vector<Operation> const& ops);
+TransactionFramePtr transactionFromOperations(Application& app,
+                                              SecretKey const& from,
+                                              SequenceNumber seq,
+                                              std::vector<Operation> const& ops,
+                                              int fee = 0);
 
 Operation changeTrust(Asset const& asset, int64_t limit);
 
