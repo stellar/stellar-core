@@ -322,7 +322,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 
         b = std::make_shared<Bucket>(canonicalName, hash);
         {
-            mSharedBuckets.insert(std::make_pair(hash, b));
+            mSharedBuckets.emplace(hash, b);
             mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
     }
@@ -353,7 +353,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
             << "BucketManager::getBucketByHash(" << binToHex(hash)
             << ") found no bucket, making new one";
         auto p = std::make_shared<Bucket>(canonicalName, hash);
-        mSharedBuckets.insert(std::make_pair(hash, p));
+        mSharedBuckets.emplace(hash, p);
         mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
     }
@@ -368,13 +368,13 @@ BucketManagerImpl::getReferencedBuckets() const
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
-        auto rit = referenced.insert(level.getCurr()->getHash());
+        auto rit = referenced.emplace(level.getCurr()->getHash());
         if (rit.second)
         {
             CLOG(TRACE, "Bucket")
                 << binToHex(*rit.first) << " referenced by bucket list";
         }
-        rit = referenced.insert(level.getSnap()->getHash());
+        rit = referenced.emplace(level.getSnap()->getHash());
         if (rit.second)
         {
             CLOG(TRACE, "Bucket")
@@ -382,7 +382,7 @@ BucketManagerImpl::getReferencedBuckets() const
         }
         for (auto const& h : level.getNext().getHashes())
         {
-            rit = referenced.insert(hexToBin256(h));
+            rit = referenced.emplace(hexToBin256(h));
             if (rit.second)
             {
                 CLOG(TRACE, "Bucket") << h << " referenced by bucket list";
@@ -395,7 +395,7 @@ BucketManagerImpl::getReferencedBuckets() const
     auto lclBuckets = lclHas.allBuckets();
     for (auto const& h : lclBuckets)
     {
-        auto rit = referenced.insert(hexToBin256(h));
+        auto rit = referenced.emplace(hexToBin256(h));
         if (rit.second)
         {
             CLOG(TRACE, "Bucket") << h << " referenced by LCL";
@@ -407,7 +407,7 @@ BucketManagerImpl::getReferencedBuckets() const
     {
         for (auto const& h : pub)
         {
-            auto rit = referenced.insert(hexToBin256(h));
+            auto rit = referenced.emplace(hexToBin256(h));
             if (rit.second)
             {
                 CLOG(TRACE, "Bucket") << h << " referenced by publish queue";
