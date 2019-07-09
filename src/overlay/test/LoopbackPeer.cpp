@@ -113,7 +113,6 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                                  ? Peer::DropDirection::REMOTE_DROPPED_US
                                  : Peer::DropDirection::WE_DROPPED_REMOTE,
                              Peer::DropMode::IGNORE_WRITE_QUEUE);
-
             },
             "LoopbackPeer: drop");
     }
@@ -294,6 +293,13 @@ void
 LoopbackPeer::setCorked(bool c)
 {
     mCorked = c;
+}
+
+void
+LoopbackPeer::clearInAndOutQueues()
+{
+    mOutQueue.clear();
+    mInQueue = std::queue<xdr::msg_ptr>();
 }
 
 bool

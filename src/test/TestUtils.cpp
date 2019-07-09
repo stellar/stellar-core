@@ -27,7 +27,11 @@ crankSome(VirtualClock& clock)
 void
 shutdownWorkScheduler(Application& app)
 {
-    REQUIRE(!app.getClock().getIOContext().stopped());
+    if (app.getClock().getIOContext().stopped())
+    {
+        throw std::runtime_error("Work scheduler attempted to shutdown after "
+                                 "VirtualClock io context stopped.");
+    }
     app.getWorkScheduler().shutdown();
     while (app.getWorkScheduler().getState() != BasicWork::State::WORK_ABORTED)
     {

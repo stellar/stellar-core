@@ -11,9 +11,11 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/TCPPeer.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "simulation/Simulation.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
 
@@ -43,27 +45,6 @@
 namespace stellar
 {
 
-struct CfgDirGuard
-{
-    Config const& mConfig;
-    static void
-    clean(std::string const& path)
-    {
-        if (fs::exists(path))
-        {
-            fs::deltree(path);
-        }
-    }
-    CfgDirGuard(Config const& c) : mConfig(c)
-    {
-        clean(mConfig.BUCKET_DIR_PATH);
-    }
-    ~CfgDirGuard()
-    {
-        clean(mConfig.BUCKET_DIR_PATH);
-    }
-};
-
 std::string
 msgSummary(StellarMessage const& m)
 {
@@ -88,9 +69,16 @@ tryRead(XDRInputFileStream& in, StellarMessage& m)
     }
 }
 
-#define PERSIST_MAX 1000
-static unsigned int persist_cnt = 0;
+void
+seedRandomness()
+{
+    srand(1);
+    gRandomEngine.seed(1);
+}
 
+#define PERSIST_MAX 10000000
+#define INITIATOR 1
+#define ACCEPTOR 0
 void
 fuzz(std::string const& filename, el::Level logLevel,
      std::vector<std::string> const& metrics)
@@ -100,71 +88,111 @@ fuzz(std::string const& filename, el::Level logLevel,
     LOG(INFO) << "Fuzzing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Fuzz input is in " << filename;
 
-    Config cfg1, cfg2;
+    seedRandomness();
 
-    cfg1 = getTestConfig(0);
-    cfg2 = getTestConfig(1);
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto confGen = [](int instanceNumber) {
+        Config cfg = getTestConfig(instanceNumber);
+        cfg.MANUAL_CLOSE = true;
+        cfg.CATCHUP_COMPLETE = false;
+        cfg.CATCHUP_RECENT = 0;
+        cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
+        cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = UINT32_MAX;
+        cfg.PUBLIC_HTTP_PORT = false;
+        cfg.WORKER_THREADS = 1;
+        cfg.QUORUM_INTERSECTION_CHECKER = false;
+        cfg.PREFERRED_PEERS_ONLY = false;
+        cfg.RUN_STANDALONE = true;
 
-    cfg1.HTTP_PORT = 0;
-    cfg1.PUBLIC_HTTP_PORT = false;
-    cfg1.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-    cfg1.LOG_FILE_PATH = "fuzz-app-1.log";
-    cfg1.BUCKET_DIR_PATH = "fuzz-buckets-1";
-    cfg1.QUORUM_SET.threshold = 1;
-    cfg1.QUORUM_SET.validators.clear();
-    cfg1.QUORUM_SET.validators.push_back(
-        SecretKey::fromSeed(sha256("a")).getPublicKey());
+        return cfg;
+    };
+    auto simulation = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
+                                                   networkID, confGen);
 
-    cfg2.HTTP_PORT = 0;
-    cfg2.PUBLIC_HTTP_PORT = false;
-    cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-    cfg2.LOG_FILE_PATH = "fuzz-app-2.log";
-    cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
-    cfg2.QUORUM_SET.threshold = 1;
-    cfg2.QUORUM_SET.validators.clear();
-    cfg2.QUORUM_SET.validators.push_back(
-        SecretKey::fromSeed(sha256("b")).getPublicKey());
+    SIMULATION_CREATE_NODE(10);
+    SIMULATION_CREATE_NODE(11);
 
-    CfgDirGuard g1(cfg1);
-    CfgDirGuard g2(cfg2);
+    SCPQuorumSet qSet0;
+    qSet0.threshold = 2;
+    qSet0.validators.push_back(v10NodeID);
+    qSet0.validators.push_back(v11NodeID);
 
-restart:
-{
-    VirtualClock clock;
-    Application::pointer app1 = Application::create(clock, cfg1);
-    Application::pointer app2 = Application::create(clock, cfg2);
-    LoopbackPeerConnection loop(*app1, *app2);
-    while (!(loop.getInitiator()->isAuthenticated() &&
-             loop.getAcceptor()->isAuthenticated()))
+    simulation->addNode(v10SecretKey, qSet0);
+    simulation->addNode(v11SecretKey, qSet0);
+
+    simulation->addPendingConnection(v10SecretKey.getPublicKey(),
+                                     v11SecretKey.getPublicKey());
+
+    simulation->startAllNodes();
+
+    // crank until nodes are connected
+    simulation->crankUntil(
+        [&]() {
+            auto nodes = simulation->getNodes();
+            auto numberOfSimulationConnections =
+                nodes[ACCEPTOR]
+                    ->getOverlayManager()
+                    .getAuthenticatedPeersCount() +
+                nodes[INITIATOR]
+                    ->getOverlayManager()
+                    .getAuthenticatedPeersCount();
+            return numberOfSimulationConnections == 2;
+        },
+        std::chrono::milliseconds{500}, false);
+
+// "To make this work, the library and this shim need to be compiled in LLVM
+// mode using afl-clang-fast (other compiler wrappers will *not* work)."
+// -- AFL docs
+#ifdef AFL_LLVM_MODE
+    while (__AFL_LOOP(PERSIST_MAX))
+#endif // AFL_LLVM_MODE
     {
-        clock.crank(true);
-    }
+        XDRInputFileStream in(MAX_MESSAGE_SIZE);
+        in.open(filename);
+        StellarMessage msg;
+        while (tryRead(in, msg))
+        {
+            // HELLO, AUTH and ERROR_MSG messages cause the connection between
+            // the peers to drop. Since peer connections are only established
+            // preceding the persistent loop, a dropped peer is not only
+            // inconvenient, it also confuses the fuzzer. Consider a msg A sent
+            // before a peer is dropped and after a peer is dropped. The two,
+            // even though the same message, will take drastically different
+            // execution paths -- the fuzzer's main metric for determinism
+            // (stability) and binary coverage.
+            if (msg.type() == HELLO || msg.type() == AUTH ||
+                msg.type() == ERROR_MSG)
+                continue;
 
-    XDRInputFileStream in(MAX_MESSAGE_SIZE);
-    in.open(filename);
-    StellarMessage msg;
-    size_t i = 0;
-    while (tryRead(in, msg))
-    {
-        ++i;
-        LOG(INFO) << "Fuzzer injecting message " << i << ": "
-                  << msgSummary(msg);
-        auto peer = loop.getInitiator();
-        clock.postToCurrentCrank(
-            [peer, msg]() { peer->Peer::sendMessage(msg); });
-    }
-    while (loop.getAcceptor()->isConnected())
-    {
-        clock.crank(true);
-    }
-}
+            LOG(INFO) << "Fuzzer injecting message." << msgSummary(msg);
 
-    if (getenv("AFL_PERSISTENT") && persist_cnt++ < PERSIST_MAX)
-    {
-#ifndef _WIN32
-        raise(SIGSTOP);
-#endif
-        goto restart;
+            seedRandomness();
+
+            auto nodeids = simulation->getNodeIDs();
+
+            auto loopbackPeerConnection = simulation->getLoopbackConnection(
+                nodeids[INITIATOR], nodeids[ACCEPTOR]);
+
+            // ensure connection exists
+            assert(loopbackPeerConnection);
+
+            auto initiator = loopbackPeerConnection->getInitiator();
+            auto acceptor = loopbackPeerConnection->getAcceptor();
+
+            initiator->getApp().getClock().postToCurrentCrank(
+                [initiator, msg]() { initiator->Peer::sendMessage(msg); });
+
+            simulation->crankForAtMost(std::chrono::milliseconds{500}, false);
+
+            // clear all queues and cancel all events
+            initiator->clearInAndOutQueues();
+            acceptor->clearInAndOutQueues();
+
+            while (initiator->getApp().getClock().cancelAllEvents())
+                ;
+            while (acceptor->getApp().getClock().cancelAllEvents())
+                ;
+        }
     }
 }
 
@@ -182,6 +210,14 @@ genfuzz(std::string const& filename)
         try
         {
             StellarMessage m(gen(10));
+            // As more thoroughly explained above, we filter these messages
+            // since they cause peers to drop, leading to non-deterministic
+            // message injections, confusing the fuzzer.
+            while ((m.type() == HELLO || m.type() == AUTH ||
+                    m.type() == ERROR_MSG))
+            {
+                m = gen(10);
+            }
             out.writeOne(m);
             LOG(INFO) << "Message " << i << ": " << msgSummary(m);
         }

@@ -102,6 +102,8 @@ class LoopbackPeer : public Peer
     double getReorderProbability() const;
     void setReorderProbability(double d);
 
+    void clearInAndOutQueues();
+
     std::string
     getDropReason() const
     {
