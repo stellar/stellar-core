@@ -108,11 +108,6 @@ struct HistoryArchiveState
            CEREAL_NVP(currentBuckets));
     }
 
-    // Return true if all the 'next' bucket-futures that can be resolved are
-    // ready to be (instantaneously) resolved, or false if a merge is still
-    // in progress on one or more of them.
-    bool futuresAllReady() const;
-
     // Return true if all futures have already been resolved, otherwise false.
     bool futuresAllResolved() const;
 

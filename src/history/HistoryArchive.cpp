@@ -55,22 +55,6 @@ formatString(std::string const& templateString, Tokens const&... tokens)
 }
 
 bool
-HistoryArchiveState::futuresAllReady() const
-{
-    for (auto const& level : currentBuckets)
-    {
-        if (level.next.isMerging())
-        {
-            if (!level.next.mergeComplete())
-            {
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-bool
 HistoryArchiveState::futuresAllResolved() const
 {
     for (auto const& level : currentBuckets)
@@ -110,6 +94,9 @@ HistoryArchiveState::resolveAnyReadyFutures()
 void
 HistoryArchiveState::save(std::string const& outFile) const
 {
+    // We only ever write fully-resolved HASs to files, when making
+    // checkpoints. This may change in the future if we start publishing
+    // input-only HASs.
     assert(futuresAllResolved());
     std::ofstream out(outFile);
     cereal::JSONOutputArchive ar(out);
@@ -119,6 +106,9 @@ HistoryArchiveState::save(std::string const& outFile) const
 std::string
 HistoryArchiveState::toString() const
 {
+    // We serialize-to-a-string any HAS, regardless of resolvedness, as we are
+    // usually doing this to write to the database on the main thread, just as a
+    // durability step: we don't want to block.
     std::ostringstream out;
     {
         cereal::JSONOutputArchive ar(out);
