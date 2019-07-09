@@ -478,7 +478,7 @@ BucketManagerImpl::getReferencedBuckets() const
         }
     }
     // retain any bucket referenced by the last closed ledger as recorded in the
-    // database (as merge complete, the bucket list drifts from that state)
+    // database (as merges complete, the bucket list drifts from that state)
     auto lclHas = mApp.getLedgerManager().getLastClosedLedgerHAS();
     auto lclBuckets = lclHas.allBuckets();
     for (auto const& h : lclBuckets)
