@@ -40,6 +40,6 @@ class Logging
     // throws if partition name is not recognized
     static std::string normalizePartition(std::string const& partition);
 
-    static std::array<std::string const, 13> const kPartitionNames;
+    static std::array<std::string const, 14> const kPartitionNames;
 };
 }

@@ -51,6 +51,9 @@ class LedgerManagerImpl : public LedgerManager
     medida::Counter& mPrefetchHitRate;
     VirtualClock::time_point mLastClose;
 
+    std::unique_ptr<VirtualClock::time_point> mStartCatchup;
+    medida::Timer& mCatchupDuration;
+
     medida::Counter& mSyncingLedgersSize;
     uint32_t mCatchupTriggerLedger{0};
 

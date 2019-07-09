@@ -520,6 +520,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     assert(isAuthenticated() || stellarMsg.type() == HELLO ||
            stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
+    mApp.getOverlayManager().recordDuplicateMessageMetric(stellarMsg);
 
     switch (stellarMsg.type())
     {

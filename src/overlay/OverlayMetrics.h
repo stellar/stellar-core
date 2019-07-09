@@ -69,5 +69,10 @@ struct OverlayMetrics
     medida::Meter& mMessagesBroadcast;
     medida::Counter& mPendingPeersSize;
     medida::Counter& mAuthenticatedPeersSize;
+
+    medida::Meter& mUniqueFloodBytesRecv;
+    medida::Meter& mDuplicateFloodBytesRecv;
+    medida::Meter& mUniqueFetchBytesRecv;
+    medida::Meter& mDuplicateFetchBytesRecv;
 };
 }

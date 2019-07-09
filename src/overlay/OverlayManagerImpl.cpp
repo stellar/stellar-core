@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/OverlayManagerImpl.h"
+#include "crypto/ByteSliceHasher.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
@@ -17,6 +18,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
+#include "xdrpp/marshal.h"
 
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -241,6 +243,9 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mAuth(mApp)
     , mShuttingDown(false)
     , mOverlayMetrics(app)
+    , mMessageCache(0xffff)
+    , mCheckPerfLogLevelCounter(0)
+    , mPerfLogLevel(Logging::getLogLevel("Perf"))
     , mTimer(app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
@@ -875,5 +880,70 @@ bool
 OverlayManagerImpl::isShuttingDown() const
 {
     return mShuttingDown;
+}
+
+static void
+logDuplicateMessage(el::Level level, size_t size, std::string const& dupOrUniq,
+                    std::string const& fetchOrFlood)
+{
+    if (level == el::Level::Trace)
+    {
+        CLOG(TRACE, "Perf") << "Received " << size << " " << dupOrUniq
+                            << " bytes of " << fetchOrFlood << " message";
+    }
+}
+
+void
+OverlayManagerImpl::recordDuplicateMessageMetric(
+    StellarMessage const& stellarMsg)
+{
+    bool flood = false;
+    if (stellarMsg.type() == TRANSACTION || stellarMsg.type() == SCP_MESSAGE)
+    {
+        flood = true;
+    }
+    else if (stellarMsg.type() != TX_SET && stellarMsg.type() != SCP_QUORUMSET)
+    {
+        return;
+    }
+
+    if (++mCheckPerfLogLevelCounter >= 100)
+    {
+        mCheckPerfLogLevelCounter = 0;
+        mPerfLogLevel = Logging::getLogLevel("Perf");
+    }
+
+    size_t size = xdr::xdr_argpack_size(stellarMsg);
+    auto opaque = xdr::xdr_to_opaque(stellarMsg);
+    auto hash = shortHash::computeHash(ByteSlice(opaque));
+    if (mMessageCache.exists(hash))
+    {
+        if (flood)
+        {
+            mOverlayMetrics.mDuplicateFloodBytesRecv.Mark(size);
+            logDuplicateMessage(mPerfLogLevel, size, "duplicate", "flood");
+        }
+        else
+        {
+            mOverlayMetrics.mDuplicateFetchBytesRecv.Mark(size);
+            logDuplicateMessage(mPerfLogLevel, size, "duplicate", "fetch");
+        }
+    }
+    else
+    {
+        // NOTE: false is used here as a placeholder value, since no value is
+        // needed.
+        mMessageCache.put(hash, false);
+        if (flood)
+        {
+            mOverlayMetrics.mUniqueFloodBytesRecv.Mark(size);
+            logDuplicateMessage(mPerfLogLevel, size, "unique", "flood");
+        }
+        else
+        {
+            mOverlayMetrics.mUniqueFetchBytesRecv.Mark(size);
+            logDuplicateMessage(mPerfLogLevel, size, "unique", "fetch");
+        }
+    }
 }
 }

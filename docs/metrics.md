@@ -26,6 +26,8 @@ bucket.snap.merge                        | timer     | time to merge two buckets
 bucket.batch.objectsadded                | meter     | number of objects added per batch
 bucket.batch.addtime                     | timer     | time to add a batch
 bucket.memory.shared                     | counter   | number of buckets referenced (excluding publish queue)
+bucket.available-time.level-<X>          | timer     | available time to merge two buckets on level <X> (always constant)
+bucket.merge-time.level-<X>              | timer     | time to merge two buckets on level <X>
 scp.sync.lost                            | meter     | validator lost sync
 scp.envelope.emit                        | meter     | SCP message sent
 scp.envelope.receive                     | meter     | SCP message received
@@ -37,6 +39,7 @@ herder.pending-txs.age3                  | counter   | number of gen3 pending tr
 scp.envelope.sign                        | meter     | envelope signed
 scp.envelope.validsig                    | meter     | envelope signature verified
 scp.envelope.invalidsig                  | meter     | envelope failed signature verification
+scp.fetch.duration                       | timer     | time to complete fetching
 scp.value.valid                          | meter     | SCP value is valid
 scp.value.invalid                        | meter     | SCP value is invalid
 scp.nomination.combinecandidates         | meter     | number of candidates per call
@@ -52,12 +55,14 @@ history.apply-ledger-chain.success       | meter     | apply ledger chain comple
 history.apply-ledger-chain.failure       | meter     | apply ledger chain failed
 history.publish.success                  | meter     | published completed successfuly
 history.publish.failure                  | meter     | published failed
+history.publish.time                     | timer     | time to successfuly publish history
 history.download-<X>.success             | meter     | download of <X> completed successfuly
 history.download-<X>.failure             | meter     | download of <X> failed
 history.verify-<X>.success               | meter     | verification of <X> succeeded
 history.verify-<X>.failure               | meter     | verification of <X> failed
 history-archive.<X>.success              | meter     | accessing history archive <X> succeeded
 history-archive.<X>.failure              | meter     | accessing history archive <X> failed
+ledger.catchup.duration                  | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                 | counter   | number of times invariants failed
 ledger.transaction.apply                 | timer     | time to apply one transaction
 ledger.transaction.count                 | histogram | number of transactions per ledger
@@ -71,8 +76,11 @@ ledger.memory.queued-ledgers             | counter   | number of ledgers queued 
 app.state.current                        | counter   | state (BOOTING=0, JOIN_SCP=1, LEDGER_SYNC=2, CATCHING_UP=3, SYNCED=4, STOPPING=5)
 app.post-on-main-thread.delay            | timer     | time to start task posted to current crank of main thread
 app.post-on-main-thread-with-delay.delay | timer     | time to start task posted to next crank of main thread
-app.post-on-background-thread.delay      | timer     | time to start task posted to background threadoverlay.memory.flood-known        | counter   | number of known flooded entries
+app.post-on-background-thread.delay      | timer     | time to start task posted to background thread
+overlay.memory.flood-known               | counter   | number of known flooded entries
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
+overlay.flood.duplicate_recv             | meter     | number of bytes of flooded messages that have already been received
+overlay.flood.unique_recv                | meter     | number of bytes of flooded messages that have not yet been received
 overlay.message.broadcast                | meter     | message broadcasted
 overlay.inbound.attempt                  | meter     | inbound connection attempted (accepted on socket)
 overlay.inbound.establish                | meter     | inbound connection established (added to pending)

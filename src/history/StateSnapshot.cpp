@@ -63,8 +63,7 @@ StateSnapshot::makeLive()
             // here, we're going to live with the approximate value for now.
             uint32_t maxProtocolVersion =
                 Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            hb.next.makeLive(mApp, maxProtocolVersion,
-                             BucketList::keepDeadEntries(i));
+            hb.next.makeLive(mApp, maxProtocolVersion, i);
         }
     }
 }

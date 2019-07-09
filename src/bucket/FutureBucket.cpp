@@ -8,6 +8,7 @@
 #include "util/asio.h"
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"
 #include "crypto/Hex.h"
@@ -16,6 +17,8 @@
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/format.h"
+
+#include "medida/metrics_registry.h"
 
 #include <chrono>
 
@@ -26,8 +29,8 @@ FutureBucket::FutureBucket(Application& app,
                            std::shared_ptr<Bucket> const& curr,
                            std::shared_ptr<Bucket> const& snap,
                            std::vector<std::shared_ptr<Bucket>> const& shadows,
-                           uint32_t maxProtocolVersion, bool keepDeadEntries,
-                           bool countMergeEvents)
+                           uint32_t maxProtocolVersion, bool countMergeEvents,
+                           uint32_t level)
     : mState(FB_LIVE_INPUTS)
     , mInputCurrBucket(curr)
     , mInputSnapBucket(snap)
@@ -44,7 +47,7 @@ FutureBucket::FutureBucket(Application& app,
     {
         mInputShadowBucketHashes.push_back(binToHex(b->getHash()));
     }
-    startMerge(app, maxProtocolVersion, keepDeadEntries, countMergeEvents);
+    startMerge(app, maxProtocolVersion, countMergeEvents, level);
 }
 
 void
@@ -253,9 +256,20 @@ FutureBucket::getOutputHash() const
     return mOutputBucketHash;
 }
 
+static std::chrono::seconds
+getAvailableTimeForMerge(Application& app, uint32_t level)
+{
+    auto closeTime = app.getConfig().getExpectedLedgerCloseTime();
+    if (level >= 1)
+    {
+        return closeTime * BucketList::levelHalf(level - 1);
+    }
+    return closeTime;
+}
+
 void
 FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
-                         bool keepDeadEntries, bool countMergeEvents)
+                         bool countMergeEvents, uint32_t level)
 {
     // NB: startMerge starts with FutureBucket in a half-valid state; the inputs
     // are live but the merge is not yet running. So you can't call checkState()
@@ -276,37 +290,50 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                           << " with snap=" << hexAbbrev(snap->getHash());
 
     BucketManager& bm = app.getBucketManager();
+    auto& timer = app.getMetrics().NewTimer(
+        {"bucket", "merge-time", "level-" + std::to_string(level)});
+    auto& availableTime = app.getMetrics().NewTimer(
+        {"bucket", "available-time", "level-" + std::to_string(level)});
+    availableTime.Update(getAvailableTimeForMerge(app, level));
 
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
-    std::shared_ptr<task_t> task =
-        std::make_shared<task_t>([curr, snap, &bm, shadows, maxProtocolVersion,
-                                  keepDeadEntries, countMergeEvents]() {
+    std::shared_ptr<task_t> task = std::make_shared<task_t>([
+        curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
+        timeScope = timer.TimeScope(), &app
+    ]() mutable {
+        CLOG(TRACE, "Bucket")
+            << "Worker merging curr=" << hexAbbrev(curr->getHash())
+            << " with snap=" << hexAbbrev(snap->getHash());
+
+        try
+        {
+            auto res = Bucket::merge(
+                bm, maxProtocolVersion, curr, snap, shadows,
+                BucketList::keepDeadEntries(level), countMergeEvents);
+
             CLOG(TRACE, "Bucket")
-                << "Worker merging curr=" << hexAbbrev(curr->getHash())
+                << "Worker finished merging curr=" << hexAbbrev(curr->getHash())
                 << " with snap=" << hexAbbrev(snap->getHash());
 
-            try
-            {
-                auto res =
-                    Bucket::merge(bm, maxProtocolVersion, curr, snap, shadows,
-                                  keepDeadEntries, countMergeEvents);
+            std::chrono::duration<double> time(timeScope.Stop());
+            double timePct = time.count() /
+                             getAvailableTimeForMerge(app, level).count() * 100;
+            CLOG(DEBUG, "Perf")
+                << "Bucket merge on level " << level << " finished in "
+                << time.count() << " seconds (" << timePct
+                << "% of available time)";
 
-                CLOG(TRACE, "Bucket")
-                    << "Worker finished merging curr="
-                    << hexAbbrev(curr->getHash())
-                    << " with snap=" << hexAbbrev(snap->getHash());
-
-                return res;
-            }
-            catch (std::exception const& e)
-            {
-                throw std::runtime_error(fmt::format(
-                    "Error merging bucket curr={} with snap={}: "
-                    "{}. {}",
-                    hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
-                    e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
-            };
-        });
+            return res;
+        }
+        catch (std::exception const& e)
+        {
+            throw std::runtime_error(fmt::format(
+                "Error merging bucket curr={} with snap={}: "
+                "{}. {}",
+                hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
+                e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
+        };
+    });
 
     mOutputBucket = task->get_future().share();
     app.postOnBackgroundThread(bind(&task_t::operator(), task),
@@ -316,7 +343,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
 
 void
 FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
-                       bool keepDeadEntries)
+                       uint32_t level)
 {
     checkState();
     assert(!isLive());
@@ -342,8 +369,7 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
             mInputShadowBuckets.push_back(b);
         }
         mState = FB_LIVE_INPUTS;
-        startMerge(app, maxProtocolVersion, keepDeadEntries,
-                   /*countMergeEvents=*/true);
+        startMerge(app, maxProtocolVersion, /*countMergeEvents=*/true, level);
         assert(isLive());
     }
 }

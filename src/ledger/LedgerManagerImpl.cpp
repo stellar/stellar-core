@@ -121,6 +121,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mPrefetchHitRate(
           app.getMetrics().NewCounter({"ledger", "prefetch", "hit-rate"}))
     , mLastClose(mApp.getClock().now())
+    , mCatchupDuration(
+          app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
     , mSyncingLedgersSize(
           app.getMetrics().NewCounter({"ledger", "memory", "queued-ledgers"}))
     , mState(LM_BOOTING_STATE)
@@ -148,6 +150,22 @@ LedgerManagerImpl::setState(State s)
         {
             mCatchupState = CatchupState::NONE;
             mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+        }
+
+        if (mState == LM_CATCHING_UP_STATE && !mStartCatchup)
+        {
+            mStartCatchup = std::make_unique<VirtualClock::time_point>(
+                mApp.getClock().now());
+        }
+        else if (mState == LM_SYNCED_STATE && mStartCatchup)
+        {
+            std::chrono::nanoseconds duration =
+                mApp.getClock().now() - *mStartCatchup;
+            mCatchupDuration.Update(duration);
+            CLOG(DEBUG, "Perf")
+                << "Caught up to the network in "
+                << std::chrono::duration<double>(duration).count()
+                << " seconds";
         }
     }
 }
@@ -767,6 +785,7 @@ during replays.
 void
 LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
+    auto ledgerTime = mLedgerClose.TimeScope();
     DBTimeExcluder qtExclude(mApp);
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
@@ -820,8 +839,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
         throw std::runtime_error("corrupt transaction set");
     }
-
-    auto ledgerTime = mLedgerClose.TimeScope();
 
     auto const& sv = ledgerData.getValue();
     header.current().scpValue = sv;
@@ -921,6 +938,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 4
     mApp.getBucketManager().forgetUnreferencedBuckets();
+
+    std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
+    CLOG(DEBUG, "Perf") << "Applied ledger in " << ledgerTimeSeconds.count()
+                        << " seconds";
 }
 
 void
