@@ -54,10 +54,10 @@ compiler wrappers.
 The simplest way is `make fuzz`; this will do the following:
 
   - Create a directory `fuzz-testcases` for storing the corpus input
-  - Run `stellar-core --genfuzz fuzz-testcases/fuzz$i.xdr` ten times to produce
+  - Run `stellar-core gen-fuzz fuzz-testcases/fuzz$i.xdr` ten times to produce
     some basic seed input for the corpus.
   - Create a directory `fuzz-findings` for storing crash-producing inputs.
-  - Run `afl-fuzz` on `stellar-core --fuzz`, using those corpus directories.
+  - Run `afl-fuzz` on `stellar-core fuzz`, using those corpus directories.
 
 You should get a nice old-school textmode TUI to monitor the fuzzer's progress;
 it might be partly hidden depending on the color scheme of your terminal, as it
@@ -65,7 +65,7 @@ makes use of bold color highlighting.
 
 While it runs, it will write new crashes to files in `fuzz-findings`; before
 pouncing on these as definite evidence of a flaw, you should confirm the crash
-by feeding it to an instance of `stellar-core --fuzz` run by hand, elsewhere (in
+by feeding it to an instance of `stellar-core fuzz` run by hand, elsewhere (in
 particular, not fighting for control over tmpdirs with the fuzzer's
 `stellar-core` instances). Often a fuzzer "crash" is just the subprocess hitting
 a ulimit; by default we use an 8GB virtual-address ulimit, but it is still
