@@ -101,7 +101,6 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     static size_t const RETRY_ONCE;
     static size_t const RETRY_A_FEW;
     static size_t const RETRY_A_LOT;
-    static size_t const RETRY_FOREVER;
 
     // Publicly exposed state of work
     enum class State
