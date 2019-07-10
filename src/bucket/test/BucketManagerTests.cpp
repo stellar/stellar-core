@@ -143,6 +143,9 @@ clearFutures(Application::pointer app, BucketList& bl)
         std::unique_lock<std::mutex> lock(mutex);
         cv2.wait(lock, [&] { return finished == n; });
     }
+
+    // Tell the BucketManager to forget all about the futures it knows.
+    app->getBucketManager().clearMergeFuturesForTesting();
 }
 
 static Hash

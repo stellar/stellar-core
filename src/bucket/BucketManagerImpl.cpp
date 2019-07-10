@@ -209,6 +209,9 @@ MergeCounters::operator+=(MergeCounters const& delta)
     mPreInitEntryProtocolMerges += delta.mPreInitEntryProtocolMerges;
     mPostInitEntryProtocolMerges += delta.mPostInitEntryProtocolMerges;
 
+    mRunningMergeReattachments += delta.mRunningMergeReattachments;
+    mFinishedMergeReattachments += delta.mFinishedMergeReattachments;
+
     mNewMetaEntries += delta.mNewMetaEntries;
     mNewInitEntries += delta.mNewInitEntries;
     mNewLiveEntries += delta.mNewLiveEntries;
@@ -244,6 +247,9 @@ MergeCounters::operator==(MergeCounters const& other) const
     return (
         mPreInitEntryProtocolMerges == other.mPreInitEntryProtocolMerges &&
         mPostInitEntryProtocolMerges == other.mPostInitEntryProtocolMerges &&
+
+        mRunningMergeReattachments == other.mRunningMergeReattachments &&
+        mFinishedMergeReattachments == other.mFinishedMergeReattachments &&
 
         mNewMetaEntries == other.mNewMetaEntries &&
         mNewInitEntries == other.mNewInitEntries &&
@@ -287,9 +293,25 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
 std::shared_ptr<Bucket>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, size_t nObjects,
-                                     size_t nBytes)
+                                     size_t nBytes, MergeKey* mergeKey)
 {
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+
+    if (mergeKey)
+    {
+        // If this adoption was a merge, drop any strong reference we were
+        // retaining pointing to the std::shared_future it was being produced
+        // within (so that we can accurately track references to the bucket via
+        // its refcount) and if the adoption succeeds (see below) _retain_ a
+        // weak record of the input/output mapping, so we can reconstruct the
+        // future if anyone wants to restart the same merge before the bucket
+        // expires.
+        CLOG(TRACE, "Bucket")
+            << "BucketManager::adoptFileAsBucket switching merge " << *mergeKey
+            << " from live to finished for output=" << hexAbbrev(hash);
+        mLiveFutures.erase(*mergeKey);
+    }
+
     // Check to see if we have an existing bucket (either in-memory or on-disk)
     std::shared_ptr<Bucket> b = getBucketByHash(hash);
     if (b)
@@ -327,6 +349,12 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         }
     }
     assert(b);
+    if (mergeKey)
+    {
+        // Second half of the mergeKey record-keeping, above: if we successfully
+        // adopted (no throw), then (weakly) record the preimage of the hash.
+        mFinishedMerges.recordMerge(*mergeKey, hash);
+    }
     return b;
 }
 
@@ -359,6 +387,66 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     }
     return std::shared_ptr<Bucket>();
 }
+
+std::shared_future<std::shared_ptr<Bucket>>
+BucketManagerImpl::getMergeFuture(MergeKey const& key)
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    MergeCounters mc;
+    auto i = mLiveFutures.find(key);
+    if (i == mLiveFutures.end())
+    {
+        // If there's no live (running) future, we might be able to _make_ one
+        // for a retained bucket, if we still know its inputs.
+        Hash bucketHash;
+        if (mFinishedMerges.findMergeFor(key, bucketHash))
+        {
+            auto bucket = getBucketByHash(bucketHash);
+            if (bucket)
+            {
+                CLOG(TRACE, "Bucket")
+                    << "BucketManager::getMergeFuture returning new "
+                    << "future for finished merge " << key
+                    << " with output=" << hexAbbrev(bucketHash);
+                std::promise<std::shared_ptr<Bucket>> promise;
+                auto future = promise.get_future().share();
+                promise.set_value(bucket);
+                mc.mFinishedMergeReattachments++;
+                incrMergeCounters(mc);
+                return future;
+            }
+        }
+        CLOG(TRACE, "Bucket")
+            << "BucketManager::getMergeFuture returning empty future "
+            << "for merge " << key;
+        return std::shared_future<std::shared_ptr<Bucket>>();
+    }
+    CLOG(TRACE, "Bucket")
+        << "BucketManager::getMergeFuture returning running future "
+        << "for merge " << key;
+    mc.mRunningMergeReattachments++;
+    incrMergeCounters(mc);
+    return i->second;
+}
+
+void
+BucketManagerImpl::putMergeFuture(
+    MergeKey const& key, std::shared_future<std::shared_ptr<Bucket>> wp)
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    CLOG(TRACE, "Bucket") << "BucketManager::putMergeFuture storing future "
+                          << "for running merge " << key;
+    mLiveFutures.emplace(key, wp);
+}
+
+#ifdef BUILD_TESTS
+void
+BucketManagerImpl::clearMergeFuturesForTesting()
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    mLiveFutures.clear();
+}
+#endif
 
 std::set<Hash>
 BucketManagerImpl::getReferencedBuckets() const
@@ -407,14 +495,21 @@ BucketManagerImpl::getReferencedBuckets() const
     {
         for (auto const& h : pub)
         {
-            auto rit = referenced.emplace(hexToBin256(h));
+            auto rhash = hexToBin256(h);
+            auto rit = referenced.emplace(rhash);
             if (rit.second)
             {
                 CLOG(TRACE, "Bucket") << h << " referenced by publish queue";
+
+                // Project referenced bucket `rhash` -- which might be a merge
+                // input captured before a merge finished -- through our weak
+                // map of merge input/output relationships, to find any outputs
+                // we'll want to retain in order to resynthesize the merge in
+                // the future, rather than re-run it.
+                mFinishedMerges.getOutputsUsingInput(rhash, referenced);
             }
         }
     }
-
     return referenced;
 }
 
@@ -485,6 +580,33 @@ BucketManagerImpl::forgetUnreferencedBuckets()
                 auto gzfilename = filename + ".gz";
                 std::remove(gzfilename.c_str());
             }
+
+            // Dropping this bucket means we'll no longer be able to
+            // resynthesize a std::shared_future pointing directly to it as a
+            // short-cut to performing a merge we've already seen. Therefore we
+            // should forget it from the weak map we use for that resynthesis.
+            for (auto const& forgottenMergeKey :
+                 mFinishedMerges.forgetAllMergesProducing(j->first))
+            {
+                // There should be no futures alive with this output: we
+                // switched to storing only weak input/output mappings when any
+                // merge producing the bucket completed (in adoptFileAsBucket),
+                // and we believe there's only one reference to the bucket
+                // anyways -- our own in mSharedBuckets. But there might be a
+                // race we missed, so double check & mop up here. Worst case
+                // we prevent a slow memory leak at the cost of redoing merges
+                // we might have been able to reattach to.
+                auto f = mLiveFutures.find(forgottenMergeKey);
+                if (f != mLiveFutures.end())
+                {
+                    CLOG(WARNING, "Bucket")
+                        << "Unexpected live future for unreferenced bucket: "
+                        << binToHex(i->first);
+                    mLiveFutures.erase(f);
+                }
+            }
+
+            // All done, delete the bucket from the shared map.
             mSharedBuckets.erase(j);
         }
     }

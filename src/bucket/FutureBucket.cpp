@@ -11,6 +11,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/FutureBucket.h"
+#include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
@@ -296,6 +297,24 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
         {"bucket", "available-time", "level-" + std::to_string(level)});
     availableTime.Update(getAvailableTimeForMerge(app, level));
 
+    // It's possible we're running a merge that's already running, for example
+    // due to having been serialized to the publish queue and then immediately
+    // deserialized. In this case we want to attach to the existing merge, which
+    // will have left a std::shared_future behind in a shared cache in the
+    // bucket manager.
+    MergeKey mk{maxProtocolVersion, BucketList::keepDeadEntries(level), curr,
+                snap, shadows};
+    auto f = bm.getMergeFuture(mk);
+    if (f.valid())
+    {
+        CLOG(TRACE, "Bucket") << "Re-attached to existing merge of curr="
+                              << hexAbbrev(curr->getHash())
+                              << " with snap=" << hexAbbrev(snap->getHash());
+        mOutputBucket = f;
+        checkState();
+        return;
+    }
+
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
         [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
@@ -338,6 +357,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
         });
 
     mOutputBucket = task->get_future().share();
+    bm.putMergeFuture(mk, mOutputBucket);
     app.postOnBackgroundThread(bind(&task_t::operator(), task),
                                "FutureBucket: merge");
     checkState();

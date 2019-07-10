@@ -48,6 +48,7 @@ class BucketOutputIterator
 
     void put(BucketEntry const& e);
 
-    std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager);
+    std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager,
+                                      MergeKey* mergeKey = nullptr);
 };
 }

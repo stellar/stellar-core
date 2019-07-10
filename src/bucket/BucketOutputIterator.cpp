@@ -105,7 +105,8 @@ BucketOutputIterator::put(BucketEntry const& e)
 }
 
 std::shared_ptr<Bucket>
-BucketOutputIterator::getBucket(BucketManager& bucketManager)
+BucketOutputIterator::getBucket(BucketManager& bucketManager,
+                                MergeKey* mergeKey)
 {
     if (mBuf)
     {
@@ -124,6 +125,6 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager)
         return std::make_shared<Bucket>();
     }
     return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),
-                                           mObjectsPut, mBytesPut);
+                                           mObjectsPut, mBytesPut, mergeKey);
 }
 }
