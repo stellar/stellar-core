@@ -16,7 +16,9 @@ GzipAndPutFilesWork::GzipAndPutFilesWork(
     Application& app, std::shared_ptr<HistoryArchive> archive,
     std::shared_ptr<StateSnapshot> snapshot,
     HistoryArchiveState const& remoteState)
-    : Work(app, "helper-put-files-" + archive->getName())
+    // Each gzip-and-put-file sequence will retry correctly
+    : Work(app, "helper-put-files-" + archive->getName(),
+           BasicWork::RETRY_NEVER)
     , mArchive(archive)
     , mSnapshot(snapshot)
     , mRemoteState(remoteState)
@@ -42,7 +44,7 @@ GzipAndPutFilesWork::doWork()
             assert(b);
             files.push_back(std::make_shared<FileTransferInfo>(*b));
         }
-        for (auto f : files)
+        for (auto const& f : files)
         {
             // If files are empty, they are removed and shouldn't be uploaded
             if (f && fs::exists(f->localPath_nogz()))
@@ -56,9 +58,10 @@ GzipAndPutFilesWork::doWork()
 
                 std::vector<std::shared_ptr<BasicWork>> seq{gzipFile, mkdir,
                                                             putFile};
-
+                // Each inner step will retry a lot, so retry the sequence once
+                // in case of an unexpected failure
                 addWork<WorkSequence>("gzip-and-put-file-" + f->localPath_gz(),
-                                      seq);
+                                      seq, BasicWork::RETRY_ONCE);
             }
         }
         mChildrenSpawned = true;

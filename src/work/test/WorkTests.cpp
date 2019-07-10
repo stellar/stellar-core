@@ -35,7 +35,7 @@ class TestBasicWork : public BasicWork
     int mAbortCount{0};
 
     TestBasicWork(Application& app, std::string name, bool fail = false,
-                  int steps = 3, size_t retries = RETRY_ONCE)
+                  int steps = 3, size_t retries = BasicWork::RETRY_ONCE)
         : BasicWork(app, std::move(name), retries)
         , mShouldFail(fail)
         , mNumSteps(steps)
@@ -268,7 +268,7 @@ class TestWork : public Work
     int mRetryCount{0};
 
     TestWork(Application& app, std::string name)
-        : Work(app, std::move(name), RETRY_NEVER)
+        : Work(app, std::move(name), BasicWork::RETRY_NEVER)
     {
     }
 

@@ -19,7 +19,7 @@ PublishWork::PublishWork(Application& app,
     : WorkSequence(
           app,
           fmt::format("publish-{:08x}", snapshot->mLocalState.currentLedger),
-          seq)
+          seq, BasicWork::RETRY_NEVER)
     , mSnapshot(snapshot)
     , mOriginalBuckets(mSnapshot->mLocalState.allBuckets())
 {

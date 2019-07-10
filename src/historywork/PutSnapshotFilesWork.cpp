@@ -17,8 +17,11 @@ namespace stellar
 
 PutSnapshotFilesWork::PutSnapshotFilesWork(
     Application& app, std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, fmt::format("update-archives-{:08x}",
-                            snapshot->mLocalState.currentLedger))
+    : Work(app,
+           fmt::format("update-archives-{:08x}",
+                       snapshot->mLocalState.currentLedger),
+           // Each put-snapshot-sequence will retry correctly
+           BasicWork::RETRY_NEVER)
     , mSnapshot(snapshot)
 {
 }
@@ -45,8 +48,10 @@ PutSnapshotFilesWork::doWork()
 
             std::vector<std::shared_ptr<BasicWork>> seq{getState, putFiles,
                                                         putState};
-
-            addWork<WorkSequence>("put-snapshot-sequence", seq);
+            // Each inner step will retry a lot, so only retry the sequence once
+            // in case of an unexpected failure
+            addWork<WorkSequence>("put-snapshot-sequence", seq,
+                                  BasicWork::RETRY_ONCE);
         }
         mStarted = true;
     }

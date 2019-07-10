@@ -26,7 +26,7 @@ ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
     HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
-    : BasicWork(app, "apply-buckets", RETRY_A_FEW)
+    : BasicWork(app, "apply-buckets", BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mApplyState(applyState)
     , mApplying(false)

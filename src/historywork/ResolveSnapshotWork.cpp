@@ -12,7 +12,7 @@ namespace stellar
 
 ResolveSnapshotWork::ResolveSnapshotWork(
     Application& app, std::shared_ptr<StateSnapshot> snapshot)
-    : BasicWork(app, "prepare-snapshot", Work::RETRY_NEVER)
+    : BasicWork(app, "prepare-snapshot", BasicWork::RETRY_NEVER)
     , mSnapshot(snapshot)
     , mTimer(std::make_unique<VirtualTimer>(app.getClock()))
 {

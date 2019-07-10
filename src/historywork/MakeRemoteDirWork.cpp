@@ -11,7 +11,8 @@ namespace stellar
 
 MakeRemoteDirWork::MakeRemoteDirWork(Application& app, std::string const& dir,
                                      std::shared_ptr<HistoryArchive> archive)
-    : RunCommandWork(app, std::string("make-remote-dir ") + dir)
+    : RunCommandWork(app, std::string("make-remote-dir ") + dir,
+                     BasicWork::RETRY_A_LOT)
     , mDir(dir)
     , mArchive(archive)
 {

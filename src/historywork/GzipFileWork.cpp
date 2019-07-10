@@ -10,7 +10,8 @@ namespace stellar
 
 GzipFileWork::GzipFileWork(Application& app, std::string const& filenameNoGz,
                            bool keepExisting)
-    : RunCommandWork(app, std::string("gzip-file ") + filenameNoGz)
+    : RunCommandWork(app, std::string("gzip-file ") + filenameNoGz,
+                     BasicWork::RETRY_A_LOT)
     , mFilenameNoGz(filenameNoGz)
     , mKeepExisting(keepExisting)
 {

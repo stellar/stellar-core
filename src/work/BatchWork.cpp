@@ -11,7 +11,7 @@ namespace stellar
 {
 
 BatchWork::BatchWork(Application& app, std::string name)
-    : Work(app, name, RETRY_NEVER)
+    : Work(app, name, BasicWork::RETRY_NEVER)
 {
 }
 

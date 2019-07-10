@@ -11,7 +11,8 @@ namespace stellar
 PutRemoteFileWork::PutRemoteFileWork(Application& app, std::string const& local,
                                      std::string const& remote,
                                      std::shared_ptr<HistoryArchive> archive)
-    : RunCommandWork(app, std::string("put-remote-file ") + remote)
+    : RunCommandWork(app, std::string("put-remote-file ") + remote,
+                     BasicWork::RETRY_A_LOT)
     , mLocal(local)
     , mRemote(remote)
     , mArchive(archive)
