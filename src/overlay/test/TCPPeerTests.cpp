@@ -17,7 +17,7 @@
 namespace stellar
 {
 
-TEST_CASE("TCPPeer can communicate", "[overlay]")
+TEST_CASE("TCPPeer can communicate", "[overlay][acceptance]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer s =
