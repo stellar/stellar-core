@@ -13,7 +13,7 @@
 
 using namespace stellar;
 
-TEST_CASE("quorum tracker", "[quorum][herder]")
+TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 

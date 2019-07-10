@@ -31,7 +31,7 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-TEST_CASE("standalone", "[herder]")
+TEST_CASE("standalone", "[herder][acceptance]")
 {
     SIMULATION_CREATE_NODE(0);
 
@@ -1169,7 +1169,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
     }
 }
 
-TEST_CASE("SCP Driver", "[herder]")
+TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
     SECTION("protocol 10")
     {
@@ -1182,7 +1182,7 @@ TEST_CASE("SCP Driver", "[herder]")
     }
 }
 
-TEST_CASE("SCP State", "[herder]")
+TEST_CASE("SCP State", "[herder][acceptance]")
 {
     SecretKey nodeKeys[3];
     PublicKey nodeIDs[3];
@@ -1460,7 +1460,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     simulation->stopAllNodes();
 }
 
-TEST_CASE("In quorum filtering", "[quorum][herder]")
+TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
 {
     auto mode = Simulation::OVER_LOOPBACK;
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
