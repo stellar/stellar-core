@@ -37,33 +37,7 @@ SimulationTxSetFrame::SimulationTxSetFrame(
 int64_t
 SimulationTxSetFrame::getBaseFee(LedgerHeader const& lh) const
 {
-    int64_t baseFee = lh.baseFee;
-    if (lh.ledgerVersion >= 11)
-    {
-        size_t ops = 0;
-        int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
-        for (auto& txEnv : mTransactions)
-        {
-            auto txOps = txEnv.tx.operations.size();
-            ops += txOps;
-            int64_t txBaseFee =
-                bigDivide(txEnv.tx.fee, 1, static_cast<int64_t>(txOps),
-                          Rounding::ROUND_UP);
-            lowBaseFee = std::min(lowBaseFee, txBaseFee);
-        }
-        // if surge pricing was in action, use the lowest base fee bid from the
-        // transaction set
-        size_t surgeOpsCutoff = 0;
-        if (lh.maxTxSetSize >= MAX_OPS_PER_TX)
-        {
-            surgeOpsCutoff = lh.maxTxSetSize - MAX_OPS_PER_TX;
-        }
-        if (ops > surgeOpsCutoff)
-        {
-            baseFee = lowBaseFee;
-        }
-    }
-    return baseFee;
+    return 0;
 }
 
 Hash const&
