@@ -897,7 +897,24 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
         static_cast<Json::UInt64>(mLastQuorumMapIntersectionState.mNumNodes);
     ret["last_check_ledger"] = static_cast<Json::UInt64>(
         mLastQuorumMapIntersectionState.mLastCheckLedger);
-    if (!mLastQuorumMapIntersectionState.enjoysQuorunIntersection())
+    if (mLastQuorumMapIntersectionState.enjoysQuorunIntersection())
+    {
+        Json::Value critical;
+        for (auto const& group :
+             mLastQuorumMapIntersectionState.mIntersectionCriticalNodes)
+        {
+            Json::Value jg;
+            for (auto const& k : group)
+            {
+                auto s = (fullKeys ? mApp.getConfig().toStrKey(k)
+                                   : mApp.getConfig().toShortString(k));
+                jg.append(s);
+            }
+            critical.append(jg);
+        }
+        ret["critical"] = critical;
+    }
+    else
     {
         ret["last_good_ledger"] = static_cast<Json::UInt64>(
             mLastQuorumMapIntersectionState.mLastGoodLedger);
@@ -1111,16 +1128,27 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
             auto qic = QuorumIntersectionChecker::create(qmap, cfg);
             auto& hState = mLastQuorumMapIntersectionState;
             auto& app = mApp;
-            auto worker = [curr, ledger, nNodes, qic, &app, &hState] {
+            auto worker = [curr, ledger, nNodes, qic, qmap, cfg, &app,
+                           &hState] {
                 bool ok = qic->networkEnjoysQuorumIntersection();
                 auto split = qic->getPotentialSplit();
+                std::set<std::set<PublicKey>> critical;
+                if (ok)
+                {
+                    // Only bother calculating the _critical_ groups if we're
+                    // intersecting; if not intersecting we should finish ASAP
+                    // and raise an alarm.
+                    critical = QuorumIntersectionChecker::
+                        getIntersectionCriticalGroups(qmap, cfg);
+                }
                 app.postOnMainThread(
-                    [ok, curr, ledger, nNodes, split, &hState] {
+                    [ok, curr, ledger, nNodes, split, critical, &hState] {
                         hState.mRecalculating = false;
                         hState.mNumNodes = nNodes;
                         hState.mLastCheckLedger = ledger;
                         hState.mLastCheckQuorumMapHash = curr;
                         hState.mPotentialSplit = split;
+                        hState.mIntersectionCriticalNodes = critical;
                         if (ok)
                         {
                             hState.mLastGoodLedger = ledger;

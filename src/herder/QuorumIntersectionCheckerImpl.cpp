@@ -330,8 +330,11 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 ////////////////////////////////////////////////////////////////////////////////
 
 QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
-    QuorumTracker::QuorumMap const& qmap, Config const& cfg)
-    : mCfg(cfg), mLogTrace(Logging::logTrace("SCP")), mTSC(mGraph)
+    QuorumTracker::QuorumMap const& qmap, Config const& cfg, bool quiet)
+    : mCfg(cfg)
+    , mLogTrace(Logging::logTrace("SCP"))
+    , mQuiet(quiet)
+    , mTSC(mGraph)
 {
     buildGraph(qmap);
     buildSCCs();
@@ -553,7 +556,10 @@ QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
         out << this->nodeName(i);
         this->mPotentialSplit.second.emplace_back(this->mBitNumPubKeys.at(i));
     });
-    CLOG(ERROR, "SCP") << err.str();
+    if (!mQuiet)
+    {
+        CLOG(ERROR, "SCP") << err.str();
+    }
 }
 
 bool
@@ -695,9 +701,11 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
     // and filter out nodes that aren't in the main SCC.
     bool foundDisjoint = false;
     size_t nNodes = mPubKeyBitNums.size();
-    CLOG(INFO, "SCP") << "Calculating " << nNodes
-                      << "-node network quorum intersection";
-
+    if (!mQuiet)
+    {
+        CLOG(INFO, "SCP") << "Calculating " << nNodes
+                          << "-node network quorum intersection";
+    }
     for (auto const& scc : mTSC.mSCCs)
     {
         if (scc == mMaxSCC)
@@ -737,8 +745,11 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
         // We vacuously "enjoy quorum intersection" if there are no quorums,
         // though this is probably enough of a potential problem itself that
         // it's worth warning about.
-        CLOG(WARNING, "SCP")
-            << "No quorum found in transitive closure (possible network halt)";
+        if (!mQuiet)
+        {
+            CLOG(WARNING, "SCP") << "No quorum found in transitive closure "
+                                    "(possible network halt)";
+        }
         return true;
     }
 
@@ -753,14 +764,205 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
     }
     return !foundDisjoint;
 }
+
+bool
+pointsToCandidate(SCPQuorumSet const& p, PublicKey const& candidate)
+{
+    for (auto const& k : p.validators)
+    {
+        if (k == candidate)
+        {
+            return true;
+        }
+    }
+    for (auto const& i : p.innerSets)
+    {
+        if (pointsToCandidate(i, candidate))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void
+findCriticalityCandidates(SCPQuorumSet const& p,
+                          std::set<std::set<PublicKey>>& candidates, bool root)
+{
+    // Make a singleton-set for every validator, always.
+    for (auto const& k : p.validators)
+    {
+        std::set<PublicKey> singleton{k};
+        candidates.insert(singleton);
+    }
+
+    // Not-root and no-innerSets => P is a leaf group;
+    // record it!
+    if (!root && p.innerSets.empty())
+    {
+        std::set<PublicKey> inner;
+        for (auto const& k : p.validators)
+        {
+            inner.insert(k);
+        }
+        candidates.insert(inner);
+    }
+
+    // Scan innerSets recursively.
+    for (auto const& i : p.innerSets)
+    {
+        findCriticalityCandidates(i, candidates, false);
+    }
+}
+
+std::string
+groupString(Config const& cfg, std::set<PublicKey> const& group)
+{
+    std::ostringstream out;
+    bool first = true;
+    out << '[';
+    for (auto const& k : group)
+    {
+        if (!first)
+        {
+            out << ", ";
+        }
+        first = false;
+        out << cfg.toShortString(k);
+    }
+    out << ']';
+    return out.str();
+}
 }
 
 namespace stellar
 {
 std::shared_ptr<QuorumIntersectionChecker>
 QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
-                                  Config const& cfg)
+                                  Config const& cfg, bool quiet)
 {
-    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg);
+    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg, quiet);
+}
+
+std::set<std::set<PublicKey>>
+QuorumIntersectionChecker::getIntersectionCriticalGroups(
+    stellar::QuorumTracker::QuorumMap const& qmap, stellar::Config const& cfg)
+{
+    // We're going to search for "intersection-critical" groups, by considering
+    // each SCPQuorumSet S that (a) has no innerSets of its own and (b) occurs
+    // as an innerSet of anyone in the qmap, and evaluating whether the group of
+    // validators in S can cause the network to split if they're reconfigured to
+    // be "fickle". Any group whose fickleness can cause a split is considered
+    // "intersection-critical". We also consider every individual node as a
+    // singleton group, though these are typically unlikely to cause a split
+    // on their own when made-fickle.
+    //
+    // Specifically a group is "fickle" if its threshold is 2 and the set of
+    // validators it has to choose from has two innerSets: one that's the group
+    // itself, and one that contains everyone that depends on any member of the
+    // group. In other words the group will "go along with anyone". This is an
+    // overapproximation of "bad configutation": the group's still online and
+    // behaving correctly, but someone really messed up its configuration.
+    //
+    // This is a less-dramatic (and more likely) behaviour than true Byzantine
+    // failure. To model the risk of Byzantine nodes we'd remove the nodes
+    // entirely and reduce the thresholds of nodes depending on them,
+    // effectively making the Byzantine node "voting different ways in different
+    // quorums", appearing to be in two separate quorums while not counting as
+    // an intersection. A merely _fickle_ node will participate in any quorum
+    // that asks, but still counts as an intersecting member of any two quorums
+    // it's a member of.
+
+    std::set<std::set<PublicKey>> candidates;
+    std::set<std::set<PublicKey>> critical;
+    QuorumTracker::QuorumMap test_qmap(qmap);
+
+    for (auto const& k : qmap)
+    {
+        if (k.second)
+        {
+            findCriticalityCandidates(*(k.second), candidates, true);
+        }
+    }
+
+    CLOG(INFO, "SCP") << "Examininng " << candidates.size()
+                      << " node groups for intersection-criticality";
+
+    for (auto const& group : candidates)
+    {
+        // Every member of the group will share the same fickle qset.
+        auto fickleQSet = std::make_shared<SCPQuorumSet>();
+
+        // The fickle qset has 2 innerSets: self and others.
+        SCPQuorumSet groupQSet;
+        SCPQuorumSet pointsToGroupQSet;
+
+        for (auto const& k : group)
+        {
+            groupQSet.validators.emplace_back(k);
+        }
+        groupQSet.threshold = group.size();
+
+        std::set<PublicKey> pointsToGroup;
+        for (PublicKey const& candidate : group)
+        {
+            for (auto const& d : qmap)
+            {
+                if (group.find(d.first) == group.end() && d.second &&
+                    pointsToCandidate(*d.second, candidate))
+                {
+                    pointsToGroup.insert(d.first);
+                }
+            }
+        }
+        for (auto const& p : pointsToGroup)
+        {
+            pointsToGroupQSet.validators.emplace_back(p);
+        }
+        pointsToGroupQSet.threshold = 1;
+
+        fickleQSet->innerSets.emplace_back(std::move(groupQSet));
+        fickleQSet->innerSets.emplace_back(std::move(pointsToGroupQSet));
+        fickleQSet->threshold = 2;
+
+        // Install the fickle qset in every member of the group.
+        for (auto const& candidate : group)
+        {
+            test_qmap[candidate] = fickleQSet;
+        }
+
+        // Check to see if this modified config is vulnerable to splitting.
+        auto checker = QuorumIntersectionChecker::create(test_qmap, cfg,
+                                                         /*quiet=*/true);
+        if (checker->networkEnjoysQuorumIntersection())
+        {
+            CLOG(DEBUG, "SCP") << "group is not intersection-critical: "
+                               << groupString(cfg, group) << " (with "
+                               << pointsToGroup.size() << " depending nodes)";
+        }
+        else
+        {
+            CLOG(WARNING, "SCP")
+                << "Group is intersection-critical: " << groupString(cfg, group)
+                << " (with " << pointsToGroup.size() << " depending nodes)";
+            critical.insert(group);
+        }
+
+        // Restore proper qsets for all group members, for next iteration.
+        for (auto const& candidate : group)
+        {
+            test_qmap[candidate] = qmap.find(candidate)->second;
+        }
+    }
+    if (critical.empty())
+    {
+        CLOG(INFO, "SCP") << "No intersection-critical groups found";
+    }
+    else
+    {
+        CLOG(WARNING, "SCP")
+            << "Found " << critical.size() << " intersection-critical groups";
+    }
+    return critical;
 }
 }
