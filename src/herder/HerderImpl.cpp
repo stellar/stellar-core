@@ -879,8 +879,8 @@ Json::Value
 HerderImpl::getJsonInfo(size_t limit, bool fullKeys)
 {
     Json::Value ret;
-    ret["you"] =
-        mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
+    ret["you"] = mApp.getConfig().toStrKey(
+        mApp.getConfig().NODE_SEED.getPublicKey(), fullKeys);
 
     ret["scp"] = getSCP().getJsonInfo(limit, fullKeys);
     ret["queue"] = mPendingEnvelopes.getJsonInfo(limit);
@@ -906,8 +906,7 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
             Json::Value jg;
             for (auto const& k : group)
             {
-                auto s = (fullKeys ? mApp.getConfig().toStrKey(k)
-                                   : mApp.getConfig().toShortString(k));
+                auto s = mApp.getConfig().toStrKey(k, fullKeys);
                 jg.append(s);
             }
             critical.append(jg);
@@ -922,14 +921,12 @@ HerderImpl::getJsonTransitiveQuorumIntersectionInfo(bool fullKeys) const
         auto const& pair = mLastQuorumMapIntersectionState.mPotentialSplit;
         for (auto const& k : pair.first)
         {
-            auto s = (fullKeys ? mApp.getConfig().toStrKey(k)
-                               : mApp.getConfig().toShortString(k));
+            auto s = mApp.getConfig().toStrKey(k, fullKeys);
             a.append(s);
         }
         for (auto const& k : pair.second)
         {
-            auto s = (fullKeys ? mApp.getConfig().toStrKey(k)
-                               : mApp.getConfig().toShortString(k));
+            auto s = mApp.getConfig().toStrKey(k, fullKeys);
             b.append(s);
         }
         split.append(a);
@@ -944,8 +941,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
                               uint64 index)
 {
     Json::Value ret;
-    ret["node"] = (fullKeys ? mApp.getConfig().toStrKey(id)
-                            : mApp.getConfig().toShortString(id));
+    ret["node"] = mApp.getConfig().toStrKey(id, fullKeys);
     ret["qset"] = getSCP().getJsonQuorumInfo(id, summary, fullKeys, index);
     bool isSelf = id == mApp.getConfig().NODE_SEED.getPublicKey();
     if (isSelf && mLastQuorumMapIntersectionState.hasAnyResults())
@@ -989,8 +985,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
         {
             Json::Value cur;
             valGenID++;
-            cur["node"] = fullKeys ? mApp.getConfig().toStrKey(id)
-                                   : mApp.getConfig().toShortString(id);
+            cur["node"] = mApp.getConfig().toStrKey(id, fullKeys);
             if (!summary)
             {
                 cur["distance"] = distance;

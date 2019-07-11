@@ -201,8 +201,12 @@ parseParam(std::map<std::string, std::string> const& map,
 }
 
 void
-CommandHandler::peers(std::string const&, std::string& retStr)
+CommandHandler::peers(std::string const& params, std::string& retStr)
 {
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    bool fullKeys = retMap["fullkeys"] == "true";
     Json::Value root;
 
     auto& pendingPeers = root["pending_peers"];
@@ -232,7 +236,8 @@ CommandHandler::peers(std::string const&, std::string& retStr)
                 peerNode["address"] = peer.second->toString();
                 peerNode["ver"] = peer.second->getRemoteVersion();
                 peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
-                peerNode["id"] = mApp.getConfig().toStrKey(peer.first);
+                peerNode["id"] =
+                    mApp.getConfig().toStrKey(peer.first, fullKeys);
             }
         };
     addAuthenticatedPeers(

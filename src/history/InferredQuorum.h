@@ -26,7 +26,7 @@ struct InferredQuorum
     void noteQset(SCPQuorumSet const& qset);
     void noteQsetHash(PublicKey const& pk, Hash const& hash);
     void notePubKey(PublicKey const& pk);
-    std::string toString(Config const& cfg) const;
+    std::string toString(Config const& cfg, bool fullKeys) const;
     void writeQuorumGraph(Config const& cfg, std::ostream& out) const;
     QuorumTracker::QuorumMap getQuorumMap() const;
 };
