@@ -437,8 +437,13 @@ class BulkLoadDataOperation
             "FROM accountdata WHERE (accountid, dataname) IN r";
 
         auto prep = mDb.getPreparedStatement(sql);
-        auto sqliteStatement = dynamic_cast<soci::sqlite3_statement_backend*>(
-            prep.statement().get_backend());
+        auto be = prep.statement().get_backend();
+        if (be == nullptr)
+        {
+            throw std::runtime_error("no sql backend");
+        }
+        auto sqliteStatement =
+            dynamic_cast<soci::sqlite3_statement_backend*>(be);
         auto st = sqliteStatement->stmt_;
 
         sqlite3_reset(st);

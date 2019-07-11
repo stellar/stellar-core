@@ -99,7 +99,7 @@ LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 }
 
 std::string
-LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry he)
+LedgerManager::ledgerAbbrev(LedgerHeaderHistoryEntry const& he)
 {
     return ledgerAbbrev(he.header, he.hash);
 }
@@ -213,7 +213,7 @@ LedgerManager::genesisLedger()
 }
 
 void
-LedgerManagerImpl::startNewLedger(LedgerHeader genesisLedger)
+LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 {
     DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
@@ -250,7 +250,7 @@ LedgerManagerImpl::startNewLedger()
         ledger.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
     }
 
-    startNewLedger(std::move(ledger));
+    startNewLedger(ledger);
 }
 
 void

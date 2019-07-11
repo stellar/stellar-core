@@ -30,7 +30,8 @@ class XDRInputFileStream
     size_t mSize;
 
   public:
-    XDRInputFileStream(unsigned int sizeLimit = 0) : mSizeLimit{sizeLimit}
+    XDRInputFileStream(unsigned int sizeLimit = 0)
+        : mSizeLimit{sizeLimit}, mSize{0}
     {
     }
 

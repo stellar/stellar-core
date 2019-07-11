@@ -26,16 +26,16 @@ class ApplyBucketsWork : public BasicWork
     std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
     HistoryArchiveState const& mApplyState;
 
-    bool mApplying;
-    size_t mTotalBuckets;
-    size_t mAppliedBuckets;
-    size_t mAppliedEntries;
-    size_t mTotalSize;
-    size_t mAppliedSize;
-    size_t mLastAppliedSizeMb;
-    size_t mLastPos;
-    uint32_t mLevel;
-    uint32_t mMaxProtocolVersion;
+    bool mApplying{false};
+    size_t mTotalBuckets{0};
+    size_t mAppliedBuckets{0};
+    size_t mAppliedEntries{0};
+    size_t mTotalSize{0};
+    size_t mAppliedSize{0};
+    size_t mLastAppliedSizeMb{0};
+    size_t mLastPos{0};
+    uint32_t mLevel{0};
+    uint32_t mMaxProtocolVersion{0};
     std::shared_ptr<Bucket const> mSnapBucket;
     std::shared_ptr<Bucket const> mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;

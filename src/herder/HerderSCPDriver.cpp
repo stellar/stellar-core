@@ -52,8 +52,9 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mSCPMetrics{mApp}
     , mNominateTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "nominate"})}
-    , mPrepareTimeout{
-          mApp.getMetrics().NewHistogram({"scp", "timeout", "prepare"})}
+    , mPrepareTimeout{mApp.getMetrics().NewHistogram(
+          {"scp", "timeout", "prepare"})}
+    , mLedgerSeqNominating(0)
 {
 }
 

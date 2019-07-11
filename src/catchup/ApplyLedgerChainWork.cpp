@@ -29,6 +29,7 @@ ApplyLedgerChainWork::ApplyLedgerChainWork(
     : BasicWork(app, "apply-ledger-chain", RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mRange(range)
+    , mCurrSeq(0)
     , mLastApplied(lastApplied)
     , mApplyLedgerSuccess(app.getMetrics().NewMeter(
           {"history", "apply-ledger-chain", "success"}, "event"))
