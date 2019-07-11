@@ -297,43 +297,45 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     availableTime.Update(getAvailableTimeForMerge(app, level));
 
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
-    std::shared_ptr<task_t> task = std::make_shared<task_t>([
-        curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
-        timeScope = timer.TimeScope(), &app
-    ]() mutable {
-        CLOG(TRACE, "Bucket")
-            << "Worker merging curr=" << hexAbbrev(curr->getHash())
-            << " with snap=" << hexAbbrev(snap->getHash());
-
-        try
-        {
-            auto res = Bucket::merge(
-                bm, maxProtocolVersion, curr, snap, shadows,
-                BucketList::keepDeadEntries(level), countMergeEvents);
-
+    std::shared_ptr<task_t> task = std::make_shared<task_t>(
+        [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
+         &timer, &app]() mutable {
+            auto timeScope = timer.TimeScope();
             CLOG(TRACE, "Bucket")
-                << "Worker finished merging curr=" << hexAbbrev(curr->getHash())
+                << "Worker merging curr=" << hexAbbrev(curr->getHash())
                 << " with snap=" << hexAbbrev(snap->getHash());
 
-            std::chrono::duration<double> time(timeScope.Stop());
-            double timePct = time.count() /
-                             getAvailableTimeForMerge(app, level).count() * 100;
-            CLOG(DEBUG, "Perf")
-                << "Bucket merge on level " << level << " finished in "
-                << time.count() << " seconds (" << timePct
-                << "% of available time)";
+            try
+            {
+                auto res = Bucket::merge(
+                    bm, maxProtocolVersion, curr, snap, shadows,
+                    BucketList::keepDeadEntries(level), countMergeEvents);
 
-            return res;
-        }
-        catch (std::exception const& e)
-        {
-            throw std::runtime_error(fmt::format(
-                "Error merging bucket curr={} with snap={}: "
-                "{}. {}",
-                hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
-                e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
-        };
-    });
+                CLOG(TRACE, "Bucket")
+                    << "Worker finished merging curr="
+                    << hexAbbrev(curr->getHash())
+                    << " with snap=" << hexAbbrev(snap->getHash());
+
+                std::chrono::duration<double> time(timeScope.Stop());
+                double timePct = time.count() /
+                                 getAvailableTimeForMerge(app, level).count() *
+                                 100;
+                CLOG(DEBUG, "Perf")
+                    << "Bucket merge on level " << level << " finished in "
+                    << time.count() << " seconds (" << timePct
+                    << "% of available time)";
+
+                return res;
+            }
+            catch (std::exception const& e)
+            {
+                throw std::runtime_error(fmt::format(
+                    "Error merging bucket curr={} with snap={}: "
+                    "{}. {}",
+                    hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()),
+                    e.what(), POSSIBLY_CORRUPTED_LOCAL_FS));
+            };
+        });
 
     mOutputBucket = task->get_future().share();
     app.postOnBackgroundThread(bind(&task_t::operator(), task),
