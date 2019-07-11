@@ -8,6 +8,9 @@
 
 namespace stellar
 {
+
+class LedgerTxnHeader;
+
 class MergeOpFrame : public OperationFrame
 {
     AccountMergeResult&
@@ -17,6 +20,9 @@ class MergeOpFrame : public OperationFrame
     }
 
     ThresholdLevel getThresholdLevel() const override;
+
+    virtual bool isSeqnumTooFar(LedgerTxnHeader const& header,
+                                AccountEntry const& sourceAccount);
 
   public:
     MergeOpFrame(Operation const& op, OperationResult& res,

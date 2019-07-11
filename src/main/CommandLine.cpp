@@ -15,6 +15,10 @@
 #include "util/Logging.h"
 #include "util/optional.h"
 
+#include "catchup/simulation/ApplyTransactionsWork.h"
+#include "historywork/BatchDownloadWork.h"
+#include "work/WorkScheduler.h"
+
 #ifdef BUILD_TESTS
 #include "test/fuzz.h"
 #include "test/test.h"
@@ -793,6 +797,70 @@ runRebuildLedgerFromBuckets(CommandLineArgs const& args)
 }
 
 int
+runSimulate(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    uint32_t opsPerLedger = 0;
+    uint32_t firstLedgerInclusive = 0;
+    uint32_t lastLedgerInclusive = 0;
+    std::string historyArchiveGet;
+
+    auto validateFirstLedger = [&] {
+        if (firstLedgerInclusive == 0)
+        {
+            return "first ledger must not be 0";
+        }
+        else if (firstLedgerInclusive > lastLedgerInclusive)
+        {
+            return "last ledger must not preceed first ledger";
+        }
+        return "";
+    };
+    ParserWithValidation firstLedgerParser{
+        clara::Opt{firstLedgerInclusive, "LEDGER"}["--first-ledger-inclusive"](
+            "first ledger to read from history archive"),
+        validateFirstLedger};
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         clara::Opt{opsPerLedger, "OPS-PER-LEDGER"}["--ops-per-ledger"](
+             "desired number of operations per ledger, will never be less but "
+             "could be up to 100 more"),
+         firstLedgerParser,
+         clara::Opt{lastLedgerInclusive, "LEDGER"}["--last-ledger-inclusive"](
+             "last ledger to read from history archive")},
+        [&] {
+            auto config = configOption.getConfig();
+            config.setNoListen();
+
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto app = Application::create(clock, config, false);
+            app->start();
+
+            LedgerRange lr{firstLedgerInclusive, lastLedgerInclusive};
+            CheckpointRange cr(lr, app->getHistoryManager());
+            TmpDir dir(app->getTmpDirManager().tmpDir("simulate"));
+
+            auto downloadLedgers = std::make_shared<BatchDownloadWork>(
+                *app, cr, HISTORY_FILE_TYPE_LEDGER, dir);
+            auto downloadTransactions = std::make_shared<BatchDownloadWork>(
+                *app, cr, HISTORY_FILE_TYPE_TRANSACTIONS, dir);
+            auto downloadResults = std::make_shared<BatchDownloadWork>(
+                *app, cr, HISTORY_FILE_TYPE_RESULTS, dir);
+            auto apply = std::make_shared<ApplyTransactionsWork>(
+                *app, dir, lr, app->getConfig().NETWORK_PASSPHRASE,
+                opsPerLedger);
+            std::vector<std::shared_ptr<BasicWork>> seq{
+                downloadLedgers, downloadTransactions, downloadResults, apply};
+
+            app->getWorkScheduler().executeWork<WorkSequence>(
+                "download-simulate-seq", seq);
+            return 0;
+        });
+}
+
+int
 runFuzz(CommandLineArgs const& args)
 {
     el::Level logLevel{el::Level::Info};
@@ -872,6 +940,7 @@ handleCommandLine(int argc, char* const* argv)
           runRebuildLedgerFromBuckets},
          {"fuzz", "run a single fuzz input and exit", runFuzz},
          {"gen-fuzz", "generate a random fuzzer input file", runGenFuzz},
+         {"simulate", "simulate applying ledgers", runSimulate},
          {"test", "execute test suite", runTest},
 #endif
          {"write-quorum", "print a quorum set graph from history",

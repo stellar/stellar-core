@@ -29,6 +29,16 @@ MergeOpFrame::getThresholdLevel() const
     return ThresholdLevel::HIGH;
 }
 
+bool
+MergeOpFrame::isSeqnumTooFar(LedgerTxnHeader const& header,
+                             AccountEntry const& sourceAccount)
+{
+    // don't allow the account to be merged if recreating it would cause it
+    // to jump backwards
+    SequenceNumber maxSeq = getStartingSequenceNumber(header);
+    return sourceAccount.seqNum >= maxSeq;
+}
+
 // make sure the deleted Account hasn't issued credit
 // make sure we aren't holding any credit
 // make sure the we delete all the offers
@@ -90,11 +100,7 @@ MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     if (header.current().ledgerVersion >= 10)
     {
-        SequenceNumber maxSeq = getStartingSequenceNumber(header);
-
-        // don't allow the account to be merged if recreating it would cause it
-        // to jump backwards
-        if (sourceAccount.seqNum >= maxSeq)
+        if (isSeqnumTooFar(header, sourceAccount))
         {
             innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
             return false;

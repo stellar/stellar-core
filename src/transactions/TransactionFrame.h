@@ -63,11 +63,19 @@ class TransactionFrame
         kFullyValid
     };
 
+    virtual bool isTooEarly(LedgerTxnHeader const& header) const;
+    virtual bool isTooLate(LedgerTxnHeader const& header) const;
+
     bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply);
+
+    virtual bool isBadSeq(int64_t seqNum) const;
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
                                AbstractLedgerTxn& ltxOuter,
                                SequenceNumber current, bool applying);
+
+    virtual std::shared_ptr<OperationFrame>
+    makeOperation(Operation const& op, OperationResult& res, size_t index);
 
     void resetResults(LedgerHeader const& header, int64_t baseFee);
 
@@ -97,6 +105,10 @@ class TransactionFrame
                      TransactionEnvelope const& envelope);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
+
+    virtual ~TransactionFrame()
+    {
+    }
 
     static TransactionFramePtr
     makeTransactionFromWire(Hash const& networkID,
@@ -152,7 +164,7 @@ class TransactionFrame
 
     int64_t getMinFee(LedgerHeader const& header) const;
 
-    int64_t getFee(LedgerHeader const& header, int64_t baseFee) const;
+    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee) const;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
@@ -166,7 +178,7 @@ class TransactionFrame
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee);
+    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied

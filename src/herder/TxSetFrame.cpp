@@ -419,7 +419,7 @@ TxSetFrame::removeTx(TransactionFramePtr tx)
     mHashIsValid = false;
 }
 
-Hash
+Hash const&
 TxSetFrame::getContentsHash()
 {
     if (!mHashIsValid)
