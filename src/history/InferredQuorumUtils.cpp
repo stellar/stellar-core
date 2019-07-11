@@ -58,7 +58,7 @@ inferQuorumAndWrite(Config const& cfg, uint32_t ledgerNum)
         iq = InferredQuorum(qmap);
     }
     LOG(INFO) << "Inferred quorum";
-    std::cout << iq.toString(cfg2) << std::endl;
+    std::cout << iq.toString(cfg2, true) << std::endl;
 }
 
 void

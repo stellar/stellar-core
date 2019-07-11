@@ -96,7 +96,7 @@ InferredQuorum::notePubKey(PublicKey const& pk)
 }
 
 std::string
-InferredQuorum::toString(Config const& cfg) const
+InferredQuorum::toString(Config const& cfg, bool fullKeys) const
 {
     std::ostringstream out;
 
@@ -112,7 +112,7 @@ InferredQuorum::toString(Config const& cfg) const
 
     for (auto const& pair : mPubKeys)
     {
-        auto name = cfg.toStrKey(pair.first);
+        auto name = cfg.toStrKey(pair.first, fullKeys);
         if (pair.second < thresh)
         {
             out << "# skipping unreliable "
@@ -130,7 +130,7 @@ InferredQuorum::toString(Config const& cfg) const
         {
             continue;
         }
-        auto name = cfg.toStrKey(pair.first);
+        auto name = cfg.toStrKey(pair.first, fullKeys);
         if (first)
         {
             first = false;
