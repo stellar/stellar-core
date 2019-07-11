@@ -1264,7 +1264,7 @@ Config::toShortString(PublicKey const& pk) const
 }
 
 std::string
-Config::toStrKey(PublicKey const& pk, bool& isAlias) const
+Config::toStrKeyAuto(PublicKey const& pk, bool& isAlias) const
 {
     std::string ret = KeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
@@ -1284,7 +1284,7 @@ std::string
 Config::toStrKey(PublicKey const& pk) const
 {
     bool isAlias;
-    return toStrKey(pk, isAlias);
+    return toStrKeyAuto(pk, isAlias);
 }
 
 bool

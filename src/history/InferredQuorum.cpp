@@ -112,13 +112,12 @@ InferredQuorum::toString(Config const& cfg) const
 
     for (auto const& pair : mPubKeys)
     {
-        auto isAlias = false;
-        auto name = cfg.toStrKey(pair.first, isAlias);
+        auto name = cfg.toStrKey(pair.first);
         if (pair.second < thresh)
         {
             out << "# skipping unreliable "
                 << "(" << pair.second << "/" << thresh << ") node: " << '"'
-                << (isAlias ? "$" : "") << name << '"' << std::endl;
+                << name << '"' << std::endl;
         }
     }
 
@@ -131,8 +130,7 @@ InferredQuorum::toString(Config const& cfg) const
         {
             continue;
         }
-        auto isAlias = false;
-        auto name = cfg.toStrKey(pair.first, isAlias);
+        auto name = cfg.toStrKey(pair.first);
         if (first)
         {
             first = false;
@@ -141,7 +139,7 @@ InferredQuorum::toString(Config const& cfg) const
         {
             out << "," << std::endl;
         }
-        out << '"' << (isAlias ? "$" : "") << name << '"';
+        out << '"' << name << '"';
     }
     out << std::endl << "]" << std::endl;
     return out.str();
