@@ -12,6 +12,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/LedgerCmp.h"
+#include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
@@ -608,6 +609,8 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     {
         bucketManager.incrMergeCounters(mc);
     }
-    return out.getBucket(bucketManager);
+    MergeKey mk{maxProtocolVersion, keepDeadEntries, oldBucket, newBucket,
+                shadows};
+    return out.getBucket(bucketManager, &mk);
 }
 }

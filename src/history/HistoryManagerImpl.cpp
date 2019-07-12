@@ -306,6 +306,15 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 size_t
 HistoryManagerImpl::publishQueuedHistory()
 {
+#ifdef BUILD_TESTS
+    if (!mPublicationEnabled)
+    {
+        CLOG(INFO, "History")
+            << "Publication explicitly disabled, so not publishing";
+        return 0;
+    }
+#endif
+
     std::string state;
 
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -459,4 +468,14 @@ HistoryManagerImpl::getPublishFailureCount()
 {
     return mPublishFailure.count();
 }
+
+#ifdef BUILD_TESTS
+void
+HistoryManagerImpl::setPublicationEnabled(bool enabled)
+{
+    CLOG(INFO, "History") << (enabled ? "Enabling" : "Disabling")
+                          << " history publication";
+    mPublicationEnabled = enabled;
+}
+#endif
 }

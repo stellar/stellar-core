@@ -39,6 +39,9 @@ class HistoryManagerImpl : public HistoryManager
         mEnqueueTimes;
 
     PublishQueueBuckets::BucketCount loadBucketsReferencedByPublishQueue();
+#ifdef BUILD_TESTS
+    bool mPublicationEnabled{true};
+#endif
 
   public:
     HistoryManagerImpl(Application& app);
@@ -70,7 +73,7 @@ class HistoryManagerImpl : public HistoryManager
 
     std::vector<std::string> getBucketsReferencedByPublishQueue() override;
 
-    std::vector<HistoryArchiveState> getPublishQueueStates();
+    std::vector<HistoryArchiveState> getPublishQueueStates() override;
 
     void historyPublished(uint32_t ledgerSeq,
                           std::vector<std::string> const& originalBuckets,
@@ -91,5 +94,9 @@ class HistoryManagerImpl : public HistoryManager
     uint64_t getPublishQueueCount() override;
     uint64_t getPublishSuccessCount() override;
     uint64_t getPublishFailureCount() override;
+
+#ifdef BUILD_TESTS
+    void setPublicationEnabled(bool enabled) override;
+#endif
 };
 }

@@ -15,11 +15,13 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/BucketTests.h"
+#include "history/HistoryArchiveManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ExternalQueue.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Math.h"
@@ -143,6 +145,9 @@ clearFutures(Application::pointer app, BucketList& bl)
         std::unique_lock<std::mutex> lock(mutex);
         cv2.wait(lock, [&] { return finished == n; });
     }
+
+    // Tell the BucketManager to forget all about the futures it knows.
+    app->getBucketManager().clearMergeFuturesForTesting();
 }
 
 static Hash
@@ -334,6 +339,214 @@ TEST_CASE("bucketmanager ownership", "[bucket][bucketmanager]")
     });
 }
 
+TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        BucketManager& bm = app->getBucketManager();
+        BucketList& bl = bm.getBucketList();
+        auto vers = getAppLedgerVersion(app);
+
+        // Add some entries to get to a nontrivial merge-state.
+        uint32_t ledger = 0;
+        uint32_t level = 3;
+        do
+        {
+            ++ledger;
+            bl.addBatch(*app, ledger, vers, {},
+                        LedgerTestUtils::generateValidLedgerEntries(10), {});
+            bm.forgetUnreferencedBuckets();
+        } while (!BucketList::levelShouldSpill(ledger, level - 1));
+
+        // Check that the merge on level isn't committed (we're in
+        // ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING mode that does not resolve
+        // eagerly)
+        REQUIRE(bl.getLevel(level).getNext().isMerging());
+
+        // Serialize HAS.
+        HistoryArchiveState has(ledger, bl);
+        std::string serialHas = has.toString();
+
+        // Simulate level committing (and the FutureBucket clearing),
+        // followed by the typical ledger-close bucket GC event.
+        bl.getLevel(level).commit();
+        REQUIRE(!bl.getLevel(level).getNext().isMerging());
+
+        REQUIRE(bm.readMergeCounters().mFinishedMergeReattachments == 0);
+
+        // Deserialize HAS.
+        HistoryArchiveState has2;
+        has2.fromString(serialHas);
+
+        // Reattach to _finished_ merge future on level.
+        has2.currentBuckets[level].next.makeLive(
+            *app, vers, BucketList::keepDeadEntries(level));
+        REQUIRE(has2.currentBuckets[level].next.isMerging());
+
+        // Resolve reattached future.
+        has2.currentBuckets[level].next.resolve();
+
+        // Check that we reattached to a finished merge.
+        REQUIRE(bm.readMergeCounters().mFinishedMergeReattachments != 0);
+    });
+}
+
+TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        BucketManager& bm = app->getBucketManager();
+        BucketList& bl = bm.getBucketList();
+        auto vers = getAppLedgerVersion(app);
+
+        // This test is a race that will (if all goes well) eventually be won:
+        // we keep trying to do an immediate-reattach to a running merge and
+        // will only lose in cases of extremely short-running merges that finish
+        // before we have a chance to reattach. Once the merges are at all
+        // nontrivial in size, we'll likely win. In practice we observe the race
+        // being won within 10 ledgers.
+        //
+        // The amount of testing machinery we have to put in place to make this
+        // a non-racy test seems to be (a) extensive and (b) not worth the
+        // trouble, since it'd be testing fake circumstances anyways: the entire
+        // point of reattachment is to provide a benefit in cases where this
+        // race is won. So testing it _as_ a race seems reasonably fair.
+        //
+        // That said, nondeterminism in tests is no fun and tests that run
+        // potentially-forever are no fun. So we put a statistically-unlikely
+        // limit in here of 10,000 merges. If we consistently lose for that
+        // long, there's probably something wrong with the code, and in any case
+        // it's a better nondeterministic failure than timing out the entire
+        // testsuite with no explanation.
+        uint32_t ledger = 0;
+        uint32_t limit = 10000;
+        while (ledger < limit &&
+               bm.readMergeCounters().mRunningMergeReattachments == 0)
+        {
+            ++ledger;
+            // Merges will start on one or more levels here, starting a race
+            // between the main thread here and the background workers doing
+            // the merges.
+            bl.addBatch(*app, ledger, vers, {},
+                        LedgerTestUtils::generateValidLedgerEntries(100), {});
+
+            bm.forgetUnreferencedBuckets();
+
+            HistoryArchiveState has(ledger, bl);
+            std::string serialHas = has.toString();
+
+            // Deserialize and reactivate levels of HAS. Races with the merge
+            // workers end here. One of these reactivations should eventually
+            // reattach, winning the race (each time around this loop the
+            // merge workers will take longer to finish, so we will likely
+            // win quite shortly).
+            HistoryArchiveState has2;
+            has2.fromString(serialHas);
+            for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+            {
+                if (has2.currentBuckets[level].next.hasHashes())
+                {
+                    has2.currentBuckets[level].next.makeLive(
+                        *app, vers, BucketList::keepDeadEntries(level));
+                }
+            }
+        }
+        CLOG(INFO, "Bucket")
+            << "reattached to running merge at or around ledger " << ledger;
+        REQUIRE(ledger < limit);
+        REQUIRE(bm.readMergeCounters().mRunningMergeReattachments != 0);
+    });
+}
+
+TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
+          "[bucket][bucketmanager]")
+{
+    Config cfg(getTestConfig());
+    cfg.MAX_CONCURRENT_SUBPROCESSES = 1;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+    cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+    stellar::historytestutils::TmpDirHistoryConfigurator tcfg;
+    cfg = tcfg.configure(cfg, true);
+
+    {
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+        auto vers = getAppLedgerVersion(app);
+        auto& hm = app->getHistoryManager();
+        auto& bm = app->getBucketManager();
+        auto& bl = bm.getBucketList();
+        auto& lm = app->getLedgerManager();
+        hm.setPublicationEnabled(false);
+        app->start();
+        app->getHistoryArchiveManager().initializeHistoryArchive("test");
+        while (hm.getPublishQueueCount() < 5)
+        {
+            CLOG(INFO, "Bucket")
+                << "finished-merge reattachments: "
+                << bm.readMergeCounters().mFinishedMergeReattachments;
+            bl.addBatch(*app, lm.getLastClosedLedgerNum() + 1, vers, {},
+                        LedgerTestUtils::generateValidLedgerEntries(100), {});
+            clock.crank(true);
+            bm.forgetUnreferencedBuckets();
+        }
+        // We should have published nothing and have the first
+        // checkpoint still queued.
+        REQUIRE(hm.getPublishSuccessCount() == 0);
+        REQUIRE(hm.getMinLedgerQueuedToPublish() == 7);
+
+        auto oldReattachments =
+            bm.readMergeCounters().mFinishedMergeReattachments;
+        auto HASs = hm.getPublishQueueStates();
+        REQUIRE(HASs.size() == 5);
+        for (auto& has : HASs)
+        {
+            for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
+            {
+                if (has.currentBuckets[level].next.hasHashes())
+                {
+                    has.currentBuckets[level].next.makeLive(
+                        *app, vers, BucketList::keepDeadEntries(level));
+                }
+            }
+        }
+
+        // This is the key check of the test: re-enabling the merges worked
+        // and caused a bunch of finished-merge reattachments.
+        REQUIRE(bm.readMergeCounters().mFinishedMergeReattachments !=
+                oldReattachments);
+        CLOG(INFO, "Bucket")
+            << "finished-merge reattachments: "
+            << bm.readMergeCounters().mFinishedMergeReattachments;
+
+        // Un-cork the publication process, nothing should be broken.
+        hm.setPublicationEnabled(true);
+        while (hm.getPublishSuccessCount() < 5)
+        {
+            clock.crank(true);
+
+            // Trim history after publishing whenever possible.
+            ExternalQueue ps(*app);
+            ps.deleteOldEntries(50000);
+        }
+        clock.cancelAllEvents();
+        while (clock.cancelAllEvents() ||
+               app->getProcessManager().getNumRunningProcesses() > 0)
+        {
+            clock.crank(true);
+        }
+    }
+}
+
 // Running one of these tests involves comparing three timelines with different
 // application lifecycles for identical outcomes.
 //
@@ -399,6 +612,10 @@ class StopAndRestartBucketMergesTest
                                  << mMergeCounters.mPreInitEntryProtocolMerges;
             CLOG(INFO, "Bucket") << "PostInitEntryProtocolMerges: "
                                  << mMergeCounters.mPostInitEntryProtocolMerges;
+            CLOG(INFO, "Bucket") << "RunningMergeReattachments: "
+                                 << mMergeCounters.mRunningMergeReattachments;
+            CLOG(INFO, "Bucket") << "FinishedMergeReattachments: "
+                                 << mMergeCounters.mFinishedMergeReattachments;
             CLOG(INFO, "Bucket")
                 << "NewMetaEntries: " << mMergeCounters.mNewMetaEntries;
             CLOG(INFO, "Bucket")
@@ -525,6 +742,11 @@ class StopAndRestartBucketMergesTest
                   other.mMergeCounters.mPreInitEntryProtocolMerges);
             CHECK(mMergeCounters.mPostInitEntryProtocolMerges ==
                   other.mMergeCounters.mPostInitEntryProtocolMerges);
+
+            CHECK(mMergeCounters.mRunningMergeReattachments ==
+                  other.mMergeCounters.mRunningMergeReattachments);
+            CHECK(mMergeCounters.mFinishedMergeReattachments ==
+                  other.mMergeCounters.mFinishedMergeReattachments);
 
             CHECK(mMergeCounters.mNewMetaEntries ==
                   other.mMergeCounters.mNewMetaEntries);

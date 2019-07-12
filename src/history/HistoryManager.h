@@ -271,6 +271,10 @@ class HistoryManager
     // queue.
     virtual std::vector<std::string> getBucketsReferencedByPublishQueue() = 0;
 
+    // Return the full set of HistoryArchiveStates in the persistent (DB)
+    // publish queue.
+    virtual std::vector<HistoryArchiveState> getPublishQueueStates() = 0;
+
     // Callback from Publication, indicates that a given snapshot was
     // published. The `success` parameter indicates whether _all_ the
     // configured archives published correctly; if so the snapshot
@@ -309,6 +313,12 @@ class HistoryManager
 
     // Return the number of checkpoints that failed publication.
     virtual uint64_t getPublishFailureCount() = 0;
+
+#ifdef BUILD_TESTS
+    // Enable or disable history publication, purely a testing interface.
+    // History is still queued when publication is disabled.
+    virtual void setPublicationEnabled(bool enabled) = 0;
+#endif
 
     virtual ~HistoryManager(){};
 };
