@@ -142,6 +142,15 @@
     <Filter Include="github">
       <UniqueIdentifier>{2f5780ba-6cc8-45ba-b70b-aa50af3af3ce}</UniqueIdentifier>
     </Filter>
+    <Filter Include="herder\simulation">
+      <UniqueIdentifier>{d3bc5d86-b218-4775-a47d-8db1a1ec26a0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="catchup\simulation">
+      <UniqueIdentifier>{03aee051-1ba2-40f7-9551-8dbeaf8c4232}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="transactions\simulation">
+      <UniqueIdentifier>{b342c551-848c-427d-8d3b-df060afe49aa}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -942,6 +951,30 @@
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\test\BucketMergeMapTests.cpp">
+      <Filter>bucket\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketMergeMap.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\MergeKey.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\simulation\SimulationTxSetFrame.cpp">
+      <Filter>herder\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\simulation\ApplyTransactionsWork.cpp">
+      <Filter>catchup\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp">
+      <Filter>catchup\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\simulation\SimulationMergeOpFrame.cpp">
+      <Filter>transactions\simulation</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\simulation\SimulationTransactionFrame.cpp">
+      <Filter>transactions\simulation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1627,6 +1660,30 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketMergeMap.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketTests.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\MergeKey.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\simulation\SimulationTxSetFrame.h">
+      <Filter>herder\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\simulation\ApplyTransactionsWork.h">
+      <Filter>catchup\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h">
+      <Filter>catchup\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\simulation\SimulationMergeOpFrame.h">
+      <Filter>transactions\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\simulation\SimulationTransactionFrame.h">
+      <Filter>transactions\simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
