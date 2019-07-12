@@ -39,10 +39,11 @@ class Application;
  * by tryAdd operation. If that succeds, it can be later removed from it in one
  * of three ways:
  * * removeAndReset() should be called after transaction is successully
- *   included into some leger
+ *   included into some leger. It preserves the other pending transactions for
+ *   accounts and resets the TTL for banning
  * * ban() should be called after transaction became invalid for some reason
  *   (i.e. its source account cannot afford it anymore)
- * * shift() should be called after each ledger close, it bans transcations
+ * * shift() should be called after each ledger close, it bans transactions
  *   that have associated age greater or equal to pendingDepth and removes
  *   transactions that were banned for more than banDepth ledgers
  *
@@ -140,7 +141,8 @@ class TransactionQueue
     FindResult find(TransactionFramePtr const& tx);
     using ExtractResult = std::pair<PendingTransactions::iterator,
                                     std::vector<TransactionFramePtr>>;
-    ExtractResult extract(TransactionFramePtr const& tx);
+    // keepBacklog: keeps transactions succeding tx in the account's backlog
+    ExtractResult extract(TransactionFramePtr const& tx, bool keepBacklog);
 };
 
 static const char* TX_STATUS_STRING[static_cast<int>(

@@ -71,7 +71,7 @@ TransactionQueue::removeAndReset(
 {
     for (auto const& tx : dropTxs)
     {
-        auto extracted = extract(tx);
+        auto extracted = extract(tx, true);
         if (extracted.first != std::end(mPendingTransactions))
         {
             extracted.first->second.mAge = 0;
@@ -85,7 +85,7 @@ TransactionQueue::ban(std::vector<TransactionFramePtr> const& dropTxs)
     auto& bannedFront = mBannedTransactions.front();
     for (auto const& tx : dropTxs)
     {
-        for (auto const& extracted : extract(tx).second)
+        for (auto const& extracted : extract(tx, false).second)
         {
             bannedFront.insert(extracted->getFullHash());
         }
@@ -127,7 +127,7 @@ TransactionQueue::find(TransactionFramePtr const& tx)
 }
 
 TransactionQueue::ExtractResult
-TransactionQueue::extract(TransactionFramePtr const& tx)
+TransactionQueue::extract(TransactionFramePtr const& tx, bool keepBacklog)
 {
     auto it = find(tx);
     auto accIt = it.first;
@@ -138,16 +138,23 @@ TransactionQueue::extract(TransactionFramePtr const& tx)
 
     auto& txs = accIt->second.mTransactions;
     auto txIt = it.second;
-    auto feeBid =
-        std::accumulate(txIt, std::end(txs), int64_t{0},
+
+    auto txRemoveEnd = txIt + 1;
+    if (!keepBacklog)
+    {
+        // remove everything passed tx
+        txRemoveEnd = std::end(txs);
+    }
+    auto removedFeeBid =
+        std::accumulate(txIt, txRemoveEnd, int64_t{0},
                         [](int64_t fee, TransactionFramePtr const& tx) {
                             return fee + tx->getFeeBid();
                         });
-    accIt->second.mTotalFees -= feeBid;
+    accIt->second.mTotalFees -= removedFeeBid;
 
     auto movedTxs = std::vector<TransactionFramePtr>{};
-    std::move(txIt, std::end(txs), std::back_inserter(movedTxs));
-    txs.erase(txIt, std::end(txs));
+    std::move(txIt, txRemoveEnd, std::back_inserter(movedTxs));
+    txs.erase(txIt, txRemoveEnd);
 
     if (accIt->second.mTransactions.empty())
     {
