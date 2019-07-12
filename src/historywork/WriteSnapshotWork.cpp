@@ -12,9 +12,13 @@
 namespace stellar
 {
 
+// Note, WriteSnapshotWork does not have any special retry clean-up logic:
+// history items are written via XDROutputFileStream, which automatically
+// truncates any existing files.
 WriteSnapshotWork::WriteSnapshotWork(Application& app,
                                      std::shared_ptr<StateSnapshot> snapshot)
-    : BasicWork(app, "write-snapshot", Work::RETRY_A_LOT), mSnapshot(snapshot)
+    : BasicWork(app, "write-snapshot", BasicWork::RETRY_A_LOT)
+    , mSnapshot(snapshot)
 {
 }
 

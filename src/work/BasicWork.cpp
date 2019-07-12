@@ -14,7 +14,6 @@ size_t const BasicWork::RETRY_NEVER = 0;
 size_t const BasicWork::RETRY_ONCE = 1;
 size_t const BasicWork::RETRY_A_FEW = 5;
 size_t const BasicWork::RETRY_A_LOT = 32;
-size_t const BasicWork::RETRY_FOREVER = 0xffffffff;
 
 std::set<BasicWork::Transition> const BasicWork::ALLOWED_TRANSITIONS = {
     Transition(InternalState::PENDING, InternalState::RUNNING),
@@ -352,8 +351,8 @@ BasicWork::crankWork()
 VirtualClock::duration
 BasicWork::getRetryDelay() const
 {
-    // Cap to 4096sec == a little over an hour.
-    uint64_t m = 2 << std::min(uint64_t(12), uint64_t(mRetries));
+    // Cap to 512 sec or ~8 minutes
+    uint64_t m = 2 << std::min(uint64_t(8), uint64_t(mRetries));
     return std::chrono::seconds(rand_uniform<uint64_t>(1ULL, m));
 }
 

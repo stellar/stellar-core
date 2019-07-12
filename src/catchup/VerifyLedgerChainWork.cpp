@@ -81,7 +81,7 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, TmpDir const& downloadDir, LedgerRange range,
     LedgerNumHashPair const& lastClosedLedger, LedgerNumHashPair ledgerRangeEnd)
-    : BasicWork(app, "verify-ledger-chain", RETRY_NEVER)
+    : BasicWork(app, "verify-ledger-chain", BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrCheckpoint(

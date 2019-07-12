@@ -23,7 +23,7 @@ namespace stellar
 VerifyBucketWork::VerifyBucketWork(
     Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::string const& bucketFile, uint256 const& hash)
-    : BasicWork(app, "verify-bucket-hash-" + bucketFile, RETRY_NEVER)
+    : BasicWork(app, "verify-bucket-hash-" + bucketFile, BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)

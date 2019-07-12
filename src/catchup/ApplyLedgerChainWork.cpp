@@ -26,7 +26,7 @@ namespace stellar
 ApplyLedgerChainWork::ApplyLedgerChainWork(
     Application& app, TmpDir const& downloadDir, LedgerRange range,
     LedgerHeaderHistoryEntry& lastApplied)
-    : BasicWork(app, "apply-ledger-chain", RETRY_NEVER)
+    : BasicWork(app, "apply-ledger-chain", BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrSeq(0)

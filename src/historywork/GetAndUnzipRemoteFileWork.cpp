@@ -13,9 +13,9 @@ namespace stellar
 
 GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
     Application& app, FileTransferInfo ft,
-    std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
+    std::shared_ptr<HistoryArchive> archive)
     : Work(app, std::string("get-and-unzip-remote-file ") + ft.remoteName(),
-           maxRetries)
+           BasicWork::RETRY_A_LOT)
     , mFt(std::move(ft))
     , mArchive(archive)
     , mDownloadStart(app.getMetrics().NewMeter(
@@ -93,8 +93,8 @@ GetAndUnzipRemoteFileWork::doWork()
             {
                 return State::WORK_FAILURE;
             }
-            mGunzipFileWork =
-                addWork<GunzipFileWork>(mFt.localPath_gz(), false, RETRY_NEVER);
+            mGunzipFileWork = addWork<GunzipFileWork>(mFt.localPath_gz(), false,
+                                                      BasicWork::RETRY_NEVER);
             return State::WORK_RUNNING;
         }
         return state;
@@ -103,8 +103,9 @@ GetAndUnzipRemoteFileWork::doWork()
     {
         CLOG(DEBUG, "History")
             << "Downloading and unzipping " << mFt.remoteName();
-        mGetRemoteFileWork = addWork<GetRemoteFileWork>(
-            mFt.remoteName(), mFt.localPath_gz_tmp(), nullptr, RETRY_NEVER);
+        mGetRemoteFileWork =
+            addWork<GetRemoteFileWork>(mFt.remoteName(), mFt.localPath_gz_tmp(),
+                                       nullptr, BasicWork::RETRY_NEVER);
         mDownloadStart.Mark();
         return State::WORK_RUNNING;
     }

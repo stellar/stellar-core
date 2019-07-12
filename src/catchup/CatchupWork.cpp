@@ -25,7 +25,7 @@ namespace stellar
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
                          ProgressHandler progressHandler)
-    : Work(app, "catchup", Work::RETRY_NEVER)
+    : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getHistoryManager().getLastClosedHistoryArchiveState()}
     , mDownloadDir{std::make_unique<TmpDir>(
           mApp.getTmpDirManager().tmpDir(getName()))}

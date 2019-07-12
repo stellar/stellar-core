@@ -15,7 +15,9 @@ namespace stellar
 PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
     Application& app, HistoryArchiveState const& state,
     std::shared_ptr<HistoryArchive> archive)
-    : Work(app, "put-history-archive-state")
+    // Retry once in case of an unexpected failure during upload (e.g. deleted
+    // file)
+    : Work(app, "put-history-archive-state", BasicWork::RETRY_ONCE)
     , mState(state)
     , mArchive(archive)
     , mLocalFilename(HistoryArchiveState::localName(app, archive->getName()))
@@ -66,8 +68,10 @@ PutHistoryArchiveStateWork::spawnPublishWork()
                                                   mArchive);
 
     std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
-    mPutRemoteFileWork =
-        addWork<WorkSequence>("put-history-file-sequence", seq);
+
+    // mkdir and put inside the sequence already retry a lot
+    mPutRemoteFileWork = addWork<WorkSequence>("put-history-file-sequence", seq,
+                                               BasicWork::RETRY_NEVER);
 
     // Also put it in the .well-known/stellar-history.json file
     auto wkName = HistoryArchiveState::wellKnownRemoteName();
@@ -76,8 +80,10 @@ PutHistoryArchiveStateWork::spawnPublishWork()
     auto w3 = std::make_shared<MakeRemoteDirWork>(mApp, wkDir, mArchive);
     auto w4 = std::make_shared<PutRemoteFileWork>(mApp, mLocalFilename, wkName,
                                                   mArchive);
+
+    // mkdir and put inside the sequence already retry a lot
     std::vector<std::shared_ptr<BasicWork>> seqWk{w3, w4};
-    auto wellKnownPut =
-        addWork<WorkSequence>("put-history-well-known-sequence", seqWk);
+    auto wellKnownPut = addWork<WorkSequence>("put-history-well-known-sequence",
+                                              seqWk, BasicWork::RETRY_NEVER);
 }
 }
