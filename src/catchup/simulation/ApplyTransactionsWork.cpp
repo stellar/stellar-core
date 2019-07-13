@@ -63,7 +63,7 @@ ApplyTransactionsWork::getNextLedger(
         }
     }
 
-    uint32_t nOps = 0;
+    size_t nOps = 0;
     while (true)
     {
         while (mTransactionIter != mTransactionHistory.txSet.txs.cend() &&

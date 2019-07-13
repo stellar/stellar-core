@@ -528,6 +528,8 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.check({{{account1, 1, {txSeqA1T1, txSeqA1T2}},
                      {account2, 1, {txSeqA2T1, txSeqA2T2}}}});
         test.removeAndReset({txSeqA1T1, txSeqA2T2});
+        test.check({{{account1, 0, {txSeqA1T2}}, {account2, 0, {txSeqA2T1}}}});
+        test.removeAndReset({txSeqA1T2});
         test.check({{{account1}, {account2, 0, {txSeqA2T1}}}});
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
@@ -535,6 +537,8 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.check({{{account1, 0, {txSeqA1T1}},
                      {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
         test.removeAndReset({txSeqA2T1});
+        test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T2}}}});
+        test.removeAndReset({txSeqA2T2});
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
         test.removeAndReset({txSeqA1T1});
         test.check({{{account1}, {account2}}});
