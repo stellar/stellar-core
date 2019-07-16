@@ -34,7 +34,6 @@ ledgerseq | INT UNIQUE CHECK (ledgerseq >= 0) |
 closetime | BIGINT NOT NULL CHECK (closetime >= 0) | scpValue.closeTime
 data | TEXT NOT NULL | Entire LedgerHeader (XDR)
 
-
 ## accounts
 
 Defined in [`src/ledger/LedgerTxnAccountSQL.cpp`](/src/ledger/LedgerTxnAccountSQL.cpp)
@@ -58,7 +57,7 @@ signers | TEXT | (XDR)
 
 ## offers
 
-Defined in [`src/ledger/LedgerTxnOfferSQL.cpp.cpp`](/src/ledger/LedgerTxnOfferSQL.cpp.cpp)
+Defined in [`src/ledger/LedgerTxnOfferSQL.cpp`](/src/ledger/LedgerTxnOfferSQL.cpp)
 
 Equivalent to _OfferEntry_
 
@@ -74,7 +73,7 @@ priced | INT NOT NULL | Price.d
 price | DOUBLE PRECISION NOT NULL | computed price n/d, used for ordering offers
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-
+(offerid) | PRIMARY KEY |
 
 ## trustlines
 
@@ -92,8 +91,9 @@ tlimit | BIGINT NOT NULL DEFAULT 0 CHECK (tlimit >= 0) | limit
 balance | BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0) |
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
-sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0) |
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0) |
+(accountid, issuer, assetcode) | PRIMARY KEY |
 
 ## accountdata
 
@@ -107,6 +107,7 @@ accountid | VARCHAR(56) NOT NULL | (STRKEY)
 dataname | VARCHAR(88) NOT NULL | (BASE64)
 datavalue | VARCHAR(112) NOT NULL | (BASE64)
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+(accountid, dataname) | PRIMARY KEY |
 
 ## txhistory
 
@@ -120,6 +121,7 @@ txindex | INT NOT NULL | Apply order (per ledger, 1)
 txbody | TEXT NOT NULL | TransactionEnvelope (XDR)
 txresult | TEXT NOT NULL | TransactionResultPair (XDR)
 txmeta | TEXT NOT NULL | TransactionMeta (XDR)
+(ledgerseq, txindex) | PRIMARY KEY |
 
 ## txfeehistory
 
@@ -131,8 +133,12 @@ txid | CHARACTER(64) NOT NULL | Hash of the transaction (excluding signatures) (
 ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this transaction got applied
 txindex | INT NOT NULL | Apply order (per ledger, 1)
 txchanges | TEXT NOT NULL | LedgerEntryChanges (XDR)
+(ledgerseq, txindex) | PRIMARY KEY |
 
 ## scphistory
+
+Defined in [`src/herder/HerderPersistenceImpl.cpp`](/src/herder/HerderPersistenceImpl.cpp)
+
 Field | Type | Description
 ------|------|---------------
 nodeid | CHARACTER(56) NOT NULL | (STRKEY)
@@ -140,31 +146,38 @@ ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this transaction got ap
 envelope | TEXT NOT NULL | (XDR)
 
 ## scpquorums
+
+Defined in [`src/herder/HerderPersistenceImpl.cpp`](/src/herder/HerderPersistenceImpl.cpp)
+
 Field | Type | Description
 ------|------|---------------
 qsethash | CHARACTER(64) NOT NULL | hash of quorum set (HEX)
 lastledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this quorum set was last seen
 qset | TEXT NOT NULL | (XDR)
+(qsethash) | PRIMARY KEY |
 
 ## quoruminfo
+
+Defined in [`src/herder/HerderPersistenceImpl.cpp`](/src/herder/HerderPersistenceImpl.cpp)
+
 Field | Type | Description
 ------|------|---------------
 nodeid | CHARACTER(56) NOT NULL | (STRKEY)
 qsethash | CHARACTER(64) NOT NULL | hash of quorum set (HEX)
+(nodeid) | PRIMARY KEY |
 
 ## storestate
 
-Defined in [`src/main/PersistantState.cpp`](/src/main/PersistantState.cpp)
+Defined in [`src/main/PersistentState.cpp`](/src/main/PersistentState.cpp)
 
 Field | Type | Description
 ------|------|---------------
 statename | CHARACTER(32) PRIMARY KEY | Key
 state | TEXT | Value
 
-
 ## peers
 
-Defined in [`src/overlay/PeerRecord.cpp`](/src/overlay/PeerRecord.cpp)
+Defined in [`src/overlay/PeerManager.cpp`](/src/overlay/PeerManager.cpp)
 
 Field | Type | Description
 ------|------|---------------
@@ -172,7 +185,8 @@ ip | VARCHAR(15) NOT NULL |
 port | INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL |
 nextattempt | TIMESTAMP NOT NULL |
 numfailures | INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL |
-
+type | INT NOT NULL |
+(ip, port) | PRIMARY KEY |
 
 ## upgradehistory
 
@@ -184,4 +198,30 @@ ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this upgrade got applie
 upgradeindex | INT NOT NULL | Apply order (per ledger, 1)
 upgrade | TEXT NOT NULL | The upgrade (XDR)
 changes | TEXT NOT NULL | LedgerEntryChanges (XDR)
+(ledgerseq, upgradeindex) | PRIMARY KEY |
 
+## ban
+
+Defined in [`src/overlay/BanManagerImpl.cpp`](/src/overlay/BanManagerImpl.cpp)
+
+Field | Type | Description
+------|------|---------------
+nodeid | CHARACTER(56) NOT NULL PRIMARY KEY |
+
+## publishqueue
+
+Defined in [`src/history/HistoryManagerImpl.cpp`](/src/history/HistoryManagerImpl.cpp)
+
+Field | Type | Description
+------|------|---------------
+ledger | INTEGER PRIMARY KEY |
+state | TEXT |
+
+## pubsub
+
+Defined in [`src/main/ExternalQueue.cpp`](/src/main/ExternalQueue.cpp)
+
+Field | Type | Description
+------|------|---------------
+resid | CHARACTER(32) PRIMARY KEY |
+lastread | INTEGER |
