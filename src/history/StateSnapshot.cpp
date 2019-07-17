@@ -87,7 +87,9 @@ StateSnapshot::writeHistoryBlocks() const
     uint32_t begin, count;
     size_t nHeaders;
     {
-        XDROutputFileStream ledgerOut, txOut, txResultOut, scpHistory;
+        bool doFsync = !mApp.getConfig().DISABLE_XDR_FSYNC;
+        XDROutputFileStream ledgerOut(doFsync), txOut(doFsync),
+            txResultOut(doFsync), scpHistory(doFsync);
         ledgerOut.open(mLedgerSnapFile->localPath_nogz());
         txOut.open(mTransactionSnapFile->localPath_nogz());
         txResultOut.open(mTransactionResultSnapFile->localPath_nogz());

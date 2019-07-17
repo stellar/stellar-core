@@ -290,6 +290,19 @@ BucketManagerImpl::incrMergeCounters(MergeCounters const& delta)
     mMergeCounters += delta;
 }
 
+bool
+BucketManagerImpl::renameBucket(std::string const& src, std::string const& dst)
+{
+    if (mApp.getConfig().DISABLE_XDR_FSYNC)
+    {
+        return rename(src.c_str(), dst.c_str()) == 0;
+    }
+    else
+    {
+        return fs::durableRename(src, dst, getBucketDir());
+    }
+}
+
 std::shared_ptr<Bucket>
 BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, size_t nObjects,
@@ -328,14 +341,14 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         std::string canonicalName = bucketFilename(hash);
         CLOG(DEBUG, "Bucket")
             << "Adopting bucket file " << filename << " as " << canonicalName;
-        if (rename(filename.c_str(), canonicalName.c_str()) != 0)
+        if (!renameBucket(filename, canonicalName))
         {
             std::string err("Failed to rename bucket :");
             err += strerror(errno);
             // it seems there is a race condition with external systems
             // retry after sleeping for a second works around the problem
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            if (rename(filename.c_str(), canonicalName.c_str()) != 0)
+            if (!renameBucket(filename, canonicalName))
             {
                 // if rename fails again, surface the original error
                 throw std::runtime_error(err);

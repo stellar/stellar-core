@@ -22,6 +22,15 @@ void lockFile(std::string const& path);
 // unlocks a file locked with `lockFile`
 void unlockFile(std::string const& path);
 
+// Call fsync() on POSIX or FlushFileBuffers() on Win32.
+void flushFileChanges(FILE* fp);
+
+// On POSIX, do rename(src, dst) then open dir and fsync() it
+// too: a necessary second step for ensuring durability.
+// On Win32, do MoveFileExA with MOVEFILE_WRITE_THROUGH.
+bool durableRename(std::string const& src, std::string const& dst,
+                   std::string const& dir);
+
 // Whether a path exists
 bool exists(std::string const& path);
 

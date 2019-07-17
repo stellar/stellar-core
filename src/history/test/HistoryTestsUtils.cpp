@@ -107,7 +107,8 @@ RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
 BucketOutputIteratorForTesting::BucketOutputIteratorForTesting(
     std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc)
     : BucketOutputIterator{tmpDir, true,
-                           testutil::testBucketMetadata(protocolVersion), mc}
+                           testutil::testBucketMetadata(protocolVersion), mc,
+                           /*doFsync=*/true}
 {
 }
 
@@ -212,7 +213,7 @@ TestLedgerChainGenerator::createHistoryFiles(
     uint32_t checkpoint)
 {
     FileTransferInfo ft{mTmpDir, HISTORY_FILE_TYPE_LEDGER, checkpoint};
-    XDROutputFileStream ledgerOut;
+    XDROutputFileStream ledgerOut(/*doFsync=*/true);
     ledgerOut.open(ft.localPath_nogz());
 
     for (auto& ledger : lhv)

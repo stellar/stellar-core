@@ -198,6 +198,17 @@ class Config : public std::enable_shared_from_this<Config>
     // disk usage, but it is useful for recovering of nodes.
     bool DISABLE_BUCKET_GC;
 
+    // If set to true, writing an XDR file (a bucket or a checkpoint) will not
+    // be followed by an fsync on the file. This in turn means that XDR files
+    // (which hold the canonical state of the ledger) may be corrupted if the
+    // operating system suddenly crashes or loses power, causing the node to
+    // diverge and get stuck on restart, or potentially even publish bad
+    // history. This option only exists as an escape hatch if the local
+    // filesystem is so unusably slow that you prefer operating without
+    // durability guarantees. Do not set it to true unless you're very certain
+    // you want to make that trade.
+    bool DISABLE_XDR_FSYNC;
+
     // Set of cursors added at each startup with value '1'.
     std::vector<std::string> KNOWN_CURSORS;
 

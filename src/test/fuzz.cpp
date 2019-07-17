@@ -202,7 +202,7 @@ genfuzz(std::string const& filename)
     Logging::setFmt("<fuzz>");
     size_t n = 3;
     LOG(INFO) << "Writing " << n << "-message random fuzz file " << filename;
-    XDROutputFileStream out;
+    XDROutputFileStream out(/*doFsync=*/false);
     out.open(filename);
     autocheck::generator<StellarMessage> gen;
     for (size_t i = 0; i < n; ++i)

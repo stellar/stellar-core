@@ -269,11 +269,13 @@ TEST_CASE("bucket tombstones expire at bottom level",
             level.setCurr(Bucket::fresh(
                 bm, getAppLedgerVersion(app), {},
                 LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
-                /*countMergeEvents=*/true));
+                /*countMergeEvents=*/true,
+                /*doFsync=*/true));
             level.setSnap(Bucket::fresh(
                 bm, getAppLedgerVersion(app), {},
                 LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8),
-                /*countMergeEvents=*/true));
+                /*countMergeEvents=*/true,
+                /*doFsync=*/true));
         }
 
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)

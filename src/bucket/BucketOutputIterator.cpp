@@ -35,8 +35,9 @@ randomBucketName(std::string const& tmpDir)
 BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
                                            bool keepDeadEntries,
                                            BucketMetadata const& meta,
-                                           MergeCounters& mc)
+                                           MergeCounters& mc, bool doFsync)
     : mFilename(randomBucketName(tmpDir))
+    , mOut(doFsync)
     , mBuf(nullptr)
     , mHasher(SHA256::create())
     , mKeepDeadEntries(keepDeadEntries)

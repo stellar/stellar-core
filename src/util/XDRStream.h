@@ -116,60 +116,85 @@ class XDRInputFileStream
     }
 };
 
+// XDROutputStream needs access to a file descriptor to do
+// fsync, so we use cstdio here rather than fstreams.
 class XDROutputFileStream
 {
-    std::ofstream mOut;
+    FILE* mOut{nullptr};
     std::vector<char> mBuf;
+    const bool mFsyncOnClose;
 
   public:
-    XDROutputFileStream()
+    XDROutputFileStream(bool fsyncOnClose) : mFsyncOnClose(fsyncOnClose)
     {
-        mOut.exceptions(std::ifstream::failbit | std::ifstream::badbit);
+    }
+
+    ~XDROutputFileStream()
+    {
+        if (mOut)
+        {
+            close();
+        }
     }
 
     void
     close()
     {
-        try
+        if (!mOut)
         {
-            mOut.close();
+            FileSystemException::failWith(
+                "XDROutputFileStream::close() on non-open FILE*");
         }
-        catch (std::ios_base::failure&)
+        if (fflush(mOut) != 0)
         {
-            std::string msg("failed to close XDR file");
-            msg += ", reason: ";
-            msg += std::to_string(errno);
-            throw FileSystemException(msg);
+            FileSystemException::failWithErrno(
+                "XDROutputFileStream::close() failed on fflush(): ");
         }
+        if (mFsyncOnClose)
+        {
+            fs::flushFileChanges(mOut);
+        }
+        if (fclose(mOut) != 0)
+        {
+            FileSystemException::failWithErrno(
+                "XDROutputFileStream::close() failed on fclose(): ");
+        }
+        mOut = nullptr;
     }
 
     void
     open(std::string const& filename)
     {
-        try
+        if (mOut)
         {
-            mOut.open(filename, std::ofstream::binary | std::ofstream::trunc);
+            FileSystemException::failWith(
+                "XDROutputFileStream::open() on already-open stream");
         }
-        catch (std::ios_base::failure&)
+        mOut = fopen(filename.c_str(), "wb");
+        if (!mOut)
         {
-            std::string msg("failed to open XDR file: ");
-            msg += filename;
-            msg += ", reason: ";
-            msg += std::to_string(errno);
-            CLOG(FATAL, "Fs") << msg;
-            throw FileSystemException(msg);
+            FileSystemException::failWithErrno(
+                std::string("XDROutputFileStream::open(\"") + filename +
+                "\") failed: ");
         }
     }
 
     operator bool() const
     {
-        return mOut.good();
+        return (mOut && !static_cast<bool>(ferror(mOut)) &&
+                !static_cast<bool>(feof(mOut)));
     }
 
     template <typename T>
     void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
+        if (!mOut)
+        {
+            FileSystemException::failWith(
+                "XDROutputFileStream::writeOne() on non-open FILE*");
+        }
+
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
         assert(sz < 0x80000000);
 
@@ -188,10 +213,11 @@ class XDROutputFileStream
         xdr::xdr_put p(mBuf.data() + 4, mBuf.data() + 4 + sz);
         xdr_argpack_archive(p, t);
 
-        // Note: most libraries implement ofstream::write by calling C function
-        // `fwrite`, which does not set errno, so there isn't much info about
-        // why the write failed.
-        mOut.write(mBuf.data(), sz + 4);
+        if (fwrite(mBuf.data(), 1, sz + 4, mOut) != sz + 4)
+        {
+            FileSystemException::failWithErrno(
+                "XDROutputFileStream::writeOne() failed:");
+        }
 
         if (hasher)
         {

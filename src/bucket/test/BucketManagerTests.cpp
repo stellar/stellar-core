@@ -281,20 +281,20 @@ TEST_CASE("bucketmanager ownership", "[bucket][bucketmanager]")
         std::shared_ptr<Bucket> b1;
 
         {
-            std::shared_ptr<Bucket> b2 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
+            std::shared_ptr<Bucket> b2 = Bucket::fresh(
+                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                dead, /*countMergeEvents=*/true, /*doFsync=*/true);
             b1 = b2;
 
             // Bucket is referenced by b1, b2 and the BucketManager.
             CHECK(b1.use_count() == 3);
 
-            std::shared_ptr<Bucket> b3 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
-            std::shared_ptr<Bucket> b4 =
-                Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app),
-                              {}, live, dead, /*countMergeEvents=*/true);
+            std::shared_ptr<Bucket> b3 = Bucket::fresh(
+                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                dead, /*countMergeEvents=*/true, /*doFsync=*/true);
+            std::shared_ptr<Bucket> b4 = Bucket::fresh(
+                app->getBucketManager(), getAppLedgerVersion(app), {}, live,
+                dead, /*countMergeEvents=*/true, /*doFsync=*/true);
             // Bucket is referenced by b1, b2, b3, b4 and the BucketManager.
             CHECK(b1.use_count() == 5);
         }
