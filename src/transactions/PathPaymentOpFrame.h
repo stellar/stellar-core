@@ -1,23 +1,23 @@
-#pragma once
-
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/OperationFrame.h"
+#pragma once
+
+#include "transactions/PathPaymentOpFrameBase.h"
 
 namespace stellar
 {
-class AbstractLedgerTxn;
 
-class PathPaymentOpFrame : public OperationFrame
+class PathPaymentOpFrame : public PathPaymentOpFrameBase
 {
+    PathPaymentOp const& mPathPayment;
+
     PathPaymentResult&
     innerResult()
     {
         return mResult.tr().pathPaymentResult();
     }
-    PathPaymentOp const& mPathPayment;
 
   public:
     PathPaymentOpFrame(Operation const& op, OperationResult& res,
@@ -25,8 +25,28 @@ class PathPaymentOpFrame : public OperationFrame
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
-    void insertLedgerKeysToPrefetch(
-        std::unordered_set<LedgerKey>& keys) const override;
+
+    bool checkTransfer(int64_t maxSend, int64_t amountSend, int64_t maxRecv,
+                       int64_t amountRecv) const override;
+
+    Asset const& getSourceAsset() const override;
+    Asset const& getDestAsset() const override;
+    AccountID const& getDestID() const override;
+    xdr::xvector<Asset, 5> const& getPath() const override;
+
+    void setResultSuccess() override;
+    void setResultMalformed() override;
+    void setResultUnderfunded() override;
+    void setResultSourceNoTrust() override;
+    void setResultSourceNotAuthorized() override;
+    void setResultNoDest() override;
+    void setResultDestNoTrust() override;
+    void setResultDestNotAuthorized() override;
+    void setResultLineFull() override;
+    void setResultNoIssuer(Asset const& asset) override;
+    void setResultTooFewOffers() override;
+    void setResultOfferCrossSelf() override;
+    void setResultConstraintNotMet() override;
 
     static PathPaymentResultCode
     getInnerCode(OperationResult const& res)

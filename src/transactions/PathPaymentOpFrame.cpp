@@ -2,30 +2,21 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
 #include "transactions/PathPaymentOpFrame.h"
-#include "OfferExchange.h"
-#include "database/Database.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
 #include "util/XDROperators.h"
-#include <algorithm>
-
-#include "main/Application.h"
 
 namespace stellar
 {
 
-using namespace std;
-
 PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
                                        OperationResult& res,
                                        TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : PathPaymentOpFrameBase(op, res, parentTx)
     , mPathPayment(mOperation.body.pathPaymentOp())
 {
 }
@@ -33,30 +24,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 bool
 PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
-    innerResult().code(PATH_PAYMENT_SUCCESS);
-
-    // tracks the last amount that was traded
-    int64_t curBReceived = mPathPayment.destAmount;
-    Asset curB = mPathPayment.destAsset;
-
-    // update balances, walks backwards
-
-    // build the full path to the destination, starting with sendAsset
-    std::vector<Asset> fullPath;
-    fullPath.emplace_back(mPathPayment.sendAsset);
-    fullPath.insert(fullPath.end(), mPathPayment.path.begin(),
-                    mPathPayment.path.end());
-
-    bool bypassIssuerCheck = false;
-
-    // if the payment doesn't involve intermediate accounts
-    // and the destination is the issuer we don't bother
-    // checking if the destination account even exist
-    // so that it's always possible to send credits back to its issuer
-    bypassIssuerCheck = (curB.type() != ASSET_TYPE_NATIVE) &&
-                        (fullPath.size() == 1) &&
-                        (mPathPayment.sendAsset == mPathPayment.destAsset) &&
-                        (getIssuer(curB) == mPathPayment.destination);
+    setResultSuccess();
 
     bool doesSourceAccountExist = true;
     if (ltx.loadHeader().current().ledgerVersion < 8)
@@ -65,89 +33,42 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
             (bool)stellar::loadAccountWithoutRecord(ltx, getSourceID());
     }
 
+    bool bypassIssuerCheck = shouldBypassIssuerCheck(mPathPayment.path);
     if (!bypassIssuerCheck)
     {
-        if (!stellar::loadAccountWithoutRecord(ltx, mPathPayment.destination))
+        if (!stellar::loadAccountWithoutRecord(ltx, getDestID()))
         {
-            innerResult().code(PATH_PAYMENT_NO_DESTINATION);
+            setResultNoDest();
             return false;
         }
     }
 
-    // update last balance in the chain
-    if (curB.type() == ASSET_TYPE_NATIVE)
+    if (!updateDestBalance(ltx, mPathPayment.destAmount, bypassIssuerCheck))
     {
-        auto destination = stellar::loadAccount(ltx, mPathPayment.destination);
-        if (!addBalance(ltx.loadHeader(), destination, curBReceived))
-        {
-            if (ltx.loadHeader().current().ledgerVersion >= 11)
-            {
-                innerResult().code(PATH_PAYMENT_LINE_FULL);
-            }
-            else
-            {
-                innerResult().code(PATH_PAYMENT_MALFORMED);
-            }
-            return false;
-        }
+        return false;
     }
-    else
+    innerResult().success().last = SimplePaymentResult(
+        getDestID(), getDestAsset(), mPathPayment.destAmount);
+
+    // build the full path from the destination, ending with sendAsset
+    std::vector<Asset> fullPath;
+    fullPath.insert(fullPath.end(), mPathPayment.path.rbegin(),
+                    mPathPayment.path.rend());
+    fullPath.emplace_back(getSourceAsset());
+
+    // Walk the path
+    Asset recvAsset = getDestAsset();
+    int64_t maxAmountRecv = mPathPayment.destAmount;
+    for (auto const& sendAsset : fullPath)
     {
-        if (!bypassIssuerCheck)
-        {
-            auto issuer =
-                stellar::loadAccountWithoutRecord(ltx, getIssuer(curB));
-            if (!issuer)
-            {
-                innerResult().code(PATH_PAYMENT_NO_ISSUER);
-                innerResult().noIssuer() = curB;
-                return false;
-            }
-        }
-
-        auto destLine =
-            stellar::loadTrustLine(ltx, mPathPayment.destination, curB);
-        if (!destLine)
-        {
-            innerResult().code(PATH_PAYMENT_NO_TRUST);
-            return false;
-        }
-
-        if (!destLine.isAuthorized())
-        {
-            innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
-            return false;
-        }
-
-        if (!destLine.addBalance(ltx.loadHeader(), curBReceived))
-        {
-            innerResult().code(PATH_PAYMENT_LINE_FULL);
-            return false;
-        }
-    }
-
-    innerResult().success().last =
-        SimplePaymentResult(mPathPayment.destination, curB, curBReceived);
-
-    // now, walk the path backwards
-    for (int i = (int)fullPath.size() - 1; i >= 0; i--)
-    {
-        int64_t curASent, actualCurBReceived;
-        Asset const& curA = fullPath[i];
-
-        if (curA == curB)
+        if (recvAsset == sendAsset)
         {
             continue;
         }
 
-        if (curA.type() != ASSET_TYPE_NATIVE)
+        if (!checkIssuer(ltx, sendAsset))
         {
-            if (!stellar::loadAccountWithoutRecord(ltx, getIssuer(curA)))
-            {
-                innerResult().code(PATH_PAYMENT_NO_ISSUER);
-                innerResult().noIssuer() = curA;
-                return false;
-            }
+            return false;
         }
 
         int64_t maxOffersToCross = INT64_MAX;
@@ -162,45 +83,18 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
             maxOffersToCross = MAX_OFFERS_TO_CROSS - offersCrossed;
         }
 
-        // curA -> curB
+        int64_t amountSend = 0;
+        int64_t amountRecv = 0;
         std::vector<ClaimOfferAtom> offerTrail;
-        ConvertResult r = convertWithOffers(
-            ltx, curA, INT64_MAX, curASent, curB, curBReceived,
-            actualCurBReceived, RoundingType::PATH_PAYMENT_STRICT_RECEIVE,
-            [this](LedgerTxnEntry const& o) {
-                auto const& offer = o.current().data.offer();
-                if (offer.sellerID == getSourceID())
-                {
-                    // we are crossing our own offer
-                    innerResult().code(PATH_PAYMENT_OFFER_CROSS_SELF);
-                    return OfferFilterResult::eStop;
-                }
-                return OfferFilterResult::eKeep;
-            },
-            offerTrail, maxOffersToCross);
-
-        assert(curASent >= 0);
-
-        switch (r)
+        if (!convert(ltx, maxOffersToCross, sendAsset, INT64_MAX, amountSend,
+                     recvAsset, maxAmountRecv, amountRecv,
+                     RoundingType::PATH_PAYMENT_STRICT_RECEIVE, offerTrail))
         {
-        case ConvertResult::eFilterStop:
-            return false;
-        case ConvertResult::eOK:
-            if (curBReceived == actualCurBReceived)
-            {
-                break;
-            }
-        // fall through
-        case ConvertResult::ePartial:
-            innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
-            return false;
-        case ConvertResult::eCrossedTooMany:
-            mResult.code(opEXCEEDED_WORK_LIMIT);
             return false;
         }
-        assert(curBReceived == actualCurBReceived);
-        curBReceived = curASent; // next round, we need to send enough
-        curB = curA;
+
+        maxAmountRecv = amountSend;
+        recvAsset = sendAsset;
 
         // add offers that got taken on the way
         // insert in front to match the path's order
@@ -208,81 +102,17 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
         offers.insert(offers.begin(), offerTrail.begin(), offerTrail.end());
     }
 
-    // last step: we've reached the first account in the chain, update its
-    // balance
-    int64_t curBSent = curBReceived;
-    if (curBSent > mPathPayment.sendMax)
+    if (maxAmountRecv > mPathPayment.sendMax)
     { // make sure not over the max
-        innerResult().code(PATH_PAYMENT_OVER_SENDMAX);
+        setResultConstraintNotMet();
         return false;
     }
 
-    if (curB.type() == ASSET_TYPE_NATIVE)
+    if (!updateSourceBalance(ltx, maxAmountRecv, bypassIssuerCheck,
+                             doesSourceAccountExist))
     {
-        auto header = ltx.loadHeader();
-        LedgerTxnEntry sourceAccount;
-        if (header.current().ledgerVersion > 7)
-        {
-            sourceAccount = stellar::loadAccount(ltx, getSourceID());
-            if (!sourceAccount)
-            {
-                innerResult().code(PATH_PAYMENT_MALFORMED);
-                return false;
-            }
-        }
-        else
-        {
-            sourceAccount = loadSourceAccount(ltx, header);
-        }
-
-        if (curBSent > getAvailableBalance(header, sourceAccount))
-        { // they don't have enough to send
-            innerResult().code(PATH_PAYMENT_UNDERFUNDED);
-            return false;
-        }
-
-        if (!doesSourceAccountExist)
-        {
-            throw std::runtime_error("modifying account that does not exist");
-        }
-
-        auto ok = addBalance(header, sourceAccount, -curBSent);
-        assert(ok);
+        return false;
     }
-    else
-    {
-        if (!bypassIssuerCheck)
-        {
-            auto issuer =
-                stellar::loadAccountWithoutRecord(ltx, getIssuer(curB));
-            if (!issuer)
-            {
-                innerResult().code(PATH_PAYMENT_NO_ISSUER);
-                innerResult().noIssuer() = curB;
-                return false;
-            }
-        }
-
-        auto sourceLine = loadTrustLine(ltx, getSourceID(), curB);
-        if (!sourceLine)
-        {
-            innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
-            return false;
-        }
-
-        if (!sourceLine.isAuthorized())
-        {
-            innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
-            return false;
-        }
-
-        if (!sourceLine.addBalance(ltx.loadHeader(), -curBSent))
-        {
-            innerResult().code(PATH_PAYMENT_UNDERFUNDED);
-            return false;
-        }
-    }
-
     return true;
 }
 
@@ -291,51 +121,131 @@ PathPaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
-        innerResult().code(PATH_PAYMENT_MALFORMED);
+        setResultMalformed();
         return false;
     }
     if (!isAssetValid(mPathPayment.sendAsset) ||
         !isAssetValid(mPathPayment.destAsset))
     {
-        innerResult().code(PATH_PAYMENT_MALFORMED);
+        setResultMalformed();
         return false;
     }
     auto const& p = mPathPayment.path;
     if (!std::all_of(p.begin(), p.end(), isAssetValid))
     {
-        innerResult().code(PATH_PAYMENT_MALFORMED);
+        setResultMalformed();
         return false;
     }
     return true;
 }
 
-void
-PathPaymentOpFrame::insertLedgerKeysToPrefetch(
-    std::unordered_set<LedgerKey>& keys) const
+bool
+PathPaymentOpFrame::checkTransfer(int64_t maxSend, int64_t amountSend,
+                                  int64_t maxRecv, int64_t amountRecv) const
 {
-    keys.emplace(accountKey(mPathPayment.destination));
+    return maxRecv == amountRecv;
+}
 
-    auto processAsset = [&](Asset const& asset) {
-        if (asset.type() != ASSET_TYPE_NATIVE)
-        {
-            auto issuer = getIssuer(asset);
-            keys.emplace(accountKey(issuer));
-        }
-    };
+Asset const&
+PathPaymentOpFrame::getSourceAsset() const
+{
+    return mPathPayment.sendAsset;
+}
 
-    processAsset(mPathPayment.sendAsset);
-    processAsset(mPathPayment.destAsset);
-    std::for_each(mPathPayment.path.begin(), mPathPayment.path.end(),
-                  processAsset);
+Asset const&
+PathPaymentOpFrame::getDestAsset() const
+{
+    return mPathPayment.destAsset;
+}
 
-    if (mPathPayment.destAsset.type() != ASSET_TYPE_NATIVE)
-    {
-        keys.emplace(
-            trustlineKey(mPathPayment.destination, mPathPayment.destAsset));
-    }
-    if (mPathPayment.sendAsset.type() != ASSET_TYPE_NATIVE)
-    {
-        keys.emplace(trustlineKey(getSourceID(), mPathPayment.sendAsset));
-    }
+AccountID const&
+PathPaymentOpFrame::getDestID() const
+{
+    return mPathPayment.destination;
+}
+
+xdr::xvector<Asset, 5> const&
+PathPaymentOpFrame::getPath() const
+{
+    return mPathPayment.path;
+}
+
+void
+PathPaymentOpFrame::setResultSuccess()
+{
+    innerResult().code(PATH_PAYMENT_SUCCESS);
+}
+
+void
+PathPaymentOpFrame::setResultMalformed()
+{
+    innerResult().code(PATH_PAYMENT_MALFORMED);
+}
+
+void
+PathPaymentOpFrame::setResultUnderfunded()
+{
+    innerResult().code(PATH_PAYMENT_UNDERFUNDED);
+}
+
+void
+PathPaymentOpFrame::setResultSourceNoTrust()
+{
+    innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
+}
+
+void
+PathPaymentOpFrame::setResultSourceNotAuthorized()
+{
+    innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
+}
+
+void
+PathPaymentOpFrame::setResultNoDest()
+{
+    innerResult().code(PATH_PAYMENT_NO_DESTINATION);
+}
+
+void
+PathPaymentOpFrame::setResultDestNoTrust()
+{
+    innerResult().code(PATH_PAYMENT_NO_TRUST);
+}
+
+void
+PathPaymentOpFrame::setResultDestNotAuthorized()
+{
+    innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
+}
+
+void
+PathPaymentOpFrame::setResultLineFull()
+{
+    innerResult().code(PATH_PAYMENT_LINE_FULL);
+}
+
+void
+PathPaymentOpFrame::setResultNoIssuer(Asset const& asset)
+{
+    innerResult().code(PATH_PAYMENT_NO_ISSUER);
+    innerResult().noIssuer() = asset;
+}
+
+void
+PathPaymentOpFrame::setResultTooFewOffers()
+{
+    innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
+}
+
+void
+PathPaymentOpFrame::setResultOfferCrossSelf()
+{
+    innerResult().code(PATH_PAYMENT_OFFER_CROSS_SELF);
+}
+
+void
+PathPaymentOpFrame::setResultConstraintNotMet()
+{
+    innerResult().code(PATH_PAYMENT_OVER_SENDMAX);
 }
 }
