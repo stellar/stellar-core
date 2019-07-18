@@ -166,7 +166,7 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
         std::vector<ClaimOfferAtom> offerTrail;
         ConvertResult r = convertWithOffers(
             ltx, curA, INT64_MAX, curASent, curB, curBReceived,
-            actualCurBReceived, true,
+            actualCurBReceived, RoundingType::PATH_PAYMENT_STRICT_RECEIVE,
             [this](LedgerTxnEntry const& o) {
                 auto const& offer = o.current().data.offer();
                 if (offer.sellerID == getSourceID())

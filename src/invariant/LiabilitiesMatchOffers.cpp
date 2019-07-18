@@ -29,7 +29,8 @@ getOfferBuyingLiabilities(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX, false);
+        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
+        RoundingType::NORMAL);
     return res.numSheepSend;
 }
 
@@ -38,7 +39,8 @@ getOfferSellingLiabilities(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
     auto res = exchangeV10WithoutPriceErrorThresholds(
-        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX, false);
+        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX,
+        RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 

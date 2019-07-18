@@ -272,7 +272,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         Price maxWheatPrice(mPrice.d, mPrice.n);
         ConvertResult r = convertWithOffers(
             ltx, mSheep, maxSheepSend, sheepSent, mWheat, maxWheatReceive,
-            wheatReceived, false,
+            wheatReceived, RoundingType::NORMAL,
             [this, passive, &maxWheatPrice](LedgerTxnEntry const& entry) {
                 auto const& o = entry.current().data.offer();
                 assert(o.offerID != mOfferID);
