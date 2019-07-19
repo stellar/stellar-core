@@ -324,4 +324,34 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
 
     return getFirstResult(*transaction).tr().pathPaymentResult();
 }
+
+PathPaymentStrictSendResult
+TestAccount::pathPaymentStrictSend(PublicKey const& destination,
+                                   Asset const& sendCur, int64_t sendAmount,
+                                   Asset const& destCur, int64_t destMin,
+                                   std::vector<Asset> const& path,
+                                   Asset* noIssuer)
+{
+    auto transaction = tx({txtest::pathPaymentStrictSend(
+        destination, sendCur, sendAmount, destCur, destMin, path)});
+
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (ex_PATH_PAYMENT_STRICT_SEND_NO_ISSUER&)
+    {
+        REQUIRE(noIssuer);
+        REQUIRE(*noIssuer == transaction->getResult()
+                                 .result.results()[0]
+                                 .tr()
+                                 .pathPaymentStrictSendResult()
+                                 .noIssuer());
+        throw;
+    }
+
+    REQUIRE(!noIssuer);
+
+    return getFirstResult(*transaction).tr().pathPaymentStrictSendResult();
+}
 };

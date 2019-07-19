@@ -127,6 +127,11 @@ Operation pathPayment(PublicKey const& to, Asset const& sendCur,
                       int64_t sendMax, Asset const& destCur, int64_t destAmount,
                       std::vector<Asset> const& path);
 
+Operation pathPaymentStrictSend(PublicKey const& to, Asset const& sendCur,
+                                int64_t sendAmount, Asset const& destCur,
+                                int64_t destMin,
+                                std::vector<Asset> const& path);
+
 Operation manageOffer(int64 offerId, Asset const& selling, Asset const& buying,
                       Price const& price, int64_t amount);
 Operation manageBuyOffer(int64 offerId, Asset const& selling,

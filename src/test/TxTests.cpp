@@ -547,6 +547,24 @@ pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
 }
 
 Operation
+pathPaymentStrictSend(PublicKey const& to, Asset const& sendCur,
+                      int64_t sendAmount, Asset const& destCur, int64_t destMin,
+                      std::vector<Asset> const& path)
+{
+    Operation op;
+    op.body.type(PATH_PAYMENT_STRICT_SEND);
+    PathPaymentStrictSendOp& ppop = op.body.pathPaymentStrictSendOp();
+    ppop.sendAsset = sendCur;
+    ppop.sendAmount = sendAmount;
+    ppop.destAsset = destCur;
+    ppop.destMin = destMin;
+    ppop.destination = to;
+    std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
+
+    return op;
+}
+
+Operation
 createPassiveOffer(Asset const& selling, Asset const& buying,
                    Price const& price, int64_t amount)
 {

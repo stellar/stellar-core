@@ -97,6 +97,42 @@ throwIf(PathPaymentResult const& result)
 }
 
 void
+throwIf(PathPaymentStrictSendResult const& result)
+{
+    switch (result.code())
+    {
+    case PATH_PAYMENT_STRICT_SEND_MALFORMED:
+        throw ex_PATH_PAYMENT_STRICT_SEND_MALFORMED{};
+    case PATH_PAYMENT_STRICT_SEND_UNDERFUNDED:
+        throw ex_PATH_PAYMENT_STRICT_SEND_UNDERFUNDED{};
+    case PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST:
+        throw ex_PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST{};
+    case PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED:
+        throw ex_PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED{};
+    case PATH_PAYMENT_STRICT_SEND_NO_DESTINATION:
+        throw ex_PATH_PAYMENT_STRICT_SEND_NO_DESTINATION{};
+    case PATH_PAYMENT_STRICT_SEND_NO_TRUST:
+        throw ex_PATH_PAYMENT_STRICT_SEND_NO_TRUST{};
+    case PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED:
+        throw ex_PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED{};
+    case PATH_PAYMENT_STRICT_SEND_LINE_FULL:
+        throw ex_PATH_PAYMENT_STRICT_SEND_LINE_FULL{};
+    case PATH_PAYMENT_STRICT_SEND_NO_ISSUER:
+        throw ex_PATH_PAYMENT_STRICT_SEND_NO_ISSUER{};
+    case PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS:
+        throw ex_PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS{};
+    case PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF:
+        throw ex_PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF{};
+    case PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN:
+        throw ex_PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN{};
+    case PATH_PAYMENT_STRICT_SEND_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(ManageSellOfferResult const& result)
 {
     switch (result.code())
@@ -394,6 +430,9 @@ throwIf(TransactionResult const& result)
         break;
     case MANAGE_BUY_OFFER:
         throwIf(opResult.tr().manageBuyOfferResult());
+        break;
+    case PATH_PAYMENT_STRICT_SEND:
+        throwIf(opResult.tr().pathPaymentStrictSendResult());
         break;
     }
 }

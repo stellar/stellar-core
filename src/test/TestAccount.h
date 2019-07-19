@@ -75,6 +75,12 @@ class TestAccount
                           int64_t destAmount, std::vector<Asset> const& path,
                           Asset* noIssuer = nullptr);
 
+    PathPaymentStrictSendResult
+    pathPaymentStrictSend(PublicKey const& destination, Asset const& sendCur,
+                          int64_t sendAmount, Asset const& destCur,
+                          int64_t destMin, std::vector<Asset> const& path,
+                          Asset* noIssuer = nullptr);
+
     operator SecretKey() const
     {
         return getSecretKey();
