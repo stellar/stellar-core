@@ -78,6 +78,7 @@ Bucket::containsBucketIdentity(BucketEntry const& id) const
         }
         ++iter;
     }
+    iter.checkHash();
     return false;
 }
 
@@ -561,6 +562,22 @@ mergeCasesWithEqualKeys(MergeCounters& mc, BucketInputIterator& oi,
     ++ni;
 }
 
+static void
+checkAllInputHashes(BucketInputIterator& oi, BucketInputIterator& ni,
+                    std::vector<BucketInputIterator>& shadowIterators)
+{
+    oi.checkHash();
+    ni.checkHash();
+    for (auto& shadow : shadowIterators)
+    {
+        while (shadow)
+        {
+            ++shadow;
+        }
+        shadow.checkHash();
+    }
+}
+
 std::shared_ptr<Bucket>
 Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
               std::shared_ptr<Bucket> const& oldBucket,
@@ -609,6 +626,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     {
         bucketManager.incrMergeCounters(mc);
     }
+    checkAllInputHashes(oi, ni, shadowIterators);
     MergeKey mk{maxProtocolVersion, keepDeadEntries, oldBucket, newBucket,
                 shadows};
     return out.getBucket(bucketManager, &mk);

@@ -79,7 +79,7 @@ class XDRInputFileStream
 
     template <typename T>
     bool
-    readOne(T& out)
+    readOne(T& out, SHA256* hasher = nullptr)
     {
         char szBuf[4];
         if (!mIn.read(szBuf, 4))
@@ -112,6 +112,11 @@ class XDRInputFileStream
         }
         xdr::xdr_get g(mBuf.data(), mBuf.data() + sz);
         xdr::xdr_argpack_archive(g, out);
+        if (hasher)
+        {
+            hasher->add(ByteSlice(szBuf, 4));
+            hasher->add(ByteSlice(mBuf.data(), sz));
+        }
         return true;
     }
 };

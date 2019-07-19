@@ -25,6 +25,7 @@ class BucketInputIterator
     // non-null, it points to mEntry.
     BucketEntry const* mEntryPtr{nullptr};
     XDRInputFileStream mIn;
+    std::unique_ptr<SHA256> mHasher;
     BucketEntry mEntry;
     bool mSeenMetadata{false};
     bool mSeenOtherEntries{false};
@@ -54,5 +55,6 @@ class BucketInputIterator
 
     size_t pos();
     size_t size() const;
+    void checkHash() const;
 };
 }

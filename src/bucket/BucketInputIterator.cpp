@@ -4,6 +4,7 @@
 
 #include "bucket/BucketInputIterator.h"
 #include "bucket/Bucket.h"
+#include "util/types.h"
 
 namespace stellar
 {
@@ -14,7 +15,7 @@ namespace stellar
 void
 BucketInputIterator::loadEntry()
 {
-    if (mIn.readOne(mEntry))
+    if (mIn.readOne(mEntry, mHasher.get()))
     {
         mEntryPtr = &mEntry;
         if (mEntry.type() == METAENTRY)
@@ -85,7 +86,10 @@ BucketInputIterator::getMetadata() const
 }
 
 BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
-    : mBucket(bucket), mEntryPtr(nullptr), mSeenMetadata(false)
+    : mBucket(bucket)
+    , mEntryPtr(nullptr)
+    , mHasher(SHA256::create())
+    , mSeenMetadata(false)
 {
     // In absence of metadata, we treat every bucket as though it is from ledger
     // protocol 0, which is the protocol of the genesis ledger. At very least
@@ -119,5 +123,28 @@ BucketInputIterator& BucketInputIterator::operator++()
         mEntryPtr = nullptr;
     }
     return *this;
+}
+
+void
+BucketInputIterator::checkHash() const
+{
+    if (size() == 0 && isZero(mBucket->getHash()))
+    {
+        // Accept the all-zero hash as an alternative hash-name for the empty
+        // bucket. This isn't correct in the SHA-1 sense, but we use it as an
+        // equivalent sentinel value in several places.
+        return;
+    }
+    auto realHash = mHasher->finish();
+    if (realHash != mBucket->getHash())
+    {
+        std::string msg("Bucket: ");
+        msg += mBucket->getFilename();
+        msg += " corrupt, actual hash is: ";
+        msg += binToHex(realHash);
+
+        CLOG(ERROR, "Bucket") << msg;
+        throw std::runtime_error(msg);
+    }
 }
 }
