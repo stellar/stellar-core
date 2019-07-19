@@ -27,7 +27,8 @@ enum OperationType
     INFLATION = 9,
     MANAGE_DATA = 10,
     BUMP_SEQUENCE = 11,
-    MANAGE_BUY_OFFER = 12
+    MANAGE_BUY_OFFER = 12,
+    PATH_PAYMENT_STRICT_SEND = 13
 };
 
 /* CreateAccount
@@ -83,6 +84,32 @@ struct PathPaymentOp
 
     Asset path<5>; // additional hops it must go through to get there
 };
+
+/* PathPaymentStrictSend
+
+send an amount to a destination account through a path.
+(sendMax, sendAsset)
+(X0, Path[0]) .. (Xn, Path[n])
+(at least destAmount, destAsset)
+
+Threshold: med
+
+Result: PathPaymentStrictSendResult
+*/
+struct PathPaymentStrictSendOp
+{
+    Asset sendAsset;  // asset we pay with
+    int64 sendAmount; // amount of sendAsset to send (excluding fees)
+
+    AccountID destination; // recipient of the payment
+    Asset destAsset;       // what they end up with
+    int64 destMin;         // the minimum amount of dest asset to
+                           // be received
+                           // The operation will fail if it can't be met
+
+    Asset path<5>; // additional hops it must go through to get there
+};
+
 
 /* Creates, updates or deletes an offer
 
@@ -288,6 +315,8 @@ struct Operation
         BumpSequenceOp bumpSequenceOp;
     case MANAGE_BUY_OFFER:
         ManageBuyOfferOp manageBuyOfferOp;
+    case PATH_PAYMENT_STRICT_SEND:
+        PathPaymentStrictSendOp pathPaymentStrictSendOp;
     }
     body;
 };
@@ -447,7 +476,7 @@ default:
     void;
 };
 
-/******* Payment Result ********/
+/******* PathPayment Result ********/
 
 enum PathPaymentResultCode
 {
@@ -485,6 +514,42 @@ case PATH_PAYMENT_SUCCESS:
         SimplePaymentResult last;
     } success;
 case PATH_PAYMENT_NO_ISSUER:
+    Asset noIssuer; // the asset that caused the error
+default:
+    void;
+};
+
+/******* PathPaymentStrictSend Result ********/
+
+enum PathPaymentStrictSendResultCode
+{
+    // codes considered as "success" for the operation
+    PATH_PAYMENT_STRICT_SEND_SUCCESS = 0, // success
+
+    // codes considered as "failure" for the operation
+    PATH_PAYMENT_STRICT_SEND_MALFORMED = -1,          // bad input
+    PATH_PAYMENT_STRICT_SEND_UNDERFUNDED = -2,        // not enough funds in source account
+    PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST = -3,       // no trust line on source account
+    PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
+    PATH_PAYMENT_STRICT_SEND_NO_DESTINATION = -5,     // destination account does not exist
+    PATH_PAYMENT_STRICT_SEND_NO_TRUST = -6,           // dest missing a trust line for asset
+    PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
+    PATH_PAYMENT_STRICT_SEND_LINE_FULL = -8,          // dest would go above their limit
+    PATH_PAYMENT_STRICT_SEND_NO_ISSUER = -9,          // missing issuer on one asset
+    PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS = -10,    // not enough offers to satisfy path
+    PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF = -11,  // would cross one of its own offers
+    PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN = -12      // could not satisfy destMin
+};
+
+union PathPaymentStrictSendResult switch (PathPaymentStrictSendResultCode code)
+{
+case PATH_PAYMENT_STRICT_SEND_SUCCESS:
+    struct
+    {
+        ClaimOfferAtom offers<>;
+        SimplePaymentResult last;
+    } success;
+case PATH_PAYMENT_STRICT_SEND_NO_ISSUER:
     Asset noIssuer; // the asset that caused the error
 default:
     void;
@@ -784,6 +849,8 @@ case opINNER:
         BumpSequenceResult bumpSeqResult;
     case MANAGE_BUY_OFFER:
 	ManageBuyOfferResult manageBuyOfferResult;
+    case PATH_PAYMENT_STRICT_SEND:
+        PathPaymentStrictSendResult pathPaymentStrictSendResult;
     }
     tr;
 default:
