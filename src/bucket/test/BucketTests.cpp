@@ -778,6 +778,34 @@ TEST_CASE("bucket apply", "[bucket]")
     });
 }
 
+TEST_CASE("bucket hash checking on input", "[bucket]")
+{
+    VirtualClock clock;
+    Config cfg(getTestConfig(0));
+    Application::pointer app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto live = LedgerTestUtils::generateValidLedgerEntries(1000);
+    std::shared_ptr<Bucket> fresh =
+        Bucket::fresh(app->getBucketManager(), getAppLedgerVersion(app), {},
+                      live, {}, /*countMergeEvents=*/true);
+
+    {
+        // Duplicate the last ledger entry.
+        auto bucketEntries = Bucket::convertToBucketEntry(false, {}, live, {});
+        std::ofstream bucketFile(fresh->getFilename(), std::ofstream::app);
+        auto m = xdr::xdr_to_msg(bucketEntries.back());
+        bucketFile.write(m->raw_data(), m->size() + 4);
+    }
+
+    BucketInputIterator in(fresh);
+    while (in)
+    {
+        ++in;
+    }
+    REQUIRE_THROWS_AS(in.checkHash(), std::runtime_error);
+}
+
 TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
 {
     auto runtest = [](Config::TestDbMode mode) {
