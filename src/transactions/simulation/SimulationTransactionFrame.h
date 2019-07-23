@@ -30,7 +30,8 @@ class SimulationTransactionFrame : public TransactionFrame
   public:
     SimulationTransactionFrame(Hash const& networkID,
                                TransactionEnvelope const& envelope,
-                               TransactionResult simulationResult);
+                               TransactionResult simulationResult,
+                               bool chargeFee);
     SimulationTransactionFrame(TransactionFrame const&) = delete;
     SimulationTransactionFrame() = delete;
 

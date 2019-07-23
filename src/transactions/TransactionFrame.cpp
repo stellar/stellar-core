@@ -43,14 +43,9 @@ TransactionFramePtr
 TransactionFrame::makeTransactionFromWire(Hash const& networkID,
                                           TransactionEnvelope const& msg)
 {
-    TransactionFramePtr res = make_shared<TransactionFrame>(networkID, msg);
+    TransactionFramePtr res =
+        make_shared<TransactionFrame>(networkID, msg, true);
     return res;
-}
-
-TransactionFrame::TransactionFrame(Hash const& networkID,
-                                   TransactionEnvelope const& envelope)
-    : mEnvelope(envelope), mNetworkID(networkID)
-{
 }
 
 static Transaction
@@ -65,6 +60,15 @@ convertToTransaction(TransactionV0 const& tx)
     res.memo = tx.memo;
     res.operations = tx.operations;
     return res;
+}
+
+TransactionFrame::TransactionFrame(Hash const& networkID,
+                                   TransactionEnvelope const& envelope,
+                                   bool chargeFee)
+    : mChargeFee(chargeFee)
+    , mEnvelope(envelope)
+    , mNetworkID(networkID)
+{
 }
 
 Hash const&
@@ -133,6 +137,11 @@ TransactionFrame::getMinFee(LedgerHeader const& header) const
 int64_t
 TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
 {
+    if (!mChargeFee)
+    {
+        return 0;
+    }
+
     if (header.ledgerVersion < 11)
     {
         return getFeeBid();
@@ -315,7 +324,7 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
         return false;
     }
 
-    if (getFeeBid() < getMinFee(header.current()))
+    if (mChargeFee && getFeeBid() < getMinFee(header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
@@ -439,7 +448,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         (applying && (header.current().ledgerVersion > 8)) ? 0 : getFeeBid();
     // don't let the account go below the reserve after accounting for
     // liabilities
-    if (getAvailableBalance(header, sourceAccount) < feeToPay)
+    if (mChargeFee && getAvailableBalance(header, sourceAccount) < feeToPay)
     {
         getResult().result.code(txINSUFFICIENT_BALANCE);
         return res;
@@ -918,8 +927,7 @@ TransactionFrame::copyTransactionsToStream(Hash const& networkID, Database& db,
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
 
-        TransactionFramePtr txFrame =
-            make_shared<TransactionFrame>(networkID, tx);
+        auto txFrame = makeTransactionFromWire(networkID, tx);
         txSet.add(txFrame);
 
         xdr::xdr_get g2(&result.front(), &result.back() + 1);

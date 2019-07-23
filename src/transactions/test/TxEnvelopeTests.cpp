@@ -864,7 +864,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 te.v0().tx.fee = 1000;
                 te.v0().tx.seqNum = root.nextSequenceNumber();
                 TransactionFramePtr tx =
-                    std::make_shared<TransactionFrame>(app->getNetworkID(), te);
+                    TransactionFrame::makeTransactionFromWire(
+                        app->getNetworkID(), te);
                 tx->addSignature(root);
 
                 {

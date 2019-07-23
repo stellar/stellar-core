@@ -17,14 +17,15 @@ SimulationTransactionFrame::makeTransactionFromWire(
     TransactionResult simulationResult)
 {
     TransactionFramePtr res = std::make_shared<SimulationTransactionFrame>(
-        networkID, envelope, simulationResult);
+        networkID, envelope, simulationResult, true);
     return res;
 }
 
 SimulationTransactionFrame::SimulationTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
-    TransactionResult simulationResult)
-    : TransactionFrame(networkID, envelope), mSimulationResult(simulationResult)
+    TransactionResult simulationResult, bool chargeFee)
+    : TransactionFrame(networkID, envelope, chargeFee)
+    , mSimulationResult(simulationResult)
 {
 }
 

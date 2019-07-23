@@ -38,6 +38,8 @@ using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
 class TransactionFrame
 {
+    bool const mChargeFee;
+
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
@@ -101,8 +103,8 @@ class TransactionFrame
                            AbstractLedgerTxn& ltxOuter);
 
   public:
-    TransactionFrame(Hash const& networkID,
-                     TransactionEnvelope const& envelope);
+    TransactionFrame(Hash const& networkID, TransactionEnvelope const& envelope,
+                     bool chargeFee);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 

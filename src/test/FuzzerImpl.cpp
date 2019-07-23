@@ -63,7 +63,7 @@ class FuzzTransactionFrame : public TransactionFrame
   public:
     FuzzTransactionFrame(Hash const& networkID,
                          TransactionEnvelope const& envelope)
-        : TransactionFrame(networkID, envelope){};
+        : TransactionFrame(networkID, envelope, true){};
 
     void
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
