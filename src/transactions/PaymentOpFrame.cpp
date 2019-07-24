@@ -4,16 +4,11 @@
 
 #include "util/asio.h"
 #include "transactions/PaymentOpFrame.h"
-#include "OfferExchange.h"
-#include "database/Database.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "main/Application.h"
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
-#include "util/XDROperators.h"
-#include <algorithm>
 
 namespace stellar
 {
