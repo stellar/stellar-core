@@ -9,7 +9,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
-#include "transactions/PathPaymentOpFrame.h"
+#include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"

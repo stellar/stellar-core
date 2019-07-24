@@ -13,7 +13,7 @@
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
-#include "transactions/PathPaymentOpFrame.h"
+#include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/PathPaymentStrictSendOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
