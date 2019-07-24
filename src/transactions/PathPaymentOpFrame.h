@@ -9,19 +9,19 @@
 namespace stellar
 {
 
-class PathPaymentOpFrame : public PathPaymentOpFrameBase
+class PathPaymentStrictReceiveOpFrame : public PathPaymentOpFrameBase
 {
-    PathPaymentOp const& mPathPayment;
+    PathPaymentStrictReceiveOp const& mPathPayment;
 
-    PathPaymentResult&
+    PathPaymentStrictReceiveResult&
     innerResult()
     {
-        return mResult.tr().pathPaymentResult();
+        return mResult.tr().pathPaymentStrictReceiveResult();
     }
 
   public:
-    PathPaymentOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
+    PathPaymentStrictReceiveOpFrame(Operation const& op, OperationResult& res,
+                                    TransactionFrame& parentTx);
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
@@ -48,10 +48,10 @@ class PathPaymentOpFrame : public PathPaymentOpFrameBase
     void setResultOfferCrossSelf() override;
     void setResultConstraintNotMet() override;
 
-    static PathPaymentResultCode
+    static PathPaymentStrictReceiveResultCode
     getInnerCode(OperationResult const& res)
     {
-        return res.tr().pathPaymentResult().code();
+        return res.tr().pathPaymentStrictReceiveResult().code();
     }
 };
 }

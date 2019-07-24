@@ -534,8 +534,8 @@ pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
             std::vector<Asset> const& path)
 {
     Operation op;
-    op.body.type(PATH_PAYMENT);
-    PathPaymentOp& ppop = op.body.pathPaymentOp();
+    op.body.type(PATH_PAYMENT_STRICT_RECEIVE);
+    PathPaymentStrictReceiveOp& ppop = op.body.pathPaymentStrictReceiveOp();
     ppop.sendAsset = sendCur;
     ppop.sendMax = sendMax;
     ppop.destAsset = destCur;

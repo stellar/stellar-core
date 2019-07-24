@@ -13,16 +13,15 @@
 namespace stellar
 {
 
-PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
-                                       OperationResult& res,
-                                       TransactionFrame& parentTx)
+PathPaymentStrictReceiveOpFrame::PathPaymentStrictReceiveOpFrame(
+    Operation const& op, OperationResult& res, TransactionFrame& parentTx)
     : PathPaymentOpFrameBase(op, res, parentTx)
-    , mPathPayment(mOperation.body.pathPaymentOp())
+    , mPathPayment(mOperation.body.pathPaymentStrictReceiveOp())
 {
 }
 
 bool
-PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
+PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     setResultSuccess();
 
@@ -117,7 +116,7 @@ PathPaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 }
 
 bool
-PathPaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
+PathPaymentStrictReceiveOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
@@ -140,112 +139,114 @@ PathPaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 }
 
 bool
-PathPaymentOpFrame::checkTransfer(int64_t maxSend, int64_t amountSend,
-                                  int64_t maxRecv, int64_t amountRecv) const
+PathPaymentStrictReceiveOpFrame::checkTransfer(int64_t maxSend,
+                                               int64_t amountSend,
+                                               int64_t maxRecv,
+                                               int64_t amountRecv) const
 {
     return maxRecv == amountRecv;
 }
 
 Asset const&
-PathPaymentOpFrame::getSourceAsset() const
+PathPaymentStrictReceiveOpFrame::getSourceAsset() const
 {
     return mPathPayment.sendAsset;
 }
 
 Asset const&
-PathPaymentOpFrame::getDestAsset() const
+PathPaymentStrictReceiveOpFrame::getDestAsset() const
 {
     return mPathPayment.destAsset;
 }
 
 AccountID const&
-PathPaymentOpFrame::getDestID() const
+PathPaymentStrictReceiveOpFrame::getDestID() const
 {
     return mPathPayment.destination;
 }
 
 xdr::xvector<Asset, 5> const&
-PathPaymentOpFrame::getPath() const
+PathPaymentStrictReceiveOpFrame::getPath() const
 {
     return mPathPayment.path;
 }
 
 void
-PathPaymentOpFrame::setResultSuccess()
+PathPaymentStrictReceiveOpFrame::setResultSuccess()
 {
-    innerResult().code(PATH_PAYMENT_SUCCESS);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 }
 
 void
-PathPaymentOpFrame::setResultMalformed()
+PathPaymentStrictReceiveOpFrame::setResultMalformed()
 {
-    innerResult().code(PATH_PAYMENT_MALFORMED);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
 }
 
 void
-PathPaymentOpFrame::setResultUnderfunded()
+PathPaymentStrictReceiveOpFrame::setResultUnderfunded()
 {
-    innerResult().code(PATH_PAYMENT_UNDERFUNDED);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
 }
 
 void
-PathPaymentOpFrame::setResultSourceNoTrust()
+PathPaymentStrictReceiveOpFrame::setResultSourceNoTrust()
 {
-    innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST);
 }
 
 void
-PathPaymentOpFrame::setResultSourceNotAuthorized()
+PathPaymentStrictReceiveOpFrame::setResultSourceNotAuthorized()
 {
-    innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED);
 }
 
 void
-PathPaymentOpFrame::setResultNoDest()
+PathPaymentStrictReceiveOpFrame::setResultNoDest()
 {
-    innerResult().code(PATH_PAYMENT_NO_DESTINATION);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION);
 }
 
 void
-PathPaymentOpFrame::setResultDestNoTrust()
+PathPaymentStrictReceiveOpFrame::setResultDestNoTrust()
 {
-    innerResult().code(PATH_PAYMENT_NO_TRUST);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST);
 }
 
 void
-PathPaymentOpFrame::setResultDestNotAuthorized()
+PathPaymentStrictReceiveOpFrame::setResultDestNotAuthorized()
 {
-    innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED);
 }
 
 void
-PathPaymentOpFrame::setResultLineFull()
+PathPaymentStrictReceiveOpFrame::setResultLineFull()
 {
-    innerResult().code(PATH_PAYMENT_LINE_FULL);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
 }
 
 void
-PathPaymentOpFrame::setResultNoIssuer(Asset const& asset)
+PathPaymentStrictReceiveOpFrame::setResultNoIssuer(Asset const& asset)
 {
-    innerResult().code(PATH_PAYMENT_NO_ISSUER);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
     innerResult().noIssuer() = asset;
 }
 
 void
-PathPaymentOpFrame::setResultTooFewOffers()
+PathPaymentStrictReceiveOpFrame::setResultTooFewOffers()
 {
-    innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
 }
 
 void
-PathPaymentOpFrame::setResultOfferCrossSelf()
+PathPaymentStrictReceiveOpFrame::setResultOfferCrossSelf()
 {
-    innerResult().code(PATH_PAYMENT_OFFER_CROSS_SELF);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
 }
 
 void
-PathPaymentOpFrame::setResultConstraintNotMet()
+PathPaymentStrictReceiveOpFrame::setResultConstraintNotMet()
 {
-    innerResult().code(PATH_PAYMENT_OVER_SENDMAX);
+    innerResult().code(PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
 }
 }

@@ -70,10 +70,11 @@ class TestAccount
 
     void pay(PublicKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& asset, int64_t amount);
-    PathPaymentResult pay(PublicKey const& destination, Asset const& sendCur,
-                          int64_t sendMax, Asset const& destCur,
-                          int64_t destAmount, std::vector<Asset> const& path,
-                          Asset* noIssuer = nullptr);
+    PathPaymentStrictReceiveResult pay(PublicKey const& destination,
+                                       Asset const& sendCur, int64_t sendMax,
+                                       Asset const& destCur, int64_t destAmount,
+                                       std::vector<Asset> const& path,
+                                       Asset* noIssuer = nullptr);
 
     PathPaymentStrictSendResult
     pathPaymentStrictSend(PublicKey const& destination, Asset const& sendCur,
