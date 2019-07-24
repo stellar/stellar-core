@@ -7,6 +7,7 @@
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
 #include "scp/SCPDriver.h"
+#include "util/BatchMetrics.h"
 #include "xdr/Stellar-ledger.h"
 
 namespace medida
@@ -153,17 +154,17 @@ class HerderSCPDriver : public SCPDriver
 
     struct SCPMetrics
     {
-        medida::Meter& mEnvelopeSign;
+        BatchMeter mEnvelopeSign;
 
-        medida::Meter& mValueValid;
-        medida::Meter& mValueInvalid;
+        BatchMeter mValueValid;
+        BatchMeter mValueInvalid;
 
         // listeners
-        medida::Meter& mCombinedCandidates;
+        BatchMeter mCombinedCandidates;
 
         // Timers for nomination and ballot protocols
-        medida::Timer& mNominateToPrepare;
-        medida::Timer& mPrepareToExternalize;
+        BatchTimer mNominateToPrepare;
+        BatchTimer mPrepareToExternalize;
 
         SCPMetrics(Application& app);
     };

@@ -923,7 +923,7 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     mPrepareTimeout.Update(SCPTiming.mPrepareTimeoutCount);
 
     auto recordTiming = [&](VirtualClock::time_point start,
-                            VirtualClock::time_point end, medida::Timer& timer,
+                            VirtualClock::time_point end, BatchTimer& timer,
                             std::string const& logStr) {
         auto delta =
             std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);

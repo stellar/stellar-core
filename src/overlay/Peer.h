@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
+#include "util/Logging.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
@@ -89,6 +90,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mLastEmpty;
 
     OverlayMetrics& getOverlayMetrics();
+    CachedLogLevel& mLogLevel;
 
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);

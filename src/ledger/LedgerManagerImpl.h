@@ -10,6 +10,7 @@
 #include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
+#include "util/BatchMetrics.h"
 #include "xdr/Stellar-ledger.h"
 #include <string>
 
@@ -41,7 +42,7 @@ class LedgerManagerImpl : public LedgerManager
     Application& mApp;
 
   private:
-    medida::Timer& mTransactionApply;
+    BatchTimer mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
     medida::Counter& mInternalErrorCount;

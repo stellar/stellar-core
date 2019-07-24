@@ -9,6 +9,7 @@
 #include "herder/PendingEnvelopes.h"
 #include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
+#include "util/BatchMetrics.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
 #include <deque>
@@ -173,18 +174,18 @@ class HerderImpl : public Herder
 
     struct SCPMetrics
     {
-        medida::Meter& mLostSync;
+        BatchMeter mLostSync;
 
-        medida::Meter& mEnvelopeEmit;
-        medida::Meter& mEnvelopeReceive;
+        BatchMeter mEnvelopeEmit;
+        BatchMeter mEnvelopeReceive;
 
         // Counters for things reached-through the
         // SCP maps: Slots and Nodes
         medida::Counter& mCumulativeStatements;
 
         // envelope signature verification
-        medida::Meter& mEnvelopeValidSig;
-        medida::Meter& mEnvelopeInvalidSig;
+        BatchMeter mEnvelopeValidSig;
+        BatchMeter mEnvelopeInvalidSig;
 
         SCPMetrics(Application& app);
     };

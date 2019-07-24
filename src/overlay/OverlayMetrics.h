@@ -9,6 +9,9 @@
 // tabulated at a per-peer level for purposes of identifying and
 // disconnecting overloading peers, see LoadManager for details.
 
+#include "util/BatchMetrics.h"
+#include "util/Logging.h"
+
 namespace medida
 {
 class Timer;
@@ -24,55 +27,56 @@ class Application;
 struct OverlayMetrics
 {
     OverlayMetrics(Application& app);
-    medida::Meter& mMessageRead;
-    medida::Meter& mMessageWrite;
-    medida::Meter& mByteRead;
-    medida::Meter& mByteWrite;
-    medida::Meter& mErrorRead;
-    medida::Meter& mErrorWrite;
-    medida::Meter& mTimeoutIdle;
-    medida::Meter& mTimeoutStraggler;
+    CachedLogLevel mLogLevel{"Overlay"};
+    BatchMeter mMessageRead;
+    BatchMeter mMessageWrite;
+    BatchMeter mByteRead;
+    BatchMeter mByteWrite;
+    BatchMeter mErrorRead;
+    BatchMeter mErrorWrite;
+    BatchMeter mTimeoutIdle;
+    BatchMeter mTimeoutStraggler;
 
-    medida::Timer& mRecvErrorTimer;
-    medida::Timer& mRecvHelloTimer;
-    medida::Timer& mRecvAuthTimer;
-    medida::Timer& mRecvDontHaveTimer;
-    medida::Timer& mRecvGetPeersTimer;
-    medida::Timer& mRecvPeersTimer;
-    medida::Timer& mRecvGetTxSetTimer;
-    medida::Timer& mRecvTxSetTimer;
-    medida::Timer& mRecvTransactionTimer;
-    medida::Timer& mRecvGetSCPQuorumSetTimer;
-    medida::Timer& mRecvSCPQuorumSetTimer;
-    medida::Timer& mRecvSCPMessageTimer;
-    medida::Timer& mRecvGetSCPStateTimer;
+    BatchTimer mRecvErrorTimer;
+    BatchTimer mRecvHelloTimer;
+    BatchTimer mRecvAuthTimer;
+    BatchTimer mRecvDontHaveTimer;
+    BatchTimer mRecvGetPeersTimer;
+    BatchTimer mRecvPeersTimer;
+    BatchTimer mRecvGetTxSetTimer;
+    BatchTimer mRecvTxSetTimer;
+    BatchTimer mRecvTransactionTimer;
+    BatchTimer mRecvGetSCPQuorumSetTimer;
+    BatchTimer mRecvSCPQuorumSetTimer;
+    BatchTimer mRecvSCPMessageTimer;
+    BatchTimer mRecvGetSCPStateTimer;
 
-    medida::Timer& mRecvSCPPrepareTimer;
-    medida::Timer& mRecvSCPConfirmTimer;
-    medida::Timer& mRecvSCPNominateTimer;
-    medida::Timer& mRecvSCPExternalizeTimer;
+    BatchTimer mRecvSCPPrepareTimer;
+    BatchTimer mRecvSCPConfirmTimer;
+    BatchTimer mRecvSCPNominateTimer;
+    BatchTimer mRecvSCPExternalizeTimer;
 
-    medida::Meter& mSendErrorMeter;
-    medida::Meter& mSendHelloMeter;
-    medida::Meter& mSendAuthMeter;
-    medida::Meter& mSendDontHaveMeter;
-    medida::Meter& mSendGetPeersMeter;
-    medida::Meter& mSendPeersMeter;
-    medida::Meter& mSendGetTxSetMeter;
-    medida::Meter& mSendTransactionMeter;
-    medida::Meter& mSendTxSetMeter;
-    medida::Meter& mSendGetSCPQuorumSetMeter;
-    medida::Meter& mSendSCPQuorumSetMeter;
-    medida::Meter& mSendSCPMessageSetMeter;
-    medida::Meter& mSendGetSCPStateMeter;
+    BatchMeter mSendErrorMeter;
+    BatchMeter mSendHelloMeter;
+    BatchMeter mSendAuthMeter;
+    BatchMeter mSendDontHaveMeter;
+    BatchMeter mSendGetPeersMeter;
+    BatchMeter mSendPeersMeter;
+    BatchMeter mSendGetTxSetMeter;
+    BatchMeter mSendTransactionMeter;
+    BatchMeter mSendTxSetMeter;
+    BatchMeter mSendGetSCPQuorumSetMeter;
+    BatchMeter mSendSCPQuorumSetMeter;
+    BatchMeter mSendSCPMessageSetMeter;
+    BatchMeter mSendGetSCPStateMeter;
 
-    medida::Meter& mMessagesBroadcast;
+    BatchMeter mMessagesBroadcast;
     medida::Counter& mPendingPeersSize;
     medida::Counter& mAuthenticatedPeersSize;
 
-    medida::Meter& mUniqueFloodBytesRecv;
-    medida::Meter& mDuplicateFloodBytesRecv;
-    medida::Meter& mUniqueFetchBytesRecv;
-    medida::Meter& mDuplicateFetchBytesRecv;
+    BatchMeter mUniqueFloodBytesRecv;
+    BatchMeter mDuplicateFloodBytesRecv;
+    BatchMeter mUniqueFetchBytesRecv;
+    BatchMeter mDuplicateFetchBytesRecv;
 };
 }

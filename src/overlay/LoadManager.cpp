@@ -70,9 +70,12 @@ LoadManager::reportLoads(std::map<NodeID, Peer::pointer> const& peers,
         CLOG(INFO, "Overlay") << fmt::format(
             "{:>10s} {:>10s} {:>10s} {:>10s} {:>10d}",
             app.getConfig().toShortString(peer.first),
-            timeMag(static_cast<uint64_t>(cost->mTimeSpent.one_minute_rate())),
-            byteMag(static_cast<uint64_t>(cost->mBytesSend.one_minute_rate())),
-            byteMag(static_cast<uint64_t>(cost->mBytesRecv.one_minute_rate())),
+            timeMag(
+                static_cast<uint64_t>(cost->mTimeSpentBase.one_minute_rate())),
+            byteMag(
+                static_cast<uint64_t>(cost->mBytesSendBase.one_minute_rate())),
+            byteMag(
+                static_cast<uint64_t>(cost->mBytesRecvBase.one_minute_rate())),
             cost->mSQLQueries.count());
     }
     CLOG(INFO, "Overlay") << "";
@@ -134,10 +137,14 @@ LoadManager::maybeShedExcessLoad(Application& app)
 }
 
 LoadManager::PeerCosts::PeerCosts()
-    : mTimeSpent("nanoseconds")
-    , mBytesSend("byte")
-    , mBytesRecv("byte")
-    , mSQLQueries("query")
+    : mTimeSpentBase("nanoseconds")
+    , mBytesSendBase("byte")
+    , mBytesRecvBase("byte")
+    , mSQLQueriesBase("query")
+    , mTimeSpent(mTimeSpentBase)
+    , mBytesSend(mBytesSendBase)
+    , mBytesRecv(mBytesRecvBase)
+    , mSQLQueries(mSQLQueriesBase)
 {
 }
 
@@ -145,12 +152,13 @@ bool
 LoadManager::PeerCosts::isLessThan(
     std::shared_ptr<LoadManager::PeerCosts> other)
 {
-    double ownRates[4] = {
-        mTimeSpent.one_minute_rate(), mBytesSend.one_minute_rate(),
-        mBytesRecv.one_minute_rate(), static_cast<double>(mSQLQueries.count())};
-    double otherRates[4] = {other->mTimeSpent.one_minute_rate(),
-                            other->mBytesSend.one_minute_rate(),
-                            other->mBytesRecv.one_minute_rate(),
+    double ownRates[4] = {mTimeSpentBase.one_minute_rate(),
+                          mBytesSendBase.one_minute_rate(),
+                          mBytesRecvBase.one_minute_rate(),
+                          static_cast<double>(mSQLQueries.count())};
+    double otherRates[4] = {other->mTimeSpentBase.one_minute_rate(),
+                            other->mBytesSendBase.one_minute_rate(),
+                            other->mBytesRecvBase.one_minute_rate(),
                             static_cast<double>(other->mSQLQueries.count())};
     return std::lexicographical_compare(ownRates, ownRates + 4, otherRates,
                                         otherRates + 4);
@@ -184,18 +192,15 @@ LoadManager::PeerContext::~PeerContext()
 {
     if (!isZero(mNode.ed25519()))
     {
+        auto& metrics = mApp.getOverlayManager().getOverlayMetrics();
         auto pc = mApp.getOverlayManager().getLoadManager().getPeerCosts(mNode);
         auto time = std::chrono::duration_cast<std::chrono::nanoseconds>(
             mApp.getClock().now() - mWorkStart);
-        auto send =
-            mApp.getOverlayManager().getOverlayMetrics().mByteWrite.count() -
-            mBytesSendStart;
-        auto recv =
-            mApp.getOverlayManager().getOverlayMetrics().mByteRead.count() -
-            mBytesRecvStart;
+        auto send = metrics.mByteWrite.count() - mBytesSendStart;
+        auto recv = metrics.mByteRead.count() - mBytesRecvStart;
         auto query =
             (mApp.getDatabase().getQueryMeter().count() - mSQLQueriesStart);
-        if (Logging::logTrace("Overlay"))
+        if (metrics.mLogLevel.logTrace())
             CLOG(TRACE, "Overlay")
                 << "Debiting peer " << mApp.getConfig().toShortString(mNode)
                 << " time:" << timeMag(time.count())

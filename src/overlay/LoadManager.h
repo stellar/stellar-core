@@ -6,6 +6,7 @@
 
 #include "crypto/SecretKey.h"
 #include "overlay/Peer.h"
+#include "util/BatchMetrics.h"
 #include "util/HashOfHash.h"
 #include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
@@ -48,10 +49,14 @@ class LoadManager
     {
         PeerCosts();
         bool isLessThan(std::shared_ptr<PeerCosts> other);
-        medida::Meter mTimeSpent;
-        medida::Meter mBytesSend;
-        medida::Meter mBytesRecv;
-        medida::Meter mSQLQueries;
+        medida::Meter mTimeSpentBase;
+        medida::Meter mBytesSendBase;
+        medida::Meter mBytesRecvBase;
+        medida::Meter mSQLQueriesBase;
+        BatchMeter mTimeSpent;
+        BatchMeter mBytesSend;
+        BatchMeter mBytesRecv;
+        BatchMeter mSQLQueries;
     };
 
     std::shared_ptr<PeerCosts> getPeerCosts(NodeID const& peer);

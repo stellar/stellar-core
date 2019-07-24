@@ -51,6 +51,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mLastEmpty(app.getClock().now())
+    , mLogLevel(getOverlayMetrics().mLogLevel)
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -230,7 +231,7 @@ Peer::sendGetTxSet(uint256 const& setID)
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
-    if (Logging::logTrace("Overlay"))
+    if (mLogLevel.logTrace())
         CLOG(TRACE, "Overlay") << "Get quorum set: " << hexAbbrev(setID);
 
     StellarMessage newMsg;
@@ -243,7 +244,8 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendGetPeers()
 {
-    CLOG(TRACE, "Overlay") << "Get peers";
+    if (mLogLevel.logTrace())
+        CLOG(TRACE, "Overlay") << "Get peers";
 
     StellarMessage newMsg;
     newMsg.type(GET_PEERS);
@@ -254,7 +256,8 @@ Peer::sendGetPeers()
 void
 Peer::sendGetScpState(uint32 ledgerSeq)
 {
-    CLOG(TRACE, "Overlay") << "Get SCP State for " << ledgerSeq;
+    if (mLogLevel.logTrace())
+        CLOG(TRACE, "Overlay") << "Get SCP State for " << ledgerSeq;
 
     StellarMessage newMsg;
     newMsg.type(GET_SCP_STATE);
@@ -352,7 +355,7 @@ msgSummary(StellarMessage const& msg)
 void
 Peer::sendMessage(StellarMessage const& msg)
 {
-    if (Logging::logTrace("Overlay"))
+    if (mLogLevel.logTrace())
         CLOG(TRACE, "Overlay")
             << "("
             << mApp.getConfig().toShortString(
@@ -426,7 +429,8 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
 
-    CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
+    if (mLogLevel.logTrace())
+        CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     try
     {
         AuthenticatedMessage am;
@@ -501,7 +505,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    if (Logging::logTrace("Overlay"))
+    if (mLogLevel.logTrace())
         CLOG(TRACE, "Overlay")
             << "("
             << mApp.getConfig().toShortString(
@@ -687,7 +691,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     }
     else
     {
-        if (Logging::logTrace("Overlay"))
+        if (mLogLevel.logTrace())
             CLOG(TRACE, "Overlay")
                 << "No quorum set: " << hexAbbrev(msg.qSetHash());
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
@@ -705,7 +709,7 @@ void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
     SCPEnvelope const& envelope = msg.envelope();
-    if (Logging::logTrace("Overlay"))
+    if (mLogLevel.logTrace())
         CLOG(TRACE, "Overlay")
             << "recvSCPMessage node: "
             << mApp.getConfig().toShortString(msg.envelope().statement.nodeID);
@@ -732,7 +736,8 @@ void
 Peer::recvGetSCPState(StellarMessage const& msg)
 {
     uint32 seq = msg.getSCPLedgerSeq();
-    CLOG(TRACE, "Overlay") << "get SCP State " << seq;
+    if (mLogLevel.logTrace())
+        CLOG(TRACE, "Overlay") << "get SCP State " << seq;
     mApp.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
 

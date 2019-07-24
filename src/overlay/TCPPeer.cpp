@@ -140,7 +140,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         return;
     }
 
-    if (Logging::logTrace("Overlay"))
+    if (mLogLevel.logTrace())
         CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
 
@@ -326,14 +326,15 @@ TCPPeer::startRead()
 
     assert(self->mIncomingHeader.size() == 0);
 
-    if (Logging::logTrace("Overlay"))
+    bool logTrace = mLogLevel.logTrace();
+    if (logTrace)
         CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
     self->mIncomingHeader.resize(4);
     asio::async_read(*(self->mSocket.get()),
                      asio::buffer(self->mIncomingHeader),
-                     [self](asio::error_code ec, std::size_t length) {
-                         if (Logging::logTrace("Overlay"))
+                     [self, logTrace](asio::error_code ec, std::size_t length) {
+                         if (logTrace)
                              CLOG(TRACE, "Overlay")
                                  << "TCPPeer::startRead calledback " << ec
                                  << " length:" << length;
