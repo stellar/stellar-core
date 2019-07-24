@@ -42,4 +42,51 @@ class Logging
 
     static std::array<std::string const, 14> const kPartitionNames;
 };
+
+// Local wrapper that caches (for a fixed number of lookups) global log-level
+// state queries, to avoid taking the global mutex and doing a std::map lookup
+// every time you want to check whether a given log level is enabled. Typically
+// you want to use this for log-level queries at TRACE level if they are showing
+// up in profiles.
+
+class CachedLogLevel
+{
+    size_t mQueryFreq;
+    size_t mQueryCount;
+    std::string mPartition;
+    el::Level mLastQueryAnswer;
+
+  public:
+    CachedLogLevel(std::string const& partition, size_t queryFreq = 1000)
+        : mQueryFreq(queryFreq)
+        , mQueryCount(0)
+        , mPartition(partition)
+        , mLastQueryAnswer(Logging::getLogLevel(mPartition))
+    {
+    }
+
+    el::Level
+    getLevel()
+    {
+        if (++mQueryCount > mQueryFreq)
+        {
+            mLastQueryAnswer = Logging::getLogLevel(mPartition);
+            mQueryCount = 0;
+        }
+        return mLastQueryAnswer;
+    }
+
+    bool
+    logDebug()
+    {
+        auto lev = getLevel();
+        return lev == el::Level::Debug || lev == el::Level::Trace;
+    }
+
+    bool
+    logTrace()
+    {
+        return getLevel() == el::Level::Trace;
+    }
+};
 }
