@@ -810,7 +810,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 }
 
 void
-HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
+HerderImpl::setUpgrades(UpgradeParameters const& upgrades)
 {
     mUpgrades.setParameters(upgrades, mApp.getConfig());
     persistUpgrades();
@@ -1293,7 +1293,7 @@ HerderImpl::restoreUpgrades()
         mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
     if (!s.empty())
     {
-        Upgrades::UpgradeParameters p;
+        UpgradeParameters p;
         p.fromJson(s);
         try
         {

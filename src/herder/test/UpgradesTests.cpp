@@ -45,12 +45,58 @@ struct LedgerUpgradeNode
 {
     LedgerUpgradeableData desiredUpgrades;
     VirtualClock::time_point preferredUpgradeDatetime;
+    uint32 preferredUpgradeLedger{0};
+    LedgerUpgradeNode() = default;
+    LedgerUpgradeNode(VirtualClock::time_point tp,
+                      LedgerUpgradeableData const& lud)
+    {
+        REQUIRE(tp.time_since_epoch().count() != 0);
+        desiredUpgrades = lud;
+        preferredUpgradeDatetime = tp;
+    }
+
+    LedgerUpgradeNode(uint32_t ledger, LedgerUpgradeableData const& lud)
+    {
+        REQUIRE(ledger > 0);
+        desiredUpgrades = lud;
+        preferredUpgradeLedger = ledger;
+    }
+
+    bool
+    upgradeAtLedger() const
+    {
+        return preferredUpgradeLedger > 0;
+    }
 };
 
 struct LedgerUpgradeCheck
 {
     VirtualClock::time_point time;
     std::vector<LedgerUpgradeableData> expected;
+    uint32 ledger{0};
+
+    LedgerUpgradeCheck() = default;
+    LedgerUpgradeCheck(VirtualClock::time_point tp,
+                       std::vector<LedgerUpgradeableData> const& lud)
+    {
+        REQUIRE(tp.time_since_epoch().count() != 0);
+        expected = lud;
+        time = tp;
+    }
+
+    LedgerUpgradeCheck(uint32_t ledgerForUpgrade,
+                       std::vector<LedgerUpgradeableData> const& lud)
+    {
+        REQUIRE(ledgerForUpgrade > 0);
+        expected = lud;
+        ledger = ledgerForUpgrade;
+    }
+
+    bool
+    upgradeAtLedger() const
+    {
+        return ledger > 0;
+    }
 };
 
 namespace
@@ -97,20 +143,23 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     for (size_t i = 0; i < nodes.size(); i++)
     {
         auto app = simulation->addNode(keys[i], qSet, &configs[i]);
+        auto const& node = nodes[i];
 
-        auto& upgradeTime = nodes[i].preferredUpgradeDatetime;
-
-        if (upgradeTime.time_since_epoch().count() != 0)
+        auto& du = node.desiredUpgrades;
+        UpgradeParameters upgrades;
+        setUpgrade(upgrades.mBaseFee, du.baseFee);
+        setUpgrade(upgrades.mBaseReserve, du.baseReserve);
+        setUpgrade(upgrades.mMaxTxSize, du.maxTxSetSize);
+        setUpgrade(upgrades.mProtocolVersion, du.ledgerVersion);
+        if (node.upgradeAtLedger())
         {
-            auto& du = nodes[i].desiredUpgrades;
-            Upgrades::UpgradeParameters upgrades;
-            setUpgrade(upgrades.mBaseFee, du.baseFee);
-            setUpgrade(upgrades.mBaseReserve, du.baseReserve);
-            setUpgrade(upgrades.mMaxTxSize, du.maxTxSetSize);
-            setUpgrade(upgrades.mProtocolVersion, du.ledgerVersion);
-            upgrades.mUpgradeTime = upgradeTime;
-            app->getHerder().setUpgrades(upgrades);
+            upgrades.setUpgradeAtLedger(node.preferredUpgradeLedger);
         }
+        else
+        {
+            upgrades.setUpgradeAtTime(node.preferredUpgradeDatetime);
+        }
+        app->getHerder().setUpgrades(upgrades);
     }
 
     simulation->getNode(keys[0].getPublicKey())
@@ -146,7 +195,18 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     for (auto const& result : checks)
     {
-        simulation->crankUntil(result.time, false);
+        if (result.upgradeAtLedger())
+        {
+            simulation->crankUntil(
+                [&]() {
+                    return simulation->haveAllExternalized(result.ledger, 1);
+                },
+                std::chrono::seconds(5), false);
+        }
+        else
+        {
+            simulation->crankUntil(result.time, false);
+        }
         statesMatch(result.expected);
     }
 
@@ -1734,42 +1794,86 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
                               LedgerManager::GENESIS_LEDGER_BASE_FEE + 1,
                               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1,
                               LedgerManager::GENESIS_LEDGER_BASE_RESERVE + 1);
+    auto genesisTime = genesis(0, 0);
 
     SECTION("0 of 3 vote - dont upgrade")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{{}, {}, {}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks);
+        SECTION("upgrade at time")
+        {
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {2, {noUpgrade, noUpgrade, noUpgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
     }
 
     SECTION("1 of 3 vote, dont upgrade")
     {
-        auto nodes =
-            std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 0)}, {}, {}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks, true);
+        SECTION("upgrade at time")
+        {
+            auto nodes =
+                std::vector<LedgerUpgradeNode>{{genesisTime, upgrade}, {}, {}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesisTime, {noUpgrade, noUpgrade, noUpgrade}}};
+            simulateUpgrade(nodes, checks, true);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto nodes = std::vector<LedgerUpgradeNode>{{1, upgrade}, {}, {}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {2, {noUpgrade, noUpgrade, noUpgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
     }
 
     SECTION("2 of 3 vote (v-blocking) - 3 upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{
-            {upgrade, genesis(0, 0)}, {upgrade, genesis(0, 0)}, {}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 10), {upgrade, upgrade, upgrade}}};
-        simulateUpgrade(nodes, checks);
+        SECTION("upgrade at time")
+        {
+            auto nodes = std::vector<LedgerUpgradeNode>{
+                {genesisTime, upgrade}, {genesisTime, upgrade}, {}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesis(0, 10), {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto nodes =
+                std::vector<LedgerUpgradeNode>{{2, upgrade}, {2, upgrade}, {}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {3, {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
     }
 
     SECTION("3 of 3 vote - upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 15)},
-                                                    {upgrade, genesis(0, 15)},
-                                                    {upgrade, genesis(0, 15)}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 21), {upgrade, upgrade, upgrade}}};
-        simulateUpgrade(nodes, checks);
+        SECTION("upgrade at time")
+        {
+            auto nodes =
+                std::vector<LedgerUpgradeNode>{{genesis(0, 15), upgrade},
+                                               {genesis(0, 15), upgrade},
+                                               {genesis(0, 15), upgrade}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}},
+                {genesis(0, 21), {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto nodes = std::vector<LedgerUpgradeNode>{
+                {3, upgrade}, {3, upgrade}, {3, upgrade}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {2, {noUpgrade, noUpgrade, noUpgrade}},
+                {4, {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
     }
 
     SECTION("3 votes for bogus fee - all 3 upgrade but ignore bad fee")
@@ -1778,35 +1882,73 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         upgradeBadFee.baseFee = 0;
         auto expectedResult = upgradeBadFee;
         expectedResult.baseFee = LedgerManager::GENESIS_LEDGER_BASE_FEE;
-        auto nodes =
-            std::vector<LedgerUpgradeNode>{{upgradeBadFee, genesis(0, 0)},
-                                           {upgradeBadFee, genesis(0, 0)},
-                                           {upgradeBadFee, genesis(0, 0)}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 10), {expectedResult, expectedResult, expectedResult}}};
-        simulateUpgrade(nodes, checks, true);
+        SECTION("upgrade at time")
+        {
+            auto nodes =
+                std::vector<LedgerUpgradeNode>{{genesisTime, upgradeBadFee},
+                                               {genesisTime, upgradeBadFee},
+                                               {genesisTime, upgradeBadFee}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesis(0, 10),
+                 {expectedResult, expectedResult, expectedResult}}};
+            simulateUpgrade(nodes, checks, true);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto nodes = std::vector<LedgerUpgradeNode>{
+                {2, upgradeBadFee}, {2, upgradeBadFee}, {2, upgradeBadFee}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {3, {expectedResult, expectedResult, expectedResult}}};
+            simulateUpgrade(nodes, checks, true);
+        }
     }
 
     SECTION("1 of 3 vote early - 2 upgrade late")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 10)},
-                                                    {upgrade, genesis(0, 30)},
-                                                    {upgrade, genesis(0, 30)}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 20), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 36), {upgrade, upgrade, upgrade}}};
-        simulateUpgrade(nodes, checks);
+        SECTION("upgrade at time")
+        {
+            auto nodes =
+                std::vector<LedgerUpgradeNode>{{genesis(0, 10), upgrade},
+                                               {genesis(0, 30), upgrade},
+                                               {genesis(0, 30), upgrade}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesis(0, 20), {noUpgrade, noUpgrade, noUpgrade}},
+                {genesis(0, 36), {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto nodes = std::vector<LedgerUpgradeNode>{
+                {2, upgrade}, {6, upgrade}, {6, upgrade}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {4, {noUpgrade, noUpgrade, noUpgrade}},
+                {7, {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
     }
 
     SECTION("2 of 3 vote early (v-blocking) - 3 upgrade anyways")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 10)},
-                                                    {upgrade, genesis(0, 10)},
-                                                    {upgrade, genesis(0, 30)}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 9), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 20), {upgrade, upgrade, upgrade}}};
-        simulateUpgrade(nodes, checks);
+        SECTION("upgrade at time")
+        {
+            auto nodes =
+                std::vector<LedgerUpgradeNode>{{genesis(0, 10), upgrade},
+                                               {genesis(0, 10), upgrade},
+                                               {genesis(0, 30), upgrade}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {genesis(0, 9), {noUpgrade, noUpgrade, noUpgrade}},
+                {genesis(0, 20), {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
+        SECTION("upgrade at ledger")
+        {
+            auto nodes = std::vector<LedgerUpgradeNode>{
+                {2, upgrade}, {2, upgrade}, {6, upgrade}};
+            auto checks = std::vector<LedgerUpgradeCheck>{
+                {1, {noUpgrade, noUpgrade, noUpgrade}},
+                {4, {upgrade, upgrade, upgrade}}};
+            simulateUpgrade(nodes, checks);
+        }
     }
 }
 

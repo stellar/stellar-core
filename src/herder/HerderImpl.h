@@ -83,7 +83,7 @@ class HerderImpl : public Herder
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 
-    void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
+    void setUpgrades(UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;

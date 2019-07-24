@@ -403,21 +403,41 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     }
     else if (s == "set")
     {
-        Upgrades::UpgradeParameters p;
+        UpgradeParameters p;
 
-        auto upgradeTime = retMap["upgradetime"];
-        std::tm tm;
-        try
+        auto upgradeTime = retMap.find("upgradetime");
+        auto upgradeLedger = retMap.find("upgradeledger");
+
+        auto found =
+            [&](std::map<std::string, std::string>::const_iterator it) {
+                return it != retMap.end();
+            };
+
+        if (found(upgradeLedger) == found(upgradeTime))
         {
-            tm = VirtualClock::isoStringToTm(upgradeTime);
-        }
-        catch (std::exception)
-        {
-            retStr =
-                fmt::format("could not parse upgradetime: '{}'", upgradeTime);
+            retStr = "must provide either valid time or ledger";
             return;
         }
-        p.mUpgradeTime = VirtualClock::tmToPoint(tm);
+
+        if (found(upgradeTime))
+        {
+            std::tm tm;
+            try
+            {
+                tm = VirtualClock::isoStringToTm(upgradeTime->second);
+            }
+            catch (std::exception)
+            {
+                retStr = fmt::format("could not parse upgradetime: '{}'",
+                                     upgradeTime->second);
+                return;
+            }
+            p.setUpgradeAtTime(VirtualClock::tmToPoint(tm));
+        }
+        else
+        {
+            p.setUpgradeAtLedger(parseParam<uint32>(retMap, "upgradeledger"));
+        }
 
         uint32 baseFee;
         uint32 baseReserve;
@@ -434,7 +454,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     }
     else if (s == "clear")
     {
-        Upgrades::UpgradeParameters p;
+        UpgradeParameters p;
         mApp.getHerder().setUpgrades(p);
     }
     else

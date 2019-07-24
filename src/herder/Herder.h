@@ -131,7 +131,7 @@ class Herder
     virtual bool resolveNodeID(std::string const& s, PublicKey& retKey) = 0;
 
     // sets the upgrades that should be applied during consensus
-    virtual void setUpgrades(Upgrades::UpgradeParameters const& upgrades) = 0;
+    virtual void setUpgrades(UpgradeParameters const& upgrades) = 0;
     // gets the upgrades that are scheduled by this node
     virtual std::string getUpgradesJson() = 0;
 

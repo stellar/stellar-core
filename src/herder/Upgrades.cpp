@@ -25,9 +25,17 @@ namespace cereal
 {
 template <class Archive>
 void
-save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
+save(Archive& ar, stellar::UpgradeParameters const& p)
 {
-    ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
+    if (p.upgradeAtLedger())
+    {
+        ar(make_nvp("ledger", *p.getUpgradeAtLedger()));
+    }
+    else
+    {
+        ar(make_nvp("time",
+                    stellar::VirtualClock::to_time_t(*p.getUpgradeAtTime())));
+    }
     ar(make_nvp("version", p.mProtocolVersion));
     ar(make_nvp("fee", p.mBaseFee));
     ar(make_nvp("maxtxsize", p.mMaxTxSize));
@@ -36,11 +44,21 @@ save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
 
 template <class Archive>
 void
-load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
+load(Archive& ar, stellar::UpgradeParameters& o)
 {
-    time_t t;
-    ar(make_nvp("time", t));
-    o.mUpgradeTime = stellar::VirtualClock::from_time_t(t);
+    try
+    {
+        stellar::uint32 n;
+        ar(make_nvp("ledger", n));
+        o.setUpgradeAtLedger(n);
+    }
+    catch (Exception const&)
+    {
+        // No ledger provided - upgrade at time
+        time_t t;
+        ar(make_nvp("time", t));
+        o.setUpgradeAtTime(stellar::VirtualClock::from_time_t(t));
+    }
     ar(make_nvp("version", o.mProtocolVersion));
     ar(make_nvp("fee", o.mBaseFee));
     ar(make_nvp("maxtxsize", o.mMaxTxSize));
@@ -51,7 +69,7 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
 namespace stellar
 {
 std::string
-Upgrades::UpgradeParameters::toJson() const
+UpgradeParameters::toJson() const
 {
     std::ostringstream out;
     {
@@ -62,7 +80,7 @@ Upgrades::UpgradeParameters::toJson() const
 }
 
 void
-Upgrades::UpgradeParameters::fromJson(std::string const& s)
+UpgradeParameters::fromJson(std::string const& s)
 {
     std::istringstream in(s);
     {
@@ -88,7 +106,7 @@ Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
     mParams = params;
 }
 
-Upgrades::UpgradeParameters const&
+UpgradeParameters const&
 Upgrades::getParameters() const
 {
     return mParams;
@@ -98,7 +116,7 @@ std::vector<LedgerUpgrade>
 Upgrades::createUpgradesFor(LedgerHeader const& header) const
 {
     auto result = std::vector<LedgerUpgrade>{};
-    if (!timeForUpgrade(header.scpValue.closeTime))
+    if (!timeForUpgrade(header))
     {
         return result;
     }
@@ -181,8 +199,16 @@ Upgrades::toString() const
         {
             if (!r.size())
             {
-                r << "upgradetime="
-                  << VirtualClock::pointToISOString(mParams.mUpgradeTime);
+                if (mParams.upgradeAtLedger())
+                {
+                    r << "upgradeledger=" << *mParams.getUpgradeAtLedger();
+                }
+                else
+                {
+                    r << "upgradetime="
+                      << VirtualClock::pointToISOString(
+                             *mParams.getUpgradeAtTime());
+                }
             }
             r << ", " << s << "=" << *o;
         }
@@ -195,7 +221,7 @@ Upgrades::toString() const
     return r.str();
 }
 
-Upgrades::UpgradeParameters
+UpgradeParameters
 Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                          std::vector<UpgradeType>::const_iterator endUpdates,
                          bool& updated)
@@ -291,7 +317,7 @@ bool
 Upgrades::isValidForNomination(LedgerUpgrade const& upgrade,
                                LedgerHeader const& header) const
 {
-    if (!timeForUpgrade(header.scpValue.closeTime))
+    if (!timeForUpgrade(header))
     {
         return false;
     }
@@ -337,9 +363,14 @@ Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
 }
 
 bool
-Upgrades::timeForUpgrade(uint64_t time) const
+Upgrades::timeForUpgrade(LedgerHeader const& lh) const
 {
-    return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
+    if (mParams.upgradeAtLedger())
+    {
+        return *mParams.getUpgradeAtLedger() <= lh.ledgerSeq;
+    }
+    return *mParams.getUpgradeAtTime() <=
+           VirtualClock::from_time_t(lh.scpValue.closeTime);
 }
 
 void
