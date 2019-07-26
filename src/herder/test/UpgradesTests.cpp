@@ -1973,3 +1973,59 @@ TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
     REQUIRE_THROWS(executeUpgrade(*app, makeTxCountUpgrade(0)));
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
 }
+
+TEST_CASE("upgrades persistence", "[upgrades]")
+{
+    auto setUpgrade = [](optional<uint32>& o, uint32 v) {
+        o = make_optional<uint32>(v);
+    };
+
+    auto clock = std::make_unique<VirtualClock>();
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    cfg.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(0);
+
+    auto app = createTestApplication(*clock, cfg);
+    app->start();
+
+    UpgradeParameters upgrades;
+    setUpgrade(upgrades.mProtocolVersion,
+               Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    setUpgrade(upgrades.mBaseFee, LedgerManager::GENESIS_LEDGER_BASE_FEE + 1);
+    setUpgrade(upgrades.mBaseReserve,
+               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1);
+    setUpgrade(upgrades.mMaxTxSize,
+               LedgerManager::GENESIS_LEDGER_BASE_RESERVE + 1);
+
+    auto restartApp = [&]() {
+        app.reset();
+        clock = std::make_unique<VirtualClock>();
+        app = createTestApplication(*clock, cfg, false);
+        app->start();
+    };
+
+    SECTION("upgrade at time")
+    {
+        auto upgradeTime = genesis(0, 5);
+        upgrades.setUpgradeAtTime(upgradeTime);
+        app->getHerder().setUpgrades(upgrades);
+        restartApp();
+
+        UpgradeParameters afterRestart;
+        afterRestart.fromJson(app->getHerder().getUpgradesJson());
+        REQUIRE(!afterRestart.upgradeAtLedger());
+        REQUIRE(*afterRestart.getUpgradeAtTime() == upgradeTime);
+    }
+    SECTION("upgrade at ledger")
+    {
+        uint32 ledger = 10;
+        upgrades.setUpgradeAtLedger(ledger);
+        app->getHerder().setUpgrades(upgrades);
+        restartApp();
+
+        UpgradeParameters afterRestart;
+        afterRestart.fromJson(app->getHerder().getUpgradesJson());
+        REQUIRE(afterRestart.upgradeAtLedger());
+        REQUIRE(*afterRestart.getUpgradeAtLedger() == ledger);
+        REQUIRE(!afterRestart.getUpgradeAtTime());
+    }
+}
