@@ -56,7 +56,7 @@ generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
 
 bool
 store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
-      OperationResult const* resPtr)
+      OperationResult const* resPtr, Operation const* opPtr)
 {
     bool shouldCommit = !ltxPtr;
     std::unique_ptr<LedgerTxn> ltxStore;
@@ -107,8 +107,12 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
     bool doInvariantsHold = true;
     try
     {
-        app.getInvariantManager().checkOnOperationApply({}, *resPtr,
-                                                        ltxPtr->getDelta());
+        if (opPtr == nullptr)
+            app.getInvariantManager().checkOnOperationApply({}, *resPtr,
+                                                            ltxPtr->getDelta());
+        else
+            app.getInvariantManager().checkOnOperationApply(*opPtr, *resPtr,
+                                                            ltxPtr->getDelta());
     }
     catch (InvariantDoesNotHold&)
     {
