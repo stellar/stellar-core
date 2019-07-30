@@ -50,6 +50,10 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void enableInvariant(std::string const& name) override;
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    void resetForFuzzer();
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
   private:
     void onInvariantFailure(std::shared_ptr<Invariant> invariant,
                             std::string const& message, uint32_t ledger);

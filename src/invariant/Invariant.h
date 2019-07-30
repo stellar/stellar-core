@@ -53,5 +53,12 @@ class Invariant
     {
         return std::string{};
     }
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    virtual void
+    resetForFuzzer()
+    {
+    }
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 };
 }

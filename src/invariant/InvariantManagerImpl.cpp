@@ -227,4 +227,15 @@ InvariantManagerImpl::handleInvariantFailure(
         CLOG(ERROR, "Invariant") << REPORT_INTERNAL_BUG;
     }
 }
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+void
+InvariantManagerImpl::resetForFuzzer()
+{
+    for (auto invariant : mEnabled)
+    {
+        invariant->resetForFuzzer();
+    }
+}
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 }
