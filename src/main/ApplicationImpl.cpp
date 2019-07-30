@@ -24,6 +24,7 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
+#include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/CommandHandler.h"
@@ -141,6 +142,7 @@ ApplicationImpl::initialize(bool createNewDB)
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
     LiabilitiesMatchOffers::registerInvariant(*this);
+    OrderBookIsNotCrossed::registerInvariant(*this);
     enableInvariantsFromConfig();
 
     if (createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:")
