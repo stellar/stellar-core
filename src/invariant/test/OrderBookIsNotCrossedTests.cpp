@@ -3,13 +3,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "invariant/InvariantDoesNotHold.h"
-#include "invariant/InvariantManager.h"
 #include "invariant/OrderBookIsNotCrossed.h"
 #include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "test/TestUtils.h"
-#include "test/TxTests.h"
 #include "test/test.h"
 
 using namespace stellar;
@@ -67,78 +64,71 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
     Asset cur1;
     cur1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur1.alphaNum4().assetCode, "CUR1");
-    const auto cur1AssetId = "CUR1-" + KeyUtils::toStrKey(getIssuer(cur1));
+    auto const& cur1AssetId = getAssetIDForAlphaNum4(cur1);
 
     Asset cur2;
     cur2.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur2.alphaNum4().assetCode, "CUR2");
-    const auto cur2AssetId = "CUR2-" + KeyUtils::toStrKey(getIssuer(cur2));
-
-    Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"OrderBookIsNotCrossed"};
+    auto const& cur2AssetId = getAssetIDForAlphaNum4(cur2);
 
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, getTestConfig(0));
+    LedgerTxn ltxroot{app->getLedgerTxnRoot()};
 
     auto invariant = std::make_shared<OrderBookIsNotCrossed>();
+    auto offer = generateOffer(cur1, cur2, 3, Price{3, 2});
+    auto const& offerID = offer.data.offer().offerID;
 
-    SECTION("Create offer")
+    // create
     {
-        Operation op{};
-        OperationResult opRes{};
-        auto offer1 = generateOffer(cur1, cur2, 3, Price{3, 2});
+        LedgerTxn ltx{ltxroot};
+        ltx.create(offer);
 
-        auto ltxStore = std::make_unique<LedgerTxn>(app->getLedgerTxnRoot());
-        auto ltxPtr = ltxStore.get();
-        auto entry = ltxPtr->create(offer1);
-
-        invariant->checkOnOperationApply(op, opRes, ltxPtr->getDelta());
-        auto orderbook = invariant->getOrderBook();
-        auto orders = orderbook[cur1AssetId][cur2AssetId];
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        auto const& orders =
+            invariant->getOrderBook().at(cur1AssetId).at(cur2AssetId);
 
         REQUIRE(orders.size() == 1);
-        REQUIRE(orders.at(offer1.data.offer().offerID).amount == 3);
-        REQUIRE(orders.at(offer1.data.offer().offerID).price.n == 3);
-        REQUIRE(orders.at(offer1.data.offer().offerID).price.d == 2);
+        REQUIRE(orders.at(offerID).amount == 3);
+        REQUIRE(orders.at(offerID).price.n == 3);
+        REQUIRE(orders.at(offerID).price.d == 2);
 
-        ltxPtr->commit();
+        ltx.commit();
+    }
 
-        SECTION("Then modify offer")
-        {
-            auto offer2 = generateOffer(cur1, cur2, 2, Price{5, 3});
-            offer2.data.offer().sellerID = offer1.data.offer().sellerID;
-            offer2.data.offer().offerID = offer1.data.offer().offerID;
+    // modify
+    {
+        LedgerTxn ltx{ltxroot};
 
-            auto ltxStore =
-                std::make_unique<LedgerTxn>(app->getLedgerTxnRoot());
-            auto ltxPtr = ltxStore.get();
-            auto entry = ltxPtr->load(LedgerEntryKey(offer1));
-            entry.current() = offer2;
+        offer.data.offer().amount = 2;
+        offer.data.offer().price = Price{5, 3};
+        auto entry = ltx.load(LedgerEntryKey(offer));
+        entry.current() = offer;
 
-            invariant->checkOnOperationApply(op, opRes, ltxPtr->getDelta());
-            auto orderbook = invariant->getOrderBook();
-            auto orders = orderbook[cur1AssetId][cur2AssetId];
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+        auto const& orders =
+            invariant->getOrderBook().at(cur1AssetId).at(cur2AssetId);
 
-            REQUIRE(orders.size() == 1);
-            REQUIRE(orders.at(offer2.data.offer().offerID).amount == 2);
-            REQUIRE(orders.at(offer2.data.offer().offerID).price.n == 5);
-            REQUIRE(orders.at(offer2.data.offer().offerID).price.d == 3);
-        }
+        REQUIRE(orders.size() == 1);
+        REQUIRE(orders.at(offerID).amount == 2);
+        REQUIRE(orders.at(offerID).price.n == 5);
+        REQUIRE(orders.at(offerID).price.d == 3);
 
-        SECTION("Then delete offer")
-        {
-            auto ltxStore =
-                std::make_unique<LedgerTxn>(app->getLedgerTxnRoot());
-            auto ltxPtr = ltxStore.get();
-            auto entry = ltxPtr->load(LedgerEntryKey(offer1));
-            entry.erase();
+        ltx.commit();
+    }
 
-            invariant->checkOnOperationApply(op, opRes, ltxPtr->getDelta());
-            auto orderbook = invariant->getOrderBook();
-            auto orders = orderbook[cur1AssetId][cur2AssetId];
+    // delete
+    {
+        LedgerTxn ltx{ltxroot};
 
-            REQUIRE(orders.size() == 0);
-        }
+        auto entry = ltx.load(LedgerEntryKey(offer));
+        entry.erase();
+
+        invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
+
+        REQUIRE(
+            invariant->getOrderBook().at(cur1AssetId).at(cur2AssetId).size() ==
+            0);
     }
 }
 
