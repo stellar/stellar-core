@@ -15,55 +15,48 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-#define SHOULD_THROW false
-#define SHOULD_PASS true
-
-// XNOR's truth table is as follows:
-// | a | b | a XNOR b |
-// |---|---|----------|
-// | 0 | 0 |     1    |
-// | 0 | 1 |     0    |
-// | 1 | 0 |     0    |
-// | 1 | 1 |     1    |
-bool
-XNOR(bool a, bool b)
+AssetId
+getAssetIDForAlphaNum4(Asset const& asset)
 {
-    return (a && b) || (!a && !b);
+    size_t res = 0;
+    auto const& tl4 = asset.alphaNum4();
+    res ^= stellar::shortHash::computeHash(
+        stellar::ByteSlice(tl4.issuer.ed25519().data(), 8));
+    res ^= stellar::shortHash::computeHash(stellar::ByteSlice(tl4.assetCode));
+    return res;
 }
 
-void
-genApplyCheckCreateOffer(Asset& ask, Asset& bid, int64 amount, Price price,
-                         Application& app, bool shouldPass)
+LedgerEntry
+genApplyCheckCreateOffer(Asset const& ask, Asset const& bid, int64 amount,
+                         Price price, Application& app, bool shouldPass)
 {
     auto offer = generateOffer(ask, bid, amount, price);
-    auto op = txtest::manageOffer(offer.data.offer().offerID, ask, bid, price,
-                                  amount);
     std::vector<LedgerEntry> current{offer};
-    auto updates = makeUpdateList(current, nullptr);
-    REQUIRE(XNOR(store(app, updates, nullptr, nullptr, &op), shouldPass));
+    auto const& updates = makeUpdateList(current, nullptr);
+    REQUIRE(store(app, updates, nullptr, nullptr) == shouldPass);
+
+    return offer;
 }
 
-void
-genApplyCheckModifyOffer(Asset& ask, Asset& bid, int64 amount, Price price,
-                         Application& app, int64 offerId, AccountID sellerId,
-                         std::vector<LedgerEntry> previous, Operation& op,
+LedgerEntry
+genApplyCheckModifyOffer(LedgerEntry offer, Price price, Application& app,
                          bool shouldPass)
 {
-    auto offer = generateOffer(ask, bid, amount, price);
-    offer.data.offer().sellerID = sellerId;
-    offer.data.offer().offerID = offerId;
+    std::vector<LedgerEntry> previous{offer};
+    offer.data.offer().price = price;
     std::vector<LedgerEntry> current{offer};
-    auto updates = makeUpdateList(current, previous);
-    REQUIRE(XNOR(store(app, updates, nullptr, nullptr, &op), shouldPass));
+    auto const& updates = makeUpdateList(current, previous);
+    REQUIRE(store(app, updates, nullptr, nullptr) == shouldPass);
+
+    return offer;
 }
 
 void
-genApplyCheckDeleteOffer(Application& app, std::vector<LedgerEntry> previous,
-                         Operation& op, bool shouldPass)
+applyCheckDeleteOffer(Application& app, LedgerEntry offer, bool shouldPass)
 {
-    op.body.manageSellOfferOp().amount = 0;
-    auto updates = makeUpdateList(nullptr, previous);
-    REQUIRE(XNOR(store(app, updates, nullptr, nullptr, &op), shouldPass));
+    std::vector<LedgerEntry> previous{offer};
+    auto const& updates = makeUpdateList(nullptr, previous);
+    REQUIRE(store(app, updates, nullptr, nullptr) == shouldPass);
 }
 
 TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
@@ -156,7 +149,7 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     cfg.INVARIANT_CHECKS = {"OrderBookIsNotCrossed"};
 
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, cfg);
 
     Asset cur1;
     cur1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
@@ -172,105 +165,51 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     //     4 B @  3/4 (A/B)
     //     1 B @  4/5 (A/B)
     // where A = cur1 and B = cur2
-    genApplyCheckCreateOffer(cur1, cur2, 3, Price{3, 2}, *app, SHOULD_PASS);
-    genApplyCheckCreateOffer(cur1, cur2, 2, Price{5, 3}, *app, SHOULD_PASS);
-    genApplyCheckCreateOffer(cur2, cur1, 4, Price{3, 4}, *app, SHOULD_PASS);
-    genApplyCheckCreateOffer(cur2, cur1, 1, Price{4, 5}, *app, SHOULD_PASS);
+    genApplyCheckCreateOffer(cur1, cur2, 3, Price{3, 2}, *app, true);
+    genApplyCheckCreateOffer(cur1, cur2, 2, Price{5, 3}, *app, true);
+    genApplyCheckCreateOffer(cur2, cur1, 4, Price{3, 4}, *app, true);
+    genApplyCheckCreateOffer(cur2, cur1, 1, Price{4, 5}, *app, true);
 
     SECTION("Not crossed when highest bid < lowest ask")
     {
-        SECTION("Create offer")
-        {
-            // Offer 5: 7 A @  8/5 (B/A)
-            auto offer5 = generateOffer(cur1, cur2, 7, Price{8, 5});
-            auto op5 = txtest::manageOffer(offer5.data.offer().offerID, cur1,
-                                           cur2, Price{8, 5}, 7);
-            std::vector<LedgerEntry> current5{offer5};
-            auto updates5 = makeUpdateList(current5, nullptr);
-            REQUIRE(store(*app, updates5, nullptr, nullptr, &op5));
+        // Create - Offer 5: 7 A @  8/5 (B/A)
+        auto offer5 =
+            genApplyCheckCreateOffer(cur1, cur2, 7, Price{8, 5}, *app, true);
 
-            SECTION("Then modify offer")
-            {
-                // Offer 6: 7 A @  16/11 (B/A) - MODIFY
-                genApplyCheckModifyOffer(cur1, cur2, 7, Price{16, 11}, *app,
-                                         offer5.data.offer().offerID,
-                                         offer5.data.offer().sellerID, current5,
-                                         op5, SHOULD_PASS);
-            }
+        // Modify - Offer 6: 7 A @  16/11 (B/A)
+        auto offer6 =
+            genApplyCheckModifyOffer(offer5, Price{16, 11}, *app, true);
 
-            SECTION("Then delete offer")
-            {
-                // Offer 6: 0 A @  8/5 (B/A) - DELETE
-                genApplyCheckDeleteOffer(*app, current5, op5, SHOULD_PASS);
-            }
-        }
+        // Delete - Offer 6
+        applyCheckDeleteOffer(*app, offer6, true);
     }
+
     SECTION("Crossed where highest bid = lowest ask")
     {
-        SECTION("Create offer")
-        {
-            // Offer 5: 7 A @  4/3 (B/A)
-            auto offer5 = generateOffer(cur1, cur2, 7, Price{4, 3});
-            auto op5 = txtest::manageOffer(offer5.data.offer().offerID, cur1,
-                                           cur2, Price{4, 3}, 7);
-            std::vector<LedgerEntry> current5{offer5};
-            auto updates5 = makeUpdateList(current5, nullptr);
-            REQUIRE(!store(*app, updates5, nullptr, nullptr, &op5));
+        // Create - Offer 5: 7 A @  4/3 (B/A)
+        auto offer5 =
+            genApplyCheckCreateOffer(cur1, cur2, 7, Price{4, 3}, *app, false);
 
-            SECTION("Then modify offer")
-            {
-                // Offer 6: 3 A @ 4/3 (B/A) - MODIFY
-                genApplyCheckModifyOffer(cur1, cur2, 3, Price{4, 3}, *app,
-                                         offer5.data.offer().offerID,
-                                         offer5.data.offer().sellerID, current5,
-                                         op5, SHOULD_THROW);
-            }
+        // Modify - Offer 6: 3 A @ 4/3 (B/A)
+        auto offer6 =
+            genApplyCheckModifyOffer(offer5, Price{5, 4}, *app, false);
 
-            SECTION("Then delete offer and create offer crossing other side of "
-                    "order book")
-            {
-                // Offer 6: 0 A @  4/3 (B/A) - DELETE
-                genApplyCheckDeleteOffer(*app, current5, op5, SHOULD_PASS);
-
-                // Offer 7: 2 B @  3/5 (A/B)
-                genApplyCheckCreateOffer(cur2, cur1, 3, Price{3, 5}, *app,
-                                         SHOULD_THROW);
-            }
-        }
+        // Delete - Offer 6
+        applyCheckDeleteOffer(*app, offer6, true);
     }
 
     SECTION("Crossed where highest bid > lowest ask")
     {
-        SECTION("Create offer")
-        {
-            // Offer 5: 7 A @  1/1 (B/A)
-            auto offer5 = generateOffer(cur1, cur2, 7, Price{1, 1});
-            auto op5 = txtest::manageOffer(offer5.data.offer().offerID, cur1,
-                                           cur2, Price{1, 1}, 7);
-            std::vector<LedgerEntry> current5{offer5};
-            auto updates5 = makeUpdateList(current5, nullptr);
-            REQUIRE(!store(*app, updates5, nullptr, nullptr, &op5));
+        // Create - Offer 5: 7 A @  1/1 (B/A)
+        auto offer5 =
+            genApplyCheckCreateOffer(cur1, cur2, 7, Price{4, 3}, *app, false);
 
-            SECTION("Then modify offer")
-            {
-                // Offer 6: 3 A @ 100/76 (B/A) - MODIFY
-                genApplyCheckModifyOffer(cur1, cur2, 3, Price{100, 76}, *app,
-                                         offer5.data.offer().offerID,
-                                         offer5.data.offer().sellerID, current5,
-                                         op5, SHOULD_THROW);
-            }
+        // Modify - Offer 6: 3 A @ 100/76 (B/A)
+        auto offer6 =
+            genApplyCheckModifyOffer(offer5, Price{100, 76}, *app, false);
 
-            SECTION("Then delete offer and create offer crossing other side of "
-                    "order book")
-            {
-                // Offer 6: 0 A @  1/1 (B/A) - DELETE
-                genApplyCheckDeleteOffer(*app, current5, op5, SHOULD_PASS);
-
-                // Offer 7: 2 B @  61/100 (A/B)
-                genApplyCheckCreateOffer(cur2, cur1, 2, Price{61, 100}, *app,
-                                         SHOULD_THROW);
-            }
-        }
+        // Delete - Offer 6
+        applyCheckDeleteOffer(*app, offer6, true);
     }
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
