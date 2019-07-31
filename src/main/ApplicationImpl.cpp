@@ -24,7 +24,6 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
-#include "invariant/OrderBookIsNotCrossed.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/CommandHandler.h"
@@ -52,6 +51,10 @@
 #ifdef BUILD_TESTS
 #include "simulation/LoadGenerator.h"
 #endif
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+#include "invariant/OrderBookIsNotCrossed.h"
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
 #include <set>
 #include <string>
@@ -142,7 +145,9 @@ ApplicationImpl::initialize(bool createNewDB)
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
     LiabilitiesMatchOffers::registerInvariant(*this);
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     OrderBookIsNotCrossed::registerInvariant(*this);
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     enableInvariantsFromConfig();
 
     if (createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:")

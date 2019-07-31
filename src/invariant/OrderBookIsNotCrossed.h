@@ -1,3 +1,4 @@
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 #pragma once
 
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
@@ -60,3 +61,4 @@ class OrderBookIsNotCrossed : public Invariant
     OrderBook mOrderBook;
 };
 }
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
