@@ -6,7 +6,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
-#include "xdr/Stellar-ledger-entries.h"
 
 #include <unordered_map>
 
@@ -17,20 +16,15 @@ class Application;
 struct LedgerTxnDelta;
 struct OfferEntry;
 
-// AssetId is defined as a concatenation of issuer and asset code:
-// ASSET_CODE | '-' | ISSUER_ACCOUNT_ID
-using AssetId = std::string;
-// Orders is a map of OfferId (int64_t) --> OfferEntry
+using AssetId = size_t;
 using Orders = std::unordered_map<int64_t, OfferEntry>;
-// AssetOrders, orders by asset, a map of AssetId --> map of Orders
 using AssetOrders = std::unordered_map<AssetId, Orders>;
-// OrderBook is a mapping of AssetId --> map of asset pair's orders
 using OrderBook = std::unordered_map<AssetId, AssetOrders>;
 
 class OrderBookIsNotCrossed : public Invariant
 {
   public:
-    explicit OrderBookIsNotCrossed() : Invariant(false)
+    explicit OrderBookIsNotCrossed() : Invariant(true)
     {
     }
 
@@ -43,15 +37,13 @@ class OrderBookIsNotCrossed : public Invariant
                           OperationResult const& result,
                           LedgerTxnDelta const& ltxDelta) override;
 
-    OrderBook
-    getOrderBook()
+    OrderBook const&
+    getOrderBook() const
     {
         return mOrderBook;
     }
 
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     void resetForFuzzer() override;
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
   private:
     // as of right now, since this is only used in fuzzing, the mOrderBook will
@@ -59,6 +51,9 @@ class OrderBookIsNotCrossed : public Invariant
     // configurable, it is likely that this invariant will be enabled with
     // pre-existing ledger and thus the mOrderBook will need a way to sync
     OrderBook mOrderBook;
+    void deleteOffer(OfferEntry const& oe);
+    void createOrModifyOffer(OfferEntry const& oe);
+    std::string updateOrderBookAndCheck(LedgerTxnDelta const& ltxd);
 };
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
