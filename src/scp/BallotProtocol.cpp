@@ -790,7 +790,7 @@ BallotProtocol::updateCurrentIfNeeded(SCPBallot const& h)
 }
 
 bool
-BallotProtocol::attemptPreparedAccept(SCPStatement const& hint)
+BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
 {
     if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
@@ -868,7 +868,7 @@ BallotProtocol::attemptPreparedAccept(SCPStatement const& hint)
             std::bind(&BallotProtocol::hasPreparedBallot, ballot, _1));
         if (accepted)
         {
-            return setPreparedAccept(ballot);
+            return setAcceptPrepared(ballot);
         }
     }
 
@@ -876,10 +876,10 @@ BallotProtocol::attemptPreparedAccept(SCPStatement const& hint)
 }
 
 bool
-BallotProtocol::setPreparedAccept(SCPBallot const& ballot)
+BallotProtocol::setAcceptPrepared(SCPBallot const& ballot)
 {
     if (Logging::logTrace("SCP"))
-        CLOG(TRACE, "SCP") << "BallotProtocol::setPreparedAccept"
+        CLOG(TRACE, "SCP") << "BallotProtocol::setAcceptPrepared"
                            << " i: " << mSlot.getSlotIndex()
                            << " b: " << mSlot.getSCP().ballotToStr(ballot);
 
@@ -911,7 +911,7 @@ BallotProtocol::setPreparedAccept(SCPBallot const& ballot)
 }
 
 bool
-BallotProtocol::attemptPreparedConfirmed(SCPStatement const& hint)
+BallotProtocol::attemptConfirmPrepared(SCPStatement const& hint)
 {
     if (mPhase != SCP_PHASE_PREPARE)
     {
@@ -988,7 +988,7 @@ BallotProtocol::attemptPreparedConfirmed(SCPStatement const& hint)
                 }
             }
         }
-        res = setPreparedConfirmed(newC, newH);
+        res = setConfirmPrepared(newC, newH);
     }
     return res;
 }
@@ -1028,11 +1028,10 @@ BallotProtocol::commitPredicate(SCPBallot const& ballot, Interval const& check,
 }
 
 bool
-BallotProtocol::setPreparedConfirmed(SCPBallot const& newC,
-                                     SCPBallot const& newH)
+BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
 {
     if (Logging::logTrace("SCP"))
-        CLOG(TRACE, "SCP") << "BallotProtocol::setPreparedConfirmed"
+        CLOG(TRACE, "SCP") << "BallotProtocol::setConfirmPrepared"
                            << " i: " << mSlot.getSlotIndex()
                            << " h: " << mSlot.getSCP().ballotToStr(newH);
 
@@ -1858,9 +1857,9 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
 
     bool didWork = false;
 
-    didWork = attemptPreparedAccept(hint) || didWork;
+    didWork = attemptAcceptPrepared(hint) || didWork;
 
-    didWork = attemptPreparedConfirmed(hint) || didWork;
+    didWork = attemptConfirmPrepared(hint) || didWork;
 
     didWork = attemptAcceptCommit(hint) || didWork;
 
