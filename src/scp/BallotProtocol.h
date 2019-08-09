@@ -143,15 +143,15 @@ class BallotProtocol
     //  output: returns true if the state was updated.
 
     // step 1 and 5 from the SCP paper
-    bool attemptPreparedAccept(SCPStatement const& hint);
+    bool attemptAcceptPrepared(SCPStatement const& hint);
     // prepared: ballot that should be prepared
-    bool setPreparedAccept(SCPBallot const& prepared);
+    bool setAcceptPrepared(SCPBallot const& prepared);
 
     // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
-    bool attemptPreparedConfirmed(SCPStatement const& hint);
+    bool attemptConfirmPrepared(SCPStatement const& hint);
     // newC, newH : low/high bounds prepared confirmed
-    bool setPreparedConfirmed(SCPBallot const& newC, SCPBallot const& newH);
+    bool setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH);
 
     // step (4 and 6)+8 from the SCP paper
     bool attemptAcceptCommit(SCPStatement const& hint);
