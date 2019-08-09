@@ -5,9 +5,53 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/ByteSliceHasher.h"
 #include "invariant/Invariant.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <unordered_map>
+
+using namespace stellar;
+
+namespace std
+{
+template <> class hash<stellar::Asset>
+{
+  public:
+    size_t
+    operator()(stellar::Asset const& asset) const
+    {
+        size_t res = 0;
+        switch (asset.type())
+        {
+        case ASSET_TYPE_NATIVE:
+            break;
+        case ASSET_TYPE_CREDIT_ALPHANUM4:
+        {
+            auto const& tl4 = asset.alphaNum4();
+            res ^= stellar::shortHash::computeHash(
+                stellar::ByteSlice(tl4.issuer.ed25519().data(), 8));
+            res ^= stellar::shortHash::computeHash(
+                stellar::ByteSlice(tl4.assetCode));
+            break;
+        }
+        case ASSET_TYPE_CREDIT_ALPHANUM12:
+        {
+            auto const& tl12 = asset.alphaNum12();
+            res ^= stellar::shortHash::computeHash(
+                stellar::ByteSlice(tl12.issuer.ed25519().data(), 8));
+            res ^= stellar::shortHash::computeHash(
+                stellar::ByteSlice(tl12.assetCode));
+            break;
+        }
+        default:
+            abort();
+        }
+
+        return res;
+    }
+};
+}
 
 namespace stellar
 {
@@ -16,10 +60,9 @@ class Application;
 struct LedgerTxnDelta;
 struct OfferEntry;
 
-using AssetId = size_t;
 using Orders = std::unordered_map<int64_t, OfferEntry>;
-using AssetOrders = std::unordered_map<AssetId, Orders>;
-using OrderBook = std::unordered_map<AssetId, AssetOrders>;
+using AssetOrders = std::unordered_map<Asset, Orders>;
+using OrderBook = std::unordered_map<Asset, AssetOrders>;
 
 class OrderBookIsNotCrossed : public Invariant
 {

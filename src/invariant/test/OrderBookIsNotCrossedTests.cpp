@@ -12,17 +12,6 @@
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-AssetId
-getAssetIDForAlphaNum4(Asset const& asset)
-{
-    size_t res = 0;
-    auto const& tl4 = asset.alphaNum4();
-    res ^= stellar::shortHash::computeHash(
-        stellar::ByteSlice(tl4.issuer.ed25519().data(), 8));
-    res ^= stellar::shortHash::computeHash(stellar::ByteSlice(tl4.assetCode));
-    return res;
-}
-
 LedgerEntry
 genApplyCheckCreateOffer(Asset const& ask, Asset const& bid, int64 amount,
                          Price price, Application& app, bool shouldPass)
@@ -64,12 +53,10 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
     Asset cur1;
     cur1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur1.alphaNum4().assetCode, "CUR1");
-    auto const& cur1AssetId = getAssetIDForAlphaNum4(cur1);
 
     Asset cur2;
     cur2.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur2.alphaNum4().assetCode, "CUR2");
-    auto const& cur2AssetId = getAssetIDForAlphaNum4(cur2);
 
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig(0));
@@ -85,8 +72,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         ltx.create(offer);
 
         invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
-        auto const& orders =
-            invariant->getOrderBook().at(cur1AssetId).at(cur2AssetId);
+        auto const& orders = invariant->getOrderBook().at(cur1).at(cur2);
 
         REQUIRE(orders.size() == 1);
         REQUIRE(orders.at(offerID).amount == 3);
@@ -106,8 +92,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         entry.current() = offer;
 
         invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
-        auto const& orders =
-            invariant->getOrderBook().at(cur1AssetId).at(cur2AssetId);
+        auto const& orders = invariant->getOrderBook().at(cur1).at(cur2);
 
         REQUIRE(orders.size() == 1);
         REQUIRE(orders.at(offerID).amount == 2);
@@ -126,9 +111,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
 
         invariant->checkOnOperationApply({}, OperationResult{}, ltx.getDelta());
 
-        REQUIRE(
-            invariant->getOrderBook().at(cur1AssetId).at(cur2AssetId).size() ==
-            0);
+        REQUIRE(invariant->getOrderBook().at(cur1).at(cur2).size() == 0);
     }
 }
 
