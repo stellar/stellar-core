@@ -10,48 +10,94 @@
 #include "main/Application.h"
 #include "xdr/Stellar-ledger-entries.h"
 
-#include <numeric>
-
 namespace stellar
 {
-AssetId
-getAssetID(Asset const& asset)
+
+double
+getMinOfferPrice(Orders const& orders)
 {
-    auto r = std::string{};
-    switch (asset.type())
-    {
-    case stellar::ASSET_TYPE_NATIVE:
-        return std::string{"XLM-native"};
-    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
-        assetCodeToStr(asset.alphaNum4().assetCode, r);
-        return r + "-" + KeyUtils::toStrKey(getIssuer(asset));
-    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
-        assetCodeToStr(asset.alphaNum12().assetCode, r);
-        return r + "-" + KeyUtils::toStrKey(getIssuer(asset));
+    auto const& price = [](OfferEntry const& offer) {
+        return double(offer.price.n) / double(offer.price.d);
     };
+
+    auto const& comparator = [&](auto const& a, auto const& b) {
+        return price(a.second) < price(b.second);
+    };
+
+    auto const& it = std::min_element(orders.begin(), orders.end(), comparator);
+
+    return it == orders.end() ? __DBL_MAX__ : price(it->second);
+}
+
+std::string
+check(OfferEntry const& oe, OrderBook const& orderBook)
+{
+    auto const a = oe.selling;
+    auto const b = oe.buying;
+
+    // if either side of order book for asset pair empty or does not yet exist,
+    // order book cannot be crossed
+    if (orderBook.find(a) == orderBook.end() ||
+        orderBook.find(b) == orderBook.end() ||
+        orderBook.at(a).find(b) == orderBook.at(a).end() ||
+        orderBook.at(b).find(a) == orderBook.at(b).end())
+    {
+        return std::string{};
+    }
+
+    auto asks = orderBook.at(a).at(b);
+    auto bids = orderBook.at(b).at(a);
+
+    auto lowestAsk = getMinOfferPrice(asks);
+    auto highestBid = 1.0 / getMinOfferPrice(bids);
+
+    if (highestBid >= lowestAsk)
+    {
+        auto assetToString = [](Asset const& asset) {
+            auto r = std::string{};
+            switch (asset.type())
+            {
+            case stellar::ASSET_TYPE_NATIVE:
+                r = std::string{"XLM"};
+                break;
+            case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+                assetCodeToStr(asset.alphaNum4().assetCode, r);
+                break;
+            case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+                assetCodeToStr(asset.alphaNum12().assetCode, r);
+                break;
+            }
+            return r;
+        };
+
+        return fmt::format("Order book is in a crossed state for {} - {} "
+                           "asset pair.\nTop "
+                           "of the book is:\n\tAsk price: {}\n\tBid "
+                           "price: {}\n\nWhere {} "
+                           ">= {}!",
+                           assetToString(oe.selling), assetToString(oe.buying),
+                           lowestAsk, highestBid, highestBid, lowestAsk);
+    }
+
+    return std::string{};
 }
 
 void
-deleteOffer(OrderBook& orderBook, OfferEntry const& oe)
+OrderBookIsNotCrossed::deleteOffer(OfferEntry const& oe)
 {
-    auto offerId = oe.offerID;
-    auto sellAssetId = getAssetID(oe.selling);
-    auto buyAssetId = getAssetID(oe.buying);
-    orderBook[sellAssetId][buyAssetId].erase(offerId);
+    mOrderBook[oe.selling][oe.buying].erase(oe.offerID);
 }
 
 void
-createOrModifyOffer(OrderBook& orderBook, OfferEntry const& oe)
+OrderBookIsNotCrossed::createOrModifyOffer(OfferEntry const& oe)
 {
-    auto offerId = oe.offerID;
-    auto sellAssetId = getAssetID(oe.selling);
-    auto buyAssetId = getAssetID(oe.buying);
-    orderBook[sellAssetId][buyAssetId][offerId] = oe;
+    mOrderBook[oe.selling][oe.buying][oe.offerID] = oe;
 }
 
-void
-updateOrderBook(LedgerTxnDelta const& ltxd, OrderBook& orderBook)
+std::string
+OrderBookIsNotCrossed::updateOrderBookAndCheck(LedgerTxnDelta const& ltxd)
 {
+    std::shared_ptr<const stellar::LedgerEntry> lastOffer;
     for (auto const& entry : ltxd.entry)
     {
         // there are three possible "deltas" for an offer:
@@ -62,75 +108,20 @@ updateOrderBook(LedgerTxnDelta const& ltxd, OrderBook& orderBook)
         {
             if (entry.second.current)
             {
-                createOrModifyOffer(orderBook,
-                                    entry.second.current->data.offer());
+                createOrModifyOffer(entry.second.current->data.offer());
             }
             else
             {
-                deleteOffer(orderBook, entry.second.previous->data.offer());
+                deleteOffer(entry.second.previous->data.offer());
             }
+
+            lastOffer = entry.second.current ? entry.second.current
+                                             : entry.second.previous;
         }
     }
-}
 
-std::string
-check(Operation const& operation, OrderBook& orderBook)
-{
-    auto getCheckForCrossedMessage = [&](AssetId const& a, AssetId const& b) {
-        auto asks = orderBook[a][b];
-        auto bids = orderBook[b][a];
-
-        auto lowestAsk =
-            std::accumulate(asks.begin(), asks.end(), __DBL_MAX__,
-                            [](double lowestAsk, auto curEntry) {
-                                double curAsk =
-                                    double(curEntry.second.price.n) /
-                                    double(curEntry.second.price.d);
-
-                                return lowestAsk > curAsk ? curAsk : lowestAsk;
-                            });
-
-        auto highestBid = std::accumulate(
-            bids.begin(), bids.end(), 0.0,
-            [](double highestBid, auto curEntry) {
-                double curBid = 1.0 / (double(curEntry.second.price.n) /
-                                       double(curEntry.second.price.d));
-
-                return highestBid < curBid ? curBid : highestBid;
-            });
-
-        if (highestBid >= lowestAsk)
-        {
-            return fmt::format(
-                "Order book is in a crossed state for {} - {} asset pair.\nTop "
-                "of the book is:\n\tAsk price: {}\n\tBid price: {}\n\nWhere {} "
-                ">= {}!",
-                a, b, lowestAsk, highestBid, highestBid, lowestAsk);
-        }
-
-        return std::string{};
-    };
-
-    if (operation.body.type() == MANAGE_BUY_OFFER)
-    {
-        return getCheckForCrossedMessage(
-            getAssetID(operation.body.manageBuyOfferOp().buying),
-            getAssetID(operation.body.manageBuyOfferOp().selling));
-    }
-    else if (operation.body.type() == MANAGE_SELL_OFFER)
-    {
-        return getCheckForCrossedMessage(
-            getAssetID(operation.body.manageSellOfferOp().buying),
-            getAssetID(operation.body.manageSellOfferOp().selling));
-    }
-    else if (operation.body.type() == CREATE_PASSIVE_SELL_OFFER)
-    {
-        return getCheckForCrossedMessage(
-            getAssetID(operation.body.createPassiveSellOfferOp().buying),
-            getAssetID(operation.body.createPassiveSellOfferOp().selling));
-    }
-
-    return {};
+    return lastOffer ? check(lastOffer->data.offer(), mOrderBook)
+                     : std::string{};
 }
 
 std::shared_ptr<Invariant>
@@ -149,14 +140,13 @@ OrderBookIsNotCrossed::checkOnOperationApply(Operation const& operation,
                                              OperationResult const& result,
                                              LedgerTxnDelta const& ltxDelta)
 {
-    updateOrderBook(ltxDelta, mOrderBook);
-    return check(operation, mOrderBook);
+    return updateOrderBookAndCheck(ltxDelta);
 }
 
 void
 OrderBookIsNotCrossed::resetForFuzzer()
 {
-    mOrderBook = {};
+    mOrderBook.clear();
 };
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
