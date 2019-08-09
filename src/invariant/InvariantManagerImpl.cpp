@@ -232,7 +232,7 @@ InvariantManagerImpl::handleInvariantFailure(
 void
 InvariantManagerImpl::resetForFuzzer()
 {
-    for (auto invariant : mEnabled)
+    for (auto const& invariant : mEnabled)
     {
         invariant->resetForFuzzer();
     }
