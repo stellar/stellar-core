@@ -31,11 +31,15 @@ BanManagerImpl::~BanManagerImpl()
 void
 BanManagerImpl::banNode(NodeID nodeID)
 {
+    if (isBanned(nodeID))
+    {
+        return;
+    }
+
     auto nodeIDString = KeyUtils::toStrKey(nodeID);
     auto timer = mApp.getDatabase().getInsertTimer("ban");
     auto prep = mApp.getDatabase().getPreparedStatement(
-        "INSERT INTO ban (nodeid) "
-        "SELECT :n WHERE NOT EXISTS (SELECT 1 FROM ban WHERE nodeid = :n)");
+        "INSERT INTO ban (nodeid) VALUES(:n)");
     auto& st = prep.statement();
     st.exchange(soci::use(nodeIDString));
     st.define_and_bind();
