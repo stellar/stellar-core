@@ -189,10 +189,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 8:
-        mSession << "ALTER TABLE peers RENAME flags TO type";
-        mSession << "UPDATE peers SET type = 2*type";
-        break;
     case 9:
         // Update schema for signers
         mSession << "ALTER TABLE accounts ADD signers TEXT";
@@ -211,10 +207,10 @@ Database::applySchemaUpgrade(unsigned long vers)
         mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
         break;
     default:
-        if (vers <= 7)
+        if (vers <= 8)
         {
             throw std::runtime_error(
-                "Database version is too old, must use at least 8");
+                "Database version is too old, must use at least 9");
         }
         else
         {
@@ -391,7 +387,7 @@ Database::initialize()
     HerderPersistence::dropAll(*this);
     mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
-    putSchemaVersion(7);
+    putSchemaVersion(8);
 
     LOG(INFO) << "* ";
     LOG(INFO) << "* The database has been initialized";

@@ -517,7 +517,7 @@ const char* PeerManager::kSQLCreateStatement =
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"
     "nextattempt   TIMESTAMP NOT NULL,"
     "numfailures   INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL,"
-    "flags         INT NOT NULL,"
+    "type          INT NOT NULL,"
     "PRIMARY KEY (ip, port)"
     ");";
 }
