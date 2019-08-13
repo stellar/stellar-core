@@ -177,44 +177,107 @@ TEST_CASE("txresults with errors", "[tx][txresults]")
         return tx;
     };
 
-    auto validateError = [&](std::shared_ptr<TransactionFrame> const& tx,
-                             TransactionResultCode failFromCode) {
-        auto version = [&]() {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            return ltx.loadHeader().current().ledgerVersion;
-        }();
-        if (failFromCode == txSUCCESS ||
-            (version == 7 && failFromCode == txBAD_AUTH_EXTRA))
+    auto success = expectedResult(100, 1, txSUCCESS, {PAYMENT_SUCCESS});
+    auto failure = [](TransactionResultCode code) {
+        switch (code)
         {
-            validateTxResults(
-                tx, *app, {tx->getFeeBid(), txSUCCESS},
-                expectedResult(100, 1, txSUCCESS, {PAYMENT_SUCCESS}));
-        }
-        else if (version == 7 && failFromCode == txBAD_AUTH)
-        {
-            validateTxResults(tx, *app,
-                              {tx->getFeeBid(), txINSUFFICIENT_BALANCE});
-        }
-        else
-        {
-            validateTxResults(tx, *app, {tx->getFeeBid(), failFromCode});
+        case txMISSING_OPERATION:
+        case txTOO_EARLY:
+        case txTOO_LATE:
+        case txINSUFFICIENT_FEE:
+            return expectedResult(1, 0, code);
+        case txFAILED:
+            return expectedResult(100, 0, txFAILED, {PAYMENT_MALFORMED});
+        default:
+            return expectedResult(100, 0, code);
         }
     };
 
     SECTION("transaction errors")
     {
-        for (auto error :
-             {txMISSING_OPERATION, txTOO_EARLY, txTOO_LATE, txINSUFFICIENT_FEE,
-              txNO_ACCOUNT, txBAD_SEQ, txBAD_AUTH, txINSUFFICIENT_BALANCE,
-              txFAILED, txBAD_AUTH_EXTRA, txSUCCESS})
+        for (auto error : {txMISSING_OPERATION, txTOO_EARLY, txTOO_LATE,
+                           txINSUFFICIENT_FEE, txNO_ACCOUNT})
         {
             SECTION(xdr::xdr_traits<TransactionResultCode>::enum_name(error))
             {
                 for_all_versions(*app, [&] {
                     auto tx = buildTransactionWithError(error);
-                    validateError(tx, error);
+                    applyCheck(tx, *app, failure(error), failure(error));
                 });
             }
+        }
+
+        SECTION("txINSUFFICIENT_BALANCE")
+        {
+            auto tx = buildTransactionWithError(txINSUFFICIENT_BALANCE);
+            for_versions_to(9, *app, [&] {
+                applyCheck(tx, *app, failure(txINSUFFICIENT_BALANCE),
+                           failure(txINSUFFICIENT_BALANCE));
+            });
+            for_versions_from(10, *app, [&] {
+                auto applyResult = expectedResult(100, 1, txBAD_AUTH_EXTRA);
+                applyCheck(tx, *app, failure(txINSUFFICIENT_BALANCE),
+                           failure(txBAD_AUTH_EXTRA));
+            });
+        }
+
+        SECTION("txBAD_SEQ")
+        {
+            auto tx = buildTransactionWithError(txBAD_SEQ);
+            for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                applyCheck(tx, *app, failure(txBAD_SEQ), failure(txBAD_AUTH));
+            });
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app, failure(txBAD_SEQ),
+                           failure(txINSUFFICIENT_BALANCE));
+            });
+            for_versions_from(10, *app, [&] {
+                applyCheck(tx, *app, failure(txBAD_SEQ), failure(txBAD_SEQ));
+            });
+        }
+
+        SECTION("txBAD_AUTH")
+        {
+            auto tx = buildTransactionWithError(txBAD_AUTH);
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app, failure(txINSUFFICIENT_BALANCE),
+                           failure(txINSUFFICIENT_BALANCE));
+            });
+
+            for_all_versions_except({7}, *app, [&] {
+                applyCheck(tx, *app, failure(txBAD_AUTH), failure(txBAD_AUTH));
+            });
+        }
+
+        SECTION("txBAD_AUTH_EXTRA")
+        {
+            auto tx = buildTransactionWithError(txBAD_AUTH_EXTRA);
+            for_versions({7}, *app,
+                         [&] { applyCheck(tx, *app, success, success); });
+
+            for_all_versions_except({7}, *app, [&] {
+                applyCheck(tx, *app, failure(txBAD_AUTH_EXTRA),
+                           failure(txBAD_AUTH_EXTRA));
+            });
+        }
+
+        SECTION("txFAILED")
+        {
+            auto tx = buildTransactionWithError(txFAILED);
+            for_versions_to(9, *app, [&] {
+                applyCheck(tx, *app, failure(txFAILED), failure(txFAILED));
+            });
+            for_versions_from(10, *app, [&] {
+                applyCheck(tx, *app, failure(txFAILED),
+                           failure(txBAD_AUTH_EXTRA));
+            });
+        }
+
+        SECTION("txSUCCESS")
+        {
+            auto tx = buildTransactionWithError(txSUCCESS);
+            for_all_versions(*app,
+                             [&] { applyCheck(tx, *app, success, success); });
         }
     }
 }
@@ -261,121 +324,304 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         }
     };
 
-    auto makeValidationResult =
-        [&](std::vector<Signed> const& opSigned,
-            std::vector<PaymentValidity> const& opPayment, int ledgerVersion) {
-            assert(opSigned.size() == opPayment.size());
-
-            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
-            auto doubleSigned = false;
-            if (ledgerVersion != 7)
+    auto all_of = [&](std::vector<Signed> const& opSigned,
+                      std::vector<PaymentValidity> const& opPayment,
+                      std::function<bool(Signed, PaymentValidity)> const& f) {
+        assert(opSigned.size() == opPayment.size());
+        for (size_t i = 0; i < opPayment.size(); i++)
+        {
+            if (!(f(opSigned[i], opPayment[i])))
             {
-                switch (opSigned[0])
+                return false;
+            }
+        }
+        return true;
+    };
+
+    auto any_of = [&](std::vector<Signed> const& opSigned,
+                      std::vector<PaymentValidity> const& opPayment,
+                      std::function<bool(Signed, PaymentValidity)> const& f) {
+        return !all_of(opSigned, opPayment, [&](auto sig, auto payment) {
+            return !f(sig, payment);
+        });
+    };
+
+    auto fillWithCreateAccountSuccess = [](std::vector<ExpectedOpResult>& ops,
+                                           int count) {
+        for (size_t i = ops.size(); i < count; i++)
+        {
+            ops.push_back(CREATE_ACCOUNT_SUCCESS);
+        }
+    };
+
+    auto fillWithCreateAccountSuccessOrBadAuth =
+        [](std::vector<ExpectedOpResult>& ops,
+           std::vector<Signed> const& opSigned) {
+            for (size_t i = ops.size(); i < opSigned.size(); i++)
+            {
+                if (opSigned[i] == Signed::NOT_SIGNED)
                 {
-                case Signed::NOT_SIGNED:
-                    return ValidationResult{fee, txBAD_AUTH};
-                case Signed::DOUBLE_SIGNED:
-                    doubleSigned = true;
-                    break;
-                default:
-                    break;
+                    ops.push_back(opBAD_AUTH);
                 }
-            }
-
-            if (ledgerVersion != 7)
-            {
-                for (size_t i = 1; i < opSigned.size(); i++)
+                else
                 {
-                    switch (opSigned[i])
-                    {
-                    case Signed::NOT_SIGNED:
-                        return ValidationResult{fee, txFAILED};
-                    case Signed::DOUBLE_SIGNED:
-                        doubleSigned = true;
-                        break;
-                    default:
-                        break;
-                    }
+                    ops.push_back(CREATE_ACCOUNT_SUCCESS);
                 }
-            }
-
-            for (auto opP : opPayment)
-            {
-                switch (opP)
-                {
-                case PaymentValidity::MALFORMED:
-                    return ValidationResult{fee, txFAILED};
-                default:
-                    break;
-                }
-            }
-
-            if (doubleSigned && (ledgerVersion != 7))
-            {
-                return ValidationResult{fee, txBAD_AUTH_EXTRA};
-            }
-            else
-            {
-                return ValidationResult{fee, txSUCCESS};
             }
         };
 
-    auto makeApplyResult = [&](std::vector<Signed> const& opSigned,
-                               std::vector<PaymentValidity> const& opPayment,
-                               int ledgerVersion) {
+    auto makeSimpleValidationOperationResult =
+        [&](std::vector<Signed> const& opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            assert(opSigned.size() == opPayment.size());
+            auto ops = std::vector<ExpectedOpResult>{};
+            for (size_t i = 0; i < opPayment.size(); i++)
+            {
+                if (opSigned[i] == Signed::NOT_SIGNED)
+                {
+                    ops.push_back(opBAD_AUTH);
+                    break;
+                }
+
+                if (opPayment[i] == PaymentValidity::MALFORMED)
+                {
+                    ops.push_back(PAYMENT_MALFORMED);
+                    break;
+                }
+
+                ops.push_back(PAYMENT_SUCCESS);
+            }
+            fillWithCreateAccountSuccess(ops, opPayment.size());
+            return ops;
+        };
+
+    auto makeValidationResult =
+        [&](std::vector<Signed> const& opSigned,
+            std::vector<PaymentValidity> const& opPayment, bool doubleSigned) {
+            assert(opSigned.size() == opPayment.size());
+
+            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
+            if (opSigned[0] == Signed::NOT_SIGNED)
+            {
+                return expectedResult(fee, 1, txBAD_AUTH);
+            }
+
+            auto success =
+                all_of(opSigned, opPayment, [](auto sig, auto payment) {
+                    return sig != Signed::NOT_SIGNED &&
+                           payment != PaymentValidity::MALFORMED;
+                });
+            auto ops = makeSimpleValidationOperationResult(opSigned, opPayment);
+            if (success && doubleSigned)
+            {
+                return expectedResult(fee, 1, txBAD_AUTH_EXTRA);
+            }
+            else
+            {
+                return expectedResult(fee, ops.size(),
+                                      success ? txSUCCESS : txFAILED, ops);
+            }
+        };
+
+    auto makeValidationResultBefore10 =
+        [&](std::vector<Signed> const& opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            auto doubleSigned =
+                any_of(opSigned, opPayment, [](auto sig, auto payment) {
+                    return sig == Signed::DOUBLE_SIGNED &&
+                           payment != PaymentValidity::MALFORMED;
+                });
+            return makeValidationResult(opSigned, opPayment, doubleSigned);
+        };
+
+    auto makeValidationResultOn7 =
+        [&](std::vector<Signed> opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            for (auto& s : opSigned)
+            {
+                s = Signed::SIGNED;
+            }
+
+            return makeValidationResultBefore10(opSigned, opPayment);
+        };
+
+    auto makeValidationResultOnAndAfter10 =
+        [&](std::vector<Signed> const& opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            auto doubleSigned =
+                any_of(opSigned, opPayment, [](auto sig, auto payment) {
+                    return sig == Signed::DOUBLE_SIGNED;
+                });
+            return makeValidationResult(opSigned, opPayment, doubleSigned);
+
+        };
+
+    auto makeApplyOps = [&](std::vector<Signed> const& opSigned,
+                            std::vector<PaymentValidity> const& opPayment,
+                            bool continueOnNonSigned) {
         assert(opSigned.size() == opPayment.size());
 
-        auto fee = static_cast<int64_t>(baseFee * opPayment.size());
-        auto validationResult =
-            makeValidationResult(opSigned, opPayment, ledgerVersion);
-        if (validationResult.code != txSUCCESS)
-        {
-            return TransactionResult{};
-        }
-
-        auto opResults = std::vector<ExpectedOpResult>{};
-        auto firstUnderfunded = true;
-
+        auto fundNextOperation = false;
+        auto ops = std::vector<ExpectedOpResult>{};
         for (size_t i = 0; i < opPayment.size(); i++)
         {
-            if (ledgerVersion != 7)
+            auto currentOperationFunded = fundNextOperation;
+            fundNextOperation = false;
+            if (opSigned[i] == Signed::NOT_SIGNED)
             {
-                REQUIRE(opSigned[i] == Signed::SIGNED);
+                ops.push_back(opBAD_AUTH);
+                if (continueOnNonSigned)
+                {
+                    continue;
+                }
+                else
+                {
+                    break;
+                }
             }
-            REQUIRE(opPayment[i] != PaymentValidity::MALFORMED);
 
             switch (opPayment[i])
             {
             case PaymentValidity::UNDERFUNDED:
-                if (firstUnderfunded)
+                if (!currentOperationFunded)
                 {
-                    opResults.push_back(PAYMENT_UNDERFUNDED);
-                    firstUnderfunded = false;
+                    ops.push_back(PAYMENT_UNDERFUNDED);
                 }
                 else
                 {
-                    opResults.push_back(PAYMENT_SUCCESS);
+                    ops.push_back(PAYMENT_SUCCESS);
                 }
+                fundNextOperation = true;
+                break;
+            case PaymentValidity::MALFORMED:
+                ops.push_back(PAYMENT_MALFORMED);
                 break;
             case PaymentValidity::VALID:
-                opResults.push_back(PAYMENT_SUCCESS);
-                firstUnderfunded = true; // I have no idea
+                ops.push_back(PAYMENT_SUCCESS);
                 break;
             default:
                 break;
             }
         }
 
-        auto anyFail = std::any_of(
-            std::begin(opResults), std::end(opResults), [](ExpectedOpResult o) {
-                return o.mOperationResult.code() != opINNER ||
-                       o.mOperationResult.tr().paymentResult().code() !=
-                           PAYMENT_SUCCESS;
-            });
-        return expectedResult(fee, opPayment.size(),
-                              anyFail ? txFAILED : validationResult.code,
-                              opResults);
+        return ops;
     };
+
+    auto makeApplyResultBefore10 =
+        [&](std::vector<Signed> const& opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            assert(opSigned.size() == opPayment.size());
+
+            auto validationResult =
+                makeValidationResultBefore10(opSigned, opPayment);
+            if (validationResult->result.code() != txSUCCESS &&
+                validationResult->result.code() != txFAILED &&
+                validationResult->result.code() != txBAD_AUTH_EXTRA)
+            {
+                return validationResult;
+            }
+
+            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
+            auto success =
+                all_of(opSigned, opPayment, [](auto sig, auto payment) {
+                    return sig != Signed::NOT_SIGNED &&
+                           payment == PaymentValidity::VALID;
+                });
+
+            if (success)
+            {
+                auto doubleSigned =
+                    any_of(opSigned, opPayment, [](auto sig, auto payment) {
+                        return sig == Signed::DOUBLE_SIGNED &&
+                               payment != PaymentValidity::MALFORMED;
+                    });
+                if (doubleSigned)
+                {
+                    return expectedResult(fee, 1, txBAD_AUTH_EXTRA);
+                }
+            }
+
+            auto ops = makeApplyOps(opSigned, opPayment, true);
+            return expectedResult(fee, ops.size(),
+                                  success ? txSUCCESS : txFAILED, ops);
+        };
+
+    auto makeApplyResultOn7 =
+        [&](std::vector<Signed> opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            for (auto& s : opSigned)
+            {
+                s = Signed::SIGNED;
+            }
+
+            return makeApplyResultBefore10(opSigned, opPayment);
+        };
+
+    auto makeApplyResultOnAndAfter10 =
+        [&](std::vector<Signed> const& opSigned,
+            std::vector<PaymentValidity> const& opPayment) {
+            assert(opSigned.size() == opPayment.size());
+
+            auto validationResult =
+                makeValidationResultOnAndAfter10(opSigned, opPayment);
+            if (validationResult->result.code() != txSUCCESS &&
+                validationResult->result.code() != txFAILED &&
+                validationResult->result.code() != txBAD_AUTH_EXTRA)
+            {
+                return validationResult;
+            }
+
+            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
+            auto success =
+                all_of(opSigned, opPayment, [](auto sig, auto payment) {
+                    return sig != Signed::NOT_SIGNED &&
+                           payment == PaymentValidity::VALID;
+                });
+
+            auto anyBadAuth =
+                std::find(std::begin(opSigned), std::end(opSigned),
+                          Signed::NOT_SIGNED) != std::end(opSigned);
+            if (anyBadAuth)
+            {
+                auto ops = std::vector<ExpectedOpResult>{};
+                for (size_t i = 0; i < opPayment.size(); i++)
+                {
+                    if (opSigned[i] == Signed::NOT_SIGNED)
+                    {
+                        ops.push_back(opBAD_AUTH);
+                        break;
+                    }
+
+                    if (opPayment[i] == PaymentValidity::MALFORMED)
+                    {
+                        ops.push_back(PAYMENT_MALFORMED);
+                        break;
+                    }
+
+                    ops.push_back(PAYMENT_SUCCESS);
+                }
+
+                fillWithCreateAccountSuccessOrBadAuth(ops, opSigned);
+                return expectedResult(fee, opPayment.size(),
+                                      success ? txSUCCESS : txFAILED, ops);
+            }
+            else
+            {
+                auto doubleSigned =
+                    any_of(opSigned, opPayment, [](auto sig, auto payment) {
+                        return sig == Signed::DOUBLE_SIGNED;
+                    });
+                if (doubleSigned)
+                {
+                    return expectedResult(fee, 1, txBAD_AUTH_EXTRA);
+                }
+            }
+
+            auto ops = makeApplyOps(opSigned, opPayment, false);
+            fillWithCreateAccountSuccessOrBadAuth(ops, opSigned);
+            return expectedResult(fee, opPayment.size(),
+                                  success ? txSUCCESS : txFAILED, ops);
+        };
 
     auto sign3 = variations<Signed>(3, signedTypes);
     auto op3 = variations<PaymentValidity>(3, paymentValidityTypes);
@@ -410,7 +656,7 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         auto operations = std::vector<Operation>{};
         for (size_t i = 0; i < ops.size(); i++)
         {
-            auto destination = accounts[(i + 1) % ops.size()];
+            auto destination = accounts[(i + 1) % accounts.size()];
             auto op = payment(*destination, amount(ops[i]));
             if (i != 0)
                 op = accounts[i]->op(op);
@@ -430,16 +676,28 @@ TEST_CASE("complex txresults", "[tx][txresults]")
     auto test = [&](std::vector<Signed> const& signs,
                     std::vector<PaymentValidity> const& ops) {
         auto tx = makeTx(signs, ops);
-        for_all_versions(*app, [&] {
+        for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+            auto validationResult = makeValidationResultBefore10(signs, ops);
+            auto applyResult = makeApplyResultBefore10(signs, ops);
+            applyCheck(tx, *app, validationResult, applyResult, true);
+        });
+
+        for_versions({7}, *app, [&] {
+            auto validationResult = makeValidationResultOn7(signs, ops);
+            auto applyResult = makeApplyResultOn7(signs, ops);
+            applyCheck(tx, *app, validationResult, applyResult, true);
+        });
+
+        for_versions_from(10, *app, [&] {
             uint32_t ledgerVersion = 0;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 ledgerVersion = ltx.loadHeader().current().ledgerVersion;
             }
             auto validationResult =
-                makeValidationResult(signs, ops, ledgerVersion);
-            auto applyResult = makeApplyResult(signs, ops, ledgerVersion);
-            validateTxResults(tx, *app, validationResult, applyResult);
+                makeValidationResultOnAndAfter10(signs, ops);
+            auto applyResult = makeApplyResultOnAndAfter10(signs, ops);
+            applyCheck(tx, *app, validationResult, applyResult, true);
         });
     };
 
@@ -473,13 +731,14 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         {
             auto tx = a.tx({payment(b, 1000), accountMerge(root)});
 
+            auto result =
+                expectedResult(baseFee * 2, 2, txSUCCESS,
+                               {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}});
             auto applyResult = expectedResult(
                 baseFee * 2, 2, txSUCCESS,
                 {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, startAmount - 1200}});
-            for_all_versions(*app, [&] {
-                validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
-                                  applyResult);
-            });
+            for_all_versions(
+                *app, [&] { applyCheck(tx, *app, result, applyResult); });
         }
 
         SECTION("with operation after")
@@ -487,14 +746,16 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             auto tx =
                 a.tx({payment(b, 1000), accountMerge(root), payment(c, 1000)});
 
+            auto result = expectedResult(
+                baseFee * 3, 3, txSUCCESS,
+                {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}, PAYMENT_SUCCESS});
             for_versions_to(7, *app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
+                applyCheck(tx, *app, result,
+                           expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
             });
             for_versions_from(8, *app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
+                applyCheck(
+                    tx, *app, result,
                     expectedResult(baseFee * 3, 3, txFAILED,
                                    {PAYMENT_SUCCESS,
                                     {ACCOUNT_MERGE_SUCCESS,
@@ -510,11 +771,10 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         {
             auto tx = root.tx({createAccount(f, startAmount)});
 
-            for_all_versions(*app, [&] {
-                validateTxResults(tx, *app, {baseFee * 1, txSUCCESS},
-                                  expectedResult(baseFee * 1, 1, txSUCCESS,
-                                                 {CREATE_ACCOUNT_SUCCESS}));
-            });
+            auto result = expectedResult(baseFee * 1, 1, txSUCCESS,
+                                         {CREATE_ACCOUNT_SUCCESS});
+            for_all_versions(*app,
+                             [&] { applyCheck(tx, *app, result, result); });
         }
 
         SECTION("with payment after")
@@ -523,12 +783,11 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                                a.op(payment(root, startAmount / 2))});
             a.sign(tx);
 
-            for_all_versions(*app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 2, txSUCCESS},
-                    expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS}));
-            });
+            auto result =
+                expectedResult(baseFee * 2, 2, txSUCCESS,
+                               {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS});
+            for_all_versions(*app,
+                             [&] { applyCheck(tx, *app, result, result); });
         }
     }
 
@@ -540,39 +799,37 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         SECTION("normal")
         {
             auto tx = a.tx({payment(b, 1000), setOptions(th)});
-            for_all_versions(*app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 2, txSUCCESS},
-                    expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS}));
-            });
+            auto result =
+                expectedResult(baseFee * 2, 2, txSUCCESS,
+                               {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS});
+            for_all_versions(*app,
+                             [&] { applyCheck(tx, *app, result, result); });
         }
 
         SECTION("with operation after")
         {
             auto tx =
                 a.tx({payment(b, 1000), setOptions(th), payment(c, 1000)});
-
+            auto result = expectedResult(
+                baseFee * 3, 3, txSUCCESS,
+                {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, PAYMENT_SUCCESS});
             for_versions_to(6, *app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(
-                        baseFee * 3, 3, txFAILED,
-                        {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                applyCheck(tx, *app, result,
+                           expectedResult(baseFee * 3, 3, txFAILED,
+                                          {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
+                                           opBAD_AUTH}));
             });
             for_versions({8, 9}, *app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(
-                        baseFee * 3, 3, txFAILED,
-                        {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                applyCheck(tx, *app, result,
+                           expectedResult(baseFee * 3, 3, txFAILED,
+                                          {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
+                                           opBAD_AUTH}));
             });
             for_versions_from({7, 10}, *app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(baseFee * 3, 3, txSUCCESS,
-                                   {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
-                                    PAYMENT_SUCCESS}));
+                applyCheck(tx, *app, result,
+                           expectedResult(baseFee * 3, 3, txSUCCESS,
+                                          {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
+                                           PAYMENT_SUCCESS}));
             });
         }
 
@@ -581,17 +838,14 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             a.setOptions(th);
             auto tx = a.tx({payment(b, 1000)});
 
-            for_versions_to(6, *app, [&] {
-                validateTxResults(tx, *app, {baseFee * 1, txFAILED});
-            });
-            for_versions({7}, *app, [&] {
-                validateTxResults(tx, *app, {baseFee * 1, txSUCCESS},
-                                  expectedResult(baseFee * 1, 1, txSUCCESS,
-                                                 {PAYMENT_SUCCESS}));
-            });
-            for_versions_from(8, *app, [&] {
-                validateTxResults(tx, *app, {baseFee * 1, txFAILED});
-            });
+            auto failure =
+                expectedResult(baseFee * 1, 1, txFAILED, {opBAD_AUTH});
+            auto success =
+                expectedResult(baseFee * 1, 1, txSUCCESS, {PAYMENT_SUCCESS});
+            for_versions({7}, *app,
+                         [&] { applyCheck(tx, *app, success, success); });
+            for_all_versions_except(
+                {7}, *app, [&] { applyCheck(tx, *app, failure, failure); });
         }
     }
 
@@ -608,14 +862,13 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                 return market.addOffer(acc, {native, cur1, Price{1, 1}, 1000});
             });
             auto tx = acc.tx({payment(root, 1)});
-            for_versions_to(9, *app, [&] {
-                auto res =
-                    expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
-                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res);
-            });
-            for_versions_from(10, *app, [&] {
-                validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_BALANCE});
-            });
+            auto failure = expectedResult(baseFee, 1, txINSUFFICIENT_BALANCE);
+            auto success =
+                expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
+            for_versions_to(9, *app,
+                            [&] { applyCheck(tx, *app, success, success); });
+            for_versions_from(10, *app,
+                              [&] { applyCheck(tx, *app, failure, failure); });
         }
         SECTION("buying liabilities")
         {
@@ -624,9 +877,9 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             });
             auto tx = acc.tx({payment(root, 1)});
             for_all_versions(*app, [&] {
-                auto res =
+                auto result =
                     expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
-                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res);
+                applyCheck(tx, *app, result, result);
             });
         }
     }

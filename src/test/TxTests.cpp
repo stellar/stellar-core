@@ -91,7 +91,7 @@ ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
     mOperationResult.tr().setOptionsResult().code(setOptionsResultCode);
 }
 
-TransactionResult
+optional<TransactionResult>
 expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
                std::vector<ExpectedOpResult> ops)
 {
@@ -101,7 +101,7 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
 
     if (code != txSUCCESS && code != txFAILED)
     {
-        return result;
+        return make_optional<TransactionResult>(result);
     }
 
     if (ops.empty())
@@ -114,11 +114,13 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
         result.result.results().push_back(op.mOperationResult);
     }
 
-    return result;
+    return make_optional<TransactionResult>(result);
 }
 
 bool
-applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
+applyCheck(TransactionFramePtr tx, Application& app,
+           optional<TransactionResult> validationResult,
+           optional<TransactionResult> applyResult, bool checkSeqNum)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     // Increment ledgerSeq to simulate the behavior of closeLedger, which begins
@@ -135,6 +137,10 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         check = tx->checkValid(ltxFeeProc, 0);
         checkResult = tx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
+        if (validationResult)
+        {
+            REQUIRE(checkResult == *validationResult);
+        }
 
         // now, check what happens when simulating what happens during a ledger
         // close and reconcile it with the return value of "apply" with the one
@@ -196,48 +202,29 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         REQUIRE((!res || tx->getResultCode() == txSUCCESS));
-
-        if (!check)
+        if (applyResult)
         {
-            if (checkResult.result.code() == txFAILED &&
-                tx->getResultCode() == txFAILED)
+            REQUIRE(tx->getResult() == *applyResult);
+        }
+        else if (!check)
+        {
+            // checks that the failure is the same if pre checks failed
+            if (tx->getResultCode() != txFAILED)
             {
-                // should be equal up to first failure
+                REQUIRE(checkResult == tx->getResult());
+            }
+            else
+            {
                 auto const& txResults = tx->getResult().result.results();
                 auto const& checkResults = checkResult.result.results();
                 for (auto i = 0u; i < txResults.size(); i++)
                 {
-                    try
+                    REQUIRE(checkResults[i] == txResults[i]);
+                    if (checkResults[i].code() == opBAD_AUTH)
                     {
-                        throwIf(checkResults[i]);
-                        throwIf(txResults[i]);
-                    }
-                    catch (...)
-                    {
+                        // results may not match after first opBAD_AUTH
                         break;
                     }
-
-                    REQUIRE(checkResults[i] == txResults[i]);
-                }
-            }
-            else
-            {
-                auto header = ltxTx.loadHeader();
-                if (tx->getResult().result.code() != txBAD_AUTH_EXTRA &&
-                    checkResult.result.code() != txBAD_AUTH_EXTRA &&
-                    (checkResult.result.code() != txBAD_SEQ ||
-                     header.current().ledgerVersion >= 10))
-                {
-                    REQUIRE(checkResult == tx->getResult());
-                }
-                else
-                {
-                    // see "merge one of signing accounts"/"by source, signed by
-                    // both case" here checkValid() can give txBAD_AUTH_EXTRA,
-                    // but all signatures are used during applying this cannot
-                    // happen in real life as transaction that didn't pass
-                    // checkValid() aren't applied this makes me wonder: why are
-                    // we checking results of apply here for !check?
                 }
             }
         }
@@ -305,46 +292,11 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 void
 applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
 {
-    applyCheck(tx, app, checkSeqNum);
+    applyCheck(tx, app, nullopt<TransactionResult>(),
+               nullopt<TransactionResult>(), checkSeqNum);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
 }
-
-void
-validateTxResults(TransactionFramePtr const& tx, Application& app,
-                  ValidationResult validationResult,
-                  TransactionResult const& applyResult)
-{
-    auto shouldValidateOk = validationResult.code == txSUCCESS;
-    {
-        LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(ltx, 0) == shouldValidateOk);
-    }
-    REQUIRE(tx->getResult().result.code() == validationResult.code);
-    REQUIRE(tx->getResult().feeCharged == validationResult.fee);
-
-    auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
-    auto applyOk = applyCheck(tx, app);
-
-    // do not try to apply if checkValid returned false
-    if (!shouldValidateOk)
-    {
-        REQUIRE(applyResult == TransactionResult{});
-        return;
-    }
-
-    switch (applyResult.result.code())
-    {
-    case txBAD_AUTH_EXTRA:
-    case txBAD_SEQ:
-        return;
-    default:
-        break;
-    }
-
-    REQUIRE(tx->getResult() == applyResult);
-    REQUIRE(applyOk == shouldApplyOk);
-};
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,

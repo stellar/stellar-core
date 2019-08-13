@@ -59,17 +59,17 @@ struct SetOptionsArguments
                                          SetOptionsArguments const& y);
 };
 
-TransactionResult expectedResult(int64_t fee, size_t opsCount,
-                                 TransactionResultCode code,
-                                 std::vector<ExpectedOpResult> ops = {});
+optional<TransactionResult>
+expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
+               std::vector<ExpectedOpResult> ops = {});
 
-bool applyCheck(TransactionFramePtr tx, Application& app,
-                bool checkSeqNum = true);
+bool applyCheck(
+    TransactionFramePtr tx, Application& app,
+    optional<TransactionResult> validationResult = nullopt<TransactionResult>(),
+    optional<TransactionResult> applyResult = nullopt<TransactionResult>(),
+    bool checkSeqNum = true);
 void applyTx(TransactionFramePtr const& tx, Application& app,
              bool checkSeqNum = true);
-void validateTxResults(TransactionFramePtr const& tx, Application& app,
-                       ValidationResult validationResult,
-                       TransactionResult const& applyResult = {});
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
