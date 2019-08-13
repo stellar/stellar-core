@@ -1720,7 +1720,7 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
     }
 }
 
-TEST_CASE("simulate upgrades", "[herder][upgrades]")
+TEST_CASE("simulate upgrades", "[herder][upgrades][acceptance]")
 {
     // no upgrade is done
     auto noUpgrade =

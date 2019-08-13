@@ -559,7 +559,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase added entries",
-          "[invariant][bucketlistconsistent]")
+          "[invariant][bucketlistconsistent][acceptance]")
 {
     for (size_t nTests = 0; nTests < 40; ++nTests)
     {
@@ -577,7 +577,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase deleted entries",
-          "[invariant][bucketlistconsistent]")
+          "[invariant][bucketlistconsistent][acceptance]")
 {
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
@@ -599,7 +599,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase deleted entries",
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase modified entries",
-          "[invariant][bucketlistconsistent]")
+          "[invariant][bucketlistconsistent][acceptance]")
 {
     for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
     {
@@ -621,7 +621,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase modified entries",
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
-          "[invariant][bucketlistconsistent]")
+          "[invariant][bucketlistconsistent][acceptance]")
 {
     struct LastModifiedBucketListGenerator : public BucketListGenerator
     {
@@ -703,7 +703,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
-          "[invariant][bucketlistconsistent]")
+          "[invariant][bucketlistconsistent][acceptance]")
 {
     struct MergeBucketListGenerator : public SelectBucketListGenerator
     {

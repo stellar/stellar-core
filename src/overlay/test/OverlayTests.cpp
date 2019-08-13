@@ -959,7 +959,7 @@ TEST_CASE("reject peers with the same nodeid", "[overlay][connections]")
     }
 }
 
-TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
+TEST_CASE("connecting to saturated nodes", "[overlay][connections][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
@@ -1040,7 +1040,8 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections]")
         std::chrono::seconds{15}, true);
 }
 
-TEST_CASE("inbounds nodes can be promoted to ouboundvalid", "[overlay]")
+TEST_CASE("inbounds nodes can be promoted to ouboundvalid",
+          "[overlay][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
@@ -1195,7 +1196,8 @@ TEST_CASE("database is purged at overlay start", "[overlay]")
     REQUIRE(!peerManager.load(localhost(5)).second);
 }
 
-TEST_CASE("peer numfailures resets after good connection", "[overlay]")
+TEST_CASE("peer numfailures resets after good connection",
+          "[overlay][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
@@ -1231,7 +1233,8 @@ TEST_CASE("peer numfailures resets after good connection", "[overlay]")
     REQUIRE(r.first.mNumFailures == 0);
 }
 
-TEST_CASE("peer is purged from database after few failures", "[overlay]")
+TEST_CASE("peer is purged from database after few failures",
+          "[overlay][acceptance]")
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =

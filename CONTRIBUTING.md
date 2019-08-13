@@ -134,7 +134,9 @@ run one test category with:
 
 Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by comma-listing).
 
-Tests tagged as [.] or [hide] are not part of the default test test.
+Tests tagged as [.] or [hide] are not part of the default test.
+
+Tests tagged as [acceptance] are not part of `make check` test runs.
 
 supported test options can be seen with
   `src/stellar-core test --help`
