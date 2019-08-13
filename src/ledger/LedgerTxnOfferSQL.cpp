@@ -552,14 +552,10 @@ LedgerTxnRoot::Impl::dropOffers()
     mDatabase.getSession()
         << "CREATE TABLE offers"
            "("
-           "sellerid         VARCHAR(56)  NOT NULL,"
-           "offerid          BIGINT       NOT NULL CHECK (offerid >= 0),"
-           "sellingassettype INT          NOT NULL,"
-           "sellingassetcode VARCHAR(12),"
-           "sellingissuer    VARCHAR(56),"
-           "buyingassettype  INT          NOT NULL,"
-           "buyingassetcode  VARCHAR(12),"
-           "buyingissuer     VARCHAR(56),"
+           "sellerid         VARCHAR(56)      NOT NULL,"
+           "offerid          BIGINT           NOT NULL CHECK (offerid >= 0),"
+           "sellingasset     TEXT             NOT NULL,"
+           "buyingasset      TEXT             NOT NULL,"
            "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
            "pricen           INT              NOT NULL,"
            "priced           INT              NOT NULL,"
@@ -568,11 +564,8 @@ LedgerTxnRoot::Impl::dropOffers()
            "lastmodified     INT              NOT NULL,"
            "PRIMARY KEY      (offerid)"
            ");";
-    mDatabase.getSession()
-        << "CREATE INDEX sellingissuerindex ON offers (sellingissuer);";
-    mDatabase.getSession()
-        << "CREATE INDEX buyingissuerindex ON offers (buyingissuer);";
-    mDatabase.getSession() << "CREATE INDEX priceindex ON offers (price);";
+    mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
+                              "(sellingasset,buyingasset,price);";
 }
 
 class BulkLoadOffersOperation
@@ -711,135 +704,6 @@ LedgerTxnRoot::Impl::bulkLoadOffers(
     else
     {
         return {};
-    }
-}
-
-static void
-processAssetForSchemaUpgrade(Asset& asset, AssetType assetType,
-                             std::string const& issuerStr,
-                             soci::indicator const& issuerIndicator,
-                             std::string const& assetCode,
-                             soci::indicator const& assetCodeIndicator)
-{
-    asset.type(assetType);
-    if (assetType != ASSET_TYPE_NATIVE)
-    {
-        if ((assetCodeIndicator != soci::i_ok) ||
-            (issuerIndicator != soci::i_ok))
-        {
-            throw std::runtime_error("bad database state");
-        }
-
-        if (assetType == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            asset.alphaNum12().issuer =
-                KeyUtils::fromStrKey<PublicKey>(issuerStr);
-            strToAssetCode(asset.alphaNum12().assetCode, assetCode);
-        }
-        else if (assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            asset.alphaNum4().issuer =
-                KeyUtils::fromStrKey<PublicKey>(issuerStr);
-            strToAssetCode(asset.alphaNum4().assetCode, assetCode);
-        }
-        else
-        {
-            throw std::runtime_error("bad database state");
-        }
-    }
-}
-
-static std::vector<LedgerEntry>
-loadAllOffersForSchemaUpgrade(Database& db)
-{
-    std::vector<LedgerEntry> offers;
-
-    std::string sql = "SELECT sellerid, offerid, "
-                      "sellingassettype, sellingassetcode, sellingissuer, "
-                      "buyingassettype, buyingassetcode, buyingissuer, "
-                      "amount, pricen, priced, flags, lastmodified "
-                      "FROM offers";
-    auto prep = db.getPreparedStatement(sql);
-
-    std::string actIDStrKey;
-    unsigned int sellingAssetType, buyingAssetType;
-    std::string sellingAssetCode, buyingAssetCode, sellingIssuerStrKey,
-        buyingIssuerStrKey;
-    soci::indicator sellingAssetCodeIndicator, buyingAssetCodeIndicator,
-        sellingIssuerIndicator, buyingIssuerIndicator;
-
-    LedgerEntry le;
-    le.data.type(OFFER);
-    OfferEntry& oe = le.data.offer();
-
-    auto& st = prep.statement();
-    st.exchange(soci::into(actIDStrKey));
-    st.exchange(soci::into(oe.offerID));
-    st.exchange(soci::into(sellingAssetType));
-    st.exchange(soci::into(sellingAssetCode, sellingAssetCodeIndicator));
-    st.exchange(soci::into(sellingIssuerStrKey, sellingIssuerIndicator));
-    st.exchange(soci::into(buyingAssetType));
-    st.exchange(soci::into(buyingAssetCode, buyingAssetCodeIndicator));
-    st.exchange(soci::into(buyingIssuerStrKey, buyingIssuerIndicator));
-    st.exchange(soci::into(oe.amount));
-    st.exchange(soci::into(oe.price.n));
-    st.exchange(soci::into(oe.price.d));
-    st.exchange(soci::into(oe.flags));
-    st.exchange(soci::into(le.lastModifiedLedgerSeq));
-    st.define_and_bind();
-    st.execute(true);
-    while (st.got_data())
-    {
-        oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
-        processAssetForSchemaUpgrade(oe.selling, (AssetType)sellingAssetType,
-                                     sellingIssuerStrKey,
-                                     sellingIssuerIndicator, sellingAssetCode,
-                                     sellingAssetCodeIndicator);
-        processAssetForSchemaUpgrade(oe.buying, (AssetType)buyingAssetType,
-                                     buyingIssuerStrKey, buyingIssuerIndicator,
-                                     buyingAssetCode, buyingAssetCodeIndicator);
-
-        offers.emplace_back(le);
-        st.fetch();
-    }
-
-    return offers;
-}
-
-void
-LedgerTxnRoot::Impl::writeOffersIntoSimplifiedOffersTable()
-{
-    throwIfChild();
-    mEntryCache.clear();
-    mBestOffersCache.clear();
-
-    CLOG(INFO, "Ledger") << "Loading all offers";
-    auto const offers = stellar::loadAllOffersForSchemaUpgrade(mDatabase);
-
-    mDatabase.getSession() << "DROP TABLE IF EXISTS offers";
-    mDatabase.getSession()
-        << "CREATE TABLE offers"
-           "("
-           "sellerid         VARCHAR(56)      NOT NULL,"
-           "offerid          BIGINT           NOT NULL CHECK (offerid >= 0),"
-           "sellingasset     TEXT             NOT NULL,"
-           "buyingasset      TEXT             NOT NULL,"
-           "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
-           "pricen           INT              NOT NULL,"
-           "priced           INT              NOT NULL,"
-           "price            DOUBLE PRECISION NOT NULL,"
-           "flags            INT              NOT NULL,"
-           "lastmodified     INT              NOT NULL,"
-           "PRIMARY KEY      (offerid)"
-           ");";
-    mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
-                              "(sellingasset,buyingasset,price);";
-
-    if (!offers.empty())
-    {
-        BulkUpsertOffersOperation op(mDatabase, offers);
-        mDatabase.doDatabaseTypeSpecificOperation(op);
-        CLOG(INFO, "Ledger") << "Wrote " << offers.size() << " offer entries";
     }
 }
 }

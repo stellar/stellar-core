@@ -189,28 +189,15 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 9:
-        // Update schema for signers
-        mSession << "ALTER TABLE accounts ADD signers TEXT";
-        mApp.getLedgerTxnRoot().writeSignersTableIntoAccountsTable();
-        mSession << "DROP TABLE IF EXISTS signers";
-
-        // Update schema for base-64 encoding
-        mApp.getLedgerTxnRoot().encodeDataNamesBase64();
-        mApp.getLedgerTxnRoot().encodeHomeDomainsBase64();
-
-        // Update schema for simplified offers table
-        mApp.getLedgerTxnRoot().writeOffersIntoSimplifiedOffersTable();
-        break;
     case 10:
         // add tracking table information
         mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
         break;
     default:
-        if (vers <= 8)
+        if (vers <= 9)
         {
             throw std::runtime_error(
-                "Database version is too old, must use at least 9");
+                "Database version is too old, must use at least 10");
         }
         else
         {
@@ -387,7 +374,7 @@ Database::initialize()
     HerderPersistence::dropAll(*this);
     mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
-    putSchemaVersion(8);
+    putSchemaVersion(9);
 
     LOG(INFO) << "* ";
     LOG(INFO) << "* The database has been initialized";

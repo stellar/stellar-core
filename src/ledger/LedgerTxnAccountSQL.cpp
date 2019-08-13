@@ -128,74 +128,6 @@ LedgerTxnRoot::Impl::loadInflationWinners(size_t maxWinners,
     return winners;
 }
 
-void
-LedgerTxnRoot::Impl::writeSignersTableIntoAccountsTable()
-{
-    throwIfChild();
-    soci::transaction sqlTx(mDatabase.getSession());
-
-    CLOG(INFO, "Ledger") << "Loading all signers from signers table";
-    std::map<std::string, xdr::xvector<Signer, 20>> signersByAccount;
-
-    {
-        std::string accountIDStrKey, pubKey;
-        Signer signer;
-
-        auto prep = mDatabase.getPreparedStatement(
-            "SELECT accountid, publickey, weight FROM signers");
-        auto& st = prep.statement();
-        st.exchange(soci::into(accountIDStrKey));
-        st.exchange(soci::into(pubKey));
-        st.exchange(soci::into(signer.weight));
-        st.define_and_bind();
-        {
-            auto timer = mDatabase.getSelectTimer("signer");
-            st.execute(true);
-        }
-        while (st.got_data())
-        {
-            signer.key = KeyUtils::fromStrKey<SignerKey>(pubKey);
-            signersByAccount[accountIDStrKey].emplace_back(signer);
-            st.fetch();
-        }
-    }
-
-    size_t numAccountsUpdated = 0;
-    for (auto& kv : signersByAccount)
-    {
-        std::sort(kv.second.begin(), kv.second.end(),
-                  [](Signer const& lhs, Signer const& rhs) {
-                      return lhs.key < rhs.key;
-                  });
-        std::string signers(decoder::encode_b64(xdr::xdr_to_opaque(kv.second)));
-
-        auto prep = mDatabase.getPreparedStatement(
-            "UPDATE accounts SET signers = :v1 WHERE accountID = :id");
-        auto& st = prep.statement();
-        st.exchange(soci::use(signers, "v1"));
-        st.exchange(soci::use(kv.first, "id"));
-        st.define_and_bind();
-        st.execute(true);
-        if (static_cast<size_t>(st.get_affected_rows()) != 1)
-        {
-            throw std::runtime_error("Could not update data in SQL");
-        }
-
-        if ((++numAccountsUpdated & 0xfff) == 0xfff ||
-            (numAccountsUpdated == signersByAccount.size()))
-        {
-            CLOG(INFO, "Ledger")
-                << "Wrote signers for " << numAccountsUpdated << " accounts";
-        }
-    }
-
-    sqlTx.commit();
-
-    // Clearing the cache does not throw
-    mEntryCache.clear();
-    mBestOffersCache.clear();
-}
-
 class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
 {
     Database& mDB;
@@ -541,87 +473,12 @@ LedgerTxnRoot::Impl::dropAccounts()
            "homedomain         VARCHAR(32)  NOT NULL,"
            "thresholds         TEXT         NOT NULL,"
            "flags              INT          NOT NULL,"
+           "signers            TEXT,"
            "lastmodified       INT          NOT NULL"
            ");";
     mDatabase.getSession()
         << "CREATE INDEX accountbalances ON accounts (balance) WHERE "
            "balance >= 1000000000";
-}
-
-static std::vector<std::pair<std::string, std::string>>
-loadHomeDomainsToEncode(Database& db)
-{
-    std::string accountID, homeDomain;
-
-    std::string sql = "SELECT accountid, homedomain FROM accounts "
-                      "WHERE length(homedomain) > 0";
-
-    auto prep = db.getPreparedStatement(sql);
-    auto& st = prep.statement();
-    st.exchange(soci::into(accountID));
-    st.exchange(soci::into(homeDomain));
-    st.define_and_bind();
-    st.execute(true);
-
-    std::vector<std::pair<std::string, std::string>> res;
-    while (st.got_data())
-    {
-        res.emplace_back(accountID, homeDomain);
-        st.fetch();
-    }
-    return res;
-}
-
-static void
-writeEncodedHomeDomain(Database& db, std::string const& accountID,
-                       std::string const& homeDomain)
-{
-    std::string encodedHomeDomain = decoder::encode_b64(homeDomain);
-
-    std::string sql =
-        "UPDATE accounts SET homedomain = :v1 WHERE accountid = :v2";
-
-    auto prep = db.getPreparedStatement(sql);
-    auto& st = prep.statement();
-    st.exchange(soci::use(encodedHomeDomain));
-    st.exchange(soci::use(accountID));
-    st.define_and_bind();
-    st.execute(true);
-    if (static_cast<size_t>(st.get_affected_rows()) != 1)
-    {
-        throw std::runtime_error("could not update SQL");
-    }
-}
-
-void
-LedgerTxnRoot::Impl::encodeHomeDomainsBase64()
-{
-    throwIfChild();
-    mEntryCache.clear();
-    mBestOffersCache.clear();
-
-    CLOG(INFO, "Ledger") << "Loading all home domains from accounts table";
-    auto homeDomainsToEncode = loadHomeDomainsToEncode(mDatabase);
-
-    if (!mDatabase.isSqlite())
-    {
-        auto& session = mDatabase.getSession();
-        session << "ALTER TABLE accounts ALTER COLUMN homedomain "
-                   "SET DATA TYPE VARCHAR(44)";
-    }
-
-    size_t numUpdated = 0;
-    for (auto const& kv : homeDomainsToEncode)
-    {
-        writeEncodedHomeDomain(mDatabase, kv.first, kv.second);
-
-        if ((++numUpdated & 0xfff) == 0xfff ||
-            (numUpdated == homeDomainsToEncode.size()))
-        {
-            CLOG(INFO, "Ledger")
-                << "Wrote home domains for " << numUpdated << " accounts";
-        }
-    }
 }
 
 class BulkLoadAccountsOperation
