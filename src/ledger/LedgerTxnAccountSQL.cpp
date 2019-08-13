@@ -530,25 +530,19 @@ LedgerTxnRoot::Impl::dropAccounts()
     mDatabase.getSession()
         << "CREATE TABLE accounts"
            "("
-           "accountid       VARCHAR(56)  PRIMARY KEY,"
-           "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
-           "seqnum          BIGINT       NOT NULL,"
-           "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
-           "inflationdest   VARCHAR(56),"
-           "homedomain      VARCHAR(32)  NOT NULL,"
-           "thresholds      TEXT         NOT NULL,"
-           "flags           INT          NOT NULL,"
-           "lastmodified    INT          NOT NULL"
+           "accountid          VARCHAR(56)  PRIMARY KEY,"
+           "balance            BIGINT       NOT NULL CHECK (balance >= 0),"
+           "buyingliabilities  BIGINT CHECK (buyingliabilities >= 0),"
+           "sellingliabilities BIGINT CHECK (sellingliabilities >= 0),"
+           "seqnum             BIGINT       NOT NULL,"
+           "numsubentries      INT          NOT NULL CHECK (numsubentries >= "
+           "0),"
+           "inflationdest      VARCHAR(56),"
+           "homedomain         VARCHAR(32)  NOT NULL,"
+           "thresholds         TEXT         NOT NULL,"
+           "flags              INT          NOT NULL,"
+           "lastmodified       INT          NOT NULL"
            ");";
-    mDatabase.getSession() << "CREATE TABLE signers"
-                              "("
-                              "accountid       VARCHAR(56) NOT NULL,"
-                              "publickey       VARCHAR(56) NOT NULL,"
-                              "weight          INT         NOT NULL,"
-                              "PRIMARY KEY (accountid, publickey)"
-                              ");";
-    mDatabase.getSession()
-        << "CREATE INDEX signersaccount ON signers (accountid)";
     mDatabase.getSession()
         << "CREATE INDEX accountbalances ON accounts (balance) WHERE "
            "balance >= 1000000000";

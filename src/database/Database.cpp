@@ -189,18 +189,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 7:
-        Upgrades::dropAll(*this);
-        mSession << "ALTER TABLE accounts ADD buyingliabilities BIGINT "
-                    "CHECK (buyingliabilities >= 0)";
-        mSession << "ALTER TABLE accounts ADD sellingliabilities BIGINT "
-                    "CHECK (sellingliabilities >= 0)";
-        mSession << "ALTER TABLE trustlines ADD buyingliabilities BIGINT "
-                    "CHECK (buyingliabilities >= 0)";
-        mSession << "ALTER TABLE trustlines ADD sellingliabilities BIGINT "
-                    "CHECK (sellingliabilities >= 0)";
-        break;
-
     case 8:
         mSession << "ALTER TABLE peers RENAME flags TO type";
         mSession << "UPDATE peers SET type = 2*type";
@@ -223,10 +211,10 @@ Database::applySchemaUpgrade(unsigned long vers)
         mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
         break;
     default:
-        if (vers <= 6)
+        if (vers <= 7)
         {
             throw std::runtime_error(
-                "Database version is too old, must use at least 7");
+                "Database version is too old, must use at least 8");
         }
         else
         {
@@ -390,6 +378,7 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
+    Upgrades::dropAll(*this);
     mApp.getLedgerTxnRoot().dropAccounts();
     mApp.getLedgerTxnRoot().dropOffers();
     mApp.getLedgerTxnRoot().dropTrustLines();
@@ -402,7 +391,7 @@ Database::initialize()
     HerderPersistence::dropAll(*this);
     mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
-    putSchemaVersion(6);
+    putSchemaVersion(7);
 
     LOG(INFO) << "* ";
     LOG(INFO) << "* The database has been initialized";
