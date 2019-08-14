@@ -80,7 +80,7 @@ struct HistoryArchiveState
                                  std::string const& archiveName);
 
     // Return cumulative hash of the bucketlist for this archive state.
-    Hash getBucketListHash();
+    Hash getBucketListHash() const;
 
     // Return vector of buckets to fetch/apply to turn 'other' into 'this'.
     // Vector is sorted from largest/highest-numbered bucket to smallest/lowest,

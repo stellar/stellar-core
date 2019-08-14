@@ -32,7 +32,6 @@ FetchRecentQsetsWork::doReset()
     mDownloadSCPMessagesWork.reset();
     mDownloadDir =
         std::make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getName()));
-    mRemoteState = {};
 }
 
 BasicWork::State
@@ -41,8 +40,7 @@ FetchRecentQsetsWork::doWork()
     // Phase 1: fetch remote history archive state
     if (!mGetHistoryArchiveStateWork)
     {
-        mGetHistoryArchiveStateWork =
-            addWork<GetHistoryArchiveStateWork>(mRemoteState, 0);
+        mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(0);
         return State::WORK_RUNNING;
     }
     else if (mGetHistoryArchiveStateWork->getState() != State::WORK_SUCCESS)

@@ -92,9 +92,9 @@ TEST_CASE("HistoryArchiveState get_put", "[history]")
     auto put = wm.executeWork<PutHistoryArchiveStateWork>(has, archive);
     REQUIRE(put->getState() == BasicWork::State::WORK_SUCCESS);
 
-    HistoryArchiveState has2;
-    auto get = wm.executeWork<GetHistoryArchiveStateWork>(has2, 0, archive);
+    auto get = wm.executeWork<GetHistoryArchiveStateWork>(0, archive);
     REQUIRE(get->getState() == BasicWork::State::WORK_SUCCESS);
+    HistoryArchiveState has2 = get->getHistoryArchiveState();
     REQUIRE(has2.currentLedger == 0x1234);
 }
 

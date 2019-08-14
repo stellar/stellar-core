@@ -62,8 +62,6 @@ CatchupWork::doReset()
         LedgerNumHashPair(lcl.header.ledgerSeq, make_optional<Hash>(lcl.hash));
     mCatchupSeq.reset();
     mGetBucketStateWork.reset();
-    mRemoteState = {};
-    mApplyBucketsRemoteState = {};
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
@@ -73,7 +71,8 @@ CatchupWork::hasAnyLedgersToCatchupTo() const
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == State::WORK_SUCCESS);
 
-    return mLastClosedLedgerHashPair.first <= mRemoteState.currentLedger;
+    return mLastClosedLedgerHashPair.first <=
+           mGetHistoryArchiveStateWork->getHistoryArchiveState().currentLedger;
 }
 
 void
@@ -99,19 +98,19 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
 bool
 CatchupWork::alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const
 {
-    return atCheckpoint == mRemoteState.currentLedger;
+    return atCheckpoint ==
+           mGetHistoryArchiveStateWork->getHistoryArchiveState().currentLedger;
 }
 
 WorkSeqPtr
 CatchupWork::downloadApplyBuckets()
 {
-    std::vector<std::string> hashes =
-        mApplyBucketsRemoteState.differingBuckets(mLocalState);
+    auto const& has = mGetBucketStateWork->getHistoryArchiveState();
+    std::vector<std::string> hashes = has.differingBuckets(mLocalState);
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
         mApp, mBuckets, hashes, *mDownloadDir);
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, mApplyBucketsRemoteState,
-        mVerifiedLedgerRangeStart.header.ledgerVersion);
+        mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
@@ -121,11 +120,12 @@ CatchupWork::downloadApplyBuckets()
 void
 CatchupWork::assertBucketState()
 {
-    // Consistency check: mRemoteState and mVerifiedLedgerRangeStart should
+    auto const& has = mGetBucketStateWork->getHistoryArchiveState();
+
+    // Consistency check: remote state and mVerifiedLedgerRangeStart should
     // point to the same ledger and the same BucketList.
-    assert(mApplyBucketsRemoteState.currentLedger ==
-           mVerifiedLedgerRangeStart.header.ledgerSeq);
-    assert(mApplyBucketsRemoteState.getBucketListHash() ==
+    assert(has.currentLedger == mVerifiedLedgerRangeStart.header.ledgerSeq);
+    assert(has.getBucketListHash() ==
            mVerifiedLedgerRangeStart.header.bucketListHash);
 
     // Consistency check: LCL should be in the _past_ from
@@ -181,7 +181,7 @@ CatchupWork::doWork()
                       mCatchupConfiguration.toLedger() + 1) -
                       1;
         mGetHistoryArchiveStateWork =
-            addWork<GetHistoryArchiveStateWork>(mRemoteState, toCheckpoint);
+            addWork<GetHistoryArchiveStateWork>(toCheckpoint);
         return State::WORK_RUNNING;
     }
     else if (mGetHistoryArchiveStateWork->getState() != State::WORK_SUCCESS)
@@ -189,12 +189,13 @@ CatchupWork::doWork()
         return mGetHistoryArchiveStateWork->getState();
     }
 
+    auto const& has = mGetHistoryArchiveStateWork->getHistoryArchiveState();
     // Step 2: Compare local and remote states
     if (!hasAnyLedgersToCatchupTo())
     {
         CLOG(INFO, "History") << "*";
         CLOG(INFO, "History")
-            << "* Target ledger " << mRemoteState.currentLedger
+            << "* Target ledger " << has.currentLedger
             << " is not newer than last closed ledger "
             << mLastClosedLedgerHashPair.first << " - nothing to do";
 
@@ -218,7 +219,7 @@ CatchupWork::doWork()
     }
 
     auto resolvedConfiguration =
-        mCatchupConfiguration.resolve(mRemoteState.currentLedger);
+        mCatchupConfiguration.resolve(has.currentLedger);
     auto catchupRange =
         CatchupRange{mLastClosedLedgerHashPair.first, resolvedConfiguration,
                      mApp.getHistoryManager()};
@@ -231,8 +232,8 @@ CatchupWork::doWork()
         {
             if (!mGetBucketStateWork)
             {
-                mGetBucketStateWork = addWork<GetHistoryArchiveStateWork>(
-                    mApplyBucketsRemoteState, applyBucketsAt);
+                mGetBucketStateWork =
+                    addWork<GetHistoryArchiveStateWork>(applyBucketsAt);
             }
             if (mGetBucketStateWork->getState() != State::WORK_SUCCESS)
             {
@@ -241,7 +242,7 @@ CatchupWork::doWork()
         }
         else
         {
-            mApplyBucketsRemoteState = mRemoteState;
+            mGetBucketStateWork = mGetHistoryArchiveStateWork;
         }
     }
 

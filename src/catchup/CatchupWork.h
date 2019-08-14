@@ -7,6 +7,7 @@
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/HistoryArchive.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerRange.h"
 #include "work/Work.h"
 #include "work/WorkSequence.h"
@@ -136,8 +137,6 @@ class CatchupWork : public Work
     std::string getStatus() const override;
 
   private:
-    HistoryArchiveState mRemoteState;
-    HistoryArchiveState mApplyBucketsRemoteState;
     LedgerNumHashPair mLastClosedLedgerHashPair;
     CatchupConfiguration const mCatchupConfiguration;
     LedgerHeaderHistoryEntry mVerifiedLedgerRangeStart;
@@ -145,8 +144,8 @@ class CatchupWork : public Work
     ProgressHandler mProgressHandler;
     bool mBucketsAppliedEmitted{false};
 
-    std::shared_ptr<BasicWork> mGetHistoryArchiveStateWork;
-    std::shared_ptr<BasicWork> mGetBucketStateWork;
+    std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;
+    std::shared_ptr<GetHistoryArchiveStateWork> mGetBucketStateWork;
 
     WorkSeqPtr mDownloadVerifyLedgersSeq;
     std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgers;
