@@ -458,7 +458,7 @@ archives.
 
 You can configure any number of archives to download from: stellar-core will automatically round-robin between them.
 
-At a minimum you should configure `get` archives for each full validator referenced from your quorum set (see [crafting  a quorum set](#crafting-a-quorum-set) for more detail).
+At a minimum you should configure `get` archives for each full validator referenced from your quorum set (see the `HISTORY` field in [validators array](#validators-array) for more detail).
 
 Note: if you notice a lot of errors related to downloading archives, you should check that all archives in your configuration are up to date.
 
