@@ -83,7 +83,7 @@ TEST_CASE("HistoryArchiveState get_put", "[history]")
 
     auto archive =
         catchupSimulation.getApp().getHistoryArchiveManager().getHistoryArchive(
-            "test");
+            catchupSimulation.getHistoryConfigurator().getArchiveDirName());
     REQUIRE(archive);
 
     has.resolveAllFutures();
@@ -108,10 +108,12 @@ TEST_CASE("History bucket verification", "[history][catchup]")
     auto cg = std::make_shared<TmpDirHistoryConfigurator>();
     cg->configure(cfg, true);
     Application::pointer app = createTestApplication(clock, cfg);
-    REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+    REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive(
+        cg->getArchiveDirName()));
 
     auto bucketGenerator = TestBucketGenerator{
-        *app, app->getHistoryArchiveManager().getHistoryArchive("test")};
+        *app, app->getHistoryArchiveManager().getHistoryArchive(
+                  cg->getArchiveDirName())};
     std::vector<std::string> hashes;
     auto& wm = app->getWorkScheduler();
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
@@ -171,7 +173,8 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     auto cg = std::make_shared<TmpDirHistoryConfigurator>();
     cg->configure(cfg, true);
     Application::pointer app = createTestApplication(clock, cfg);
-    REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+    REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive(
+        cg->getArchiveDirName()));
 
     auto tmpDir = app->getTmpDirManager().tmpDir("tmp-chain-test");
     auto& wm = app->getWorkScheduler();
@@ -185,7 +188,9 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         initLedger + app->getHistoryManager().getCheckpointFrequency() * 10};
     CheckpointRange checkpointRange{ledgerRange, app->getHistoryManager()};
     auto ledgerChainGenerator = TestLedgerChainGenerator{
-        *app, app->getHistoryArchiveManager().getHistoryArchive("test"),
+        *app,
+        app->getHistoryArchiveManager().getHistoryArchive(
+            cg->getArchiveDirName()),
         checkpointRange, tmpDir};
 
     auto checkExpectedBehavior = [&](Work::State expectedState,
@@ -287,6 +292,32 @@ TEST_CASE("History publish", "[history][publish]")
     CatchupSimulation catchupSimulation{};
     auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
     catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+}
+
+TEST_CASE("History publish to multiple archives", "[history]")
+{
+    Config cfg(getTestConfig());
+    VirtualClock clock;
+    auto cg =
+        std::make_shared<MultiArchiveHistoryConfigurator>(/* numArchives */ 3);
+    CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME, cg, false};
+
+    auto& app = catchupSimulation.getApp();
+    for (auto const& cfgtor : cg->getConfigurators())
+    {
+        CHECK(app.getHistoryArchiveManager().initializeHistoryArchive(
+            cfgtor->getArchiveDirName()));
+    }
+
+    app.start();
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    auto catchupApp = catchupSimulation.createCatchupApplication(
+        64, Config::TESTDB_ON_DISK_SQLITE, "app");
+
+    // Actually perform catchup and make sure everything is correct
+    REQUIRE(catchupSimulation.catchupOffline(catchupApp, checkpointLedger));
 }
 
 static std::string
@@ -791,7 +822,8 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
     {
         VirtualClock clock;
         Application::pointer app1 = Application::create(clock, cfg, 0);
-        app1->getHistoryArchiveManager().initializeHistoryArchive("test");
+        app1->getHistoryArchiveManager().initializeHistoryArchive(
+            tcfg.getArchiveDirName());
         for (size_t i = 0; i < 100; ++i)
             clock.crank(false);
         app1->start();
@@ -943,14 +975,14 @@ TEST_CASE("initialize existing history store fails", "[history]")
     {
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-        REQUIRE(
-            app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+        REQUIRE(app->getHistoryArchiveManager().initializeHistoryArchive(
+            tcfg.getArchiveDirName()));
     }
 
     {
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-        REQUIRE(
-            !app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+        REQUIRE(!app->getHistoryArchiveManager().initializeHistoryArchive(
+            tcfg.getArchiveDirName()));
     }
 }
