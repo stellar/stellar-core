@@ -4,6 +4,8 @@
 
 #include "crypto/Random.h"
 #include "util/Math.h"
+
+#include <algorithm>
 #include <sodium.h>
 
 #ifdef MSAN_ENABLED
