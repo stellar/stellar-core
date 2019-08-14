@@ -11,7 +11,7 @@
 
 namespace stellar
 {
-class GzipAndPutFilesWork : public Work
+class PutFilesWork : public Work
 {
     std::shared_ptr<HistoryArchive> mArchive;
     std::shared_ptr<StateSnapshot> mSnapshot;
@@ -20,11 +20,10 @@ class GzipAndPutFilesWork : public Work
     bool mChildrenSpawned{false};
 
   public:
-    GzipAndPutFilesWork(Application& app,
-                        std::shared_ptr<HistoryArchive> archive,
-                        std::shared_ptr<StateSnapshot> snapshot,
-                        HistoryArchiveState const& remoteState);
-    ~GzipAndPutFilesWork() = default;
+    PutFilesWork(Application& app, std::shared_ptr<HistoryArchive> archive,
+                 std::shared_ptr<StateSnapshot> snapshot,
+                 HistoryArchiveState const& remoteState);
+    ~PutFilesWork() = default;
 
   protected:
     void doReset() override;

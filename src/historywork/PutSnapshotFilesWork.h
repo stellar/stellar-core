@@ -12,12 +12,18 @@ namespace stellar
 {
 
 struct StateSnapshot;
+class GetHistoryArchiveStateWork;
 
 class PutSnapshotFilesWork : public Work
 {
     std::shared_ptr<StateSnapshot> mSnapshot;
-    HistoryArchiveState mRemoteState;
-    bool mStarted{false};
+
+    // Keep track of each step
+    std::list<std::shared_ptr<GetHistoryArchiveStateWork>> mGetStateWorks;
+    std::list<std::shared_ptr<BasicWork>> mGzipFilesWorks;
+    std::list<std::shared_ptr<BasicWork>> mUploadSeqs;
+
+    std::unordered_set<std::string> getFilesToZip();
 
   public:
     PutSnapshotFilesWork(Application& app,

@@ -321,7 +321,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\GetRemoteFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp" />
-    <ClCompile Include="..\..\src\historywork\GzipAndPutFilesWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\PutFilesWork.cpp" />
     <ClCompile Include="..\..\src\historywork\MakeRemoteDirWork.cpp" />
     <ClCompile Include="..\..\src\historywork\Progress.cpp" />
     <ClCompile Include="..\..\src\historywork\PublishWork.cpp" />
@@ -626,7 +626,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\GetRemoteFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GunzipFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GzipFileWork.h" />
-    <ClInclude Include="..\..\src\historywork\GzipAndPutFilesWork.h" />
+    <ClInclude Include="..\..\src\historywork\PutFilesWork.h" />
     <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h" />
     <ClInclude Include="..\..\src\historywork\Progress.h" />
     <ClInclude Include="..\..\src\historywork\PublishWork.h" />

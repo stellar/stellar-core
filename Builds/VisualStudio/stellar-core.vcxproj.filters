@@ -384,7 +384,7 @@
     <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\historywork\GzipAndPutFilesWork.cpp">
+    <ClCompile Include="..\..\src\historywork\PutFilesWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp">
@@ -1256,7 +1256,7 @@
     <ClInclude Include="..\..\src\historywork\GzipFileWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\historywork\GzipAndPutFilesWork.h">
+    <ClInclude Include="..\..\src\historywork\PutFilesWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h">
