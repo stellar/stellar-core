@@ -276,7 +276,7 @@ class TestWork : public Work
     doWork() override
     {
         ++mRunningCount;
-        return WorkUtils::checkChildrenStatus(*this);
+        return checkChildrenStatus();
     }
 
     template <typename T, typename... Args>

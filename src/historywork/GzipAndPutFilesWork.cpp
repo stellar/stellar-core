@@ -68,7 +68,7 @@ GzipAndPutFilesWork::doWork()
     }
     else
     {
-        return WorkUtils::checkChildrenStatus(*this);
+        return checkChildrenStatus();
     }
     return State::WORK_RUNNING;
 }

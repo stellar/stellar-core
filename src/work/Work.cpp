@@ -154,11 +154,7 @@ Work::addChild(std::shared_ptr<BasicWork> child)
 bool
 Work::allChildrenSuccessful() const
 {
-    return std::all_of(mChildren.begin(), mChildren.end(),
-                       [](std::shared_ptr<BasicWork> const& w) {
-                           return w->getState() ==
-                                  BasicWork::State::WORK_SUCCESS;
-                       });
+    return WorkUtils::allSuccessful(mChildren);
 }
 
 bool
@@ -172,11 +168,7 @@ Work::allChildrenDone() const
 bool
 Work::anyChildRunning() const
 {
-    return std::any_of(mChildren.begin(), mChildren.end(),
-                       [](std::shared_ptr<BasicWork> const& w) {
-                           return w->getState() ==
-                                  BasicWork::State::WORK_RUNNING;
-                       });
+    return WorkUtils::anyRunning(mChildren);
 }
 
 bool
@@ -188,11 +180,13 @@ Work::hasChildren() const
 bool
 Work::anyChildRaiseFailure() const
 {
-    return std::any_of(mChildren.begin(), mChildren.end(),
-                       [](std::shared_ptr<BasicWork> const& w) {
-                           return w->getState() ==
-                                  BasicWork::State::WORK_FAILURE;
-                       });
+    return WorkUtils::anyFailed(mChildren);
+}
+
+BasicWork::State
+Work::checkChildrenStatus() const
+{
+    return WorkUtils::getWorkStatus(mChildren);
 }
 
 std::shared_ptr<BasicWork>
@@ -222,18 +216,46 @@ Work::yieldNextRunningChild()
 
 namespace WorkUtils
 {
-BasicWork::State
-checkChildrenStatus(Work const& w)
+
+bool
+allSuccessful(std::list<std::shared_ptr<BasicWork>> const& works)
 {
-    if (w.allChildrenSuccessful())
+    return std::all_of(
+        works.begin(), works.end(), [](std::shared_ptr<BasicWork> w) {
+            return w->getState() == BasicWork::State::WORK_SUCCESS;
+        });
+}
+
+bool
+anyFailed(std::list<std::shared_ptr<BasicWork>> const& works)
+{
+    return std::any_of(
+        works.begin(), works.end(), [](std::shared_ptr<BasicWork> w) {
+            return w->getState() == BasicWork::State::WORK_FAILURE;
+        });
+}
+
+bool
+anyRunning(std::list<std::shared_ptr<BasicWork>> const& works)
+{
+    return std::any_of(
+        works.begin(), works.end(), [](std::shared_ptr<BasicWork> w) {
+            return w->getState() == BasicWork::State::WORK_RUNNING;
+        });
+}
+
+BasicWork::State
+getWorkStatus(std::list<std::shared_ptr<BasicWork>> const& works)
+{
+    if (allSuccessful(works))
     {
         return BasicWork::State::WORK_SUCCESS;
     }
-    else if (w.anyChildRaiseFailure())
+    else if (anyFailed(works))
     {
         return BasicWork::State::WORK_FAILURE;
     }
-    else if (!w.anyChildRunning())
+    else if (!anyRunning(works))
     {
         return BasicWork::State::WORK_WAITING;
     }
