@@ -137,7 +137,8 @@ std::shared_ptr<Bucket>
 Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
               std::vector<LedgerEntry> const& initEntries,
               std::vector<LedgerEntry> const& liveEntries,
-              std::vector<LedgerKey> const& deadEntries, bool countMergeEvents)
+              std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
+              bool doFsync)
 {
     // When building fresh buckets after protocol version 10 (i.e. version
     // 11-or-after) we differentiate INITENTRY from LIVEENTRY. In older
@@ -151,7 +152,8 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
         convertToBucketEntry(useInit, initEntries, liveEntries, deadEntries);
 
     MergeCounters mc;
-    BucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc);
+    BucketOutputIterator out(bucketManager.getTmpDir(), true, meta, mc,
+                             doFsync);
     for (auto const& e : entries)
     {
         out.put(e);
@@ -566,7 +568,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
               std::shared_ptr<Bucket> const& oldBucket,
               std::shared_ptr<Bucket> const& newBucket,
               std::vector<std::shared_ptr<Bucket>> const& shadows,
-              bool keepDeadEntries, bool countMergeEvents)
+              bool keepDeadEntries, bool countMergeEvents, bool doFsync)
 {
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
@@ -591,7 +593,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     BucketMetadata meta;
     meta.ledgerVersion = protocolVersion;
     BucketOutputIterator out(bucketManager.getTmpDir(), keepDeadEntries, meta,
-                             mc);
+                             mc, doFsync);
 
     BucketEntryIdCmp cmp;
     while (oi || ni)

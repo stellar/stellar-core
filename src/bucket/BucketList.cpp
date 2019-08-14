@@ -527,11 +527,12 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     // and we are checking for an expected number of merge events on restart.
     bool countMergeEvents =
         !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
+    bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
     assert(shadows.size() == 0);
     mLevels[0].prepare(app, currLedger, currLedgerProtocol,
                        Bucket::fresh(app.getBucketManager(), currLedgerProtocol,
                                      initEntries, liveEntries, deadEntries,
-                                     countMergeEvents),
+                                     countMergeEvents, doFsync),
                        shadows, countMergeEvents);
     mLevels[0].commit();
 

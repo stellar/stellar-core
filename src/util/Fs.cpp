@@ -15,6 +15,7 @@
 #ifdef _WIN32
 #include <direct.h>
 #include <filesystem>
+#include <io.h>
 #else
 #include <dirent.h>
 #include <sys/resource.h>
@@ -75,6 +76,40 @@ unlockFile(std::string const& path)
     {
         throw std::runtime_error("file was not locked");
     }
+}
+
+void
+flushFileChanges(FILE* fp)
+{
+    int fd = _fileno(fp);
+    if (fd == -1)
+    {
+        FileSystemException::failWithErrno(
+            "fs::flushFileChanges() failed on _fileno(): ");
+    }
+    HANDLE fh = (HANDLE)_get_osfhandle(fd);
+    if (fh == INVALID_HANDLE_VALUE)
+    {
+        FileSystemException::failWithErrno(
+            "fs::flushFileChanges() failed on _get_osfhandle(): ");
+    }
+    if (FlushFileBuffers(fh) == FALSE)
+    {
+        FileSystemException::failWithGetLastError(
+            "fs::flushFileChanges() failed on _get_osfhandle(): ");
+    }
+}
+
+bool
+durableRename(std::string const& src, std::string const& dst,
+              std::string const& dir)
+{
+    if (MoveFileExA(src.c_str(), dst.c_str(), MOVEFILE_WRITE_THROUGH) == 0)
+    {
+        FileSystemException::failWithGetLastError(
+            "fs::durableRename() failed on MoveFileExA(): ");
+    }
+    return true;
 }
 
 bool
@@ -201,6 +236,49 @@ unlockFile(std::string const& path)
     {
         throw std::runtime_error("file was not locked");
     }
+}
+
+void
+flushFileChanges(FILE* fp)
+{
+    int fd = fileno(fp);
+    if (fd == -1)
+    {
+        FileSystemException::failWithErrno(
+            "fs::flushFileChanges() failed on fileno(): ");
+    }
+    if (fsync(fd) == -1)
+    {
+        FileSystemException::failWithErrno(
+            "fs::flushFileChanges() failed on fsync(): ");
+    }
+}
+
+bool
+durableRename(std::string const& src, std::string const& dst,
+              std::string const& dir)
+{
+    if (rename(src.c_str(), dst.c_str()) != 0)
+    {
+        return false;
+    }
+    auto dfd = open(dir.c_str(), O_RDONLY);
+    if (dfd == -1)
+    {
+        FileSystemException::failWithErrno(
+            std::string("Failed to open directory ") + dir + " :");
+    }
+    if (fsync(dfd) == -1)
+    {
+        FileSystemException::failWithErrno(
+            std::string("Failed to fsync directory ") + dir + " :");
+    }
+    if (close(dfd) == -1)
+    {
+        FileSystemException::failWithErrno(
+            std::string("Failed to close directory ") + dir + " :");
+    }
+    return true;
 }
 
 bool

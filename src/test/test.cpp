@@ -168,6 +168,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         {
         case Config::TESTDB_IN_MEMORY_SQLITE:
             dbname << "sqlite3://:memory:";
+            // When we're running on an in-memory sqlite we're
+            // probably not concerned with bucket durability.
+            thisConfig.DISABLE_XDR_FSYNC = true;
             break;
         case Config::TESTDB_ON_DISK_SQLITE:
             dbname << "sqlite3://" << rootDir << "test" << instanceNumber

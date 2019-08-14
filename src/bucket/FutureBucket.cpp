@@ -314,7 +314,6 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
         checkState();
         return;
     }
-
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
     std::shared_ptr<task_t> task = std::make_shared<task_t>(
         [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
@@ -328,7 +327,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
             {
                 auto res = Bucket::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
-                    BucketList::keepDeadEntries(level), countMergeEvents);
+                    BucketList::keepDeadEntries(level), countMergeEvents,
+                    !app.getConfig().DISABLE_XDR_FSYNC);
 
                 CLOG(TRACE, "Bucket")
                     << "Worker finished merging curr="

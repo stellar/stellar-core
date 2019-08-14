@@ -66,6 +66,7 @@ class BucketManagerImpl : public BucketManager
     std::set<Hash> getReferencedBuckets() const;
     void cleanupStaleFiles();
     void cleanDir();
+    bool renameBucket(std::string const& src, std::string const& dst);
 
 #ifdef BUILD_TESTS
     bool mUseFakeTestValuesForNextClose{false};

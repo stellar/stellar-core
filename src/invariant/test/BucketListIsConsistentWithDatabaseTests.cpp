@@ -162,7 +162,7 @@ struct BucketListGenerator
             auto keepDead = BucketList::keepDeadEntries(i);
             {
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
-                                         mergeCounters);
+                                         mergeCounters, /*doFsync=*/true);
                 for (BucketInputIterator in (level.getCurr()); in; ++in)
                 {
                     out.put(*in);
@@ -171,7 +171,7 @@ struct BucketListGenerator
             }
             {
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
-                                         mergeCounters);
+                                         mergeCounters, /*doFsync=*/true);
                 for (BucketInputIterator in (level.getSnap()); in; ++in)
                 {
                     out.put(*in);

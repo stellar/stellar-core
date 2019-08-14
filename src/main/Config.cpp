@@ -105,6 +105,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
     DISABLE_BUCKET_GC = false;
+    DISABLE_XDR_FSYNC = false;
 
     LOG_FILE_PATH = "stellar-core.%datetime{%Y.%M.%d-%H:%m:%s}.log";
     BUCKET_DIR_PATH = "buckets";
@@ -660,6 +661,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "UNSAFE_QUORUM")
             {
                 UNSAFE_QUORUM = readBool(item);
+            }
+            else if (item.first == "DISABLE_XDR_FSYNC")
+            {
+                DISABLE_XDR_FSYNC = readBool(item);
             }
             else if (item.first == "KNOWN_CURSORS")
             {
