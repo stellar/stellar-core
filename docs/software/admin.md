@@ -227,7 +227,8 @@ and set the following value in your config:
 If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
 watch SCP and see all the data in the network but will not send validation messages.
 
-If you run more than one node, set the `HOME_DOMAIN` common to those nodes.  Doing so will allow your nodes to be grouped correctly during [quorum set generation](#home-domains-array).
+NB: if you run more than one node, set the `HOME_DOMAIN` common to those nodes using the `NODE_HOME_DOMAIN` property.
+Doing so will allow your nodes to be grouped correctly during [quorum set generation](#home-domains-array).
 
 If you want other validators to add your node to their quorum sets, you should also share your public key (GDMTUTQ... ) by publishing a stellar.toml file on your homedomain following specs laid out in [SEP-20](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0020.md). 
 
