@@ -338,7 +338,8 @@ TEST_CASE(
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
-    app.getLoadGenerator().generateLoad(true, 3, 0, 0, 10, 100);
+    auto& lg = app.getLoadGenerator();
+    lg.generateLoad(true, 3, 0, 0, 10, 100);
     try
     {
         simulation->crankUntil(
@@ -347,21 +348,21 @@ TEST_CASE(
                 // to the second node in time and the second node gets the
                 // nomination
                 return simulation->haveAllExternalized(5, 2) &&
-                       simulation->accountsOutOfSyncWithDb(app).empty();
+                       lg.checkAccountSynced(app, true).empty();
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        app.getLoadGenerator().generateLoad(false, 3, 0, 10, 10, 100);
+        lg.generateLoad(false, 3, 0, 10, 10, 100);
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
-                       simulation->accountsOutOfSyncWithDb(app).empty();
+                       lg.checkAccountSynced(app, false).empty();
             },
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
     }
     catch (...)
     {
-        auto problems = simulation->accountsOutOfSyncWithDb(app);
+        auto problems = lg.checkAccountSynced(app, false);
         REQUIRE(problems.empty());
     }
 
@@ -511,14 +512,15 @@ netTopologyTest(std::string const& name,
         assert(!nodes.empty());
         auto& app = *nodes[0];
 
-        app.getLoadGenerator().generateLoad(true, 50, 0, 0, 10, 100);
+        auto& lg = app.getLoadGenerator();
+        lg.generateLoad(true, 50, 0, 0, 10, 100);
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 
         sim->crankUntil(
             [&]() {
                 return sim->haveAllExternalized(8, 2) &&
-                       sim->accountsOutOfSyncWithDb(app).empty() &&
+                       lg.checkAccountSynced(app, true).empty() &&
                        complete.count() == 1;
             },
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);

@@ -36,20 +36,28 @@ namespace stellar
 using namespace std;
 using namespace txtest;
 
-// Units of load are is scheduled at 100ms intervals.
+// Units of load are scheduled at 100ms intervals.
 const uint32_t LoadGenerator::STEP_MSECS = 100;
-//
-const uint32_t LoadGenerator::TX_SUBMIT_MAX_TRIES = 1000;
+
+// If submission fails with txBAD_SEQ, attempt refreshing the account or
+// re-submitting a new payment
+const uint32_t LoadGenerator::TX_SUBMIT_MAX_TRIES = 10;
+
+// After successfully submitting desired load, wait a bit to let it get into the
+// ledger.
+const uint32_t LoadGenerator::TIMEOUT_NUM_LEDGERS = 20;
 
 LoadGenerator::LoadGenerator(Application& app)
-    : mMinBalance(0), mLastSecond(0), mApp(app), mTotalSubmitted(0)
+    : mMinBalance(0)
+    , mLastSecond(0)
+    , mApp(app)
+    , mTotalSubmitted(0)
+    , mLoadgenComplete(
+          mApp.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run"))
+    , mLoadgenFail(
+          mApp.getMetrics().NewMeter({"loadgen", "run", "failed"}, "run"))
 {
     createRootAccount();
-}
-
-LoadGenerator::~LoadGenerator()
-{
-    clear();
 }
 
 void
@@ -92,12 +100,14 @@ LoadGenerator::getTxPerStep(uint32_t txRate)
 }
 
 void
-LoadGenerator::clear()
+LoadGenerator::reset()
 {
     mAccounts.clear();
     mRoot.reset();
     mStartTime.reset();
     mTotalSubmitted = 0;
+    mWaitTillCompleteForLedgers = 0;
+    mFailed = false;
 }
 
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
@@ -106,6 +116,18 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                       uint32_t offset, uint32_t nTxs,
                                       uint32_t txRate, uint32_t batchSize)
 {
+    // If previously scheduled step of load did not succeed, fail this loadgen
+    // run.
+    if (mFailed)
+    {
+        CLOG(ERROR, "LoadGen") << "Load generation failed, ensure correct "
+                                  "number parameters are set and accounts are "
+                                  "created, or retry with smaller tx rate.";
+        mLoadgenFail.Mark();
+        reset();
+        return;
+    }
+
     if (!mLoadTimer)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
@@ -156,7 +178,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
     if ((isCreate && nAccounts == 0) || (!isCreate && nTxs == 0))
     {
         // Done submitting the load, now ensure it propagates to the DB.
-        waitTillComplete();
+        waitTillComplete(isCreate);
         return;
     }
 
@@ -229,18 +251,23 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
     while ((status = tx.execute(mApp, true, code, batchSize)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
-        handleFailedSubmission(tx.mFrom, status, code); // Update seq num
+        // Ignore duplicate transactions, simply continue generating load
         if (status == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
         {
             createDuplicate = true;
             break;
         }
-        if (++numTries >= TX_SUBMIT_MAX_TRIES)
+
+        if (++numTries >= TX_SUBMIT_MAX_TRIES ||
+            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            CLOG(ERROR, "LoadGen") << "Error creating account!";
-            clear();
+            // Failed to submit the step of load
+            mFailed = true;
             return 0;
         }
+
+        // In case of bad seqnum, attempt refreshing it from the DB
+        maybeHandleFailedTx(tx.mFrom, status, code);
     }
 
     if (!createDuplicate)
@@ -267,16 +294,18 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
     while ((status = tx.execute(mApp, false, code, batchSize)) !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
-        handleFailedSubmission(tx.mFrom, status, code); // Update seq num
-        tx = paymentTransaction(nAccounts, offset, ledgerNum,
-                                sourceAccountId); // re-generate the tx
-        if (++numTries >= TX_SUBMIT_MAX_TRIES)
+        if (++numTries >= TX_SUBMIT_MAX_TRIES ||
+            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            CLOG(ERROR, "LoadGen") << "Error submitting tx: did you specify "
-                                      "correct number of accounts and offset?";
-            clear();
+            mFailed = true;
             return 0;
         }
+
+        // In case of bad seqnum, attempt refreshing it from the DB
+        maybeHandleFailedTx(tx.mFrom, status, code); // Update seq num
+
+        // Regenerate a new payment tx
+        tx = paymentTransaction(nAccounts, offset, ledgerNum, sourceAccountId);
     }
 
     nTxs -= 1;
@@ -409,13 +438,13 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
     if (res == mAccounts.end())
     {
         SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
-        auto name = "TestAccount-" + to_string(accountId);
-        auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
-        newAccountPtr = make_shared<TestAccount>(account);
+        auto name = "TestAccount-" + std::to_string(accountId);
+        newAccountPtr =
+            std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
 
         if (!loadAccount(newAccountPtr, mApp))
         {
-            std::runtime_error(
+            throw std::runtime_error(
                 fmt::format("Account {0} must exist in the DB.", accountId));
         }
         mAccounts.insert(
@@ -445,9 +474,9 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
 }
 
 void
-LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
-                                      TransactionQueue::AddResult status,
-                                      TransactionResultCode code)
+LoadGenerator::maybeHandleFailedTx(TestAccountPtr sourceAccount,
+                                   TransactionQueue::AddResult status,
+                                   TransactionResultCode code)
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
@@ -463,21 +492,43 @@ LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
 }
 
 std::vector<LoadGenerator::TestAccountPtr>
-LoadGenerator::checkAccountSynced(Application& app)
+LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
 {
     std::vector<TestAccountPtr> result;
     for (auto const& acc : mAccounts)
     {
         TestAccountPtr account = acc.second;
-        auto currentSeqNum = account->getLastSequenceNumber();
-        auto reloadRes = loadAccount(account, app);
-        // reload the account
-        if (!reloadRes || currentSeqNum != account->getLastSequenceNumber())
+        auto accountFromDB = *account;
+
+        auto reloadRes = loadAccount(accountFromDB, app);
+        // For account creation, reload accounts from the DB
+        // For payments, ensure that the sequence number matches expected
+        // seqnum. Timeout after 20 ledgers.
+        if (isCreate)
         {
-            CLOG(DEBUG, "LoadGen")
+            if (!reloadRes)
+            {
+                CLOG(TRACE, "LoadGen") << "Account " << account->getAccountId()
+                                       << " is not created yet!";
+                result.push_back(account);
+            }
+        }
+        else if (!reloadRes)
+        {
+            auto msg =
+                fmt::format("Account {} used to submit payment tx could not "
+                            "load, DB might be in a corrupted state",
+                            account->getAccountId());
+            throw std::runtime_error(msg);
+        }
+        else if (account->getLastSequenceNumber() !=
+                 accountFromDB.getLastSequenceNumber())
+        {
+            CLOG(TRACE, "LoadGen")
                 << "Account " << account->getAccountId()
-                << " is at sequence num " << currentSeqNum
-                << ", but the DB is at  " << account->getLastSequenceNumber();
+                << " is at sequence num " << account->getLastSequenceNumber()
+                << ", but the DB is at  "
+                << accountFromDB.getLastSequenceNumber();
             result.push_back(account);
         }
     }
@@ -485,30 +536,37 @@ LoadGenerator::checkAccountSynced(Application& app)
 }
 
 void
-LoadGenerator::waitTillComplete()
+LoadGenerator::waitTillComplete(bool isCreate)
 {
     if (!mLoadTimer)
     {
         mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
     vector<TestAccountPtr> inconsistencies;
-    inconsistencies = checkAccountSynced(mApp);
+    inconsistencies = checkAccountSynced(mApp, isCreate);
 
     if (inconsistencies.empty())
     {
         CLOG(INFO, "LoadGen") << "Load generation complete.";
-        mApp.getMetrics()
-            .NewMeter({"loadgen", "run", "complete"}, "run")
-            .Mark();
-        clear();
+        mLoadgenComplete.Mark();
+        reset();
         return;
     }
     else
     {
+        if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
+        {
+            CLOG(INFO, "LoadGen") << "Load generation failed.";
+            mLoadgenFail.Mark();
+            reset();
+            return;
+        }
+
         mLoadTimer->expires_from_now(
             mApp.getConfig().getExpectedLedgerCloseTime());
-        mLoadTimer->async_wait([this]() { this->waitTillComplete(); },
-                               &VirtualTimer::onFailureNoop);
+        mLoadTimer->async_wait(
+            [this, isCreate]() { this->waitTillComplete(isCreate); },
+            &VirtualTimer::onFailureNoop);
     }
 }
 
