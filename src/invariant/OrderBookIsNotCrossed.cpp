@@ -13,28 +13,107 @@
 namespace stellar
 {
 
+std::vector<std::pair<Asset, Asset>>
+extractAssetPairs(Operation const& op, LedgerTxnDelta const& ltxd)
+{
+    switch (op.body.type())
+    {
+    case MANAGE_BUY_OFFER:
+    {
+        auto const& offer = op.body.manageBuyOfferOp();
+        return {std::pair<Asset, Asset>(offer.selling, offer.buying)};
+    }
+    case MANAGE_SELL_OFFER:
+    {
+        auto const& offer = op.body.manageSellOfferOp();
+        return {std::pair<Asset, Asset>(offer.selling, offer.buying)};
+    }
+    case CREATE_PASSIVE_SELL_OFFER:
+    {
+        auto const& offer = op.body.createPassiveSellOfferOp();
+        return {std::pair<Asset, Asset>(offer.selling, offer.buying)};
+    }
+    case PATH_PAYMENT:
+    {
+        auto const& pp = op.body.pathPaymentOp();
+
+        // if no path, only have a pair between send and dest
+        if (pp.path.size() == 0)
+        {
+            return {std::pair<Asset, Asset>(pp.sendAsset, pp.destAsset)};
+        }
+
+        std::vector<std::pair<Asset, Asset>> assets;
+        // For send, dest, {A, B} we get: {send, A}, {A, B}, {B, dest}
+        for (int i = 0; i < pp.path.size(); ++i)
+        {
+            // beginning: send -> A
+            if (i == 0)
+            {
+                assets.emplace_back(pp.sendAsset, pp.path[i]);
+            }
+            // end: B -> dest
+            if (i == pp.path.size() - 1)
+            {
+                assets.emplace_back(pp.path[i], pp.destAsset);
+            }
+            // middle: A -> B
+            if (i > 0 && i < pp.path.size() - 1)
+            {
+                assets.emplace_back(pp.path[i - 1], pp.path[i]);
+            }
+        }
+
+        return assets;
+    }
+    case ALLOW_TRUST:
+    {
+        auto const& at = op.body.allowTrustOp();
+
+        // if revoke auth, all offers for that user against that asset are
+        // deleted
+        if (!at.authorize)
+        {
+            std::vector<std::pair<Asset, Asset>> assets;
+            // since we only get one side of the asset pair from the operation,
+            // we derive the rest of the information from the
+            // LedgerTxnDelta entries
+            for (auto const& entry : ltxd.entry)
+            {
+                if (entry.second.previous &&
+                    entry.second.previous->data.type() == OFFER)
+                {
+                    auto const& offer = entry.second.previous->data.offer();
+                    assets.emplace_back(offer.selling, offer.buying);
+                }
+            }
+
+            return assets;
+        }
+
+        return {};
+    }
+    default:
+        return {};
+    }
+}
+
+double
+price(OfferEntry const& offer)
+{
+    return double(offer.price.n) / double(offer.price.d);
+}
+
 double
 getMinOfferPrice(Orders const& orders)
 {
-    auto const& price = [](OfferEntry const& offer) {
-        return double(offer.price.n) / double(offer.price.d);
-    };
-
-    auto const& comparator = [&](auto const& a, auto const& b) {
-        return price(a.second) < price(b.second);
-    };
-
-    auto const& it = std::min_element(orders.begin(), orders.end(), comparator);
-
-    return it == orders.end() ? __DBL_MAX__ : price(it->second);
+    return orders.cbegin() == orders.cend() ? __DBL_MAX__
+                                            : price(*orders.cbegin());
 }
 
 std::string
-check(OfferEntry const& oe, OrderBook const& orderBook)
+checkCrossed(Asset const& a, Asset const& b, OrderBook const& orderBook)
 {
-    auto const a = oe.selling;
-    auto const b = oe.buying;
-
     // if either side of order book for asset pair empty or does not yet exist,
     // order book cannot be crossed
     if (orderBook.find(a) == orderBook.end() ||
@@ -42,11 +121,11 @@ check(OfferEntry const& oe, OrderBook const& orderBook)
         orderBook.at(a).find(b) == orderBook.at(a).end() ||
         orderBook.at(b).find(a) == orderBook.at(b).end())
     {
-        return std::string{};
+        return {};
     }
 
-    auto asks = orderBook.at(a).at(b);
-    auto bids = orderBook.at(b).at(a);
+    auto const& asks = orderBook.at(a).at(b);
+    auto const& bids = orderBook.at(b).at(a);
 
     auto lowestAsk = getMinOfferPrice(asks);
     auto highestBid = 1.0 / getMinOfferPrice(bids);
@@ -69,35 +148,31 @@ check(OfferEntry const& oe, OrderBook const& orderBook)
             }
             return r;
         };
-
-        return fmt::format("Order book is in a crossed state for {} - {} "
-                           "asset pair.\nTop "
-                           "of the book is:\n\tAsk price: {}\n\tBid "
-                           "price: {}\n\nWhere {} "
-                           ">= {}!",
-                           assetToString(oe.selling), assetToString(oe.buying),
-                           lowestAsk, highestBid, highestBid, lowestAsk);
+        return fmt::format(
+            "Order book is in a crossed state for {} - {} "
+            "asset pair.\nTop of the book is:\n\tAsk price: {}\n\tBid "
+            "price: {}\n\nWhere {} >= {}!",
+            assetToString(a), assetToString(b), lowestAsk, highestBid,
+            highestBid, lowestAsk);
     }
-
-    return std::string{};
+    return {};
 }
 
 void
-OrderBookIsNotCrossed::deleteOffer(OfferEntry const& oe)
+OrderBookIsNotCrossed::deleteFromOrderBook(OfferEntry const& oe)
 {
-    mOrderBook[oe.selling][oe.buying].erase(oe.offerID);
+    mOrderBook[oe.selling][oe.buying].erase(oe);
 }
 
 void
-OrderBookIsNotCrossed::createOrModifyOffer(OfferEntry const& oe)
+OrderBookIsNotCrossed::addToOrderBook(OfferEntry const& oe)
 {
-    mOrderBook[oe.selling][oe.buying][oe.offerID] = oe;
+    mOrderBook[oe.selling][oe.buying].emplace(oe);
 }
 
-std::string
-OrderBookIsNotCrossed::updateOrderBookAndCheck(LedgerTxnDelta const& ltxd)
+void
+OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
 {
-    std::shared_ptr<const stellar::LedgerEntry> lastOffer;
     for (auto const& entry : ltxd.entry)
     {
         // there are three possible "deltas" for an offer:
@@ -106,22 +181,32 @@ OrderBookIsNotCrossed::updateOrderBookAndCheck(LedgerTxnDelta const& ltxd)
         //      DELETED:  LedgerKey -> (nil)
         if (entry.first.type() == OFFER)
         {
+            if (entry.second.previous)
+            {
+                deleteFromOrderBook(entry.second.previous->data.offer());
+            }
             if (entry.second.current)
             {
-                createOrModifyOffer(entry.second.current->data.offer());
+                addToOrderBook(entry.second.current->data.offer());
             }
-            else
-            {
-                deleteOffer(entry.second.previous->data.offer());
-            }
+        }
+    }
+}
 
-            lastOffer = entry.second.current ? entry.second.current
-                                             : entry.second.previous;
+std::string
+OrderBookIsNotCrossed::check(std::vector<std::pair<Asset, Asset>> assetPairs)
+{
+    for (auto const& assetPair : assetPairs)
+    {
+        auto const& checkCrossedResult =
+            checkCrossed(assetPair.first, assetPair.second, mOrderBook);
+        if (!checkCrossedResult.empty())
+        {
+            return checkCrossedResult;
         }
     }
 
-    return lastOffer ? check(lastOffer->data.offer(), mOrderBook)
-                     : std::string{};
+    return std::string{};
 }
 
 std::shared_ptr<Invariant>
@@ -140,7 +225,9 @@ OrderBookIsNotCrossed::checkOnOperationApply(Operation const& operation,
                                              OperationResult const& result,
                                              LedgerTxnDelta const& ltxDelta)
 {
-    return updateOrderBookAndCheck(ltxDelta);
+    updateOrderBook(ltxDelta);
+    auto assetPairs = extractAssetPairs(operation, ltxDelta);
+    return assetPairs.size() > 0 ? check(assetPairs) : std::string{};
 }
 
 void

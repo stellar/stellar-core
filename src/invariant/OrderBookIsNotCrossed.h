@@ -9,6 +9,7 @@
 #include "invariant/Invariant.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <set>
 #include <unordered_map>
 
 using namespace stellar;
@@ -60,7 +61,21 @@ class Application;
 struct LedgerTxnDelta;
 struct OfferEntry;
 
-using Orders = std::unordered_map<int64_t, OfferEntry>;
+// compare two OfferEntry's by price
+struct OfferEntryCmp
+{
+    bool
+    operator()(OfferEntry const& a, OfferEntry const& b) const
+    {
+        auto const& price = [](OfferEntry const& offer) {
+            return double(offer.price.n) / double(offer.price.d);
+        };
+
+        return price(a) < price(b);
+    }
+};
+
+using Orders = std::set<OfferEntry, OfferEntryCmp>;
 using AssetOrders = std::unordered_map<Asset, Orders>;
 using OrderBook = std::unordered_map<Asset, AssetOrders>;
 
@@ -94,9 +109,10 @@ class OrderBookIsNotCrossed : public Invariant
     // configurable, it is likely that this invariant will be enabled with
     // pre-existing ledger and thus the mOrderBook will need a way to sync
     OrderBook mOrderBook;
-    void deleteOffer(OfferEntry const& oe);
-    void createOrModifyOffer(OfferEntry const& oe);
-    std::string updateOrderBookAndCheck(LedgerTxnDelta const& ltxd);
+    void deleteFromOrderBook(OfferEntry const& oe);
+    void addToOrderBook(OfferEntry const& oe);
+    void updateOrderBook(LedgerTxnDelta const& ltxd);
+    std::string check(std::vector<std::pair<Asset, Asset>> assetPairs);
 };
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION

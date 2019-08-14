@@ -7,49 +7,83 @@
 #include "invariant/test/InvariantTestUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 
 using namespace stellar;
 using namespace stellar::InvariantTestUtils;
 
-LedgerEntry
-genApplyCheckCreateOffer(Asset const& ask, Asset const& bid, int64 amount,
-                         Price price, Application& app, bool shouldPass)
+// convert a single offer into an offer operation
+Operation
+opFromLedgerEntries(LedgerEntry le)
 {
-    auto offer = generateOffer(ask, bid, amount, price);
-    std::vector<LedgerEntry> current{offer};
-    auto const& updates = makeUpdateList(current, nullptr);
-    REQUIRE(store(app, updates, nullptr, nullptr) == shouldPass);
-
-    return offer;
+    auto offer = le.data.offer();
+    return txtest::manageBuyOffer(offer.offerID, offer.selling, offer.buying,
+                                  offer.price, offer.amount);
 }
 
-LedgerEntry
-genApplyCheckModifyOffer(LedgerEntry offer, Price price, Application& app,
-                         bool shouldPass)
+// convert a vector of offers into a path payment operation
+Operation
+opFromLedgerEntries(std::vector<LedgerEntry> les)
 {
-    std::vector<LedgerEntry> previous{offer};
-    offer.data.offer().price = price;
-    std::vector<LedgerEntry> current{offer};
-    auto const& updates = makeUpdateList(current, previous);
-    REQUIRE(store(app, updates, nullptr, nullptr) == shouldPass);
+    // for given assets A, Bs, C
+    //      send: A
+    //      dest: C
+    //      path: {Bs}
+    // where Bs represents from 0 to 5 offers inclusive
+    Asset send = les.at(0).data.offer().selling;
+    Asset dest = les.at(les.size() - 1).data.offer().buying;
+    std::vector<Asset> path;
 
-    return offer;
+    for (int i = 1; i < les.size(); i++)
+    {
+        path.emplace_back(les[i].data.offer().selling);
+    }
+
+    // public key and amounts are not important
+    return txtest::pathPayment(PublicKey{}, send, 1, dest, 1, path);
 }
 
 void
-applyCheckDeleteOffer(Application& app, LedgerEntry offer, bool shouldPass)
+applyCheck(Application& app, std::vector<LedgerEntry> current,
+           std::vector<LedgerEntry> previous, bool shouldPass, Operation op)
 {
-    std::vector<LedgerEntry> previous{offer};
-    auto const& updates = makeUpdateList(nullptr, previous);
-    REQUIRE(store(app, updates, nullptr, nullptr) == shouldPass);
+    stellar::InvariantTestUtils::UpdateList updates;
+
+    if (previous.size() == 0)
+    {
+        updates = makeUpdateList(current, nullptr);
+    }
+    else if (current.size() == 0)
+    {
+        updates = makeUpdateList(nullptr, previous);
+    }
+    else
+    {
+        updates = makeUpdateList(current, previous);
+    }
+
+    REQUIRE(store(app, updates, nullptr, nullptr, &op) == shouldPass);
+}
+
+LedgerEntry
+createOffer(Asset const& ask, Asset const& bid, int64 amount, Price price)
+{
+    return generateOffer(ask, bid, amount, price);
+}
+
+LedgerEntry
+modifyOffer(LedgerEntry offer, int64 amount, Price price)
+{
+    offer.data.offer().amount = amount;
+    offer.data.offer().price = price;
+    return offer;
 }
 
 TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
           "application behaviour",
           "[invariant][OrderBookIsNotCrossed]")
 {
-
     Asset cur1;
     cur1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur1.alphaNum4().assetCode, "CUR1");
@@ -64,7 +98,6 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
 
     auto invariant = std::make_shared<OrderBookIsNotCrossed>();
     auto offer = generateOffer(cur1, cur2, 3, Price{3, 2});
-    auto const& offerID = offer.data.offer().offerID;
 
     // create
     {
@@ -75,9 +108,12 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         auto const& orders = invariant->getOrderBook().at(cur1).at(cur2);
 
         REQUIRE(orders.size() == 1);
-        REQUIRE(orders.at(offerID).amount == 3);
-        REQUIRE(orders.at(offerID).price.n == 3);
-        REQUIRE(orders.at(offerID).price.d == 2);
+
+        auto offerToCheck = *orders.cbegin();
+
+        REQUIRE(offerToCheck.amount == 3);
+        REQUIRE(offerToCheck.price.n == 3);
+        REQUIRE(offerToCheck.price.d == 2);
 
         ltx.commit();
     }
@@ -95,9 +131,11 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
         auto const& orders = invariant->getOrderBook().at(cur1).at(cur2);
 
         REQUIRE(orders.size() == 1);
-        REQUIRE(orders.at(offerID).amount == 2);
-        REQUIRE(orders.at(offerID).price.n == 5);
-        REQUIRE(orders.at(offerID).price.d == 3);
+
+        auto offerToCheck = *orders.cbegin();
+
+        REQUIRE(offerToCheck.amount == 2);
+        REQUIRE(offerToCheck.price.n == 5);
 
         ltx.commit();
     }
@@ -132,57 +170,137 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     cur2.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur2.alphaNum4().assetCode, "CUR2");
 
-    // the initial state for the order book is:
-    //     3 A @  3/2 (B/A)
-    //     2 A @  5/3 (B/A)
-    //     4 B @  3/4 (A/B)
-    //     1 B @  4/5 (A/B)
-    // where A = cur1 and B = cur2
-    genApplyCheckCreateOffer(cur1, cur2, 3, Price{3, 2}, *app, true);
-    genApplyCheckCreateOffer(cur1, cur2, 2, Price{5, 3}, *app, true);
-    genApplyCheckCreateOffer(cur2, cur1, 4, Price{3, 4}, *app, true);
-    genApplyCheckCreateOffer(cur2, cur1, 1, Price{4, 5}, *app, true);
+    Asset cur3;
+    cur3.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(cur3.alphaNum4().assetCode, "CUR3");
+
+    // the initial set up for the order book follows where:
+    // A = cur1, B = cur2, and C = cur3
+    // A against B
+    //     offer1: 3 A @  3/2 (B/A)
+    //     offer2: 2 A @  5/3 (B/A)
+    auto offer1 = createOffer(cur1, cur2, 3, Price{3, 2});
+    auto offer2 = createOffer(cur1, cur2, 2, Price{5, 3});
+    // B against A
+    //     offer3: 4 B @  3/4 (A/B)
+    //     offer4: 1 B @  4/5 (A/B)
+    auto offer3 = createOffer(cur2, cur1, 4, Price{3, 4});
+    auto offer4 = createOffer(cur2, cur1, 1, Price{4, 5});
+    // B against C
+    //     offer5: 3 B @  3/2 (C/B)
+    //     offer6: 2 B @  5/3 (C/B)
+    auto offer5 = createOffer(cur2, cur3, 3, Price{3, 2});
+    auto offer6 = createOffer(cur2, cur3, 2, Price{5, 3});
+    // C against B
+    //     offer7: 4 C @  3/4 (B/C)
+    //     offer8: 1 C @  4/5 (B/C)
+    auto offer7 = createOffer(cur3, cur2, 4, Price{3, 4});
+    auto offer8 = createOffer(cur3, cur2, 1, Price{4, 5});
+
+    applyCheck(*app,
+               {offer1, offer2, offer3, offer4, offer5, offer6, offer7, offer8},
+               {}, true, opFromLedgerEntries(offer4));
 
     SECTION("Not crossed when highest bid < lowest ask")
     {
-        // Create - Offer 5: 7 A @  8/5 (B/A)
-        auto offer5 =
-            genApplyCheckCreateOffer(cur1, cur2, 7, Price{8, 5}, *app, true);
+        // Create - Offer 9: 7 A @  8/5 (B/A)
+        auto offer9 = createOffer(cur1, cur2, 7, Price{8, 5});
+        applyCheck(*app, {offer9}, {}, true, opFromLedgerEntries(offer9));
 
-        // Modify - Offer 6: 7 A @  16/11 (B/A)
-        auto offer6 =
-            genApplyCheckModifyOffer(offer5, Price{16, 11}, *app, true);
+        // Modify - Offer 10: 7 A @  16/11 (B/A)
+        auto offer10 = modifyOffer(offer9, 7, Price{16, 11});
+        applyCheck(*app, {offer10}, {offer9}, true,
+                   opFromLedgerEntries(offer10));
 
-        // Delete - Offer 6
-        applyCheckDeleteOffer(*app, offer6, true);
+        // Delete - Offer 10
+        applyCheck(*app, {}, {offer10}, true, opFromLedgerEntries(offer10));
     }
 
     SECTION("Crossed where highest bid = lowest ask")
     {
-        // Create - Offer 5: 7 A @  4/3 (B/A)
-        auto offer5 =
-            genApplyCheckCreateOffer(cur1, cur2, 7, Price{4, 3}, *app, false);
+        // Create - Offer 9: 7 A @  4/3 (B/A)
+        auto offer9 = createOffer(cur1, cur2, 7, Price{4, 3});
+        applyCheck(*app, {offer9}, {}, false, opFromLedgerEntries(offer9));
 
-        // Modify - Offer 6: 3 A @ 4/3 (B/A)
-        auto offer6 =
-            genApplyCheckModifyOffer(offer5, Price{5, 4}, *app, false);
+        // Modify - Offer 10: 3 A @ 4/3 (B/A)
+        auto offer10 = modifyOffer(offer9, 3, Price{4, 3});
+        applyCheck(*app, {offer10}, {offer9}, false,
+                   opFromLedgerEntries(offer10));
 
-        // Delete - Offer 6
-        applyCheckDeleteOffer(*app, offer6, true);
+        // Delete - Offer 10
+        applyCheck(*app, {}, {offer10}, true, opFromLedgerEntries(offer10));
     }
 
     SECTION("Crossed where highest bid > lowest ask")
     {
-        // Create - Offer 5: 7 A @  1/1 (B/A)
-        auto offer5 =
-            genApplyCheckCreateOffer(cur1, cur2, 7, Price{4, 3}, *app, false);
+        // Create - Offer 9: 7 A @  1/1 (B/A)
+        auto offer9 = createOffer(cur1, cur2, 7, Price{1, 1});
+        applyCheck(*app, {offer9}, {}, false, opFromLedgerEntries(offer9));
 
         // Modify - Offer 6: 3 A @ 100/76 (B/A)
-        auto offer6 =
-            genApplyCheckModifyOffer(offer5, Price{100, 76}, *app, false);
+        auto offer10 = modifyOffer(offer9, 3, Price{100, 76});
+        applyCheck(*app, {offer10}, {offer9}, false,
+                   opFromLedgerEntries(offer10));
 
-        // Delete - Offer 6
-        applyCheckDeleteOffer(*app, offer6, true);
+        // Delete - Offer 10
+        applyCheck(*app, {}, {offer10}, true, opFromLedgerEntries(offer10));
+    }
+
+    SECTION("Multiple assets not crossed (PathPayment)")
+    {
+        // Create - Offer 9: 7 A @  8/5 (B/A)
+        // Create - Offer 10: 7 B @  8/5 (C/B)
+        auto offer9 = createOffer(cur1, cur2, 7, Price{8, 5});
+        auto offer10 = createOffer(cur2, cur3, 7, Price{8, 5});
+        applyCheck(*app, {offer9, offer10}, {}, true,
+                   opFromLedgerEntries({offer9, offer10}));
+
+        // Modify - Offer 11: 7 A @  16/11 (B/A)
+        // Modify - Offer 12: 7 B @  16/11 (C/B)
+        auto offer11 = modifyOffer(offer9, 7, Price{16, 11});
+        auto offer12 = modifyOffer(offer10, 7, Price{16, 11});
+        applyCheck(*app, {offer11, offer12}, {offer9, offer10}, true,
+                   opFromLedgerEntries({offer11, offer12}));
+
+        // Delete - Offer 11
+        // Delete - Offer 12
+        applyCheck(*app, {}, {offer11, offer12}, true,
+                   opFromLedgerEntries({offer11, offer12}));
+    }
+
+    SECTION("Multiple assets crossed where only one crosses (PathPayment)")
+    {
+        // Create - Offer 9: 7 A @  4/3 (B/A) - CROSSED
+        // Create - Offer 10: 7 B @  8/5 (C/B)
+        auto offer9 = createOffer(cur1, cur2, 7, Price{4, 3});
+        auto offer10 = createOffer(cur2, cur3, 7, Price{8, 5});
+        applyCheck(*app, {offer9, offer10}, {}, false,
+                   opFromLedgerEntries({offer9, offer10}));
+
+        // Modify - Offer 11: 3 A @  16/11 (B/A)
+        // Modify - Offer 12: 3 B @  100/76 (C/B) - CROSSED
+        auto offer11 = modifyOffer(offer9, 3, Price{16, 11});
+        auto offer12 = modifyOffer(offer10, 3, Price{100, 76});
+        applyCheck(*app, {offer11, offer12}, {offer9, offer10}, false,
+                   opFromLedgerEntries({offer11, offer12}));
+    }
+
+    SECTION("Multiple assets crossed where both crossed (PathPayment)")
+    {
+        // Create - Offer 9: 7 A @  4/3 (B/A)
+        // Create - Offer 10: 7 B @  4/3 (C/B)
+        auto offer9 = createOffer(cur1, cur2, 7, Price{4, 3});
+        auto offer10 = createOffer(cur2, cur3, 7, Price{4, 3});
+        applyCheck(*app, {offer9, offer10}, {}, false,
+                   opFromLedgerEntries({offer9, offer10}));
+    }
+
+    SECTION("Multiple assets not crossed when deleting offers with allow trust")
+    {
+        // revoke creator of offer3 and offer5's trustline to B deleting both of
+        // these offers
+        auto op = txtest::allowTrust(PublicKey{}, cur2, false);
+        applyCheck(*app, {}, {offer3, offer5}, true, op);
     }
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
