@@ -14,8 +14,10 @@
 #include "process/PosixSpawnFileActions.h"
 #include "process/ProcessManager.h"
 #include "process/ProcessManagerImpl.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/format.h"
 
 #include <algorithm>
 #include <functional>
@@ -55,8 +57,9 @@ class ProcessExitEvent::Impl
   public:
     std::shared_ptr<RealTimer> mOuterTimer;
     std::shared_ptr<asio::error_code> mOuterEc;
-    std::string mCmdLine;
-    std::string mOutFile;
+    std::string const mCmdLine;
+    std::string const mOutFile;
+    std::string const mTempFile;
     bool mRunning{false};
 #ifdef _WIN32
     asio::windows::object_handle mProcessHandle;
@@ -67,17 +70,42 @@ class ProcessExitEvent::Impl
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
          std::shared_ptr<asio::error_code> const& outerEc,
          std::string const& cmdLine, std::string const& outFile,
-         std::weak_ptr<ProcessManagerImpl> pm)
+         std::string const& tempFile, std::weak_ptr<ProcessManagerImpl> pm)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
         , mCmdLine(cmdLine)
         , mOutFile(outFile)
+        , mTempFile(tempFile)
 #ifdef _WIN32
         , mProcessHandle(outerTimer->get_executor())
 #endif
         , mProcManagerImpl(pm)
     {
     }
+
+    bool
+    finish()
+    {
+        if (!mOutFile.empty())
+        {
+            if (fs::exists(mOutFile))
+            {
+                CLOG(WARNING, "Process")
+                    << "Outfile already exists: " << mOutFile;
+                return false;
+            }
+            else if (mRunning &&
+                     std::rename(mTempFile.c_str(), mOutFile.c_str()))
+            {
+                CLOG(ERROR, "Process")
+                    << fmt::format("{} -> {} rename failed, error: {}",
+                                   mTempFile, mOutFile, errno);
+                return false;
+            }
+        }
+        return true;
+    }
+
     void run();
     void
     cancel(asio::error_code const& ec)
@@ -324,7 +352,7 @@ ProcessExitEvent::Impl::run()
 
         si.dwFlags = STARTF_USESTDHANDLES;
         si.hStdOutput =
-            CreateFile((LPCTSTR)mOutFile.c_str(),          // name of the file
+            CreateFile((LPCTSTR)mTempFile.c_str(),         // name of the file
                        GENERIC_WRITE,                      // open for writing
                        FILE_SHARE_WRITE | FILE_SHARE_READ, // share r/w access
                        &sa,                   // security attributes
@@ -399,17 +427,24 @@ ProcessExitEvent::Impl::run()
             }
             ec = asio::error_code(exitCode, asio::system_category());
         }
-        manager->handleProcessTermination(sf->mProcessId, ec.value());
+        ec = manager->handleProcessTermination(sf->mProcessId, ec.value());
         sf->cancel(ec);
     });
     mRunning = true;
 }
 
-void
+asio::error_code
 ProcessManagerImpl::handleProcessTermination(int pid, int /*status*/)
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    auto ec = asio::error_code();
+    auto process = mProcesses.find(pid);
+    if (process != mProcesses.end() && !process->second->mImpl->finish())
+    {
+        ec = asio::error_code(asio::error::try_again, asio::system_category());
+    }
     mProcesses.erase(pid);
+    return ec;
 }
 
 bool
@@ -450,6 +485,8 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
     , mIOContext(app.getClock().getIOContext())
     , mSigChild(mIOContext, SIGCHLD)
+    , mTmpDir(
+          std::make_unique<TmpDir>(app.getTmpDirManager().tmpDir("process")))
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     startSignalWait();
@@ -500,19 +537,20 @@ ProcessManagerImpl::handleSignalWait()
     startSignalWait();
 }
 
-void
+asio::error_code
 ProcessManagerImpl::handleProcessTermination(int pid, int status)
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    auto ec = asio::error_code();
+
     auto pair = mProcesses.find(pid);
     if (pair == mProcesses.end())
     {
         CLOG(DEBUG, "Process") << "failed to find process with pid " << pid;
-        return;
+        return ec;
     }
     auto impl = pair->second->mImpl;
 
-    asio::error_code ec;
     if (WIFEXITED(status))
     {
         if (WEXITSTATUS(status) == 0)
@@ -564,6 +602,11 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
         ec = asio::error_code(1, asio::system_category());
     }
 
+    if (!impl->finish())
+    {
+        ec = asio::error_code(asio::error::try_again, asio::system_category());
+    }
+
     --gNumProcessesActive;
     mProcesses.erase(pair);
 
@@ -572,6 +615,7 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
     maybeRunPendingProcesses();
 
     impl->cancel(ec);
+    return ec;
 }
 
 bool
@@ -632,7 +676,7 @@ ProcessExitEvent::Impl::run()
     PosixSpawnFileActions fileActions;
     if (!mOutFile.empty())
     {
-        fileActions.addOpen(1, mOutFile, O_RDWR | O_CREAT, 0600);
+        fileActions.addOpen(1, mTempFile, O_RDWR | O_CREAT, 0600);
     }
     // Iterate through all possibly open file descriptors except stdin, stdout,
     // and stderr and set FD_CLOEXEC so the subprocess doesn't inherit them
@@ -681,8 +725,12 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 
     std::weak_ptr<ProcessManagerImpl> weakSelf(
         std::static_pointer_cast<ProcessManagerImpl>(shared_from_this()));
+
+    auto tempFile =
+        mTmpDir->getName() + "/temp-" + std::to_string(mTempFileCount++);
+
     pe->mImpl = std::make_shared<ProcessExitEvent::Impl>(
-        pe->mTimer, pe->mEc, cmdLine, outFile, weakSelf);
+        pe->mTimer, pe->mEc, cmdLine, outFile, tempFile, weakSelf);
     mPending.push_back(pe);
 
     maybeRunPendingProcesses();
@@ -704,6 +752,12 @@ ProcessManagerImpl::maybeRunPendingProcesses()
         try
         {
             CLOG(DEBUG, "Process") << "Running: " << i->mImpl->mCmdLine;
+
+            if (fs::exists(i->mImpl->mOutFile))
+            {
+                throw std::runtime_error(fmt::format(
+                    "output file {} already exists", i->mImpl->mOutFile));
+            }
 
             i->mImpl->run();
             mProcesses[i->mImpl->getProcessId()] = i;

@@ -7,9 +7,11 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/StateSnapshot.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
-#include "historywork/GzipAndPutFilesWork.h"
+#include "historywork/GzipFileWork.h"
+#include "historywork/PutFilesWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
+#include "work/WorkSequence.h"
 #include <util/format.h>
 
 namespace stellar
@@ -29,53 +31,97 @@ PutSnapshotFilesWork::PutSnapshotFilesWork(
 BasicWork::State
 PutSnapshotFilesWork::doWork()
 {
-    if (!mStarted)
+    if (!mUploadSeqs.empty())
     {
-        for (auto& writableArchive :
-             mApp.getHistoryArchiveManager().getWritableHistoryArchives())
-        {
-            // Phase 1: fetch remote history archive state
-            auto getState = std::make_shared<GetHistoryArchiveStateWork>(
-                mApp, mRemoteState, 0, writableArchive);
-
-            // Phase 2: put all requisite data files
-            auto putFiles = std::make_shared<GzipAndPutFilesWork>(
-                mApp, writableArchive, mSnapshot, mRemoteState);
-
-            // Phase 3: update remote history archive state
-            auto putState = std::make_shared<PutHistoryArchiveStateWork>(
-                mApp, mSnapshot->mLocalState, writableArchive);
-
-            std::vector<std::shared_ptr<BasicWork>> seq{getState, putFiles,
-                                                        putState};
-            // Each inner step will retry a lot, so only retry the sequence once
-            // in case of an unexpected failure
-            addWork<WorkSequence>("put-snapshot-sequence", seq,
-                                  BasicWork::RETRY_ONCE);
-        }
-        mStarted = true;
+        return WorkUtils::getWorkStatus(mUploadSeqs);
     }
-    else
-    {
-        if (allChildrenDone())
-        {
-            // Some children might fail, but at least the rest of the archives
-            // are updated
-            return anyChildRaiseFailure() ? State::WORK_FAILURE
-                                          : State::WORK_SUCCESS;
-        }
 
-        if (!anyChildRunning())
+    if (!mGzipFilesWorks.empty())
+    {
+        if (WorkUtils::getWorkStatus(mGzipFilesWorks) == State::WORK_SUCCESS)
         {
-            return State::WORK_WAITING;
+            // Step 3: ready to upload files to archives
+            for (auto const& getState : mGetStateWorks)
+            {
+                auto putSnapshotFiles = std::make_shared<PutFilesWork>(
+                    mApp, getState->getArchive(), mSnapshot,
+                    getState->getHistoryArchiveState());
+                auto putArchiveState =
+                    std::make_shared<PutHistoryArchiveStateWork>(
+                        mApp, mSnapshot->mLocalState, getState->getArchive());
+
+                std::vector<std::shared_ptr<BasicWork>> seq{putSnapshotFiles,
+                                                            putArchiveState};
+                mUploadSeqs.emplace_back(addWork<WorkSequence>(
+                    "upload-files-seq", seq, BasicWork::RETRY_NEVER));
+            }
+            return State::WORK_RUNNING;
+        }
+        else
+        {
+            return WorkUtils::getWorkStatus(mGzipFilesWorks);
         }
     }
+
+    if (!mGetStateWorks.empty())
+    {
+        std::list<std::shared_ptr<BasicWork>> works(mGetStateWorks.begin(),
+                                                    mGetStateWorks.end());
+        auto status = WorkUtils::getWorkStatus(works);
+        if (status == State::WORK_SUCCESS)
+        {
+            // Step 2: Gzip all unique files
+            for (auto const& f : getFilesToZip())
+            {
+                mGzipFilesWorks.emplace_back(addWork<GzipFileWork>(f, true));
+            }
+            return State::WORK_RUNNING;
+        }
+        else
+        {
+            return status;
+        }
+    }
+
+    // Step 1: Get all archive states
+    for (auto const& archive :
+         mApp.getHistoryArchiveManager().getWritableHistoryArchives())
+    {
+        mGetStateWorks.emplace_back(
+            addWork<GetHistoryArchiveStateWork>(0, archive));
+    }
+
     return State::WORK_RUNNING;
 }
 
 void
 PutSnapshotFilesWork::doReset()
 {
-    mStarted = false;
+    mGetStateWorks.clear();
+    mGzipFilesWorks.clear();
+    mUploadSeqs.clear();
+}
+
+std::unordered_set<std::string>
+PutSnapshotFilesWork::getFilesToZip()
+{
+    // Sanity check: there are states for all archives
+    if (mGetStateWorks.size() !=
+        mApp.getHistoryArchiveManager().getWritableHistoryArchives().size())
+    {
+        throw std::runtime_error("Corrupted GetHistoryArchiveStateWork");
+    }
+
+    std::unordered_set<std::string> filesToZip{};
+    for (auto const& getState : mGetStateWorks)
+    {
+        for (auto const& f :
+             mSnapshot->differingHASFiles(getState->getHistoryArchiveState()))
+        {
+            filesToZip.insert(f->localPath_nogz());
+        }
+    }
+
+    return filesToZip;
 }
 }

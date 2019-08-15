@@ -488,7 +488,8 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
         auto& lm = app->getLedgerManager();
         hm.setPublicationEnabled(false);
         app->start();
-        app->getHistoryArchiveManager().initializeHistoryArchive("test");
+        app->getHistoryArchiveManager().initializeHistoryArchive(
+            tcfg.getArchiveDirName());
         while (hm.getPublishQueueCount() < 5)
         {
             CLOG(INFO, "Bucket")

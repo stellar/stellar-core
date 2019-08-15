@@ -16,10 +16,9 @@
 namespace stellar
 {
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
-    Application& app, HistoryArchiveState& state, uint32_t seq,
-    std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
+    Application& app, uint32_t seq, std::shared_ptr<HistoryArchive> archive,
+    size_t maxRetries)
     : Work(app, "get-archive-state", maxRetries)
-    , mState(state)
     , mSeq(seq)
     , mArchive(archive)
     , mRetries(maxRetries)
@@ -75,6 +74,7 @@ GetHistoryArchiveStateWork::doReset()
 {
     mGetRemoteFile.reset();
     std::remove(mLocalFilename.c_str());
+    mState = {};
 }
 
 void

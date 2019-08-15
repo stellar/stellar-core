@@ -52,7 +52,7 @@ PutHistoryArchiveStateWork::doWork()
     }
     else
     {
-        return WorkUtils::checkChildrenStatus(*this);
+        return checkChildrenStatus();
     }
 }
 

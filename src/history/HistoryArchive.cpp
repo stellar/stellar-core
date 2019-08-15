@@ -180,7 +180,7 @@ HistoryArchiveState::localName(Application& app, std::string const& archiveName)
 }
 
 Hash
-HistoryArchiveState::getBucketListHash()
+HistoryArchiveState::getBucketListHash() const
 {
     // NB: This hash algorithm has to match "what the BucketList does" to
     // calculate its BucketList hash exactly. It's not a particularly complex

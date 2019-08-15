@@ -40,21 +40,20 @@ HistoryConfigurator::getArchiveDirName() const
 }
 
 TmpDirHistoryConfigurator::TmpDirHistoryConfigurator()
-    : mArchtmp("archtmp-" + binToHex(randomBytes(8)))
-    , mDir(mArchtmp.tmpDir("archive"))
+    : mName("archtmp-" + binToHex(randomBytes(8))), mArchtmp(mName)
 {
 }
 
 std::string
 TmpDirHistoryConfigurator::getArchiveDirName() const
 {
-    return mDir.getName();
+    return mName;
 }
 
 Config&
-TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
+TmpDirHistoryConfigurator::configure(Config& cfg, bool writable) const
 {
-    std::string d = mDir.getName();
+    std::string d = getArchiveDirName();
     std::string getCmd = "cp " + d + "/{0} {1}";
     std::string putCmd = "";
     std::string mkdirCmd = "";
@@ -65,9 +64,30 @@ TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
         mkdirCmd = "mkdir -p " + d + "/{0}";
     }
 
-    mCfg.HISTORY["test"] =
-        HistoryArchiveConfiguration{"test", getCmd, putCmd, mkdirCmd};
-    return mCfg;
+    cfg.HISTORY[d] = HistoryArchiveConfiguration{d, getCmd, putCmd, mkdirCmd};
+    return cfg;
+}
+
+MultiArchiveHistoryConfigurator::MultiArchiveHistoryConfigurator(
+    uint32_t numArchives)
+{
+    while (numArchives > 0)
+    {
+        auto conf = std::make_shared<TmpDirHistoryConfigurator>();
+        mConfigurators.emplace_back(conf);
+        --numArchives;
+    }
+}
+
+Config&
+MultiArchiveHistoryConfigurator::configure(Config& cfg, bool writable) const
+{
+    for (auto const& conf : mConfigurators)
+    {
+        conf->configure(cfg, writable);
+    }
+    REQUIRE(cfg.HISTORY.size() == mConfigurators.size());
+    return cfg;
 }
 
 Config&
@@ -167,12 +187,10 @@ TestBucketGenerator::generateBucket(TestBucketState state)
         FileTransferInfo ft{mTmpDir->getName(), HISTORY_FILE_TYPE_BUCKET,
                             binToHex(hash)};
         auto& wm = mApp.getWorkScheduler();
-        auto archive =
-            mApp.getHistoryArchiveManager().getHistoryArchive("test");
         auto put = std::make_shared<PutRemoteFileWork>(
-            mApp, filename + ".gz", ft.remoteName(), archive);
+            mApp, filename + ".gz", ft.remoteName(), mArchive);
         auto mkdir =
-            std::make_shared<MakeRemoteDirWork>(mApp, ft.remoteDir(), archive);
+            std::make_shared<MakeRemoteDirWork>(mApp, ft.remoteDir(), mArchive);
 
         std::vector<std::shared_ptr<BasicWork>> seq;
 
@@ -398,7 +416,8 @@ operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
 }
 
 CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
-                                     std::shared_ptr<HistoryConfigurator> cg)
+                                     std::shared_ptr<HistoryConfigurator> cg,
+                                     bool startApp)
     : mClock(mode)
     , mHistoryConfigurator(cg)
     , mCfg(getTestConfig())
@@ -406,8 +425,16 @@ CatchupSimulation::CatchupSimulation(VirtualClock::Mode mode,
           mClock, mHistoryConfigurator->configure(mCfg, true)))
     , mApp(*mAppPtr)
 {
-    CHECK(mApp.getHistoryArchiveManager().initializeHistoryArchive("test"));
-    mApp.start();
+    auto dirName = cg->getArchiveDirName();
+    if (!dirName.empty())
+    {
+        CHECK(
+            mApp.getHistoryArchiveManager().initializeHistoryArchive(dirName));
+    }
+    if (startApp)
+    {
+        mApp.start();
+    }
 }
 
 CatchupSimulation::~CatchupSimulation()

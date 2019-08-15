@@ -128,7 +128,6 @@ ApplicationImpl::initialize(bool createNewDB)
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
     mMaintainer = std::make_unique<Maintainer>(*this);
-    mProcessManager = ProcessManager::create(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
@@ -153,6 +152,10 @@ ApplicationImpl::initialize(bool createNewDB)
         upgradeDB();
     }
 
+    // Subtle: process manager should come to existence _after_ BucketManager
+    // initialization and newDB run, as it relies on tmp dir created in the
+    // constructor
+    mProcessManager = ProcessManager::create(*this);
     LOG(DEBUG) << "Application constructed";
 }
 

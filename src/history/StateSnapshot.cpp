@@ -154,4 +154,30 @@ StateSnapshot::writeHistoryBlocks() const
 
     return true;
 }
+
+std::vector<std::shared_ptr<FileTransferInfo>>
+StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
+{
+    std::vector<std::shared_ptr<FileTransferInfo>> files{};
+    auto addIfExists = [&](std::shared_ptr<FileTransferInfo> const& f) {
+        if (f && fs::exists(f->localPath_nogz()))
+        {
+            files.push_back(f);
+        }
+    };
+
+    addIfExists(mLedgerSnapFile);
+    addIfExists(mTransactionSnapFile);
+    addIfExists(mTransactionResultSnapFile);
+    addIfExists(mSCPHistorySnapFile);
+
+    for (auto const& hash : mLocalState.differingBuckets(other))
+    {
+        auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+        assert(b);
+        addIfExists(std::make_shared<FileTransferInfo>(*b));
+    }
+
+    return files;
+}
 }

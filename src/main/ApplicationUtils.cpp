@@ -266,15 +266,15 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
     cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
-    auto state = HistoryArchiveState{};
     auto& wm = app->getWorkScheduler();
     auto getHistoryArchiveStateWork =
-        wm.executeWork<GetHistoryArchiveStateWork>(state);
+        wm.executeWork<GetHistoryArchiveStateWork>();
 
     auto ok = getHistoryArchiveStateWork->getState() ==
               BasicWork::State::WORK_SUCCESS;
     if (ok)
     {
+        auto state = getHistoryArchiveStateWork->getHistoryArchiveState();
         std::string filename = outputFile.empty() ? "-" : outputFile;
 
         if (filename == "-")

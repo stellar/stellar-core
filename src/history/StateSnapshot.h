@@ -30,5 +30,7 @@ struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
     StateSnapshot(Application& app, HistoryArchiveState const& state);
     void makeLive();
     bool writeHistoryBlocks() const;
+    std::vector<std::shared_ptr<FileTransferInfo>>
+    differingHASFiles(HistoryArchiveState const& other);
 };
 }

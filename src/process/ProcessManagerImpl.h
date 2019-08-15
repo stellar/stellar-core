@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "process/ProcessManager.h"
+#include "util/TmpDir.h"
 #include <atomic>
 #include <deque>
 #include <mutex>
@@ -27,16 +28,18 @@ class ProcessManagerImpl : public ProcessManager
     bool mIsShutdown{false};
     size_t mMaxProcesses;
     asio::io_context& mIOContext;
+    // These are only used on POSIX, but they're harmless here.
+    asio::signal_set mSigChild;
+    std::unique_ptr<TmpDir> mTmpDir;
+    uint64_t mTempFileCount{0};
 
     std::deque<std::shared_ptr<ProcessExitEvent>> mPending;
     std::deque<std::shared_ptr<ProcessExitEvent>> mKillable;
     void maybeRunPendingProcesses();
 
-    // These are only used on POSIX, but they're harmless here.
-    asio::signal_set mSigChild;
     void startSignalWait();
     void handleSignalWait();
-    void handleProcessTermination(int pid, int status);
+    asio::error_code handleProcessTermination(int pid, int status);
     bool cleanShutdown(ProcessExitEvent& pe);
     bool forceShutdown(ProcessExitEvent& pe);
 
