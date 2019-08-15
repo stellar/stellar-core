@@ -13,6 +13,7 @@
 
 #include "historywork/RunCommandWork.h"
 #include "work/BatchWork.h"
+#include "work/ConditionalWork.h"
 #include <cstdio>
 #include <fstream>
 #include <random>
@@ -810,5 +811,117 @@ TEST_CASE("Work batching", "[batching][work]")
                 w->getState() == TestBasicWork::State::WORK_ABORTED;
             REQUIRE(validState);
         }
+    }
+}
+
+// ======= ConditionalWork tests ======== //
+TEST_CASE("ConditionalWork test", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    SECTION("condition satisfied")
+    {
+        auto success = []() { return true; };
+        auto w = std::make_shared<TestBasicWork>(*appPtr, "conditioned-work");
+        wm.executeWork<ConditionalWork>("condition-success", success, w);
+        REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
+    }
+    SECTION("condition failed")
+    {
+        auto parent = wm.scheduleWork<TestWork>("parent-work");
+        auto failedWork =
+            parent->addTestWork<TestBasicWork>("other-work",
+                                               /* will fail */ true, 100);
+        auto condition = [&]() {
+            return failedWork->getState() == TestBasicWork::State::WORK_SUCCESS;
+        };
+
+        auto dependentWork =
+            std::make_shared<TestBasicWork>(*appPtr, "dependent-work");
+        auto conditionedWork = parent->addTestWork<ConditionalWork>(
+            "condition-fail", condition, dependentWork);
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(failedWork->getState() == BasicWork::State::WORK_FAILURE);
+        // Conditioned work was aborted
+        REQUIRE(conditionedWork->getState() == BasicWork::State::WORK_ABORTED);
+        // Dependent work was never started (internally, in PENDING state,
+        // enforced by its destructor)
+        REQUIRE(dependentWork->getState() == BasicWork::State::WORK_RUNNING);
+        REQUIRE(parent->getState() == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("shutdown while waiting for condition")
+    {
+        // Let blocking work run for a few cranks
+        auto w = wm.scheduleWork<TestBasicWork>("other-work", false, 100);
+        auto condition = [&]() {
+            return w->getState() == TestBasicWork::State::WORK_SUCCESS;
+        };
+        auto dependentWork =
+            std::make_shared<TestBasicWork>(*appPtr, "dependent-work");
+        auto conditionedWork = wm.scheduleWork<ConditionalWork>(
+            "condition-shutdown", condition, dependentWork);
+
+        while (conditionedWork->getState() != BasicWork::State::WORK_WAITING)
+        {
+            clock.crank();
+        }
+        wm.shutdown();
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(conditionedWork->getState() == BasicWork::State::WORK_ABORTED);
+        // Dependent work was never started (internally, in PENDING state,
+        // enforced by its destructor)
+        REQUIRE(dependentWork->getState() == BasicWork::State::WORK_RUNNING);
+        REQUIRE(wm.getState() == BasicWork::State::WORK_ABORTED);
+        REQUIRE(w->getState() == BasicWork::State::WORK_ABORTED);
+    }
+    SECTION("shutdown after condition is met")
+    {
+        // Let blocking work run for a few cranks
+        auto w = wm.scheduleWork<TestBasicWork>("other-work");
+        auto condition = [&]() {
+            return w->getState() == TestBasicWork::State::WORK_SUCCESS;
+        };
+
+        // Dependent work takes a few cranks for complete
+        auto dependentWork = std::make_shared<TestBasicWork>(
+            *appPtr, "dependent-work", false, 100);
+        auto conditionedWork = wm.scheduleWork<ConditionalWork>(
+            "condition-shutdown", condition, dependentWork);
+
+        while (!condition() ||
+               (condition() &&
+                conditionedWork->getState() == BasicWork::State::WORK_WAITING))
+        {
+            clock.crank();
+        }
+
+        clock.crank();
+        CHECK(conditionedWork->getState() == BasicWork::State::WORK_RUNNING);
+        CHECK(dependentWork->getState() == BasicWork::State::WORK_RUNNING);
+        wm.shutdown();
+
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+
+        REQUIRE(conditionedWork->getState() == BasicWork::State::WORK_ABORTED);
+        REQUIRE(dependentWork->getState() == BasicWork::State::WORK_ABORTED);
+        REQUIRE(wm.getState() == BasicWork::State::WORK_ABORTED);
+        // Blocker work finished successfully before unblocking conditional work
+        REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
     }
 }
