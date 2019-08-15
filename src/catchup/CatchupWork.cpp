@@ -4,8 +4,9 @@
 
 #include "catchup/CatchupWork.h"
 #include "catchup/ApplyBucketsWork.h"
-#include "catchup/ApplyLedgerChainWork.h"
+#include "catchup/ApplyCheckpointWork.h"
 #include "catchup/CatchupConfiguration.h"
+#include "catchup/DownloadApplyTxsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
@@ -45,7 +46,7 @@ CatchupWork::getStatus() const
     {
         return mCatchupSeq->getStatus();
     }
-    return BasicWork::getStatus();
+    return Work::getStatus();
 }
 
 void
@@ -142,20 +143,13 @@ CatchupWork::assertBucketState()
     }
 }
 
-WorkSeqPtr
+void
 CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 {
     auto range =
         LedgerRange{catchupRange.mLedgers.mFirst, catchupRange.getLast()};
-    auto checkpointRange = CheckpointRange{range, mApp.getHistoryManager()};
-    auto getTxs = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_TRANSACTIONS, *mDownloadDir);
-    auto applyLedgers = std::make_shared<ApplyLedgerChainWork>(
+    mTransactionsVerifyApplySeq = std::make_shared<DownloadApplyTxsWork>(
         mApp, *mDownloadDir, range, mLastApplied);
-
-    std::vector<std::shared_ptr<BasicWork>> seq{getTxs, applyLedgers};
-    return std::make_shared<WorkSequence>(mApp, "download-apply-transactions",
-                                          seq, RETRY_NEVER);
 }
 
 BasicWork::State
@@ -295,8 +289,7 @@ CatchupWork::doWork()
             if (catchupRange.applyLedgers())
             {
                 // Step 4.3: Download and apply ledger chain
-                mTransactionsVerifyApplySeq =
-                    downloadApplyTransactions(catchupRange);
+                downloadApplyTransactions(catchupRange);
                 seq.push_back(mTransactionsVerifyApplySeq);
             }
 
