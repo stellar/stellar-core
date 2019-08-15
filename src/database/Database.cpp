@@ -55,6 +55,8 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
+// smallest schema version supported
+static unsigned long const MIN_SCHEMA_VERSION = 9;
 static unsigned long const SCHEMA_VERSION = 10;
 
 // These should always match our compiled version precisely, since we are
@@ -194,15 +196,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
         break;
     default:
-        if (vers <= 9)
-        {
-            throw std::runtime_error(
-                "Database version is too old, must use at least 10");
-        }
-        else
-        {
-            throw std::runtime_error("Unknown DB schema version");
-        }
+        throw std::runtime_error("Unknown DB schema version");
     }
     tx.commit();
 }
@@ -211,6 +205,14 @@ void
 Database::upgradeToCurrentSchema()
 {
     auto vers = getDBSchemaVersion();
+    if (vers < MIN_SCHEMA_VERSION)
+    {
+        std::string s = ("DB schema version " + std::to_string(vers) +
+                         " is older than minimum supported schema " +
+                         std::to_string(MIN_SCHEMA_VERSION));
+        throw std::runtime_error(s);
+    }
+
     if (vers > SCHEMA_VERSION)
     {
         std::string s = ("DB schema version " + std::to_string(vers) +
@@ -374,7 +376,7 @@ Database::initialize()
     HerderPersistence::dropAll(*this);
     mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
-    putSchemaVersion(9);
+    putSchemaVersion(MIN_SCHEMA_VERSION);
 
     LOG(INFO) << "* ";
     LOG(INFO) << "* The database has been initialized";
