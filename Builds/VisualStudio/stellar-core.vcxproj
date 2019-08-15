@@ -267,13 +267,14 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\test\BucketMergeMapTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketTests.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp" />
-    <ClCompile Include="..\..\src\catchup\ApplyLedgerChainWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\ApplyCheckpointWork.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\ApplyTransactionsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp" />
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
+    <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
     <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp" />
     <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
@@ -556,6 +557,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\Logging.cpp" />
     <ClCompile Include="..\..\src\work\test\WorkTests.cpp" />
     <ClCompile Include="..\..\src\work\BasicWork.cpp" />
+    <ClCompile Include="..\..\src\work\ConditionalWork.cpp" />
     <ClCompile Include="..\..\src\work\Work.cpp" />
     <ClCompile Include="..\..\src\work\WorkScheduler.cpp" />
     <ClCompile Include="..\..\src\work\WorkSequence.cpp" />
@@ -576,11 +578,12 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
     <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h" />
-    <ClInclude Include="..\..\src\catchup\ApplyLedgerChainWork.h" />
+    <ClInclude Include="..\..\src\catchup\ApplyCheckpointWork.h" />
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManager.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h" />
     <ClInclude Include="..\..\src\catchup\CatchupWork.h" />
+    <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
     <ClInclude Include="..\..\src\catchup\simulation\ApplyTransactionsWork.h" />
     <ClInclude Include="..\..\src\catchup\simulation\HistoryArchiveStream.h" />
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
@@ -789,6 +792,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\XDRStream.h" />
     <ClInclude Include="..\..\src\util\RandomEvictionCache.h" />
     <ClInclude Include="..\..\src\work\BasicWork.h" />
+    <ClInclude Include="..\..\src\work\ConditionalWork.h" />
     <ClInclude Include="..\..\src\work\Work.h" />
     <ClInclude Include="..\..\src\work\WorkScheduler.h" />
     <ClInclude Include="..\..\src\work\WorkSequence.h" />
