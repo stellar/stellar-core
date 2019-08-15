@@ -282,7 +282,7 @@ LedgerTxnRoot::Impl::dropData()
     mDatabase.getSession() << "CREATE TABLE accountdata"
                               "("
                               "accountid    VARCHAR(56)  NOT NULL,"
-                              "dataname     VARCHAR(64)  NOT NULL,"
+                              "dataname     VARCHAR(88)  NOT NULL,"
                               "datavalue    VARCHAR(112) NOT NULL,"
                               "lastmodified INT          NOT NULL,"
                               "PRIMARY KEY  (accountid, dataname)"
