@@ -45,7 +45,6 @@ BatchWork::doWork()
     }
 
     addMoreWorkIfNeeded();
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
     if (allChildrenSuccessful())
     {
