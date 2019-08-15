@@ -470,7 +470,7 @@ LedgerTxnRoot::Impl::dropAccounts()
            "numsubentries      INT          NOT NULL CHECK (numsubentries >= "
            "0),"
            "inflationdest      VARCHAR(56),"
-           "homedomain         VARCHAR(32)  NOT NULL,"
+           "homedomain         VARCHAR(44)  NOT NULL,"
            "thresholds         TEXT         NOT NULL,"
            "flags              INT          NOT NULL,"
            "signers            TEXT,"
