@@ -49,7 +49,6 @@ BatchDownloadWork::yieldMoreWork()
     CLOG(DEBUG, "History") << "Downloading and unzipping " << mFileType
                            << " for checkpoint " << mNext;
     auto getAndUnzip = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft);
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
     mNext += mApp.getHistoryManager().getCheckpointFrequency();
 
     return getAndUnzip;

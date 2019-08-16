@@ -153,7 +153,7 @@ CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 }
 
 BasicWork::State
-CatchupWork::doWork()
+CatchupWork::runCatchupStep()
 {
     // Step 1: Get history archive state
     if (!mGetHistoryArchiveStateWork)
@@ -306,6 +306,14 @@ CatchupWork::doWork()
                                                 mCatchupConfiguration.hash()));
 
     return State::WORK_RUNNING;
+}
+
+BasicWork::State
+CatchupWork::doWork()
+{
+    auto nextState = runCatchupStep();
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+    return nextState;
 }
 
 void

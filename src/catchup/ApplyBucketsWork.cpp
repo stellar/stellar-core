@@ -184,7 +184,6 @@ ApplyBucketsWork::onRun()
         mBucketApplySuccess.Mark();
     }
 
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
     if (mLevel != 0)
     {
         --mLevel;

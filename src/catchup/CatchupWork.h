@@ -162,5 +162,6 @@ class CatchupWork : public Work
                                    LedgerNumHashPair rangeEnd);
     WorkSeqPtr downloadApplyBuckets();
     void downloadApplyTransactions(CatchupRange const& catchupRange);
+    BasicWork::State runCatchupStep();
 };
 }
