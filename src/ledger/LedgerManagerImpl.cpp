@@ -317,13 +317,11 @@ LedgerManagerImpl::loadLastKnownLedger(
             missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
             if (!missing.empty())
             {
-                CLOG(WARNING, "Ledger")
-                    << "Some buckets are missing in '"
-                    << mApp.getBucketManager().getBucketDir() << "'.";
-                CLOG(WARNING, "Ledger")
-                    << "Attempting to recover from the history store.";
-                mApp.getHistoryManager().downloadMissingBuckets(has,
-                                                                continuation);
+                CLOG(ERROR, "Ledger")
+                    << missing.size()
+                    << " buckets are missing from bucket directory '"
+                    << mApp.getBucketManager().getBucketDir() << "'";
+                throw std::runtime_error("Bucket directory is corrupt");
             }
             else
             {

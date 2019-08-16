@@ -27,6 +27,8 @@
 #include "util/Math.h"
 #include "util/Timer.h"
 
+#include <cstdio>
+
 using namespace stellar;
 using namespace BucketTests;
 
@@ -337,6 +339,44 @@ TEST_CASE("bucketmanager ownership", "[bucket][bucketmanager]")
         app->getBucketManager().forgetUnreferencedBuckets();
         CHECK(!fs::exists(filename));
     });
+}
+
+TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    std::string someBucketFileName;
+    {
+        VirtualClock clock;
+        auto app =
+            createTestApplication<LedgerManagerTestApplication>(clock, cfg);
+        app->start();
+        BucketManager& bm = app->getBucketManager();
+        BucketList& bl = bm.getBucketList();
+        LedgerManagerForBucketTests& lm = app->getLedgerManager();
+
+        uint32_t ledger = 0;
+        uint32_t level = 3;
+        do
+        {
+            ++ledger;
+            lm.setNextLedgerEntryBatchForBucketTesting(
+                {}, LedgerTestUtils::generateValidLedgerEntries(10), {});
+            closeLedger(*app);
+        } while (!BucketList::levelShouldSpill(ledger, level - 1));
+        auto someBucket = bl.getLevel(1).getCurr();
+        someBucketFileName = someBucket->getFilename();
+    }
+
+    // Delete a bucket from the bucket dir
+    REQUIRE(std::remove(someBucketFileName.c_str()) == 0);
+
+    // Check that restarting the app crashes.
+    {
+        VirtualClock clock;
+        Application::pointer app =
+            createTestApplication(clock, cfg, /*newDB=*/false);
+        CHECK_THROWS_AS(app->start(), std::runtime_error);
+    }
 }
 
 TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")

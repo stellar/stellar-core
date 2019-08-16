@@ -285,10 +285,6 @@ class HistoryManager
                      std::vector<std::string> const& originalBuckets,
                      bool success) = 0;
 
-    virtual void downloadMissingBuckets(
-        HistoryArchiveState desiredState,
-        std::function<void(asio::error_code const& ec)> handler) = 0;
-
     // Return the HistoryArchiveState of the LedgerManager's LCL
     virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
 

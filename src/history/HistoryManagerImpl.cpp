@@ -19,7 +19,6 @@
 #include "historywork/FetchRecentQsetsWork.h"
 #include "historywork/PublishWork.h"
 #include "historywork/PutSnapshotFilesWork.h"
-#include "historywork/RepairMissingBucketsWork.h"
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
 #include "ledger/LedgerManager.h"
@@ -439,16 +438,6 @@ HistoryManagerImpl::historyPublished(
     mPublishWork.reset();
     mApp.postOnMainThread([this]() { this->publishQueuedHistory(); },
                           "HistoryManagerImpl: publishQueuedHistory");
-}
-
-void
-HistoryManagerImpl::downloadMissingBuckets(
-    HistoryArchiveState desiredState,
-    std::function<void(asio::error_code const& ec)> handler)
-{
-    CLOG(INFO, "History") << "Starting RepairMissingBucketsWork";
-    mApp.getWorkScheduler().scheduleWork<RepairMissingBucketsWork>(desiredState,
-                                                                   handler);
 }
 
 uint64_t
