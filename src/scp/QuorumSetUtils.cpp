@@ -46,7 +46,7 @@ QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
 bool
 QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
 {
-    if (depth > 2)
+    if (depth > 3)
         return false;
 
     if (qSet.threshold < 1)
