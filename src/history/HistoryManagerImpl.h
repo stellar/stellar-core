@@ -79,10 +79,6 @@ class HistoryManagerImpl : public HistoryManager
                           std::vector<std::string> const& originalBuckets,
                           bool success) override;
 
-    void downloadMissingBuckets(
-        HistoryArchiveState desiredState,
-        std::function<void(asio::error_code const& ec)> handler) override;
-
     HistoryArchiveState getLastClosedHistoryArchiveState() const override;
 
     InferredQuorum inferQuorum(uint32_t ledgerNum) override;
