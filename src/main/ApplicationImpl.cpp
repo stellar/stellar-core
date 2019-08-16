@@ -352,21 +352,6 @@ ApplicationImpl::start()
     {
         throw std::invalid_argument("Quorum not configured");
     }
-    if (!isQuorumSetSane(mConfig.QUORUM_SET, !mConfig.UNSAFE_QUORUM))
-    {
-        std::string err("Invalid QUORUM_SET: duplicate entry or bad threshold "
-                        "(should be between ");
-        if (mConfig.UNSAFE_QUORUM)
-        {
-            err = err + "1";
-        }
-        else
-        {
-            err = err + "51";
-        }
-        err = err + " and 100)";
-        throw std::invalid_argument(err);
-    }
 
     mConfig.logBasicInfo();
 
