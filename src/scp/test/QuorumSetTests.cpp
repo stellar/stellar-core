@@ -151,28 +151,9 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(containingSet, true, validMultipleNodesNormalized);
     }
 
-    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2 } } } -> { t: 1, v0, { t: 1, "
-            "v1, v2 } }")
-    {
-        auto qSet = makeSingleton(keys[0]);
-        auto qSet1 = makeSingleton(keys[1]);
-        auto qSet2 = makeSingleton(keys[2]);
-        qSet1.innerSets.push_back(qSet2);
-        qSet.innerSets.push_back(qSet1);
-
-        auto qSelfSet = SCPQuorumSet{};
-        qSelfSet.threshold = 1;
-        qSelfSet.validators.push_back(keys[0]);
-        qSelfSet.innerSets.push_back({});
-        qSelfSet.innerSets.back().threshold = 1;
-        qSelfSet.innerSets.back().validators.push_back(keys[1]);
-        qSelfSet.innerSets.back().validators.push_back(keys[2]);
-
-        check(qSet, true, qSelfSet);
-    }
-
-    SECTION(
-        "{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 } } } } -> too deep")
+    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2 , {t: 1, v3} } } } -> { t: 1, "
+            "v0, { t: 1, "
+            "v1, { t:1, v2, v3} } }")
     {
         auto qSet = makeSingleton(keys[0]);
         auto qSet1 = makeSingleton(keys[1]);
@@ -182,18 +163,34 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         qSet1.innerSets.push_back(qSet2);
         qSet.innerSets.push_back(qSet1);
 
-        auto qSelfSet = SCPQuorumSet{};
-        qSelfSet.threshold = 1;
-        qSelfSet.validators.push_back(keys[0]);
-        qSelfSet.innerSets.push_back({});
-        qSelfSet.innerSets.back().threshold = 1;
-        qSelfSet.innerSets.back().validators.push_back(keys[1]);
-        qSelfSet.innerSets.back().innerSets.push_back({});
-        qSelfSet.innerSets.back().innerSets.back().threshold = 1;
-        qSelfSet.innerSets.back().innerSets.back().validators.push_back(
-            keys[2]);
-        qSelfSet.innerSets.back().innerSets.back().validators.push_back(
-            keys[3]);
+        // normalized: v3 gets moved next to v2
+        auto qSelfSet = qSet;
+        auto& qSet2b = qSelfSet.innerSets.back().innerSets.back();
+        qSet2b.validators.emplace_back(keys[3]);
+        qSet2b.innerSets.clear();
+
+        check(qSet, true, qSelfSet);
+    }
+
+    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 , { t: 1, v4} } } "
+            "} } -> too deep")
+    {
+        auto qSet = makeSingleton(keys[0]);
+        auto qSet1 = makeSingleton(keys[1]);
+        auto qSet2 = makeSingleton(keys[2]);
+        auto qSet3 = makeSingleton(keys[3]);
+        auto qSet4 = makeSingleton(keys[4]);
+        qSet3.innerSets.push_back(qSet4);
+        qSet2.innerSets.push_back(qSet3);
+        qSet1.innerSets.push_back(qSet2);
+        qSet.innerSets.push_back(qSet1);
+
+        // normalized: v4 gets moved next to v3
+        auto qSelfSet = qSet;
+        auto& qSet3b =
+            qSelfSet.innerSets.back().innerSets.back().innerSets.back();
+        qSet3b.validators.emplace_back(keys[4]);
+        qSet3b.innerSets.clear();
 
         check(qSet, false, qSelfSet);
     }
