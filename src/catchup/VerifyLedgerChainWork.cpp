@@ -290,8 +290,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 BasicWork::State
 VerifyLedgerChainWork::onRun()
 {
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-
     if (mCurrCheckpoint <
         mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
     {

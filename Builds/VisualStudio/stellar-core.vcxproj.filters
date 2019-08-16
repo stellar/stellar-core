@@ -282,6 +282,9 @@
     <ClCompile Include="..\..\src\work\BasicWork.cpp">
       <Filter>work</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\work\ConditionalWork.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\work\Work.cpp">
       <Filter>work</Filter>
     </ClCompile>
@@ -345,7 +348,7 @@
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\catchup\ApplyLedgerChainWork.cpp">
+    <ClCompile Include="..\..\src\catchup\ApplyCheckpointWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp">
@@ -355,6 +358,9 @@
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp">
@@ -1133,6 +1139,9 @@
     <ClInclude Include="..\..\src\work\BasicWork.h">
       <Filter>work</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\work\ConditionalWork.h">
+      <Filter>work</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\work\Work.h">
       <Filter>work</Filter>
     </ClInclude>
@@ -1211,7 +1220,7 @@
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\catchup\ApplyLedgerChainWork.h">
+    <ClInclude Include="..\..\src\catchup\ApplyCheckpointWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h">
@@ -1224,6 +1233,9 @@
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\CatchupWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h">

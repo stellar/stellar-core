@@ -133,7 +133,7 @@ class CatchupWork : public Work
 
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
                 ProgressHandler progressHandler);
-    ~CatchupWork();
+    virtual ~CatchupWork();
     std::string getStatus() const override;
 
   private:
@@ -150,7 +150,7 @@ class CatchupWork : public Work
     WorkSeqPtr mDownloadVerifyLedgersSeq;
     std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgers;
     WorkSeqPtr mBucketVerifyApplySeq;
-    WorkSeqPtr mTransactionsVerifyApplySeq;
+    std::shared_ptr<Work> mTransactionsVerifyApplySeq;
     WorkSeqPtr mCatchupSeq;
 
     bool hasAnyLedgersToCatchupTo() const;
@@ -160,6 +160,7 @@ class CatchupWork : public Work
     void downloadVerifyLedgerChain(CatchupRange const& catchupRange,
                                    LedgerNumHashPair rangeEnd);
     WorkSeqPtr downloadApplyBuckets();
-    WorkSeqPtr downloadApplyTransactions(CatchupRange const& catchupRange);
+    void downloadApplyTransactions(CatchupRange const& catchupRange);
+    BasicWork::State runCatchupStep();
 };
 }
