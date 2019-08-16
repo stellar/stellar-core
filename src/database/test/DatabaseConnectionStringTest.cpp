@@ -152,4 +152,12 @@ TEST_CASE("remove password from database connection string",
                     R"(sqlite3://:memory:)") ==
                 R"(sqlite3://:memory:)");
     }
+
+    SECTION("Bug 2234")
+    {
+        REQUIRE(
+            removePasswordFromConnectionString(
+                R"(postgresql://dbname=stellar user=stellar password=thisshouldbesecret host=/var/run/postgresql/)") ==
+            R"(postgresql://dbname=stellar user=stellar password=******** host=/var/run/postgresql/)");
+    }
 }

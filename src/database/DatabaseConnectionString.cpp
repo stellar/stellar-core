@@ -15,7 +15,7 @@ removePasswordFromConnectionString(std::string connectionString)
     std::string nonSingleQuotePat("[^']");
     std::string singleQuotedStringPat("'(?:" + nonSingleQuotePat + "|" +
                                       escapedSingleQuotePat + ")*'");
-    std::string bareWordPat("\\w+");
+    std::string bareWordPat("\\S+");
     std::string paramValPat("(?:" + bareWordPat + "|" + singleQuotedStringPat +
                             ")");
     std::string paramPat("(?:" + bareWordPat + " *= *" + paramValPat + " *)");
