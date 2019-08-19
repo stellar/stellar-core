@@ -358,25 +358,68 @@ struct Transaction
     ext;
 };
 
+struct TransactionV0
+{
+    uint256 sourceAccountEd25519;
+    uint32 fee;
+    SequenceNumber seqNum;
+    TimeBounds* timeBounds;
+    Memo memo;
+    Operation operations<MAX_OPS_PER_TX>;
+    union switch (int v) {
+    case 0:
+        void;
+    } ext;
+};
+
+struct DecoratedTransactionV0
+{
+    TransactionV0 tx;
+    /* Each decorated signature is a signature over the SHA256 hash of
+     * a TransactionSignaturePayload */
+    DecoratedSignature signatures<20>;
+};
+
+struct FeeBumpTransaction
+{
+    AccountID feeSource;
+    uint64 fee;
+    TimeBounds *timeBounds;
+    union switch (EnvelopeType type)
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        DecoratedTransactionV0 v0;
+    } innerTx;
+};
+
+struct DecoratedFeeBumpTransaction
+{
+    FeeBumpTransaction tx;
+    /* Each decorated signature is a signature over the SHA256 hash of
+     * a TransactionSignaturePayload */
+    DecoratedSignature signatures<20>;
+};
+
 struct TransactionSignaturePayload
 {
     Hash networkId;
     union switch (EnvelopeType type)
     {
+    // Backwards Compatibility: Use ENVELOPE_TYPE_TX to sign ENVELOPE_TYPE_TX_V0
     case ENVELOPE_TYPE_TX:
         Transaction tx;
-        /* All other values of type are invalid */
+    case ENVELOPE_TYPE_FEE_BUMP:
+        FeeBumpTransaction feeBump;
     }
     taggedTransaction;
 };
 
 /* A TransactionEnvelope wraps a transaction with signatures. */
-struct TransactionEnvelope
-{
-    Transaction tx;
-    /* Each decorated signature is a signature over the SHA256 hash of
-     * a TransactionSignaturePayload */
-    DecoratedSignature signatures<20>;
+union TransactionEnvelope switch (EnvelopeType type) {
+case ENVELOPE_TYPE_TX_V0:
+    DecoratedTransactionV0 v0;
+case ENVELOPE_TYPE_FEE_BUMP:
+    DecoratedFeeBumpTransaction feeBump;
 };
 
 /* Operation Results section */
@@ -792,6 +835,7 @@ default:
 
 enum TransactionResultCode
 {
+    txFEE_BUMPED = 1,
     txSUCCESS = 0, // all operations succeeded
 
     txFAILED = -1, // one of the operations failed (none were applied)
@@ -806,7 +850,47 @@ enum TransactionResultCode
     txNO_ACCOUNT = -8,           // source account not found
     txINSUFFICIENT_FEE = -9,     // fee is too small
     txBAD_AUTH_EXTRA = -10,      // unused signatures attached to transaction
-    txINTERNAL_ERROR = -11       // an unknown error occured
+    txINTERNAL_ERROR = -11,      // an unknown error occured
+
+    txNOT_NORMALIZED = -12,      // signatures are not sorted
+    txNOT_SUPPORTED = -13,       // transaction type not supported
+    txINNER_TX_INVALID = -14     // fee bump inner transaction invalid, never
+                                 // returned during apply
+};
+
+struct InnerTransactionResult
+{
+    int64 feeCharged;
+
+    union switch (TransactionResultCode code)
+    {
+    case txSUCCESS:
+    case txFAILED:
+        OperationResult results<>;
+    case txTOO_EARLY:
+    case txTOO_LATE:
+    case txMISSING_OPERATION:
+    case txBAD_SEQ:
+    case txBAD_AUTH:
+    case txINSUFFICIENT_BALANCE:
+    case txNO_ACCOUNT:
+    case txINSUFFICIENT_FEE:
+    case txBAD_AUTH_EXTRA:
+    case txINTERNAL_ERROR:
+    case txNOT_NORMALIZED:
+    case txNOT_SUPPORTED:
+    // txINNER_TX_INVALID is not included
+        void;
+    }
+    result;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 struct TransactionResult
@@ -818,6 +902,8 @@ struct TransactionResult
     case txSUCCESS:
     case txFAILED:
         OperationResult results<>;
+    case txINNER_TX_INVALID:
+        InnerTransactionResult innerResult;
     default:
         void;
     }

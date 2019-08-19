@@ -272,6 +272,50 @@ readSecret(const std::string& prompt, bool force_tty)
 }
 
 void
+signtxn(DecoratedTransactionV0& tx, SecretKey const& sk, Hash const& netId)
+{
+    if (tx.signatures.size() == tx.signatures.max_size())
+    {
+        throw std::runtime_error(
+            "Evelope already contains maximum number of signatures");
+    }
+
+    TransactionSignaturePayload payload;
+    payload.networkId = netId;
+    payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+    auto& payloadTx = payload.taggedTransaction.tx();
+    payloadTx.sourceAccount.type(PUBLIC_KEY_TYPE_ED25519);
+    payloadTx.sourceAccount.ed25519() = tx.tx.sourceAccountEd25519;
+    payloadTx.fee = tx.tx.fee;
+    payloadTx.seqNum = tx.tx.seqNum;
+    payloadTx.timeBounds = tx.tx.timeBounds;
+    payloadTx.memo = tx.tx.memo;
+    payloadTx.operations = tx.tx.operations;
+
+    tx.signatures.emplace_back(
+        SignatureUtils::getHint(sk.getPublicKey().ed25519()),
+        sk.sign(sha256(xdr::xdr_to_opaque(payload))));
+}
+
+void
+signtxn(DecoratedFeeBumpTransaction& tx, SecretKey const& sk, Hash const& netId)
+{
+    if (tx.signatures.size() == tx.signatures.max_size())
+    {
+        throw std::runtime_error(
+            "Evelope already contains maximum number of signatures");
+    }
+
+    TransactionSignaturePayload payload;
+    payload.networkId = netId;
+    payload.taggedTransaction.type(ENVELOPE_TYPE_FEE_BUMP);
+    payload.taggedTransaction.feeBump() = tx.tx;
+    tx.signatures.emplace_back(
+        SignatureUtils::getHint(sk.getPublicKey().ed25519()),
+        sk.sign(sha256(xdr::xdr_to_opaque(payload))));
+}
+
+void
 signtxn(std::string const& filename, std::string netId, bool base64)
 {
     using namespace std;
@@ -292,19 +336,19 @@ signtxn(std::string const& filename, std::string netId, bool base64)
 
         TransactionEnvelope txenv;
         xdr::xdr_from_opaque(readFile(filename, base64), txenv);
-        if (txenv.signatures.size() == txenv.signatures.max_size())
-            throw std::runtime_error(
-                "Evelope already contains maximum number of signatures");
 
         SecretKey sk(SecretKey::fromStrKeySeed(
             readSecret("Secret key seed: ", txn_stdin)));
-        TransactionSignaturePayload payload;
-        payload.networkId = sha256(netId);
-        payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
-        payload.taggedTransaction.tx() = txenv.tx;
-        txenv.signatures.emplace_back(
-            SignatureUtils::getHint(sk.getPublicKey().ed25519()),
-            sk.sign(sha256(xdr::xdr_to_opaque(payload))));
+
+        switch (txenv.type())
+        {
+        case ENVELOPE_TYPE_TX_V0:
+            signtxn(txenv.v0(), sk, sha256(netId));
+        case ENVELOPE_TYPE_FEE_BUMP:
+            signtxn(txenv.feeBump(), sk, sha256(netId));
+        default:
+            throw std::runtime_error("Unexpected TransactionEnvelope type");
+        }
 
         auto out = xdr::xdr_to_opaque(txenv);
         if (base64)

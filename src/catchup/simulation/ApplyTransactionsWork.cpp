@@ -70,7 +70,7 @@ ApplyTransactionsWork::getNextLedger(
                nOps <= mMaxOperations)
         {
             transactions.emplace_back(*mTransactionIter);
-            nOps += mTransactionIter->tx.operations.size();
+            nOps += mTransactionIter->v0().tx.operations.size();
             ++mTransactionIter;
 
             results.emplace_back(*mResultIter);

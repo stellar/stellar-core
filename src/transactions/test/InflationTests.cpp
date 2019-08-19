@@ -371,7 +371,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto rootBalance = root.getBalance();
 
         auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
-        voter1tx->getEnvelope().tx.fee = 999999999;
+        voter1tx->getEnvelope().v0().tx.fee = 999999999;
         auto voter2tx = root.tx({createAccount(voter2, rootBalance / 3)});
         auto target1tx = root.tx({createAccount(target1, minBalance)});
         auto target2tx = root.tx({createAccount(target2, minBalance)});

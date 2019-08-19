@@ -32,7 +32,7 @@ std::shared_ptr<OperationFrame>
 SimulationTransactionFrame::makeOperation(Operation const& op,
                                           OperationResult& res, size_t index)
 {
-    if (mEnvelope.tx.operations[index].body.type() != ACCOUNT_MERGE)
+    if (mEnvelope.v0().tx.operations[index].body.type() != ACCOUNT_MERGE)
     {
         return OperationFrame::makeHelper(op, res, *this);
     }
@@ -97,7 +97,7 @@ SimulationTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     // in v10 we update sequence numbers during apply
     if (header.current().ledgerVersion <= 9)
     {
-        acc.seqNum = mEnvelope.tx.seqNum;
+        acc.seqNum = mEnvelope.v0().tx.seqNum;
     }
 }
 }

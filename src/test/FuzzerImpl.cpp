@@ -75,7 +75,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // number, processing the fee, or committing the LedgerTxn
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
-            mEnvelope.signatures};
+            mEnvelope.v0().signatures};
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperationXDR = [&](auto const& op) {
             return !op->checkValid(signatureChecker, ltx, false);
@@ -101,12 +101,12 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
     // construct a transaction envelope, which, for each transaction
     // application in the fuzzer, is the exact same, except for the inner
     // operations of course
-    auto txEnv = TransactionEnvelope{};
-    txEnv.tx.sourceAccount = sourceAccountID;
-    txEnv.tx.fee = 0;
-    txEnv.tx.seqNum = 1;
+    TransactionEnvelope txEnv(ENVELOPE_TYPE_TX_V0);
+    txEnv.v0().tx.sourceAccountEd25519 = sourceAccountID.ed25519();
+    txEnv.v0().tx.fee = 0;
+    txEnv.v0().tx.seqNum = 1;
     std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(txEnv.tx.operations));
+              std::back_inserter(txEnv.v0().tx.operations));
 
     std::shared_ptr<FuzzTransactionFrame> res =
         std::make_shared<FuzzTransactionFrame>(networkID, txEnv);

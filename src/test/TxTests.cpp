@@ -413,15 +413,15 @@ transactionFromOperations(Application& app, SecretKey const& from,
                           int fee)
 {
     auto e = TransactionEnvelope{};
-    e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = fee != 0
-                   ? fee
-                   : static_cast<uint32_t>(
-                         (ops.size() * app.getLedgerManager().getLastTxFee()) &
-                         UINT32_MAX);
-    e.tx.seqNum = seq;
+    e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
+    e.v0().tx.fee =
+        fee != 0 ? fee
+                 : static_cast<uint32_t>(
+                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
+                       UINT32_MAX);
+    e.v0().tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(e.tx.operations));
+              std::back_inserter(e.v0().tx.operations));
 
     auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
     res->addSignature(from);

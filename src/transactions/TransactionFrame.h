@@ -151,13 +151,15 @@ class TransactionFrame
     SequenceNumber
     getSeqNum() const
     {
-        return mEnvelope.tx.seqNum;
+        return mEnvelope.v0().tx.seqNum;
     }
 
-    AccountID const&
+    AccountID
     getSourceID() const
     {
-        return mEnvelope.tx.sourceAccount;
+        AccountID accountID(PUBLIC_KEY_TYPE_ED25519);
+        accountID.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
+        return accountID;
     }
 
     uint32_t getFeeBid() const;

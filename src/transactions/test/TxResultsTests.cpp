@@ -283,7 +283,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("too early")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().tx.timeBounds.activate().minTime =
+                tx->getEnvelope().v0().tx.timeBounds.activate().minTime =
                     getCloseTime() + 1;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
@@ -293,7 +293,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("too late")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().tx.timeBounds.activate().maxTime =
+                tx->getEnvelope().v0().tx.timeBounds.activate().maxTime =
                     getCloseTime() - 1;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txTOO_LATE});
@@ -303,7 +303,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("insufficent fee")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().tx.fee--;
+                tx->getEnvelope().v0().tx.fee--;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app,
                                       {baseFee - 1, txINSUFFICIENT_FEE});
@@ -321,7 +321,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("bad seq")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().tx.seqNum++;
+                tx->getEnvelope().v0().tx.seqNum++;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
                 });
@@ -342,7 +342,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("missing operation")
             {
                 auto tx = a.tx({});
-                tx->getEnvelope().signatures.clear();
+                tx->getEnvelope().v0().signatures.clear();
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {0, txMISSING_OPERATION});
                 });
@@ -351,8 +351,8 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("too early")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().signatures.clear();
-                tx->getEnvelope().tx.timeBounds.activate().minTime =
+                tx->getEnvelope().v0().signatures.clear();
+                tx->getEnvelope().v0().tx.timeBounds.activate().minTime =
                     getCloseTime() + 1;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
@@ -362,8 +362,8 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("too late")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().signatures.clear();
-                tx->getEnvelope().tx.timeBounds.activate().maxTime =
+                tx->getEnvelope().v0().signatures.clear();
+                tx->getEnvelope().v0().tx.timeBounds.activate().maxTime =
                     getCloseTime() - 1;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txTOO_LATE});
@@ -373,8 +373,8 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("insufficent fee")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().signatures.clear();
-                tx->getEnvelope().tx.fee--;
+                tx->getEnvelope().v0().signatures.clear();
+                tx->getEnvelope().v0().tx.fee--;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app,
                                       {baseFee - 1, txINSUFFICIENT_FEE});
@@ -384,7 +384,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("no account")
             {
                 auto tx = f.tx({payment(root, 1)});
-                tx->getEnvelope().signatures.clear();
+                tx->getEnvelope().v0().signatures.clear();
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txNO_ACCOUNT});
                 });
@@ -393,8 +393,8 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("bad seq")
             {
                 auto tx = a.tx({payment(root, 1)});
-                tx->getEnvelope().signatures.clear();
-                tx->getEnvelope().tx.seqNum++;
+                tx->getEnvelope().v0().signatures.clear();
+                tx->getEnvelope().v0().tx.seqNum++;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
                 });
@@ -403,7 +403,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("insufficent balance")
             {
                 auto tx = g.tx({payment(root, 1)});
-                tx->getEnvelope().signatures.clear();
+                tx->getEnvelope().v0().signatures.clear();
                 for_versions_to(6, *app, [&] {
                     validateTxResults(tx, *app, {baseFee, txBAD_AUTH});
                 });
@@ -432,7 +432,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
-                tx->getEnvelope().tx.timeBounds.activate().minTime =
+                tx->getEnvelope().v0().tx.timeBounds.activate().minTime =
                     getCloseTime() + 1;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txTOO_EARLY});
@@ -443,7 +443,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
-                tx->getEnvelope().tx.timeBounds.activate().maxTime =
+                tx->getEnvelope().v0().tx.timeBounds.activate().maxTime =
                     getCloseTime() - 1;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txTOO_LATE});
@@ -454,7 +454,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
-                tx->getEnvelope().tx.fee--;
+                tx->getEnvelope().v0().tx.fee--;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app,
                                       {baseFee - 1, txINSUFFICIENT_FEE});
@@ -474,7 +474,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
-                tx->getEnvelope().tx.seqNum++;
+                tx->getEnvelope().v0().tx.seqNum++;
                 for_all_versions(*app, [&] {
                     validateTxResults(tx, *app, {baseFee, txBAD_SEQ});
                 });
@@ -524,7 +524,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         }
 
         auto tx = a.tx(operations);
-        tx->getEnvelope().signatures.clear();
+        tx->getEnvelope().v0().signatures.clear();
 
         for (size_t i = 0; i < signs.size(); i++)
         {

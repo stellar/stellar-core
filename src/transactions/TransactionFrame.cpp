@@ -53,6 +53,20 @@ TransactionFrame::TransactionFrame(Hash const& networkID,
 {
 }
 
+static Transaction
+convertToTransaction(TransactionV0 const& tx)
+{
+    Transaction res;
+    res.sourceAccount.type(PUBLIC_KEY_TYPE_ED25519);
+    res.sourceAccount.ed25519() = tx.sourceAccountEd25519;
+    res.fee = tx.fee;
+    res.seqNum = tx.seqNum;
+    res.timeBounds = tx.timeBounds;
+    res.memo = tx.memo;
+    res.operations = tx.operations;
+    return res;
+}
+
 Hash const&
 TransactionFrame::getFullHash() const
 {
@@ -68,8 +82,9 @@ TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
-        mContentsHash = sha256(
-            xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_TX, mEnvelope.tx));
+        mContentsHash =
+            sha256(xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_TX,
+                                      convertToTransaction(mEnvelope.v0().tx)));
     }
     return (mContentsHash);
 }
@@ -106,7 +121,7 @@ TransactionFrame::getEnvelope()
 uint32_t
 TransactionFrame::getFeeBid() const
 {
-    return mEnvelope.tx.fee;
+    return mEnvelope.v0().tx.fee;
 }
 
 int64_t
@@ -142,7 +157,7 @@ TransactionFrame::addSignature(SecretKey const& secretKey)
 void
 TransactionFrame::addSignature(DecoratedSignature const& signature)
 {
-    mEnvelope.signatures.push_back(signature);
+    mEnvelope.v0().signatures.push_back(signature);
 }
 
 bool
@@ -236,15 +251,16 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
     getResult().result.results().resize(
-        (uint32_t)mEnvelope.tx.operations.size());
+        (uint32_t)mEnvelope.v0().tx.operations.size());
 
     mOperations.clear();
 
     // bind operations to the results
-    for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
+    for (size_t i = 0; i < mEnvelope.v0().tx.operations.size(); i++)
     {
-        mOperations.push_back(makeOperation(
-            mEnvelope.tx.operations[i], getResult().result.results()[i], i));
+        mOperations.push_back(makeOperation(mEnvelope.v0().tx.operations[i],
+                                            getResult().result.results()[i],
+                                            i));
     }
 
     // feeCharged is updated accordingly to represent the cost of the
@@ -255,10 +271,10 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 bool
 TransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
 {
-    if (mEnvelope.tx.timeBounds)
+    if (mEnvelope.v0().tx.timeBounds)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
-        return mEnvelope.tx.timeBounds->minTime > closeTime;
+        return mEnvelope.v0().tx.timeBounds->minTime > closeTime;
     }
     return false;
 }
@@ -266,11 +282,11 @@ TransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
 bool
 TransactionFrame::isTooLate(LedgerTxnHeader const& header) const
 {
-    if (mEnvelope.tx.timeBounds)
+    if (mEnvelope.v0().tx.timeBounds)
     {
         uint64 closeTime = header.current().scpValue.closeTime;
-        return mEnvelope.tx.timeBounds->maxTime &&
-               (mEnvelope.tx.timeBounds->maxTime < closeTime);
+        return mEnvelope.v0().tx.timeBounds->maxTime &&
+               (mEnvelope.v0().tx.timeBounds->maxTime < closeTime);
     }
     return false;
 }
@@ -299,7 +315,7 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
         return false;
     }
 
-    if (mEnvelope.tx.fee < getMinFee(header.current()))
+    if (getFeeBid() < getMinFee(header.current()))
     {
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
@@ -321,11 +337,11 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
     if (header.current().ledgerVersion >= 10)
     {
         auto sourceAccount = loadSourceAccount(ltx, header);
-        if (sourceAccount.current().data.account().seqNum > mEnvelope.tx.seqNum)
+        if (sourceAccount.current().data.account().seqNum > getSeqNum())
         {
             throw std::runtime_error("unexpected sequence number");
         }
-        sourceAccount.current().data.account().seqNum = mEnvelope.tx.seqNum;
+        sourceAccount.current().data.account().seqNum = getSeqNum();
     }
 }
 
@@ -370,7 +386,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
 bool
 TransactionFrame::isBadSeq(int64_t seqNum) const
 {
-    return seqNum == INT64_MAX || seqNum + 1 != mEnvelope.tx.seqNum;
+    return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
 }
 
 TransactionFrame::ValidationType
@@ -419,9 +435,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
-    uint32_t feeToPay = (applying && (header.current().ledgerVersion > 8))
-                            ? 0
-                            : mEnvelope.tx.fee;
+    uint32_t feeToPay =
+        (applying && (header.current().ledgerVersion > 8)) ? 0 : getFeeBid();
     // don't let the account go below the reserve after accounting for
     // liabilities
     if (getAvailableBalance(header, sourceAccount) < feeToPay)
@@ -461,13 +476,13 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     // in v10 we update sequence numbers during apply
     if (header.current().ledgerVersion <= 9)
     {
-        if (acc.seqNum + 1 != mEnvelope.tx.seqNum)
+        if (acc.seqNum + 1 != getSeqNum())
         {
             // this should not happen as the transaction set is sanitized for
             // sequence numbers
             throw std::runtime_error("Unexpected account state");
         }
-        acc.seqNum = mEnvelope.tx.seqNum;
+        acc.seqNum = getSeqNum();
     }
 }
 
@@ -536,7 +551,8 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     resetResults(ltx.loadHeader().current(), minBaseFee);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
-                                      getContentsHash(), mEnvelope.signatures};
+                                      getContentsHash(),
+                                      mEnvelope.v0().signatures};
     bool res = commonValid(signatureChecker, ltx, current, false) ==
                ValidationType::kFullyValid;
     if (res)
@@ -654,7 +670,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 {
     mCachedAccount.reset();
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
-                                      getContentsHash(), mEnvelope.signatures};
+                                      getContentsHash(),
+                                      mEnvelope.v0().signatures};
 
     bool valid = false;
     {
