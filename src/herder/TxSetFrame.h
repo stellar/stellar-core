@@ -33,7 +33,7 @@ class AbstractTxSetFrameForApply
 
     virtual size_t sizeOp() const = 0;
 
-    virtual std::vector<TransactionFramePtr> sortForApply() = 0;
+    virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
 };
 
 class TxSetFrame : public AbstractTxSetFrameForApply
@@ -75,7 +75,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void sortForHash();
 
-    std::vector<TransactionFramePtr> sortForApply() override;
+    std::vector<TransactionFrameBasePtr> sortForApply() override;
 
     bool checkValid(Application& app);
 

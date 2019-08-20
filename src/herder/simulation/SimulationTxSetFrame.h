@@ -32,6 +32,6 @@ class SimulationTxSetFrame : public AbstractTxSetFrameForApply
 
     size_t sizeOp() const override;
 
-    std::vector<TransactionFramePtr> sortForApply() override;
+    std::vector<TransactionFrameBasePtr> sortForApply() override;
 };
 }

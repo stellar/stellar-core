@@ -27,6 +27,7 @@
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -844,7 +845,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
-    vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
+    vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
 
     // first, prefetch source accounts fot txset, then charge fees
     prefetchTxSourceIds(txs);
@@ -969,7 +970,7 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 }
 
 void
-LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
+LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFrameBasePtr>& txs,
                                       AbstractLedgerTxn& ltxOuter,
                                       int64_t baseFee)
 {
@@ -1000,13 +1001,15 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 }
 
 void
-LedgerManagerImpl::prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs)
+LedgerManagerImpl::prefetchTxSourceIds(
+    std::vector<TransactionFrameBasePtr>& txs)
 {
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
         std::unordered_set<LedgerKey> keys;
         for (auto const& tx : txs)
         {
+            keys.emplace(accountKey(tx->getFeeSourceID()));
             keys.emplace(accountKey(tx->getSourceID()));
         }
         auto& root = mApp.getLedgerTxnRoot();
@@ -1016,7 +1019,7 @@ LedgerManagerImpl::prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs)
 
 void
 LedgerManagerImpl::prefetchTransactionData(
-    std::vector<TransactionFramePtr>& txs)
+    std::vector<TransactionFrameBasePtr>& txs)
 {
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
@@ -1024,21 +1027,14 @@ LedgerManagerImpl::prefetchTransactionData(
         std::unordered_set<LedgerKey> keysToPrefetch;
         for (auto const& tx : txs)
         {
-            for (auto const& op : tx->getOperations())
-            {
-                if (!(tx->getSourceID() == op->getSourceID()))
-                {
-                    keysToPrefetch.emplace(accountKey(op->getSourceID()));
-                }
-                op->insertLedgerKeysToPrefetch(keysToPrefetch);
-            }
+            tx->insertLedgerKeysToPrefetch(keysToPrefetch);
         }
         root.prefetch(keysToPrefetch);
     }
 }
 
 void
-LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
+LedgerManagerImpl::applyTransactions(std::vector<TransactionFrameBasePtr>& txs,
                                      AbstractLedgerTxn& ltx,
                                      TransactionResultSet& txResultSet)
 {
@@ -1050,10 +1046,11 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
-        numOps = std::accumulate(txs.begin(), txs.end(), size_t(0),
-                                 [](size_t s, TransactionFramePtr const& v) {
-                                     return s + v->getOperations().size();
-                                 });
+        numOps =
+            std::accumulate(txs.begin(), txs.end(), size_t(0),
+                            [](size_t s, TransactionFrameBasePtr const& v) {
+                                return s + v->getOperationCountForApply();
+                            });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
                                         ltx.loadHeader().current().ledgerSeq,
@@ -1070,7 +1067,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         {
             CLOG(DEBUG, "Tx")
                 << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
-                << " ops=" << tx->getOperations().size()
+                << " ops=" << tx->getOperationCountForApply()
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
             tx->apply(mApp, ltx, tm.v1());

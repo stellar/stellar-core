@@ -9,7 +9,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
-#include "transactions/TransactionFrame.h"
+#include "transactions/TransactionFrameBase.h"
 #include "xdr/Stellar-ledger.h"
 #include <string>
 
@@ -66,18 +66,18 @@ class LedgerManagerImpl : public LedgerManager
                          LedgerHeaderHistoryEntry const& lastClosed,
                          CatchupConfiguration::Mode catchupMode);
 
-    void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
+    void processFeesSeqNums(std::vector<TransactionFrameBasePtr>& txs,
                             AbstractLedgerTxn& ltxOuter, int64_t baseFee);
 
-    void applyTransactions(std::vector<TransactionFramePtr>& txs,
+    void applyTransactions(std::vector<TransactionFrameBasePtr>& txs,
                            AbstractLedgerTxn& ltx,
                            TransactionResultSet& txResultSet);
 
     void ledgerClosed(AbstractLedgerTxn& ltx);
 
     void storeCurrentLedger(LedgerHeader const& header);
-    void prefetchTransactionData(std::vector<TransactionFramePtr>& txs);
-    void prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs);
+    void prefetchTransactionData(std::vector<TransactionFrameBasePtr>& txs);
+    void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr>& txs);
 
     enum class CloseLedgerIfResult
     {

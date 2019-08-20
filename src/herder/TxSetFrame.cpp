@@ -96,7 +96,7 @@ SeqSorter(TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
     * transactions for an account are sorted by sequence number (ascending)
     * the order between accounts is randomized
 */
-std::vector<TransactionFramePtr>
+std::vector<TransactionFrameBasePtr>
 TxSetFrame::sortForApply()
 {
     auto txQueues = buildAccountTxQueues();
@@ -128,7 +128,7 @@ TxSetFrame::sortForApply()
         }
     }
 
-    vector<TransactionFramePtr> retList;
+    vector<TransactionFrameBasePtr> retList;
     retList.reserve(mTransactions.size());
     for (auto& batch : txBatches)
     {

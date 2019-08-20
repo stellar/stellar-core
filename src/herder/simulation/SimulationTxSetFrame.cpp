@@ -68,10 +68,10 @@ SimulationTxSetFrame::sizeOp() const
                            });
 }
 
-std::vector<TransactionFramePtr>
+std::vector<TransactionFrameBasePtr>
 SimulationTxSetFrame::sortForApply()
 {
-    std::vector<TransactionFramePtr> res;
+    std::vector<TransactionFrameBasePtr> res;
     res.reserve(mTransactions.size());
 
     auto resultIter = mResults.cbegin();
