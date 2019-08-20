@@ -60,16 +60,6 @@ class TransactionFrameBase
 
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
 
-    // transaction history
-    virtual void storeTransaction(Database& db, uint32_t ledgerSeq,
-                                  TransactionMeta& tm, int txindex,
-                                  TransactionResultSet& resultSet) const = 0;
-
-    // fee history
-    virtual void storeTransactionFee(Database& db, uint32_t ledgerSeq,
-                                     LedgerEntryChanges const& changes,
-                                     int txindex) const = 0;
-
     virtual StellarMessage toStellarMessage() const = 0;
 
     virtual std::vector<TransactionFrameBasePtr> transactionsToApply() = 0;

@@ -27,7 +27,8 @@
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/OperationFrame.h"
-#include "transactions/TransactionFrame.h"
+#include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -950,7 +951,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
     soci::transaction txscope(db.getSession());
     db.clearPreparedStatementCache();
     LedgerHeaderUtils::deleteOldEntries(db, ledgerSeq, count);
-    TransactionFrame::deleteOldEntries(db, ledgerSeq, count);
+    deleteOldTransactionHistoryEntries(db, ledgerSeq, count);
     HerderPersistence::deleteOldEntries(db, ledgerSeq, count);
     Upgrades::deleteOldEntries(db, ledgerSeq, count);
     db.clearPreparedStatementCache();
@@ -985,8 +986,8 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFrameBasePtr>& txs,
         {
             LedgerTxn ltxTx(ltx);
             tx->processFeeSeqNum(ltxTx, baseFee);
-            tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq,
-                                    ltxTx.getChanges(), ++index);
+            storeTransactionFee(mApp.getDatabase(), ledgerSeq, tx,
+                                ltxTx.getChanges(), ++index);
             ltxTx.commit();
         }
         ltx.commit();
@@ -1095,8 +1096,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFrameBasePtr>& txs,
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-        tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, ++index,
-                             txResultSet);
+        storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm, txResultSet);
     }
 
     logTxApplyMetrics(ltx, numTxs, numOps);

@@ -220,36 +220,5 @@ class TransactionFrame : public TransactionFrameBase
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
                                AccountID const& accountID);
-
-    // transaction history
-    void storeTransaction(Database& db, uint32_t ledgerSeq, TransactionMeta& tm,
-                          int txindex,
-                          TransactionResultSet& resultSet) const override;
-
-    // fee history
-    void storeTransactionFee(Database& db, uint32_t ledgerSeq,
-                             LedgerEntryChanges const& changes,
-                             int txindex) const override;
-
-    // access to history tables
-    static TransactionResultSet getTransactionHistoryResults(Database& db,
-                                                             uint32 ledgerSeq);
-    static std::vector<LedgerEntryChanges>
-    getTransactionFeeMeta(Database& db, uint32 ledgerSeq);
-
-    /*
-    txOut: stream of TransactionHistoryEntry
-    txResultOut: stream of TransactionHistoryResultEntry
-    */
-    static size_t copyTransactionsToStream(Hash const& networkID, Database& db,
-                                           soci::session& sess,
-                                           uint32_t ledgerSeq,
-                                           uint32_t ledgerCount,
-                                           XDROutputFileStream& txOut,
-                                           XDROutputFileStream& txResultOut);
-    static void dropAll(Database& db);
-
-    static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
-                                 uint32_t count);
 };
 }
