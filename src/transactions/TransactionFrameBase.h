@@ -15,6 +15,9 @@ class Application;
 class Database;
 class OperationFrame;
 
+bool signatureCompare(DecoratedSignature const& lhs,
+                      DecoratedSignature const& rhs);
+
 class TransactionFrameBase;
 using TransactionFrameBasePtr = std::shared_ptr<TransactionFrameBase>;
 

@@ -156,6 +156,8 @@ void
 TransactionFrame::addSignature(DecoratedSignature const& signature)
 {
     mEnvelope.v0().signatures.push_back(signature);
+    std::sort(mEnvelope.v0().signatures.begin(),
+              mEnvelope.v0().signatures.end(), signatureCompare);
 }
 
 bool
@@ -295,13 +297,21 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
+    auto header = ltx.loadHeader();
+    if (header.current().ledgerVersion >= 12 &&
+        !std::is_sorted(mEnvelope.v0().signatures.begin(),
+                        mEnvelope.v0().signatures.end(), signatureCompare))
+    {
+        getResult().result.code(txNOT_NORMALIZED);
+        return false;
+    }
+
     if (mOperations.size() == 0)
     {
         getResult().result.code(txMISSING_OPERATION);
         return false;
     }
 
-    auto header = ltx.loadHeader();
     if (isTooEarly(header))
     {
         getResult().result.code(txTOO_EARLY);

@@ -8,6 +8,13 @@
 namespace stellar
 {
 
+bool
+signatureCompare(DecoratedSignature const& lhs, DecoratedSignature const& rhs)
+{
+    return lhs.hint < rhs.hint ||
+           (lhs.hint == rhs.hint && lhs.signature < rhs.signature);
+}
+
 TransactionFrameBasePtr
 TransactionFrameBase::makeTransactionFromWire(Hash const& networkID,
                                               TransactionEnvelope const& env)
