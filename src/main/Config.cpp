@@ -25,7 +25,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 11;
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 12;
 
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
