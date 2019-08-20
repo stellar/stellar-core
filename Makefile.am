@@ -30,7 +30,7 @@ docs/stellar-core.1: docs/stellar-core.1.md docs/software/commands.md
 	-pandoc -s -f markdown -t man -o "$(top_srcdir)/$@.in~" tmp.man.md \
 	    && mv -f "$(top_srcdir)/$@.in~" "$(top_srcdir)/$@.in"
 	rm -f tmp.man.md
-	sed -e "s|%prefix%|$(prefix)|g" "$(top_srcdir)/$@.in" > "$@~" \
+	-sed -e "s|%prefix%|$(prefix)|g" "$(top_srcdir)/$@.in" > "$@~" \
 	    && mv -f "$@~" "$@"
 
 if USE_CLANG_FORMAT
