@@ -153,8 +153,15 @@ TEST_CASE("remove password from database connection string",
                 R"(sqlite3://:memory:)");
     }
 
-    SECTION("Bug 2234")
+    SECTION("Bug 2234 - barewords can be any non-whitespace")
     {
+        // This case handles a mistake where we used to only match bareword
+        // tokens using a '\w' pattern, which matches [_[:alnum:]], whereas we
+        // really need to allow '\S' or [^[:space:]]. This manifests as a match
+        // failure -- and thereby leads to a failure-to-scrub -- when someone
+        // writes /some/path/with/slashes as a bareword. This is legal as a
+        // token in a PostgreSQL connect string, but we failed to recognize it
+        // as such before.
         REQUIRE(
             removePasswordFromConnectionString(
                 R"(postgresql://dbname=stellar user=stellar password=thisshouldbesecret host=/var/run/postgresql/)") ==
