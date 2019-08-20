@@ -21,48 +21,40 @@ extractAssetPairs(Operation const& op, LedgerTxnDelta const& ltxd)
     case MANAGE_BUY_OFFER:
     {
         auto const& offer = op.body.manageBuyOfferOp();
-        return {std::pair<Asset, Asset>(offer.selling, offer.buying)};
+        return {std::make_pair(offer.selling, offer.buying)};
     }
     case MANAGE_SELL_OFFER:
     {
         auto const& offer = op.body.manageSellOfferOp();
-        return {std::pair<Asset, Asset>(offer.selling, offer.buying)};
+        return {std::make_pair(offer.selling, offer.buying)};
     }
     case CREATE_PASSIVE_SELL_OFFER:
     {
         auto const& offer = op.body.createPassiveSellOfferOp();
-        return {std::pair<Asset, Asset>(offer.selling, offer.buying)};
+        return {std::make_pair(offer.selling, offer.buying)};
     }
     case PATH_PAYMENT:
     {
         auto const& pp = op.body.pathPaymentOp();
-
+       
         // if no path, only have a pair between send and dest
         if (pp.path.size() == 0)
         {
-            return {std::pair<Asset, Asset>(pp.sendAsset, pp.destAsset)};
-        }
+            return {std::make_pair(pp.sendAsset, pp.destAsset)};
+        } 
 
-        std::vector<std::pair<Asset, Asset>> assets;
         // For send, dest, {A, B} we get: {send, A}, {A, B}, {B, dest}
-        for (int i = 0; i < pp.path.size(); ++i)
+        std::vector<std::pair<Asset, Asset>> assets;
+        
+        // beginning: send -> A
+        assets.emplace_back(pp.sendAsset, pp.path.front()); 
+        for (int i = 1; i < pp.path.size(); ++i)
         {
-            // beginning: send -> A
-            if (i == 0)
-            {
-                assets.emplace_back(pp.sendAsset, pp.path[i]);
-            }
-            // end: B -> dest
-            if (i == pp.path.size() - 1)
-            {
-                assets.emplace_back(pp.path[i], pp.destAsset);
-            }
             // middle: A -> B
-            if (i > 0 && i < pp.path.size() - 1)
-            {
-                assets.emplace_back(pp.path[i - 1], pp.path[i]);
-            }
+            assets.emplace_back(pp.path[i - 1], pp.path[i]);
         }
+        // end: B -> dest
+        assets.emplace_back(pp.path.back(), pp.destAsset); 
 
         return assets;
     }
