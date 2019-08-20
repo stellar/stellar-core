@@ -65,9 +65,7 @@ convertToTransaction(TransactionV0 const& tx)
 TransactionFrame::TransactionFrame(Hash const& networkID,
                                    TransactionEnvelope const& envelope,
                                    bool chargeFee)
-    : mChargeFee(chargeFee)
-    , mEnvelope(envelope)
-    , mNetworkID(networkID)
+    : mChargeFee(chargeFee), mEnvelope(envelope), mNetworkID(networkID)
 {
 }
 
@@ -79,6 +77,12 @@ TransactionFrame::getFullHash() const
         mFullHash = sha256(xdr::xdr_to_opaque(mEnvelope));
     }
     return (mFullHash);
+}
+
+Hash const&
+TransactionFrame::getInnerHash() const
+{
+    return getFullHash();
 }
 
 Hash const&
@@ -122,7 +126,7 @@ TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
-uint32_t
+int64_t
 TransactionFrame::getFeeBid() const
 {
     return mEnvelope.v0().tx.fee;
@@ -131,7 +135,8 @@ TransactionFrame::getFeeBid() const
 int64_t
 TransactionFrame::getMinFee(LedgerHeader const& header) const
 {
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, mOperations.size());
+    return ((int64_t)header.baseFee) *
+           std::max<int64_t>(1, getOperationCountForValidation());
 }
 
 int64_t
@@ -149,8 +154,7 @@ TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
     else
     {
         int64_t adjustedFee =
-            baseFee * std::max<int64_t>(1, mOperations.size());
-
+            baseFee * std::max<int64_t>(1, getOperationCountForValidation());
         return std::min<int64_t>(getFeeBid(), adjustedFee);
     }
 }
@@ -444,7 +448,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
-    uint32_t feeToPay =
+    int64_t feeToPay =
         (applying && (header.current().ledgerVersion > 8)) ? 0 : getFeeBid();
     // don't let the account go below the reserve after accounting for
     // liabilities
@@ -455,6 +459,20 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     }
 
     return ValidationType::kFullyValid;
+}
+
+void
+TransactionFrame::insertLedgerKeysToPrefetch(
+    std::unordered_set<LedgerKey>& keys) const
+{
+    for (auto const& op : mOperations)
+    {
+        if (!(getSourceID() == op->getSourceID()))
+        {
+            keys.emplace(accountKey(op->getSourceID()));
+        }
+        op->insertLedgerKeysToPrefetch(keys);
+    }
 }
 
 void
@@ -709,6 +727,12 @@ TransactionFrame::toStellarMessage() const
     msg.type(TRANSACTION);
     msg.transaction() = mEnvelope;
     return msg;
+}
+
+std::vector<TransactionFrameBasePtr>
+TransactionFrame::transactionsToApply()
+{
+    return {shared_from_this()};
 }
 
 void

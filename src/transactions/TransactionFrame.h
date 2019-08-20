@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
+#include "transactions/TransactionFrameBase.h"
 #include "util/types.h"
 
 #include <memory>
@@ -36,7 +37,7 @@ class SHA256;
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
-class TransactionFrame
+class TransactionFrame : public TransactionFrameBase
 {
     bool const mChargeFee;
 
@@ -119,13 +120,26 @@ class TransactionFrame
     // clear pre-computed hashes
     void clearCached();
 
-    Hash const& getFullHash() const;
-    Hash const& getContentsHash() const;
+    Hash const& getContentsHash() const override;
+    Hash const& getFullHash() const override;
+    Hash const& getInnerHash() const override;
 
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {
         return mOperations;
+    }
+
+    size_t
+    getOperationCountForApply() const override
+    {
+        return mEnvelope.v0().tx.operations.size();
+    }
+
+    size_t
+    getOperationCountForValidation() const override
+    {
+        return mEnvelope.v0().tx.operations.size();
     }
 
     TransactionResult const&
@@ -135,40 +149,47 @@ class TransactionFrame
     }
 
     TransactionResult&
-    getResult()
+    getResult() override
     {
         return mResult;
     }
 
     TransactionResultCode
-    getResultCode() const
+    getResultCode() const override
     {
         return getResult().result.code();
     }
 
     TransactionResultPair getResultPair() const;
-    TransactionEnvelope const& getEnvelope() const;
+    TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
 
     SequenceNumber
-    getSeqNum() const
+    getSeqNum() const override
     {
         return mEnvelope.v0().tx.seqNum;
     }
 
     AccountID
-    getSourceID() const
+    getFeeSourceID() const override
+    {
+        return getSourceID();
+    }
+
+    AccountID
+    getSourceID() const override
     {
         AccountID accountID(PUBLIC_KEY_TYPE_ED25519);
         accountID.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
         return accountID;
     }
 
-    uint32_t getFeeBid() const;
+    int64_t getFeeBid() const override;
 
-    int64_t getMinFee(LedgerHeader const& header) const;
+    int64_t getMinFee(LedgerHeader const& header) const override;
 
-    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee) const;
+    virtual int64_t getFee(LedgerHeader const& header,
+                           int64_t baseFee) const override;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
@@ -179,20 +200,26 @@ class TransactionFrame
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
-    bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current);
+    bool checkValid(AbstractLedgerTxn& ltxOuter,
+                    SequenceNumber current) override;
+
+    void insertLedgerKeysToPrefetch(
+        std::unordered_set<LedgerKey>& keys) const override;
 
     // collect fee, consume sequence number
-    virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee);
+    void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
     bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaV1& meta);
+               TransactionMetaV1& meta) override;
 
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx);
 
-    StellarMessage toStellarMessage() const;
+    StellarMessage toStellarMessage() const override;
+
+    std::vector<TransactionFrameBasePtr> transactionsToApply() override;
 
     LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx,
                                LedgerTxnHeader const& header,
@@ -200,12 +227,13 @@ class TransactionFrame
 
     // transaction history
     void storeTransaction(Database& db, uint32_t ledgerSeq, TransactionMeta& tm,
-                          int txindex, TransactionResultSet& resultSet) const;
+                          int txindex,
+                          TransactionResultSet& resultSet) const override;
 
     // fee history
     void storeTransactionFee(Database& db, uint32_t ledgerSeq,
                              LedgerEntryChanges const& changes,
-                             int txindex) const;
+                             int txindex) const override;
 
     // access to history tables
     static TransactionResultSet getTransactionHistoryResults(Database& db,
