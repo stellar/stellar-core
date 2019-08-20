@@ -390,7 +390,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = txSet->mTransactions[0];
+            auto tx = std::static_pointer_cast<TransactionFrame>(
+                txSet->mTransactions[0]);
             tx->getEnvelope().v0().tx.timeBounds.activate().maxTime =
                 UINT64_MAX;
             tx->clearCached();

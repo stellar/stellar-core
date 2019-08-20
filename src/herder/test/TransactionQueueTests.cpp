@@ -72,7 +72,9 @@ class TransactionQueueTest
     removeAndReset(std::vector<TransactionFramePtr> const& toRemove)
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
-        mTransactionQueue.removeAndReset(toRemove);
+        // TODO(jonjove): Clean-up
+        mTransactionQueue.removeAndReset(std::vector<TransactionFrameBasePtr>(
+            toRemove.begin(), toRemove.end()));
         REQUIRE(size - toRemove.size() >=
                 mTransactionQueue.toTxSet({})->sizeTx());
     }
@@ -81,7 +83,9 @@ class TransactionQueueTest
     ban(std::vector<TransactionFramePtr> const& toRemove)
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
-        mTransactionQueue.ban(toRemove);
+        // TODO(jonjove): Clean-up
+        mTransactionQueue.ban(std::vector<TransactionFrameBasePtr>(
+            toRemove.begin(), toRemove.end()));
         REQUIRE(size - toRemove.size() >=
                 mTransactionQueue.toTxSet({})->sizeTx());
     }

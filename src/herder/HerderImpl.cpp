@@ -1332,7 +1332,7 @@ HerderImpl::trackingHeartBeat()
 
 void
 HerderImpl::updateTransactionQueue(
-    std::vector<TransactionFramePtr> const& applied)
+    std::vector<TransactionFrameBasePtr> const& applied)
 {
     // remove all these tx from mTransactionQueue
     mTransactionQueue.removeAndReset(applied);

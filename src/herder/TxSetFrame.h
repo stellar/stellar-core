@@ -7,6 +7,7 @@
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionFrameBase.h"
 #include <deque>
 #include <functional>
 #include <unordered_map>
@@ -43,20 +44,21 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     Hash mPreviousLedgerHash;
 
-    using AccountTransactionQueue = std::deque<TransactionFramePtr>;
+    using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
 
-    bool checkOrTrim(Application& app,
-                     std::function<bool(TransactionFramePtr, SequenceNumber)>
-                         processInvalidTxLambda,
-                     std::function<bool(std::deque<TransactionFramePtr> const&)>
-                         processLastInvalidTxLambda);
+    bool
+    checkOrTrim(Application& app,
+                std::function<bool(TransactionFrameBasePtr, SequenceNumber)>
+                    processInvalidTxLambda,
+                std::function<bool(std::deque<TransactionFrameBasePtr> const&)>
+                    processLastInvalidTxLambda);
 
     std::unordered_map<AccountID, AccountTransactionQueue>
     buildAccountTxQueues();
     friend struct SurgeCompare;
 
   public:
-    std::vector<TransactionFramePtr> mTransactions;
+    std::vector<TransactionFrameBasePtr> mTransactions;
 
     TxSetFrame(Hash const& previousLedgerHash);
 
@@ -81,13 +83,13 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     // remove invalid transaction from this set and return those removed
     // transactions
-    std::vector<TransactionFramePtr> trimInvalid(Application& app);
+    std::vector<TransactionFrameBasePtr> trimInvalid(Application& app);
     void surgePricingFilter(Application& app);
 
-    void removeTx(TransactionFramePtr tx);
+    void removeTx(TransactionFrameBasePtr tx);
 
     void
-    add(TransactionFramePtr tx)
+    add(TransactionFrameBasePtr tx)
     {
         mTransactions.push_back(tx);
         mHashIsValid = false;

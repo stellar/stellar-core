@@ -129,7 +129,7 @@ class HerderImpl : public Herder
     TransactionQueue mTransactionQueue;
 
     void
-    updateTransactionQueue(std::vector<TransactionFramePtr> const& applied);
+    updateTransactionQueue(std::vector<TransactionFrameBasePtr> const& applied);
 
     PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;
