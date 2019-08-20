@@ -177,47 +177,61 @@ TEST_CASE("txresults with errors", "[tx][txresults]")
         return tx;
     };
 
-    auto success = expectedResult(100, 1, txSUCCESS, {PAYMENT_SUCCESS});
-    auto failure = [](TransactionResultCode code) {
-        switch (code)
+    auto success = expectedResult(100, txSUCCESS, {PAYMENT_SUCCESS}, txSUCCESS,
+                                  {PAYMENT_SUCCESS});
+    auto fastFailure = [](TransactionResultCode code, int fee) {
+        return expectedResult(fee, code, {}, code, {});
+    };
+    auto failure = [](TransactionResultCode validation,
+                      TransactionResultCode apply) {
+        return expectedResult(100, validation, {}, apply, {});
+    };
+    auto failed = [](TransactionResultCode apply) {
+        if (apply == txFAILED)
         {
-        case txMISSING_OPERATION:
-        case txTOO_EARLY:
-        case txTOO_LATE:
-        case txINSUFFICIENT_FEE:
-            return expectedResult(1, 0, code);
-        case txFAILED:
-            return expectedResult(100, 0, txFAILED, {PAYMENT_MALFORMED});
-        default:
-            return expectedResult(100, 0, code);
+            return expectedResult(100, txFAILED, {PAYMENT_MALFORMED}, txFAILED,
+                                  {PAYMENT_MALFORMED});
+        }
+        else
+        {
+            return expectedResult(100, txFAILED, {PAYMENT_MALFORMED}, apply,
+                                  {});
         }
     };
 
     SECTION("transaction errors")
     {
-        for (auto error : {txMISSING_OPERATION, txTOO_EARLY, txTOO_LATE,
-                           txINSUFFICIENT_FEE, txNO_ACCOUNT})
+        for (auto error :
+             {txMISSING_OPERATION, txTOO_EARLY, txTOO_LATE, txINSUFFICIENT_FEE})
         {
             SECTION(xdr::xdr_traits<TransactionResultCode>::enum_name(error))
             {
                 for_all_versions(*app, [&] {
                     auto tx = buildTransactionWithError(error);
-                    applyCheck(tx, *app, failure(error), failure(error));
+                    applyCheck(tx, *app, fastFailure(error, 1));
                 });
             }
+        }
+
+        SECTION("txNO_ACCOUNT")
+        {
+            for_all_versions(*app, [&] {
+                auto tx = buildTransactionWithError(txNO_ACCOUNT);
+                applyCheck(tx, *app, fastFailure(txNO_ACCOUNT, 100));
+            });
         }
 
         SECTION("txINSUFFICIENT_BALANCE")
         {
             auto tx = buildTransactionWithError(txINSUFFICIENT_BALANCE);
             for_versions_to(9, *app, [&] {
-                applyCheck(tx, *app, failure(txINSUFFICIENT_BALANCE),
-                           failure(txINSUFFICIENT_BALANCE));
+                applyCheck(
+                    tx, *app,
+                    failure(txINSUFFICIENT_BALANCE, txINSUFFICIENT_BALANCE));
             });
             for_versions_from(10, *app, [&] {
-                auto applyResult = expectedResult(100, 1, txBAD_AUTH_EXTRA);
-                applyCheck(tx, *app, failure(txINSUFFICIENT_BALANCE),
-                           failure(txBAD_AUTH_EXTRA));
+                applyCheck(tx, *app,
+                           failure(txINSUFFICIENT_BALANCE, txBAD_AUTH_EXTRA));
             });
         }
 
@@ -225,14 +239,14 @@ TEST_CASE("txresults with errors", "[tx][txresults]")
         {
             auto tx = buildTransactionWithError(txBAD_SEQ);
             for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                applyCheck(tx, *app, failure(txBAD_SEQ), failure(txBAD_AUTH));
+                applyCheck(tx, *app, failure(txBAD_SEQ, txBAD_AUTH));
             });
             for_versions({7}, *app, [&] {
-                applyCheck(tx, *app, failure(txBAD_SEQ),
-                           failure(txINSUFFICIENT_BALANCE));
+                applyCheck(tx, *app,
+                           failure(txBAD_SEQ, txINSUFFICIENT_BALANCE));
             });
             for_versions_from(10, *app, [&] {
-                applyCheck(tx, *app, failure(txBAD_SEQ), failure(txBAD_SEQ));
+                applyCheck(tx, *app, failure(txBAD_SEQ, txBAD_SEQ));
             });
         }
 
@@ -240,44 +254,41 @@ TEST_CASE("txresults with errors", "[tx][txresults]")
         {
             auto tx = buildTransactionWithError(txBAD_AUTH);
             for_versions({7}, *app, [&] {
-                applyCheck(tx, *app, failure(txINSUFFICIENT_BALANCE),
-                           failure(txINSUFFICIENT_BALANCE));
+                applyCheck(
+                    tx, *app,
+                    failure(txINSUFFICIENT_BALANCE, txINSUFFICIENT_BALANCE));
             });
 
             for_all_versions_except({7}, *app, [&] {
-                applyCheck(tx, *app, failure(txBAD_AUTH), failure(txBAD_AUTH));
+                applyCheck(tx, *app, failure(txBAD_AUTH, txBAD_AUTH));
             });
         }
 
         SECTION("txBAD_AUTH_EXTRA")
         {
             auto tx = buildTransactionWithError(txBAD_AUTH_EXTRA);
-            for_versions({7}, *app,
-                         [&] { applyCheck(tx, *app, success, success); });
+            for_versions({7}, *app, [&] { applyCheck(tx, *app, success); });
 
             for_all_versions_except({7}, *app, [&] {
-                applyCheck(tx, *app, failure(txBAD_AUTH_EXTRA),
-                           failure(txBAD_AUTH_EXTRA));
+                applyCheck(tx, *app,
+                           failure(txBAD_AUTH_EXTRA, txBAD_AUTH_EXTRA));
             });
         }
 
         SECTION("txFAILED")
         {
             auto tx = buildTransactionWithError(txFAILED);
-            for_versions_to(9, *app, [&] {
-                applyCheck(tx, *app, failure(txFAILED), failure(txFAILED));
-            });
+            for_versions_to(9, *app,
+                            [&] { applyCheck(tx, *app, failed(txFAILED)); });
             for_versions_from(10, *app, [&] {
-                applyCheck(tx, *app, failure(txFAILED),
-                           failure(txBAD_AUTH_EXTRA));
+                applyCheck(tx, *app, failed(txBAD_AUTH_EXTRA));
             });
         }
 
         SECTION("txSUCCESS")
         {
             auto tx = buildTransactionWithError(txSUCCESS);
-            for_all_versions(*app,
-                             [&] { applyCheck(tx, *app, success, success); });
+            for_all_versions(*app, [&] { applyCheck(tx, *app, success); });
         }
     }
 }
@@ -399,11 +410,10 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         [&](std::vector<Signed> const& opSigned,
             std::vector<PaymentValidity> const& opPayment, bool doubleSigned) {
             assert(opSigned.size() == opPayment.size());
-
-            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
             if (opSigned[0] == Signed::NOT_SIGNED)
             {
-                return expectedResult(fee, 1, txBAD_AUTH);
+                return std::make_pair(txBAD_AUTH,
+                                      std::vector<ExpectedOpResult>{});
             }
 
             auto success =
@@ -414,12 +424,12 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             auto ops = makeSimpleValidationOperationResult(opSigned, opPayment);
             if (success && doubleSigned)
             {
-                return expectedResult(fee, 1, txBAD_AUTH_EXTRA);
+                return std::make_pair(txBAD_AUTH_EXTRA,
+                                      std::vector<ExpectedOpResult>{});
             }
             else
             {
-                return expectedResult(fee, ops.size(),
-                                      success ? txSUCCESS : txFAILED, ops);
+                return std::make_pair(success ? txSUCCESS : txFAILED, ops);
             }
         };
 
@@ -514,14 +524,13 @@ TEST_CASE("complex txresults", "[tx][txresults]")
 
             auto validationResult =
                 makeValidationResultBefore10(opSigned, opPayment);
-            if (validationResult->result.code() != txSUCCESS &&
-                validationResult->result.code() != txFAILED &&
-                validationResult->result.code() != txBAD_AUTH_EXTRA)
+            if (validationResult.first != txSUCCESS &&
+                validationResult.first != txFAILED &&
+                validationResult.first != txBAD_AUTH_EXTRA)
             {
                 return validationResult;
             }
 
-            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
             auto success =
                 all_of(opSigned, opPayment, [](auto sig, auto payment) {
                     return sig != Signed::NOT_SIGNED &&
@@ -537,13 +546,13 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                     });
                 if (doubleSigned)
                 {
-                    return expectedResult(fee, 1, txBAD_AUTH_EXTRA);
+                    return std::make_pair(txBAD_AUTH_EXTRA,
+                                          std::vector<ExpectedOpResult>{});
                 }
             }
 
             auto ops = makeApplyOps(opSigned, opPayment, true);
-            return expectedResult(fee, ops.size(),
-                                  success ? txSUCCESS : txFAILED, ops);
+            return std::make_pair(success ? txSUCCESS : txFAILED, ops);
         };
 
     auto makeApplyResultOn7 =
@@ -564,14 +573,13 @@ TEST_CASE("complex txresults", "[tx][txresults]")
 
             auto validationResult =
                 makeValidationResultOnAndAfter10(opSigned, opPayment);
-            if (validationResult->result.code() != txSUCCESS &&
-                validationResult->result.code() != txFAILED &&
-                validationResult->result.code() != txBAD_AUTH_EXTRA)
+            if (validationResult.first != txSUCCESS &&
+                validationResult.first != txFAILED &&
+                validationResult.first != txBAD_AUTH_EXTRA)
             {
                 return validationResult;
             }
 
-            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
             auto success =
                 all_of(opSigned, opPayment, [](auto sig, auto payment) {
                     return sig != Signed::NOT_SIGNED &&
@@ -602,8 +610,7 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                 }
 
                 fillWithCreateAccountSuccessOrBadAuth(ops, opSigned);
-                return expectedResult(fee, opPayment.size(),
-                                      success ? txSUCCESS : txFAILED, ops);
+                return std::make_pair(success ? txSUCCESS : txFAILED, ops);
             }
             else
             {
@@ -613,14 +620,14 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                     });
                 if (doubleSigned)
                 {
-                    return expectedResult(fee, 1, txBAD_AUTH_EXTRA);
+                    return std::make_pair(txBAD_AUTH_EXTRA,
+                                          std::vector<ExpectedOpResult>{});
                 }
             }
 
             auto ops = makeApplyOps(opSigned, opPayment, false);
             fillWithCreateAccountSuccessOrBadAuth(ops, opSigned);
-            return expectedResult(fee, opPayment.size(),
-                                  success ? txSUCCESS : txFAILED, ops);
+            return std::make_pair(success ? txSUCCESS : txFAILED, ops);
         };
 
     auto sign3 = variations<Signed>(3, signedTypes);
@@ -675,17 +682,26 @@ TEST_CASE("complex txresults", "[tx][txresults]")
 
     auto test = [&](std::vector<Signed> const& signs,
                     std::vector<PaymentValidity> const& ops) {
+        auto fee = static_cast<int64_t>(baseFee * ops.size());
         auto tx = makeTx(signs, ops);
+
         for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
             auto validationResult = makeValidationResultBefore10(signs, ops);
             auto applyResult = makeApplyResultBefore10(signs, ops);
-            applyCheck(tx, *app, validationResult, applyResult, true);
+            auto result = expectedResult(fee, validationResult.first,
+                                         validationResult.second,
+                                         applyResult.first, applyResult.second);
+
+            applyCheck(tx, *app, result, true);
         });
 
         for_versions({7}, *app, [&] {
             auto validationResult = makeValidationResultOn7(signs, ops);
             auto applyResult = makeApplyResultOn7(signs, ops);
-            applyCheck(tx, *app, validationResult, applyResult, true);
+            auto result = expectedResult(fee, validationResult.first,
+                                         validationResult.second,
+                                         applyResult.first, applyResult.second);
+            applyCheck(tx, *app, result, true);
         });
 
         for_versions_from(10, *app, [&] {
@@ -697,7 +713,10 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             auto validationResult =
                 makeValidationResultOnAndAfter10(signs, ops);
             auto applyResult = makeApplyResultOnAndAfter10(signs, ops);
-            applyCheck(tx, *app, validationResult, applyResult, true);
+            auto result = expectedResult(fee, validationResult.first,
+                                         validationResult.second,
+                                         applyResult.first, applyResult.second);
+            applyCheck(tx, *app, result, true);
         });
     };
 
@@ -731,14 +750,11 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         {
             auto tx = a.tx({payment(b, 1000), accountMerge(root)});
 
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}});
-            auto applyResult = expectedResult(
-                baseFee * 2, 2, txSUCCESS,
+            auto result = expectedResult(
+                baseFee * 2, txSUCCESS,
+                {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}}, txSUCCESS,
                 {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, startAmount - 1200}});
-            for_all_versions(
-                *app, [&] { applyCheck(tx, *app, result, applyResult); });
+            for_all_versions(*app, [&] { applyCheck(tx, *app, result); });
         }
 
         SECTION("with operation after")
@@ -746,21 +762,26 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             auto tx =
                 a.tx({payment(b, 1000), accountMerge(root), payment(c, 1000)});
 
-            auto result = expectedResult(
-                baseFee * 3, 3, txSUCCESS,
-                {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}, PAYMENT_SUCCESS});
             for_versions_to(7, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
+                auto result = expectedResult(baseFee * 3, txSUCCESS,
+                                             {PAYMENT_SUCCESS,
+                                              {ACCOUNT_MERGE_SUCCESS, 0},
+                                              PAYMENT_SUCCESS},
+                                             txINTERNAL_ERROR, {});
+                applyCheck(tx, *app, result);
             });
             for_versions_from(8, *app, [&] {
-                applyCheck(
-                    tx, *app, result,
-                    expectedResult(baseFee * 3, 3, txFAILED,
+                auto result =
+                    expectedResult(baseFee * 3, txSUCCESS,
+                                   {PAYMENT_SUCCESS,
+                                    {ACCOUNT_MERGE_SUCCESS, 0},
+                                    PAYMENT_SUCCESS},
+                                   txFAILED,
                                    {PAYMENT_SUCCESS,
                                     {ACCOUNT_MERGE_SUCCESS,
                                      startAmount - tx->getFeeBid() - 1000},
-                                    opNO_ACCOUNT}));
+                                    opNO_ACCOUNT});
+                applyCheck(tx, *app, result);
             });
         }
     }
@@ -771,10 +792,10 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         {
             auto tx = root.tx({createAccount(f, startAmount)});
 
-            auto result = expectedResult(baseFee * 1, 1, txSUCCESS,
-                                         {CREATE_ACCOUNT_SUCCESS});
-            for_all_versions(*app,
-                             [&] { applyCheck(tx, *app, result, result); });
+            auto result =
+                expectedResult(baseFee, txSUCCESS, {CREATE_ACCOUNT_SUCCESS},
+                               txSUCCESS, {CREATE_ACCOUNT_SUCCESS});
+            for_all_versions(*app, [&] { applyCheck(tx, *app, result); });
         }
 
         SECTION("with payment after")
@@ -783,11 +804,11 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                                a.op(payment(root, startAmount / 2))});
             a.sign(tx);
 
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS});
-            for_all_versions(*app,
-                             [&] { applyCheck(tx, *app, result, result); });
+            auto result = expectedResult(
+                baseFee * 2, txSUCCESS,
+                {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS}, txSUCCESS,
+                {CREATE_ACCOUNT_SUCCESS, PAYMENT_SUCCESS});
+            for_all_versions(*app, [&] { applyCheck(tx, *app, result); });
         }
     }
 
@@ -799,37 +820,39 @@ TEST_CASE("complex txresults", "[tx][txresults]")
         SECTION("normal")
         {
             auto tx = a.tx({payment(b, 1000), setOptions(th)});
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS});
-            for_all_versions(*app,
-                             [&] { applyCheck(tx, *app, result, result); });
+            auto result = expectedResult(
+                baseFee * 2, txSUCCESS, {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS},
+                txSUCCESS, {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS});
+            for_all_versions(*app, [&] { applyCheck(tx, *app, result); });
         }
 
         SECTION("with operation after")
         {
             auto tx =
                 a.tx({payment(b, 1000), setOptions(th), payment(c, 1000)});
-            auto result = expectedResult(
-                baseFee * 3, 3, txSUCCESS,
-                {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, PAYMENT_SUCCESS});
             for_versions_to(6, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 3, 3, txFAILED,
-                                          {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
-                                           opBAD_AUTH}));
+                auto result = expectedResult(
+                    baseFee * 3, txSUCCESS,
+                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, PAYMENT_SUCCESS},
+                    txFAILED,
+                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                applyCheck(tx, *app, result);
             });
             for_versions({8, 9}, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 3, 3, txFAILED,
-                                          {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
-                                           opBAD_AUTH}));
+                auto result = expectedResult(
+                    baseFee * 3, txSUCCESS,
+                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, PAYMENT_SUCCESS},
+                    txFAILED,
+                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                applyCheck(tx, *app, result);
             });
             for_versions_from({7, 10}, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 3, 3, txSUCCESS,
-                                          {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
-                                           PAYMENT_SUCCESS}));
+                auto result = expectedResult(
+                    baseFee * 3, txSUCCESS,
+                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, PAYMENT_SUCCESS},
+                    txSUCCESS,
+                    {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, PAYMENT_SUCCESS});
+                applyCheck(tx, *app, result);
             });
         }
 
@@ -838,14 +861,17 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             a.setOptions(th);
             auto tx = a.tx({payment(b, 1000)});
 
-            auto failure =
-                expectedResult(baseFee * 1, 1, txFAILED, {opBAD_AUTH});
-            auto success =
-                expectedResult(baseFee * 1, 1, txSUCCESS, {PAYMENT_SUCCESS});
-            for_versions({7}, *app,
-                         [&] { applyCheck(tx, *app, success, success); });
-            for_all_versions_except(
-                {7}, *app, [&] { applyCheck(tx, *app, failure, failure); });
+            for_versions({7}, *app, [&] {
+                auto result =
+                    expectedResult(baseFee, txSUCCESS, {PAYMENT_SUCCESS},
+                                   txSUCCESS, {PAYMENT_SUCCESS});
+                applyCheck(tx, *app, result);
+            });
+            for_all_versions_except({7}, *app, [&] {
+                auto result = expectedResult(baseFee, txFAILED, {opBAD_AUTH},
+                                             txFAILED, {opBAD_AUTH});
+                applyCheck(tx, *app, result);
+            });
         }
     }
 
@@ -862,13 +888,17 @@ TEST_CASE("complex txresults", "[tx][txresults]")
                 return market.addOffer(acc, {native, cur1, Price{1, 1}, 1000});
             });
             auto tx = acc.tx({payment(root, 1)});
-            auto failure = expectedResult(baseFee, 1, txINSUFFICIENT_BALANCE);
-            auto success =
-                expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
-            for_versions_to(9, *app,
-                            [&] { applyCheck(tx, *app, success, success); });
-            for_versions_from(10, *app,
-                              [&] { applyCheck(tx, *app, failure, failure); });
+            for_versions_to(9, *app, [&] {
+                auto result =
+                    expectedResult(baseFee, txSUCCESS, {PAYMENT_SUCCESS},
+                                   txSUCCESS, {PAYMENT_SUCCESS});
+                applyCheck(tx, *app, result);
+            });
+            for_versions_from(10, *app, [&] {
+                auto result = expectedResult(baseFee, txINSUFFICIENT_BALANCE,
+                                             {}, txINSUFFICIENT_BALANCE, {});
+                applyCheck(tx, *app, result);
+            });
         }
         SECTION("buying liabilities")
         {
@@ -878,8 +908,9 @@ TEST_CASE("complex txresults", "[tx][txresults]")
             auto tx = acc.tx({payment(root, 1)});
             for_all_versions(*app, [&] {
                 auto result =
-                    expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
-                applyCheck(tx, *app, result, result);
+                    expectedResult(baseFee, txSUCCESS, {PAYMENT_SUCCESS},
+                                   txSUCCESS, {PAYMENT_SUCCESS});
+                applyCheck(tx, *app, result);
             });
         }
     }

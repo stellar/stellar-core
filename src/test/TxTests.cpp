@@ -91,9 +91,11 @@ ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
     mOperationResult.tr().setOptionsResult().code(setOptionsResultCode);
 }
 
-optional<TransactionResult>
-expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
-               std::vector<ExpectedOpResult> ops)
+namespace
+{
+TransactionResult
+resutls(int64_t fee, TransactionResultCode code,
+        std::vector<ExpectedOpResult> ops)
 {
     auto result = TransactionResult{};
     result.feeCharged = fee;
@@ -101,12 +103,7 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
 
     if (code != txSUCCESS && code != txFAILED)
     {
-        return make_optional<TransactionResult>(result);
-    }
-
-    if (ops.empty())
-    {
-        std::fill_n(std::back_inserter(ops), opsCount, PAYMENT_SUCCESS);
+        return result;
     }
 
     for (auto const& op : ops)
@@ -114,13 +111,26 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
         result.result.results().push_back(op.mOperationResult);
     }
 
-    return make_optional<TransactionResult>(result);
+    return result;
+}
+}
+
+optional<ValidationApplyResult>
+expectedResult(int64_t fee, TransactionResultCode validationCode,
+               std::vector<ExpectedOpResult> validationOps,
+               TransactionResultCode applyCode,
+               std::vector<ExpectedOpResult> applyOps)
+{
+    auto result = ValidationApplyResult{};
+    result.validationResult = resutls(fee, validationCode, validationOps);
+    result.applyResult = resutls(fee, applyCode, applyOps);
+    return make_optional<ValidationApplyResult>(result);
 }
 
 bool
 applyCheck(TransactionFramePtr tx, Application& app,
-           optional<TransactionResult> validationResult,
-           optional<TransactionResult> applyResult, bool checkSeqNum)
+           optional<ValidationApplyResult> validationApplyResult,
+           bool checkSeqNum)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
     // Increment ledgerSeq to simulate the behavior of closeLedger, which begins
@@ -137,9 +147,9 @@ applyCheck(TransactionFramePtr tx, Application& app,
         check = tx->checkValid(ltxFeeProc, 0);
         checkResult = tx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
-        if (validationResult)
+        if (validationApplyResult)
         {
-            REQUIRE(checkResult == *validationResult);
+            REQUIRE(checkResult == validationApplyResult->validationResult);
         }
 
         // now, check what happens when simulating what happens during a ledger
@@ -202,9 +212,9 @@ applyCheck(TransactionFramePtr tx, Application& app,
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         REQUIRE((!res || tx->getResultCode() == txSUCCESS));
-        if (applyResult)
+        if (validationApplyResult)
         {
-            REQUIRE(tx->getResult() == *applyResult);
+            REQUIRE(tx->getResult() == validationApplyResult->applyResult);
         }
         else if (!check)
         {
@@ -292,8 +302,7 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 void
 applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
 {
-    applyCheck(tx, app, nullopt<TransactionResult>(),
-               nullopt<TransactionResult>(), checkSeqNum);
+    applyCheck(tx, app, nullopt<ValidationApplyResult>(), checkSeqNum);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
 }

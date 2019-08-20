@@ -605,8 +605,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, *app, [&] {
             // as the account gets re-created we have to disable seqnum
             // verification
-            REQUIRE(applyCheck(tx, *app, nullopt<TransactionResult>(),
-                               nullopt<TransactionResult>(), false));
+            REQUIRE(
+                applyCheck(tx, *app, nullopt<ValidationApplyResult>(), false));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount);
@@ -732,8 +732,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, *app, [&] {
             // as the account gets re-created we have to disable seqnum
             // verification
-            REQUIRE(applyCheck(tx, *app, nullopt<TransactionResult>(),
-                               nullopt<TransactionResult>(), false));
+            REQUIRE(
+                applyCheck(tx, *app, nullopt<ValidationApplyResult>(), false));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
@@ -865,8 +865,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, *app, [&] {
             // as the account gets re-created we have to disable seqnum
             // verification
-            REQUIRE(applyCheck(tx, *app, nullopt<TransactionResult>(),
-                               nullopt<TransactionResult>(), false));
+            REQUIRE(
+                applyCheck(tx, *app, nullopt<ValidationApplyResult>(), false));
             REQUIRE(doesAccountExist(*app, sourceAccount));
             REQUIRE(doesAccountExist(*app, secondSourceAccount));
             REQUIRE(doesAccountExist(*app, payAndMergeDestination));

@@ -59,15 +59,22 @@ struct SetOptionsArguments
                                          SetOptionsArguments const& y);
 };
 
-optional<TransactionResult>
-expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
-               std::vector<ExpectedOpResult> ops = {});
+struct ValidationApplyResult
+{
+    TransactionResult validationResult;
+    TransactionResult applyResult;
+};
 
-bool applyCheck(
-    TransactionFramePtr tx, Application& app,
-    optional<TransactionResult> validationResult = nullopt<TransactionResult>(),
-    optional<TransactionResult> applyResult = nullopt<TransactionResult>(),
-    bool checkSeqNum = true);
+optional<ValidationApplyResult>
+expectedResult(int64_t fee, TransactionResultCode validationCode,
+               std::vector<ExpectedOpResult> validationOps,
+               TransactionResultCode applyCode,
+               std::vector<ExpectedOpResult> applyOps);
+
+bool applyCheck(TransactionFramePtr tx, Application& app,
+                optional<ValidationApplyResult> validationApplyResult =
+                    nullopt<ValidationApplyResult>(),
+                bool checkSeqNum = true);
 void applyTx(TransactionFramePtr const& tx, Application& app,
              bool checkSeqNum = true);
 

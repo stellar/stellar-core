@@ -1038,10 +1038,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {setOptions(setMasterWeight(2) | setSigner(makeSigner(b, 0)))});
             b.sign(tx);
 
-            auto result = expectedResult(baseFee * 1, 1, txSUCCESS,
-                                         {SET_OPTIONS_SUCCESS});
-            for_all_versions(*app,
-                             [&] { applyCheck(tx, *app, result, result); });
+            auto result =
+                expectedResult(baseFee, txSUCCESS, {SET_OPTIONS_SUCCESS},
+                               txSUCCESS, {SET_OPTIONS_SUCCESS});
+            for_all_versions(*app, [&] { applyCheck(tx, *app, result); });
         }
 
         SECTION("switch a into regular account 2")
@@ -1054,16 +1054,20 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             setOptions(setMasterWeight(2))});
             b.sign(tx);
 
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
             for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 2, 2, txFAILED,
-                                          {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                auto result =
+                    expectedResult(baseFee * 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS},
+                                   txFAILED, {SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                applyCheck(tx, *app, result);
             });
-            for_versions_from({7, 10}, *app,
-                              [&] { applyCheck(tx, *app, result, result); });
+            for_versions_from({7, 10}, *app, [&] {
+                auto result = expectedResult(
+                    baseFee * 2, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
+            });
         }
 
         SECTION("merge one of signing accounts")
@@ -1077,21 +1081,21 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                                 setSigner(makeSigner(b, 0)))),
                                 a.op(accountMerge(b))});
 
-                auto result = expectedResult(
-                    baseFee * 2, 2, txSUCCESS,
-                    {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}});
                 for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                    applyCheck(
-                        tx, *app, result,
-                        expectedResult(baseFee * 2, 2, txFAILED,
-                                       {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                    auto result = expectedResult(
+                        baseFee * 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}},
+                        txFAILED, {SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                    applyCheck(tx, *app, result);
                 });
                 for_versions_from({7, 10}, *app, [&] {
-                    auto applyResult = expectedResult(
-                        baseFee * 2, 2, txSUCCESS,
+                    auto result = expectedResult(
+                        baseFee * 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}},
+                        txSUCCESS,
                         {SET_OPTIONS_SUCCESS,
                          {ACCOUNT_MERGE_SUCCESS, paymentAmount - 100}});
-                    applyCheck(tx, *app, result, applyResult);
+                    applyCheck(tx, *app, result);
                 });
             }
 
@@ -1102,21 +1106,21 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         accountMerge(b)});
                 b.sign(tx);
 
-                auto result = expectedResult(
-                    baseFee * 2, 2, txSUCCESS,
-                    {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}});
                 for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                    applyCheck(
-                        tx, *app, result,
-                        expectedResult(baseFee * 2, 2, txFAILED,
-                                       {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                    auto result = expectedResult(
+                        baseFee * 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}},
+                        txFAILED, {SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                    applyCheck(tx, *app, result);
                 });
                 for_versions_from({7, 10}, *app, [&] {
-                    auto applyResult = expectedResult(
-                        baseFee * 2, 2, txSUCCESS,
+                    auto result = expectedResult(
+                        baseFee * 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}},
+                        txSUCCESS,
                         {SET_OPTIONS_SUCCESS,
                          {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
-                    applyCheck(tx, *app, result, applyResult);
+                    applyCheck(tx, *app, result);
                 });
             }
 
@@ -1127,26 +1131,33 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 accountMerge(b)});
                 b.sign(tx);
 
-                auto okValidateResult = expectedResult(
-                    baseFee * 2, 2, txSUCCESS,
-                    {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}});
-                auto okApplyResult = expectedResult(
-                    baseFee * 2, 2, txSUCCESS,
-                    {SET_OPTIONS_SUCCESS,
-                     {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
-                auto failedResult =
-                    expectedResult(baseFee * 2, 0, txBAD_AUTH_EXTRA);
                 for_versions_to(6, *app, [&] {
-                    applyCheck(tx, *app, failedResult, okApplyResult);
+                    auto result = expectedResult(
+                        baseFee * 2, txBAD_AUTH_EXTRA, {}, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS,
+                         {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
+                    applyCheck(tx, *app, result);
                 });
                 for_versions({7}, *app, [&] {
-                    applyCheck(tx, *app, okValidateResult, okApplyResult);
+                    auto result = expectedResult(
+                        baseFee * 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}},
+                        txSUCCESS,
+                        {SET_OPTIONS_SUCCESS,
+                         {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
+                    applyCheck(tx, *app, result);
                 });
                 for_versions({8, 9}, *app, [&] {
-                    applyCheck(tx, *app, failedResult, okApplyResult);
+                    auto result = expectedResult(
+                        baseFee * 2, txBAD_AUTH_EXTRA, {}, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS,
+                         {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
+                    applyCheck(tx, *app, result);
                 });
                 for_versions_from(10, *app, [&] {
-                    applyCheck(tx, *app, failedResult, failedResult);
+                    auto result = expectedResult(baseFee * 2, txBAD_AUTH_EXTRA,
+                                                 {}, txBAD_AUTH_EXTRA, {});
+                    applyCheck(tx, *app, result);
                 });
             }
         }
@@ -1155,19 +1166,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             auto tx = a.tx({setOptions(setHighThreshold(3)),
                             setOptions(setHighThreshold(3))});
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
             for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 2, 2, txFAILED,
-                                          {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                auto result =
+                    expectedResult(baseFee * 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS},
+                                   txFAILED, {SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                applyCheck(tx, *app, result);
             });
             for_versions_from({7, 10}, *app, [&] {
-                applyCheck(
-                    tx, *app, result,
-                    expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+                auto result = expectedResult(
+                    baseFee * 2, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
             });
         }
 
@@ -1178,19 +1189,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             auto tx = a.tx({setOptions(setMasterWeight(9)),
                             setOptions(setMasterWeight(8))});
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
             for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 2, 2, txFAILED,
-                                          {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                auto result =
+                    expectedResult(baseFee * 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS},
+                                   txFAILED, {SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                applyCheck(tx, *app, result);
             });
             for_versions_from({7, 10}, *app, [&] {
-                applyCheck(
-                    tx, *app, result,
-                    expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+                auto result = expectedResult(
+                    baseFee * 2, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
             });
         }
 
@@ -1204,19 +1215,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             setOptions(setHomeDomain("stellar.org"))});
             b.sign(tx);
 
-            auto result =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
             for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
-                applyCheck(tx, *app, result,
-                           expectedResult(baseFee * 2, 2, txFAILED,
-                                          {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                auto result =
+                    expectedResult(baseFee * 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS},
+                                   txFAILED, {SET_OPTIONS_SUCCESS, opBAD_AUTH});
+                applyCheck(tx, *app, result);
             });
             for_versions_from({7, 10}, *app, [&] {
-                applyCheck(
-                    tx, *app, result,
-                    expectedResult(baseFee * 2, 2, txSUCCESS,
-                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+                auto result = expectedResult(
+                    baseFee * 2, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
             });
         }
 
@@ -1229,25 +1240,29 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                       setOptions(setHomeDomain("stellar.org"))});
             b.sign(tx);
 
-            auto okValidateResult = expectedResult(
-                baseFee * 2, 2, txSUCCESS,
-                {SET_OPTIONS_SUCCESS, {ACCOUNT_MERGE_SUCCESS, 0}});
-            auto okApplyResult =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
-            auto failedResult =
-                expectedResult(baseFee * 2, 0, txBAD_AUTH_EXTRA);
             for_versions_to(6, *app, [&] {
-                applyCheck(tx, *app, failedResult, okApplyResult);
+                auto result =
+                    expectedResult(baseFee * 2, txBAD_AUTH_EXTRA, {}, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
             });
             for_versions({7}, *app, [&] {
-                applyCheck(tx, *app, okApplyResult, okApplyResult);
+                auto result = expectedResult(
+                    baseFee * 2, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}, txSUCCESS,
+                    {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
             });
             for_versions({8, 9}, *app, [&] {
-                applyCheck(tx, *app, failedResult, okApplyResult);
+                auto result =
+                    expectedResult(baseFee * 2, txBAD_AUTH_EXTRA, {}, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS});
+                applyCheck(tx, *app, result);
             });
             for_versions_from(10, *app, [&] {
-                applyCheck(tx, *app, failedResult, failedResult);
+                auto result = expectedResult(baseFee * 2, txBAD_AUTH_EXTRA, {},
+                                             txBAD_AUTH_EXTRA, {});
+                applyCheck(tx, *app, result);
             });
         }
     }
