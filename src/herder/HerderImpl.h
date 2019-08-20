@@ -59,7 +59,7 @@ class HerderImpl : public Herder
     void emitEnvelope(SCPEnvelope const& envelope);
 
     TransactionQueue::AddResult
-    recvTransaction(TransactionFramePtr tx) override;
+    recvTransaction(TransactionFrameBasePtr tx) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,

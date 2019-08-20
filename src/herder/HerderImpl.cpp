@@ -286,7 +286,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFramePtr tx)
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 {
     auto result = mTransactionQueue.tryAdd(tx);
     if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)

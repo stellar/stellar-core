@@ -542,9 +542,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         decoder::decode_b64(blob, binBlob);
 
         xdr::xdr_from_opaque(binBlob, envelope);
-        TransactionFramePtr transaction =
-            TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(),
-                                                      envelope);
+        auto transaction = TransactionFrameBase::makeTransactionFromWire(
+            mApp.getNetworkID(), envelope);
         if (transaction)
         {
             // add it to our current set

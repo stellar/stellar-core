@@ -40,7 +40,8 @@ TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
     for (auto const& txEnvelope : xdrSet.txs)
     {
         mTransactions.emplace_back(
-            TransactionFrame::makeTransactionFromWire(networkID, txEnvelope));
+            TransactionFrameBase::makeTransactionFromWire(networkID,
+                                                          txEnvelope));
     }
     mPreviousLedgerHash = xdrSet.previousLedgerHash;
 }

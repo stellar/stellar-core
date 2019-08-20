@@ -54,6 +54,10 @@ class TransactionFrameBase
     virtual void
     insertLedgerKeysToPrefetch(std::unordered_set<LedgerKey>& keys) const = 0;
 
+    static TransactionFrameBasePtr
+    makeTransactionFromWire(Hash const& networkID,
+                            TransactionEnvelope const& env);
+
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
 
     // transaction history

@@ -31,13 +31,20 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
+static TransactionFramePtr
+makeTransactionFrame(Hash const& networkID, TransactionEnvelope const& env)
+{
+    assert(env.type() == ENVELOPE_TYPE_TX_V0);
+    auto res = TransactionFrameBase::makeTransactionFromWire(networkID, env);
+    return std::static_pointer_cast<TransactionFrame>(res);
+}
+
 /*
   Tests that are testing the common envelope used in transactions.
   Things like:
     authz/authn
     double spend
 */
-
 TEST_CASE("txenvelope", "[tx][envelope]")
 {
     Config cfg = getTestConfig();
@@ -863,9 +870,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 te.v0().tx.sourceAccountEd25519 = root.getPublicKey().ed25519();
                 te.v0().tx.fee = 1000;
                 te.v0().tx.seqNum = root.nextSequenceNumber();
-                TransactionFramePtr tx =
-                    TransactionFrame::makeTransactionFromWire(
-                        app->getNetworkID(), te);
+                auto tx = makeTransactionFrame(app->getNetworkID(), te);
                 tx->addSignature(root);
 
                 {
@@ -953,9 +958,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx_a->getEnvelope().v0().tx.operations.push_back(
                             tx_b->getEnvelope().v0().tx.operations[0]);
                         tx_a->getEnvelope().v0().tx.fee *= 2;
-                        TransactionFramePtr tx =
-                            TransactionFrame::makeTransactionFromWire(
-                                app->getNetworkID(), tx_a->getEnvelope());
+                        auto tx = makeTransactionFrame(app->getNetworkID(),
+                                                       tx_a->getEnvelope());
 
                         tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(a1);
@@ -991,9 +995,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx_a->getEnvelope().v0().tx.operations.push_back(
                             tx_b->getEnvelope().v0().tx.operations[0]);
                         tx_a->getEnvelope().v0().tx.fee *= 2;
-                        TransactionFramePtr tx =
-                            TransactionFrame::makeTransactionFromWire(
-                                app->getNetworkID(), tx_a->getEnvelope());
+                        auto tx = makeTransactionFrame(app->getNetworkID(),
+                                                       tx_a->getEnvelope());
 
                         tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(a1);
@@ -1028,9 +1031,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx_a->getEnvelope().v0().tx.operations.push_back(
                             tx_b->getEnvelope().v0().tx.operations[0]);
                         tx_a->getEnvelope().v0().tx.fee *= 2;
-                        TransactionFramePtr tx =
-                            TransactionFrame::makeTransactionFromWire(
-                                app->getNetworkID(), tx_a->getEnvelope());
+                        auto tx = makeTransactionFrame(app->getNetworkID(),
+                                                       tx_a->getEnvelope());
 
                         tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(a1);
@@ -1093,9 +1095,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
             app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
-        TransactionFramePtr txFrame;
-
-        txFrame = root.tx({createAccount(a1, paymentAmount)});
+        auto txFrame = root.tx({createAccount(a1, paymentAmount)});
         txSet->add(txFrame);
 
         // close this ledger

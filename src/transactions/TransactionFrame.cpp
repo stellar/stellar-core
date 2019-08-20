@@ -39,15 +39,6 @@ namespace stellar
 
 using namespace std;
 
-TransactionFramePtr
-TransactionFrame::makeTransactionFromWire(Hash const& networkID,
-                                          TransactionEnvelope const& msg)
-{
-    TransactionFramePtr res =
-        make_shared<TransactionFrame>(networkID, msg, true);
-    return res;
-}
-
 static Transaction
 convertToTransaction(TransactionV0 const& tx)
 {
