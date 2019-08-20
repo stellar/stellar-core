@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/TransactionFrameBase.h"
+#include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/TransactionFrame.h"
 
 namespace stellar
@@ -23,6 +24,8 @@ TransactionFrameBase::makeTransactionFromWire(Hash const& networkID,
     {
     case ENVELOPE_TYPE_TX_V0:
         return std::make_shared<TransactionFrame>(networkID, env, true);
+    case ENVELOPE_TYPE_FEE_BUMP:
+        return std::make_shared<FeeBumpTransactionFrame>(networkID, env);
     default:
         throw std::runtime_error("Unexpected envelope type");
     }
