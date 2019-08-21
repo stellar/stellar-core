@@ -122,7 +122,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
-    mHerderPersistence = HerderPersistence::create(*this);
+    mHerderPersistence = createHerderPersistence();
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
@@ -818,6 +818,12 @@ std::unique_ptr<Herder>
 ApplicationImpl::createHerder()
 {
     return Herder::create(*this);
+}
+
+std::unique_ptr<HerderPersistence>
+ApplicationImpl::createHerderPersistence()
+{
+    return HerderPersistence::create(*this);
 }
 
 std::unique_ptr<InvariantManager>
