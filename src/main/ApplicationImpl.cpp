@@ -131,7 +131,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mMaintainer = std::make_unique<Maintainer>(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkScheduler = WorkScheduler::create(*this);
-    mBanManager = BanManager::create(*this);
+    mBanManager = createBanManager();
     mStatusManager = std::make_unique<StatusManager>();
     mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
         *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.BEST_OFFERS_CACHE_SIZE,
@@ -842,6 +842,12 @@ std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
+}
+
+std::unique_ptr<BanManager>
+ApplicationImpl::createBanManager()
+{
+    return BanManager::create(*this);
 }
 
 std::unique_ptr<PersistentState>
