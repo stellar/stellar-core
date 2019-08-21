@@ -125,7 +125,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mHerderPersistence = createHerderPersistence();
     mBucketManager = createBucketManager();
     mCatchupManager = createCatchupManager();
-    mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
+    mHistoryArchiveManager = createHistoryArchiveManager();
     mHistoryManager = createHistoryManager();
     mInvariantManager = createInvariantManager();
     mMaintainer = std::make_unique<Maintainer>(*this);
@@ -878,6 +878,12 @@ std::unique_ptr<LedgerManager>
 ApplicationImpl::createLedgerManager()
 {
     return LedgerManager::create(*this);
+}
+
+std::unique_ptr<HistoryArchiveManager>
+ApplicationImpl::createHistoryArchiveManager()
+{
+    return std::make_unique<HistoryArchiveManager>(*this);
 }
 
 std::unique_ptr<HistoryManager>
