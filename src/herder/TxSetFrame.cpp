@@ -215,6 +215,10 @@ TxSetFrame::buildAccountTxQueues()
 void
 TxSetFrame::surgePricingFilter(Application& app)
 {
+    if (mTransactions.empty())
+    {
+        return;
+    }
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
 
@@ -286,6 +290,11 @@ TxSetFrame::checkOrTrim(
     std::function<bool(std::deque<TransactionFramePtr> const&)>
         processInsufficientBalance)
 {
+    if (mTransactions.empty())
+    {
+        return true;
+    }
+
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
     auto accountTxMap = buildAccountTxQueues();
