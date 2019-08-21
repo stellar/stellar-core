@@ -29,6 +29,7 @@
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
+#include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -117,7 +118,7 @@ void
 ApplicationImpl::initialize(InitialDBMode initDBMode)
 {
     mDatabase = createDatabase();
-    mPersistentState = std::make_unique<PersistentState>(*this);
+    mPersistentState = createPersistentState();
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
@@ -829,6 +830,12 @@ std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
+}
+
+std::unique_ptr<PersistentState>
+ApplicationImpl::createPersistentState()
+{
+    return PersistentState::create(*this);
 }
 
 std::unique_ptr<LedgerManager>

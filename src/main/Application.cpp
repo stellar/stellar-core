@@ -4,6 +4,7 @@
 
 #include "Application.h"
 #include "ApplicationImpl.h"
+#include "main/PersistentState.h"
 #include "util/format.h"
 
 namespace stellar

@@ -2,30 +2,38 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "PersistentState.h"
+#include "main/PersistentStateImpl.h"
 
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "util/Logging.h"
 
+namespace
+{
+std::string kMapping[stellar::PersistentState::kLastEntry] = {
+    "lastclosedledger", "historyarchivestate", "forcescponnextlaunch",
+    "lastscpdata",      "databaseschema",      "networkpassphrase",
+    "ledgerupgrades"};
+
+std::string kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS storestate ("
+                                  "statename   CHARACTER(32) PRIMARY KEY,"
+                                  "state       TEXT"
+                                  "); ";
+}
+
 namespace stellar
 {
 
 using namespace std;
 
-std::string PersistentState::mapping[kLastEntry] = {
-    "lastclosedledger", "historyarchivestate", "forcescponnextlaunch",
-    "lastscpdata",      "databaseschema",      "networkpassphrase",
-    "ledgerupgrades"};
+std::unique_ptr<PersistentState>
+PersistentState::create(Application& app)
+{
+    return std::make_unique<PersistentStateImpl>(app);
+}
 
-std::string PersistentState::kSQLCreateStatement =
-    "CREATE TABLE IF NOT EXISTS storestate ("
-    "statename   CHARACTER(32) PRIMARY KEY,"
-    "state       TEXT"
-    "); ";
-
-PersistentState::PersistentState(Application& app) : mApp(app)
+PersistentStateImpl::PersistentStateImpl(Application& app) : mApp(app)
 {
 }
 
@@ -39,13 +47,14 @@ PersistentState::dropAll(Database& db)
 }
 
 std::string
-PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
+PersistentStateImpl::getStoreStateName(PersistentState::Entry n,
+                                       uint32 subscript)
 {
     if (n < 0 || n >= kLastEntry)
     {
         throw out_of_range("unknown entry");
     }
-    auto res = mapping[n];
+    auto res = kMapping[n];
     if (n == kLastSCPData && subscript > 0)
     {
         res += std::to_string(subscript);
@@ -54,20 +63,20 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
 }
 
 std::string
-PersistentState::getState(PersistentState::Entry entry)
+PersistentStateImpl::getState(PersistentState::Entry entry)
 {
     return getFromDb(getStoreStateName(entry));
 }
 
 void
-PersistentState::setState(PersistentState::Entry entry,
-                          std::string const& value)
+PersistentStateImpl::setState(PersistentState::Entry entry,
+                              std::string const& value)
 {
     updateDb(getStoreStateName(entry), value);
 }
 
 std::vector<std::string>
-PersistentState::getSCPStateAllSlots()
+PersistentStateImpl::getSCPStateAllSlots()
 {
     // Collect all slots persisted
     std::vector<std::string> states;
@@ -84,7 +93,7 @@ PersistentState::getSCPStateAllSlots()
 }
 
 void
-PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
+PersistentStateImpl::setSCPStateForSlot(uint64 slot, std::string const& value)
 {
     auto slotIdx =
         static_cast<uint32>(slot % (Herder::MAX_SLOTS_TO_REMEMBER + 1));
@@ -92,7 +101,8 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 }
 
 void
-PersistentState::updateDb(std::string const& entry, std::string const& value)
+PersistentStateImpl::updateDb(std::string const& entry,
+                              std::string const& value)
 {
     auto prep = mApp.getDatabase().getPreparedStatement(
         "UPDATE storestate SET state = :v WHERE statename = :n;");
@@ -124,7 +134,7 @@ PersistentState::updateDb(std::string const& entry, std::string const& value)
 }
 
 std::string
-PersistentState::getFromDb(std::string const& entry)
+PersistentStateImpl::getFromDb(std::string const& entry)
 {
     std::string res;
 

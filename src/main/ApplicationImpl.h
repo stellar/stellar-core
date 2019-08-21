@@ -6,7 +6,6 @@
 
 #include "Application.h"
 #include "main/Config.h"
-#include "main/PersistentState.h"
 #include "medida/timer_context.h"
 #include "util/MetricResetter.h"
 #include "util/Timer.h"
@@ -31,6 +30,7 @@ class CommandHandler;
 class Database;
 class LedgerTxnRoot;
 class LoadGenerator;
+class PersistentState;
 
 class ApplicationImpl : public Application
 {
@@ -189,5 +189,6 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<InvariantManager> createInvariantManager();
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
     virtual std::unique_ptr<LedgerManager> createLedgerManager();
+    virtual std::unique_ptr<PersistentState> createPersistentState();
 };
 }
