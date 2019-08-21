@@ -151,13 +151,13 @@ class HerderImpl : public Herder
     VirtualClock::time_point mLastExternalize;
 
     // saves the SCP messages that the instance sent out last
-    void persistSCPState(uint64 slot);
+    virtual void persistSCPState(uint64 slot);
     // restores SCP state based on the last messages saved on disk
-    void restoreSCPState();
+    virtual void restoreSCPState();
 
     // saves upgrade parameters
-    void persistUpgrades();
-    void restoreUpgrades();
+    virtual void persistUpgrades();
+    virtual void restoreUpgrades();
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into
