@@ -126,7 +126,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mBucketManager = createBucketManager();
     mCatchupManager = CatchupManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
-    mHistoryManager = HistoryManager::create(*this);
+    mHistoryManager = createHistoryManager();
     mInvariantManager = createInvariantManager();
     mMaintainer = std::make_unique<Maintainer>(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
@@ -860,6 +860,12 @@ std::unique_ptr<LedgerManager>
 ApplicationImpl::createLedgerManager()
 {
     return LedgerManager::create(*this);
+}
+
+std::unique_ptr<HistoryManager>
+ApplicationImpl::createHistoryManager()
+{
+    return HistoryManager::create(*this);
 }
 
 LedgerTxnRoot&

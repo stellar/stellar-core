@@ -192,6 +192,7 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<BanManager> createBanManager();
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
     virtual std::unique_ptr<LedgerManager> createLedgerManager();
+    virtual std::unique_ptr<HistoryManager> createHistoryManager();
     virtual std::unique_ptr<PersistentState> createPersistentState();
 };
 }
