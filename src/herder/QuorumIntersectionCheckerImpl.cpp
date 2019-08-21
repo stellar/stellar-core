@@ -901,7 +901,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         {
             groupQSet.validators.emplace_back(k);
         }
-        groupQSet.threshold = group.size();
+        groupQSet.threshold = static_cast<uint32>(group.size());
 
         std::set<PublicKey> pointsToGroup;
         for (PublicKey const& candidate : group)

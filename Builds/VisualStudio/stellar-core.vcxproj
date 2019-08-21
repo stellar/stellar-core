@@ -329,7 +329,6 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\PutHistoryArchiveStateWork.cpp" />
     <ClCompile Include="..\..\src\historywork\PutRemoteFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\PutSnapshotFilesWork.cpp" />
-    <ClCompile Include="..\..\src\historywork\RepairMissingBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\ResolveSnapshotWork.cpp" />
     <ClCompile Include="..\..\src\historywork\RunCommandWork.cpp" />
     <ClCompile Include="..\..\src\historywork\VerifyBucketWork.cpp" />
@@ -636,7 +635,6 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\PutHistoryArchiveStateWork.h" />
     <ClInclude Include="..\..\src\historywork\PutRemoteFileWork.h" />
     <ClInclude Include="..\..\src\historywork\PutSnapshotFilesWork.h" />
-    <ClInclude Include="..\..\src\historywork\RepairMissingBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\ResolveSnapshotWork.h" />
     <ClInclude Include="..\..\src\historywork\RunCommandWork.h" />
     <ClInclude Include="..\..\src\historywork\VerifyBucketWork.h" />
