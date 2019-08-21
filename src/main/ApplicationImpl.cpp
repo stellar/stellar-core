@@ -133,9 +133,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mWorkScheduler = createWorkScheduler();
     mBanManager = createBanManager();
     mStatusManager = std::make_unique<StatusManager>();
-    mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-        *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.BEST_OFFERS_CACHE_SIZE,
-        mConfig.PREFETCH_BATCH_SIZE);
+    mLedgerTxnRoot = createLedgerTxnRoot();
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -869,6 +867,14 @@ std::unique_ptr<BanManager>
 ApplicationImpl::createBanManager()
 {
     return BanManager::create(*this);
+}
+
+std::unique_ptr<LedgerTxnRoot>
+ApplicationImpl::createLedgerTxnRoot()
+{
+    return std::make_unique<LedgerTxnRoot>(*mDatabase, mConfig.ENTRY_CACHE_SIZE,
+                                           mConfig.BEST_OFFERS_CACHE_SIZE,
+                                           mConfig.PREFETCH_BATCH_SIZE);
 }
 
 std::shared_ptr<WorkScheduler>
