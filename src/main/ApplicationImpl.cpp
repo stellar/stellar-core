@@ -624,15 +624,24 @@ ApplicationImpl::syncOwnMetrics()
         .Mark(vhit + vmiss);
 
     // Similarly, flush global process-table stats.
-    mMetrics->NewCounter({"process", "memory", "handles"})
-        .set_count(mProcessManager->getNumRunningProcesses());
+    if (mProcessManager)
+    {
+        mMetrics->NewCounter({"process", "memory", "handles"})
+            .set_count(mProcessManager->getNumRunningProcesses());
+    }
 }
 
 void
 ApplicationImpl::syncAllMetrics()
 {
-    mHerder->syncMetrics();
-    mLedgerManager->syncMetrics();
+    if (mHerder)
+    {
+        mHerder->syncMetrics();
+    }
+    if (mLedgerManager)
+    {
+        mLedgerManager->syncMetrics();
+    }
     syncOwnMetrics();
 }
 
