@@ -123,7 +123,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mLedgerManager = createLedgerManager();
     mHerder = createHerder();
     mHerderPersistence = createHerderPersistence();
-    mBucketManager = BucketManager::create(*this);
+    mBucketManager = createBucketManager();
     mCatchupManager = CatchupManager::create(*this);
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
@@ -806,6 +806,12 @@ ApplicationImpl::enableInvariantsFromConfig()
     {
         mInvariantManager->enableInvariant(name);
     }
+}
+
+std::unique_ptr<BucketManager>
+ApplicationImpl::createBucketManager()
+{
+    return BucketManager::create(*this);
 }
 
 std::unique_ptr<Database>
