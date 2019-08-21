@@ -130,7 +130,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mInvariantManager = createInvariantManager();
     mMaintainer = std::make_unique<Maintainer>(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
-    mWorkScheduler = WorkScheduler::create(*this);
+    mWorkScheduler = createWorkScheduler();
     mBanManager = createBanManager();
     mStatusManager = std::make_unique<StatusManager>();
     mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
@@ -848,6 +848,12 @@ std::unique_ptr<BanManager>
 ApplicationImpl::createBanManager()
 {
     return BanManager::create(*this);
+}
+
+std::shared_ptr<WorkScheduler>
+ApplicationImpl::createWorkScheduler()
+{
+    return WorkScheduler::create(*this);
 }
 
 std::unique_ptr<PersistentState>

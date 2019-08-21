@@ -193,6 +193,7 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
     virtual std::unique_ptr<LedgerManager> createLedgerManager();
     virtual std::unique_ptr<HistoryManager> createHistoryManager();
+    virtual std::shared_ptr<WorkScheduler> createWorkScheduler();
     virtual std::unique_ptr<PersistentState> createPersistentState();
 };
 }
