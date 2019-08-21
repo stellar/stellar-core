@@ -293,4 +293,15 @@ ApplyCheckpointWork::onRun()
         return State::WORK_FAILURE;
     }
 }
+
+void
+ApplyCheckpointWork::onSuccess()
+{
+    if (mFilesOpen)
+    {
+        mHdrIn.close();
+        mTxIn.close();
+        mFilesOpen = false;
+    }
+}
 }
