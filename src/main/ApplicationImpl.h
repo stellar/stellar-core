@@ -191,6 +191,7 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<HerderPersistence> createHerderPersistence();
     virtual std::unique_ptr<InvariantManager> createInvariantManager();
     virtual std::unique_ptr<Maintainer> createMaintainer();
+    virtual std::unique_ptr<CommandHandler> createCommandHandler();
     virtual std::unique_ptr<BanManager> createBanManager();
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
     virtual std::unique_ptr<LedgerManager> createLedgerManager();

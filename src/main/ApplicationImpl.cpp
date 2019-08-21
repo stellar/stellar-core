@@ -129,7 +129,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mHistoryManager = createHistoryManager();
     mInvariantManager = createInvariantManager();
     mMaintainer = createMaintainer();
-    mCommandHandler = std::make_unique<CommandHandler>(*this);
+    mCommandHandler = createCommandHandler();
     mWorkScheduler = createWorkScheduler();
     mBanManager = createBanManager();
     mStatusManager = std::make_unique<StatusManager>();
@@ -852,6 +852,13 @@ ApplicationImpl::createMaintainer()
 {
     return std::make_unique<Maintainer>(*this);
 }
+
+std::unique_ptr<CommandHandler>
+ApplicationImpl::createCommandHandler()
+{
+    return std::make_unique<CommandHandler>(*this);
+}
+
 std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
