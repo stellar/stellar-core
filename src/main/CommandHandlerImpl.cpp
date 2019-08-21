@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/CommandHandler.h"
+#include "main/CommandHandlerImpl.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -13,6 +13,7 @@
 #include "lib/json/json.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "main/Maintainer.h"
 #include "overlay/BanManager.h"
@@ -40,7 +41,14 @@ using std::placeholders::_2;
 
 namespace stellar
 {
-CommandHandler::CommandHandler(Application& app) : mApp(app)
+
+std::unique_ptr<CommandHandler>
+CommandHandler::create(Application& app)
+{
+    return std::make_unique<CommandHandlerImpl>(app);
+}
+
+CommandHandlerImpl::CommandHandlerImpl(Application& app) : mApp(app)
 {
     if (mApp.getConfig().HTTP_PORT)
     {
@@ -68,45 +76,49 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
             app.getClock().getIOContext());
     }
 
-    mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
+    mServer->add404(std::bind(&CommandHandlerImpl::fileNotFound, this, _1, _2));
+}
 
-    addRoute("bans", &CommandHandler::bans);
-    addRoute("clearmetrics", &CommandHandler::clearMetrics);
-    addRoute("connect", &CommandHandler::connect);
-    addRoute("dropcursor", &CommandHandler::dropcursor);
-    addRoute("droppeer", &CommandHandler::dropPeer);
-    addRoute("getcursor", &CommandHandler::getcursor);
-    addRoute("info", &CommandHandler::info);
-    addRoute("ll", &CommandHandler::ll);
-    addRoute("logrotate", &CommandHandler::logRotate);
-    addRoute("maintenance", &CommandHandler::maintenance);
-    addRoute("manualclose", &CommandHandler::manualClose);
-    addRoute("metrics", &CommandHandler::metrics);
-    addRoute("peers", &CommandHandler::peers);
-    addRoute("quorum", &CommandHandler::quorum);
-    addRoute("setcursor", &CommandHandler::setcursor);
-    addRoute("scp", &CommandHandler::scpInfo);
-    addRoute("tx", &CommandHandler::tx);
-    addRoute("unban", &CommandHandler::unban);
-    addRoute("upgrades", &CommandHandler::upgrades);
+void
+CommandHandlerImpl::addRoutes()
+{
+    addRoute("bans", &CommandHandlerImpl::bans);
+    addRoute("clearmetrics", &CommandHandlerImpl::clearMetrics);
+    addRoute("connect", &CommandHandlerImpl::connect);
+    addRoute("dropcursor", &CommandHandlerImpl::dropcursor);
+    addRoute("droppeer", &CommandHandlerImpl::dropPeer);
+    addRoute("getcursor", &CommandHandlerImpl::getcursor);
+    addRoute("info", &CommandHandlerImpl::info);
+    addRoute("ll", &CommandHandlerImpl::ll);
+    addRoute("logrotate", &CommandHandlerImpl::logRotate);
+    addRoute("maintenance", &CommandHandlerImpl::maintenance);
+    addRoute("manualclose", &CommandHandlerImpl::manualClose);
+    addRoute("metrics", &CommandHandlerImpl::metrics);
+    addRoute("peers", &CommandHandlerImpl::peers);
+    addRoute("quorum", &CommandHandlerImpl::quorum);
+    addRoute("setcursor", &CommandHandlerImpl::setcursor);
+    addRoute("scp", &CommandHandlerImpl::scpInfo);
+    addRoute("tx", &CommandHandlerImpl::tx);
+    addRoute("unban", &CommandHandlerImpl::unban);
+    addRoute("upgrades", &CommandHandlerImpl::upgrades);
 
 #ifdef BUILD_TESTS
-    addRoute("generateload", &CommandHandler::generateLoad);
-    addRoute("testacc", &CommandHandler::testAcc);
-    addRoute("testtx", &CommandHandler::testTx);
+    addRoute("generateload", &CommandHandlerImpl::generateLoad);
+    addRoute("testacc", &CommandHandlerImpl::testAcc);
+    addRoute("testtx", &CommandHandlerImpl::testTx);
 #endif
 }
 
 void
-CommandHandler::addRoute(std::string const& name, HandlerRoute route)
+CommandHandlerImpl::addRoute(std::string const& name, HandlerRoute route)
 {
     mServer->addRoute(
-        name, std::bind(&CommandHandler::safeRouter, this, route, _1, _2));
+        name, std::bind(&CommandHandlerImpl::safeRouter, this, route, _1, _2));
 }
 
 void
-CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
-                           std::string const& params, std::string& retStr)
+CommandHandlerImpl::safeRouter(CommandHandlerImpl::HandlerRoute route,
+                               std::string const& params, std::string& retStr)
 {
     try
     {
@@ -125,7 +137,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
 }
 
 void
-CommandHandler::manualCmd(std::string const& cmd)
+CommandHandlerImpl::manualCmd(std::string const& cmd)
 {
     http::server::reply reply;
     http::server::request request;
@@ -135,7 +147,7 @@ CommandHandler::manualCmd(std::string const& cmd)
 }
 
 void
-CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
+CommandHandlerImpl::fileNotFound(std::string const& params, std::string& retStr)
 {
     retStr = "<b>Welcome to stellar-core!</b><p>";
     retStr +=
@@ -147,7 +159,7 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::manualClose(std::string const& params, std::string& retStr)
+CommandHandlerImpl::manualClose(std::string const& params, std::string& retStr)
 {
     if (mApp.manualClose())
     {
@@ -201,7 +213,7 @@ parseParam(std::map<std::string, std::string> const& map,
 }
 
 void
-CommandHandler::peers(std::string const& params, std::string& retStr)
+CommandHandlerImpl::peers(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -249,13 +261,13 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::info(std::string const&, std::string& retStr)
+CommandHandlerImpl::info(std::string const&, std::string& retStr)
 {
     retStr = mApp.getJsonInfo().toStyledString();
 }
 
 void
-CommandHandler::metrics(std::string const& params, std::string& retStr)
+CommandHandlerImpl::metrics(std::string const& params, std::string& retStr)
 {
     mApp.syncAllMetrics();
     medida::reporting::JsonReporter jr(mApp.getMetrics());
@@ -263,7 +275,7 @@ CommandHandler::metrics(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::logRotate(std::string const& params, std::string& retStr)
+CommandHandlerImpl::logRotate(std::string const& params, std::string& retStr)
 {
     retStr = "Log rotate...";
 
@@ -271,7 +283,7 @@ CommandHandler::logRotate(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::connect(std::string const& params, std::string& retStr)
+CommandHandlerImpl::connect(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -294,7 +306,7 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::dropPeer(std::string const& params, std::string& retStr)
+CommandHandlerImpl::dropPeer(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -341,7 +353,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::bans(std::string const& params, std::string& retStr)
+CommandHandlerImpl::bans(std::string const& params, std::string& retStr)
 {
     Json::Value root;
 
@@ -358,7 +370,7 @@ CommandHandler::bans(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::unban(std::string const& params, std::string& retStr)
+CommandHandlerImpl::unban(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -387,7 +399,7 @@ CommandHandler::unban(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::upgrades(std::string const& params, std::string& retStr)
+CommandHandlerImpl::upgrades(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -444,7 +456,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::quorum(std::string const& params, std::string& retStr)
+CommandHandlerImpl::quorum(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -480,7 +492,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::scpInfo(std::string const& params, std::string& retStr)
+CommandHandlerImpl::scpInfo(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
@@ -493,7 +505,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 
 // "Must specify a log level: ll?level=<level>&partition=<name>";
 void
-CommandHandler::ll(std::string const& params, std::string& retStr)
+CommandHandlerImpl::ll(std::string const& params, std::string& retStr)
 {
     Json::Value root;
 
@@ -529,7 +541,7 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::tx(std::string const& params, std::string& retStr)
+CommandHandlerImpl::tx(std::string const& params, std::string& retStr)
 {
     std::ostringstream output;
 
@@ -587,7 +599,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::dropcursor(std::string const& params, std::string& retStr)
+CommandHandlerImpl::dropcursor(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -606,7 +618,7 @@ CommandHandler::dropcursor(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::setcursor(std::string const& params, std::string& retStr)
+CommandHandlerImpl::setcursor(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -627,7 +639,7 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::getcursor(std::string const& params, std::string& retStr)
+CommandHandlerImpl::getcursor(std::string const& params, std::string& retStr)
 {
     Json::Value root;
     std::map<std::string, std::string> map;
@@ -655,7 +667,7 @@ CommandHandler::getcursor(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::maintenance(std::string const& params, std::string& retStr)
+CommandHandlerImpl::maintenance(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -674,7 +686,7 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
+CommandHandlerImpl::clearMetrics(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -689,7 +701,7 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 
 #ifdef BUILD_TESTS
 void
-CommandHandler::generateLoad(std::string const& params, std::string& retStr)
+CommandHandlerImpl::generateLoad(std::string const& params, std::string& retStr)
 {
     if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
@@ -746,7 +758,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::testAcc(std::string const& params, std::string& retStr)
+CommandHandlerImpl::testAcc(std::string const& params, std::string& retStr)
 {
     using namespace txtest;
 
@@ -786,7 +798,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::testTx(std::string const& params, std::string& retStr)
+CommandHandlerImpl::testTx(std::string const& params, std::string& retStr)
 {
     using namespace txtest;
 

@@ -863,7 +863,9 @@ ApplicationImpl::createMaintainer()
 std::unique_ptr<CommandHandler>
 ApplicationImpl::createCommandHandler()
 {
-    return std::make_unique<CommandHandler>(*this);
+    auto cmd = CommandHandler::create(*this);
+    cmd->addRoutes();
+    return cmd;
 }
 
 std::unique_ptr<OverlayManager>
