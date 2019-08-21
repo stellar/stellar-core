@@ -30,11 +30,11 @@ struct LedgerHeaderHistoryEntry;
  * check if ledger hashes are matching.
  *
  * In each run it skips or applies transactions from one ledger. Skipping occurs
- * when ledger to by applied is older than LCL from local ledger. At LCL
- * boundary checks are made
- * to confirm that ledgers from files are knot up with LCL. If everything is OK,
- * an apply ledger operation is performed. Then another check is made - if new
- * local ledger matches corresponding ledger from file.
+ * when ledger to be applied is older than LCL from local ledger. At LCL
+ * boundary checks are made to confirm that ledgers from files knit up with
+ * LCL. If everything is OK, an apply ledger operation is performed. Then
+ * another check is made - if new local ledger matches corresponding ledger from
+ * file.
  *
  * Contructor of this class takes some important parameters:
  * * downloadDir - directory containing ledger and transaction files
