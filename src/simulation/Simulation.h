@@ -44,9 +44,10 @@ class Simulation
     // updates all clocks in the simulation to the same time_point
     void setCurrentVirtualTime(VirtualClock::time_point t);
 
-    Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                                 Config const* cfg = nullptr,
-                                 bool newDB = true);
+    Application::pointer
+    addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg = nullptr,
+            Application::InitialDBMode initDBMode =
+                Application::InitialDBMode::APP_DB_CREATE_NEW);
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();

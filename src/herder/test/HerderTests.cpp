@@ -1285,8 +1285,10 @@ TEST_CASE("SCP State", "[herder][acceptance]")
         // forwarded to node 2 when they connect to it
         // causing node 2 to externalize ledger #6
 
-        sim->addNode(nodeKeys[0], qSetAll, &nodeCfgs[0], false);
-        sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1], false);
+        sim->addNode(nodeKeys[0], qSetAll, &nodeCfgs[0],
+                     Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
+        sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1],
+                     Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         sim->getNode(nodeIDs[0])->start();
         sim->getNode(nodeIDs[1])->start();
 

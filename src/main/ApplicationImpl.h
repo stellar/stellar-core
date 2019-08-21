@@ -38,7 +38,7 @@ class ApplicationImpl : public Application
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual void initialize(bool newDB) override;
+    virtual void initialize(InitialDBMode initDBMode) override;
 
     virtual uint64_t timeNow() override;
 

@@ -48,7 +48,8 @@ runWithConfig(Config cfg)
     Application::pointer app;
     try
     {
-        app = Application::create(clock, cfg, false);
+        app = Application::create(
+            clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
 
         if (!app->getHistoryArchiveManager().checkSensibleConfig())
         {
@@ -140,7 +141,8 @@ setForceSCPFlag(Config cfg, bool set)
 {
     VirtualClock clock;
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Application::pointer app = Application::create(
+        clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
 
     app->getPersistentState().setState(PersistentState::kForceSCPOnNextLaunch,
                                        (set ? "true" : "false"));
@@ -183,7 +185,8 @@ showOfflineInfo(Config cfg)
     // needs real time to display proper stats
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Application::pointer app = Application::create(
+        clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
     app->reportInfo();
 }
 
@@ -193,7 +196,8 @@ loadXdr(Config cfg, std::string const& bucketFile)
 {
     VirtualClock clock;
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Application::pointer app = Application::create(
+        clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
 
     uint256 zero;
     Bucket bucket(bucketFile, zero);
@@ -205,7 +209,8 @@ rebuildLedgerFromBuckets(Config cfg)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Application::pointer app = Application::create(
+        clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
 
     auto& ps = app->getPersistentState();
     auto lcl = ps.getState(PersistentState::kLastClosedLedger);
@@ -264,7 +269,8 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Application::pointer app = Application::create(
+        clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
 
     auto& wm = app->getWorkScheduler();
     auto getHistoryArchiveStateWork =
@@ -318,7 +324,8 @@ initializeHistories(Config cfg, std::vector<std::string> const& newHistories)
 {
     VirtualClock clock;
     cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
+    Application::pointer app = Application::create(
+        clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
 
     for (auto const& arch : newHistories)
     {

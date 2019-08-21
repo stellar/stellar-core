@@ -68,11 +68,13 @@ template <typename T = TestApplication,
           typename = typename std::enable_if<
               std::is_base_of<TestApplication, T>::value>::type>
 std::shared_ptr<T>
-createTestApplication(VirtualClock& clock, Config const& cfg, bool newDB = true)
+createTestApplication(VirtualClock& clock, Config const& cfg,
+                      Application::InitialDBMode initDBMode =
+                          Application::InitialDBMode::APP_DB_CREATE_NEW)
 {
     Config c2(cfg);
     c2.adjust();
-    auto app = Application::create<T>(clock, c2, newDB);
+    auto app = Application::create<T>(clock, c2, initDBMode);
     return app;
 }
 

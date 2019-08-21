@@ -157,9 +157,16 @@ class Application
         APP_NUM_STATE
     };
 
+    enum InitialDBMode
+    {
+        APP_DB_CREATE_NEW,
+        APP_DB_UPGRADE_EXISTING,
+        APP_DB_DONT_OPEN,
+    };
+
     virtual ~Application(){};
 
-    virtual void initialize(bool createNewDB) = 0;
+    virtual void initialize(InitialDBMode initDBMode) = 0;
 
     // Return the time in seconds since the POSIX epoch, according to the
     // VirtualClock this Application is bound to. Convenience method.
@@ -278,15 +285,20 @@ class Application
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`.
-    static pointer create(VirtualClock& clock, Config const& cfg,
-                          bool newDB = true);
+    static pointer
+    create(VirtualClock& clock, Config const& cfg,
+           InitialDBMode initDBMode = InitialDBMode::APP_DB_CREATE_NEW);
     template <typename T>
     static std::shared_ptr<T>
-    create(VirtualClock& clock, Config const& cfg, bool newDB = true)
+    create(VirtualClock& clock, Config const& cfg,
+           InitialDBMode initDBMode = InitialDBMode::APP_DB_CREATE_NEW)
     {
         auto ret = std::make_shared<T>(clock, cfg);
-        ret->initialize(newDB);
-        validateNetworkPassphrase(ret);
+        ret->initialize(initDBMode);
+        if (initDBMode != InitialDBMode::APP_DB_DONT_OPEN)
+        {
+            validateNetworkPassphrase(ret);
+        }
 
         return ret;
     }

@@ -158,7 +158,9 @@ TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
                 clock.reset();
 
                 clock = std::make_shared<VirtualClock>();
-                app = Application::create(*clock, cfg, false);
+                app = Application::create(
+                    *clock, cfg,
+                    Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
                 app->start();
                 herder = static_cast<HerderImpl*>(&app->getHerder());
                 penEnvs = &herder->getPendingEnvelopes();

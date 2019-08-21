@@ -37,7 +37,8 @@ checkQuorumIntersection(Config const& cfg, uint32_t ledgerNum)
     VirtualClock clock;
     Config cfg2(cfg);
     cfg2.setNoListen();
-    Application::pointer app = Application::create(clock, cfg2, false);
+    Application::pointer app = Application::create(
+        clock, cfg2, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
     LOG(INFO) << "Checking last-heard quorum from herder";
     app->start();
     auto qmap = getQuorumMapForLedger(app, ledgerNum);
@@ -53,7 +54,8 @@ inferQuorumAndWrite(Config const& cfg, uint32_t ledgerNum)
     {
         VirtualClock clock;
         cfg2.setNoListen();
-        Application::pointer app = Application::create(clock, cfg2, false);
+        Application::pointer app = Application::create(
+            clock, cfg2, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         auto qmap = getQuorumMapForLedger(app, ledgerNum);
         iq = InferredQuorum(qmap);
     }
@@ -70,7 +72,8 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile,
     {
         VirtualClock clock;
         cfg2.setNoListen();
-        Application::pointer app = Application::create(clock, cfg2, false);
+        Application::pointer app = Application::create(
+            clock, cfg2, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         auto qmap = getQuorumMapForLedger(app, ledgerNum);
         iq = InferredQuorum(qmap);
     }

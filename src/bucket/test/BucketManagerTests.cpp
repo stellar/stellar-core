@@ -373,8 +373,8 @@ TEST_CASE("bucketmanager missing buckets fail", "[bucket][bucketmanager]")
     // Check that restarting the app crashes.
     {
         VirtualClock clock;
-        Application::pointer app =
-            createTestApplication(clock, cfg, /*newDB=*/false);
+        Application::pointer app = createTestApplication(
+            clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         CHECK_THROWS_AS(app->start(), std::runtime_error);
     }
 }
@@ -1185,7 +1185,8 @@ class StopAndRestartBucketMergesTest
                     << "Restarting application at ledger " << std::dec << i;
                 clock = std::make_unique<VirtualClock>();
                 app = createTestApplication<LedgerManagerTestApplication>(
-                    *clock, cfg, false);
+                    *clock, cfg,
+                    Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
                 app->start();
                 if (BucketList::levelShouldSpill(i, mDesignatedLevel - 1))
                 {
@@ -1372,7 +1373,9 @@ TEST_CASE("bucket persistence over app restart",
         cfg1.FORCE_SCP = false;
         {
             VirtualClock clock;
-            Application::pointer app = Application::create(clock, cfg1, false);
+            Application::pointer app = Application::create(
+                clock, cfg1,
+                Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
             app->start();
             BucketList& bl = app->getBucketManager().getBucketList();
 

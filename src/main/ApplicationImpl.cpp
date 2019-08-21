@@ -114,7 +114,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 }
 
 void
-ApplicationImpl::initialize(bool createNewDB)
+ApplicationImpl::initialize(InitialDBMode initDBMode)
 {
     mDatabase = std::make_unique<Database>(*this);
     mPersistentState = std::make_unique<PersistentState>(*this);
@@ -143,13 +143,25 @@ ApplicationImpl::initialize(bool createNewDB)
     LiabilitiesMatchOffers::registerInvariant(*this);
     enableInvariantsFromConfig();
 
-    if (createNewDB || mConfig.DATABASE.value == "sqlite3://:memory:")
+    if (initDBMode == InitialDBMode::APP_DB_UPGRADE_EXISTING &&
+        mConfig.DATABASE.value == "sqlite3://:memory:")
+    {
+        // Treat upgrade as new if we're running in-memory SQLite (usually: as
+        // part of testing).
+        initDBMode = InitialDBMode::APP_DB_CREATE_NEW;
+    }
+
+    if (initDBMode == InitialDBMode::APP_DB_CREATE_NEW)
     {
         newDB();
     }
-    else
+    else if (initDBMode == InitialDBMode::APP_DB_UPGRADE_EXISTING)
     {
         upgradeDB();
+    }
+    else
+    {
+        assert(initDBMode == InitialDBMode::APP_DB_DONT_OPEN);
     }
 
     // Subtle: process manager should come to existence _after_ BucketManager

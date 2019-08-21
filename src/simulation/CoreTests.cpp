@@ -178,7 +178,8 @@ resilienceTest(Simulation::pointer sim)
             crankForward(nbLedgerStep, 1);
             // start the instance
             sim->addNode(victimConfig.NODE_SEED, victimConfig.QUORUM_SET,
-                         &victimConfig, false);
+                         &victimConfig,
+                         Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
             auto refreshedApp = sim->getNode(victimID);
             refreshedApp->start();
             // connect to another node

@@ -70,7 +70,7 @@ Simulation::setCurrentVirtualTime(VirtualClock::time_point t)
 
 Application::pointer
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
-                    bool newDB)
+                    Application::InitialDBMode initDBMode)
 {
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
                     : std::make_shared<Config>(newConfig());
@@ -96,7 +96,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
         clock->setCurrentVirtualTime(mClock.now());
     }
 
-    auto app = Application::create(*clock, *cfg, newDB);
+    auto app = Application::create(*clock, *cfg, initDBMode);
     mNodes.emplace(nodeKey.getPublicKey(), Node{clock, app});
 
     return app;

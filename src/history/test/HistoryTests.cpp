@@ -751,7 +751,8 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
 
     {
         VirtualClock clock;
-        Application::pointer app1 = Application::create(clock, cfg, 0);
+        Application::pointer app1 = Application::create(
+            clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         app1->getHistoryArchiveManager().initializeHistoryArchive(
             tcfg.getArchiveDirName());
         for (size_t i = 0; i < 100; ++i)

@@ -489,7 +489,9 @@ runCatchup(CommandLineArgs const& args)
             }
 
             VirtualClock clock(VirtualClock::REAL_TIME);
-            auto app = Application::create(clock, config, false);
+            auto app = Application::create(
+                clock, config,
+                Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
             Json::Value catchupInfo;
             auto result =
                 catchup(app, parseCatchup(catchupString), catchupInfo);
@@ -510,7 +512,8 @@ runPublish(CommandLineArgs const& args)
         config.setNoListen();
 
         VirtualClock clock(VirtualClock::REAL_TIME);
-        auto app = Application::create(clock, config, false);
+        auto app = Application::create(
+            clock, config, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         return publish(app);
     });
 }
@@ -628,7 +631,8 @@ runUpgradeDB(CommandLineArgs const& args)
         auto cfg = configOption.getConfig();
         VirtualClock clock;
         cfg.setNoListen();
-        Application::create(clock, cfg, false);
+        Application::create(
+            clock, cfg, Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
         return 0;
     });
 }
@@ -835,7 +839,9 @@ runSimulate(CommandLineArgs const& args)
             config.setNoListen();
 
             VirtualClock clock(VirtualClock::REAL_TIME);
-            auto app = Application::create(clock, config, false);
+            auto app = Application::create(
+                clock, config,
+                Application::InitialDBMode::APP_DB_UPGRADE_EXISTING);
             app->start();
 
             LedgerRange lr{firstLedgerInclusive, lastLedgerInclusive};
