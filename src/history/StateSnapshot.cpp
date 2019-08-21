@@ -119,7 +119,7 @@ StateSnapshot::writeHistoryBlocks() const
             << mTransactionSnapFile->localPath_nogz() << " and "
             << mTransactionResultSnapFile->localPath_nogz();
 
-        nbSCPMessages = HerderPersistence::copySCPHistoryToStream(
+        nbSCPMessages = mApp.getHerderPersistence().copySCPHistoryToStream(
             mApp.getDatabase(), sess, begin, count, scpHistory);
 
         CLOG(DEBUG, "History")

@@ -251,7 +251,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
         {
             std::string qset64, qSetHashHex;
 
-            auto qset = getQuorumSet(db, sess, q);
+            auto qset = getQuorumSet(db, q);
             if (!qset)
             {
                 throw std::runtime_error(
@@ -270,9 +270,9 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
 }
 
 optional<Hash>
-HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
-                                    NodeID const& nodeID)
+HerderPersistence::getNodeQuorumSet(Database& db, NodeID const& nodeID)
 {
+    soci::session& sess = db.getSession();
     std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
     std::string qsethHex;
 
@@ -293,9 +293,9 @@ HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
 }
 
 SCPQuorumSetPtr
-HerderPersistence::getQuorumSet(Database& db, soci::session& sess,
-                                Hash const& qSetHash)
+HerderPersistence::getQuorumSet(Database& db, Hash const& qSetHash)
 {
+    soci::session& sess = db.getSession();
     SCPQuorumSetPtr res;
     SCPQuorumSet qset;
     std::string qset64, qSetHashHex;

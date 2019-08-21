@@ -35,15 +35,13 @@ class HerderPersistence
                                 std::vector<SCPEnvelope> const& envs,
                                 QuorumTracker::QuorumMap const& qmap) = 0;
 
-    static size_t copySCPHistoryToStream(Database& db, soci::session& sess,
-                                         uint32_t ledgerSeq,
-                                         uint32_t ledgerCount,
-                                         XDROutputFileStream& scpHistory);
+    virtual size_t copySCPHistoryToStream(Database& db, soci::session& sess,
+                                          uint32_t ledgerSeq,
+                                          uint32_t ledgerCount,
+                                          XDROutputFileStream& scpHistory);
     // quorum information lookup
-    static optional<Hash> getNodeQuorumSet(Database& db, soci::session& sess,
-                                           NodeID const& nodeID);
-    static SCPQuorumSetPtr getQuorumSet(Database& db, soci::session& sess,
-                                        Hash const& qSetHash);
+    virtual optional<Hash> getNodeQuorumSet(Database& db, NodeID const& nodeID);
+    virtual SCPQuorumSetPtr getQuorumSet(Database& db, Hash const& qSetHash);
 
     static void dropAll(Database& db);
     static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
