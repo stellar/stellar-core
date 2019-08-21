@@ -7,6 +7,7 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "medida/timer_context.h"
 #include "overlay/StellarXDR.h"
+#include "util/GlobalChecks.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
 #include <set>
@@ -149,7 +150,8 @@ class Database
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
-    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op);
+    T doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
+                                      soci::session* sess = nullptr);
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
@@ -183,11 +185,46 @@ class Database
     }
 };
 
+// Helper class that establishes a pool-based session when on a background
+// thread or returns the main session when on a foreground thread. Aborts if
+// it's not able to do the right thing.
+class MaybeBackgroundThreadSession
+{
+    Database& mDb;
+    std::unique_ptr<soci::session> mPoolSess;
+
+  public:
+    MaybeBackgroundThreadSession(Database& db) : mDb(db), mPoolSess(nullptr)
+    {
+        if (!onMainThread())
+        {
+            assert(mDb.canUsePool());
+            mPoolSess = std::make_unique<soci::session>(mDb.getPool());
+        }
+    }
+    soci::session&
+    getSession()
+    {
+        if (mPoolSess)
+        {
+            assert(!onMainThread());
+            return *mPoolSess;
+        }
+        assert(onMainThread());
+        return mDb.getSession();
+    }
+};
+
 template <typename T>
 T
-Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
+Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op,
+                                          soci::session* sess)
 {
-    auto b = getSession().get_backend();
+    if (!sess)
+    {
+        sess = &getSession();
+    }
+    auto b = sess->get_backend();
     if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
     {
         return op.doSqliteSpecificOperation(sq);

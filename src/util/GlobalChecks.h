@@ -6,6 +6,7 @@
 
 namespace stellar
 {
+bool onMainThread();
 void assertThreadIsMain();
 
 void dbgAbort();

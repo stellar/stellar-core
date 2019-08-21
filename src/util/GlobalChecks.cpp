@@ -15,10 +15,16 @@ namespace stellar
 {
 static std::thread::id mainThread = std::this_thread::get_id();
 
+bool
+onMainThread()
+{
+    return mainThread == std::this_thread::get_id();
+}
+
 void
 assertThreadIsMain()
 {
-    dbgAssert(mainThread == std::this_thread::get_id());
+    dbgAssert(onMainThread());
 }
 
 void

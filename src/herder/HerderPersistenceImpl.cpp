@@ -295,7 +295,8 @@ HerderPersistence::getNodeQuorumSet(Database& db, NodeID const& nodeID)
 SCPQuorumSetPtr
 HerderPersistence::getQuorumSet(Database& db, Hash const& qSetHash)
 {
-    soci::session& sess = db.getSession();
+    MaybeBackgroundThreadSession mbts(db);
+    soci::session& sess = mbts.getSession();
     SCPQuorumSetPtr res;
     SCPQuorumSet qset;
     std::string qset64, qSetHashHex;

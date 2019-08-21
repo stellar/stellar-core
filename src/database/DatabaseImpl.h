@@ -6,6 +6,7 @@
 
 #include "database/Database.h"
 #include "util/NonCopyable.h"
+#include <mutex>
 
 namespace stellar
 {
@@ -16,6 +17,7 @@ class DatabaseImpl : public Database, NonMovableOrCopyable
     medida::Meter& mQueryMeter;
     bool mIsOpen{false};
     soci::session mSession;
+    std::mutex mPoolMutex;
     std::unique_ptr<soci::connection_pool> mPool;
 
     std::map<std::string, std::shared_ptr<soci::statement>> mStatements;

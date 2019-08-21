@@ -196,7 +196,7 @@ DatabaseImpl::ensureOpen()
     mSession.open(mApp.getConfig().DATABASE.value);
     mIsOpen = true;
     DatabaseConfigureSessionOp op(mSession);
-    doDatabaseTypeSpecificOperation(op);
+    doDatabaseTypeSpecificOperation(op, &mSession);
 }
 
 void
@@ -418,6 +418,7 @@ DatabaseImpl::getSession()
 soci::connection_pool&
 DatabaseImpl::getPool()
 {
+    std::unique_lock<std::mutex> lock(mPoolMutex);
     if (!mPool)
     {
         auto const& c = mApp.getConfig().DATABASE;
@@ -437,7 +438,7 @@ DatabaseImpl::getPool()
             soci::session& sess = mPool->at(i);
             sess.open(c.value);
             DatabaseConfigureSessionOp op(sess);
-            doDatabaseTypeSpecificOperation(op);
+            doDatabaseTypeSpecificOperation(op, &sess);
         }
     }
     assert(mPool);

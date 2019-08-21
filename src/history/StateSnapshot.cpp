@@ -71,11 +71,8 @@ StateSnapshot::makeLive()
 bool
 StateSnapshot::writeHistoryBlocks() const
 {
-    std::unique_ptr<soci::session> snapSess(
-        mApp.getDatabase().canUsePool()
-            ? std::make_unique<soci::session>(mApp.getDatabase().getPool())
-            : nullptr);
-    soci::session& sess(snapSess ? *snapSess : mApp.getDatabase().getSession());
+    MaybeBackgroundThreadSession mbts(mApp.getDatabase());
+    soci::session& sess = mbts.getSession();
     soci::transaction tx(sess);
 
     // The current "history block" is stored in _four_ files, one just ledger
