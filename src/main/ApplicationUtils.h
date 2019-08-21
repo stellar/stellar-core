@@ -11,6 +11,7 @@ namespace stellar
 
 class CatchupConfiguration;
 
+int runAsRelayWithConfig(Config cfg);
 int runWithConfig(Config cfg);
 void setForceSCPFlag(Config cfg, bool set);
 void initializeDatabase(Config cfg);

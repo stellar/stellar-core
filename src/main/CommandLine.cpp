@@ -695,6 +695,28 @@ runReportLastHistoryCheckpoint(CommandLineArgs const& args)
 }
 
 int
+runAsRelay(CommandLineArgs const& args)
+{
+    CommandLine::ConfigOption configOption;
+    return runWithHelp(args, {configurationParser(configOption)}, [&] {
+        Config cfg;
+        try
+        {
+            cfg = configOption.getConfig();
+        }
+        catch (std::exception& e)
+        {
+            LOG(FATAL) << "Got an exception: " << e.what();
+            LOG(FATAL) << REPORT_INTERNAL_BUG;
+            return 1;
+        }
+        // run outside of catch block so that we properly
+        // capture crashes
+        return runAsRelayWithConfig(cfg);
+    });
+}
+
+int
 run(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
@@ -940,6 +962,7 @@ handleCommandLine(int argc, char* const* argv)
          {"upgrade-db", "upgade database schema to current version",
           runUpgradeDB},
 #ifdef BUILD_TESTS
+         {"run-relay", "run relay-mode stellar-core node", runAsRelay},
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},
          {"rebuild-ledger-from-buckets",
           "rebuild the current database ledger from the bucket list",

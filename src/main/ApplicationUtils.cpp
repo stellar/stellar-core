@@ -15,6 +15,7 @@
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
+#include "main/RelayApplication.h"
 #include "main/StellarCoreVersion.h"
 #include "util/Logging.h"
 #include "work/WorkScheduler.h"
@@ -24,6 +25,53 @@
 
 namespace stellar
 {
+
+int
+runAsRelayWithConfig(Config cfg)
+{
+    LOG(INFO) << "Starting relay-mode stellar-core " << STELLAR_CORE_VERSION;
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    Application::pointer app;
+    try
+    {
+        // Relays are never validating.
+        cfg.NODE_IS_VALIDATOR = false;
+
+        app = Application::create<RelayApplication>(
+            clock, cfg, Application::InitialDBMode::APP_DB_DONT_OPEN);
+
+        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+        {
+            LOG(WARNING) << "Artificial acceleration of time enabled "
+                         << "(for testing only)";
+        }
+
+        app->start();
+        app->applyCfgCommands();
+    }
+    catch (std::exception const& e)
+    {
+        LOG(FATAL) << "Got an exception: " << e.what();
+        LOG(FATAL) << REPORT_INTERNAL_BUG;
+        return 1;
+    }
+
+    try
+    {
+        auto& io = clock.getIOContext();
+        asio::io_context::work mainWork(io);
+        while (!io.stopped())
+        {
+            clock.crank();
+        }
+    }
+    catch (std::exception const& e)
+    {
+        LOG(FATAL) << "Got an exception: " << e.what();
+        throw; // propagate exception (core dump, etc)
+    }
+    return 0;
+}
 
 int
 runWithConfig(Config cfg)
