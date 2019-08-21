@@ -689,6 +689,12 @@ HerderImpl::getQSet(Hash const& qSetHash)
     return mHerderSCPDriver.getQSet(qSetHash);
 }
 
+bool
+HerderImpl::checkTxSetValid(TxSetFramePtr txSet)
+{
+    return txSet->checkValid(mApp);
+}
+
 uint32_t
 HerderImpl::getCurrentLedgerSeq() const
 {
@@ -736,7 +742,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     proposedSet->surgePricingFilter(mApp);
 
-    if (!proposedSet->checkValid(mApp))
+    if (!checkTxSetValid(proposedSet))
     {
         throw std::runtime_error("wanting to emit an invalid txSet");
     }

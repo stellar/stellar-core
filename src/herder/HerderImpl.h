@@ -75,6 +75,8 @@ class HerderImpl : public Herder
     TxSetFramePtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
+    bool checkTxSetValid(TxSetFramePtr txSet) override;
+
     void processSCPQueue();
 
     uint32_t getCurrentLedgerSeq() const override;

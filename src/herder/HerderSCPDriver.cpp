@@ -311,7 +311,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
         res = SCPDriver::kInvalidValue;
     }
-    else if (!txSet->checkValid(mApp))
+    else if (!mHerder.checkTxSetValid(txSet))
     {
         if (Logging::logDebug("Herder"))
             CLOG(DEBUG, "Herder") << "HerderSCPDriver::validateValue"

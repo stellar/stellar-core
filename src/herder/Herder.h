@@ -106,6 +106,8 @@ class Herder
     virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
+    virtual bool checkTxSetValid(TxSetFramePtr txSet) = 0;
+
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
