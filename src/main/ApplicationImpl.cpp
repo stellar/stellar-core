@@ -128,7 +128,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mHistoryArchiveManager = createHistoryArchiveManager();
     mHistoryManager = createHistoryManager();
     mInvariantManager = createInvariantManager();
-    mMaintainer = std::make_unique<Maintainer>(*this);
+    mMaintainer = createMaintainer();
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkScheduler = createWorkScheduler();
     mBanManager = createBanManager();
@@ -382,7 +382,10 @@ ApplicationImpl::start()
             // set known cursors before starting maintenance job
             ExternalQueue ps(*this);
             ps.setInitialCursors(mConfig.KNOWN_CURSORS);
-            mMaintainer->start();
+            if (mMaintainer)
+            {
+                mMaintainer->start();
+            }
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
@@ -844,6 +847,11 @@ ApplicationImpl::createInvariantManager()
     return InvariantManager::create(*this);
 }
 
+std::unique_ptr<Maintainer>
+ApplicationImpl::createMaintainer()
+{
+    return std::make_unique<Maintainer>(*this);
+}
 std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
