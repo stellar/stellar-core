@@ -46,12 +46,8 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
 
-    bool
-    checkOrTrim(Application& app,
-                std::function<bool(TransactionFrameBasePtr, SequenceNumber)>
-                    processInvalidTxLambda,
-                std::function<bool(std::deque<TransactionFrameBasePtr> const&)>
-                    processLastInvalidTxLambda);
+    bool checkOrTrim(Application& app, bool onlyCheck,
+                     std::vector<TransactionFrameBasePtr>& trimmed);
 
     std::unordered_map<AccountID, AccountTransactionQueue>
     buildAccountTxQueues();
