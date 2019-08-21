@@ -84,7 +84,7 @@ class TransactionQueueTest
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
         // TODO(jonjove): Clean-up
-        mTransactionQueue.ban(std::vector<TransactionFrameBasePtr>(
+        mTransactionQueue.removeTrimmed(std::vector<TransactionFrameBasePtr>(
             toRemove.begin(), toRemove.end()));
         REQUIRE(size - toRemove.size() >=
                 mTransactionQueue.toTxSet({})->sizeTx());
@@ -105,8 +105,8 @@ class TransactionQueueTest
         {
             auto& txs = accountState.mAccountTransactions;
             auto fees =
-                std::accumulate(std::begin(txs), std::end(txs), 0,
-                                [](int fee, TransactionFramePtr const& tx) {
+                std::accumulate(std::begin(txs), std::end(txs), int64_t(0),
+                                [](int64_t fee, TransactionFramePtr const& tx) {
                                     return fee + tx->getFeeBid();
                                 });
             auto seqNum = txs.empty() ? 0 : txs.back()->getSeqNum();
@@ -557,11 +557,9 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.add(txSeqA2T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.shift();
         test.ban({txSeqA1T1, txSeqA2T2});
-        test.check({{{account1}, {account2, 1, {txSeqA2T1}}},
-                    {{txSeqA1T1, txSeqA1T2, txSeqA2T2}}});
-        test.add(txSeqA1T1,
-                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
-        test.check({{{account1}, {account2, 1, {txSeqA2T1}}},
-                    {{txSeqA1T1, txSeqA1T2, txSeqA2T2}}});
+        test.check({{{account1, 1}, {account2, 1, {txSeqA2T1}}}, {}});
+        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.check(
+            {{{account1, 1, {txSeqA1T1}}, {account2, 1, {txSeqA2T1}}}, {}});
     }
 }

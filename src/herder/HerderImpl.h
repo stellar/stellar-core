@@ -79,7 +79,9 @@ class HerderImpl : public Herder
 
     uint32_t getCurrentLedgerSeq() const override;
 
+#ifdef BUILD_TESTS
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
+#endif
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 

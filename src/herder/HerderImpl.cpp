@@ -709,11 +709,13 @@ HerderImpl::getCurrentLedgerSeq() const
     return res;
 }
 
+#ifdef BUILD_TESTS
 SequenceNumber
 HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 {
     return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
 }
+#endif
 
 // called to take a position during the next round
 // uses the state in LedgerManager to derive a starting position
@@ -732,7 +734,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     auto proposedSet = mTransactionQueue.toTxSet(lcl.hash);
     auto removed = proposedSet->trimInvalid(mApp);
-    mTransactionQueue.ban(removed);
+    mTransactionQueue.removeTrimmed(removed);
 
     proposedSet->surgePricingFilter(mApp);
 
@@ -1335,7 +1337,7 @@ HerderImpl::updateTransactionQueue(
     std::vector<TransactionFrameBasePtr> const& applied)
 {
     // remove all these tx from mTransactionQueue
-    mTransactionQueue.removeAndReset(applied);
+    mTransactionQueue.removeApplied(applied);
     mTransactionQueue.shift();
 
     // rebroadcast entries, sorted in apply-order to maximize chances of
