@@ -67,6 +67,7 @@ ConditionalWork::onRun()
             "Condition for {} is satisfied: starting work", getName());
         mConditionedWork->startWork(wakeSelfUpCallback());
         mWorkStarted = true;
+        mCondition = nullptr;
         return this->onRun();
     }
 }
