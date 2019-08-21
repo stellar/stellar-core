@@ -168,7 +168,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     // Subtle: process manager should come to existence _after_ BucketManager
     // initialization and newDB run, as it relies on tmp dir created in the
     // constructor
-    mProcessManager = ProcessManager::create(*this);
+    mProcessManager = createProcessManager();
     LOG(DEBUG) << "Application constructed";
 }
 
@@ -860,6 +860,12 @@ std::unique_ptr<PersistentState>
 ApplicationImpl::createPersistentState()
 {
     return PersistentState::create(*this);
+}
+
+std::shared_ptr<ProcessManager>
+ApplicationImpl::createProcessManager()
+{
+    return ProcessManager::create(*this);
 }
 
 std::unique_ptr<LedgerManager>
