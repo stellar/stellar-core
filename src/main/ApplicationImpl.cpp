@@ -116,7 +116,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::initialize(InitialDBMode initDBMode)
 {
-    mDatabase = std::make_unique<Database>(*this);
+    mDatabase = createDatabase();
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
@@ -805,6 +805,12 @@ ApplicationImpl::enableInvariantsFromConfig()
     {
         mInvariantManager->enableInvariant(name);
     }
+}
+
+std::unique_ptr<Database>
+ApplicationImpl::createDatabase()
+{
+    return Database::create(*this);
 }
 
 std::unique_ptr<Herder>

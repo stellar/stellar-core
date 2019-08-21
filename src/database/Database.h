@@ -81,86 +81,71 @@ class StatementContext : NonCopyable
  * (SQL isolation level 'SERIALIZABLE' in Postgresql and Sqlite, neither of
  * which provide true serializability).
  */
-class Database : NonMovableOrCopyable
+class Database
 {
-    Application& mApp;
-    medida::Meter& mQueryMeter;
-    bool mIsOpen{false};
-    soci::session mSession;
-    std::unique_ptr<soci::connection_pool> mPool;
-
-    std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
-    medida::Counter& mStatementsSize;
-
-    // Helpers for maintaining the total query time and calculating
-    // idle percentage.
-    std::set<std::string> mEntityTypes;
-    std::chrono::nanoseconds mExcludedQueryTime;
-    std::chrono::nanoseconds mExcludedTotalTime;
-    std::chrono::nanoseconds mLastIdleQueryTime;
-    VirtualClock::time_point mLastIdleTotalTime;
-
-    static bool gDriversRegistered;
-    static void registerDrivers();
-    void applySchemaUpgrade(unsigned long vers);
-
   public:
-    Database(Application& app);
+    static std::unique_ptr<Database> create(Application& app);
 
     // Connect to app.getConfig().DATABASE; if there is a connection error, this
     // will throw.
-    void ensureOpen();
+    virtual void ensureOpen() = 0;
 
     // Return a crude meter of total queries to the db, for use in
     // overlay/LoadManager.
-    medida::Meter& getQueryMeter();
+    virtual medida::Meter& getQueryMeter() = 0;
 
     // Number of nanoseconds spent processing queries since app startup,
     // without any reference to excluded time or running counters.
     // Strictly a sum of measured time.
-    std::chrono::nanoseconds totalQueryTime() const;
+    virtual std::chrono::nanoseconds totalQueryTime() const = 0;
 
     // Subtract a number of nanoseconds from the running time counts,
     // due to database usage spikes, specifically during ledger-close.
-    void excludeTime(std::chrono::nanoseconds const& queryTime,
-                     std::chrono::nanoseconds const& totalTime);
+    virtual void excludeTime(std::chrono::nanoseconds const& queryTime,
+                             std::chrono::nanoseconds const& totalTime) = 0;
 
     // Return the percent of the time since the last call to this
     // method that database has been idle, _excluding_ the times
     // excluded above via `excludeTime`.
-    uint32_t recentIdleDbPercent();
+    virtual uint32_t recentIdleDbPercent() = 0;
 
     // Return a logging helper that will capture all SQL statements made
     // on the main connection while active, and will log those statements
     // to the process' log for diagnostics. For testing and perf tuning.
-    std::shared_ptr<SQLLogContext> captureAndLogSQL(std::string contextName);
+    virtual std::shared_ptr<SQLLogContext>
+    captureAndLogSQL(std::string contextName) = 0;
 
     // Return a helper object that borrows, from the Database, a prepared
     // statement handle for the provided query. The prepared statement handle
     // is created if necessary before borrowing, and reset (unbound from data)
     // when the statement context is destroyed.
-    StatementContext getPreparedStatement(std::string const& query);
+    virtual StatementContext getPreparedStatement(std::string const& query) = 0;
 
     // Purge all cached prepared statements, closing their handles with the
     // database.
-    void clearPreparedStatementCache();
+    virtual void clearPreparedStatementCache() = 0;
 
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
     // so only acquire them immediately before executing an SQL statement.
-    medida::TimerContext getInsertTimer(std::string const& entityName);
-    medida::TimerContext getSelectTimer(std::string const& entityName);
-    medida::TimerContext getDeleteTimer(std::string const& entityName);
-    medida::TimerContext getUpdateTimer(std::string const& entityName);
-    medida::TimerContext getUpsertTimer(std::string const& entityName);
+    virtual medida::TimerContext
+    getInsertTimer(std::string const& entityName) = 0;
+    virtual medida::TimerContext
+    getSelectTimer(std::string const& entityName) = 0;
+    virtual medida::TimerContext
+    getDeleteTimer(std::string const& entityName) = 0;
+    virtual medida::TimerContext
+    getUpdateTimer(std::string const& entityName) = 0;
+    virtual medida::TimerContext
+    getUpsertTimer(std::string const& entityName) = 0;
 
     // If possible (i.e. "on postgres") issue an SQL pragma that marks
     // the current transaction as read-only. The effects of this last
     // only as long as the current SQL transaction.
-    void setCurrentTransactionReadOnly();
+    virtual void setCurrentTransactionReadOnly() = 0;
 
     // Return true if the Database target is SQLite, otherwise false.
-    bool isSqlite() const;
+    virtual bool isSqlite() const = 0;
 
     // Call `op` back with the specific database backend subtype in use.
     template <typename T>
@@ -168,37 +153,41 @@ class Database : NonMovableOrCopyable
 
     // Return true if a connection pool is available for worker threads
     // to read from the database through, otherwise false.
-    bool canUsePool() const;
+    virtual bool canUsePool() const = 0;
 
     // Drop and recreate all tables in the database target. This is called
     // by the new-db command on stellar-core.
-    void initialize();
+    virtual void initialize() = 0;
 
     // Save `vers` as schema version.
-    void putSchemaVersion(unsigned long vers);
+    virtual void putSchemaVersion(unsigned long vers) = 0;
 
     // Get current schema version in DB.
-    unsigned long getDBSchemaVersion();
+    virtual unsigned long getDBSchemaVersion() = 0;
 
     // Get current schema version of running application.
-    unsigned long getAppSchemaVersion();
+    virtual unsigned long getAppSchemaVersion() = 0;
 
     // Check schema version and apply any upgrades if necessary.
-    void upgradeToCurrentSchema();
+    virtual void upgradeToCurrentSchema() = 0;
 
     // Access the underlying SOCI session object
-    soci::session& getSession();
+    virtual soci::session& getSession() = 0;
 
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
-    soci::connection_pool& getPool();
+    virtual soci::connection_pool& getPool() = 0;
+
+    virtual ~Database()
+    {
+    }
 };
 
 template <typename T>
 T
 Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
 {
-    auto b = mSession.get_backend();
+    auto b = getSession().get_backend();
     if (auto sq = dynamic_cast<soci::sqlite3_session_backend*>(b))
     {
         return op.doSqliteSpecificOperation(sq);

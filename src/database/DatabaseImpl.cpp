@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "database/Database.h"
+#include "database/DatabaseImpl.h"
 #include "crypto/Hex.h"
 #include "database/DatabaseConnectionString.h"
 #include "database/DatabaseTypeSpecificOperation.h"
@@ -53,7 +53,7 @@ namespace stellar
 using namespace soci;
 using namespace std;
 
-bool Database::gDriversRegistered = false;
+bool DatabaseImpl::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 9;
@@ -107,7 +107,7 @@ badSqliteVersion(int vers)
 }
 
 void
-Database::registerDrivers()
+DatabaseImpl::registerDrivers()
 {
     if (!gDriversRegistered)
     {
@@ -162,7 +162,13 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
 #endif
 };
 
-Database::Database(Application& app)
+std::unique_ptr<Database>
+Database::create(Application& app)
+{
+    return std::make_unique<DatabaseImpl>(app);
+}
+
+DatabaseImpl::DatabaseImpl(Application& app)
     : mApp(app)
     , mQueryMeter(
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
@@ -176,7 +182,7 @@ Database::Database(Application& app)
 }
 
 void
-Database::ensureOpen()
+DatabaseImpl::ensureOpen()
 {
     if (mIsOpen)
     {
@@ -188,13 +194,13 @@ Database::ensureOpen()
                            << removePasswordFromConnectionString(
                                   mApp.getConfig().DATABASE.value);
     mSession.open(mApp.getConfig().DATABASE.value);
+    mIsOpen = true;
     DatabaseConfigureSessionOp op(mSession);
     doDatabaseTypeSpecificOperation(op);
-    mIsOpen = true;
 }
 
 void
-Database::applySchemaUpgrade(unsigned long vers)
+DatabaseImpl::applySchemaUpgrade(unsigned long vers)
 {
     ensureOpen();
     clearPreparedStatementCache();
@@ -213,7 +219,7 @@ Database::applySchemaUpgrade(unsigned long vers)
 }
 
 void
-Database::upgradeToCurrentSchema()
+DatabaseImpl::upgradeToCurrentSchema()
 {
     ensureOpen();
     auto vers = getDBSchemaVersion();
@@ -245,7 +251,7 @@ Database::upgradeToCurrentSchema()
 }
 
 void
-Database::putSchemaVersion(unsigned long vers)
+DatabaseImpl::putSchemaVersion(unsigned long vers)
 {
     ensureOpen();
     mApp.getPersistentState().setState(PersistentState::kDatabaseSchema,
@@ -253,7 +259,7 @@ Database::putSchemaVersion(unsigned long vers)
 }
 
 unsigned long
-Database::getDBSchemaVersion()
+DatabaseImpl::getDBSchemaVersion()
 {
     ensureOpen();
     unsigned long vers = 0;
@@ -275,13 +281,13 @@ Database::getDBSchemaVersion()
 }
 
 unsigned long
-Database::getAppSchemaVersion()
+DatabaseImpl::getAppSchemaVersion()
 {
     return SCHEMA_VERSION;
 }
 
 medida::TimerContext
-Database::getInsertTimer(std::string const& entityName)
+DatabaseImpl::getInsertTimer(std::string const& entityName)
 {
     mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
@@ -291,7 +297,7 @@ Database::getInsertTimer(std::string const& entityName)
 }
 
 medida::TimerContext
-Database::getSelectTimer(std::string const& entityName)
+DatabaseImpl::getSelectTimer(std::string const& entityName)
 {
     mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
@@ -301,7 +307,7 @@ Database::getSelectTimer(std::string const& entityName)
 }
 
 medida::TimerContext
-Database::getDeleteTimer(std::string const& entityName)
+DatabaseImpl::getDeleteTimer(std::string const& entityName)
 {
     mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
@@ -311,7 +317,7 @@ Database::getDeleteTimer(std::string const& entityName)
 }
 
 medida::TimerContext
-Database::getUpdateTimer(std::string const& entityName)
+DatabaseImpl::getUpdateTimer(std::string const& entityName)
 {
     mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
@@ -321,7 +327,7 @@ Database::getUpdateTimer(std::string const& entityName)
 }
 
 medida::TimerContext
-Database::getUpsertTimer(std::string const& entityName)
+DatabaseImpl::getUpsertTimer(std::string const& entityName)
 {
     mEntityTypes.insert(entityName);
     mQueryMeter.Mark();
@@ -331,7 +337,7 @@ Database::getUpsertTimer(std::string const& entityName)
 }
 
 void
-Database::setCurrentTransactionReadOnly()
+DatabaseImpl::setCurrentTransactionReadOnly()
 {
     ensureOpen();
     if (!isSqlite())
@@ -344,20 +350,20 @@ Database::setCurrentTransactionReadOnly()
 }
 
 bool
-Database::isSqlite() const
+DatabaseImpl::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3:") !=
            std::string::npos;
 }
 
 bool
-Database::canUsePool() const
+DatabaseImpl::canUsePool() const
 {
     return !(mApp.getConfig().DATABASE.value == ("sqlite3://:memory:"));
 }
 
 void
-Database::clearPreparedStatementCache()
+DatabaseImpl::clearPreparedStatementCache()
 {
     ensureOpen();
     // Flush all prepared statements; in sqlite they represent open cursors
@@ -371,7 +377,7 @@ Database::clearPreparedStatementCache()
 }
 
 void
-Database::initialize()
+DatabaseImpl::initialize()
 {
     ensureOpen();
     clearPreparedStatementCache();
@@ -401,7 +407,7 @@ Database::initialize()
 }
 
 soci::session&
-Database::getSession()
+DatabaseImpl::getSession()
 {
     // global session can only be used from the main thread
     ensureOpen();
@@ -410,7 +416,7 @@ Database::getSession()
 }
 
 soci::connection_pool&
-Database::getPool()
+DatabaseImpl::getPool()
 {
     if (!mPool)
     {
@@ -475,7 +481,7 @@ class SQLLogContext : NonCopyable
 };
 
 StatementContext
-Database::getPreparedStatement(std::string const& query)
+DatabaseImpl::getPreparedStatement(std::string const& query)
 {
     auto i = mStatements.find(query);
     std::shared_ptr<soci::statement> p;
@@ -496,19 +502,19 @@ Database::getPreparedStatement(std::string const& query)
 }
 
 std::shared_ptr<SQLLogContext>
-Database::captureAndLogSQL(std::string contextName)
+DatabaseImpl::captureAndLogSQL(std::string contextName)
 {
     return make_shared<SQLLogContext>(contextName, mSession);
 }
 
 medida::Meter&
-Database::getQueryMeter()
+DatabaseImpl::getQueryMeter()
 {
     return mQueryMeter;
 }
 
 std::chrono::nanoseconds
-Database::totalQueryTime() const
+DatabaseImpl::totalQueryTime() const
 {
     std::vector<std::string> qtypes = {"insert", "delete", "select", "update"};
     std::chrono::nanoseconds nsq(0);
@@ -527,15 +533,15 @@ Database::totalQueryTime() const
 }
 
 void
-Database::excludeTime(std::chrono::nanoseconds const& queryTime,
-                      std::chrono::nanoseconds const& totalTime)
+DatabaseImpl::excludeTime(std::chrono::nanoseconds const& queryTime,
+                          std::chrono::nanoseconds const& totalTime)
 {
     mExcludedQueryTime += queryTime;
     mExcludedTotalTime += totalTime;
 }
 
 uint32_t
-Database::recentIdleDbPercent()
+DatabaseImpl::recentIdleDbPercent()
 {
     std::chrono::nanoseconds query = totalQueryTime();
     query -= mLastIdleQueryTime;

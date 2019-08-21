@@ -184,6 +184,7 @@ class ApplicationImpl : public Application
 
     void enableInvariantsFromConfig();
 
+    virtual std::unique_ptr<Database> createDatabase();
     virtual std::unique_ptr<Herder> createHerder();
     virtual std::unique_ptr<InvariantManager> createInvariantManager();
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
