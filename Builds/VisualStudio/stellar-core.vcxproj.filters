@@ -414,9 +414,6 @@
     <ClCompile Include="..\..\src\historywork\PutSnapshotFilesWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\historywork\RepairMissingBucketsWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\historywork\ResolveSnapshotWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
@@ -1287,9 +1284,6 @@
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\PutSnapshotFilesWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\RepairMissingBucketsWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\ResolveSnapshotWork.h">
