@@ -5,7 +5,6 @@
 #include "lib/catch.hpp"
 #include "lib/util/format.h"
 #include "main/Application.h"
-#include "main/Config.h"
 #include "process/ProcessManager.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -14,10 +13,6 @@
 #include "historywork/RunCommandWork.h"
 #include "work/BatchWork.h"
 #include "work/ConditionalWork.h"
-#include <cstdio>
-#include <fstream>
-#include <random>
-#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 
@@ -740,7 +735,7 @@ class TestBatchWork : public BatchWork
 
   public:
     int mCount{0};
-    std::vector<std::shared_ptr<TestBasicWork>> mBatchedWorks;
+    std::vector<std::weak_ptr<BasicWork>> mBatchedWorks;
     TestBatchWork(Application& app, std::string const& name, bool fail = false)
         : BatchWork(app, name)
         , mShouldFail(fail)
@@ -795,16 +790,26 @@ TEST_CASE("Work batching", "[batching][work]")
     }
     SECTION("shutdown")
     {
+        std::vector<std::shared_ptr<BasicWork>> allWorks;
         auto testBatch = wm.scheduleWork<TestBatchWork>("test-batch", true);
         while (!clock.getIOContext().stopped() && !wm.allChildrenDone())
         {
             clock.crank(true);
-            wm.shutdown();
+            if (!wm.isAborting())
+            {
+                for (auto const& weak : testBatch->mBatchedWorks)
+                {
+                    auto w = weak.lock();
+                    REQUIRE(w);
+                    allWorks.push_back(w);
+                }
+                wm.shutdown();
+            }
         }
         REQUIRE(testBatch->getState() == TestBasicWork::State::WORK_ABORTED);
 
         // Ensure remaining children either succeeded or were aborted
-        for (auto const& w : testBatch->mBatchedWorks)
+        for (auto const& w : allWorks)
         {
             auto validState =
                 w->getState() == TestBasicWork::State::WORK_SUCCESS ||
@@ -813,6 +818,33 @@ TEST_CASE("Work batching", "[batching][work]")
         }
     }
 }
+
+class TestBatchWorkCondition : public TestBatchWork
+{
+  public:
+    TestBatchWorkCondition(Application& app, std::string const& name)
+        : TestBatchWork(app, name){};
+
+    std::shared_ptr<BasicWork>
+    yieldMoreWork() override
+    {
+        auto w = std::make_shared<TestBasicWork>(
+            mApp, fmt::format("child-{:d}", mCount++));
+        std::shared_ptr<BasicWork> workToYield = w;
+        if (!mBatchedWorks.empty())
+        {
+            auto lw = mBatchedWorks[mBatchedWorks.size() - 1].lock();
+            REQUIRE(lw);
+            auto cond = [lw]() {
+                return lw->getState() == BasicWork::State::WORK_SUCCESS;
+            };
+            workToYield = std::make_shared<ConditionalWork>(
+                mApp, "cond-" + w->getName(), cond, w);
+        }
+        mBatchedWorks.push_back(workToYield);
+        return workToYield;
+    }
+};
 
 // ======= ConditionalWork tests ======== //
 TEST_CASE("ConditionalWork test", "[work]")
@@ -923,5 +955,28 @@ TEST_CASE("ConditionalWork test", "[work]")
         REQUIRE(wm.getState() == BasicWork::State::WORK_ABORTED);
         // Blocker work finished successfully before unblocking conditional work
         REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
+    }
+    SECTION("condition is reset once satisfied")
+    {
+        auto testBatch =
+            wm.scheduleWork<TestBatchWorkCondition>("test-conditional-batch");
+
+        auto numLiveWorks =
+            [](std::vector<std::weak_ptr<BasicWork>> const& works) {
+                return std::count_if(works.begin(), works.end(),
+                                     [](std::weak_ptr<BasicWork> const& w) {
+                                         return !w.expired();
+                                     });
+            };
+
+        // at any time, there cannot be more live works than batch size + 1
+        // (extra work if the first work in batch has a dependency)
+        while (!clock.getIOContext().stopped() && !wm.allChildrenDone())
+        {
+            clock.crank();
+            REQUIRE(numLiveWorks(testBatch->mBatchedWorks) <=
+                    testBatch->getNumWorksInBatch() + 1);
+        }
+        REQUIRE(testBatch->getState() == TestBasicWork::State::WORK_SUCCESS);
     }
 }
