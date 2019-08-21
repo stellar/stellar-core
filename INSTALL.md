@@ -102,7 +102,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule update`
 - Type `./autogen.sh`.
 - Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-6 ./configure` or similar, depending on your compiler.)*
-- Type `make` or `make -j` (for aggressive parallel build)
+- Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
 - Type `make check` to run tests.
 - Type `make install` to install.
 
