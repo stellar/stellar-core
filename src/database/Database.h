@@ -85,6 +85,7 @@ class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
+    bool mIsOpen{false};
     soci::session mSession;
     std::unique_ptr<soci::connection_pool> mPool;
 
@@ -104,9 +105,11 @@ class Database : NonMovableOrCopyable
     void applySchemaUpgrade(unsigned long vers);
 
   public:
-    // Instantiate object and connect to app.getConfig().DATABASE;
-    // if there is a connection error, this will throw.
     Database(Application& app);
+
+    // Connect to app.getConfig().DATABASE; if there is a connection error, this
+    // will throw.
+    void ensureOpen();
 
     // Return a crude meter of total queries to the db, for use in
     // overlay/LoadManager.

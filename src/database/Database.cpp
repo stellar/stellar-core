@@ -173,19 +173,30 @@ Database::Database(Application& app)
     , mLastIdleQueryTime(0)
     , mLastIdleTotalTime(app.getClock().now())
 {
+}
+
+void
+Database::ensureOpen()
+{
+    if (mIsOpen)
+    {
+        return;
+    }
     registerDrivers();
 
     CLOG(INFO, "Database") << "Connecting to: "
                            << removePasswordFromConnectionString(
-                                  app.getConfig().DATABASE.value);
-    mSession.open(app.getConfig().DATABASE.value);
+                                  mApp.getConfig().DATABASE.value);
+    mSession.open(mApp.getConfig().DATABASE.value);
     DatabaseConfigureSessionOp op(mSession);
     doDatabaseTypeSpecificOperation(op);
+    mIsOpen = true;
 }
 
 void
 Database::applySchemaUpgrade(unsigned long vers)
 {
+    ensureOpen();
     clearPreparedStatementCache();
 
     soci::transaction tx(mSession);
@@ -204,6 +215,7 @@ Database::applySchemaUpgrade(unsigned long vers)
 void
 Database::upgradeToCurrentSchema()
 {
+    ensureOpen();
     auto vers = getDBSchemaVersion();
     if (vers < MIN_SCHEMA_VERSION)
     {
@@ -235,6 +247,7 @@ Database::upgradeToCurrentSchema()
 void
 Database::putSchemaVersion(unsigned long vers)
 {
+    ensureOpen();
     mApp.getPersistentState().setState(PersistentState::kDatabaseSchema,
                                        std::to_string(vers));
 }
@@ -242,6 +255,7 @@ Database::putSchemaVersion(unsigned long vers)
 unsigned long
 Database::getDBSchemaVersion()
 {
+    ensureOpen();
     unsigned long vers = 0;
     try
     {
@@ -319,6 +333,7 @@ Database::getUpsertTimer(std::string const& entityName)
 void
 Database::setCurrentTransactionReadOnly()
 {
+    ensureOpen();
     if (!isSqlite())
     {
         auto prep = getPreparedStatement("SET TRANSACTION READ ONLY");
@@ -344,6 +359,7 @@ Database::canUsePool() const
 void
 Database::clearPreparedStatementCache()
 {
+    ensureOpen();
     // Flush all prepared statements; in sqlite they represent open cursors
     // and will conflict with any DROP TABLE commands issued below
     for (auto st : mStatements)
@@ -357,6 +373,7 @@ Database::clearPreparedStatementCache()
 void
 Database::initialize()
 {
+    ensureOpen();
     clearPreparedStatementCache();
     // normally you do not want to touch this section as
     // schema updates are done in applySchemaUpgrade
@@ -387,6 +404,7 @@ soci::session&
 Database::getSession()
 {
     // global session can only be used from the main thread
+    ensureOpen();
     assertThreadIsMain();
     return mSession;
 }
