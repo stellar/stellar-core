@@ -74,7 +74,9 @@ class OverlayManagerImpl : public OverlayManager
 
     PeersList& getPeersList(Peer* peer);
 
-    PeerManager mPeerManager;
+    virtual std::unique_ptr<PeerManager> createPeerManager(Application& app);
+    std::unique_ptr<PeerManager> mPeerManager;
+
     PeerDoor mDoor;
     PeerAuth mAuth;
     LoadManager mLoad;
@@ -98,6 +100,8 @@ class OverlayManagerImpl : public OverlayManager
   public:
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
+
+    void initialize() override;
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;

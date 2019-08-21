@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/PeerManager.h"
+#include "overlay/PeerManagerImpl.h"
 #include "crypto/Random.h"
 #include "database/Database.h"
 #include "main/Application.h"
@@ -79,7 +79,7 @@ toXdr(PeerBareAddress const& address)
 constexpr const auto BATCH_SIZE = 1000;
 constexpr const auto MAX_FAILURES = 10;
 
-PeerManager::PeerManager(Application& app)
+PeerManagerImpl::PeerManagerImpl(Application& app)
     : mApp(app)
     , mOutboundPeersToSend(std::make_unique<RandomPeerSource>(
           *this, RandomPeerSource::maxFailures(MAX_FAILURES, true)))
@@ -89,7 +89,7 @@ PeerManager::PeerManager(Application& app)
 }
 
 std::vector<PeerBareAddress>
-PeerManager::loadRandomPeers(PeerQuery const& query, int size)
+PeerManagerImpl::loadRandomPeers(PeerQuery const& query, int size)
 {
     // BATCH_SIZE should always be bigger, so it should win anyway
     size = std::max(size, BATCH_SIZE);
@@ -162,8 +162,8 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
 }
 
 void
-PeerManager::removePeersWithManyFailures(int minNumFailures,
-                                         PeerBareAddress const* address)
+PeerManagerImpl::removePeersWithManyFailures(int minNumFailures,
+                                             PeerBareAddress const* address)
 {
     try
     {
@@ -196,12 +196,13 @@ PeerManager::removePeersWithManyFailures(int minNumFailures,
     catch (soci_error& err)
     {
         CLOG(ERROR, "Overlay")
-            << "PeerManager::removePeersWithManyFailures error: " << err.what();
+            << "PeerManagerImpl::removePeersWithManyFailures error: "
+            << err.what();
     }
 }
 
 std::vector<PeerBareAddress>
-PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
+PeerManagerImpl::getPeersToSend(int size, PeerBareAddress const& address)
 {
     auto keep = [&](PeerBareAddress const& pba) {
         return !pba.isPrivate() && pba != address;
@@ -220,7 +221,7 @@ PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
 }
 
 std::pair<PeerRecord, bool>
-PeerManager::load(PeerBareAddress const& address)
+PeerManagerImpl::load(PeerBareAddress const& address)
 {
     auto result = PeerRecord{};
     auto inDatabase = false;
@@ -254,7 +255,7 @@ PeerManager::load(PeerBareAddress const& address)
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "PeerManager::load error: " << err.what()
+        CLOG(ERROR, "Overlay") << "PeerManagerImpl::load error: " << err.what()
                                << " on " << address.toString();
     }
 
@@ -262,8 +263,8 @@ PeerManager::load(PeerBareAddress const& address)
 }
 
 void
-PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
-                   bool inDatabase)
+PeerManagerImpl::store(PeerBareAddress const& address,
+                       PeerRecord const& peerRecord, bool inDatabase)
 {
     std::string query;
 
@@ -301,19 +302,19 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
             if (st.get_affected_rows() != 1)
             {
                 CLOG(ERROR, "Overlay")
-                    << "PeerManager::store failed on " + address.toString();
+                    << "PeerManagerImpl::store failed on " + address.toString();
             }
         }
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "PeerManager::store error: " << err.what()
+        CLOG(ERROR, "Overlay") << "PeerManagerImpl::store error: " << err.what()
                                << " on " << address.toString();
     }
 }
 
 void
-PeerManager::update(PeerRecord& peer, TypeUpdate type)
+PeerManagerImpl::update(PeerRecord& peer, TypeUpdate type)
 {
     switch (type)
     {
@@ -367,7 +368,8 @@ computeBackoff(int numFailures)
 }
 
 void
-PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
+PeerManagerImpl::update(PeerRecord& peer, BackOffUpdate backOff,
+                        Application& app)
 {
     switch (backOff)
     {
@@ -396,7 +398,7 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
 }
 
 void
-PeerManager::ensureExists(PeerBareAddress const& address)
+PeerManagerImpl::ensureExists(PeerBareAddress const& address)
 {
     auto peer = load(address);
     if (!peer.second)
@@ -406,7 +408,7 @@ PeerManager::ensureExists(PeerBareAddress const& address)
 }
 
 void
-PeerManager::update(PeerBareAddress const& address, TypeUpdate type)
+PeerManagerImpl::update(PeerBareAddress const& address, TypeUpdate type)
 {
     auto peer = load(address);
     update(peer.first, type);
@@ -414,7 +416,7 @@ PeerManager::update(PeerBareAddress const& address, TypeUpdate type)
 }
 
 void
-PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
+PeerManagerImpl::update(PeerBareAddress const& address, BackOffUpdate backOff)
 {
     auto peer = load(address);
     update(peer.first, backOff, mApp);
@@ -422,8 +424,8 @@ PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
 }
 
 void
-PeerManager::update(PeerBareAddress const& address, TypeUpdate type,
-                    BackOffUpdate backOff)
+PeerManagerImpl::update(PeerBareAddress const& address, TypeUpdate type,
+                        BackOffUpdate backOff)
 {
     auto peer = load(address);
     update(peer.first, type);
@@ -432,8 +434,8 @@ PeerManager::update(PeerBareAddress const& address, TypeUpdate type,
 }
 
 int
-PeerManager::countPeers(std::string const& where,
-                        std::function<void(soci::statement&)> const& bind)
+PeerManagerImpl::countPeers(std::string const& where,
+                            std::function<void(soci::statement&)> const& bind)
 {
     int count = 0;
 
@@ -459,8 +461,8 @@ PeerManager::countPeers(std::string const& where,
 }
 
 std::vector<PeerBareAddress>
-PeerManager::loadPeers(int limit, int offset, std::string const& where,
-                       std::function<void(soci::statement&)> const& bind)
+PeerManagerImpl::loadPeers(int limit, int offset, std::string const& where,
+                           std::function<void(soci::statement&)> const& bind)
 {
     auto result = std::vector<PeerBareAddress>{};
 
@@ -504,14 +506,7 @@ PeerManager::loadPeers(int limit, int offset, std::string const& where,
     return result;
 }
 
-void
-PeerManager::dropAll(Database& db)
-{
-    db.getSession() << "DROP TABLE IF EXISTS peers;";
-    db.getSession() << kSQLCreateStatement;
-}
-
-const char* PeerManager::kSQLCreateStatement =
+static char const* kSQLCreateStatement =
     "CREATE TABLE peers ("
     "ip            VARCHAR(15) NOT NULL,"
     "port          INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL,"
@@ -520,4 +515,11 @@ const char* PeerManager::kSQLCreateStatement =
     "type          INT NOT NULL,"
     "PRIMARY KEY (ip, port)"
     ");";
+
+void
+PeerManager::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS peers;";
+    db.getSession() << kSQLCreateStatement;
+}
 }

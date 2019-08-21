@@ -59,6 +59,9 @@ class OverlayManager
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
 
+    // Two-phase init to enable virtual construction of members.
+    virtual void initialize() = 0;
+
     // Flush all FloodGate and ItemFetcher state for ledgers older than
     // `ledger`.
     // This is called by LedgerManager when a ledger closes.

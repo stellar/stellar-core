@@ -5,9 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerBareAddress.h"
-#include "util/Timer.h"
-
-#include <functional>
 
 namespace soci
 {
@@ -79,77 +76,66 @@ class PeerManager
 
     static void dropAll(Database& db);
 
-    explicit PeerManager(Application& app);
-
     /**
      * Ensure that given peer is stored in database.
      */
-    void ensureExists(PeerBareAddress const& address);
+    virtual void ensureExists(PeerBareAddress const& address) = 0;
 
     /**
      * Update type of peer associated with given address.
      */
-    void update(PeerBareAddress const& address, TypeUpdate type);
+    virtual void update(PeerBareAddress const& address, TypeUpdate type) = 0;
 
     /**
      * Update "next try" of peer associated with given address - can reset
      * it to now or back off even further in future.
      */
-    void update(PeerBareAddress const& address, BackOffUpdate backOff);
+    virtual void update(PeerBareAddress const& address,
+                        BackOffUpdate backOff) = 0;
 
     /**
      * Update both type and "next try" of peer associated with given address.
      */
-    void update(PeerBareAddress const& address, TypeUpdate type,
-                BackOffUpdate backOff);
+    virtual void update(PeerBareAddress const& address, TypeUpdate type,
+                        BackOffUpdate backOff) = 0;
 
     /**
      * Load PeerRecord data for peer with given address. If not available in
      * database, create default one. Second value in pair is true when data
      * was loaded from database, false otherwise.
      */
-    std::pair<PeerRecord, bool> load(PeerBareAddress const& address);
+    virtual std::pair<PeerRecord, bool>
+    load(PeerBareAddress const& address) = 0;
 
     /**
      * Store PeerRecord data into database. If inDatabase is true, uses UPDATE
      * query, uses INSERT otherwise.
      */
-    void store(PeerBareAddress const& address, PeerRecord const& PeerRecord,
-               bool inDatabase);
+    virtual void store(PeerBareAddress const& address,
+                       PeerRecord const& PeerRecord, bool inDatabase) = 0;
 
     /**
      * Load size random peers matching query from database.
      */
-    std::vector<PeerBareAddress> loadRandomPeers(PeerQuery const& query,
-                                                 int size);
+    virtual std::vector<PeerBareAddress> loadRandomPeers(PeerQuery const& query,
+                                                         int size) = 0;
 
     /**
      * Remove peers that have at least minNumFailures. Can only remove peer with
      * given address.
      */
-    void removePeersWithManyFailures(int minNumFailures,
-                                     PeerBareAddress const* address = nullptr);
+    virtual void
+    removePeersWithManyFailures(int minNumFailures,
+                                PeerBareAddress const* address = nullptr) = 0;
 
     /**
      * Get list of peers to send to peer with given address.
      */
-    std::vector<PeerBareAddress> getPeersToSend(int size,
-                                                PeerBareAddress const& address);
+    virtual std::vector<PeerBareAddress>
+    getPeersToSend(int size, PeerBareAddress const& address) = 0;
 
-  private:
-    static const char* kSQLCreateStatement;
-
-    Application& mApp;
-    std::unique_ptr<RandomPeerSource> mOutboundPeersToSend;
-    std::unique_ptr<RandomPeerSource> mInboundPeersToSend;
-
-    int countPeers(std::string const& where,
-                   std::function<void(soci::statement&)> const& bind);
-    std::vector<PeerBareAddress>
-    loadPeers(int limit, int offset, std::string const& where,
-              std::function<void(soci::statement&)> const& bind);
-
-    void update(PeerRecord& peer, TypeUpdate type);
-    void update(PeerRecord& peer, BackOffUpdate backOff, Application& app);
+    virtual ~PeerManager()
+    {
+    }
 };
 }

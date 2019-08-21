@@ -100,7 +100,9 @@ class OverlayManagerTests
         virtual std::unique_ptr<OverlayManager>
         createOverlayManager() override
         {
-            return std::make_unique<OverlayManagerStub>(*this);
+            auto ovm = std::make_unique<OverlayManagerStub>(*this);
+            ovm->initialize();
+            return ovm;
         }
     };
 

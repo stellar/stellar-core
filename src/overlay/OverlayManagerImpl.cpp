@@ -12,7 +12,7 @@
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/PeerBareAddress.h"
-#include "overlay/PeerManager.h"
+#include "overlay/PeerManagerImpl.h"
 #include "overlay/RandomPeerSource.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
@@ -229,7 +229,17 @@ OverlayManagerImpl::PeersList::shutdown()
 std::unique_ptr<OverlayManager>
 OverlayManager::create(Application& app)
 {
-    return std::make_unique<OverlayManagerImpl>(app);
+    // OverlayManager uses two-phase initialization to support
+    // virtual construction of its PeerManager.
+    auto ovm = std::make_unique<OverlayManagerImpl>(app);
+    ovm->initialize();
+    return ovm;
+}
+
+std::unique_ptr<PeerManager>
+OverlayManagerImpl::createPeerManager(Application& app)
+{
+    return std::make_unique<PeerManagerImpl>(app);
 }
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
@@ -238,7 +248,6 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
                     mApp.getConfig().MAX_ADDITIONAL_PEER_CONNECTIONS)
     , mOutboundPeers(*this, mApp.getMetrics(), "outbound", "cancel",
                      mApp.getConfig().TARGET_PEER_CONNECTIONS)
-    , mPeerManager(app)
     , mDoor(mApp)
     , mAuth(mApp)
     , mShuttingDown(false)
@@ -250,12 +259,20 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
 {
+}
+
+void
+OverlayManagerImpl::initialize()
+{
+    assert(!mPeerManager);
+    mPeerManager = createPeerManager(mApp);
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
-        mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
+        *mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
     mPeerSources[PeerType::OUTBOUND] = std::make_unique<RandomPeerSource>(
-        mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND));
+        *mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND));
     mPeerSources[PeerType::PREFERRED] = std::make_unique<RandomPeerSource>(
-        mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::PREFERRED));
+        *mPeerManager,
+        RandomPeerSource::nextAttemptCutoff(PeerType::PREFERRED));
 }
 
 OverlayManagerImpl::~OverlayManagerImpl()
@@ -265,6 +282,7 @@ OverlayManagerImpl::~OverlayManagerImpl()
 void
 OverlayManagerImpl::start()
 {
+    assert(mPeerManager);
     mDoor.start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
@@ -856,7 +874,7 @@ OverlayManagerImpl::getLoadManager()
 PeerManager&
 OverlayManagerImpl::getPeerManager()
 {
-    return mPeerManager;
+    return *mPeerManager;
 }
 
 void
