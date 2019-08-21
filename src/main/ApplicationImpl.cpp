@@ -124,7 +124,7 @@ ApplicationImpl::initialize(InitialDBMode initDBMode)
     mHerder = createHerder();
     mHerderPersistence = createHerderPersistence();
     mBucketManager = createBucketManager();
-    mCatchupManager = CatchupManager::create(*this);
+    mCatchupManager = createCatchupManager();
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = createHistoryManager();
     mInvariantManager = createInvariantManager();
@@ -812,6 +812,12 @@ std::unique_ptr<BucketManager>
 ApplicationImpl::createBucketManager()
 {
     return BucketManager::create(*this);
+}
+
+std::unique_ptr<CatchupManager>
+ApplicationImpl::createCatchupManager()
+{
+    return CatchupManager::create(*this);
 }
 
 std::unique_ptr<Database>

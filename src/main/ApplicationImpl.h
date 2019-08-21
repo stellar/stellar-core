@@ -185,6 +185,7 @@ class ApplicationImpl : public Application
     void enableInvariantsFromConfig();
 
     virtual std::unique_ptr<BucketManager> createBucketManager();
+    virtual std::unique_ptr<CatchupManager> createCatchupManager();
     virtual std::unique_ptr<Database> createDatabase();
     virtual std::unique_ptr<Herder> createHerder();
     virtual std::unique_ptr<HerderPersistence> createHerderPersistence();
