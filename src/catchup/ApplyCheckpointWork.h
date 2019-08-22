@@ -75,6 +75,5 @@ class ApplyCheckpointWork : public BasicWork
     {
         return true;
     };
-    void onSuccess() override;
 };
 }
