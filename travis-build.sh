@@ -123,7 +123,7 @@ export ALL_VERSIONS=1
 export TEMP_POSTGRES=0
 export NUM_PARTITIONS=$((NPROCS*2))
 export RUN_PARTITIONS
-ulimit -n 1024
+ulimit -n 256
 time make check
 
 echo All done
