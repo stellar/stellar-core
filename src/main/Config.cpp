@@ -1028,13 +1028,12 @@ Config::adjust()
     int maxFsConnections = std::min<int>(
         std::numeric_limits<unsigned short>::max(), fs::getMaxConnections());
 
-    auto totalRequiredConnections = TARGET_PEER_CONNECTIONS +
-                                    MAX_ADDITIONAL_PEER_CONNECTIONS +
-                                    MAX_PENDING_CONNECTIONS;
-
     auto totalAuthenticatedConnections =
         TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
-    if (totalAuthenticatedConnections > 0 && totalRequiredConnections > 0)
+
+    int maxPendingConnections = MAX_PENDING_CONNECTIONS;
+
+    if (totalAuthenticatedConnections > 0)
     {
         auto outboundPendingRate =
             double(TARGET_PEER_CONNECTIONS) / totalAuthenticatedConnections;
@@ -1047,8 +1046,26 @@ Config::adjust()
                 std::max<int>(1, cappedToUnsignedShort));
         };
 
-        if (totalRequiredConnections > maxFsConnections)
+        // see if we need to reduce maxPendingConnections
+        if (totalAuthenticatedConnections + maxPendingConnections >
+            maxFsConnections)
         {
+            maxPendingConnections =
+                totalAuthenticatedConnections >= maxFsConnections
+                    ? 1
+                    : static_cast<unsigned short>(
+                          maxFsConnections - totalAuthenticatedConnections);
+        }
+
+        // if we're still over, we scale everything
+        if (totalAuthenticatedConnections + maxPendingConnections >
+            maxFsConnections)
+        {
+            maxPendingConnections = std::max<int>(MAX_PENDING_CONNECTIONS, 1);
+
+            int totalRequiredConnections =
+                totalAuthenticatedConnections + maxPendingConnections;
+
             auto outboundRate =
                 (double)TARGET_PEER_CONNECTIONS / totalRequiredConnections;
             auto inboundRate = (double)MAX_ADDITIONAL_PEER_CONNECTIONS /
@@ -1061,32 +1078,25 @@ Config::adjust()
 
             auto authenticatedConnections =
                 TARGET_PEER_CONNECTIONS + MAX_ADDITIONAL_PEER_CONNECTIONS;
-            MAX_PENDING_CONNECTIONS =
+            maxPendingConnections =
                 authenticatedConnections >= maxFsConnections
                     ? 1
                     : static_cast<unsigned short>(maxFsConnections -
                                                   authenticatedConnections);
         }
 
-        // allow setting own values for testing purposes
+        MAX_PENDING_CONNECTIONS = static_cast<unsigned short>(std::min<int>(
+            std::numeric_limits<unsigned short>::max(), maxPendingConnections));
+
+        // derive outbound/inbound pending connections
+        // from MAX_PENDING_CONNECTIONS, using the ratio of inbound/outbound
+        // connections
         if (MAX_OUTBOUND_PENDING_CONNECTIONS == 0 &&
             MAX_INBOUND_PENDING_CONNECTIONS == 0)
         {
-            if (TARGET_PEER_CONNECTIONS <=
-                std::numeric_limits<unsigned short>::max() / 2)
-            {
-                MAX_OUTBOUND_PENDING_CONNECTIONS = TARGET_PEER_CONNECTIONS * 2;
-            }
-            else
-            {
-                MAX_OUTBOUND_PENDING_CONNECTIONS =
-                    std::numeric_limits<unsigned short>::max();
-            }
-
-            MAX_OUTBOUND_PENDING_CONNECTIONS =
-                std::min(MAX_OUTBOUND_PENDING_CONNECTIONS,
-                         doubleToNonzeroUnsignedShort(MAX_PENDING_CONNECTIONS *
-                                                      outboundPendingRate));
+            MAX_OUTBOUND_PENDING_CONNECTIONS = std::max<unsigned short>(
+                1, doubleToNonzeroUnsignedShort(MAX_PENDING_CONNECTIONS *
+                                                outboundPendingRate));
             MAX_INBOUND_PENDING_CONNECTIONS = std::max<unsigned short>(
                 1, MAX_PENDING_CONNECTIONS - MAX_OUTBOUND_PENDING_CONNECTIONS);
         }
