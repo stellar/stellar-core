@@ -41,6 +41,78 @@ getFuzzConfig(int instanceNumber)
     return cfg;
 }
 
+void
+resetTxInternalState(Application& app)
+{
+    // seed randomness
+    srand(1);
+    gRandomEngine.seed(1);
+
+// reset caches to clear persistent state
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    app.getLedgerTxnRoot().resetForFuzzer();
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    app.getDatabase().clearPreparedStatementCache();
+}
+
+// FuzzTransactionFrame is a specialized TransactionFrame that includes
+// useful methods for fuzzing such as an attemptApplication method for reseting
+// ledger state and deterministically attempting application of transactions.
+class FuzzTransactionFrame : public TransactionFrame
+{
+  public:
+    FuzzTransactionFrame(Hash const& networkID,
+                         TransactionEnvelope const& envelope)
+        : TransactionFrame(networkID, envelope){};
+
+    void
+    attemptApplication(Application& app, AbstractLedgerTxn& ltx)
+    {
+        // reset results of operations
+        resetResults(ltx.getHeader(), 0);
+
+        // attempt application of transaction without accounting for sequence
+        // number, processing the fee, or committing the LedgerTxn
+        SignatureChecker signatureChecker{
+            ltx.loadHeader().current().ledgerVersion, getContentsHash(),
+            mEnvelope.signatures};
+        // if any ill-formed Operations, do not attempt transaction application
+        auto isInvalidOperationXDR = [&](auto const& op) {
+            return !op->checkValid(signatureChecker, ltx, false);
+        };
+        if (std::any_of(mOperations.begin(), mOperations.end(),
+                        isInvalidOperationXDR))
+        {
+            return;
+        }
+        // while the following method's result is not captured, regardless, for
+        // protocols < 8, this triggered buggy caching, and potentially may do
+        // so in the future
+        loadSourceAccount(ltx, ltx.loadHeader());
+        TransactionMeta tm(1);
+        applyOperations(signatureChecker, app, ltx, tm.v1());
+    }
+};
+
+std::shared_ptr<FuzzTransactionFrame>
+createFuzzTransactionFrame(PublicKey sourceAccountID,
+                           std::vector<Operation> ops, Hash const& networkID)
+{
+    // construct a transaction envelope, which, for each transaction
+    // application in the fuzzer, is the exact same, except for the inner
+    // operations of course
+    auto txEnv = TransactionEnvelope{};
+    txEnv.tx.sourceAccount = sourceAccountID;
+    txEnv.tx.fee = 0;
+    txEnv.tx.seqNum = 1;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(txEnv.tx.operations));
+
+    std::shared_ptr<FuzzTransactionFrame> res =
+        std::make_shared<FuzzTransactionFrame>(networkID, txEnv);
+    return res;
+}
+
 bool
 isBadOverlayFuzzerInput(StellarMessage const& m)
 {
