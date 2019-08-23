@@ -17,38 +17,127 @@ extern "C" {
 
 class BitSet
 {
+    // Value-semantic wrapper for cbitset that carries a small inline bitset
+    // around with it for even less heap allocation / more cache-friendliness.
+    // Adjust the INLINE_NWORDS as necessary; it'll still work (just slow down
+    // a bit) if you guess wrong.
+    static constexpr size_t WORD_BITS_LOG2 = 6; // 2^6 = 64
+    static constexpr size_t WORD_BITS = (1 << WORD_BITS_LOG2);
+    static_assert(WORD_BITS == (8 * sizeof(uint64_t)), "unexpected WORD_BITS");
+    static constexpr size_t INLINE_NWORDS = 1;
+    static constexpr size_t INLINE_NBITS = INLINE_NWORDS * WORD_BITS;
     mutable bool mCountDirty = {true};
     mutable size_t mCount = {0};
-    std::unique_ptr<bitset_t, decltype(&bitset_free)> mPtr;
+
+    // If mPtr == &mInlineBitset then we are using the inline bitset
+    // (mInlineBitset.array === &mInlineBits) and do not need to free either the
+    // desriptor or the array. If mPtr != &mInlineBitset then it's pointing to
+    // an out-of-line bitset which we need to free.
+    bitset_t* mPtr{nullptr};
+    bitset_t mInlineBitset{nullptr, INLINE_NWORDS, INLINE_NWORDS};
+    uint64_t mInlineBits[INLINE_NWORDS]{0};
+
+    bool
+    isStoredInline() const
+    {
+        return mPtr == &mInlineBitset;
+    }
+
+    void
+    setToEmptyAndInline()
+    {
+        if (mPtr && !isStoredInline())
+        {
+            bitset_free(mPtr);
+        }
+        mPtr = &mInlineBitset;
+        for (size_t i = 0; i < INLINE_NWORDS; ++i)
+        {
+            mInlineBits[i] = 0;
+        }
+        mInlineBitset.array = mInlineBits;
+    }
+
+    void
+    ensureCapacity(size_t nBits)
+    {
+        size_t nWords = (nBits + WORD_BITS - 1) >> WORD_BITS_LOG2;
+        if (nWords <= mPtr->capacity)
+        {
+            return;
+        }
+        if (isStoredInline())
+        {
+            // Promote inline to out-of-line, no free required.
+            mPtr = bitset_copy(mPtr);
+        }
+        bitset_resize(mPtr, nWords, true);
+    }
+
+    void
+    setToEmptyWithCapacity(size_t nBits)
+    {
+        // Equal to "setToEmptyAndInline + ensureCapacity" but with one malloc
+        // rather than malloc+realloc in the case where it's not inline.
+        setToEmptyAndInline();
+        if (nBits > INLINE_NBITS)
+        {
+            mPtr = bitset_create_with_capacity(nBits);
+        }
+    }
+
+    void
+    copyOther(BitSet const& other)
+    {
+        // This step will also free any out-of-line bitset_t we own.
+        setToEmptyAndInline();
+
+        if (other.isStoredInline())
+        {
+            for (size_t i = 0; i < INLINE_NWORDS; ++i)
+            {
+                mInlineBits[i] = other.mInlineBits[i];
+            }
+        }
+        else
+        {
+            mPtr = bitset_copy(other.mPtr);
+        }
+        mCount = other.mCount;
+        mCountDirty = other.mCountDirty;
+    }
 
   public:
-    BitSet() : mPtr(bitset_create(), &bitset_free)
+    ~BitSet()
     {
+        setToEmptyAndInline();
     }
-    BitSet(size_t n) : mPtr(bitset_create_with_capacity(n), &bitset_free)
+    BitSet()
     {
+        setToEmptyAndInline();
+    }
+    BitSet(size_t n)
+    {
+        setToEmptyWithCapacity(n);
     }
     BitSet(std::set<size_t> const& s)
-        : mPtr(bitset_create_with_capacity(s.empty() ? 0 : *s.rbegin()),
-               &bitset_free)
     {
+        setToEmptyWithCapacity(s.empty() ? 0 : *s.rbegin());
         for (auto i : s)
+        {
             set(i);
+        }
     }
     BitSet(BitSet const& other)
-        : mPtr(bitset_copy(other.mPtr.get()), &bitset_free)
     {
+        copyOther(other);
     }
     BitSet&
     operator=(BitSet const& other)
     {
-        mPtr = decltype(mPtr)(bitset_copy(other.mPtr.get()), &bitset_free);
-        mCount = other.mCount;
-        mCountDirty = other.mCountDirty;
+        copyOther(other);
         return *this;
     }
-    BitSet(BitSet&& other) = default;
-    BitSet& operator=(BitSet&& other) = default;
 
     bool
     operator!=(BitSet const& other) const
@@ -59,13 +148,13 @@ class BitSet
     bool
     operator==(BitSet const& other) const
     {
-        return bitset_equal(mPtr.get(), other.mPtr.get());
+        return bitset_equal(mPtr, other.mPtr);
     }
 
     bool
     isSubsetEq(BitSet const& other) const
     {
-        return bitset_subseteq(mPtr.get(), other.mPtr.get());
+        return bitset_subseteq(mPtr, other.mPtr);
     }
 
     bool
@@ -77,29 +166,30 @@ class BitSet
     size_t
     size() const
     {
-        return bitset_size_in_bits(mPtr.get());
+        return bitset_size_in_bits(mPtr);
     }
     void
     set(size_t i)
     {
-        bitset_set(mPtr.get(), i);
+        ensureCapacity(i);
+        bitset_set(mPtr, i);
         mCountDirty = true;
     }
     void
     unset(size_t i)
     {
-        bitset_unset(mPtr.get(), i);
+        bitset_unset(mPtr, i);
         mCountDirty = true;
     }
     bool
     get(size_t i) const
     {
-        return bitset_get(mPtr.get(), i);
+        return bitset_get(mPtr, i);
     }
     void
     clear()
     {
-        bitset_clear(mPtr.get());
+        bitset_clear(mPtr);
         mCount = 0;
         mCountDirty = false;
     }
@@ -109,7 +199,7 @@ class BitSet
     {
         if (mCountDirty)
         {
-            mCount = bitset_count(mPtr.get());
+            mCount = bitset_count(mPtr);
             mCountDirty = false;
         }
         return mCount;
@@ -127,18 +217,19 @@ class BitSet
     size_t
     min() const
     {
-        return bitset_minimum(mPtr.get());
+        return bitset_minimum(mPtr);
     }
     size_t
     max() const
     {
-        return bitset_maximum(mPtr.get());
+        return bitset_maximum(mPtr);
     }
 
     void
     inplaceUnion(BitSet const& other)
     {
-        bitset_inplace_union(mPtr.get(), other.mPtr.get());
+        ensureCapacity(other.size());
+        bitset_inplace_union(mPtr, other.mPtr);
         mCountDirty = true;
     }
     BitSet
@@ -157,7 +248,9 @@ class BitSet
     void
     inplaceIntersection(BitSet const& other)
     {
-        bitset_inplace_intersection(mPtr.get(), other.mPtr.get());
+        // We do not need to do ensureCapacity() here because
+        // intersection never grows a bitset: no reallocation.
+        bitset_inplace_intersection(mPtr, other.mPtr);
         mCountDirty = true;
     }
     BitSet operator&(BitSet const& other) const
@@ -175,7 +268,9 @@ class BitSet
     void
     inplaceDifference(BitSet const& other)
     {
-        bitset_inplace_difference(mPtr.get(), other.mPtr.get());
+        // We do not need to do ensureCapacity() here because
+        // difference never grows a bitset: no reallocation.
+        bitset_inplace_difference(mPtr, other.mPtr);
         mCountDirty = true;
     }
     BitSet
@@ -194,7 +289,8 @@ class BitSet
     void
     inplaceSymmetricDifference(BitSet const& other)
     {
-        bitset_inplace_symmetric_difference(mPtr.get(), other.mPtr.get());
+        ensureCapacity(other.size());
+        bitset_inplace_symmetric_difference(mPtr, other.mPtr);
         mCountDirty = true;
     }
     BitSet
@@ -208,27 +304,27 @@ class BitSet
     size_t
     unionCount(BitSet const& other) const
     {
-        return bitset_union_count(mPtr.get(), other.mPtr.get());
+        return bitset_union_count(mPtr, other.mPtr);
     }
     size_t
     intersectionCount(BitSet const& other) const
     {
-        return bitset_intersection_count(mPtr.get(), other.mPtr.get());
+        return bitset_intersection_count(mPtr, other.mPtr);
     }
     size_t
     differenceCount(BitSet const& other) const
     {
-        return bitset_difference_count(mPtr.get(), other.mPtr.get());
+        return bitset_difference_count(mPtr, other.mPtr);
     }
     size_t
     symmetricDifferenceCount(BitSet const& other) const
     {
-        return bitset_symmetric_difference_count(mPtr.get(), other.mPtr.get());
+        return bitset_symmetric_difference_count(mPtr, other.mPtr);
     }
     bool
     nextSet(size_t& i) const
     {
-        return nextSetBit(mPtr.get(), &i);
+        return nextSetBit(mPtr, &i);
     }
     void
     streamWith(std::ostream& out,
