@@ -9,7 +9,21 @@
 namespace stellar
 {
 
+class Fuzzer;
+
+enum class FuzzerMode
+{
+    OVERLAY,
+    TRANSACTION
+};
+
+namespace FuzzUtils
+{
+static auto const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
+std::unique_ptr<Fuzzer> createFuzzer(int processID, FuzzerMode fuzzerMode);
+}
+
 void fuzz(std::string const& filename, el::Level logLevel,
-          std::vector<std::string> const& metrics);
-void genfuzz(std::string const& filename);
+          std::vector<std::string> const& metrics, uint processID,
+          FuzzerMode fuzzerMode);
 }

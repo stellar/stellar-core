@@ -64,16 +64,18 @@ format: always
 endif # USE_CLANG_FORMAT
 
 if USE_AFL_FUZZ
+FUZZER_MODE ?= overlay
+
 fuzz-testcases: stellar-core
 	mkdir -p fuzz-testcases
 	for i in `seq 1 10`; do \
-	    ./stellar-core gen-fuzz fuzz-testcases/fuzz$$i.xdr; \
+	    ./stellar-core gen-fuzz fuzz-testcases/fuzz$$i.xdr --mode=${FUZZER_MODE}; \
 	done
 
 fuzz: fuzz-testcases stellar-core
 	mkdir -p fuzz-findings
 	afl-fuzz -m 8000 -t 250 -i fuzz-testcases -o fuzz-findings \
-	    ./stellar-core fuzz @@
+	    ./stellar-core fuzz @@ --mode=${FUZZER_MODE}
 
 fuzz-clean: always
 	rm -Rf fuzz-testcases fuzz-findings

@@ -1288,6 +1288,21 @@ LedgerTxnRoot::Impl::~Impl()
     }
 }
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+void
+LedgerTxnRoot::Impl::resetForFuzzer()
+{
+    mBestOffersCache.clear();
+    mEntryCache.clear();
+}
+
+void
+LedgerTxnRoot::resetForFuzzer()
+{
+    mImpl->resetForFuzzer();
+}
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
 void
 LedgerTxnRoot::addChild(AbstractLedgerTxn& child)
 {
