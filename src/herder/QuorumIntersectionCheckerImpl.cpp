@@ -136,7 +136,8 @@ TarjanSCCCalculator::scc(size_t i)
 size_t
 MinQuorumEnumerator::pickSplitNode() const
 {
-    std::vector<size_t> inDegrees(mQic.mGraph.size(), 0);
+    std::vector<size_t>& inDegrees = mQic.mInDegrees;
+    inDegrees.assign(mQic.mGraph.size(), 0);
     assert(!mRemaining.empty());
     size_t maxNode = mRemaining.max();
     size_t maxCount = 1;
