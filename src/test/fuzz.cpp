@@ -45,6 +45,22 @@
 namespace stellar
 {
 
+namespace FuzzUtils
+{
+std::unique_ptr<Fuzzer>
+createFuzzer(int processID, FuzzerMode fuzzerMode)
+{
+    switch (fuzzerMode)
+    {
+    case FuzzerMode::OVERLAY:
+        return std::make_unique<OverlayFuzzer>();
+    case FuzzerMode::TRANSACTION:
+        return std::make_unique<TransactionFuzzer>(
+            NUMBER_OF_PREGENERATED_ACCOUNTS, processID);
+    }
+}
+}
+
 std::string
 msgSummary(StellarMessage const& m)
 {
