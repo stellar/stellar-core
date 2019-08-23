@@ -30,6 +30,10 @@ SignatureChecker::checkSignature(AccountID const& accountID,
                                  std::vector<Signer> const& signersV,
                                  int neededWeight)
 {
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    return true;
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
     if (mProtocolVersion == 7)
     {
         return true;
@@ -119,6 +123,10 @@ SignatureChecker::checkSignature(AccountID const& accountID,
 bool
 SignatureChecker::checkAllSignaturesUsed() const
 {
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    return true;
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
     if (mProtocolVersion == 7)
     {
         return true;
