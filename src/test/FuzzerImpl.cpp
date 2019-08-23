@@ -361,3 +361,26 @@ OverlayFuzzer::genFuzz(std::string const& filename)
     out.writeOne(m);
 }
 }
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+namespace xdr
+{
+template <>
+void
+generator_t::operator()(stellar::PublicKey& t) const
+{
+    // generate public keys such that it is zero'd out except the last byte,
+    // hence for ED25519 public keys, an uint256 defined as opaque[32] set the
+    // 31st indexed byte. Furthermore, utilize only the first few bits of the
+    // 32nd byte, allowing us to generate these accounts against a pregeneration
+    // of such accountID's.Also, note that NUMBER_OF_PREGENERATED_ACCOUNTS here
+    // creates an off-by-one error, when generating acounts we use
+    // [0,NUMBER_OF_PREGENERATED_ACCOUNTS) exclusive versus here we use
+    // [0,NUMBER_OF_PREGENERATED_ACCOUNTS] inclusive. This allows us to generate
+    // some transactions with a source account/destination account that does
+    // not exist.
+    t.ed25519().at(31) = autocheck::generator<uint>()(
+        stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS);
+}
+} // namespace xdr
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
