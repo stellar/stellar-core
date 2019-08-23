@@ -114,6 +114,14 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
 }
 
 bool
+isBadTransactionFuzzerInput(Operation const& op)
+{
+    return !(op.body.type() == ACCOUNT_MERGE) &&
+           !(op.body.type() == PAYMENT &&
+             op.body.paymentOp().asset.type() == ASSET_TYPE_NATIVE);
+}
+
+bool
 isBadOverlayFuzzerInput(StellarMessage const& m)
 {
     // HELLO, AUTH and ERROR_MSG messages cause the connection between
@@ -125,6 +133,125 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
     // execution paths -- the fuzzer's main metric for determinism
     // (stability) and binary coverage.
     return m.type() == AUTH || m.type() == ERROR_MSG || m.type() == HELLO;
+}
+
+void
+TransactionFuzzer::initialize()
+{
+    VirtualClock clock;
+    mApp = createTestApplication(clock, getFuzzConfig(mProcessID));
+
+    resetTxInternalState(*mApp);
+    LedgerTxn ltx(mApp->getLedgerTxnRoot());
+
+    // setup the state, for this we only need to pregenerate some accounts. For
+    // now we create mNumAccounts accounts, or enough to fill the first few bits
+    // such that we have a pregenerated account for the last few bits of the
+    // 32nd byte of a public key, thus account creation is over a deterministic
+    // range of public keys
+    for (int i = 0; i < mNumAccounts; ++i)
+    {
+        PublicKey publicKey;
+        uint256 accountID;
+        accountID.at(31) = i;
+        publicKey.ed25519() = accountID;
+
+        // manually construct ledger entries, "creating" each account
+        LedgerEntry newAccountEntry;
+        newAccountEntry.data.type(ACCOUNT);
+        auto& newAccount = newAccountEntry.data.account();
+        newAccount.thresholds[0] = 1;
+        newAccount.accountID = publicKey;
+        newAccount.seqNum = 0;
+        // to create "interesting" balances we utilize powers of 2
+        newAccount.balance = 2 << i;
+        ltx.create(newAccountEntry);
+
+        // select the first pregenerated account to be the hard coded source
+        // account for all transactions
+        if (i == 0)
+            mSourceAccountID = publicKey;
+    }
+
+    // commit these to the ledger so that we have a starting, persistent state
+    // to fuzz test against -- should be the only stateful/effectful action
+    ltx.commit();
+}
+
+void
+TransactionFuzzer::inject(XDRInputFileStream& in)
+{
+    // for tryRead, in case of fuzzer creating an ill-formed xdr, generate an
+    // xdr that will trigger a non-execution path so that the fuzzer realizes it
+    // has hit an uninteresting case
+    auto tryRead = [&in](xdr::xvector<Operation>& m) {
+        try
+        {
+            return in.readOne(m);
+        }
+        catch (...)
+        {
+            m.clear(); // we ignore transactions with 0 operations
+            return true;
+        }
+    };
+
+    xdr::xvector<Operation> ops;
+    while (tryRead(ops))
+    {
+        auto wellSizedTx = ops.size() > 0 && ops.size() < 6;
+        if (std::any_of(ops.begin(), ops.end(), isBadTransactionFuzzerInput) ||
+            !wellSizedTx)
+        {
+            return;
+        }
+
+        // construct transaction
+        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
+                                                     mApp->getNetworkID());
+
+        {
+            resetTxInternalState(*mApp);
+            LedgerTxn ltx(mApp->getLedgerTxnRoot());
+
+            // attempt to apply transaction
+            txFramePtr->attemptApplication(*mApp, ltx);
+        }
+        resetTxInternalState(*mApp);
+    }
+}
+
+int
+TransactionFuzzer::xdrSizeLimit()
+{
+    // path_payments are the largest operations, where 100k 1-3 operation
+    // transactions (more correctly xdr::xvector's) with path_payments averaged
+    // to 294 bytes, so 0x500 should be fine
+    return 0x500;
+}
+
+#define FUZZER_INITIAL_CORPUS_MAX_OPERATIONS 5
+#define FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND 128
+void
+TransactionFuzzer::genFuzz(std::string const& filename)
+{
+    XDROutputFileStream out(/*doFsync=*/false);
+    out.open(filename);
+    autocheck::generator<Operation> gen;
+    xdr::xvector<Operation> ops;
+    auto numops =
+        autocheck::generator<uint>()(FUZZER_INITIAL_CORPUS_MAX_OPERATIONS);
+    for (int i = 0; i < numops; ++i)
+    {
+        Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
+        while (isBadTransactionFuzzerInput(op))
+        {
+            op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
+        }
+        ops.emplace_back(op);
+    }
+
+    out.writeOne(ops);
 }
 
 void

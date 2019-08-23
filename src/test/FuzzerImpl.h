@@ -12,7 +12,28 @@ namespace stellar
 
 class XDRInputFileStream;
 class Simulation;
+class Application;
 struct StellarMessage;
+struct Operation;
+
+class TransactionFuzzer : public Fuzzer
+{
+  public:
+    TransactionFuzzer(int numAccounts, int processID)
+        : mNumAccounts(numAccounts), mProcessID(processID)
+    {
+    }
+    void inject(XDRInputFileStream&) override;
+    void initialize() override;
+    void genFuzz(std::string const& filename) override;
+    int xdrSizeLimit() override;
+
+  private:
+    std::shared_ptr<Application> mApp;
+    PublicKey mSourceAccountID;
+    int mNumAccounts;
+    int mProcessID;
+};
 
 class OverlayFuzzer : public Fuzzer
 {
