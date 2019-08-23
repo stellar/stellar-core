@@ -12,7 +12,6 @@
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
 #include "scp/QuorumSetUtils.h"
-#include "test/Fuzzer.h"
 #include "util/Logging.h"
 #include "util/optional.h"
 
@@ -21,6 +20,7 @@
 #include "work/WorkScheduler.h"
 
 #ifdef BUILD_TESTS
+#include "test/Fuzzer.h"
 #include "test/fuzz.h"
 #include "test/test.h"
 #endif
@@ -162,31 +162,6 @@ ParserWithValidation
 fileNameParser(std::string& string)
 {
     return requiredArgParser(string, "FILE-NAME");
-}
-
-ParserWithValidation
-fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
-{
-    auto validateFuzzerMode = [&] {
-        if (iequals(fuzzerModeArg, "overlay"))
-        {
-            fuzzerMode = FuzzerMode::OVERLAY;
-            return "";
-        }
-
-        if (iequals(fuzzerModeArg, "tx"))
-        {
-            fuzzerMode = FuzzerMode::TRANSACTION;
-            return "";
-        }
-
-        return "Unrecognized fuzz mode. Please select a valid mode.";
-    };
-
-    return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
-                "set the fuzzer mode. Expected modes: overlay, "
-                "tx. Defaults to overlay."),
-            validateFuzzerMode};
 }
 
 clara::Opt
@@ -891,6 +866,31 @@ runSimulate(CommandLineArgs const& args)
                 "download-simulate-seq", seq);
             return 0;
         });
+}
+
+ParserWithValidation
+fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
+{
+    auto validateFuzzerMode = [&] {
+        if (iequals(fuzzerModeArg, "overlay"))
+        {
+            fuzzerMode = FuzzerMode::OVERLAY;
+            return "";
+        }
+
+        if (iequals(fuzzerModeArg, "tx"))
+        {
+            fuzzerMode = FuzzerMode::TRANSACTION;
+            return "";
+        }
+
+        return "Unrecognized fuzz mode. Please select a valid mode.";
+    };
+
+    return {clara::Opt{fuzzerModeArg, "FUZZER-MODE"}["--mode"](
+                "set the fuzzer mode. Expected modes: overlay, "
+                "tx. Defaults to overlay."),
+            validateFuzzerMode};
 }
 
 int
