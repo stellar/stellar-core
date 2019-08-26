@@ -249,6 +249,83 @@ TransactionFuzzer::initialize()
         ltx.commit();
     }
 
+    {
+        // In order for certain operation combinations to be valid, we need an
+        // initial order book with various offers. The order book will consist
+        // of identical setups for the asset pairs:
+        //      XLM - A
+        //      A   - B
+        //      B   - C
+        //      C   - D
+        // For any asset A and asset B, the generic order book setup will be as
+        // follows:
+        //
+        // +------------+-----+------+--------+------------------------------+
+        // |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
+        // +------------+-----+------+--------+------------------------------+
+        // | 0          | A   | B    |  1,000 | 3/2                          |
+        // | 1 (issuer) | A   | B    |  5,000 | 3/2                          |
+        // | 2          | A   | B    | 10,000 | 1/1                          |
+        // | 3 (issuer) | B   | A    |  1,000 | 10/9                         |
+        // | 4          | B   | A    |  5,000 | 10/9                         |
+        // | 0          | B   | A    | 10,000 | 22/7                         |
+        // +------------+-----+------+--------+------------------------------+
+        //
+        // This gives us a good mixture of buy and sell, issuers with offers,
+        // and an account with a bid and a sell. It also gives us an initial
+        // order book that is in a legal state.
+        LedgerTxn ltx(ltxroot);
+
+        xdr::xvector<Operation> ops;
+
+        auto genOffersForPair = [&ops](Asset A, Asset B, std::vector<int> pks,
+                                       LedgerTxn& ltx) {
+            auto addOffer = [&ops](Asset bid, Asset sell, int pk, Price price,
+                                   int64 amount) {
+                auto op = txtest::manageOffer(0, bid, sell, price, amount);
+                op.sourceAccount.activate() = FuzzUtils::makePublicKey(pk);
+                ops.emplace_back(op);
+            };
+
+            // A -> B acc0         : 1000A (3B/2A)
+            addOffer(A, B, pks[0], Price{3, 2}, 1000);
+
+            // A -> B acc1 (ISSUER): 5000A (3B/2A)
+            addOffer(A, B, pks[1], Price{3, 2}, 5000);
+
+            // A -> B acc2         : 10000A (1B/1A)
+            addOffer(A, B, pks[2], Price{1, 1}, 10000);
+
+            // B -> A acc3 (ISSUER): 1000B (10A/9B)
+            addOffer(B, A, pks[3], Price{10, 9}, 1000);
+
+            // B -> A acc4         : 5000B (10A/9B)
+            addOffer(B, A, pks[4], Price{10, 9}, 5000);
+
+            // B -> A acc0         : 10000B (22A/7B)
+            addOffer(B, A, pks[0], Price{22, 7}, 10000);
+        };
+
+        auto const& XLM = txtest::makeNativeAsset();
+        auto const& ASSET_A = FuzzUtils::makeAsset(1);
+        auto const& ASSET_B = FuzzUtils::makeAsset(2);
+        auto const& ASSET_C = FuzzUtils::makeAsset(3);
+        auto const& ASSET_D = FuzzUtils::makeAsset(4);
+
+        genOffersForPair(XLM, ASSET_A, {13, 14, 15, 1, 12}, ltx);
+        genOffersForPair(ASSET_A, ASSET_B, {11, 1, 12, 2, 10}, ltx);
+        genOffersForPair(ASSET_B, ASSET_C, {13, 2, 14, 3, 15}, ltx);
+        genOffersForPair(ASSET_C, ASSET_D, {6, 3, 7, 4, 8}, ltx);
+
+        // construct transaction
+        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
+                                                     mApp->getNetworkID());
+
+        txFramePtr->attemptApplication(*mApp, ltx);
+
+        ltx.commit();
+    }
+
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
     ltxroot.commit();
