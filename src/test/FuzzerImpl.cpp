@@ -20,6 +20,10 @@
 
 namespace stellar
 {
+namespace FuzzUtils
+{
+auto const FUZZER_MAX_OPERATIONS = 5;
+}
 
 // creates a generic configuration with settings rigged to maximize
 // determinism
@@ -114,14 +118,6 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
 }
 
 bool
-isBadTransactionFuzzerInput(Operation const& op)
-{
-    return !(op.body.type() == ACCOUNT_MERGE) &&
-           !(op.body.type() == PAYMENT &&
-             op.body.paymentOp().asset.type() == ASSET_TYPE_NATIVE);
-}
-
-bool
 isBadOverlayFuzzerInput(StellarMessage const& m)
 {
     // HELLO, AUTH and ERROR_MSG messages cause the connection between
@@ -199,9 +195,8 @@ TransactionFuzzer::inject(XDRInputFileStream& in)
     xdr::xvector<Operation> ops;
     while (tryRead(ops))
     {
-        auto wellSizedTx = ops.size() > 0 && ops.size() < 6;
-        if (std::any_of(ops.begin(), ops.end(), isBadTransactionFuzzerInput) ||
-            !wellSizedTx)
+        // limit operations per transaction to limit size of fuzzed input
+        if (ops.size() < 1 || ops.size() > FuzzUtils::FUZZER_MAX_OPERATIONS)
         {
             return;
         }
@@ -230,7 +225,6 @@ TransactionFuzzer::xdrSizeLimit()
     return 0x500;
 }
 
-#define FUZZER_INITIAL_CORPUS_MAX_OPERATIONS 5
 #define FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND 128
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
@@ -239,15 +233,11 @@ TransactionFuzzer::genFuzz(std::string const& filename)
     out.open(filename);
     autocheck::generator<Operation> gen;
     xdr::xvector<Operation> ops;
-    auto numops =
-        autocheck::generator<uint>()(FUZZER_INITIAL_CORPUS_MAX_OPERATIONS);
+    auto const numops =
+        autocheck::generator<uint>()(FuzzUtils::FUZZER_MAX_OPERATIONS);
     for (int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
-        while (isBadTransactionFuzzerInput(op))
-        {
-            op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
-        }
         ops.emplace_back(op);
     }
 
