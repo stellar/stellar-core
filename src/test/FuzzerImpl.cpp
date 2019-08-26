@@ -23,6 +23,18 @@ namespace stellar
 namespace FuzzUtils
 {
 auto const FUZZER_MAX_OPERATIONS = 5;
+auto const INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
+
+// generates a public key such that it's comprised of bytes reading [0,0,...,i]
+PublicKey
+makePublicKey(int i)
+{
+    PublicKey publicKey;
+    uint256 accountID;
+    accountID.at(31) = i;
+    publicKey.ed25519() = accountID;
+    return publicKey;
+}
 }
 
 // creates a generic configuration with settings rigged to maximize
@@ -138,40 +150,48 @@ TransactionFuzzer::initialize()
     mApp = createTestApplication(clock, getFuzzConfig(mProcessID));
 
     resetTxInternalState(*mApp);
-    LedgerTxn ltx(mApp->getLedgerTxnRoot());
+    LedgerTxn ltxroot(mApp->getLedgerTxnRoot());
 
-    // setup the state, for this we only need to pregenerate some accounts. For
-    // now we create mNumAccounts accounts, or enough to fill the first few bits
-    // such that we have a pregenerated account for the last few bits of the
-    // 32nd byte of a public key, thus account creation is over a deterministic
-    // range of public keys
-    for (int i = 0; i < mNumAccounts; ++i)
     {
-        PublicKey publicKey;
-        uint256 accountID;
-        accountID.at(31) = i;
-        publicKey.ed25519() = accountID;
+        LedgerTxn ltx(ltxroot);
 
-        // manually construct ledger entries, "creating" each account
-        LedgerEntry newAccountEntry;
-        newAccountEntry.data.type(ACCOUNT);
-        auto& newAccount = newAccountEntry.data.account();
-        newAccount.thresholds[0] = 1;
-        newAccount.accountID = publicKey;
-        newAccount.seqNum = 0;
-        // to create "interesting" balances we utilize powers of 2
-        newAccount.balance = 2 << i;
-        ltx.create(newAccountEntry);
+        // Setup the state, for this we only need to pregenerate some
+        // accounts. For now we create mNumAccounts accounts, or enough to
+        // fill the first few bits such that we have a pregenerated account
+        // for the last few bits of the 32nd byte of a public key, thus
+        // account creation is over a deterministic range of public keys
+        for (int i = 0; i < mNumAccounts; ++i)
+        {
+            PublicKey publicKey = FuzzUtils::makePublicKey(i);
 
-        // select the first pregenerated account to be the hard coded source
-        // account for all transactions
-        if (i == 0)
-            mSourceAccountID = publicKey;
+            // manually construct ledger entries, "creating" each account
+            LedgerEntry newAccountEntry;
+            newAccountEntry.data.type(ACCOUNT);
+            auto& newAccount = newAccountEntry.data.account();
+            newAccount.thresholds[0] = 1;
+            newAccount.accountID = publicKey;
+            newAccount.seqNum = 0;
+            // convert lumens to stroops; required by low level ledger entry
+            // structure which operates in stroops
+            newAccount.balance =
+                FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE * 10000000;
+
+            ltx.create(newAccountEntry);
+
+            // select the first pregenerated account to be the hard coded source
+            // account for all transactions
+            if (i == 0)
+            {
+                mSourceAccountID = publicKey;
+            }
+        }
+
+        ltx.commit();
     }
 
-    // commit these to the ledger so that we have a starting, persistent state
-    // to fuzz test against -- should be the only stateful/effectful action
-    ltx.commit();
+    // commit this to the ledger so that we have a starting, persistent
+    // state to fuzz test against
+    ltxroot.commit();
 }
 
 void
