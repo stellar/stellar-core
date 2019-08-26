@@ -24,6 +24,7 @@ namespace FuzzUtils
 {
 auto const FUZZER_MAX_OPERATIONS = 5;
 auto const INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
+auto const NUMBER_OF_ASSETS_TO_ISSUE = 4;
 
 // generates a public key such that it's comprised of bytes reading [0,0,...,i]
 PublicKey
@@ -34,6 +35,18 @@ makePublicKey(int i)
     accountID.at(31) = i;
     publicKey.ed25519() = accountID;
     return publicKey;
+}
+
+// constructs an Asset structure for an asset issued by an account id comprised
+// of bytes reading [0,0,...,i] and an alphanum4 asset code of "Ast + i"
+Asset
+makeAsset(int i)
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(asset.alphaNum4().assetCode, "Ast" + std::to_string(i));
+    asset.alphaNum4().issuer = makePublicKey(i);
+    return asset;
 }
 }
 
@@ -185,6 +198,53 @@ TransactionFuzzer::initialize()
                 mSourceAccountID = publicKey;
             }
         }
+
+        ltx.commit();
+    }
+
+    {
+        LedgerTxn ltx(ltxroot);
+
+        xdr::xvector<Operation> ops;
+
+        // for now we have every pregenerated account except the source account
+        // trust everything for some assets issued by account indexed 1...
+        // NUMBER_OF_ASSETS_TO_ISSUE. We also distribute some of these assets to
+        // everyone so that they can make trades, payments, etc. We start with 1
+        // since we use 0 as source account for transactions and don't want that
+        // account to trust any issuer or receive non-native assets
+        for (int i = 1; i < mNumAccounts; ++i)
+        {
+            auto const account = FuzzUtils::makePublicKey(i);
+
+            // start with 1 since we use 0 as source account for transactions
+            // and don't want that account to be an issuer
+            for (int j = 1; j < FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE + 1; ++j)
+            {
+                auto const asset = FuzzUtils::makeAsset(j);
+                auto const issuer = FuzzUtils::makePublicKey(j);
+                if (i != j)
+                {
+                    // trust asset issuer
+                    auto trustOp = txtest::changeTrust(asset, INT64_MAX);
+                    trustOp.sourceAccount.activate() = account;
+                    ops.emplace_back(trustOp);
+
+                    // distribute asset
+                    auto distributeOp = txtest::payment(
+                        account, asset,
+                        FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE);
+                    distributeOp.sourceAccount.activate() = issuer;
+                    ops.emplace_back(distributeOp);
+                }
+            }
+        }
+
+        // construct transaction
+        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
+                                                     mApp->getNetworkID());
+
+        txFramePtr->attemptApplication(*mApp, ltx);
 
         ltx.commit();
     }
