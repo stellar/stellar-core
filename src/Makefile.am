@@ -68,13 +68,16 @@ FUZZER_MODE ?= overlay
 
 fuzz-testcases: stellar-core
 	mkdir -p fuzz-testcases
-	for i in `seq 1 10`; do \
+	for i in `seq 1 10000`; do \
 	    ./stellar-core gen-fuzz fuzz-testcases/fuzz$$i.xdr --mode=${FUZZER_MODE}; \
 	done
+	mkdir -p min-testcases
+	afl-cmin -i fuzz-testcases -o min-testcases -m 250 -t 250 ./stellar-core fuzz @@ --mode=${FUZZER_MODE}
+	rm -Rf fuzz-testcases
 
 fuzz: fuzz-testcases stellar-core
 	mkdir -p fuzz-findings
-	afl-fuzz -m 8000 -t 250 -i fuzz-testcases -o fuzz-findings \
+	afl-fuzz -m 250 -t 250 -i min-testcases -o fuzz-findings \
 	    ./stellar-core fuzz @@ --mode=${FUZZER_MODE}
 
 fuzz-clean: always

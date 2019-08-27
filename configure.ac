@@ -196,7 +196,7 @@ AS_IF([test "x$enable_afl" = "xyes"], [
                      # below we hard code -std=c++14 since updates to AX_CXX_COMPILE_STDCXX circa 2015 append it to
                      # CXX, not to CXXFLAGS and thus when setting CXX we override this. For a more detailed explanation
                      # see: https://github.com/stellar/docker-stellar-core/pull/66#issuecomment-521886881
-                     CXX="afl-clang-fast++ -std=c++14"],
+                     CXX="afl-clang-fast++ -std=c++14 -DAFL_LLVM_MODE=1"],
           [gcc*],   [AC_CHECK_PROGS([AFL_GCC], [afl-gcc])
                      AC_CHECK_PROGS([AFL_GPP], [afl-g++])
                      CC="afl-gcc"
