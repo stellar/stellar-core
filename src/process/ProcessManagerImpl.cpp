@@ -255,6 +255,8 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
     , mIOContext(app.getClock().getIOContext())
     , mSigChild(mIOContext)
+    , mTmpDir(
+          std::make_unique<TmpDir>(app.getTmpDirManager().tmpDir("process")))
 {
 }
 
