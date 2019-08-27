@@ -149,11 +149,13 @@ TransactionFuzzer::initialize()
     // such that we have a pregenerated account for the last few bits of the
     // 32nd byte of a public key, thus account creation is over a deterministic
     // range of public keys
-    for (int i = 0; i < mNumAccounts; ++i)
+    for (unsigned int i = 0; i < mNumAccounts; ++i)
     {
         PublicKey publicKey;
         uint256 accountID;
-        accountID.at(31) = i;
+        // NB: need to map to more bytes if we have more accounts at some point
+        assert(i <= std::numeric_limits<uint8_t>::max());
+        accountID.at(31) = static_cast<uint8_t>(i);
         publicKey.ed25519() = accountID;
 
         // manually construct ledger entries, "creating" each account
@@ -239,9 +241,9 @@ TransactionFuzzer::genFuzz(std::string const& filename)
     out.open(filename);
     autocheck::generator<Operation> gen;
     xdr::xvector<Operation> ops;
-    auto numops =
-        autocheck::generator<uint>()(FUZZER_INITIAL_CORPUS_MAX_OPERATIONS);
-    for (int i = 0; i < numops; ++i)
+    auto numops = autocheck::generator<unsigned int>()(
+        FUZZER_INITIAL_CORPUS_MAX_OPERATIONS);
+    for (unsigned int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
         while (isBadTransactionFuzzerInput(op))
@@ -379,7 +381,7 @@ generator_t::operator()(stellar::PublicKey& t) const
     // [0,NUMBER_OF_PREGENERATED_ACCOUNTS] inclusive. This allows us to generate
     // some transactions with a source account/destination account that does
     // not exist.
-    t.ed25519().at(31) = autocheck::generator<uint>()(
+    t.ed25519().at(31) = autocheck::generator<unsigned int>()(
         stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS);
 }
 } // namespace xdr

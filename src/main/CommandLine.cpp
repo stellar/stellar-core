@@ -165,7 +165,7 @@ fileNameParser(std::string& string)
 }
 
 clara::Opt
-processIDParser(uint& num)
+processIDParser(int& num)
 {
     return clara::Opt{num, "PROCESS-ID"}["--process_id"](
         "for spawning multiple instances in fuzzing parallelization");
@@ -899,7 +899,7 @@ runFuzz(CommandLineArgs const& args)
     el::Level logLevel{el::Level::Info};
     std::vector<std::string> metrics;
     std::string fileName;
-    uint processID = 0;
+    int processID = 0;
     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
     std::string fuzzerModeArg = "overlay";
 
@@ -920,7 +920,7 @@ runGenFuzz(CommandLineArgs const& args)
     std::string fileName;
     FuzzerMode fuzzerMode{FuzzerMode::OVERLAY};
     std::string fuzzerModeArg = "overlay";
-    uint processID = 0;
+    int processID = 0;
 
     return runWithHelp(
         args,

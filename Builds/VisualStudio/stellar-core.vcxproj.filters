@@ -978,6 +978,9 @@
     <ClCompile Include="..\..\src\transactions\simulation\SimulationTransactionFrame.cpp">
       <Filter>transactions\simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\FuzzerImpl.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1690,6 +1693,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\simulation\SimulationTransactionFrame.h">
       <Filter>transactions\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\FuzzerImpl.h">
+      <Filter>test</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

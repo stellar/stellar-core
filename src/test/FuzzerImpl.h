@@ -19,7 +19,7 @@ struct Operation;
 class TransactionFuzzer : public Fuzzer
 {
   public:
-    TransactionFuzzer(int numAccounts, int processID)
+    TransactionFuzzer(unsigned int numAccounts, int processID)
         : mNumAccounts(numAccounts), mProcessID(processID)
     {
     }
@@ -31,14 +31,14 @@ class TransactionFuzzer : public Fuzzer
   private:
     std::shared_ptr<Application> mApp;
     PublicKey mSourceAccountID;
-    int mNumAccounts;
+    unsigned int mNumAccounts;
     int mProcessID;
 };
 
 class OverlayFuzzer : public Fuzzer
 {
-    const uint ACCEPTOR_INDEX = 0;
-    const uint INITIATOR_INDEX = 1;
+    const int ACCEPTOR_INDEX = 0;
+    const int INITIATOR_INDEX = 1;
 
   public:
     OverlayFuzzer()
