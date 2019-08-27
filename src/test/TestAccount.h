@@ -34,6 +34,9 @@ class TestAccount
                            SequenceNumber sn = 0);
     Operation op(Operation operation);
 
+    TransactionFrameBasePtr feeBump(TransactionFramePtr tx);
+    TransactionFrameBasePtr feeBump(TransactionFramePtr tx, uint64_t fee);
+
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);
     void merge(PublicKey const& into);

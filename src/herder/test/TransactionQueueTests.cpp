@@ -19,8 +19,8 @@ using namespace stellar::txtest;
 namespace
 {
 TransactionFramePtr
-transaction(Application& app, TestAccount& account, int sequenceDelta,
-            int amount, int fee)
+transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
+            int64_t amount, int32_t fee)
 {
     return transactionFromOperations(
         app, account, account.getLastSequenceNumber() + sequenceDelta,
@@ -28,7 +28,8 @@ transaction(Application& app, TestAccount& account, int sequenceDelta,
 }
 
 TransactionFramePtr
-invalidTransaction(Application& app, TestAccount& account, int sequenceDelta)
+invalidTransaction(Application& app, TestAccount& account,
+                   int64_t sequenceDelta)
 {
     return transactionFromOperations(
         app, account, account.getLastSequenceNumber() + sequenceDelta,
@@ -69,23 +70,19 @@ class TransactionQueueTest
     }
 
     void
-    removeAndReset(std::vector<TransactionFramePtr> const& toRemove)
+    removeApplied(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
-        // TODO(jonjove): Clean-up
-        mTransactionQueue.removeAndReset(std::vector<TransactionFrameBasePtr>(
-            toRemove.begin(), toRemove.end()));
+        mTransactionQueue.removeApplied(toRemove);
         REQUIRE(size - toRemove.size() >=
                 mTransactionQueue.toTxSet({})->sizeTx());
     }
 
     void
-    ban(std::vector<TransactionFramePtr> const& toRemove)
+    ban(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
-        // TODO(jonjove): Clean-up
-        mTransactionQueue.removeTrimmed(std::vector<TransactionFrameBasePtr>(
-            toRemove.begin(), toRemove.end()));
+        mTransactionQueue.removeTrimmed(toRemove);
         REQUIRE(size - toRemove.size() >=
                 mTransactionQueue.toTxSet({})->sizeTx());
     }
@@ -531,20 +528,20 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.check({{{account1, 1, {txSeqA1T1, txSeqA1T2}},
                      {account2, 1, {txSeqA2T1, txSeqA2T2}}}});
-        test.removeAndReset({txSeqA1T1, txSeqA2T2});
+        test.removeApplied({txSeqA1T1, txSeqA2T2});
         test.check({{{account1, 0, {txSeqA1T2}}, {account2, 0, {txSeqA2T1}}}});
-        test.removeAndReset({txSeqA1T2});
+        test.removeApplied({txSeqA1T2});
         test.check({{{account1}, {account2, 0, {txSeqA2T1}}}});
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
         test.add(txSeqA2T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}},
                      {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
-        test.removeAndReset({txSeqA2T1});
+        test.removeApplied({txSeqA2T1});
         test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T2}}}});
-        test.removeAndReset({txSeqA2T2});
+        test.removeApplied({txSeqA2T2});
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
-        test.removeAndReset({txSeqA1T1});
+        test.removeApplied({txSeqA1T1});
         test.check({{{account1}, {account2}}});
     }
 
@@ -561,5 +558,14 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check(
             {{{account1, 1, {txSeqA1T1}}, {account2, 1, {txSeqA2T1}}}, {}});
+    }
+
+    SECTION("negative sequence number")
+    {
+        TransactionQueueTest test{*app};
+        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        int64_t curSeq = account1.getLastSequenceNumber();
+        test.add(transaction(*app, account1, -(curSeq + 2), 1, 100),
+                 TransactionQueue::AddResult::ADD_STATUS_ERROR);
     }
 }

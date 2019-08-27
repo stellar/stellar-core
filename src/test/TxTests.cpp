@@ -25,6 +25,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
@@ -408,24 +409,81 @@ getAccountSigners(PublicKey const& k, Application& app)
 
 TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
-                          SequenceNumber seq, const std::vector<Operation>& ops,
-                          int fee)
+                          SequenceNumber seq, std::vector<Operation> const& ops,
+                          uint32_t fee, std::vector<SecretKey> const& sign)
 {
-    auto e = TransactionEnvelope{};
+    TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
     e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
-    e.v0().tx.fee =
-        fee != 0 ? fee
-                 : static_cast<uint32_t>(
-                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
-                       UINT32_MAX);
+    e.v0().tx.fee = fee;
     e.v0().tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v0().tx.operations));
 
     auto res = std::static_pointer_cast<TransactionFrame>(
         TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
-    res->addSignature(from);
+    for (auto const& key : sign)
+    {
+        res->addSignature(key);
+    }
     return res;
+}
+
+TransactionFramePtr
+transactionFromOperations(Application& app, SecretKey const& from,
+                          SequenceNumber seq, std::vector<Operation> const& ops,
+                          uint32_t fee)
+{
+    return transactionFromOperations(app, from, seq, ops, fee, {from});
+}
+
+TransactionFramePtr
+transactionFromOperations(Application& app, SecretKey const& from,
+                          SequenceNumber seq, std::vector<Operation> const& ops)
+{
+    uint32_t fee = static_cast<uint32_t>(
+        (ops.size() * app.getLedgerManager().getLastTxFee()) & UINT32_MAX);
+    return transactionFromOperations(app, from, seq, ops, fee);
+}
+
+TransactionFrameBasePtr
+feeBumpFromTransaction(Application& app, SecretKey const& from,
+                       TransactionFramePtr tx, int64_t fee,
+                       std::vector<SecretKey> const& sign)
+{
+    TransactionEnvelope e(ENVELOPE_TYPE_FEE_BUMP);
+    e.feeBump().tx.feeSource = from.getPublicKey();
+    e.feeBump().tx.fee = fee;
+
+    e.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX_V0);
+    e.feeBump().tx.innerTx.v0().tx = tx->getEnvelope().v0().tx;
+    e.feeBump().tx.innerTx.v0().signatures = tx->getEnvelope().v0().signatures;
+
+    for (auto const& key : sign)
+    {
+        e.feeBump().signatures.emplace_back(SignatureUtils::sign(
+            key,
+            sha256(xdr::xdr_to_opaque(
+                app.getNetworkID(), ENVELOPE_TYPE_FEE_BUMP, e.feeBump().tx))));
+    }
+    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e);
+}
+
+TransactionFrameBasePtr
+feeBumpFromTransaction(Application& app, SecretKey const& from,
+                       TransactionFramePtr tx, int64_t fee)
+{
+    return feeBumpFromTransaction(app, from, tx, fee, {from});
+}
+
+TransactionFrameBasePtr
+feeBumpFromTransaction(Application& app, SecretKey const& from,
+                       TransactionFramePtr tx)
+{
+    int64_t fee =
+        tx->getMinFee(
+            app.getLedgerManager().getLastClosedLedgerHeader().header) +
+        app.getLedgerManager().getLastTxFee();
+    return feeBumpFromTransaction(app, from, tx, fee);
 }
 
 Operation

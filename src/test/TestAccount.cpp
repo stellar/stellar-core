@@ -71,6 +71,18 @@ TestAccount::op(Operation operation)
     return operation;
 }
 
+TransactionFrameBasePtr
+TestAccount::feeBump(TransactionFramePtr tx)
+{
+    return feeBumpFromTransaction(mApp, getSecretKey(), tx);
+}
+
+TransactionFrameBasePtr
+TestAccount::feeBump(TransactionFramePtr tx, uint64_t fee)
+{
+    return feeBumpFromTransaction(mApp, getSecretKey(), tx, fee);
+}
+
 TestAccount
 TestAccount::createRoot(Application& app)
 {
