@@ -375,7 +375,7 @@ ProcessExitEvent::Impl::run()
                        cmd,     // Command line
                        nullptr, // Process handle not inheritable
                        nullptr, // Thread handle not inheritable
-                       TRUE,    // Inherit file handles
+                       FALSE,   // only inherit handles from `iH`
                        CREATE_NEW_PROCESS_GROUP | // Create a new process group
                            EXTENDED_STARTUPINFO_PRESENT, // use STARTUPINFOEX
                        nullptr, // Use parent's environment block
