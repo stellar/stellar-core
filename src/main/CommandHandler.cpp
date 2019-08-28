@@ -542,6 +542,12 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         decoder::decode_b64(blob, binBlob);
 
         xdr::xdr_from_opaque(binBlob, envelope);
+        if (envelope.type() == ENVELOPE_TYPE_TX_V0)
+        {
+            std::sort(envelope.v0().signatures.begin(),
+                      envelope.v0().signatures.end(), signatureCompare);
+        }
+
         auto transaction = TransactionFrameBase::makeTransactionFromWire(
             mApp.getNetworkID(), envelope);
         if (transaction)
