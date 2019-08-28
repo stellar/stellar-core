@@ -56,6 +56,10 @@ class Invariant
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     virtual void
+    snapshotForFuzzer()
+    {
+    }
+    virtual void
     resetForFuzzer()
     {
     }

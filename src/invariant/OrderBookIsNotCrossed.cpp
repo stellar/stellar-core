@@ -36,25 +36,25 @@ extractAssetPairs(Operation const& op, LedgerTxnDelta const& ltxd)
     case PATH_PAYMENT:
     {
         auto const& pp = op.body.pathPaymentOp();
-       
+
         // if no path, only have a pair between send and dest
         if (pp.path.size() == 0)
         {
             return {std::make_pair(pp.sendAsset, pp.destAsset)};
-        } 
+        }
 
         // For send, dest, {A, B} we get: {send, A}, {A, B}, {B, dest}
         std::vector<std::pair<Asset, Asset>> assets;
-        
+
         // beginning: send -> A
-        assets.emplace_back(pp.sendAsset, pp.path.front()); 
+        assets.emplace_back(pp.sendAsset, pp.path.front());
         for (int i = 1; i < pp.path.size(); ++i)
         {
             // middle: A -> B
             assets.emplace_back(pp.path[i - 1], pp.path[i]);
         }
         // end: B -> dest
-        assets.emplace_back(pp.path.back(), pp.destAsset); 
+        assets.emplace_back(pp.path.back(), pp.destAsset);
 
         return assets;
     }
@@ -223,9 +223,15 @@ OrderBookIsNotCrossed::checkOnOperationApply(Operation const& operation,
 }
 
 void
+OrderBookIsNotCrossed::snapshotForFuzzer()
+{
+    mRolledBackOrderBook = mOrderBook;
+};
+
+void
 OrderBookIsNotCrossed::resetForFuzzer()
 {
-    mOrderBook.clear();
+    mOrderBook = mRolledBackOrderBook;
 };
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION

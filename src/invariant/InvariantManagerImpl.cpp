@@ -230,6 +230,14 @@ InvariantManagerImpl::handleInvariantFailure(
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 void
+InvariantManagerImpl::snapshotForFuzzer()
+{
+    for (auto const& invariant : mEnabled)
+    {
+        invariant->snapshotForFuzzer();
+    }
+}
+void
 InvariantManagerImpl::resetForFuzzer()
 {
     for (auto const& invariant : mEnabled)

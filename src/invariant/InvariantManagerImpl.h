@@ -51,7 +51,8 @@ class InvariantManagerImpl : public InvariantManager
     virtual void enableInvariant(std::string const& name) override;
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    void resetForFuzzer();
+    void snapshotForFuzzer() override;
+    void resetForFuzzer() override;
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
   private:

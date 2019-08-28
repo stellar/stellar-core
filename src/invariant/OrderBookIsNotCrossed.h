@@ -101,6 +101,7 @@ class OrderBookIsNotCrossed : public Invariant
         return mOrderBook;
     }
 
+    void snapshotForFuzzer() override;
     void resetForFuzzer() override;
 
   private:
@@ -109,6 +110,7 @@ class OrderBookIsNotCrossed : public Invariant
     // configurable, it is likely that this invariant will be enabled with
     // pre-existing ledger and thus the mOrderBook will need a way to sync
     OrderBook mOrderBook;
+    OrderBook mRolledBackOrderBook;
     void deleteFromOrderBook(OfferEntry const& oe);
     void addToOrderBook(OfferEntry const& oe);
     void updateOrderBook(LedgerTxnDelta const& ltxd);

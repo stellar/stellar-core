@@ -48,6 +48,11 @@ class InvariantManager
 
     virtual void enableInvariant(std::string const& name) = 0;
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    virtual void snapshotForFuzzer() = 0;
+    virtual void resetForFuzzer() = 0;
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
     template <typename T, typename... Args>
     std::shared_ptr<T>
     registerInvariant(Args&&... args)
