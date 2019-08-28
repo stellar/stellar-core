@@ -17,6 +17,9 @@ class XDRInputFileStream;
 class Fuzzer
 {
   public:
+    virtual ~Fuzzer()
+    {
+    }
     // inject receives an XDRInputFileStream attached to a fuzzed input file and
     // attempts to apply it to the state according to whatever apply may mean,
     // i.e. apply a transaction in the case of a TransactionFuzzer or send a
