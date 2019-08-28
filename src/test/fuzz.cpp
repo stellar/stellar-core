@@ -31,6 +31,8 @@ namespace stellar
 
 namespace FuzzUtils
 {
+unsigned int const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
+
 std::unique_ptr<Fuzzer>
 createFuzzer(int processID, FuzzerMode fuzzerMode)
 {
@@ -41,6 +43,8 @@ createFuzzer(int processID, FuzzerMode fuzzerMode)
     case FuzzerMode::TRANSACTION:
         return std::make_unique<TransactionFuzzer>(
             NUMBER_OF_PREGENERATED_ACCOUNTS, processID);
+    default:
+        abort();
     }
 }
 }
@@ -48,7 +52,7 @@ createFuzzer(int processID, FuzzerMode fuzzerMode)
 #define PERSIST_MAX 1000000
 void
 fuzz(std::string const& filename, el::Level logLevel,
-     std::vector<std::string> const& metrics, uint processID,
+     std::vector<std::string> const& metrics, int processID,
      FuzzerMode fuzzerMode)
 {
     auto fuzzer = FuzzUtils::createFuzzer(processID, fuzzerMode);

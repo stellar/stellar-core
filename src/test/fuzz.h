@@ -19,11 +19,11 @@ enum class FuzzerMode
 
 namespace FuzzUtils
 {
-static auto const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
+extern unsigned int const NUMBER_OF_PREGENERATED_ACCOUNTS;
 std::unique_ptr<Fuzzer> createFuzzer(int processID, FuzzerMode fuzzerMode);
 }
 
 void fuzz(std::string const& filename, el::Level logLevel,
-          std::vector<std::string> const& metrics, uint processID,
+          std::vector<std::string> const& metrics, int processID,
           FuzzerMode fuzzerMode);
 }

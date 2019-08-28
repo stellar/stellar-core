@@ -255,6 +255,8 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
     , mIOContext(app.getClock().getIOContext())
     , mSigChild(mIOContext)
+    , mTmpDir(
+          std::make_unique<TmpDir>(app.getTmpDirManager().tmpDir("process")))
 {
 }
 
@@ -373,7 +375,7 @@ ProcessExitEvent::Impl::run()
                        cmd,     // Command line
                        nullptr, // Process handle not inheritable
                        nullptr, // Thread handle not inheritable
-                       TRUE,    // Inherit file handles
+                       FALSE,   // only inherit handles from `iH`
                        CREATE_NEW_PROCESS_GROUP | // Create a new process group
                            EXTENDED_STARTUPINFO_PRESENT, // use STARTUPINFOEX
                        nullptr, // Use parent's environment block
