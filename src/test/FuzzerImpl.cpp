@@ -216,8 +216,16 @@ TransactionFuzzer::inject(XDRInputFileStream& in)
             resetTxInternalState(*mApp);
             LedgerTxn ltx(mApp->getLedgerTxnRoot());
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+            mApp->getInvariantManager().snapshotForFuzzer();
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
             // attempt to apply transaction
             txFramePtr->attemptApplication(*mApp, ltx);
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+            mApp->getInvariantManager().resetForFuzzer();
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
         }
         resetTxInternalState(*mApp);
     }
