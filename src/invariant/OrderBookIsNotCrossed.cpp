@@ -21,17 +21,14 @@ extractAssetPairs(LedgerTxnDelta const& ltxd)
     std::set<std::pair<Asset, Asset>> assets;
     for (auto const& entry : ltxd.entry)
     {
-        if (entry.first.type() == OFFER)
+        if (entry.first.type() == OFFER && entry.second.current)
         {
-            auto const& offer = entry.second.previous
-                                    ? entry.second.previous->data.offer()
-                                    : entry.second.current->data.offer();
+            auto const& offer = entry.second.current->data.offer();
 
-            auto assetPair = std::make_pair(offer.selling, offer.buying);
-            auto oppositeAssetPair =
+            auto const& assetPair = std::make_pair(offer.selling, offer.buying);
+            auto const& oppositeAssetPair =
                 std::make_pair(offer.buying, offer.selling);
-            if (assets.find(oppositeAssetPair) == assets.end() &&
-                assets.find(assetPair) == assets.end())
+            if (assets.find(oppositeAssetPair) == assets.end())
             {
                 assets.insert(assetPair);
             }
@@ -59,15 +56,25 @@ checkCrossed(Asset const& a, Asset const& b, OrderBook const& orderBook)
         return {};
     }
 
+    auto const& iterAB = orderBook.at(a).find(b);
+    auto const& iterBA = orderBook.at(b).find(a);
+    if (iterAB == (*iterA).second.end() || iterBA == (*iterB).second.end())
+    {
+        return {};
+    }
+
     auto const& asks = orderBook.at(a).at(b);
     auto const& bids = orderBook.at(b).at(a);
-
-    if (!asks.empty() && !bids.empty() &&
-        price(*asks.cbegin()) <= 1 / price(*bids.cbegin()))
+    if (asks.empty() || bids.empty())
     {
-        auto lowestAsk = price(*asks.cbegin());
-        auto highestBid = 1 / price(*bids.cbegin());
+        return {};
+    }
 
+    // check if crossed
+    auto lowestAsk = price(*asks.cbegin());
+    auto highestBid = 1 / price(*bids.cbegin());
+    if (lowestAsk <= highestBid)
+    {
         return fmt::format(
             "Order book is in a crossed state for {} - {} "
             "asset pair.\nTop of the book is:\n\tAsk price: {}\n\tBid "
@@ -114,7 +121,8 @@ OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
 }
 
 std::string
-OrderBookIsNotCrossed::check(std::set<std::pair<Asset, Asset>> assetPairs)
+OrderBookIsNotCrossed::check(
+    std::set<std::pair<Asset, Asset>> const& assetPairs)
 {
     for (auto const& assetPair : assetPairs)
     {
