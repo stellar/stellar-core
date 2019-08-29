@@ -13,81 +13,31 @@
 namespace stellar
 {
 
-std::vector<std::pair<Asset, Asset>>
-extractAssetPairs(Operation const& op, LedgerTxnDelta const& ltxd)
+static std::set<std::pair<Asset, Asset>>
+extractAssetPairs(LedgerTxnDelta const& ltxd)
 {
-    switch (op.body.type())
-    {
-    case MANAGE_BUY_OFFER:
-    {
-        auto const& offer = op.body.manageBuyOfferOp();
-        return {std::make_pair(offer.selling, offer.buying)};
-    }
-    case MANAGE_SELL_OFFER:
-    {
-        auto const& offer = op.body.manageSellOfferOp();
-        return {std::make_pair(offer.selling, offer.buying)};
-    }
-    case CREATE_PASSIVE_SELL_OFFER:
-    {
-        auto const& offer = op.body.createPassiveSellOfferOp();
-        return {std::make_pair(offer.selling, offer.buying)};
-    }
-    case PATH_PAYMENT:
-    {
-        auto const& pp = op.body.pathPaymentOp();
 
-        // if no path, only have a pair between send and dest
-        if (pp.path.size() == 0)
+    std::set<std::pair<Asset, Asset>> assets;
+    for (auto const& entry : ltxd.entry)
+    {
+        if (entry.first.type() == OFFER)
         {
-            return {std::make_pair(pp.sendAsset, pp.destAsset)};
-        }
+            auto const& offer = entry.second.previous
+                                    ? entry.second.previous->data.offer()
+                                    : entry.second.current->data.offer();
 
-        // For send, dest, {A, B} we get: {send, A}, {A, B}, {B, dest}
-        std::vector<std::pair<Asset, Asset>> assets;
-
-        // beginning: send -> A
-        assets.emplace_back(pp.sendAsset, pp.path.front());
-        for (int i = 1; i < pp.path.size(); ++i)
-        {
-            // middle: A -> B
-            assets.emplace_back(pp.path[i - 1], pp.path[i]);
-        }
-        // end: B -> dest
-        assets.emplace_back(pp.path.back(), pp.destAsset);
-
-        return assets;
-    }
-    case ALLOW_TRUST:
-    {
-        auto const& at = op.body.allowTrustOp();
-
-        // if revoke auth, all offers for that user against that asset are
-        // deleted
-        if (!at.authorize)
-        {
-            std::vector<std::pair<Asset, Asset>> assets;
-            // since we only get one side of the asset pair from the operation,
-            // we derive the rest of the information from the
-            // LedgerTxnDelta entries
-            for (auto const& entry : ltxd.entry)
+            auto assetPair = std::make_pair(offer.selling, offer.buying);
+            auto oppositeAssetPair =
+                std::make_pair(offer.buying, offer.selling);
+            if (assets.find(oppositeAssetPair) == assets.end() &&
+                assets.find(assetPair) == assets.end())
             {
-                if (entry.second.previous &&
-                    entry.second.previous->data.type() == OFFER)
-                {
-                    auto const& offer = entry.second.previous->data.offer();
-                    assets.emplace_back(offer.selling, offer.buying);
-                }
+                assets.insert(assetPair);
             }
-
-            return assets;
         }
+    }
 
-        return {};
-    }
-    default:
-        return {};
-    }
+    return assets;
 }
 
 double
@@ -186,11 +136,11 @@ OrderBookIsNotCrossed::updateOrderBook(LedgerTxnDelta const& ltxd)
 }
 
 std::string
-OrderBookIsNotCrossed::check(std::vector<std::pair<Asset, Asset>> assetPairs)
+OrderBookIsNotCrossed::check(std::set<std::pair<Asset, Asset>> assetPairs)
 {
     for (auto const& assetPair : assetPairs)
     {
-        auto const& checkCrossedResult =
+        auto checkCrossedResult =
             checkCrossed(assetPair.first, assetPair.second, mOrderBook);
         if (!checkCrossedResult.empty())
         {
@@ -206,6 +156,7 @@ OrderBookIsNotCrossed::registerInvariant(Application& app)
 {
     return app.getInvariantManager().registerInvariant<OrderBookIsNotCrossed>();
 }
+
 std::string
 OrderBookIsNotCrossed::getName() const
 {
@@ -218,7 +169,7 @@ OrderBookIsNotCrossed::checkOnOperationApply(Operation const& operation,
                                              LedgerTxnDelta const& ltxDelta)
 {
     updateOrderBook(ltxDelta);
-    auto assetPairs = extractAssetPairs(operation, ltxDelta);
+    auto assetPairs = extractAssetPairs(ltxDelta);
     return assetPairs.size() > 0 ? check(assetPairs) : std::string{};
 }
 

@@ -83,7 +83,7 @@ class OrderBookIsNotCrossed : public Invariant
     void deleteFromOrderBook(OfferEntry const& oe);
     void addToOrderBook(OfferEntry const& oe);
     void updateOrderBook(LedgerTxnDelta const& ltxd);
-    std::string check(std::vector<std::pair<Asset, Asset>> assetPairs);
+    std::string check(std::set<std::pair<Asset, Asset>> assetPairs);
 };
 }
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
