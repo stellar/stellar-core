@@ -59,6 +59,7 @@ class Invariant
     snapshotForFuzzer()
     {
     }
+
     virtual void
     resetForFuzzer()
     {

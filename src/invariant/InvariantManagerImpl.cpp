@@ -237,6 +237,7 @@ InvariantManagerImpl::snapshotForFuzzer()
         invariant->snapshotForFuzzer();
     }
 }
+
 void
 InvariantManagerImpl::resetForFuzzer()
 {
