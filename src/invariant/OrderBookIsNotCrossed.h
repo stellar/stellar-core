@@ -26,11 +26,21 @@ struct OfferEntryCmp
     bool
     operator()(OfferEntry const& a, OfferEntry const& b) const
     {
-        auto const& price = [](OfferEntry const& offer) {
-            return double(offer.price.n) / double(offer.price.d);
-        };
+        double priceA = double(a.price.n) / double(a.price.d);
+        double priceB = double(b.price.n) / double(b.price.d);
 
-        return price(a) < price(b);
+        if (priceA < priceB)
+        {
+            return true;
+        }
+        else if (priceA == priceB)
+        {
+            return a.offerID < b.offerID;
+        }
+        else
+        {
+            return false;
+        }
     }
 };
 
