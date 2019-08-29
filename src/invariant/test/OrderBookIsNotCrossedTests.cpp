@@ -15,24 +15,24 @@ using namespace stellar::InvariantTestUtils;
 
 // convert a single offer into an offer operation
 Operation
-opFromLedgerEntries(LedgerEntry le)
+opFromLedgerEntries(LedgerEntry const& le)
 {
-    auto offer = le.data.offer();
+    auto const& offer = le.data.offer();
     return txtest::manageBuyOffer(offer.offerID, offer.selling, offer.buying,
                                   offer.price, offer.amount);
 }
 
 // convert a vector of offers into a path payment operation
 Operation
-opFromLedgerEntries(std::vector<LedgerEntry> les)
+opFromLedgerEntries(std::vector<LedgerEntry> const& les)
 {
     // for given assets A, Bs, C
     //      send: A
     //      dest: C
     //      path: {Bs}
     // where Bs represents from 0 to 5 offers inclusive
-    Asset send = les.at(0).data.offer().selling;
-    Asset dest = les.at(les.size() - 1).data.offer().buying;
+    Asset const& send = les.front().data.offer().selling;
+    Asset const& dest = les.back().data.offer().buying;
     std::vector<Asset> path;
 
     for (int i = 1; i < les.size(); i++)
@@ -45,16 +45,17 @@ opFromLedgerEntries(std::vector<LedgerEntry> les)
 }
 
 void
-applyCheck(Application& app, std::vector<LedgerEntry> current,
-           std::vector<LedgerEntry> previous, bool shouldPass, Operation op)
+applyCheck(Application& app, std::vector<LedgerEntry> const& current,
+           std::vector<LedgerEntry> const& previous, bool shouldPass,
+           Operation const& op)
 {
     stellar::InvariantTestUtils::UpdateList updates;
 
-    if (previous.size() == 0)
+    if (previous.empty())
     {
         updates = makeUpdateList(current, nullptr);
     }
-    else if (current.size() == 0)
+    else if (current.empty())
     {
         updates = makeUpdateList(nullptr, previous);
     }
@@ -67,13 +68,14 @@ applyCheck(Application& app, std::vector<LedgerEntry> current,
 }
 
 LedgerEntry
-createOffer(Asset const& ask, Asset const& bid, int64 amount, Price price)
+createOffer(Asset const& ask, Asset const& bid, int64 amount,
+            Price const& price)
 {
     return generateOffer(ask, bid, amount, price);
 }
 
 LedgerEntry
-modifyOffer(LedgerEntry offer, int64 amount, Price price)
+modifyOffer(LedgerEntry offer, int64 amount, Price const& price)
 {
     offer.data.offer().amount = amount;
     offer.data.offer().price = price;
@@ -96,7 +98,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
     auto app = createTestApplication(clock, getTestConfig(0));
     LedgerTxn ltxroot{app->getLedgerTxnRoot()};
 
-    auto invariant = std::make_shared<OrderBookIsNotCrossed>();
+    auto const& invariant = std::make_shared<OrderBookIsNotCrossed>();
     auto offer = generateOffer(cur1, cur2, 3, Price{3, 2});
 
     // create
@@ -109,7 +111,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
 
         REQUIRE(orders.size() == 1);
 
-        auto offerToCheck = *orders.cbegin();
+        auto const& offerToCheck = *orders.cbegin();
 
         REQUIRE(offerToCheck.amount == 3);
         REQUIRE(offerToCheck.price.n == 3);
@@ -132,7 +134,7 @@ TEST_CASE("OrderBookIsNotCrossed in-memory order book is consistent with "
 
         REQUIRE(orders.size() == 1);
 
-        auto offerToCheck = *orders.cbegin();
+        auto const& offerToCheck = *orders.cbegin();
 
         REQUIRE(offerToCheck.amount == 2);
         REQUIRE(offerToCheck.price.n == 5);
@@ -179,23 +181,23 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     // A against B
     //     offer1: 3 A @  3/2 (B/A)
     //     offer2: 2 A @  5/3 (B/A)
-    auto offer1 = createOffer(cur1, cur2, 3, Price{3, 2});
-    auto offer2 = createOffer(cur1, cur2, 2, Price{5, 3});
+    auto const& offer1 = createOffer(cur1, cur2, 3, Price{3, 2});
+    auto const& offer2 = createOffer(cur1, cur2, 2, Price{5, 3});
     // B against A
     //     offer3: 4 B @  3/4 (A/B)
     //     offer4: 1 B @  4/5 (A/B)
-    auto offer3 = createOffer(cur2, cur1, 4, Price{3, 4});
-    auto offer4 = createOffer(cur2, cur1, 1, Price{4, 5});
+    auto const& offer3 = createOffer(cur2, cur1, 4, Price{3, 4});
+    auto const& offer4 = createOffer(cur2, cur1, 1, Price{4, 5});
     // B against C
     //     offer5: 3 B @  3/2 (C/B)
     //     offer6: 2 B @  5/3 (C/B)
-    auto offer5 = createOffer(cur2, cur3, 3, Price{3, 2});
-    auto offer6 = createOffer(cur2, cur3, 2, Price{5, 3});
+    auto const& offer5 = createOffer(cur2, cur3, 3, Price{3, 2});
+    auto const& offer6 = createOffer(cur2, cur3, 2, Price{5, 3});
     // C against B
     //     offer7: 4 C @  3/4 (B/C)
     //     offer8: 1 C @  4/5 (B/C)
-    auto offer7 = createOffer(cur3, cur2, 4, Price{3, 4});
-    auto offer8 = createOffer(cur3, cur2, 1, Price{4, 5});
+    auto const& offer7 = createOffer(cur3, cur2, 4, Price{3, 4});
+    auto const& offer8 = createOffer(cur3, cur2, 1, Price{4, 5});
 
     applyCheck(*app,
                {offer1, offer2, offer3, offer4, offer5, offer6, offer7, offer8},
@@ -208,7 +210,7 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
         applyCheck(*app, {offer9}, {}, true, opFromLedgerEntries(offer9));
 
         // Modify - Offer 10: 7 A @  16/11 (B/A)
-        auto offer10 = modifyOffer(offer9, 7, Price{16, 11});
+        auto const& offer10 = modifyOffer(offer9, 7, Price{16, 11});
         applyCheck(*app, {offer10}, {offer9}, true,
                    opFromLedgerEntries(offer10));
 
@@ -223,7 +225,7 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
         applyCheck(*app, {offer9}, {}, false, opFromLedgerEntries(offer9));
 
         // Modify - Offer 10: 3 A @ 4/3 (B/A)
-        auto offer10 = modifyOffer(offer9, 3, Price{4, 3});
+        auto const& offer10 = modifyOffer(offer9, 3, Price{4, 3});
         applyCheck(*app, {offer10}, {offer9}, false,
                    opFromLedgerEntries(offer10));
 
@@ -238,7 +240,7 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
         applyCheck(*app, {offer9}, {}, false, opFromLedgerEntries(offer9));
 
         // Modify - Offer 6: 3 A @ 100/76 (B/A)
-        auto offer10 = modifyOffer(offer9, 3, Price{100, 76});
+        auto const& offer10 = modifyOffer(offer9, 3, Price{100, 76});
         applyCheck(*app, {offer10}, {offer9}, false,
                    opFromLedgerEntries(offer10));
 
@@ -257,8 +259,8 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
 
         // Modify - Offer 11: 7 A @  16/11 (B/A)
         // Modify - Offer 12: 7 B @  16/11 (C/B)
-        auto offer11 = modifyOffer(offer9, 7, Price{16, 11});
-        auto offer12 = modifyOffer(offer10, 7, Price{16, 11});
+        auto const& offer11 = modifyOffer(offer9, 7, Price{16, 11});
+        auto const& offer12 = modifyOffer(offer10, 7, Price{16, 11});
         applyCheck(*app, {offer11, offer12}, {offer9, offer10}, true,
                    opFromLedgerEntries({offer11, offer12}));
 
@@ -279,8 +281,8 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
 
         // Modify - Offer 11: 3 A @  16/11 (B/A)
         // Modify - Offer 12: 3 B @  100/76 (C/B) - CROSSED
-        auto offer11 = modifyOffer(offer9, 3, Price{16, 11});
-        auto offer12 = modifyOffer(offer10, 3, Price{100, 76});
+        auto const& offer11 = modifyOffer(offer9, 3, Price{16, 11});
+        auto const& offer12 = modifyOffer(offer10, 3, Price{100, 76});
         applyCheck(*app, {offer11, offer12}, {offer9, offer10}, false,
                    opFromLedgerEntries({offer11, offer12}));
     }
@@ -289,8 +291,8 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     {
         // Create - Offer 9: 7 A @  4/3 (B/A)
         // Create - Offer 10: 7 B @  4/3 (C/B)
-        auto offer9 = createOffer(cur1, cur2, 7, Price{4, 3});
-        auto offer10 = createOffer(cur2, cur3, 7, Price{4, 3});
+        auto const& offer9 = createOffer(cur1, cur2, 7, Price{4, 3});
+        auto const& offer10 = createOffer(cur2, cur3, 7, Price{4, 3});
         applyCheck(*app, {offer9, offer10}, {}, false,
                    opFromLedgerEntries({offer9, offer10}));
     }
@@ -299,7 +301,7 @@ TEST_CASE("OrderBookIsNotCrossed properly throws if order book is crossed",
     {
         // revoke creator of offer3 and offer5's trustline to B deleting both of
         // these offers
-        auto op = txtest::allowTrust(PublicKey{}, cur2, false);
+        auto const& op = txtest::allowTrust(PublicKey{}, cur2, false);
         applyCheck(*app, {}, {offer3, offer5}, true, op);
     }
 }
