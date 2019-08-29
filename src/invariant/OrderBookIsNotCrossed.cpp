@@ -9,6 +9,7 @@
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <xdrpp/printer.h>
 
 namespace stellar
 {
@@ -40,28 +41,20 @@ extractAssetPairs(LedgerTxnDelta const& ltxd)
     return assets;
 }
 
-double
+static double
 price(OfferEntry const& offer)
 {
     return double(offer.price.n) / double(offer.price.d);
 }
 
-double
-getMinOfferPrice(Orders const& orders)
-{
-    return orders.cbegin() == orders.cend() ? __DBL_MAX__
-                                            : price(*orders.cbegin());
-}
-
-std::string
+static std::string
 checkCrossed(Asset const& a, Asset const& b, OrderBook const& orderBook)
 {
     // if either side of order book for asset pair empty or does not yet exist,
     // order book cannot be crossed
-    if (orderBook.find(a) == orderBook.end() ||
-        orderBook.find(b) == orderBook.end() ||
-        orderBook.at(a).find(b) == orderBook.at(a).end() ||
-        orderBook.at(b).find(a) == orderBook.at(b).end())
+    auto iterA = orderBook.find(a);
+    auto iterB = orderBook.find(b);
+    if (iterA == orderBook.end() || iterB == orderBook.end())
     {
         return {};
     }
@@ -69,32 +62,17 @@ checkCrossed(Asset const& a, Asset const& b, OrderBook const& orderBook)
     auto const& asks = orderBook.at(a).at(b);
     auto const& bids = orderBook.at(b).at(a);
 
-    auto lowestAsk = getMinOfferPrice(asks);
-    auto highestBid = 1.0 / getMinOfferPrice(bids);
-
-    if (highestBid >= lowestAsk)
+    if (!asks.empty() && !bids.empty() &&
+        price(*asks.cbegin()) <= 1 / price(*bids.cbegin()))
     {
-        auto assetToString = [](Asset const& asset) {
-            auto r = std::string{};
-            switch (asset.type())
-            {
-            case stellar::ASSET_TYPE_NATIVE:
-                r = std::string{"XLM"};
-                break;
-            case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
-                assetCodeToStr(asset.alphaNum4().assetCode, r);
-                break;
-            case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
-                assetCodeToStr(asset.alphaNum12().assetCode, r);
-                break;
-            }
-            return r;
-        };
+        auto lowestAsk = price(*asks.cbegin());
+        auto highestBid = 1 / price(*bids.cbegin());
+
         return fmt::format(
             "Order book is in a crossed state for {} - {} "
             "asset pair.\nTop of the book is:\n\tAsk price: {}\n\tBid "
             "price: {}\n\nWhere {} >= {}!",
-            assetToString(a), assetToString(b), lowestAsk, highestBid,
+            xdr::xdr_to_string(a), xdr::xdr_to_string(b), lowestAsk, highestBid,
             highestBid, lowestAsk);
     }
     return {};
