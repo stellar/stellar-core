@@ -7,52 +7,11 @@
 
 #include "crypto/ByteSliceHasher.h"
 #include "invariant/Invariant.h"
+#include "ledger/LedgerHashUtils.h"
 #include "xdr/Stellar-ledger.h"
 
 #include <set>
 #include <unordered_map>
-
-using namespace stellar;
-
-namespace std
-{
-template <> class hash<stellar::Asset>
-{
-  public:
-    size_t
-    operator()(stellar::Asset const& asset) const
-    {
-        size_t res = 0;
-        switch (asset.type())
-        {
-        case ASSET_TYPE_NATIVE:
-            break;
-        case ASSET_TYPE_CREDIT_ALPHANUM4:
-        {
-            auto const& tl4 = asset.alphaNum4();
-            res ^= stellar::shortHash::computeHash(
-                stellar::ByteSlice(tl4.issuer.ed25519().data(), 8));
-            res ^= stellar::shortHash::computeHash(
-                stellar::ByteSlice(tl4.assetCode));
-            break;
-        }
-        case ASSET_TYPE_CREDIT_ALPHANUM12:
-        {
-            auto const& tl12 = asset.alphaNum12();
-            res ^= stellar::shortHash::computeHash(
-                stellar::ByteSlice(tl12.issuer.ed25519().data(), 8));
-            res ^= stellar::shortHash::computeHash(
-                stellar::ByteSlice(tl12.assetCode));
-            break;
-        }
-        default:
-            abort();
-        }
-
-        return res;
-    }
-};
-}
 
 namespace stellar
 {
