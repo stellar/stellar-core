@@ -345,7 +345,7 @@ Once you add validators to your configuration, stellar core automatically genera
 
 Here's a diagram depicting the nested quality levels and how they interact:
 
-![Diagram Automatic Quorum Set Generation](https://raw.githubusercontent.com/stellar/docs/master/guides/walkthroughs/assets/validator_complete.png)
+![Diagram Automatic Quorum Set Generation](assets/validator_complete.png)
 
 
 #### Quorum and overlay network
