@@ -58,7 +58,7 @@ TEST_CASE("Create account above minimum balance",
           "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -75,7 +75,7 @@ TEST_CASE("Create account below minimum balance",
           "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -92,7 +92,7 @@ TEST_CASE("Create account then decrease balance below minimum",
           "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -111,7 +111,7 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
           "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -130,7 +130,7 @@ TEST_CASE("Account below minimum balance decreases",
           "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     for (uint32_t i = 0; i < 10; ++i)
     {
@@ -275,7 +275,7 @@ generateBuyingLiabilities(LedgerEntry offer, bool excess, bool authorized)
 TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
-    cfg.INVARIANT_CHECKS = {"MinimumAccountBalance"};
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
