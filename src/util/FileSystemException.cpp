@@ -12,8 +12,8 @@ namespace stellar
 
 #ifdef _WIN32
 
-static std::string
-getLastErrorString()
+std::string
+FileSystemException::getLastErrorString()
 {
     std::string res;
 
