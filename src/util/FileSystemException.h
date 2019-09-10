@@ -27,6 +27,7 @@ class FileSystemException : public std::runtime_error
         failWith(msg + std::strerror(errno));
     }
 #ifdef _WIN32
+    static std::string getLastErrorString();
     static void failWithGetLastError(std::string msg);
 #endif // _WIN32
     explicit FileSystemException(std::string const& msg)

@@ -12,8 +12,8 @@ namespace stellar
 
 #ifdef _WIN32
 
-static std::string
-getLastErrorString()
+std::string
+FileSystemException::getLastErrorString()
 {
     std::string res;
 
@@ -24,15 +24,8 @@ getLastErrorString()
     DWORD sz = ::FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM |
                                     FORMAT_MESSAGE_IGNORE_INSERTS,
                                 NULL, dw, 0, (LPTSTR)buf, bufSize, NULL);
-    if (sz == 0)
-    {
-        res = fmt::format("Error code {}", dw);
-    }
-    else
-    {
-        buf[sz] = 0;
-        res = std::string(buf);
-    }
+    buf[sz] = 0;
+    res = fmt::format("Error {:#X} - {}", dw, buf);
     return res;
 }
 

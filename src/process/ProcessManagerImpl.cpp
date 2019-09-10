@@ -28,6 +28,8 @@
 
 #ifdef _WIN32
 #include <Windows.h>
+
+#include "util/FileSystemException.h"
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -366,16 +368,32 @@ ProcessExitEvent::Impl::run()
             CLOG(ERROR, "Process") << "CreateFile() failed: " << GetLastError();
             throw std::runtime_error("CreateFile() failed");
         }
-        // only inherit si.hStdOutput
         iH.mHandles.push_back(si.hStdOutput);
-        iH.prepare();
     }
+    else
+    {
+        auto out = GetStdHandle(STD_OUTPUT_HANDLE);
+        if (out != INVALID_HANDLE_VALUE)
+        {
+            iH.mHandles.push_back(out);
+        }
+    }
+
+    // also inherit stderr if we can
+    auto err = GetStdHandle(STD_ERROR_HANDLE);
+    if (err != INVALID_HANDLE_VALUE)
+    {
+        si.hStdError = err;
+        iH.mHandles.push_back(err);
+    }
+
+    iH.prepare();
 
     if (!CreateProcess(NULL,    // No module name (use command line)
                        cmd,     // Command line
                        nullptr, // Process handle not inheritable
                        nullptr, // Thread handle not inheritable
-                       FALSE,   // only inherit handles from `iH`
+                       TRUE,    // use iH to share handles
                        CREATE_NEW_PROCESS_GROUP | // Create a new process group
                            EXTENDED_STARTUPINFO_PRESENT, // use STARTUPINFOEX
                        nullptr, // Use parent's environment block
@@ -384,11 +402,14 @@ ProcessExitEvent::Impl::run()
                        &pi)     // Pointer to PROCESS_INFORMATION structure
     )
     {
+        auto lastErr = FileSystemException::getLastErrorString();
+
         if (si.hStdOutput != NULL)
         {
             CloseHandle(si.hStdOutput);
         }
-        CLOG(ERROR, "Process") << "CreateProcess() failed: " << GetLastError();
+        CLOG(ERROR, "Process") << "CreateProcess() failed: " << lastErr;
+
         throw std::runtime_error("CreateProcess() failed");
     }
     CloseHandle(si.hStdOutput);
