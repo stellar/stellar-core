@@ -271,9 +271,27 @@ ApplicationImpl::getJsonInfo()
     }
 
     auto& herder = getHerder();
-    info["quorum"] =
-        herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
-                                 false, herder.getCurrentLedgerSeq());
+
+    auto& quorumInfo = info["quorum"];
+
+    // Try to get quorum set info for the previous ledger closed by the
+    // network.
+    if (herder.getCurrentLedgerSeq() > 1)
+    {
+        quorumInfo =
+            herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
+                                     false, herder.getCurrentLedgerSeq() - 1);
+    }
+
+    // If the quorum set info for the previous ledger is missing, use the
+    // current ledger
+    auto qset = quorumInfo.get("qset", "");
+    if (quorumInfo.empty() || qset.empty())
+    {
+        quorumInfo =
+            herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(), true,
+                                     false, herder.getCurrentLedgerSeq());
+    }
 
     auto invariantFailures = getInvariantManager().getJsonInfo();
     if (!invariantFailures.empty())
