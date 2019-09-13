@@ -23,6 +23,10 @@ struct LedgerUpgrade;
 class Upgrades
 {
   public:
+    // # of hours after the scheduled upgrade time before we remove pending
+    // upgrades
+    static std::chrono::hours const UPDGRADE_EXPIRATION_HOURS;
+
     struct UpgradeParameters
     {
         UpgradeParameters()
@@ -98,7 +102,7 @@ class Upgrades
     UpgradeParameters
     removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                    std::vector<UpgradeType>::const_iterator endUpdates,
-                   bool& updated);
+                   uint64_t time, bool& updated);
 
     static void dropAll(Database& db);
 

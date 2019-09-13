@@ -50,6 +50,9 @@ load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
 
 namespace stellar
 {
+
+std::chrono::hours const Upgrades::UPDGRADE_EXPIRATION_HOURS(12);
+
 std::string
 Upgrades::UpgradeParameters::toJson() const
 {
@@ -198,10 +201,32 @@ Upgrades::toString() const
 Upgrades::UpgradeParameters
 Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                          std::vector<UpgradeType>::const_iterator endUpdates,
-                         bool& updated)
+                         uint64_t closeTime, bool& updated)
 {
     updated = false;
     UpgradeParameters res = mParams;
+
+    // If the upgrade time has been surpassed by more than X hours, then remove
+    // all upgrades.  This is done so nodes that come up with outdated upgrades
+    // don't attempt to change the network
+    if (res.mUpgradeTime + Upgrades::UPDGRADE_EXPIRATION_HOURS <=
+        VirtualClock::from_time_t(closeTime))
+    {
+        auto resetParamIfSet = [&](optional<uint32>& o) {
+            if (o)
+            {
+                o.reset();
+                updated = true;
+            }
+        };
+
+        resetParamIfSet(res.mProtocolVersion);
+        resetParamIfSet(res.mBaseFee);
+        resetParamIfSet(res.mMaxTxSize);
+        resetParamIfSet(res.mBaseReserve);
+
+        return res;
+    }
 
     auto resetParam = [&](optional<uint32>& o, uint32 v) {
         if (o && *o == v)
