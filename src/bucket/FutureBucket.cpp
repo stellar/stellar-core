@@ -44,6 +44,15 @@ FutureBucket::FutureBucket(Application& app,
     assert(snap);
     mInputCurrBucketHash = binToHex(curr->getHash());
     mInputSnapBucketHash = binToHex(snap->getHash());
+    if (Bucket::getBucketVersion(snap) >=
+        Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+    {
+        if (!mInputShadowBuckets.empty())
+        {
+            throw std::runtime_error(
+                "Invalid FutureBucket: ledger version doesn't support shadows");
+        }
+    }
     for (auto const& b : mInputShadowBuckets)
     {
         mInputShadowBucketHashes.push_back(binToHex(b->getHash()));

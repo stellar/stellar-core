@@ -212,6 +212,9 @@ MergeCounters::operator+=(MergeCounters const& delta)
     mRunningMergeReattachments += delta.mRunningMergeReattachments;
     mFinishedMergeReattachments += delta.mFinishedMergeReattachments;
 
+    mPreShadowRemovalProtocolMerges += delta.mPreShadowRemovalProtocolMerges;
+    mPostShadowRemovalProtocolMerges += delta.mPostShadowRemovalProtocolMerges;
+
     mNewMetaEntries += delta.mNewMetaEntries;
     mNewInitEntries += delta.mNewInitEntries;
     mNewLiveEntries += delta.mNewLiveEntries;
@@ -732,7 +735,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
         mBucketList.getLevel(i).setNext(has.currentBuckets.at(i).next);
     }
 
-    mBucketList.restartMerges(mApp, maxProtocolVersion);
+    mBucketList.restartMerges(mApp, maxProtocolVersion, has.currentLedger);
     cleanupStaleFiles();
 }
 

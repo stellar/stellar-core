@@ -34,6 +34,9 @@ struct MergeCounters
     uint64_t mRunningMergeReattachments{0};
     uint64_t mFinishedMergeReattachments{0};
 
+    uint64_t mPreShadowRemovalProtocolMerges{0};
+    uint64_t mPostShadowRemovalProtocolMerges{0};
+
     uint64_t mNewMetaEntries{0};
     uint64_t mNewInitEntries{0};
     uint64_t mNewLiveEntries{0};

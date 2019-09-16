@@ -60,6 +60,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // we were only supporting LIVEENTRY and DEADENTRY.
     static constexpr uint32_t
         FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY = 11;
+    static constexpr uint32_t FIRST_PROTOCOL_SHADOWS_REMOVED = 12;
 
     static void checkProtocolLegality(BucketEntry const& entry,
                                       uint32_t protocolVersion);
@@ -103,5 +104,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
           std::shared_ptr<Bucket> const& newBucket,
           std::vector<std::shared_ptr<Bucket>> const& shadows,
           bool keepDeadEntries, bool countMergeEvents, bool doFsync);
+
+    static uint32_t getBucketVersion(std::shared_ptr<Bucket> const& bucket);
 };
 }
