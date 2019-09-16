@@ -1524,6 +1524,110 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
     }
 }
 
+TEST_CASE("upgrade to version 12", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+    executeUpgrade(*app, makeProtocolVersionUpgrade(11));
+
+    auto& lm = app->getLedgerManager();
+    uint32_t oldProto = 11;
+    uint32_t newProto = 12;
+    auto root = TestAccount{*app, txtest::getRoot(app->getNetworkID())};
+
+    for (size_t i = 0; i < 10; ++i)
+    {
+        auto stranger =
+            TestAccount{*app, txtest::getAccount(fmt::format("stranger{}", i))};
+        TxSetFramePtr txSet =
+            std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
+        uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
+        uint64_t minBalance = lm.getLastMinBalance(5);
+        uint64_t big = minBalance + ledgerSeq;
+        uint64_t closeTime = 60 * 5 * ledgerSeq;
+        txSet->add(root.tx({txtest::createAccount(stranger, big)}));
+        // Provoke sortForHash and hash-caching:
+        txSet->getContentsHash();
+
+        // On 4th iteration of advance (a.k.a. ledgerSeq 5), perform a
+        // ledger-protocol version upgrade to the new protocol, to
+        // start new-style merges (no shadows)
+        auto upgrades = xdr::xvector<UpgradeType, 6>{};
+        if (ledgerSeq == 5)
+        {
+            auto ledgerUpgrade = LedgerUpgrade{LEDGER_UPGRADE_VERSION};
+            ledgerUpgrade.newLedgerVersion() = newProto;
+            auto v = xdr::xdr_to_opaque(ledgerUpgrade);
+            upgrades.push_back(UpgradeType{v.begin(), v.end()});
+            CLOG(INFO, "Ledger")
+                << "Ledger " << ledgerSeq << " upgrading to v" << newProto;
+        }
+        StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
+                        STELLAR_VALUE_BASIC);
+        lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
+        auto& bm = app->getBucketManager();
+        auto mc = bm.readMergeCounters();
+        auto& bl = bm.getBucketList();
+        while (!bl.futuresAllResolved())
+        {
+            bl.resolveAnyReadyFutures();
+        }
+
+        if (ledgerSeq < 5)
+        {
+            REQUIRE(mc.mPreShadowRemovalProtocolMerges != 0);
+        }
+        else
+        {
+            auto& lev0 = bm.getBucketList().getLevel(0);
+            auto& lev1 = bm.getBucketList().getLevel(1);
+            auto lev0Curr = lev0.getCurr();
+            auto lev0Snap = lev0.getSnap();
+            auto lev1Curr = lev1.getCurr();
+            auto lev1Snap = lev1.getSnap();
+            auto getVers = [](std::shared_ptr<Bucket> b) -> uint32_t {
+                return BucketInputIterator(b).getMetadata().ledgerVersion;
+            };
+            switch (ledgerSeq)
+            {
+            case 8:
+                REQUIRE(getVers(lev1Curr) == newProto);
+                REQUIRE(getVers(lev1Snap) == oldProto);
+                REQUIRE(mc.mPostShadowRemovalProtocolMerges == 6);
+                // One more old-style merge despite the upgrade
+                // At ledger 8, level 2 spills, and starts an old-style merge,
+                // as level 1 snap is still of old version
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 7);
+                break;
+            case 7:
+                REQUIRE(getVers(lev0Snap) == newProto);
+                REQUIRE(getVers(lev1Curr) == oldProto);
+                REQUIRE(mc.mPostShadowRemovalProtocolMerges == 4);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                break;
+            case 6:
+                REQUIRE(getVers(lev0Snap) == newProto);
+                REQUIRE(getVers(lev1Curr) == oldProto);
+                REQUIRE(mc.mPostShadowRemovalProtocolMerges == 3);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                break;
+            case 5:
+                REQUIRE(getVers(lev0Curr) == newProto);
+                REQUIRE(getVers(lev0Snap) == oldProto);
+                REQUIRE(mc.mPostShadowRemovalProtocolMerges == 1);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+}
+
 TEST_CASE("upgrade base reserve", "[upgrades]")
 {
     VirtualClock clock;
