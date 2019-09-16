@@ -79,8 +79,6 @@ class HistoryManagerImpl : public HistoryManager
                           std::vector<std::string> const& originalBuckets,
                           bool success) override;
 
-    HistoryArchiveState getLastClosedHistoryArchiveState() const override;
-
     InferredQuorum inferQuorum(uint32_t ledgerNum) override;
 
     std::string const& getTmpDir() override;

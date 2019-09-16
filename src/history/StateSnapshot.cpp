@@ -39,33 +39,11 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
           mSnapDir, HISTORY_FILE_TYPE_SCP, mLocalState.currentLedger))
 
 {
-    makeLive();
-}
-
-void
-StateSnapshot::makeLive()
-{
-    for (uint32_t i = 0;
-         i < static_cast<uint32>(mLocalState.currentBuckets.size()); i++)
+    if (mLocalState.currentBuckets.size() != BucketList::kNumLevels)
     {
-        auto& hb = mLocalState.currentBuckets[i];
-        if (hb.next.hasHashes() && !hb.next.isLive())
-        {
-            // Note: this `maxProtocolVersion` is over-approximate. The actual
-            // max for the ledger being published might be lower, but if the
-            // "true" (lower) max-value were actually in conflict with the state
-            // we're about to publish it should have caused an error earlier
-            // anyways, back when the bucket list and HAS for this state was
-            // initially formed. Since we're just reconstituting a HAS here, we
-            // assume it was legit when formed. Given that getting the true
-            // value here therefore doesn't seem to add much checking, and given
-            // that it'd be somewhat convoluted _to_ materialize the true value
-            // here, we're going to live with the approximate value for now.
-            uint32_t maxProtocolVersion =
-                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
-            hb.next.makeLive(mApp, maxProtocolVersion, i);
-        }
+        throw std::runtime_error("Invalid HAS: malformed bucketlist");
     }
+    mLocalState.prepareForPublish(mApp);
 }
 
 bool

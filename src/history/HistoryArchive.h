@@ -129,6 +129,9 @@ struct HistoryArchiveState
 
     std::string toString() const;
     void fromString(std::string const& str);
+
+    void prepareForPublish(Application& app);
+    bool containsValidBuckets(Application& app) const;
 };
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>

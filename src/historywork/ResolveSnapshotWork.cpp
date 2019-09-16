@@ -31,7 +31,7 @@ ResolveSnapshotWork::onRun()
     }
 
     mSnapshot->mLocalState.resolveAnyReadyFutures();
-    mSnapshot->makeLive();
+    mSnapshot->mLocalState.prepareForPublish(mApp);
     if ((mApp.getLedgerManager().getLastClosedLedgerNum() >
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())
