@@ -59,10 +59,11 @@ struct BucketListGenerator
     {
         std::map<std::string, std::shared_ptr<Bucket>> buckets;
         auto has = getHistoryArchiveState();
+        has.prepareForPublish(*mAppApply);
         auto& wm = mAppApply->getWorkScheduler();
-        wm.executeWork<T>(buckets, has,
-                          mAppApply->getConfig().LEDGER_PROTOCOL_VERSION,
-                          std::forward<Args>(args)...);
+        wm.executeWork<T>(
+            buckets, has, mAppApply->getConfig().LEDGER_PROTOCOL_VERSION,
+            /* resolveMerges= */ false, std::forward<Args>(args)...);
     }
 
     void
@@ -277,8 +278,9 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-        LedgerEntry const& entry)
-        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
+        bool resolve, LedgerEntry const& entry)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion,
+                           resolve)
         , mEntry(entry)
         , mAdded{false}
     {
@@ -328,8 +330,9 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
         Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-        LedgerEntry const& target)
-        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
+        bool resolve, LedgerEntry const& target)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion,
+                           resolve)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mDeleted{false}
@@ -414,8 +417,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-        LedgerEntry const& target)
-        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion)
+        bool resolve, LedgerEntry const& target)
+        : ApplyBucketsWork(app, buckets, applyState, maxProtocolVersion,
+                           resolve)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mModified{false}

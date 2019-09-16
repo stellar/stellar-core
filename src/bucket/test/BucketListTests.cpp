@@ -172,7 +172,7 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
     }
 }
 
-TEST_CASE("bucket list shadowing", "[bucket][bucketlist]")
+TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
@@ -187,8 +187,10 @@ TEST_CASE("bucket list shadowing", "[bucket][bucketlist]")
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
 
+        auto totalNumEntries = 1200;
         for (uint32_t i = 1;
-             !app->getClock().getIOContext().stopped() && i < 1200; ++i)
+             !app->getClock().getIOContext().stopped() && i <= totalNumEntries;
+             ++i)
         {
             app->getClock().crank(false);
             auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(5);
@@ -242,11 +244,25 @@ TEST_CASE("bucket list shadowing", "[bucket][bucketlist]")
                     bool hasBob =
                         (curr->containsBucketIdentity(BucketEntryBob) ||
                          snap->containsBucketIdentity(BucketEntryBob));
-                    CHECK(!hasAlice);
-                    CHECK(!hasBob);
+                    if (app->getConfig().LEDGER_PROTOCOL_VERSION <
+                            Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED ||
+                        j > 5)
+                    {
+                        CHECK(!hasAlice);
+                        CHECK(!hasBob);
+                    }
+                    // On the last iteration, when bucket list population is
+                    // complete, ensure that post-FIRST_PROTOCOL_SHADOWS_REMOVED
+                    // Alice and Bob appear on lower levels unshadowed.
+                    else if (i == totalNumEntries)
+                    {
+                        CHECK(hasAlice);
+                        CHECK(hasBob);
+                    }
                 }
             }
         }
+
     });
 }
 
