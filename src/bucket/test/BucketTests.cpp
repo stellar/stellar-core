@@ -57,6 +57,15 @@ for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
     for_versions({Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
+                  Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED},
+                 cfg, f);
+}
+
+void
+for_versions_with_differing_initentry_logic(
+    Config const& cfg, std::function<void(Config const&)> const& f)
+{
+    for_versions({Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
                   Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY},
                  cfg, f);
 }
@@ -319,6 +328,73 @@ generateDifferentAccount(std::vector<LedgerEntry> const& others)
     }
 }
 
+TEST_CASE("merges proceed old-style despite newer shadows",
+          "[bucket][bucketmaxprotocol]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto& bm = app->getBucketManager();
+    auto v12 = Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED;
+    auto v11 = v12 - 1;
+    auto v10 = v11 - 1;
+
+    LedgerEntry liveEntry = generateAccount();
+    LedgerEntry otherLiveA = generateDifferentAccount({liveEntry});
+
+    auto b10first = Bucket::fresh(bm, v10, {}, {liveEntry}, {},
+                                  /*countMergeEvents=*/true,
+                                  /*doFsync=*/true);
+    auto b10second = Bucket::fresh(bm, v10, {}, {otherLiveA}, {},
+                                   /*countMergeEvents=*/true,
+                                   /*doFsync=*/true);
+
+    auto b11first = Bucket::fresh(bm, v11, {}, {liveEntry}, {},
+                                  /*countMergeEvents=*/true,
+                                  /*doFsync=*/true);
+    auto b11second = Bucket::fresh(bm, v11, {}, {otherLiveA}, {},
+                                   /*countMergeEvents=*/true,
+                                   /*doFsync=*/true);
+
+    auto b12first =
+        Bucket::fresh(bm, v12, {}, {liveEntry}, {}, /*countMergeEvents=*/true,
+                      /*doFsync=*/true);
+    auto b12second = Bucket::fresh(bm, v12, {}, {otherLiveA}, {},
+                                   /*countMergeEvents=*/true,
+                                   /*doFsync=*/true);
+
+    SECTION("shadow version 12")
+    {
+        // With proto 12, new bucket version solely depends on the snap version
+        auto bucket = Bucket::merge(bm, v12, b11first, b11second,
+                                    /*shadows=*/{b12first},
+                                    /*keepDeadEntries=*/true,
+                                    /*countMergeEvents=*/true,
+                                    /*doFsync=*/true);
+        REQUIRE(Bucket::getBucketVersion(bucket) == v11);
+    }
+    SECTION("shadow versions mixed, pick lower")
+    {
+        // Merging older version (10) buckets, with mixed versions of shadows
+        // (11, 12) Pick initentry (11) style merge
+        auto bucket = Bucket::merge(bm, v12, b10first, b10second,
+                                    /*shadows=*/{b12first, b11second},
+                                    /*keepDeadEntries=*/true,
+                                    /*countMergeEvents=*/true,
+                                    /*doFsync=*/true);
+        REQUIRE(Bucket::getBucketVersion(bucket) == v11);
+    }
+    SECTION("refuse to merge new version with shadow")
+    {
+        REQUIRE_THROWS_AS(Bucket::merge(bm, v12, b12first, b12second,
+                                        /*shadows=*/{b12first},
+                                        /*keepDeadEntries=*/true,
+                                        /*countMergeEvents=*/true,
+                                        /*doFsync=*/true),
+                          std::runtime_error);
+    }
+}
+
 TEST_CASE("merges refuse to exceed max protocol version",
           "[bucket][bucketmaxprotocol]")
 {
@@ -343,12 +419,6 @@ TEST_CASE("merges refuse to exceed max protocol version",
                                /*doFsync=*/true);
     REQUIRE_THROWS_AS(Bucket::merge(bm, vers - 1, bnew1, bnew2,
                                     /*shadows=*/{},
-                                    /*keepDeadEntries=*/true,
-                                    /*countMergeEvents=*/true,
-                                    /*doFsync=*/true),
-                      std::runtime_error);
-    REQUIRE_THROWS_AS(Bucket::merge(bm, vers - 1, bold1, bold2,
-                                    /*shadows=*/{bnew1},
                                     /*keepDeadEntries=*/true,
                                     /*countMergeEvents=*/true,
                                     /*doFsync=*/true),
@@ -554,6 +624,41 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
             CHECK(emerge2.nInit == 0);
             CHECK(emerge2.nLive == 3);
         }
+    });
+}
+
+TEST_CASE("merging bucket entries with initentry with shadows",
+          "[bucket][initentry]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    for_versions_with_differing_initentry_logic(cfg, [&](Config const& cfg) {
+        CLOG(INFO, "Bucket") << "=== starting test app == ";
+        Application::pointer app = createTestApplication(clock, cfg);
+        auto& bm = app->getBucketManager();
+        auto vers = getAppLedgerVersion(app);
+
+        // Whether we're in the era of supporting or not-supporting INITENTRY.
+        bool initEra =
+            (vers >= Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY);
+
+        CLOG(INFO, "Bucket") << "=== finished buckets for initial account == ";
+
+        LedgerEntry liveEntry = generateAccount();
+        LedgerEntry liveEntry2 = generateSameAccountDifferentState({liveEntry});
+        LedgerEntry liveEntry3 =
+            generateSameAccountDifferentState({liveEntry, liveEntry2});
+        LedgerEntry otherLiveA = generateDifferentAccount({liveEntry});
+        LedgerEntry otherLiveB =
+            generateDifferentAccount({liveEntry, otherLiveA});
+        LedgerEntry otherLiveC =
+            generateDifferentAccount({liveEntry, otherLiveA, otherLiveB});
+        LedgerEntry initEntry = generateSameAccountDifferentState(
+            {liveEntry, liveEntry2, liveEntry3});
+        LedgerEntry initEntry2 = generateSameAccountDifferentState(
+            {initEntry, liveEntry, liveEntry2, liveEntry3});
+        LedgerEntry otherInitA = generateDifferentAccount({initEntry});
+        LedgerKey deadEntry = LedgerEntryKey(liveEntry);
 
         SECTION("shadows influence lifecycle entries appropriately")
         {
@@ -590,7 +695,6 @@ TEST_CASE("merging bucket entries with initentry", "[bucket][initentry]")
                 CHECK(e.nDead == 0);
             }
         }
-
         SECTION("shadowing does not revive dead entries")
         {
             // This is the first contrived example of what might go wrong if we

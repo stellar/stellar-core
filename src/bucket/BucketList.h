@@ -404,7 +404,16 @@ class BucketList
     // merging buckets between levels. This needs to be called after forcing a
     // BucketList to adopt a new state, either at application restart or when
     // catching up from buckets loaded over the network.
-    void restartMerges(Application& app, uint32_t maxProtocolVersion);
+
+    // There are two ways to re-start a merge:
+    // 1. Use non-LIVE inputs/outputs from HAS file. This function will make
+    // these FutureBuckets LIVE (either FB_INPUT_LIVE or FB_OUTPUT_LIVE)
+    // using hashes of inputs and outputs from the HAS
+    // 2. Introduced with FIRST_PROTOCOL_SHADOWS_REMOVED: skip using
+    // input/output hashes, and restart live merges from currs and snaps of the
+    // bucketlist at that ledger.
+    void restartMerges(Application& app, uint32_t maxProtocolVersion,
+                       uint32_t ledger);
 
     // Run through the levels and check for FutureBuckets that are done merging;
     // if so, call resolve() on them, changing state from FB_LIVE_INPUTS to
@@ -412,6 +421,8 @@ class BucketList
     // avoid propagating partially-completed BucketList states to
     // HistoryArchiveStates, that can cause repeated merges when re-activated.
     void resolveAnyReadyFutures();
+
+    bool futuresAllResolved() const;
 
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing

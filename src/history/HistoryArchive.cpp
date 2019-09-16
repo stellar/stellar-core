@@ -9,6 +9,7 @@
 #include "history/HistoryArchive.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "history/HistoryManager.h"
@@ -67,6 +68,14 @@ HistoryArchiveState::futuresAllResolved() const
     return true;
 }
 
+bool
+HistoryArchiveState::futuresAllClear() const
+{
+    return std::all_of(
+        currentBuckets.begin(), currentBuckets.end(),
+        [](HistoryStateBucket const& bl) { return bl.next.isClear(); });
+}
+
 void
 HistoryArchiveState::resolveAllFutures()
 {
@@ -94,10 +103,6 @@ HistoryArchiveState::resolveAnyReadyFutures()
 void
 HistoryArchiveState::save(std::string const& outFile) const
 {
-    // We only ever write fully-resolved HASs to files, when making
-    // checkpoints. This may change in the future if we start publishing
-    // input-only HASs.
-    assert(futuresAllResolved());
     std::ofstream out(outFile);
     cereal::JSONOutputArchive ar(out);
     serialize(ar);
@@ -129,7 +134,6 @@ HistoryArchiveState::load(std::string const& inFile)
             << "Unexpected history archive state version: " << version;
         throw std::runtime_error("unexpected history archive state version");
     }
-    assert(futuresAllResolved());
 }
 
 void
@@ -138,7 +142,6 @@ HistoryArchiveState::fromString(std::string const& str)
     std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
-    assert(futuresAllResolved());
 }
 
 std::string
@@ -257,6 +260,84 @@ HistoryArchiveState::allBuckets() const
         buckets.insert(nh.begin(), nh.end());
     }
     return std::vector<std::string>(buckets.begin(), buckets.end());
+}
+
+bool
+HistoryArchiveState::containsValidBuckets(Application& app) const
+{
+    // This function assumes presence of required buckets to verify state
+    // Level 0 future buckets are always clear
+    assert(currentBuckets[0].next.isClear());
+
+    for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
+    {
+        auto& level = currentBuckets[i];
+        auto& prev = currentBuckets[i - 1];
+        Hash const emptyHash;
+
+        auto snap =
+            app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
+        assert(snap);
+        if (snap->getHash() == emptyHash)
+        {
+            continue;
+        }
+        else if (Bucket::getBucketVersion(snap) >=
+                 Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        {
+            if (!level.next.isClear())
+            {
+                CLOG(ERROR, "History")
+                    << "Invalid HAS: future must be cleared ";
+                return false;
+            }
+        }
+        else if (!level.next.hasOutputHash())
+        {
+            CLOG(ERROR, "History")
+                << "Invalid HAS: future must have resolved output";
+            return false;
+        }
+    }
+    return true;
+}
+
+void
+HistoryArchiveState::prepareForPublish(Application& app)
+{
+    // Level 0 future buckets are always clear
+    assert(currentBuckets[0].next.isClear());
+
+    for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
+    {
+        auto& level = currentBuckets[i];
+        auto& prev = currentBuckets[i - 1];
+
+        auto snap =
+            app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
+        if (Bucket::getBucketVersion(snap) >=
+            Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        {
+            level.next.clear();
+        }
+        else if (level.next.hasHashes() && !level.next.isLive())
+        {
+            // Note: this `maxProtocolVersion` is over-approximate. The actual
+            // max for the ledger being published might be lower, but if the
+            // "true" (lower) max-value were actually in conflict with the state
+            // we're about to publish it should have caused an error earlier
+            // anyways, back when the bucket list and HAS for this state was
+            // initially formed. Since we're just reconstituting a HAS here, we
+            // assume it was legit when formed. Given that getting the true
+            // value here therefore doesn't seem to add much checking, and given
+            // that it'd be somewhat convoluted _to_ materialize the true value
+            // here, we're going to live with the approximate value for now.
+            uint32_t maxProtocolVersion =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            level.next.makeLive(app, maxProtocolVersion, i);
+        }
+    }
+    assert(containsValidBuckets(app));
 }
 
 HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)

@@ -356,10 +356,18 @@ calculateMergeProtocolVersion(
     protocolVersion = std::max(oi.getMetadata().ledgerVersion,
                                ni.getMetadata().ledgerVersion);
 
+    // Starting with FIRST_PROTOCOL_SHADOWS_REMOVED,
+    // protocol version is determined as a max of curr, snap, and any shadow of
+    // version < FIRST_PROTOCOL_SHADOWS_REMOVED. This means that a bucket may
+    // still perform an old style merge despite the presence of the new protocol
+    // shadows.
     for (auto const& si : shadowIterators)
     {
-        protocolVersion =
-            std::max(si.getMetadata().ledgerVersion, protocolVersion);
+        auto version = si.getMetadata().ledgerVersion;
+        if (version < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        {
+            protocolVersion = std::max(version, protocolVersion);
+        }
     }
 
     CLOG(TRACE, "Bucket") << "Bucket merge protocolVersion=" << protocolVersion
@@ -386,6 +394,19 @@ calculateMergeProtocolVersion(
     else
     {
         ++mc.mPostInitEntryProtocolMerges;
+    }
+
+    if (protocolVersion < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+    {
+        ++mc.mPreShadowRemovalProtocolMerges;
+    }
+    else
+    {
+        if (!shadowIterators.empty())
+        {
+            throw std::runtime_error("Shadows are not supported");
+        }
+        ++mc.mPostShadowRemovalProtocolMerges;
     }
 }
 
@@ -614,5 +635,13 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
     MergeKey mk{maxProtocolVersion, keepDeadEntries, oldBucket, newBucket,
                 shadows};
     return out.getBucket(bucketManager, &mk);
+}
+
+uint32_t
+Bucket::getBucketVersion(std::shared_ptr<Bucket> const& bucket)
+{
+    assert(bucket);
+    BucketInputIterator it(bucket);
+    return it.getMetadata().ledgerVersion;
 }
 }

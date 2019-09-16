@@ -541,13 +541,29 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
 }
 
 void
+CatchupSimulation::setProto12UpgradeLedger(uint32_t ledger)
+{
+    REQUIRE(mApp.getLedgerManager().getLastClosedLedgerNum() < ledger);
+    mTestProtocolShadowsRemovedLedgerSeq = ledger;
+}
+
+void
 CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
 {
     auto& lm = mApp.getLedgerManager();
     auto& hm = mApp.getHistoryManager();
     while (lm.getLastClosedLedgerNum() < targetLedger)
     {
-        generateRandomLedger();
+        if (lm.getLastClosedLedgerNum() + 1 ==
+            mTestProtocolShadowsRemovedLedgerSeq)
+        {
+            // Force proto 12 upgrade
+            generateRandomLedger(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
+        }
+        else
+        {
+            generateRandomLedger();
+        }
 
         auto seq = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
         if (seq == hm.nextCheckpointLedger(seq))

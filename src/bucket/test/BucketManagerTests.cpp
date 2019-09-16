@@ -653,6 +653,12 @@ class StopAndRestartBucketMergesTest
                                  << mMergeCounters.mPreInitEntryProtocolMerges;
             CLOG(INFO, "Bucket") << "PostInitEntryProtocolMerges: "
                                  << mMergeCounters.mPostInitEntryProtocolMerges;
+            CLOG(INFO, "Bucket")
+                << "mPreShadowRemovalProtocolMerges: "
+                << mMergeCounters.mPreShadowRemovalProtocolMerges;
+            CLOG(INFO, "Bucket")
+                << "mPostShadowRemovalProtocolMerges: "
+                << mMergeCounters.mPostShadowRemovalProtocolMerges;
             CLOG(INFO, "Bucket") << "RunningMergeReattachments: "
                                  << mMergeCounters.mRunningMergeReattachments;
             CLOG(INFO, "Bucket") << "FinishedMergeReattachments: "
@@ -709,9 +715,17 @@ class StopAndRestartBucketMergesTest
         }
 
         void
-        checkSensiblePostInitEntryMergeCounters() const
+        checkSensiblePostInitEntryMergeCounters(uint32_t protocol) const
         {
             CHECK(mMergeCounters.mPostInitEntryProtocolMerges != 0);
+            if (protocol < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            {
+                CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges == 0);
+            }
+            else
+            {
+                CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges != 0);
+            }
 
             CHECK(mMergeCounters.mNewMetaEntries == 0);
             CHECK(mMergeCounters.mNewInitEntries != 0);
@@ -730,9 +744,18 @@ class StopAndRestartBucketMergesTest
             CHECK(mMergeCounters.mOldInitEntriesMergedWithNewDead != 0);
             CHECK(mMergeCounters.mNewEntriesMergedWithOldNeitherInit != 0);
 
-            CHECK(mMergeCounters.mShadowScanSteps != 0);
+            if (protocol < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            {
+                CHECK(mMergeCounters.mShadowScanSteps != 0);
+                CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
+            }
+            else
+            {
+                CHECK(mMergeCounters.mShadowScanSteps == 0);
+                CHECK(mMergeCounters.mLiveEntryShadowElisions == 0);
+            }
+
             CHECK(mMergeCounters.mMetaEntryShadowElisions == 0);
-            CHECK(mMergeCounters.mLiveEntryShadowElisions != 0);
             CHECK(mMergeCounters.mInitEntryShadowElisions == 0);
             CHECK(mMergeCounters.mDeadEntryShadowElisions == 0);
 
@@ -746,6 +769,7 @@ class StopAndRestartBucketMergesTest
         checkSensiblePreInitEntryMergeCounters() const
         {
             CHECK(mMergeCounters.mPreInitEntryProtocolMerges != 0);
+            CHECK(mMergeCounters.mPreShadowRemovalProtocolMerges != 0);
 
             CHECK(mMergeCounters.mNewMetaEntries == 0);
             CHECK(mMergeCounters.mNewInitEntries == 0);
@@ -783,6 +807,11 @@ class StopAndRestartBucketMergesTest
                   other.mMergeCounters.mPreInitEntryProtocolMerges);
             CHECK(mMergeCounters.mPostInitEntryProtocolMerges ==
                   other.mMergeCounters.mPostInitEntryProtocolMerges);
+
+            CHECK(mMergeCounters.mPreShadowRemovalProtocolMerges ==
+                  other.mMergeCounters.mPreShadowRemovalProtocolMerges);
+            CHECK(mMergeCounters.mPostShadowRemovalProtocolMerges ==
+                  other.mMergeCounters.mPostShadowRemovalProtocolMerges);
 
             CHECK(mMergeCounters.mRunningMergeReattachments ==
                   other.mMergeCounters.mRunningMergeReattachments);
@@ -1229,7 +1258,7 @@ class StopAndRestartBucketMergesTest
             mControlSurveys.rbegin()->second.dumpMergeCounters(
                 "control, Post-INITENTRY", mDesignatedLevel);
             mControlSurveys.rbegin()
-                ->second.checkSensiblePostInitEntryMergeCounters();
+                ->second.checkSensiblePostInitEntryMergeCounters(mProtocol);
         }
         else
         {
@@ -1248,7 +1277,8 @@ TEST_CASE("bucket persistence over app restart with initentry",
 {
     for (uint32_t protocol :
          {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY})
+          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
+          Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED})
     {
         for (uint32_t level : {2, 3})
         {
@@ -1264,7 +1294,8 @@ TEST_CASE("bucket persistence over app restart with initentry - extended",
 {
     for (uint32_t protocol :
          {Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
-          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY})
+          Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
+          Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED})
     {
         for (uint32_t level : {2, 3, 4, 5})
         {

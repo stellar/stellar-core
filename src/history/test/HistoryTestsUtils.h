@@ -227,6 +227,8 @@ class CatchupSimulation
     std::vector<SequenceNumber> bobSeqs;
     std::vector<SequenceNumber> carolSeqs;
 
+    uint32_t mTestProtocolShadowsRemovedLedgerSeq{0};
+
     CatchupMetrics getCatchupMetrics(Application::pointer app);
     CatchupPerformedWork computeCatchupPerformedWork(
         uint32_t lastClosedLedger,
@@ -286,6 +288,8 @@ class CatchupSimulation
     void crankUntil(Application::pointer app,
                     std::function<bool()> const& predicate,
                     VirtualClock::duration duration);
+
+    void setProto12UpgradeLedger(uint32_t ledger);
 };
 }
 }

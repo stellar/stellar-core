@@ -16,6 +16,10 @@ ResolveSnapshotWork::ResolveSnapshotWork(
     , mSnapshot(snapshot)
     , mTimer(std::make_unique<VirtualTimer>(app.getClock()))
 {
+    if (!mSnapshot)
+    {
+        throw std::runtime_error("ResolveSnapshotWork: invalid snapshot");
+    }
 }
 
 BasicWork::State
@@ -27,7 +31,7 @@ ResolveSnapshotWork::onRun()
     }
 
     mSnapshot->mLocalState.resolveAnyReadyFutures();
-    mSnapshot->makeLive();
+    mSnapshot->mLocalState.prepareForPublish(mApp);
     if ((mApp.getLedgerManager().getLastClosedLedgerNum() >
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())

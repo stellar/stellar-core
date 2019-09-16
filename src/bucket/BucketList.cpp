@@ -12,6 +12,7 @@
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include "util/format.h"
 #include "util/types.h"
 #include <cassert>
 
@@ -154,8 +155,12 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         }
     }
 
-    mNextCurr = FutureBucket(app, curr, snap, shadows, currLedgerProtocol,
-                             countMergeEvents, mLevel);
+    auto shadowsBasedOnProtocol =
+        Bucket::getBucketVersion(snap) >= Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED
+            ? std::vector<std::shared_ptr<Bucket>>()
+            : shadows;
+    mNextCurr = FutureBucket(app, curr, snap, shadowsBasedOnProtocol,
+                             currLedgerProtocol, countMergeEvents, mLevel);
     assert(mNextCurr.isMerging());
 }
 
@@ -421,6 +426,14 @@ BucketList::resolveAnyReadyFutures()
     }
 }
 
+bool
+BucketList::futuresAllResolved() const
+{
+    return std::all_of(
+        mLevels.begin(), mLevels.end(),
+        [](BucketLevel const& bl) { return !bl.getNext().isMerging(); });
+}
+
 void
 BucketList::addBatch(Application& app, uint32_t currLedger,
                      uint32_t currLedgerProtocol,
@@ -551,7 +564,8 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 void
-BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion)
+BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
+                          uint32_t ledger)
 {
     for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
     {
@@ -565,6 +579,57 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion)
                 CLOG(INFO, "Bucket")
                     << "Restarted merge on BucketList level " << i;
             }
+        }
+        // The next block assumes we are re-starting a
+        // FIRST_PROTOCOL_SHADOWS_REMOVED or later merge, which has no shadows
+        // _and_ no stored inputs/outputs, and ensures that we are only
+        // re-starting buckets of correct version.
+        else if (next.isClear() && i > 0)
+        {
+            // Recover merge by iterating through bucketlist levels and
+            // using snaps and currs. The only time we don't use level's
+            // curr is when a level is about to snap; in that case, when the
+            // merge is needed, level's curr will snap, and merge will be
+            // promoted into curr. Therefore, when starting merge, we use an
+            // empty curr.
+            // Additionally, it is safe to recover a merge at any point
+            // before the merge is needed (meaning it should be promoted
+            // into level's curr after ledger close). This is due to the
+            // fact that future bucket inputs _do not change_ until level
+            // spill, and after such spills, new merges are started with new
+            // inputs.
+            auto snap = mLevels[i - 1].getSnap();
+            Hash const emptyHash;
+
+            // Exit early if a level has not been initialized yet;
+            // There are two possibilities for empty buckets: it is either truly
+            // untouched (meaning not enough ledgers were produced to populate
+            // given level) or it's a protocol 10-or-earlier bucket (since it
+            // does not contain a metadata entry). If we are dealing with
+            // 10-or-earlier bucket, it must have had an output published, and
+            // would be handled in the previous `if` block. Therefore, we must
+            // be dealing with an untouched level.
+            if (snap->getHash() == emptyHash)
+            {
+                return;
+            }
+
+            auto version = Bucket::getBucketVersion(snap);
+            if (version < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+            {
+                auto msg =
+                    fmt::format("Invalid state: bucketlist level {} has clear "
+                                "future bucket but version {} snap",
+                                i, version);
+                throw std::runtime_error(msg);
+            }
+
+            // Round down the current ledger to when the merge was started, and
+            // re-start the merge via prepare, mimicking the logic in `addBatch`
+            auto mergeStartLedger = mask(ledger, BucketList::levelHalf(i - 1));
+            level.prepare(
+                app, mergeStartLedger, version, snap, /* shadows= */ {},
+                !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING);
         }
     }
 }

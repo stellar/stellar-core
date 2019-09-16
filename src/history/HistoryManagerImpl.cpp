@@ -67,7 +67,6 @@ HistoryManagerImpl::HistoryManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
     , mPublishWork(nullptr)
-
     , mPublishSuccess(
           app.getMetrics().NewMeter({"history", "publish", "success"}, "event"))
     , mPublishFailure(
@@ -175,14 +174,6 @@ HistoryManagerImpl::localFilename(std::string const& basename)
     return this->getTmpDir() + "/" + basename;
 }
 
-HistoryArchiveState
-HistoryManagerImpl::getLastClosedHistoryArchiveState() const
-{
-    auto seq = mApp.getLedgerManager().getLastClosedLedgerNum();
-    auto& bl = mApp.getBucketManager().getBucketList();
-    return HistoryArchiveState(seq, bl);
-}
-
 InferredQuorum
 HistoryManagerImpl::inferQuorum(uint32_t ledgerNum)
 {
@@ -251,9 +242,9 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 void
 HistoryManagerImpl::queueCurrentHistory()
 {
-    auto has = getLastClosedHistoryArchiveState();
+    auto ledger = mApp.getLedgerManager().getLastClosedLedgerNum();
+    HistoryArchiveState has(ledger, mApp.getBucketManager().getBucketList());
 
-    auto ledger = has.currentLedger;
     CLOG(DEBUG, "History") << "Queueing publish state for ledger " << ledger;
     mEnqueueTimes.emplace(ledger, std::chrono::steady_clock::now());
 

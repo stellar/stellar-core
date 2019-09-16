@@ -108,6 +108,9 @@ struct HistoryArchiveState
            CEREAL_NVP(currentBuckets));
     }
 
+    // Return true if all futures are in FB_CLEAR state
+    bool futuresAllClear() const;
+
     // Return true if all futures have already been resolved, otherwise false.
     bool futuresAllResolved() const;
 
@@ -126,6 +129,9 @@ struct HistoryArchiveState
 
     std::string toString() const;
     void fromString(std::string const& str);
+
+    void prepareForPublish(Application& app);
+    bool containsValidBuckets(Application& app) const;
 };
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>

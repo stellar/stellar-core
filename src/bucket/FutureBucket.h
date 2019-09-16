@@ -101,6 +101,9 @@ class FutureBucket
     // running).
     bool isMerging() const;
 
+    // Returns whether this object is in a FB_CLEAR state.
+    bool isClear() const;
+
     // Returns whether this object is in a FB_HASH_FOO state.
     bool hasHashes() const;
 

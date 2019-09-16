@@ -235,7 +235,8 @@ rebuildLedgerFromBuckets(Config cfg)
     has.fromString(hasStr);
 
     auto applyBucketsWork = ws.executeWork<ApplyBucketsWork>(
-        localBuckets, has, Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+        localBuckets, has, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+        /* resolveMerges */ false);
     auto ok = applyBucketsWork->getState() == BasicWork::State::WORK_SUCCESS;
     if (ok)
     {

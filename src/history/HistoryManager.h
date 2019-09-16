@@ -285,9 +285,6 @@ class HistoryManager
                      std::vector<std::string> const& originalBuckets,
                      bool success) = 0;
 
-    // Return the HistoryArchiveState of the LedgerManager's LCL
-    virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
-
     // Infer a quorum set by reading SCP messages in history archives.
     virtual InferredQuorum inferQuorum(uint32_t ledgerNum) = 0;
 

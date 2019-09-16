@@ -320,6 +320,91 @@ TEST_CASE("History publish to multiple archives", "[history]")
     REQUIRE(catchupSimulation.catchupOffline(catchupApp, checkpointLedger));
 }
 
+TEST_CASE("Publish works correctly post shadow removal", "[history]")
+{
+    // Given a HAS, verify that appropriate levels have "next" cleared, while
+    // the remaining initialized levels have output hashes.
+    auto checkFuture = [](uint32_t maxLevelCleared,
+                          uint32_t maxLevelInitialized,
+                          HistoryArchiveState const& has) {
+        REQUIRE(maxLevelCleared <= maxLevelInitialized);
+        for (uint32_t i = 0; i <= maxLevelInitialized; ++i)
+        {
+            auto next = has.currentBuckets[i].next;
+            if (i <= maxLevelCleared)
+            {
+                REQUIRE(next.isClear());
+            }
+            else
+            {
+                REQUIRE(next.hasOutputHash());
+            }
+        }
+    };
+
+    auto verifyFutureBucketsInHAS = [&](CatchupSimulation& sim,
+                                        uint32_t upgradeLedger,
+                                        uint32_t expectedLevelsCleared) {
+        // Perform publish: 2 checkpoints (or 127 ledgers) correspond to 3
+        // levels being initialized and partially filled in the bucketlist
+        sim.setProto12UpgradeLedger(upgradeLedger);
+        auto checkpointLedger = sim.getLastCheckpointLedger(2);
+        auto maxLevelTouched = 3;
+        sim.ensureOfflineCatchupPossible(checkpointLedger);
+
+        auto& app = sim.getApp();
+        auto w =
+            app.getWorkScheduler().executeWork<GetHistoryArchiveStateWork>();
+        auto has = w->getHistoryArchiveState();
+        REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
+        checkFuture(expectedLevelsCleared, maxLevelTouched, has);
+    };
+
+    auto configurator =
+        std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
+    CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
+                                        configurator};
+
+    uint32_t oldProto = Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED - 1;
+    catchupSimulation.generateRandomLedger(oldProto);
+
+    // The next sections reflect how future buckets in HAS change, depending on
+    // the protocol version of the merge. Intuitively, if an upgrade is done
+    // closer to publish, less levels had time to start a new-style merge,
+    // meaning that some levels will still have an output in them.
+    SECTION("upgrade way before publish")
+    {
+        // Upgrade happened early enough to allow new-style buckets to propagate
+        // down to level 2 snap, so, that all levels up to 3 are performing new
+        // style merges.
+        uint32_t upgradeLedger = 64;
+        verifyFutureBucketsInHAS(catchupSimulation, upgradeLedger, 3);
+    }
+    SECTION("upgrade slightly later")
+    {
+        // Between ledger 80 and 127, there is not enough ledgers to propagate
+        // new-style bucket to level 2 snap, so level 3 still performs an
+        // old-style merge, while all levels above perform new style merges.
+        uint32_t upgradeLedger = 80;
+        verifyFutureBucketsInHAS(catchupSimulation, upgradeLedger, 2);
+    }
+    SECTION("upgrade close to publish")
+    {
+        // At upgrade ledger 125, level0Curr is new-style. Then, at ledger 126,
+        // a new-style merge for level 1 is started (lev0Snap is new-style, so
+        // level 0 and 1 should be clear
+        uint32_t upgradeLedger = 125;
+        verifyFutureBucketsInHAS(catchupSimulation, upgradeLedger, 1);
+    }
+    SECTION("upgrade right before publish")
+    {
+        // At ledger 127, only level0Curr is of new version, so all levels below
+        // are left as-is.
+        uint32_t upgradeLedger = 127;
+        verifyFutureBucketsInHAS(catchupSimulation, upgradeLedger, 0);
+    }
+}
+
 static std::string
 resumeModeName(uint32_t count)
 {
@@ -510,6 +595,80 @@ TEST_CASE("History prefix catchup", "[history][catchup]")
         std::string("Catchup to second prefix of published history"));
     REQUIRE(catchupSimulation.catchupOnline(b, freq + 10, 5));
     REQUIRE(b->getLedgerManager().getLastClosedLedgerNum() == 2 * freq + 7);
+}
+
+TEST_CASE("Catchup post-shadow-removal works", "[history]")
+{
+    uint32_t newProto = Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED;
+    uint32_t oldProto = newProto - 1;
+
+    auto configurator =
+        std::make_shared<RealGenesisTmpDirHistoryConfigurator>();
+    CatchupSimulation catchupSimulation{VirtualClock::VIRTUAL_TIME,
+                                        configurator};
+
+    catchupSimulation.generateRandomLedger(oldProto);
+
+    // Different counts: with proto 12, catchup should adapt and switch merge
+    // logic
+    std::vector<uint32_t> counts = {0, std::numeric_limits<uint32_t>::max(),
+                                    60};
+
+    SECTION("Upgrade at checkpoint start")
+    {
+        uint32_t upgradeLedger = 64;
+        catchupSimulation.setProto12UpgradeLedger(upgradeLedger);
+        auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+        catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
+
+        for (auto count : counts)
+        {
+            auto a = catchupSimulation.createCatchupApplication(
+                count, Config::TESTDB_IN_MEMORY_SQLITE,
+                std::string("full, ") + resumeModeName(count) + ", " +
+                    dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
+
+            REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger));
+        }
+    }
+    SECTION("Upgrade mid-checkpoint")
+    {
+        // Notice the effect of shifting the upgrade by one ledger:
+        // At ledger 64, spills of levels 1,2,3 occur, starting merges with
+        // _old-style_ logic.
+        // Then at ledger 65, an upgrade happens, but old merges are still valid
+        uint32_t upgradeLedger = 65;
+        catchupSimulation.setProto12UpgradeLedger(upgradeLedger);
+        auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+        catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
+
+        for (auto count : counts)
+        {
+            auto a = catchupSimulation.createCatchupApplication(
+                count, Config::TESTDB_IN_MEMORY_SQLITE,
+                std::string("full, ") + resumeModeName(count) + ", " +
+                    dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
+
+            REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger));
+        }
+    }
+    SECTION("Apply-buckets old-style merges, upgrade during tx replay")
+    {
+        // Ensure that ApplyBucketsWork correctly restarts old-style merges
+        // during catchup. Upgrade happens at ledger 70, so catchup applies
+        // buckets for the first checkpoint, then replays ledgers 64...127.
+        uint32_t upgradeLedger = 70;
+        catchupSimulation.setProto12UpgradeLedger(upgradeLedger);
+        auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
+        catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger);
+
+        auto a = catchupSimulation.createCatchupApplication(
+            32, Config::TESTDB_IN_MEMORY_SQLITE,
+            std::string("full, ") + resumeModeName(32) + ", " +
+                dbModeName(Config::TESTDB_IN_MEMORY_SQLITE));
+
+        REQUIRE(catchupSimulation.catchupOnline(a, checkpointLedger));
+    }
 }
 
 TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
