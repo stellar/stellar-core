@@ -67,6 +67,14 @@ HistoryArchiveState::futuresAllResolved() const
     return true;
 }
 
+bool
+HistoryArchiveState::futuresAllClear() const
+{
+    return std::all_of(
+        currentBuckets.begin(), currentBuckets.end(),
+        [](HistoryStateBucket const& bl) { return bl.next.isClear(); });
+}
+
 void
 HistoryArchiveState::resolveAllFutures()
 {
@@ -94,10 +102,6 @@ HistoryArchiveState::resolveAnyReadyFutures()
 void
 HistoryArchiveState::save(std::string const& outFile) const
 {
-    // We only ever write fully-resolved HASs to files, when making
-    // checkpoints. This may change in the future if we start publishing
-    // input-only HASs.
-    assert(futuresAllResolved());
     std::ofstream out(outFile);
     cereal::JSONOutputArchive ar(out);
     serialize(ar);
@@ -129,7 +133,6 @@ HistoryArchiveState::load(std::string const& inFile)
             << "Unexpected history archive state version: " << version;
         throw std::runtime_error("unexpected history archive state version");
     }
-    assert(futuresAllResolved());
 }
 
 void
@@ -138,7 +141,6 @@ HistoryArchiveState::fromString(std::string const& str)
     std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
-    assert(futuresAllResolved());
 }
 
 std::string

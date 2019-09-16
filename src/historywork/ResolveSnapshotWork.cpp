@@ -16,6 +16,10 @@ ResolveSnapshotWork::ResolveSnapshotWork(
     , mSnapshot(snapshot)
     , mTimer(std::make_unique<VirtualTimer>(app.getClock()))
 {
+    if (!mSnapshot)
+    {
+        throw std::runtime_error("ResolveSnapshotWork: invalid snapshot");
+    }
 }
 
 BasicWork::State

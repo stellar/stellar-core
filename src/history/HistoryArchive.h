@@ -108,6 +108,9 @@ struct HistoryArchiveState
            CEREAL_NVP(currentBuckets));
     }
 
+    // Return true if all futures are in FB_CLEAR state
+    bool futuresAllClear() const;
+
     // Return true if all futures have already been resolved, otherwise false.
     bool futuresAllResolved() const;
 

@@ -205,6 +205,12 @@ FutureBucket::hasHashes() const
 }
 
 bool
+FutureBucket::isClear() const
+{
+    return mState == FB_CLEAR;
+}
+
+bool
 FutureBucket::mergeComplete() const
 {
     assert(isLive());
