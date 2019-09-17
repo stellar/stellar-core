@@ -187,7 +187,7 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
 
-        auto totalNumEntries = 1200;
+        uint32_t const totalNumEntries = 1200;
         for (uint32_t i = 1;
              !app->getClock().getIOContext().stopped() && i <= totalNumEntries;
              ++i)
