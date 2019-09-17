@@ -401,6 +401,8 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     auto peer = load(address);
     if (!peer.second)
     {
+        CLOG(TRACE, "Overlay") << "Learned peer " << address.toString() << " @"
+                               << mApp.getConfig().PEER_PORT;
         store(address, peer.first, peer.second);
     }
 }

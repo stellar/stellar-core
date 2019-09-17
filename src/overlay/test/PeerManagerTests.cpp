@@ -89,7 +89,7 @@ TEST_CASE("private addresses", "[overlay][PeerManager]")
     CHECK(pa.isPrivate());
 }
 
-TEST_CASE("create peer rercord", "[overlay][PeerManager]")
+TEST_CASE("create peer record", "[overlay][PeerManager]")
 {
     SECTION("empty")
     {
@@ -99,11 +99,6 @@ TEST_CASE("create peer rercord", "[overlay][PeerManager]")
     SECTION("empty ip")
     {
         REQUIRE_THROWS_AS(PeerBareAddress("", 80), std::runtime_error);
-    }
-
-    SECTION("zero port")
-    {
-        REQUIRE_THROWS_AS(localhost(0), std::runtime_error);
     }
 
     SECTION("random string") // PeerBareAddress does not validate IP format
@@ -121,7 +116,7 @@ TEST_CASE("create peer rercord", "[overlay][PeerManager]")
     }
 }
 
-TEST_CASE("parse peer rercord", "[overlay][PeerManager]")
+TEST_CASE("parse peer record", "[overlay][PeerManager]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());

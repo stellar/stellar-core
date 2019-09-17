@@ -25,10 +25,6 @@ PeerBareAddress::PeerBareAddress(std::string ip, unsigned short port)
     {
         throw std::runtime_error("Cannot create PeerBareAddress with empty ip");
     }
-    if (mPort == 0)
-    {
-        throw std::runtime_error("Cannot create PeerBareAddress with port 0");
-    }
 }
 
 PeerBareAddress::PeerBareAddress(PeerAddress const& pa) : mType{Type::IPv4}
