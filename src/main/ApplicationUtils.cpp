@@ -233,6 +233,7 @@ rebuildLedgerFromBuckets(Config cfg)
 
     HistoryArchiveState has;
     has.fromString(hasStr);
+    has.prepareForPublish(*app);
 
     auto applyBucketsWork = ws.executeWork<ApplyBucketsWork>(
         localBuckets, has, Config::CURRENT_LEDGER_PROTOCOL_VERSION,
