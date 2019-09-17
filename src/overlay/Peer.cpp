@@ -47,6 +47,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(0)
+    , mCreationTime(app.getClock().now())
     , mIdleTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
@@ -455,6 +456,13 @@ bool
 Peer::isAuthenticated() const
 {
     return mState == GOT_AUTH;
+}
+
+std::chrono::seconds
+Peer::getLifeTime() const
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        mApp.getClock().now() - mCreationTime);
 }
 
 bool

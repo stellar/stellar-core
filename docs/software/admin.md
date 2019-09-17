@@ -682,6 +682,7 @@ This list is the result of both inbound connections from other peers and outboun
      "inbound" : [
         {
            "address" : "54.161.82.181:11625",
+           "elapsed" : 6,
            "id" : "sdf1",
            "olver" : 5,
            "ver" : "v9.1.0"
@@ -690,12 +691,14 @@ This list is the result of both inbound connections from other peers and outboun
      "outbound" : [
        {
           "address" : "54.211.174.177:11625",
+          "elapsed" : 2303,
           "id" : "sdf2",
           "olver" : 5,
           "ver" : "v9.1.0"
        },
        {
           "address" : "54.160.175.7:11625",
+          "elapsed" : 14082,
           "id" : "sdf3",
           "olver" : 5,
           "ver" : "v9.1.0"

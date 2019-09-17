@@ -83,6 +83,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint32_t mRemoteOverlayVersion;
     PeerBareAddress mAddress;
 
+    VirtualClock::time_point mCreationTime;
+
     VirtualTimer mIdleTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
@@ -167,6 +169,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     bool isConnected() const;
     bool isAuthenticated() const;
+
+    VirtualClock::time_point
+    getCreationTime() const
+    {
+        return mCreationTime;
+    }
+    std::chrono::seconds getLifeTime() const;
 
     PeerState
     getState() const
