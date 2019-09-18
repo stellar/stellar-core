@@ -5,6 +5,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/QuorumIntersectionChecker.h"
+#include "herder/QuorumIntersectionCheckerImpl.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
 #include "scp/LocalNode.h"
@@ -839,4 +840,99 @@ TEST_CASE("quorum intersection criticality",
         QuorumIntersectionChecker::getIntersectionCriticalGroups(qm, cfg);
     REQUIRE(groups.size() == 1);
     REQUIRE(groups == std::set<std::set<PublicKey>>{{orgs[3][0]}});
+}
+
+TEST_CASE("quorum intersection topological order of SCCs",
+          "[herder][quorumintersectiontopo]")
+{
+    using namespace stellar::quorum_intersection;
+
+    // This test checks that the SCCs examined by the quorum intersection
+    // checker are ordered _topologically_ rather than by size, and that the
+    // checker examines a maximum element of the reachability relation between
+    // SCCs.
+    //
+    // We test this by manufacturing a large SCC A that can reach a smaller SCC
+    // B, and then making SCC A contain no quorums, and checking that we
+    // actually found some quorums (meaning: we scanned SCC B). Previously this
+    // would cause the checker to focus on A (which we're configuring with _no_
+    // quorums), when it was sorting by size; but we want it to focus on B.
+    //
+    //
+    //     SCC A
+    //
+    //    org0 <--+
+    //      |     |
+    //      v     |
+    //    org1    |
+    //      |     |      SCC B
+    //      v     |
+    //    org2    |     org7 <-+
+    //      |     |      ^     |
+    //      |     |      |     |
+    //      v     |      v     |
+    //    org3    |     org6   |
+    //      |     |      ^     |
+    //      |     |      |     |
+    //      v     |      v     |
+    //    org4 ---+---> org5 <-+
+    //
+
+    auto orgs = generateOrgs(8, {1});
+    auto qm = interconnectOrgsUnidir(orgs,
+                                     {
+                                         {0, 1},
+                                         {1, 2},
+                                         {2, 3},
+                                         {3, 4},
+                                         {4, 0},
+                                         {4, 5},
+                                         {5, 6},
+                                         {6, 5},
+                                         {6, 7},
+                                         {7, 6},
+                                         {7, 5},
+                                         {5, 7},
+                                     },
+                                     /* ownThreshPct=*/100);
+    Config cfg(getTestConfig());
+    cfg = configureShortNames(cfg, orgs);
+    debugQmap(cfg, qm);
+    QuorumIntersectionCheckerImpl qic(qm, cfg, /*quiet=*/false);
+    REQUIRE(qic.networkEnjoysQuorumIntersection());
+    REQUIRE(qic.getMaxQuorumsFound() != 0);
+    REQUIRE(qic.getMaxQuorumsFound() != 0);
+
+    // Now check the reachability calculator calculated the correct relation.
+    std::vector<BitSet> bs;
+    bs.resize(8);
+    for (size_t i = 0; i < 8; ++i)
+    {
+        bs.at(i).set(qic.getPubkeyBitNum(orgs[i][0]));
+    }
+
+    SCCReachabilityCalculator r(qic.getGraph());
+    r.calculateReachability();
+
+    for (size_t i = 0; i < r.mReachableNodes.size(); ++i)
+    {
+        CLOG(DEBUG, "Herder")
+            << "reachable from " << i << ": " << r.mReachableNodes.at(i);
+    }
+
+    for (size_t i = 0; i < 5; ++i)
+    {
+        for (size_t j = 0; j < 8; ++j)
+        {
+            REQUIRE(r.canReach(bs.at(i), bs.at(j)));
+        }
+    }
+
+    for (size_t i = 5; i < 8; ++i)
+    {
+        for (size_t j = 5; j < 8; ++j)
+        {
+            REQUIRE(r.canReach(bs.at(i), bs.at(j)));
+        }
+    }
 }

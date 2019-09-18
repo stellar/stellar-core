@@ -680,14 +680,69 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
     mStats.mTotalNodes = mPubKeyBitNums.size();
 }
 
+SCCReachabilityCalculator::SCCReachabilityCalculator(QGraph const& graph)
+    : mNodeGraph(graph)
+{
+}
+
+void
+SCCReachabilityCalculator::calculateReachability()
+{
+    mReachableNodes.clear();
+    mReachableNodes.resize(mNodeGraph.size());
+    bool changed;
+    do
+    {
+        changed = false;
+        for (size_t i = 0; i < mNodeGraph.size(); ++i)
+        {
+            auto& r = mReachableNodes.at(i);
+            auto const& q = mNodeGraph.at(i);
+            if (r.empty())
+            {
+                r = q.mAllSuccessors;
+                changed = true;
+            }
+            else
+            {
+                BitSet b = r;
+                for (size_t j = 0; r.nextSet(j); ++j)
+                {
+                    b |= mReachableNodes.at(j);
+                }
+                if (r != b)
+                {
+                    changed = true;
+                    r = b;
+                }
+            }
+        }
+    } while (changed);
+}
+
+bool
+SCCReachabilityCalculator::canReach(BitSet const& a, BitSet const& b) const
+{
+    for (size_t i = 0; a.nextSet(i); ++i)
+    {
+        if (mReachableNodes.at(i).intersectionCount(b) != 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 QuorumIntersectionCheckerImpl::buildSCCs()
 {
+    SCCReachabilityCalculator reach(mGraph);
+    reach.calculateReachability();
     mTSC.calculateSCCs();
     mMaxSCC.clear();
     for (auto const& scc : mTSC.mSCCs)
     {
-        if (scc.count() > mMaxSCC.count())
+        if (mMaxSCC.empty() || reach.canReach(mMaxSCC, scc))
         {
             mMaxSCC = scc;
         }

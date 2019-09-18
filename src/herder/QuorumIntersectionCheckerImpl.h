@@ -376,7 +376,8 @@ struct QBitSet
     const QGraph mInnerSets;
 
     // Union of mNodes and i.mAllSuccessors for i in mInnerSets: summarizes
-    // every node that this QBitSet directly depends on.
+    // every node that this QBitSet directly depends on. Eagerly calculated.
+    // on construction.
     const BitSet mAllSuccessors;
 
     QBitSet(uint32_t threshold, BitSet const& nodes, QGraph const& innerSets);
@@ -411,6 +412,16 @@ struct TarjanSCCCalculator
     TarjanSCCCalculator(QGraph const& graph);
     void calculateSCCs();
     void scc(size_t i);
+};
+
+struct SCCReachabilityCalculator
+{
+    std::vector<BitSet> mReachableNodes;
+    QGraph const& mNodeGraph;
+
+    SCCReachabilityCalculator(QGraph const& graph);
+    void calculateReachability();
+    bool canReach(BitSet const& a, BitSet const& b) const;
 };
 
 // A MinQuorumEnumerator is responsible to scanning the powerset of the SCC
@@ -530,6 +541,17 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
                                   stellar::Config const& cfg,
                                   bool quiet = false);
     bool networkEnjoysQuorumIntersection() const override;
+
+    QGraph const&
+    getGraph() const
+    {
+        return mGraph;
+    }
+    size_t
+    getPubkeyBitNum(stellar::PublicKey const& b)
+    {
+        return mPubKeyBitNums.at(b);
+    }
 
     std::pair<std::vector<stellar::PublicKey>, std::vector<stellar::PublicKey>>
     getPotentialSplit() const override;
