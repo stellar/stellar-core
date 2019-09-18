@@ -139,7 +139,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 10, idr, 0, {}),
-                              ex_PATH_PAYMENT_MALFORMED);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -157,7 +157,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 10, idr, -1, {}),
-                              ex_PATH_PAYMENT_MALFORMED);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -175,7 +175,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 0, idr, 10, {}),
-                              ex_PATH_PAYMENT_MALFORMED);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -193,7 +193,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, -1, idr, 10, {}),
-                              ex_PATH_PAYMENT_MALFORMED);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -212,7 +212,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(destination, makeInvalidAsset(), 10, idr, 10, {}),
-                ex_PATH_PAYMENT_MALFORMED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -231,7 +231,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 10, makeInvalidAsset(), 10, {}),
-                ex_PATH_PAYMENT_MALFORMED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -250,7 +250,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 10, idr, 10, {makeInvalidAsset()}),
-                ex_PATH_PAYMENT_MALFORMED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -265,12 +265,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_versions_to(10, *app, [&] {
             REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
                                        std::numeric_limits<int64_t>::max(), {}),
-                              ex_PATH_PAYMENT_MALFORMED);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_MALFORMED);
         });
         for_versions_from(11, *app, [&] {
             REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
                                        std::numeric_limits<int64_t>::max(), {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
         });
     }
 
@@ -283,7 +283,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             REQUIRE_THROWS_AS(gateway.pay(a, idr, 20, idr,
                                           std::numeric_limits<int64_t>::max(),
                                           {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
         });
     }
 
@@ -296,7 +296,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 minimumAccount.pay(root, xlm, txfee + 21, xlm, txfee + 21, {}),
-                ex_PATH_PAYMENT_UNDERFUNDED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
             // clang-format off
             market.requireBalances(
                 {{minimumAccount, {{xlm, minBalanceNoTx + txfee + 20}, {idr, 0}, {usd, 0}}}});
@@ -314,7 +314,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(minimumAccount, idr, 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(minimumAccount.pay(gateway, idr, 11, idr, 11, {}),
-                              ex_PATH_PAYMENT_UNDERFUNDED);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
             // clang-format off
             market.requireBalances(
                 {{minimumAccount, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -322,7 +322,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // clang-format on
             REQUIRE_THROWS_AS(
                 minimumAccount.pay(destination, idr, 11, idr, 11, {}),
-                ex_PATH_PAYMENT_UNDERFUNDED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
             // clang-format off
             market.requireBalances(
                 {{minimumAccount, {{xlm, minBalance1 - 3 * txfee}, {idr, 10}, {usd, 0}}},
@@ -339,7 +339,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         destination.changeTrust(idr, 20);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(noSourceTrust.pay(gateway, idr, 1, idr, 1, {}),
-                              ex_PATH_PAYMENT_SRC_NO_TRUST);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST);
             // clang-format off
             market.requireBalances(
                 {{noSourceTrust, {{xlm, minBalance - txfee}, {idr, 0}, {usd, 0}}},
@@ -347,7 +347,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // clang-format on
             REQUIRE_THROWS_AS(
                 noSourceTrust.pay(destination, idr, 1, idr, 1, {}),
-                ex_PATH_PAYMENT_SRC_NO_TRUST);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST);
             // clang-format off
             market.requireBalances(
                 {{noSourceTrust, {{xlm, minBalance - 2 * txfee}, {idr, 0}, {usd, 0}}},
@@ -371,7 +371,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 noAuthorizedSourceTrust.pay(gateway, idr, 10, idr, 10, {}),
-                ex_PATH_PAYMENT_SRC_NOT_AUTHORIZED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED);
             // clang-format off
             market.requireBalances(
                 {{noAuthorizedSourceTrust, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -379,7 +379,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // clang-format on
             REQUIRE_THROWS_AS(
                 noAuthorizedSourceTrust.pay(destination, idr, 10, idr, 10, {}),
-                ex_PATH_PAYMENT_SRC_NOT_AUTHORIZED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED);
             // clang-format off
             market.requireBalances(
                 {{noAuthorizedSourceTrust, {{xlm, minBalance1 - 3 * txfee}, {idr, 10}, {usd, 0}}},
@@ -399,7 +399,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 source.pay(
                     getAccount("non-existing-destination").getPublicKey(), idr,
                     10, idr, 10, {}),
-                ex_PATH_PAYMENT_NO_DESTINATION);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}}});
@@ -436,7 +436,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             gateway.merge(root);
             REQUIRE_THROWS_AS(source.pay(gateway, idr, 10, usd, 10, {}),
-                              ex_PATH_PAYMENT_NO_DESTINATION);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}}});
@@ -455,7 +455,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 gateway.pay(noDestinationTrust, idr, 1, idr, 1, {}),
-                ex_PATH_PAYMENT_NO_TRUST);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - txfee}, {idr, 10}, {usd, 0}}},
@@ -463,7 +463,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // clang-format on
             REQUIRE_THROWS_AS(
                 source.pay(noDestinationTrust, idr, 1, idr, 1, {}),
-                ex_PATH_PAYMENT_NO_TRUST);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -487,7 +487,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 gateway.pay(noAuthorizedDestinationTrust, idr, 10, idr, 10, {}),
-                ex_PATH_PAYMENT_NOT_AUTHORIZED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - txfee}, {idr, 10}, {usd, 0}}},
@@ -495,7 +495,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // clang-format on
             REQUIRE_THROWS_AS(
                 source.pay(noAuthorizedDestinationTrust, idr, 10, idr, 10, {}),
-                ex_PATH_PAYMENT_NOT_AUTHORIZED);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -515,14 +515,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(destination, idr, 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(gateway.pay(destination, idr, 1, idr, 11, {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - txfee}, {idr, 10}, {usd, 0}}},
                  {destination, {{xlm, minBalance1 - txfee}, {idr, 10}, {usd, 0}}}});
             // clang-format on
             REQUIRE_THROWS_AS(source.pay(destination, idr, 11, idr, 11, {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -537,23 +537,23 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
-        destination.changeTrust(idr, std::numeric_limits<int64_t>::max());
+        destination.changeTrust(idr, INT64_MAX);
         gateway.pay(source, idr, 10);
-        gateway.pay(destination, idr, std::numeric_limits<int64_t>::max() - 10);
+        gateway.pay(destination, idr, INT64_MAX - 10);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(gateway.pay(destination, idr, 1, idr, 11, {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance1 - txfee}, {idr, std::numeric_limits<int64_t>::max() - 10}, {usd, 0}}}});
+                 {destination, {{xlm, minBalance1 - txfee}, {idr, INT64_MAX - 10}, {usd, 0}}}});
             // clang-format on
             REQUIRE_THROWS_AS(source.pay(destination, idr, 11, idr, 11, {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance1 - txfee}, {idr, std::numeric_limits<int64_t>::max() - 10}, {usd, 0}}}});
+                 {destination, {{xlm, minBalance1 - txfee}, {idr, INT64_MAX - 10}, {usd, 0}}}});
             // clang-format on
         });
     }
@@ -570,7 +570,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             gateway.merge(root);
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 11, usd, 11, {}, &idr),
-                ex_PATH_PAYMENT_NO_ISSUER);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -591,7 +591,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto btc = makeAsset(getAccount("missing"), "BTC");
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 11, usd, 11, {btc}, &btc),
-                ex_PATH_PAYMENT_NO_ISSUER);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -612,7 +612,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             gateway2.merge(root);
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 11, usd, 11, {}, &usd),
-                ex_PATH_PAYMENT_NO_ISSUER);
+                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -661,7 +661,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {cur1, 10}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
@@ -713,7 +713,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {cur1, 10}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
@@ -765,7 +765,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {cur1, 10}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
@@ -815,7 +815,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_OFFER_CROSS_SELF);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance3 - 4 * txfee}, {cur1, 10}, {cur2, 10}, {cur3, 0}, {cur4, 0}}},
@@ -865,7 +865,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_OFFER_CROSS_SELF);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance4 - 5 * txfee}, {cur1, 10}, {cur2, 0}, {cur3, 10}, {cur4, 0}}},
@@ -915,7 +915,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_OFFER_CROSS_SELF);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance4 - 5 * txfee}, {cur1, 10}, {cur2, 0}, {cur3, 0}, {cur4, 10}}},
@@ -1136,7 +1136,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto destination = root.create("destination", minBalance);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, xlm, 10, xlm, 11, {}),
-                              ex_PATH_PAYMENT_OVER_SENDMAX);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
             market.requireBalances(
                 {{source, {{xlm, minBalance - txfee}, {idr, 0}, {usd, 0}}},
                  {destination, {{xlm, minBalance}, {idr, 0}, {usd, 0}}}});
@@ -1154,7 +1154,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 9, idr, 10, {}),
-                              ex_PATH_PAYMENT_OVER_SENDMAX);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -1203,7 +1203,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, cur1, 10, cur4,
                                                  10, {cur1, cur2, cur3, cur4});
                                   }),
-                              ex_PATH_PAYMENT_OVER_SENDMAX);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 80}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
@@ -1257,7 +1257,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(account.pay(account, idr, 2, idr, 2, {}),
-                              ex_PATH_PAYMENT_LINE_FULL);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
             market.requireBalances({{account, {{idr, 19}}}});
         });
     }
@@ -3427,9 +3427,10 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             });
 
             market.requireChanges({}, [&] {
-                REQUIRE_THROWS_AS(source.pay(destination, cur1, 45, cur4, 10,
-                                             {cur1, cur2, cur3, cur4}),
-                                  ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                REQUIRE_THROWS_AS(
+                    source.pay(destination, cur1, 45, cur4, 10,
+                               {cur1, cur2, cur3, cur4}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
             });
             // clang-format off
             market.requireBalances(
@@ -3507,6 +3508,94 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         });
     }
 
+    SECTION("path payment takes all offers, multiple offers per exchange V10")
+    {
+        auto market = TestMarket{*app};
+        auto source = root.create("source", minBalance4);
+        auto destination = root.create("destination", minBalance1);
+        auto mm12 = root.create("mm12", minBalance5);
+        auto mm23 = root.create("mm23", minBalance5);
+        auto mm34 = root.create("mm34", minBalance5);
+
+        source.changeTrust(cur1, 200);
+        mm12.changeTrust(cur1, 200);
+        mm12.changeTrust(cur2, 200);
+        mm23.changeTrust(cur2, 200);
+        mm23.changeTrust(cur3, 200);
+        mm34.changeTrust(cur3, 200);
+        mm34.changeTrust(cur4, 200);
+        destination.changeTrust(cur4, 200);
+
+        gateway.pay(source, cur1, 59);
+        gateway.pay(mm12, cur2, 35);
+        gateway2.pay(mm23, cur3, 23);
+        gateway2.pay(mm34, cur4, 16);
+
+        for_versions_from(10, *app, [&] {
+            auto o1a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+            });
+            auto o1b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 16});
+            });
+            auto o1c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+            });
+            auto o2a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+            });
+            auto o2b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 6});
+            });
+            auto o2c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 12});
+            });
+            auto o3a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 9});
+            });
+            auto o3b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 6});
+            });
+            auto o3c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1});
+            });
+
+            auto actual = std::vector<ClaimOfferAtom>{};
+            market.requireChanges({{o1a.key, OfferState::DELETED},
+                                   {o1b.key, OfferState::DELETED},
+                                   {o1c.key, OfferState::DELETED},
+                                   {o2a.key, OfferState::DELETED},
+                                   {o2b.key, OfferState::DELETED},
+                                   {o2c.key, OfferState::DELETED},
+                                   {o3a.key, OfferState::DELETED},
+                                   {o3b.key, OfferState::DELETED},
+                                   {o3c.key, OfferState::DELETED}},
+                                  [&] {
+                                      actual =
+                                          source
+                                              .pay(destination, cur1, 59, cur4,
+                                                   16, {cur1, cur2, cur3, cur4})
+                                              .success()
+                                              .offers;
+                                  });
+            auto expected = std::vector<ClaimOfferAtom>{
+                o1c.exchanged(9, 12),  o1a.exchanged(10, 15),
+                o1b.exchanged(16, 32), o2c.exchanged(12, 16),
+                o2b.exchanged(6, 9),   o2a.exchanged(5, 10),
+                o3a.exchanged(9, 12),  o3b.exchanged(6, 9),
+                o3c.exchanged(1, 2)};
+            REQUIRE(actual == expected);
+            // clang-format off
+            market.requireBalances(
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm12, {{xlm, minBalance5 - 5 * txfee}, {cur1, 59}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm23, {{xlm, minBalance5 - 5 * txfee}, {cur1, 0}, {cur2, 35}, {cur3, 0}, {cur4, 0}}},
+                 {mm34, {{xlm, minBalance5 - 5 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 23}, {cur4, 0}}},
+                 {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 16}}}});
+            // clang-format on
+        });
+    }
+
     SECTION("path payment takes best offers, multiple offers per exchange")
     {
         auto market = TestMarket{*app};
@@ -3560,9 +3649,10 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             });
 
             market.requireChanges({}, [&] {
-                REQUIRE_THROWS_AS(source.pay(destination, cur1, 29, cur4, 8,
-                                             {cur1, cur2, cur3, cur4}),
-                                  ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                REQUIRE_THROWS_AS(
+                    source.pay(destination, cur1, 29, cur4, 8,
+                               {cur1, cur2, cur3, cur4}),
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
             });
             // clang-format off
             market.requireBalances(
@@ -3636,6 +3726,93 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {mm23, {{xlm, minBalance5 - 5 * txfee}, {cur1, 0}, {cur2, 20}, {cur3, 4}, {cur4, 0}}},
                  {mm34, {{xlm, minBalance5 - 5 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 13}, {cur4, 2}}},
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 8}}}});
+            // clang-format on
+        });
+    }
+
+    SECTION("path payment takes best offers, multiple offers per exchange V10")
+    {
+        auto market = TestMarket{*app};
+        auto source = root.create("source", minBalance4);
+        auto destination = root.create("destination", minBalance1);
+        auto mm12 = root.create("mm12", minBalance5);
+        auto mm23 = root.create("mm23", minBalance5);
+        auto mm34 = root.create("mm34", minBalance5);
+
+        source.changeTrust(cur1, 200);
+        mm12.changeTrust(cur1, 200);
+        mm12.changeTrust(cur2, 200);
+        mm23.changeTrust(cur2, 200);
+        mm23.changeTrust(cur3, 200);
+        mm34.changeTrust(cur3, 200);
+        mm34.changeTrust(cur4, 200);
+        destination.changeTrust(cur4, 200);
+
+        gateway.pay(source, cur1, 58);
+        gateway.pay(mm12, cur2, 35);
+        gateway2.pay(mm23, cur3, 23);
+        gateway2.pay(mm34, cur4, 16);
+
+        for_versions_from(10, *app, [&] {
+            auto o1a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+            });
+            auto o1b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 16});
+            });
+            auto o1c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+            });
+            auto o2a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+            });
+            auto o2b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 6});
+            });
+            auto o2c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 12});
+            });
+            auto o3a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 9});
+            });
+            auto o3b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 6});
+            });
+            auto o3c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1});
+            });
+
+            auto actual = std::vector<ClaimOfferAtom>{};
+            market.requireChanges({{o1a.key, OfferState::DELETED},
+                                   {o1b.key, {cur2, cur1, Price{2, 1}, 4}},
+                                   {o1c.key, OfferState::DELETED},
+                                   {o2a.key, {cur3, cur2, Price{2, 1}, 2}},
+                                   {o2b.key, OfferState::DELETED},
+                                   {o2c.key, OfferState::DELETED},
+                                   {o3a.key, OfferState::DELETED},
+                                   {o3b.key, OfferState::DELETED},
+                                   {o3c.key, {cur4, cur3, Price{2, 1}, 1}}},
+                                  [&] {
+                                      actual =
+                                          source
+                                              .pay(destination, cur1, 51, cur4,
+                                                   15, {cur1, cur2, cur3, cur4})
+                                              .success()
+                                              .offers;
+                                  });
+            auto expected = std::vector<ClaimOfferAtom>{
+                o1c.exchanged(9, 12),  o1a.exchanged(10, 15),
+                o1b.exchanged(12, 24), o2c.exchanged(12, 16),
+                o2b.exchanged(6, 9),   o2a.exchanged(3, 6),
+                o3a.exchanged(9, 12),  o3b.exchanged(6, 9)};
+            REQUIRE(actual == expected);
+            // clang-format off
+            market.requireBalances(
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 7}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm12, {{xlm, minBalance5 - 5 * txfee}, {cur1, 51}, {cur2, 4}, {cur3, 0}, {cur4, 0}}},
+                 {mm23, {{xlm, minBalance5 - 5 * txfee}, {cur1, 0}, {cur2, 31}, {cur3, 2}, {cur4, 0}}},
+                 {mm34, {{xlm, minBalance5 - 5 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 21}, {cur4, 1}}},
+                 {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 15}}}});
             // clang-format on
         });
     }
@@ -3740,7 +3917,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                       source.pay(destination, xlm, 1382068965,
                                                  cny, 20000000, path);
                                   }),
-                              ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                              ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
         });
         for_versions_from(3, *app, [&] {
             auto sellerOfferRemaining =
@@ -3843,49 +4020,35 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     {
         for_all_versions(*app, [&] {
             // Create 3 different cycles.
-            // First cycle involves 3 transaction in which
-            // buying price is
-            // always half - so sender buys 8 times as much XLM
-            // as he/she
+            // First cycle involves 3 transaction in which buying price is
+            // always half - so sender buys 8 times as much XLM as he/she
             // sells (arbitrage).
-            // Second cycle involves 3 transaction in which
-            // buying price is
-            // always two - so sender buys 8 times as much XLM
-            // as he/she
-            // sells (anti-arbitrage).
-            // Thanks to send max option this transaction is
-            // rejected.
-            // Third cycle is similar to second, but send max is
-            // set to a
-            // high value, so transaction proceeds even if it
-            // makes sender
-            // lose a lot of XLM.
+            // Second cycle involves 3 transaction in which buying price is
+            // always two - so sender buys 8 times as much XLM as he/she
+            // sells (anti-arbitrage). Thanks to send max option this
+            // transaction is rejected.
+            // Third cycle is similar to second, but send max is set to a high
+            // value, so transaction proceeds even if it makes sender lose a
+            // lot of XLM.
 
-            // Each cycle is created in 3 variants (to check if
-            // behavior
-            // does not depend of nativeness of asset):
+            // Each cycle is created in 3 variants (to check if behavior does
+            // not depend of nativeness of asset):
             // * XLM -> USD -> IDR -> XLM
             // * USD -> IDR -> XLM -> USD
             // * IDR -> XLM -> USD -> IDR
-            // To create variants, rotateRight() function is
-            // used on
-            // accounts, offers and assets -
-            // it greatly simplified index calculation in the
-            // code.
+            // To create variants, rotateRight() function is used on accounts,
+            // offers and assets - it greatly simplified index calculation in
+            // the code.
 
             auto market = TestMarket{*app};
-            auto paymentAmount = int64_t{100000000}; // amount of money that
-                                                     // 'destination'
-                                                     // account will receive
-            auto offerAmount = 8 * paymentAmount;    // amount of money in
-            // offer required to pass
-            // - needs 8x of payment
+            // amount of money that 'destination' account will receive
+            auto paymentAmount = int64_t{100000000};
+            // amount of money in offer required to pass - needs 8x of payment
             // for anti-arbitrage case
-            auto initialBalance =
-                2 * offerAmount; // we need twice as much money
-                                 // as in the
-            // offer because of Price{2, 1} that is
-            // used in one case
+            auto offerAmount = 8 * paymentAmount;
+            // we need twice as much money as in the offer because of
+            // Price{2, 1} that is used in one case
+            auto initialBalance = 2 * offerAmount;
             auto txFee = app->getLedgerManager().getLastTxFee();
 
             auto assets = std::deque<Asset>{xlm, usd, idr};
@@ -3893,10 +4056,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto accounts = std::deque<TestAccount>{};
 
             auto setupAccount = [&](const std::string& name) {
-                // setup account with required trustlines and
-                // money both in
+                // setup account with required trustlines and money both in
                 // native and assets
-
                 auto account = root.create(name, initialBalance);
                 account.changeTrust(idr, trustLineLimit);
                 gateway.pay(account, idr, initialBalance);
@@ -3949,17 +4110,17 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 validateAccountAssets(destination, 0, difference, 2);
             };
 
-            for (int i = 0; i < pathSize;
-                 i++) // create account for each known asset
+            // create account for each known asset
+            for (int i = 0; i < pathSize; i++)
             {
                 accounts.emplace_back(
                     setupAccount(std::string{"C"} + std::to_string(i)));
-                validateAccountAssets(accounts[i], 0, 0,
-                                      2); // 2x change trust called
+                // 2x change trust called
+                validateAccountAssets(accounts[i], 0, 0, 2);
             }
 
             auto testPath = [&](const std::string& name, const Price& price,
-                                int maxMultipler, bool overSendMax) {
+                                int maxMultiplier, bool overSendMax) {
                 SECTION(name)
                 {
                     auto offers = std::deque<int64_t>{};
@@ -3987,47 +4148,49 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                 assetPathToString(assets) + ")")
                         {
                             auto destinationMultiplier = overSendMax ? 0 : 1;
-                            auto sellerMultipler =
+                            auto sellerMultiplier =
                                 overSendMax ? Price{0, 1} : Price{1, 1};
-                            auto buyerMultipler = sellerMultipler * price;
+                            auto buyerMultiplier = sellerMultiplier * price;
 
                             if (overSendMax)
+                            {
                                 REQUIRE_THROWS_AS(
                                     source.pay(destination, assets[0],
-                                               maxMultipler * paymentAmount,
+                                               maxMultiplier * paymentAmount,
                                                assets[0], paymentAmount, path),
-                                    ex_PATH_PAYMENT_OVER_SENDMAX);
+                                    ex_PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX);
+                            }
                             else
+                            {
                                 source.pay(destination, assets[0],
-                                           maxMultipler * paymentAmount,
+                                           maxMultiplier * paymentAmount,
                                            assets[0], paymentAmount, path);
+                            }
 
                             for (int j = 0; j < pathSize; j++)
                             {
-                                auto index = (pathSize - j) %
-                                             pathSize; // it is done from
-                                                       // end of path to
-                                                       // begin of path
-                                validateAccountAsset(accounts[index], index,
-                                                     -paymentAmount *
-                                                         sellerMultipler,
-                                                     3); // sold asset
+                                // it is done from end of path to begin of path
+                                auto index = (pathSize - j) % pathSize;
+                                // sold asset
+                                validateAccountAsset(
+                                    accounts[index], index,
+                                    -paymentAmount * sellerMultiplier, 3);
                                 validateOffer(accounts[index], offers[index],
                                               -paymentAmount *
-                                                  sellerMultipler); // sold
-                                                                    // asset
+                                                  sellerMultiplier);
+                                // bought asset
                                 validateAccountAsset(
                                     accounts[index], (index + 2) % pathSize,
-                                    paymentAmount * buyerMultipler,
-                                    3); // bought asset
+                                    paymentAmount * buyerMultiplier, 3);
+                                // ignored asset
                                 validateAccountAsset(accounts[index],
                                                      (index + 1) % pathSize, 0,
-                                                     3); // ignored asset
-                                sellerMultipler = sellerMultipler * price;
-                                buyerMultipler = buyerMultipler * price;
+                                                     3);
+                                sellerMultiplier = sellerMultiplier * price;
+                                buyerMultiplier = buyerMultiplier * price;
                             }
 
-                            validateSource(-paymentAmount * sellerMultipler);
+                            validateSource(-paymentAmount * sellerMultiplier);
                             validateDestination(paymentAmount *
                                                 destinationMultiplier);
                         }
@@ -4041,17 +4204,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             };
 
             // cycle with every asset on path costing half as
-            // much as
-            // previous - 8 times gain
+            // much as previous - 8 times gain
             testPath("arbitrage", Price(1, 2), 1, false);
             // cycle with every asset on path costing twice as
-            // much as
-            // previous - 8 times loss - unacceptable
+            // much as previous - 8 times loss - unacceptable
             testPath("anti-arbitrage", Price(2, 1), 1, true);
             // cycle with every asset on path costing twice as
-            // much as
-            // previous - 8 times loss - acceptable (but not
-            // wise to do)
+            // much as previous - 8 times loss - acceptable (but not wise to do)
             testPath("anti-arbitrage with big sendmax", Price(2, 1), 8, false);
         });
     }
@@ -4155,7 +4314,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             for_versions_from(10, *app, [&] {
                 REQUIRE_THROWS_AS(
                     source.pay(destination, cur1, 51, cur2, 51, {cur1, cur2}),
-                    ex_PATH_PAYMENT_UNDERFUNDED);
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED);
                 source.pay(destination, cur1, 50, cur2, 50, {cur1, cur2});
             });
         }
@@ -4191,7 +4350,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             for_versions_from(10, *app, [&] {
                 REQUIRE_THROWS_AS(
                     source.pay(destination, cur1, 51, cur2, 51, {cur1, cur2}),
-                    ex_PATH_PAYMENT_LINE_FULL);
+                    ex_PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL);
                 source.pay(destination, cur1, 50, cur2, 50, {cur1, cur2});
             });
         }

@@ -53,7 +53,7 @@ ManageBuyOfferOpFrame::getOfferBuyingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
-        mManageBuyOffer.buyAmount, false);
+        mManageBuyOffer.buyAmount, RoundingType::NORMAL);
     return res.numSheepSend;
 }
 
@@ -62,7 +62,7 @@ ManageBuyOfferOpFrame::getOfferSellingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         getInversePrice(mManageBuyOffer.price), INT64_MAX, INT64_MAX, INT64_MAX,
-        mManageBuyOffer.buyAmount, false);
+        mManageBuyOffer.buyAmount, RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 

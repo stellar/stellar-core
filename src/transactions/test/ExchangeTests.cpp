@@ -505,7 +505,7 @@ TEST_CASE("ExchangeV10", "[exchange]")
                                    int64_t maxSheepSend, int64_t wheatReceive,
                                    int64_t sheepSend) {
             auto res = exchangeV10(p, maxWheatSend, INT64_MAX, maxSheepSend,
-                                   INT64_MAX, false);
+                                   INT64_MAX, RoundingType::NORMAL);
             REQUIRE(res.wheatStays ==
                     (maxWheatSend * p.n > maxSheepSend * p.d));
             REQUIRE(res.numWheatReceived == wheatReceive);
@@ -551,7 +551,7 @@ TEST_CASE("ExchangeV10", "[exchange]")
                                    int64_t maxSheepReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
             auto res = exchangeV10(p, INT64_MAX, maxWheatReceive, INT64_MAX,
-                                   maxSheepReceive, false);
+                                   maxSheepReceive, RoundingType::NORMAL);
             REQUIRE(res.wheatStays ==
                     (maxSheepReceive * p.d > maxWheatReceive * p.n));
             REQUIRE(res.numWheatReceived == wheatReceive);
@@ -597,7 +597,7 @@ TEST_CASE("ExchangeV10", "[exchange]")
                                    int64_t maxWheatReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
             auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
-                                   INT64_MAX, false);
+                                   INT64_MAX, RoundingType::NORMAL);
             REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
             REQUIRE(res.numWheatReceived == wheatReceive);
             REQUIRE(res.numSheepSend == sheepSend);
@@ -634,7 +634,7 @@ TEST_CASE("ExchangeV10", "[exchange]")
                                    int64_t maxSheepReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
             auto res = exchangeV10(p, INT64_MAX, INT64_MAX, maxSheepSend,
-                                   maxSheepReceive, false);
+                                   maxSheepReceive, RoundingType::NORMAL);
             REQUIRE(res.wheatStays == (maxSheepReceive > maxSheepSend));
             REQUIRE(res.numWheatReceived == wheatReceive);
             REQUIRE(res.numSheepSend == sheepSend);
@@ -671,7 +671,7 @@ TEST_CASE("ExchangeV10", "[exchange]")
                                    int64_t maxWheatReceive,
                                    int64_t wheatReceive, int64_t sheepSend) {
             auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
-                                   INT64_MAX, false);
+                                   INT64_MAX, RoundingType::NORMAL);
             REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
             REQUIRE(res.numWheatReceived == wheatReceive);
             REQUIRE(res.numSheepSend == sheepSend);
@@ -694,13 +694,13 @@ TEST_CASE("ExchangeV10", "[exchange]")
         checkExchangeV10(Price{3, 2}, 52, 50, 50, 75);
     }
 
-    SECTION("isPathPayment")
+    SECTION("Rounding for PATH_PAYMENT_STRICT_RECEIVE")
     {
         auto check = [](Price const& p, int64_t maxWheatSend,
-                        int64_t maxWheatReceive, bool isPathPayment,
+                        int64_t maxWheatReceive, RoundingType round,
                         int64_t wheatReceive, int64_t sheepSend) {
             auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
-                                   INT64_MAX, isPathPayment);
+                                   INT64_MAX, round);
             REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
             REQUIRE(res.numWheatReceived == wheatReceive);
             REQUIRE(res.numSheepSend == sheepSend);
@@ -708,20 +708,78 @@ TEST_CASE("ExchangeV10", "[exchange]")
 
         SECTION("no thresholding")
         {
-            check(Price{3, 2}, 28, 27, false, 0, 0);
-            check(Price{3, 2}, 28, 27, true, 27, 41);
+            check(Price{3, 2}, 28, 27, RoundingType::NORMAL, 0, 0);
+            check(Price{3, 2}, 28, 27,
+                  RoundingType::PATH_PAYMENT_STRICT_RECEIVE, 27, 41);
         }
 
         SECTION("result is unchanged if wheat is more valuable")
         {
-            check(Price{3, 2}, 150, 101, false, 101, 152);
-            check(Price{3, 2}, 150, 101, true, 101, 152);
+            check(Price{3, 2}, 150, 101, RoundingType::NORMAL, 101, 152);
+            check(Price{3, 2}, 150, 101,
+                  RoundingType::PATH_PAYMENT_STRICT_RECEIVE, 101, 152);
         }
 
         SECTION("transfer can increase if sheep is more valuable")
         {
-            check(Price{2, 3}, 150, 101, false, 100, 67);
-            check(Price{2, 3}, 150, 101, true, 101, 68);
+            check(Price{2, 3}, 150, 101, RoundingType::NORMAL, 100, 67);
+            check(Price{2, 3}, 150, 101,
+                  RoundingType::PATH_PAYMENT_STRICT_RECEIVE, 101, 68);
+        }
+    }
+
+    SECTION("Rounding for PATH_PAYMENT_STRICT_SEND")
+    {
+        auto check = [](Price const& p, int64_t maxWheatSend,
+                        int64_t maxWheatReceive, int64_t maxSheepSend,
+                        RoundingType round, int64_t wheatReceive,
+                        int64_t sheepSend) {
+            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive,
+                                   maxSheepSend, INT64_MAX, round);
+            // This is not generally true, but it is a simple interface for what
+            // we need to test.
+            if (maxWheatReceive == INT64_MAX)
+            {
+                REQUIRE(res.wheatStays);
+            }
+            else
+            {
+                REQUIRE(res.wheatStays ==
+                        (maxWheatSend * p.n >
+                         std::min(maxSheepSend * p.d, maxWheatReceive * p.n)));
+            }
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+        };
+
+        SECTION("no thresholding")
+        {
+            check(Price{3, 2}, 28, INT64_MAX, 41, RoundingType::NORMAL, 0, 0);
+            check(Price{3, 2}, 28, INT64_MAX, 41,
+                  RoundingType::PATH_PAYMENT_STRICT_SEND, 27, 41);
+        }
+
+        SECTION("transfer can increase if wheat is more valuable")
+        {
+            REQUIRE(adjustOffer(Price{3, 2}, 97, INT64_MAX) == 97);
+            check(Price{3, 2}, 97, INT64_MAX, 145, RoundingType::NORMAL, 96,
+                  144);
+            check(Price{3, 2}, 97, INT64_MAX, 145,
+                  RoundingType::PATH_PAYMENT_STRICT_SEND, 96, 145);
+        }
+
+        SECTION("transfer can increase if sheep is more valuable")
+        {
+            check(Price{2, 3}, 97, 95, INT64_MAX, RoundingType::NORMAL, 94, 63);
+            check(Price{2, 3}, 97, 95, INT64_MAX,
+                  RoundingType::PATH_PAYMENT_STRICT_SEND, 95, INT64_MAX);
+        }
+
+        SECTION("can send nonzero while receiving zero")
+        {
+            check(Price{2, 1}, 1, INT64_MAX, 1, RoundingType::NORMAL, 0, 0);
+            check(Price{2, 1}, 1, INT64_MAX, 1,
+                  RoundingType::PATH_PAYMENT_STRICT_SEND, 0, 1);
         }
     }
 }

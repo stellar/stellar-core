@@ -20,6 +20,13 @@ class LedgerTxnHeader;
 class TrustLineWrapper;
 class ConstTrustLineWrapper;
 
+enum class RoundingType
+{
+    NORMAL,
+    PATH_PAYMENT_STRICT_SEND,
+    PATH_PAYMENT_STRICT_RECEIVE
+};
+
 enum class ExchangeResultType
 {
     NORMAL,
@@ -76,14 +83,14 @@ ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
 ExchangeResultV10 exchangeV10(Price price, int64_t maxWheatSend,
                               int64_t maxWheatReceive, int64_t maxSheepSend,
-                              int64_t maxSheepReceive, bool isPathPayment);
+                              int64_t maxSheepReceive, RoundingType round);
 
 ExchangeResultV10 exchangeV10WithoutPriceErrorThresholds(
     Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
-    int64_t maxSheepSend, int64_t maxSheepReceive, bool isPathPayment);
+    int64_t maxSheepSend, int64_t maxSheepReceive, RoundingType round);
 ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
                                             int64_t sheepSend, bool wheatStays,
-                                            bool isPathPayment);
+                                            RoundingType round);
 
 int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
                     int64_t maxSheepReceive);
@@ -116,7 +123,7 @@ enum class CrossOfferResult
 ConvertResult convertWithOffers(
     AbstractLedgerTxn& ltx, Asset const& sheep, int64_t maxSheepSent,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
-    int64_t& wheatReceived, bool isPathPayment,
+    int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
     std::vector<ClaimOfferAtom>& offerTrail, int64_t maxOffersToCross);
 }

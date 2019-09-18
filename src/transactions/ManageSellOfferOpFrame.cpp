@@ -62,7 +62,7 @@ ManageSellOfferOpFrame::getOfferBuyingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         mManageSellOffer.price, mManageSellOffer.amount, INT64_MAX, INT64_MAX,
-        INT64_MAX, false);
+        INT64_MAX, RoundingType::NORMAL);
     return res.numSheepSend;
 }
 
@@ -71,7 +71,7 @@ ManageSellOfferOpFrame::getOfferSellingLiabilities()
 {
     auto res = exchangeV10WithoutPriceErrorThresholds(
         mManageSellOffer.price, mManageSellOffer.amount, INT64_MAX, INT64_MAX,
-        INT64_MAX, false);
+        INT64_MAX, RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 

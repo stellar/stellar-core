@@ -298,7 +298,7 @@ TestAccount::pay(PublicKey const& destination, Asset const& asset,
     applyTx(tx({payment(destination, asset, amount)}), mApp);
 }
 
-PathPaymentResult
+PathPaymentStrictReceiveResult
 TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
                  int64_t sendMax, Asset const& destCur, int64_t destAmount,
                  std::vector<Asset> const& path, Asset* noIssuer)
@@ -309,19 +309,49 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
     {
         applyTx(transaction, mApp);
     }
-    catch (ex_PATH_PAYMENT_NO_ISSUER&)
+    catch (ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER&)
     {
         REQUIRE(noIssuer);
         REQUIRE(*noIssuer == transaction->getResult()
                                  .result.results()[0]
                                  .tr()
-                                 .pathPaymentResult()
+                                 .pathPaymentStrictReceiveResult()
                                  .noIssuer());
         throw;
     }
 
     REQUIRE(!noIssuer);
 
-    return getFirstResult(*transaction).tr().pathPaymentResult();
+    return getFirstResult(*transaction).tr().pathPaymentStrictReceiveResult();
+}
+
+PathPaymentStrictSendResult
+TestAccount::pathPaymentStrictSend(PublicKey const& destination,
+                                   Asset const& sendCur, int64_t sendAmount,
+                                   Asset const& destCur, int64_t destMin,
+                                   std::vector<Asset> const& path,
+                                   Asset* noIssuer)
+{
+    auto transaction = tx({txtest::pathPaymentStrictSend(
+        destination, sendCur, sendAmount, destCur, destMin, path)});
+
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (ex_PATH_PAYMENT_STRICT_SEND_NO_ISSUER&)
+    {
+        REQUIRE(noIssuer);
+        REQUIRE(*noIssuer == transaction->getResult()
+                                 .result.results()[0]
+                                 .tr()
+                                 .pathPaymentStrictSendResult()
+                                 .noIssuer());
+        throw;
+    }
+
+    REQUIRE(!noIssuer);
+
+    return getFirstResult(*transaction).tr().pathPaymentStrictSendResult();
 }
 };

@@ -259,7 +259,7 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
 // sheepValue can be thought of as the rescaled size of the sheep offer in terms
 // of sheep after considering all limits.
 //
-// If isPathPayment == false --------------------------------------------------
+// If round == NORMAL --------------------------------------------------------
 // We first consider the case (wheatStays && price.n > price.d). Then
 //     wheatReceive = floor(sheepValue / price.n)
 //                  <= sheepValue / price.n
@@ -383,7 +383,7 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
 //         = price.n / price.d
 // so in this case the seller of sheep is favored.
 //
-// If isPathPayment == true ---------------------------------------------------
+// If round == PATH_PAYMENT_STRICT_RECEIVE ------------------------------------
 // We first consider the case wheatStays. In this case, we guarantee that the
 // effective price favors wheat
 //     sheepSend / wheatReceive >= price.n / price.d
@@ -449,7 +449,7 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
 //     maxWheatReceive = 101
 //     maxSheepSend = INT64_MAX
 //     maxSheepReceive = INT64_MAX
-//     isPathPayment = true
+//     round = PATH_PAYMENT_STRICT_RECEIVE
 // so
 //     wheatValue = min(2 * 150, 3 * INT64_MAX) = 300
 //     sheepValue = min(3 * INT64_MAX, 2 * 101) = 202
@@ -461,26 +461,120 @@ calculateOfferValue(int32_t priceN, int32_t priceD, int64_t maxSend,
 // and clearly wheatReceive == 100 != 101 == maxWheatReceive.
 //
 // At this point we have determined what must occur if wheatStays but have not
-// addressed the case !wheatStays. If wheatReceive == maxWheatReceive, then the
-// operation succeeds. If wheatReceive < maxWheatReceive, then the operation
-// will cross additional offers since !wheatStays.
+// addressed the case !wheatStays. If wheatReceive = maxWheatReceive, then the
+// operation succeeds. Otherwise, if sheepSend = maxSheepSend then the operation
+// fails. If wheatReceive < maxWheatReceive and sheepSend < maxSheepSend, then
+// the operation will cross additional offers since !wheatStays.
+//
+// If round == PATH_PAYMENT_STRICT_SEND ---------------------------------------
+// We first consider the case (wheatStays && price.n > price.d). Then
+//     wheatReceive = floor(sheepValue / price.n)
+//                  <= floor((maxWheatReceive * price.n) / price.n)
+//                  = maxWheatReceive
+//     wheatReceive = floor(sheepValue / price.n)
+//                  <= floor(wheatValue / price.n)
+//                  <= floor((maxWheatSend * price.n) / price.n)
+//                  = maxWheatSend
+// so wheatReceive cannot exceed its limits. Because wheatStays, we know that
+// this is the last offer that will be crossed so
+//     sheepSend = min(maxSheepSend, maxSheepReceive)
+// Therefore if maxSheepSend > maxSheepReceive then the operation must fail. Now
+// the effective price would be
+//     sheepSend / wheatReceive
+//         = min(maxSheepSend / wheatReceive, maxSheepReceive / wheatReceive)
+// where
+//     maxSheepSend / wheatReceive
+//         = maxSheepSend / floor(sheepValue / price.n)
+//         >= maxSheepSend / (sheepValue / price.n)
+//         = maxSheepSend * price.n / sheepValue
+//         >= maxSheepSend * price.n / (maxSheepSend * price.d)
+//         = price.n / price.d
+//     maxSheepReceive / wheatReceive
+//         = maxSheepReceive / floor(sheepValue / price.n)
+//         >= maxSheepReceive / (sheepValue / price.n)
+//         = maxSheepReceive * price.n / sheepValue
+//         > maxSheepReceive * price.n / wheatValue
+//         >= maxSheepReceive * price.n / (maxSheepReceive * price.d)
+//         = price.n / price.d
+// so in this case the seller of wheat is favored.
+//
+// Suppose that wheatReceive < maxWheatReceive. This implies that
+//     sheepValue = maxSheepSend * price.d
+// for otherwise we would have
+//     sheepValue = maxWheatReceive * price.n
+// and
+//     wheatReceive = floor(sheepValue / price.n)
+//                  = floor((maxWheatReceive * price.n) / price.n)
+//                  = maxWheatReceive
+// It follows from this that
+//     maxSheepReceive > maxSheepSend
+// for otherwise
+//     maxSheepReceive <= maxSheepSend
+// and
+//     wheatValue <= maxSheepReceive * price.d
+//                <= maxSheepSend * price.d
+//                = sheepValue
+// which contradicts the assumption that wheatStays. We claim that wheatReceive
+// is the maximum amount of wheat that could be received without favoring the
+// seller of sheep. To see this, observe that
+//     sheepSend / (wheatReceive + 1)
+//         = maxSheepSend / (floor(sheepValue / price.n) + 1)
+//         = maxSheepSend / (floor(maxSheepSend * price.d / price.n) + 1)
+//         <= maxSheepSend / ceil(maxSheepSend * price.d / price.n)
+//         <= maxSheepSend / (maxSheepSend * price.d / price.n)
+//         <= price.n / price.d
+// Now for any integer K >= 1 we must have
+//     sheepSend / (wheatReceive + K)
+//         <= sheepSend / (wheatReceive + 1)
+//         <= price.n / price.d
+// which proves the claim.
+//
+// At this point we have determined what must occur if wheatStays but have not
+// addressed the case !wheatStays. If sheepSend = maxSheepSend, then the
+// operation succeeds. Otherwise, if wheatReceive = maxWheatReceive then the
+// operation fails. If sheepSend < maxSheepSend and wheatReceive <
+// maxWheatReceive, then the operation will cross additional offers since
+// !wheatStays.
 ExchangeResultV10
 exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
-            int64_t maxSheepSend, int64_t maxSheepReceive, bool isPathPayment)
+            int64_t maxSheepSend, int64_t maxSheepReceive, RoundingType round)
 {
     auto beforeThresholds = exchangeV10WithoutPriceErrorThresholds(
         price, maxWheatSend, maxWheatReceive, maxSheepSend, maxSheepReceive,
-        isPathPayment);
-    return applyPriceErrorThresholds(
-        price, beforeThresholds.numWheatReceived, beforeThresholds.numSheepSend,
-        beforeThresholds.wheatStays, isPathPayment);
+        round);
+    return applyPriceErrorThresholds(price, beforeThresholds.numWheatReceived,
+                                     beforeThresholds.numSheepSend,
+                                     beforeThresholds.wheatStays, round);
 }
 
 // See comment before exchangeV10 for proof of some important properties. We
-// will prove here that wheatReceive == 0 if and only if sheepSend == 0.
+// will prove that for rounding modes NORMAL and PATH_PAYMENT_STRICT_RECEIVE,
+// wheatReceive == 0 if and only if sheepSend == 0. We will also prove that for
+// rounding mode PATH_PAYMENT_STRICT_SEND, sheepSend > 0 is guaranteed.
 //
-// We first consider the case (wheatStays && price.n > price.d). Then it follows
+// We first address the case (!wheatStays && price.n > price.d). Then it follows
 // from wheatReceive = 0 that
+//     sheepSend = floor(wheatReceive * price.n / price.d)
+// so sheepSend = 0. Similarly, if sheepSend = 0 then
+//     sheepSend = floor(wheatReceive * price.n / price.d)
+//               >= floor(wheatReceive)
+//               = wheatReceive
+// so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
+//
+// Similarly, we investigate when (!wheatStays && price.n <= price.d). Then it
+// follows from sheepSend = 0 that
+//     wheatReceive = ceil(sheepSend * price.d / price.n)
+// so wheatReceive = 0. Similary, if wheatReceive = 0 then
+//     wheatReceive = ceil(sheepSend * price.d / price.n)
+//                  >= ceil(sheepSend)
+//                  = sheepSend
+// so 0 <= sheepSend <= 0 implies sheepSend = 0.
+//
+// These first two results hold regardless of the rounding mode.
+//
+// If round == NORMAL ---------------------------------------------------------
+// We turn our attention to the case (wheatStays && price.n > price.d). Then it
+// follows from wheatReceive = 0 that
 //     sheepSend = ceil(wheatReceive * price.n / price.d)
 // so sheepSend = 0. Similarly, if sheepSend = 0 then
 //     sheepSend = ceil(wheatReceive * price.n / price.d)
@@ -488,8 +582,21 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
 //               = wheatReceive
 // so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
 //
-// We now consider the case (wheatStays && price.n <= price.d && isPathPayment).
-// Then it follows from wheatReceive = 0 that
+// Next consider the case (wheatStays && price.n <= price.d). Then it follows
+// from sheepSend = 0 that
+//     wheatReceive = floor(sheepSend * price.d / price.n)
+// so wheatReceive = 0. Similarly, if wheatReceive = 0 then
+//     wheatReceive = floor(sheepSend * price.d / price.n)
+//                  >= floor(sheepSend)
+//                  = sheepSend
+// so 0 <= sheepSend <= 0 implies sheepSend = 0.
+//
+// If round == PATH_PAYMENT_STRICT_RECEIVE ------------------------------------
+// The case (wheatStays && price.n > price.d) is identical to the analogous case
+// when round == NORMAL.
+//
+// We now consider the case (wheatStays && price.n <= price.d). Then it follows
+// from wheatReceive = 0 that
 //     sheepSend = ceil(wheatReceive * price.n / price.d)
 // so sheepSend = 0. Similarly, if sheepSend = 0 then
 //     sheepSend = ceil(wheatReceive * price.n / price.d)
@@ -499,38 +606,20 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
 //     sheepSend >= ceil(1 / INT32_MAX) = 1
 // which is a contradiction, so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
 //
-// Next consider the case (wheatStays && price.n <= price.d && !isPathPayment).
-// Then it follows from sheepSend = 0 that
-//     wheatReceive = floor(sheepSend * price.d / price.n)
-// so wheatReceive = 0. Similarly, if wheatReceive = 0 then
-//     wheatReceive = floor(sheepSend * price.d / price.n)
-//                  >= floor(sheepSend)
-//                  = sheepSend
-// so 0 <= sheepSend <= 0 implies sheepSend = 0.
-//
-// We now turn to the case (!wheatStays && price.n > price.d). Then it follows
-// from wheatReceive = 0 that
-//     sheepSend = floor(wheatReceive * price.n / price.d)
-// so sheepSend = 0. Similarly, if sheepSend = 0 then
-//     sheepSend = floor(wheatReceive * price.n / price.d)
-//               >= floor(wheatReceive)
-//               = wheatReceive
-// so 0 <= wheatReceive <= 0 implies wheatReceive = 0.
-//
-// Finally, we investigate the case (!wheatStays && price.n <= price.d). Then it
-// follows from sheepSend = 0 that
-//     wheatReceive = ceil(sheepSend * price.d / price.n)
-// so wheatReceive = 0. Similary, if wheatReceive = 0 then
-//     wheatReceive = ceil(sheepSend * price.d / price.n)
-//                  >= ceil(sheepSend)
-//                  = sheepSend
-// so 0 <= sheepSend <= 0 implies sheepSend = 0.
+// If round == PATH_PAYMENT_STRICT_SEND ---------------------------------------
+// Finally, we address the more complicated case (wheatStays). Suppose that we
+// have sheepSend = 0. Then clearly maxSheepSend = 0 or maxSheepReceive = 0. But
+// if maxSheepSend = 0, then we should have already stopped crossing offers
+// because no more can be sent. Similarly if maxSheepReceive = 0, then the offer
+// should have already been removed from the order book because no more can be
+// received. In either case, we have reached a contradiction because we would
+// not be crossing in either case. We conclude that sheepSend > 0.
 ExchangeResultV10
 exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
                                        int64_t maxWheatReceive,
                                        int64_t maxSheepSend,
                                        int64_t maxSheepReceive,
-                                       bool isPathPayment)
+                                       RoundingType round)
 {
     uint128_t wheatValue =
         calculateOfferValue(price.n, price.d, maxWheatSend, maxSheepReceive);
@@ -542,7 +631,13 @@ exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
     int64_t sheepSend;
     if (wheatStays)
     {
-        if (price.n > price.d || isPathPayment) // Wheat is more valuable
+        if (round == RoundingType::PATH_PAYMENT_STRICT_SEND)
+        {
+            wheatReceive = bigDivide(sheepValue, price.n, ROUND_DOWN);
+            sheepSend = std::min({maxSheepSend, maxSheepReceive});
+        }
+        else if (price.n > price.d || // Wheat is more valuable
+                 round == RoundingType::PATH_PAYMENT_STRICT_RECEIVE)
         {
             wheatReceive = bigDivide(sheepValue, price.n, ROUND_DOWN);
             sheepSend = bigDivide(wheatReceive, price.n, price.d, ROUND_UP);
@@ -588,7 +683,7 @@ exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
 // See comment before exchangeV10.
 ExchangeResultV10
 applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
-                          bool wheatStays, bool isPathPayment)
+                          bool wheatStays, RoundingType round)
 {
     if (wheatReceive > 0 && sheepSend > 0)
     {
@@ -607,7 +702,7 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
             throw std::runtime_error("favored wheat when sheep stays");
         }
 
-        if (!isPathPayment)
+        if (round == RoundingType::NORMAL)
         {
             // Both sellers must get a price no more than 1% worse than the
             // price crossed. Otherwise, no trade occurs.
@@ -620,13 +715,14 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
         else
         {
             // When the wheat seller is favored, they can be arbitrarily favored
-            // since path payment has a sendMax parameter to determine whether
-            // a price was acceptable. When the sheep seller is favored, we
-            // still want the wheat seller to get a price no more than 1% worse
-            // than the price crossed. The sheep seller can only be favored if
-            // !wheatStays, and in this case the entire offer will be taken. But
-            // the offer was adjusted immediately before exchangeV10, so we
-            // know that it satisfies the threshold in this case.
+            // since path payment has a sendMax or destMin parameter to
+            // determine whether a price was acceptable. When the sheep seller
+            // is favored, we still want the wheat seller to get a price no more
+            // than 1% worse than the price crossed. The sheep seller can only
+            // be favored if !wheatStays, and in this case the entire offer will
+            // be taken. But the offer was adjusted immediately before
+            // exchangeV10, so we know that it satisfies the threshold in this
+            // case.
             if (!checkPriceErrorBound(price, wheatReceive, sheepSend, true))
             {
                 throw std::runtime_error("exceeded price error bound");
@@ -635,11 +731,28 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     }
     else
     {
-        // Based on the proof proceeding exchangeV10WithoutPriceErrorThresholds,
-        // we should already have wheatReceive = 0 and sheepSend = 0. We set it
-        // explicitly for clarity.
-        wheatReceive = 0;
-        sheepSend = 0;
+        switch (round)
+        {
+        case RoundingType::PATH_PAYMENT_STRICT_SEND:
+            // For PathPaymentStrictSend, there are situations when the sender
+            // must sell sheep for no wheat in order to send exactly the
+            // specified amount. This is acceptable because there is still the
+            // overall constraint on amount received. However, it should never
+            // happen that the sender sells no sheep and we throw in this case.
+            if (sheepSend == 0)
+            {
+                throw std::runtime_error("invalid amount of sheep sent");
+            }
+            break;
+        default:
+            // Based on the proof proceeding
+            // exchangeV10WithoutPriceErrorThresholds, we should already have
+            // wheatReceive = 0 and sheepSend = 0. We set it explicitly for
+            // clarity.
+            wheatReceive = 0;
+            sheepSend = 0;
+            break;
+        }
     }
 
     ExchangeResultV10 res;
@@ -791,7 +904,7 @@ int64_t
 adjustOffer(Price const& price, int64_t maxWheatSend, int64_t maxSheepReceive)
 {
     auto res = exchangeV10(price, maxWheatSend, INT64_MAX, INT64_MAX,
-                           maxSheepReceive, false);
+                           maxSheepReceive, RoundingType::NORMAL);
     return res.numWheatReceived;
 }
 
@@ -965,7 +1078,7 @@ static CrossOfferResult
 crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
               int64_t maxWheatReceived, int64_t& numWheatReceived,
               int64_t maxSheepSend, int64_t& numSheepSend, bool& wheatStays,
-              bool isPathPayment, std::vector<ClaimOfferAtom>& offerTrail)
+              RoundingType round, std::vector<ClaimOfferAtom>& offerTrail)
 {
     assert(maxWheatReceived > 0);
     assert(maxSheepSend > 0);
@@ -1008,7 +1121,7 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
         canBuyAtMost(header, accountB, sheep, sheepLineAccountB);
     auto exchangeResult =
         exchangeV10(offer.price, maxWheatSend, maxWheatReceived, maxSheepSend,
-                    maxSheepReceive, isPathPayment);
+                    maxSheepReceive, round);
 
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
@@ -1094,7 +1207,7 @@ ConvertResult
 convertWithOffers(
     AbstractLedgerTxn& ltxOuter, Asset const& sheep, int64_t maxSheepSend,
     int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
-    int64_t& wheatReceived, bool isPathPayment,
+    int64_t& wheatReceived, RoundingType round,
     std::function<OfferFilterResult(LedgerTxnEntry const&)> filter,
     std::vector<ClaimOfferAtom>& offerTrail, int64_t maxOffersToCross)
 {
@@ -1133,7 +1246,7 @@ convertWithOffers(
             bool wheatStays;
             cor = crossOfferV10(ltx, wheatOffer, maxWheatReceive,
                                 numWheatReceived, maxSheepSend, numSheepSend,
-                                wheatStays, isPathPayment, offerTrail);
+                                wheatStays, round, offerTrail);
             needMore = !wheatStays;
         }
         else

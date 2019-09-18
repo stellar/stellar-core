@@ -4,16 +4,11 @@
 
 #include "util/asio.h"
 #include "transactions/PaymentOpFrame.h"
-#include "OfferExchange.h"
-#include "database/Database.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
-#include "main/Application.h"
-#include "transactions/PathPaymentOpFrame.h"
+#include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
-#include "util/XDROperators.h"
-#include <algorithm>
 
 namespace stellar
 {
@@ -46,8 +41,8 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
     // build a pathPaymentOp
     Operation op;
     op.sourceAccount = mOperation.sourceAccount;
-    op.body.type(PATH_PAYMENT);
-    PathPaymentOp& ppOp = op.body.pathPaymentOp();
+    op.body.type(PATH_PAYMENT_STRICT_RECEIVE);
+    PathPaymentStrictReceiveOp& ppOp = op.body.pathPaymentStrictReceiveOp();
     ppOp.sendAsset = mPayment.asset;
     ppOp.destAsset = mPayment.asset;
 
@@ -58,52 +53,55 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     OperationResult opRes;
     opRes.code(opINNER);
-    opRes.tr().type(PATH_PAYMENT);
-    PathPaymentOpFrame ppayment(op, opRes, mParentTx);
+    opRes.tr().type(PATH_PAYMENT_STRICT_RECEIVE);
+    PathPaymentStrictReceiveOpFrame ppayment(op, opRes, mParentTx);
 
     if (!ppayment.doCheckValid(ledgerVersion) || !ppayment.doApply(ltx))
     {
         if (ppayment.getResultCode() != opINNER)
         {
-            throw std::runtime_error("Unexpected error code from pathPayment");
+            throw std::runtime_error(
+                "Unexpected error code from pathPaymentStrictReceive");
         }
         PaymentResultCode res;
 
-        switch (PathPaymentOpFrame::getInnerCode(ppayment.getResult()))
+        switch (
+            PathPaymentStrictReceiveOpFrame::getInnerCode(ppayment.getResult()))
         {
-        case PATH_PAYMENT_UNDERFUNDED:
+        case PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED:
             res = PAYMENT_UNDERFUNDED;
             break;
-        case PATH_PAYMENT_SRC_NOT_AUTHORIZED:
+        case PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED:
             res = PAYMENT_SRC_NOT_AUTHORIZED;
             break;
-        case PATH_PAYMENT_SRC_NO_TRUST:
+        case PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST:
             res = PAYMENT_SRC_NO_TRUST;
             break;
-        case PATH_PAYMENT_NO_DESTINATION:
+        case PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION:
             res = PAYMENT_NO_DESTINATION;
             break;
-        case PATH_PAYMENT_NO_TRUST:
+        case PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST:
             res = PAYMENT_NO_TRUST;
             break;
-        case PATH_PAYMENT_NOT_AUTHORIZED:
+        case PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED:
             res = PAYMENT_NOT_AUTHORIZED;
             break;
-        case PATH_PAYMENT_LINE_FULL:
+        case PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL:
             res = PAYMENT_LINE_FULL;
             break;
-        case PATH_PAYMENT_NO_ISSUER:
+        case PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER:
             res = PAYMENT_NO_ISSUER;
             break;
         default:
-            throw std::runtime_error("Unexpected error code from pathPayment");
+            throw std::runtime_error(
+                "Unexpected error code from pathPaymentStrictReceive");
         }
         innerResult().code(res);
         return false;
     }
 
-    assert(PathPaymentOpFrame::getInnerCode(ppayment.getResult()) ==
-           PATH_PAYMENT_SUCCESS);
+    assert(PathPaymentStrictReceiveOpFrame::getInnerCode(
+               ppayment.getResult()) == PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
 
     innerResult().code(PAYMENT_SUCCESS);
 

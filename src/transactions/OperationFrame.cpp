@@ -13,7 +13,8 @@
 #include "transactions/ManageDataOpFrame.h"
 #include "transactions/ManageSellOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
-#include "transactions/PathPaymentOpFrame.h"
+#include "transactions/PathPaymentStrictReceiveOpFrame.h"
+#include "transactions/PathPaymentStrictSendOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
@@ -53,8 +54,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<CreateAccountOpFrame>(op, res, tx);
     case PAYMENT:
         return std::make_shared<PaymentOpFrame>(op, res, tx);
-    case PATH_PAYMENT:
-        return std::make_shared<PathPaymentOpFrame>(op, res, tx);
+    case PATH_PAYMENT_STRICT_RECEIVE:
+        return std::make_shared<PathPaymentStrictReceiveOpFrame>(op, res, tx);
     case MANAGE_SELL_OFFER:
         return std::make_shared<ManageSellOfferOpFrame>(op, res, tx);
     case CREATE_PASSIVE_SELL_OFFER:
@@ -75,6 +76,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<BumpSequenceOpFrame>(op, res, tx);
     case MANAGE_BUY_OFFER:
         return std::make_shared<ManageBuyOfferOpFrame>(op, res, tx);
+    case PATH_PAYMENT_STRICT_SEND:
+        return std::make_shared<PathPaymentStrictSendOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

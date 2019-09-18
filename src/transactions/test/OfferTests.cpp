@@ -1550,8 +1550,9 @@ TEST_CASE("create offer", "[tx][offers]")
         auto check = [&](Price const& wheatPrice, int64_t maxWheatSend,
                          int64_t maxSheepSend) {
             Price sheepPrice(wheatPrice.d, wheatPrice.n);
-            auto res = exchangeV10(wheatPrice, maxWheatSend, INT64_MAX,
-                                   maxSheepSend, INT64_MAX, false);
+            auto res =
+                exchangeV10(wheatPrice, maxWheatSend, INT64_MAX, maxSheepSend,
+                            INT64_MAX, RoundingType::NORMAL);
 
             auto adjWheatAmount =
                 adjustOffer(wheatPrice, maxWheatSend, INT64_MAX);

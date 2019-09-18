@@ -973,12 +973,12 @@ TEST_CASE("payment", "[tx][payment]")
                         .code() == CREATE_ACCOUNT_SUCCESS);
             REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[1].tr().type() ==
-                    PATH_PAYMENT);
+                    PATH_PAYMENT_STRICT_RECEIVE);
             REQUIRE(tx->getResult()
                         .result.results()[1]
                         .tr()
-                        .pathPaymentResult()
-                        .code() == PATH_PAYMENT_SUCCESS);
+                        .pathPaymentStrictReceiveResult()
+                        .code() == PATH_PAYMENT_STRICT_RECEIVE_SUCCESS);
             REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
             REQUIRE(tx->getResult().result.results()[2].tr().type() ==
                     ACCOUNT_MERGE);
