@@ -356,7 +356,9 @@
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
 
-namespace
+namespace stellar
+{
+namespace quorum_intersection
 {
 
 struct QBitSet;
@@ -533,4 +535,5 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     getPotentialSplit() const override;
     size_t getMaxQuorumsFound() const override;
 };
+}
 }

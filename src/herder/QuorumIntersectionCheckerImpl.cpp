@@ -8,7 +8,17 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 
-namespace
+namespace stellar
+{
+std::shared_ptr<QuorumIntersectionChecker>
+QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
+                                  Config const& cfg, bool quiet)
+{
+    using namespace quorum_intersection;
+    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg, quiet);
+}
+
+namespace quorum_intersection
 {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -834,16 +844,7 @@ groupString(Config const& cfg, std::set<PublicKey> const& group)
     out << ']';
     return out.str();
 }
-}
-
-namespace stellar
-{
-std::shared_ptr<QuorumIntersectionChecker>
-QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
-                                  Config const& cfg, bool quiet)
-{
-    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg, quiet);
-}
+} // end namespace quorum_intersection
 
 std::set<std::set<PublicKey>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
@@ -874,6 +875,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
     // that asks, but still counts as an intersecting member of any two quorums
     // it's a member of.
 
+    using namespace quorum_intersection;
     std::set<std::set<PublicKey>> candidates;
     std::set<std::set<PublicKey>> critical;
     QuorumTracker::QuorumMap test_qmap(qmap);
