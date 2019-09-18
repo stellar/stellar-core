@@ -697,15 +697,38 @@ QuorumIntersectionCheckerImpl::nodeName(size_t node) const
 bool
 QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
 {
-    // First stage: check the graph-level SCCs for disjoint quorums,
-    // and filter out nodes that aren't in the main SCC.
-    bool foundDisjoint = false;
     size_t nNodes = mPubKeyBitNums.size();
     if (!mQuiet)
     {
         CLOG(INFO, "SCP") << "Calculating " << nNodes
                           << "-node network quorum intersection";
     }
+
+    for (size_t i = 0; mMaxSCC.nextSet(i); ++i)
+    {
+        CLOG(DEBUG, "SCP") << "Main SCC node: " << nodeName(i);
+    }
+
+    if (auto q = contractToMaximalQuorum(mMaxSCC))
+    {
+        CLOG(DEBUG, "SCP") << "Maximal main SCC quorum: " << q;
+    }
+    else
+    {
+        // We vacuously "enjoy quorum intersection" if there are no quorums,
+        // though this is probably enough of a potential problem itself that
+        // it's worth warning about.
+        if (!mQuiet)
+        {
+            CLOG(WARNING, "SCP") << "No quorum found in main SCC "
+                                    "(possible network halt)";
+        }
+        return true;
+    }
+
+    // First stage: check the graph-level SCCs for disjoint quorums,
+    // and filter out nodes that aren't in the main SCC.
+    bool foundDisjoint = false;
     for (auto const& scc : mTSC.mSCCs)
     {
         if (scc == mMaxSCC)
@@ -729,28 +752,6 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
                 CLOG(DEBUG, "SCP") << "Node outside main SCC: " << nodeName(i);
             }
         }
-    }
-    for (size_t i = 0; mMaxSCC.nextSet(i); ++i)
-    {
-        CLOG(DEBUG, "SCP") << "Main SCC node: " << nodeName(i);
-    }
-
-    auto q = contractToMaximalQuorum(mMaxSCC);
-    if (q)
-    {
-        CLOG(DEBUG, "SCP") << "Maximal main SCC quorum: " << q;
-    }
-    else
-    {
-        // We vacuously "enjoy quorum intersection" if there are no quorums,
-        // though this is probably enough of a potential problem itself that
-        // it's worth warning about.
-        if (!mQuiet)
-        {
-            CLOG(WARNING, "SCP") << "No quorum found in transitive closure "
-                                    "(possible network halt)";
-        }
-        return true;
     }
 
     // Second stage: scan the main SCC powerset, potentially expensive.
