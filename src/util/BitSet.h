@@ -51,6 +51,12 @@ class BitSet
     BitSet& operator=(BitSet&& other) = default;
 
     bool
+    operator!=(BitSet const& other) const
+    {
+        return !((*this) == other);
+    }
+
+    bool
     operator==(BitSet const& other) const
     {
         return bitset_equal(mPtr.get(), other.mPtr.get());
