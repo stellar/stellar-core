@@ -16,7 +16,7 @@ namespace stellar
 // least-recent-out-of-2-random-choices eviction. Degrades more-gracefully
 // across pathological load patterns than LRU, and also takes somewhat less
 // book-keeping.
-template <typename K, typename V>
+template <typename K, typename V, typename Hash = std::hash<K>>
 class RandomEvictionCache : public NonMovableOrCopyable
 {
   public:
@@ -43,8 +43,9 @@ class RandomEvictionCache : public NonMovableOrCopyable
     };
 
     // Cache itself is stored in a hashmap.
-    std::unordered_map<K, CacheValue> mValueMap;
-    using MapValueType = typename std::unordered_map<K, CacheValue>::value_type;
+    using MapType = std::unordered_map<K, CacheValue, Hash>;
+    using MapValueType = typename MapType::value_type;
+    MapType mValueMap;
 
     // Pointers to hashmap elements are stored redundantly here just so we can
     // randomly pick some to evict; unordered_map has no random-access iterators

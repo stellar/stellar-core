@@ -22,6 +22,19 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
+struct AssetPair
+{
+    Asset buying;
+    Asset selling;
+};
+
+bool operator==(AssetPair const& lhs, AssetPair const& rhs);
+
+struct AssetPairHash
+{
+    size_t operator()(AssetPair const& key) const;
+};
+
 // A defensive heuristic to ensure prefetching stops if entry cache is filling
 // up.
 static const double ENTRY_CACHE_FILL_RATIO = 0.5;
@@ -400,13 +413,16 @@ class LedgerTxnRoot::Impl
 
     typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
-    typedef std::string BestOffersCacheKey;
+    typedef AssetPair BestOffersCacheKey;
+
     struct BestOffersCacheEntry
     {
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef RandomEvictionCache<std::string, BestOffersCacheEntry>
+
+    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntry,
+                                AssetPairHash>
         BestOffersCache;
 
     Database& mDatabase;
