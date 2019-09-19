@@ -543,7 +543,7 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
                 << "finished-merge reattachments while queueing: " << ra;
             bl.addBatch(*app, lm.getLastClosedLedgerNum() + 1, vers, {},
                         LedgerTestUtils::generateValidLedgerEntries(100), {});
-            clock.crank(true);
+            clock.crank(false);
             bm.forgetUnreferencedBuckets();
         }
         // We should have published nothing and have the first
@@ -578,7 +578,7 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
         hm.setPublicationEnabled(true);
         while (hm.getPublishSuccessCount() < 5)
         {
-            clock.crank(true);
+            clock.crank(false);
 
             // Trim history after publishing whenever possible.
             ExternalQueue ps(*app);
