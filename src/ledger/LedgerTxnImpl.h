@@ -420,8 +420,9 @@ class LedgerTxnRoot::Impl
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
+    typedef std::shared_ptr<BestOffersCacheEntry> BestOffersCacheEntryPtr;
 
-    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntry,
+    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntryPtr,
                                 AssetPairHash>
         BestOffersCache;
 
@@ -493,9 +494,8 @@ class LedgerTxnRoot::Impl
                          std::shared_ptr<LedgerEntry const> const& entry,
                          LoadType type) const;
 
-    BestOffersCacheEntry&
-    getFromBestOffersCache(Asset const& buying, Asset const& selling,
-                           BestOffersCacheEntry& defaultValue) const;
+    BestOffersCacheEntryPtr getFromBestOffersCache(Asset const& buying,
+                                                   Asset const& selling) const;
 
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadAccounts(std::unordered_set<LedgerKey> const& keys) const;

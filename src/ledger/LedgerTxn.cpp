@@ -1763,14 +1763,13 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).
-    BestOffersCacheEntry emptyCacheEntry{{}, false};
-    auto& cached = getFromBestOffersCache(buying, selling, emptyCacheEntry);
-    auto& offers = cached.bestOffers;
+    auto cached = getFromBestOffersCache(buying, selling);
+    auto& offers = cached->bestOffers;
 
     auto res = findIncludedOffer(offers.cbegin(), offers.cend(), exclude);
 
     size_t const BATCH_SIZE = 5;
-    while (!res && !cached.allLoaded)
+    while (!res && !cached->allLoaded)
     {
         std::list<LedgerEntry>::const_iterator newOfferIter;
         try
@@ -1792,7 +1791,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
         if (std::distance(newOfferIter, offers.cend()) < BATCH_SIZE)
         {
-            cached.allLoaded = true;
+            cached->allLoaded = true;
         }
         res = findIncludedOffer(newOfferIter, offers.cend(), exclude);
     }
@@ -2013,21 +2012,22 @@ LedgerTxnRoot::Impl::putInEntryCache(
     }
 }
 
-LedgerTxnRoot::Impl::BestOffersCacheEntry&
-LedgerTxnRoot::Impl::getFromBestOffersCache(
-    Asset const& buying, Asset const& selling,
-    BestOffersCacheEntry& defaultValue) const
+LedgerTxnRoot::Impl::BestOffersCacheEntryPtr
+LedgerTxnRoot::Impl::getFromBestOffersCache(Asset const& buying,
+                                            Asset const& selling) const
 {
     try
     {
         BestOffersCacheKey cacheKey{buying, selling};
-        if (!mBestOffersCache.exists(cacheKey))
+        if (mBestOffersCache.exists(cacheKey))
         {
-            mBestOffersCache.put(cacheKey, defaultValue);
+            return mBestOffersCache.get(cacheKey);
         }
-        return mBestOffersCache.exists(cacheKey)
-                   ? mBestOffersCache.get(cacheKey)
-                   : defaultValue;
+
+        auto emptyPtr = std::make_shared<BestOffersCacheEntry>(
+            BestOffersCacheEntry{{}, false});
+        mBestOffersCache.put(cacheKey, emptyPtr);
+        return emptyPtr;
     }
     catch (...)
     {
