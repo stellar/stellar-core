@@ -47,6 +47,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(0)
+    , mCreationTime(app.getClock().now())
     , mIdleTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
@@ -59,7 +60,8 @@ Peer::Peer(Application& app, PeerRole role)
 void
 Peer::sendHello()
 {
-    CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
+    CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString() << " @"
+                           << mApp.getConfig().PEER_PORT;
     StellarMessage msg;
     msg.type(HELLO);
     Hello& elo = msg.hello();
@@ -189,7 +191,8 @@ Peer::connectHandler(asio::error_code const& error)
     }
     else
     {
-        CLOG(DEBUG, "Overlay") << "Connected to " << toString();
+        CLOG(DEBUG, "Overlay") << "Connected to " << toString() << " @"
+                               << mApp.getConfig().PEER_PORT;
         connected();
         mState = CONNECTED;
         sendHello();
@@ -231,7 +234,8 @@ void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
     if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay") << "Get quorum set: " << hexAbbrev(setID);
+        CLOG(TRACE, "Overlay") << "Get quorum set: " << hexAbbrev(setID) << " @"
+                               << mApp.getConfig().PEER_PORT;
 
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
@@ -243,7 +247,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendGetPeers()
 {
-    CLOG(TRACE, "Overlay") << "Get peers";
+    CLOG(TRACE, "Overlay") << "Get peers @" << mApp.getConfig().PEER_PORT;
 
     StellarMessage newMsg;
     newMsg.type(GET_PEERS);
@@ -254,7 +258,8 @@ Peer::sendGetPeers()
 void
 Peer::sendGetScpState(uint32 ledgerSeq)
 {
-    CLOG(TRACE, "Overlay") << "Get SCP State for " << ledgerSeq;
+    CLOG(TRACE, "Overlay") << "Get SCP State for " << ledgerSeq << " @"
+                           << mApp.getConfig().PEER_PORT;
 
     StellarMessage newMsg;
     newMsg.type(GET_SCP_STATE);
@@ -354,11 +359,9 @@ Peer::sendMessage(StellarMessage const& msg)
 {
     if (Logging::logTrace("Overlay"))
         CLOG(TRACE, "Overlay")
-            << "("
-            << mApp.getConfig().toShortString(
-                   mApp.getConfig().NODE_SEED.getPublicKey())
-            << ") send: " << msgSummary(msg)
-            << " to : " << mApp.getConfig().toShortString(mPeerID);
+            << "send: " << msgSummary(msg)
+            << " to : " << mApp.getConfig().toShortString(mPeerID) << " @"
+            << mApp.getConfig().PEER_PORT;
 
     switch (msg.type())
     {
@@ -455,6 +458,13 @@ Peer::isAuthenticated() const
     return mState == GOT_AUTH;
 }
 
+std::chrono::seconds
+Peer::getLifeTime() const
+{
+    return std::chrono::duration_cast<std::chrono::seconds>(
+        mApp.getClock().now() - mCreationTime);
+}
+
 bool
 Peer::shouldAbort() const
 {
@@ -503,11 +513,9 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     if (Logging::logTrace("Overlay"))
         CLOG(TRACE, "Overlay")
-            << "("
-            << mApp.getConfig().toShortString(
-                   mApp.getConfig().NODE_SEED.getPublicKey())
-            << ") recv: " << msgSummary(stellarMsg)
-            << " from:" << mApp.getConfig().toShortString(mPeerID);
+            << "recv: " << msgSummary(stellarMsg)
+            << " from:" << mApp.getConfig().toShortString(mPeerID) << " @"
+            << mApp.getConfig().PEER_PORT;
 
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
@@ -708,7 +716,8 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     if (Logging::logTrace("Overlay"))
         CLOG(TRACE, "Overlay")
             << "recvSCPMessage node: "
-            << mApp.getConfig().toShortString(msg.envelope().statement.nodeID);
+            << mApp.getConfig().toShortString(msg.envelope().statement.nodeID)
+            << " @" << mApp.getConfig().PEER_PORT;
 
     auto type = msg.envelope().statement.pledges.type();
     auto t = (type == SCP_ST_PREPARE
@@ -732,7 +741,8 @@ void
 Peer::recvGetSCPState(StellarMessage const& msg)
 {
     uint32 seq = msg.getSCPLedgerSeq();
-    CLOG(TRACE, "Overlay") << "get SCP State " << seq;
+    CLOG(TRACE, "Overlay") << "get SCP State " << seq << " @"
+                           << mApp.getConfig().PEER_PORT;
     mApp.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
 
@@ -834,7 +844,13 @@ Peer::recvHello(Hello const& elo)
                                               mRecvNonce, mRole);
 
     mState = GOT_HELLO;
-    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
+
+    auto ip = getIP();
+    mAddress =
+        PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
+
+    CLOG(DEBUG, "Overlay") << "recvHello from " << toString() << " @"
+                           << mApp.getConfig().PEER_PORT;
 
     auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)
@@ -880,7 +896,6 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    auto ip = getIP();
     if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX || ip.empty())
     {
         sendErrorAndDrop(ERR_CONF, "bad address",
@@ -888,8 +903,6 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    mAddress =
-        PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
     updatePeerRecordAfterEcho();
 
     auto const& authenticated =

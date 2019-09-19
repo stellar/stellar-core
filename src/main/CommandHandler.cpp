@@ -234,6 +234,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
             {
                 auto& peerNode = node[counter++];
                 peerNode["address"] = peer.second->toString();
+                peerNode["elapsed"] = (int)peer.second->getLifeTime().count();
                 peerNode["ver"] = peer.second->getRemoteVersion();
                 peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
                 peerNode["id"] =
