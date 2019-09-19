@@ -584,12 +584,6 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
             ExternalQueue ps(*app);
             ps.deleteOldEntries(50000);
         }
-        clock.cancelAllEvents();
-        while (clock.cancelAllEvents() ||
-               app->getProcessManager().getNumRunningProcesses() > 0)
-        {
-            clock.crank(true);
-        }
     }
 }
 
