@@ -416,8 +416,8 @@ TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
         // followed by the typical ledger-close bucket GC event.
         bl.getLevel(level).commit();
         REQUIRE(!bl.getLevel(level).getNext().isMerging());
-
-        REQUIRE(bm.readMergeCounters().mFinishedMergeReattachments == 0);
+        auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
+        REQUIRE(ra == 0);
 
         // Deserialize HAS.
         HistoryArchiveState has2;
@@ -432,7 +432,8 @@ TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
         has2.currentBuckets[level].next.resolve();
 
         // Check that we reattached to a finished merge.
-        REQUIRE(bm.readMergeCounters().mFinishedMergeReattachments != 0);
+        ra = bm.readMergeCounters().mFinishedMergeReattachments;
+        REQUIRE(ra != 0);
     });
 }
 
@@ -504,7 +505,8 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
         CLOG(INFO, "Bucket")
             << "reattached to running merge at or around ledger " << ledger;
         REQUIRE(ledger < limit);
-        REQUIRE(bm.readMergeCounters().mRunningMergeReattachments != 0);
+        auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
+        REQUIRE(ra != 0);
     });
 }
 
@@ -532,12 +534,16 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
             tcfg.getArchiveDirName());
         while (hm.getPublishQueueCount() < 5)
         {
+            // Do not merge this line with the next line: CLOG and
+            // readMergeCounters each acquire a mutex, and it's possible to
+            // deadlock with one of the worker threads if you try to hold them
+            // both at the same time.
+            auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
             CLOG(INFO, "Bucket")
-                << "finished-merge reattachments: "
-                << bm.readMergeCounters().mFinishedMergeReattachments;
+                << "finished-merge reattachments while queueing: " << ra;
             bl.addBatch(*app, lm.getLastClosedLedgerNum() + 1, vers, {},
                         LedgerTestUtils::generateValidLedgerEntries(100), {});
-            clock.crank(true);
+            clock.crank(false);
             bm.forgetUnreferencedBuckets();
         }
         // We should have published nothing and have the first
@@ -563,27 +569,20 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
 
         // This is the key check of the test: re-enabling the merges worked
         // and caused a bunch of finished-merge reattachments.
-        REQUIRE(bm.readMergeCounters().mFinishedMergeReattachments !=
-                oldReattachments);
+        auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
+        REQUIRE(ra != oldReattachments);
         CLOG(INFO, "Bucket")
-            << "finished-merge reattachments: "
-            << bm.readMergeCounters().mFinishedMergeReattachments;
+            << "finished-merge reattachments after making-live: " << ra;
 
         // Un-cork the publication process, nothing should be broken.
         hm.setPublicationEnabled(true);
         while (hm.getPublishSuccessCount() < 5)
         {
-            clock.crank(true);
+            clock.crank(false);
 
             // Trim history after publishing whenever possible.
             ExternalQueue ps(*app);
             ps.deleteOldEntries(50000);
-        }
-        clock.cancelAllEvents();
-        while (clock.cancelAllEvents() ||
-               app->getProcessManager().getNumRunningProcesses() > 0)
-        {
-            clock.crank(true);
         }
     }
 }
