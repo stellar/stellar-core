@@ -834,9 +834,6 @@
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\PathPaymentOpFrame.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -983,6 +980,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\FileSystemException.cpp">
       <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\PathPaymentStrictSendTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp">
+      <Filter>transactions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1580,9 +1589,6 @@
     <ClInclude Include="..\..\src\transactions\OperationFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\PathPaymentOpFrame.h">
-      <Filter>transactions</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -1699,6 +1705,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\FuzzerImpl.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

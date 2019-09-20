@@ -962,12 +962,11 @@ TEST_CASE("ConditionalWork test", "[work]")
             wm.scheduleWork<TestBatchWorkCondition>("test-conditional-batch");
 
         auto numLiveWorks =
-            [](std::vector<std::weak_ptr<BasicWork>> const& works) {
-                return std::count_if(works.begin(), works.end(),
-                                     [](std::weak_ptr<BasicWork> const& w) {
-                                         return !w.expired();
-                                     });
-            };
+            [](std::vector<std::weak_ptr<BasicWork>> const& works) -> size_t {
+            return std::count_if(
+                works.begin(), works.end(),
+                [](std::weak_ptr<BasicWork> const& w) { return !w.expired(); });
+        };
 
         // at any time, there cannot be more live works than batch size + 1
         // (extra work if the first work in batch has a dependency)
