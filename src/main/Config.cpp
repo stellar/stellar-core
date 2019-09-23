@@ -149,6 +149,10 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ENTRY_CACHE_SIZE = 100000;
     BEST_OFFERS_CACHE_SIZE = 64;
     PREFETCH_BATCH_SIZE = 1000;
+
+#ifdef BUILD_TESTS
+    TEST_CASES_ENABLED = false;
+#endif
 }
 
 namespace
