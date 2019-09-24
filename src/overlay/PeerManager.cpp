@@ -277,11 +277,20 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
     }
     else
     {
+        CLOG(TRACE, "Overlay") << "Learned peer " << address.toString() << " @"
+                               << mApp.getConfig().PEER_PORT;
+
         query = "INSERT INTO peers "
                 "(nextattempt, numfailures, type, ip,  port) "
                 "VALUES "
                 "(:v1,         :v2,        :v3,  :v4, :v5)";
     }
+
+    CLOG(TRACE, "Overlay") << fmt::format(
+        "Storing peer {} n={} f={} @{}", address.toString(),
+        VirtualClock::to_time_t(
+            VirtualClock::tmToPoint(peerRecord.mNextAttempt)),
+        peerRecord.mNumFailures, mApp.getConfig().PEER_PORT);
 
     try
     {
@@ -401,9 +410,7 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     auto peer = load(address);
     if (!peer.second)
     {
-        CLOG(TRACE, "Overlay") << "Learned peer " << address.toString() << " @"
-                               << mApp.getConfig().PEER_PORT;
-        store(address, peer.first, peer.second);
+        store(address, peer.first, false);
     }
 }
 

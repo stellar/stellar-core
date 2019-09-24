@@ -99,7 +99,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     auto& peersTold = result->second->mPeersTold;
 
     // make a copy, in case peers gets modified
-    auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
+    auto peers = mApp.getOverlayManager().getAnyAuthenticatedPeers();
 
     for (auto peer : peers)
     {
@@ -123,7 +123,7 @@ Floodgate::getPeersKnows(Hash const& h)
     if (record != mFloodMap.end())
     {
         auto& ids = record->second->mPeersTold;
-        auto const& peers = mApp.getOverlayManager().getAuthenticatedPeers();
+        auto const& peers = mApp.getOverlayManager().getAnyAuthenticatedPeers();
         for (auto& p : peers)
         {
             if (ids.find(p.second->toString()) != ids.end())

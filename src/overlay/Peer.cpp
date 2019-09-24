@@ -447,6 +447,20 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 }
 
 bool
+Peer::isPassedProbation() const
+{
+    return (mState == GOT_AUTH_PROBATION &&
+            getLifeTime().count() >=
+                2 * mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT);
+}
+
+void
+Peer::setAuthenticated()
+{
+    mState = GOT_AUTH_ACTIVE;
+}
+
+bool
 Peer::isConnected() const
 {
     return mState != CONNECTING && mState != CLOSING;
@@ -455,7 +469,7 @@ Peer::isConnected() const
 bool
 Peer::isAuthenticated() const
 {
-    return mState == GOT_AUTH;
+    return mState >= GOT_AUTH_PROBATION;
 }
 
 std::chrono::seconds
@@ -793,15 +807,14 @@ Peer::updatePeerRecordAfterAuthentication()
 {
     assert(!getAddress().isEmpty());
 
-    if (mRole == WE_CALLED_REMOTE)
+    CLOG(DEBUG, "Overlay") << "successful handshake with " << toString() << " @"
+                           << mApp.getConfig().PEER_PORT;
+
+    if (getRole() == Peer::WE_CALLED_REMOTE)
     {
         mApp.getOverlayManager().getPeerManager().update(
             getAddress(), PeerManager::BackOffUpdate::RESET);
     }
-
-    CLOG(DEBUG, "Overlay") << "successful handshake with "
-                           << mApp.getConfig().toShortString(mPeerID) << "@"
-                           << getAddress().toString();
 }
 
 void
@@ -921,20 +934,28 @@ Peer::recvHello(Hello const& elo)
         }
     }
 
+    auto checkPeer = [&](Peer::pointer p) {
+        if (&(p->mPeerID) != &mPeerID)
+        {
+            // check if this is a duplicate (same peer id, same role)
+            if (p->getPeerID() == mPeerID && p->getRole() == mRole)
+            {
+                sendErrorAndDrop(ERR_CONF,
+                                 "already-connected peer: " +
+                                     mApp.getConfig().toShortString(mPeerID),
+                                 dropMode);
+            }
+        }
+    };
+
+    for (auto const& pp :
+         mApp.getOverlayManager().getAuthenticatedProbationPeers())
+    {
+        checkPeer(pp.second);
+    }
     for (auto const& p : mApp.getOverlayManager().getPendingPeers())
     {
-        if (&(p->mPeerID) == &mPeerID)
-        {
-            continue;
-        }
-        if (p->getPeerID() == mPeerID)
-        {
-            sendErrorAndDrop(ERR_CONF,
-                             "already-connected peer: " +
-                                 mApp.getConfig().toShortString(mPeerID),
-                             dropMode);
-            return;
-        }
+        checkPeer(p);
     }
 
     if (mRole == WE_CALLED_REMOTE)
@@ -960,18 +981,21 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    mState = GOT_AUTH;
+    mState = GOT_AUTH_PROBATION;
 
     if (mRole == REMOTE_CALLED_US)
     {
         sendAuth();
+        // NB: we *could* also call sendPeers when we receive the AUTH message
+        // and we're the initiator, but in practice this is done as part of peer
+        // promotion (as we constantly try to connect to inbound peers)
         sendPeers();
     }
 
     updatePeerRecordAfterAuthentication();
 
     auto self = shared_from_this();
-    if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
+    if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self, true))
     {
         sendErrorAndDrop(ERR_LOAD, "peer rejected",
                          Peer::DropMode::FLUSH_WRITE_QUEUE);

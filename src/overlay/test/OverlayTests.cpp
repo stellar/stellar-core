@@ -1013,7 +1013,7 @@ TEST_CASE("connecting to saturated nodes", "[overlay][connections][acceptance]")
     // 1 connects to h
     simulation->crankUntil(
         [&]() { return numberOfSimulationConnections() == 2; },
-        std::chrono::seconds{3}, false);
+        std::chrono::seconds{7}, false);
 
     simulation->addNode(vNode2SecretKey, qSet, &node2Cfg);
     simulation->addPendingConnection(vNode2NodeID, vHeadNodeID);

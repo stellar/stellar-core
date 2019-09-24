@@ -686,6 +686,7 @@ This list is the result of both inbound connections from other peers and outboun
            "elapsed" : 6,
            "id" : "sdf1",
            "olver" : 5,
+           "probation" : false,
            "ver" : "v9.1.0"
         }
      ],
@@ -695,6 +696,7 @@ This list is the result of both inbound connections from other peers and outboun
           "elapsed" : 2303,
           "id" : "sdf2",
           "olver" : 5,
+          "probation" : false,
           "ver" : "v9.1.0"
        },
        {
@@ -702,6 +704,7 @@ This list is the result of both inbound connections from other peers and outboun
           "elapsed" : 14082,
           "id" : "sdf3",
           "olver" : 5,
+          "probation" : false,
           "ver" : "v9.1.0"
         }
      ]

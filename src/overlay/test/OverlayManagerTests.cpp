@@ -36,7 +36,7 @@ class PeerStub : public Peer
         : Peer(app, WE_CALLED_REMOTE)
     {
         mPeerID = SecretKey::pseudoRandomForTesting().getPublicKey();
-        mState = GOT_AUTH;
+        mState = GOT_AUTH_ACTIVE;
         mAddress = addres;
     }
     virtual std::string
@@ -75,7 +75,7 @@ class OverlayManagerStub : public OverlayManagerImpl
 
         auto peerStub = std::make_shared<PeerStub>(mApp, address);
         REQUIRE(addOutboundConnection(peerStub));
-        return acceptAuthenticatedPeer(peerStub);
+        return acceptAuthenticatedPeer(peerStub, false);
     }
 };
 

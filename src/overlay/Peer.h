@@ -39,11 +39,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     enum PeerState
     {
-        CONNECTING = 0,
-        CONNECTED = 1,
-        GOT_HELLO = 2,
-        GOT_AUTH = 3,
-        CLOSING = 4
+        CLOSING = -1,
+        CONNECTING = 0,         // establishing connection
+        CONNECTED = 1,          // connection established
+        GOT_HELLO = 2,          // received HELLO
+        GOT_AUTH_PROBATION = 3, // received AUTH, connection is in probation
+        GOT_AUTH_ACTIVE = 4     // received AUTH, connection is now active
     };
 
     enum PeerRole
@@ -169,6 +170,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     bool isConnected() const;
     bool isAuthenticated() const;
+
+    // returns true if peer has been in probation state long enough
+    bool isPassedProbation() const;
+
+    void setAuthenticated();
 
     VirtualClock::time_point
     getCreationTime() const

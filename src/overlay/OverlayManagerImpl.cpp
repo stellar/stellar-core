@@ -90,14 +90,23 @@ OverlayManagerImpl::PeersList::byAddress(PeerBareAddress const& address) const
         return *pendingPeerIt;
     }
 
-    auto authenticatedPeerIt =
-        std::find_if(std::begin(mAuthenticated), std::end(mAuthenticated),
-                     [address](std::pair<NodeID, Peer::pointer> const& peer) {
-                         return peer.second->getAddress() == address;
-                     });
+    auto comp = [address](std::pair<NodeID, Peer::pointer> const& peer) {
+        return peer.second->getAddress() == address;
+    };
+
+    auto authenticatedPeerIt = std::find_if(std::begin(mAuthenticated),
+                                            std::end(mAuthenticated), comp);
     if (authenticatedPeerIt != std::end(mAuthenticated))
     {
         return authenticatedPeerIt->second;
+    }
+
+    auto authenticatedProbationPeerIt =
+        std::find_if(std::begin(mAuthenticatedProbation),
+                     std::end(mAuthenticatedProbation), comp);
+    if (authenticatedProbationPeerIt != std::end(mAuthenticatedProbation))
+    {
+        return authenticatedProbationPeerIt->second;
     }
 
     return {};
@@ -132,13 +141,41 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
         return;
     }
 
+    auto authentiatedProbIt = mAuthenticatedProbation.find(peer->getPeerID());
+    if (authentiatedProbIt != std::end(mAuthenticatedProbation))
+    {
+        CLOG(DEBUG, "Overlay")
+            << "Dropping probation authenticated " << mDirectionString
+            << " peer: " << peer->toString() << " @"
+            << mOverlayManager.mApp.getConfig().PEER_PORT;
+        mAuthenticatedProbation.erase(authentiatedProbIt);
+        mConnectionsDropped.Mark();
+        return;
+    }
+
     CLOG(WARNING, "Overlay") << "Dropping unlisted " << mDirectionString
                              << " peer: " << peer->toString();
     CLOG(WARNING, "Overlay") << REPORT_INTERNAL_BUG;
 }
 
+Peer::pointer
+OverlayManagerImpl::PeersList::lookupAuthenticated(NodeID const& id)
+{
+    auto it = mAuthenticated.find(id);
+    if (it != mAuthenticated.end())
+    {
+        return it->second;
+    }
+    auto it2 = mAuthenticatedProbation.find(id);
+    if (it2 != mAuthenticatedProbation.end())
+    {
+        return it2->second;
+    }
+    return nullptr;
+}
+
 bool
-OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
+OverlayManagerImpl::PeersList::moveToAuthenticatedProbation(Peer::pointer peer)
 {
     CLOG(TRACE, "Overlay") << "Moving peer " << peer->toString()
                            << " to authenticated "
@@ -155,11 +192,11 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
         return false;
     }
 
-    auto authenticatedIt = mAuthenticated.find(peer->getPeerID());
-    if (authenticatedIt != std::end(mAuthenticated))
+    auto p = lookupAuthenticated(peer->getPeerID());
+    if (p != nullptr)
     {
         CLOG(WARNING, "Overlay")
-            << "Trying to move authenticated " << mDirectionString << " peer "
+            << "Trying to move " << mDirectionString << " peer "
             << peer->toString() << " to authenticated list again";
         CLOG(WARNING, "Overlay") << REPORT_INTERNAL_BUG;
         mConnectionsCancelled.Mark();
@@ -167,15 +204,69 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
     }
 
     mPending.erase(pendingIt);
-    mAuthenticated[peer->getPeerID()] = peer;
+    mAuthenticatedProbation[peer->getPeerID()] = peer;
 
-    CLOG(INFO, "Overlay") << "Connected to " << peer->toString();
+    CLOG(DEBUG, "Overlay") << "Promoting to " << mDirectionString
+                           << " probation " << peer->toString() << " @"
+                           << mOverlayManager.mApp.getConfig().PEER_PORT;
 
     return true;
 }
 
 bool
-OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
+OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
+{
+    auto pendingIt = std::find(std::begin(mPending), std::end(mPending), peer);
+    if (pendingIt != std::end(mPending))
+    {
+        CLOG(WARNING, "Overlay")
+            << "Trying to move non-probation " << mDirectionString << " peer "
+            << peer->toString() << " to authenticated list"
+            << " @" << mOverlayManager.mApp.getConfig().PEER_PORT;
+        CLOG(WARNING, "Overlay") << REPORT_INTERNAL_BUG;
+        mConnectionsCancelled.Mark();
+        return false;
+    }
+
+    auto p = lookupAuthenticated(peer->getPeerID());
+    if (p == nullptr)
+    {
+        CLOG(WARNING, "Overlay")
+            << "Trying to move unknown " << mDirectionString << " peer "
+            << peer->toString() << " to authenticated list"
+            << " @" << mOverlayManager.mApp.getConfig().PEER_PORT;
+        CLOG(WARNING, "Overlay") << REPORT_INTERNAL_BUG;
+        mConnectionsCancelled.Mark();
+        return false;
+    }
+    else if (p->getState() != Peer::GOT_AUTH_PROBATION)
+    {
+        CLOG(WARNING, "Overlay")
+            << "Trying to move non probation " << mDirectionString << " peer "
+            << peer->toString() << " to authenticated list again"
+            << " @" << mOverlayManager.mApp.getConfig().PEER_PORT;
+        CLOG(WARNING, "Overlay") << REPORT_INTERNAL_BUG;
+        mConnectionsCancelled.Mark();
+        return false;
+    }
+
+    peer->setAuthenticated();
+    mAuthenticatedProbation.erase(peer->getPeerID());
+    mAuthenticated[peer->getPeerID()] = peer;
+
+    CLOG(INFO, "Overlay") << "Connected to " << peer->toString() << " @"
+                          << mOverlayManager.mApp.getConfig().PEER_PORT;
+    CLOG(INFO, "Overlay") << "Connected to " << peer->toString();
+    CLOG(INFO, "Overlay") << "Connected to " << mDirectionString << " "
+                          << peer->toString() << " @"
+                          << mOverlayManager.mApp.getConfig().PEER_PORT;
+
+    return true;
+}
+
+bool
+OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer,
+                                                       bool probation)
 {
     CLOG(TRACE, "Overlay") << "Trying to promote peer to authenticated "
                            << peer->toString() << " @"
@@ -184,7 +275,8 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
     {
         if (mAuthenticated.size() < mMaxAuthenticatedCount)
         {
-            return moveToAuthenticated(peer);
+            return moveToAuthenticatedProbation(peer) &&
+                   moveToAuthenticated(peer);
         }
 
         for (auto victim : mAuthenticated)
@@ -198,7 +290,8 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
                 victim.second->sendErrorAndDrop(
                     ERR_LOAD, "preferred peer selected instead",
                     Peer::DropMode::IGNORE_WRITE_QUEUE);
-                return moveToAuthenticated(peer);
+                return moveToAuthenticatedProbation(peer) &&
+                       moveToAuthenticated(peer);
             }
         }
     }
@@ -206,9 +299,15 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
     if (!mOverlayManager.mApp.getConfig().PREFERRED_PEERS_ONLY &&
         mAuthenticated.size() < mMaxAuthenticatedCount)
     {
-        return moveToAuthenticated(peer);
+        if (probation)
+        {
+            return moveToAuthenticatedProbation(peer);
+        }
+        else
+        {
+            return moveToAuthenticated(peer);
+        }
     }
-
     CLOG(INFO, "Overlay") << "Non preferred " << mDirectionString
                           << " authenticated peer " << peer->toString()
                           << " rejected because all available slots are taken.";
@@ -219,22 +318,28 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
     if (Logging::logTrace("Overlay"))
     {
         CLOG(TRACE, "Overlay") << fmt::format(
-            "limit: {}, pending: {}, authenticated: {}", mMaxAuthenticatedCount,
-            mPending.size(), mAuthenticated.size());
-        std::stringstream pending, authenticated;
+            "limit: {}, pending: {}, probation: {}, authenticated: {}",
+            mMaxAuthenticatedCount, mPending.size(),
+            mAuthenticatedProbation.size(), mAuthenticated.size());
+        std::stringstream pending, authprobation, authenticated;
         for (auto p : mPending)
         {
             pending << p->toString();
             pending << " ";
+        }
+        for (auto p : mAuthenticatedProbation)
+        {
+            authprobation << p.second->toString();
+            authprobation << " ";
         }
         for (auto p : mAuthenticated)
         {
             authenticated << p.second->toString();
             authenticated << " ";
         }
-        CLOG(TRACE, "Overlay")
-            << fmt::format("pending: [{}] authenticated: [{}]", pending.str(),
-                           authenticated.str());
+        CLOG(TRACE, "Overlay") << fmt::format(
+            "pending: [{}] probation: [{}] authenticated: [{}]", pending.str(),
+            authprobation.str(), authenticated.str());
     }
 
     mConnectionsCancelled.Mark();
@@ -325,6 +430,9 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
 {
     CLOG(TRACE, "Overlay") << "Connect to " << address.toString() << " @"
                            << mApp.getConfig().PEER_PORT;
+    CLOG(TRACE, "Overlay") << fmt::format(
+        "Attempting to connect to {} force={} @{}", address.toString(),
+        forceoutbound, mApp.getConfig().PEER_PORT);
     auto currentConnection = getConnectedPeer(address);
     if (!currentConnection || (forceoutbound && currentConnection->getRole() ==
                                                     Peer::REMOTE_CALLED_US))
@@ -460,15 +568,47 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
         return {};
     }
 
+    int ignored = 0;
     auto keep = [&](PeerBareAddress const& address) {
-        auto peer = getConnectedPeer(address);
-        auto promote = peer && (peerType == PeerType::INBOUND) &&
-                       (peer->getRole() == Peer::REMOTE_CALLED_US);
-        return !peer || promote;
+        auto outPeer = mOutboundPeers.byAddress(address);
+        if (outPeer)
+        {
+            // we've already got an outbound connection
+            ignored++;
+            return false;
+        }
+        else
+        {
+            auto inPeer = mInboundPeers.byAddress(address);
+
+            auto promote = inPeer && (peerType == PeerType::INBOUND) &&
+                           (inPeer->getRole() == Peer::REMOTE_CALLED_US);
+            // if the other connection is not yet fully authenticated, we
+            // initiate this one as well
+            auto res = !inPeer || /* !inPeer->isAuthenticated() || */ promote;
+            if (!res)
+            {
+                ignored++;
+            }
+            return res;
+        }
     };
 
     // don't connect to too many peers at once
-    return mPeerSources[peerType]->getRandomPeers(std::min(maxNum, 50), keep);
+    auto res =
+        mPeerSources[peerType]->getRandomPeers(std::min(maxNum, 50), keep);
+    if (Logging::logDebug("Overlay"))
+    {
+        std::stringstream s;
+        for (auto& p : res)
+        {
+            s << p.toString() << " ";
+        }
+        CLOG(DEBUG, "Overlay") << fmt::format(
+            "peers to connect to t={}, max={}, skipped={}: [{}]",
+            static_cast<int>(peerType), maxNum, ignored, s.str());
+    }
+    return res;
 }
 
 int
@@ -493,6 +633,39 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
     return count;
 }
 
+void
+OverlayManagerImpl::peerMaintenance()
+{
+    // first, check if we take peers out of probation
+    for (auto const& pp : getAuthenticatedProbationPeers())
+    {
+        auto& p = pp.second;
+        CLOG(TRACE, "Overlay") << "Peer age " << p->toString() << "/"
+                               << static_cast<int>(p->getRole()) << " : "
+                               << p->getLifeTime().count();
+        if (p->isPassedProbation())
+        {
+            if (!acceptAuthenticatedPeer(p, false))
+            {
+                p->sendErrorAndDrop(
+                    ERR_MISC, "Could not take peer out of probation state",
+                    Peer::DropMode::FLUSH_WRITE_QUEUE);
+            }
+        }
+    }
+    // now, see if some peers in probation should be disconnected
+    auto authenticated = getAuthenticatedPeers();
+    for (auto const& pp : getAuthenticatedProbationPeers())
+    {
+        auto& p = pp.second;
+        if (authenticated.find(p->getPeerID()) != authenticated.end())
+        {
+            p->sendErrorAndDrop(ERR_MISC, "Peer already authenticated",
+                                Peer::DropMode::FLUSH_WRITE_QUEUE);
+        }
+    }
+}
+
 // called every 2 seconds
 void
 OverlayManagerImpl::tick()
@@ -514,6 +687,8 @@ OverlayManagerImpl::tick()
         mPeerIPTimer.async_wait([this]() { this->triggerPeerResolution(); },
                                 VirtualTimer::onFailureNoop);
     }
+
+    peerMaintenance();
 
     auto availablePendingSlots = availableOutboundPendingSlots();
     auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
@@ -570,7 +745,8 @@ OverlayManagerImpl::availableOutboundPendingSlots() const
     {
         return static_cast<int>(
             mApp.getConfig().MAX_OUTBOUND_PENDING_CONNECTIONS -
-            mOutboundPeers.mPending.size());
+            mOutboundPeers.mPending.size() +
+            mOutboundPeers.mAuthenticatedProbation.size());
     }
     else
     {
@@ -612,6 +788,9 @@ OverlayManagerImpl::nonPreferredAuthenticatedCount() const
 Peer::pointer
 OverlayManagerImpl::getConnectedPeer(PeerBareAddress const& address)
 {
+    // the order here is important:
+    // callers use this to decide if they should attempt outbound connections
+    // so we want to guarantee that outbound connections are never duplicated
     auto outbound = mOutboundPeers.byAddress(address);
     return outbound ? outbound : mInboundPeers.byAddress(address);
 }
@@ -636,11 +815,13 @@ OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
     assert(peer->getRole() == Peer::REMOTE_CALLED_US);
     mInboundPeers.mConnectionsAttempted.Mark();
 
-    auto haveSpace = mInboundPeers.mPending.size() <
-                     mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS;
-    if (!haveSpace && mInboundPeers.mPending.size() <
-                          mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS +
-                              Config::POSSIBLY_PREFERRED_EXTRA)
+    size_t pendingInbound = mInboundPeers.mPending.size() +
+                            mInboundPeers.mAuthenticatedProbation.size();
+    auto haveSpace =
+        pendingInbound < mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS;
+    if (!haveSpace &&
+        pendingInbound < mApp.getConfig().MAX_INBOUND_PENDING_CONNECTIONS +
+                             Config::POSSIBLY_PREFERRED_EXTRA)
     {
         // for peers that are possibly preferred (they have the same IP as some
         // preferred peer we enocuntered in past), we allow an extra
@@ -737,9 +918,9 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 }
 
 bool
-OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
+OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer, bool probation)
 {
-    return getPeersList(peer.get()).acceptAuthenticatedPeer(peer);
+    return getPeersList(peer.get()).acceptAuthenticatedPeer(peer, probation);
 }
 
 std::vector<Peer::pointer> const&
@@ -763,16 +944,36 @@ OverlayManagerImpl::getPendingPeers() const
     return result;
 }
 
-std::map<NodeID, Peer::pointer> const&
-OverlayManagerImpl::getInboundAuthenticatedPeers() const
+std::map<NodeID, Peer::pointer>
+OverlayManagerImpl::getInboundAnyAuthenticatedPeers() const
 {
-    return mInboundPeers.mAuthenticated;
+    auto result = mInboundPeers.mAuthenticated;
+    result.insert(std::begin(mInboundPeers.mAuthenticatedProbation),
+                  std::end(mInboundPeers.mAuthenticatedProbation));
+    return result;
 }
 
-std::map<NodeID, Peer::pointer> const&
-OverlayManagerImpl::getOutboundAuthenticatedPeers() const
+std::map<NodeID, Peer::pointer>
+OverlayManagerImpl::getOutboundAnyAuthenticatedPeers() const
 {
-    return mOutboundPeers.mAuthenticated;
+    auto result = mOutboundPeers.mAuthenticated;
+    result.insert(std::begin(mOutboundPeers.mAuthenticatedProbation),
+                  std::end(mOutboundPeers.mAuthenticatedProbation));
+
+    return result;
+}
+
+std::multimap<NodeID, Peer::pointer>
+OverlayManagerImpl::getAnyAuthenticatedPeers() const
+{
+    std::multimap<NodeID, Peer::pointer> res;
+
+    auto i = getInboundAnyAuthenticatedPeers();
+    res.insert(i.begin(), i.end());
+    auto o = getOutboundAnyAuthenticatedPeers();
+    res.insert(o.begin(), o.end());
+
+    return res;
 }
 
 std::map<NodeID, Peer::pointer>
@@ -784,11 +985,24 @@ OverlayManagerImpl::getAuthenticatedPeers() const
     return result;
 }
 
+std::multimap<NodeID, Peer::pointer>
+OverlayManagerImpl::getAuthenticatedProbationPeers() const
+{
+    std::multimap<NodeID, Peer::pointer> result;
+    result.insert(std::begin(mOutboundPeers.mAuthenticatedProbation),
+                  std::end(mOutboundPeers.mAuthenticatedProbation));
+    result.insert(std::begin(mInboundPeers.mAuthenticatedProbation),
+                  std::end(mInboundPeers.mAuthenticatedProbation));
+    return result;
+}
+
 int
 OverlayManagerImpl::getPendingPeersCount() const
 {
-    return static_cast<int>(mInboundPeers.mPending.size() +
-                            mOutboundPeers.mPending.size());
+    size_t s = mInboundPeers.mPending.size() + mOutboundPeers.mPending.size();
+    s += mInboundPeers.mAuthenticatedProbation.size() +
+         mOutboundPeers.mAuthenticatedProbation.size();
+    return static_cast<int>(s);
 }
 
 int
@@ -843,6 +1057,9 @@ OverlayManagerImpl::getRandomAuthenticatedPeers()
                    std::back_inserter(goodPeers), extractPeer);
     std::transform(std::begin(mOutboundPeers.mAuthenticated),
                    std::end(mOutboundPeers.mAuthenticated),
+                   std::back_inserter(goodPeers), extractPeer);
+    std::transform(std::begin(mOutboundPeers.mAuthenticatedProbation),
+                   std::end(mOutboundPeers.mAuthenticatedProbation),
                    std::back_inserter(goodPeers), extractPeer);
     std::shuffle(goodPeers.begin(), goodPeers.end(), gRandomEngine);
     return goodPeers;

@@ -239,12 +239,15 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
                 peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
                 peerNode["id"] =
                     mApp.getConfig().toStrKey(peer.first, fullKeys);
+                peerNode["probation"] =
+                    (peer.second->getState() == Peer::GOT_AUTH_PROBATION);
             }
         };
     addAuthenticatedPeers(
-        "outbound", mApp.getOverlayManager().getOutboundAuthenticatedPeers());
+        "outbound",
+        mApp.getOverlayManager().getOutboundAnyAuthenticatedPeers());
     addAuthenticatedPeers(
-        "inbound", mApp.getOverlayManager().getInboundAuthenticatedPeers());
+        "inbound", mApp.getOverlayManager().getInboundAnyAuthenticatedPeers());
 
     retStr = root.toStyledString();
 }
@@ -308,23 +311,31 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
         NodeID n;
         if (mApp.getHerder().resolveNodeID(peerId->second, n))
         {
-            auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
-            auto peer = peers.find(n);
-            if (peer != peers.end())
+            while (true)
             {
-                peer->second->sendErrorAndDrop(
-                    ERR_MISC, "dropped by user",
-                    Peer::DropMode::IGNORE_WRITE_QUEUE);
-                if (ban != retMap.end() && ban->second == "1")
+                auto peers =
+                    mApp.getOverlayManager().getAnyAuthenticatedPeers();
+                auto peer = peers.find(n);
+                if (peer != peers.end())
                 {
-                    retStr = "Drop and ban peer: ";
-                    mApp.getBanManager().banNode(n);
+                    peer->second->sendErrorAndDrop(
+                        ERR_MISC, "dropped by user",
+                        Peer::DropMode::IGNORE_WRITE_QUEUE);
+                    if (ban != retMap.end() && ban->second == "1")
+                    {
+                        retStr = "Drop and ban peer: ";
+                        mApp.getBanManager().banNode(n);
+                    }
+                    else
+                        retStr = "Drop peer: ";
+
+                    retStr += peerId->second;
+                    found = true;
                 }
                 else
-                    retStr = "Drop peer: ";
-
-                retStr += peerId->second;
-                found = true;
+                {
+                    break;
+                }
             }
         }
 

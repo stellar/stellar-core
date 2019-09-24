@@ -59,13 +59,22 @@ class OverlayManagerImpl : public OverlayManager
         std::string mDirectionString;
         int mMaxAuthenticatedCount;
 
+        // connections move from pending to authenticated
         std::vector<Peer::pointer> mPending;
+        std::map<NodeID, Peer::pointer> mAuthenticatedProbation;
         std::map<NodeID, Peer::pointer> mAuthenticated;
 
         Peer::pointer byAddress(PeerBareAddress const& address) const;
         void removePeer(Peer* peer);
+
+        // move a peer from pending to probation
+        bool moveToAuthenticatedProbation(Peer::pointer peer);
+        // promote a peer to the authenticated list (from probation)
         bool moveToAuthenticated(Peer::pointer peer);
-        bool acceptAuthenticatedPeer(Peer::pointer peer);
+        bool acceptAuthenticatedPeer(Peer::pointer peer, bool probation);
+
+        Peer::pointer lookupAuthenticated(NodeID const& id);
+
         void shutdown();
     };
 
@@ -87,6 +96,7 @@ class OverlayManagerImpl : public OverlayManager
     uint32_t mCheckPerfLogLevelCounter;
     el::Level mPerfLogLevel;
 
+    void peerMaintenance();
     void tick();
     VirtualTimer mTimer;
     VirtualTimer mPeerIPTimer;
@@ -111,17 +121,23 @@ class OverlayManagerImpl : public OverlayManager
     void storeConfigPeers();
     void purgeDeadPeers();
 
-    bool acceptAuthenticatedPeer(Peer::pointer peer) override;
+    bool acceptAuthenticatedPeer(Peer::pointer peer, bool probation) override;
     bool isPreferred(Peer* peer) const override;
     std::vector<Peer::pointer> const& getInboundPendingPeers() const override;
     std::vector<Peer::pointer> const& getOutboundPendingPeers() const override;
     std::vector<Peer::pointer> getPendingPeers() const override;
     int getPendingPeersCount() const override;
-    std::map<NodeID, Peer::pointer> const&
-    getInboundAuthenticatedPeers() const override;
-    std::map<NodeID, Peer::pointer> const&
-    getOutboundAuthenticatedPeers() const override;
+    std::map<NodeID, Peer::pointer>
+    getInboundAnyAuthenticatedPeers() const override;
+    std::map<NodeID, Peer::pointer>
+    getOutboundAnyAuthenticatedPeers() const override;
+
+    std::multimap<NodeID, Peer::pointer>
+    getAnyAuthenticatedPeers() const override;
+
     std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const override;
+    std::multimap<NodeID, Peer::pointer>
+    getAuthenticatedProbationPeers() const override;
     int getAuthenticatedPeersCount() const override;
 
     // returns nullptr if the passed peer isn't found

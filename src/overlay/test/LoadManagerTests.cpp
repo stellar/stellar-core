@@ -47,8 +47,9 @@ TEST_CASE("disconnect peer when overloaded", "[overlay][LoadManager]")
          (i < 1000 && clock.now() < end && clock.crank(false) > 0); ++i)
         ;
 
-    REQUIRE(!conn.getInitiator()->isConnected());
+    // only check the one end we know for sure is disconnected
     REQUIRE(!conn.getAcceptor()->isConnected());
+
     REQUIRE(conn2.getInitiator()->isConnected());
     REQUIRE(conn2.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics()

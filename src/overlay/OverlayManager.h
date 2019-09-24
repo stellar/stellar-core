@@ -93,13 +93,17 @@ class OverlayManager
     // called on peers in Peer::CLOSING state.
     virtual void removePeer(Peer* peer) = 0;
 
-    // Try to move peer from pending to authenticated list. If there is no room
-    // for provided peer, it is checked if it is a "preferred" peer (as
-    // specified in the config file's PREFERRED_PEERS/PREFERRED_PEER_KEYS
-    // setting) - if so, one random non-preferred peer is removed.
+    // Try to make a peer authenticated - returns true on success
+    // Function may fail if there are not enough slots available
+    // probation = true: tries to move peer to probation state
+    // probation = false: tries to move the peer to the
+    //  authenticated "stable" list
     //
-    // If moving peer to authenticated list succeeded, true is returned.
-    virtual bool acceptAuthenticatedPeer(Peer::pointer peer) = 0;
+    // For "preferred" peer (as specified in the config file's
+    // PREFERRED_PEERS/PREFERRED_PEER_KEYS setting), peers skip "probation"
+    //   if there is no room, it will evict one random non-preferred peer.
+    virtual bool acceptAuthenticatedPeer(Peer::pointer peer,
+                                         bool probation) = 0;
 
     virtual bool isPreferred(Peer* peer) const = 0;
 
@@ -117,16 +121,26 @@ class OverlayManager
     // Return number of pending peers
     virtual int getPendingPeersCount() const = 0;
 
-    // Return the current in-memory set of inbound authenticated peers.
-    virtual std::map<NodeID, Peer::pointer> const&
-    getInboundAuthenticatedPeers() const = 0;
+    // Return the current in-memory set of inbound authenticated peers
+    // (regardless of probation).
+    virtual std::map<NodeID, Peer::pointer>
+    getInboundAnyAuthenticatedPeers() const = 0;
 
-    // Return the current in-memory set of outbound authenticated peers.
-    virtual std::map<NodeID, Peer::pointer> const&
-    getOutboundAuthenticatedPeers() const = 0;
+    // Return the current in-memory set of outbound authenticated peers
+    // (regardless of probation).
+    virtual std::map<NodeID, Peer::pointer>
+    getOutboundAnyAuthenticatedPeers() const = 0;
+
+    // returns list of all authenticated peers, including probation
+    virtual std::multimap<NodeID, Peer::pointer>
+    getAnyAuthenticatedPeers() const = 0;
 
     // Return the current in-memory set of authenticated peers.
     virtual std::map<NodeID, Peer::pointer> getAuthenticatedPeers() const = 0;
+
+    // return the current in-memory set of authenticated peers in probation
+    virtual std::multimap<NodeID, Peer::pointer>
+    getAuthenticatedProbationPeers() const = 0;
 
     // Return number of authenticated peers
     virtual int getAuthenticatedPeersCount() const = 0;
