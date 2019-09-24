@@ -122,6 +122,12 @@ InflationOpFrame::doCheckValid(uint32_t ledgerVersion)
     return true;
 }
 
+bool
+InflationOpFrame::isVersionSupported(uint32_t protocolVersion) const
+{
+    return protocolVersion < 12;
+}
+
 ThresholdLevel
 InflationOpFrame::getThresholdLevel() const
 {
