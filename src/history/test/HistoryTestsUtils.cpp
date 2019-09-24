@@ -586,6 +586,8 @@ CatchupSimulation::ensurePublishesComplete()
     }
 
     REQUIRE(hm.getPublishFailureCount() == 0);
+    // Make sure all references to buckets were released
+    REQUIRE(hm.getBucketsReferencedByPublishQueue().empty());
 }
 
 void
