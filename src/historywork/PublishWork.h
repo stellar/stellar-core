@@ -19,7 +19,8 @@ class PublishWork : public WorkSequence
 
   public:
     PublishWork(Application& app, std::shared_ptr<StateSnapshot> snapshot,
-                std::vector<std::shared_ptr<BasicWork>> seq);
+                std::vector<std::shared_ptr<BasicWork>> seq,
+                std::vector<std::string> const& bucketHashes);
     ~PublishWork() = default;
 
   protected:

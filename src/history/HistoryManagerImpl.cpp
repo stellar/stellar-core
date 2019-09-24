@@ -277,6 +277,14 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     {
         return;
     }
+    // Ensure no merges are in-progress, and capture the bucket list hashes
+    // *before* doing the actual publish. This ensures that the HAS is in
+    // pristine state as returned by the database.
+    for (auto const& bucket : has.currentBuckets)
+    {
+        assert(!bucket.next.isLive());
+    }
+    auto allBucketsFromHAS = has.allBuckets();
     auto ledgerSeq = has.currentLedger;
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
@@ -290,7 +298,11 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 
     std::vector<std::shared_ptr<BasicWork>> seq{resolveFutures, writeSnap,
                                                 putSnap};
-    mPublishWork = mApp.getWorkScheduler().scheduleWork<PublishWork>(snap, seq);
+    // Pass in all bucket hashes from HAS. We cannot rely on StateSnapshot
+    // buckets here, because its buckets might have some futures resolved by
+    // now, differing from the state of the bucketlist during queueing.
+    mPublishWork = mApp.getWorkScheduler().scheduleWork<PublishWork>(
+        snap, seq, allBucketsFromHAS);
 }
 
 size_t

@@ -15,13 +15,14 @@ namespace stellar
 
 PublishWork::PublishWork(Application& app,
                          std::shared_ptr<StateSnapshot> snapshot,
-                         std::vector<std::shared_ptr<BasicWork>> seq)
+                         std::vector<std::shared_ptr<BasicWork>> seq,
+                         std::vector<std::string> const& bucketHashes)
     : WorkSequence(
           app,
           fmt::format("publish-{:08x}", snapshot->mLocalState.currentLedger),
           seq, BasicWork::RETRY_NEVER)
     , mSnapshot(snapshot)
-    , mOriginalBuckets(mSnapshot->mLocalState.allBuckets())
+    , mOriginalBuckets(bucketHashes)
 {
 }
 
