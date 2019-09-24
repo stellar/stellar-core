@@ -641,6 +641,7 @@ The output will look something like
             "phase" : "EXTERNALIZE"
          },
          "transitive" : {
+            "critical" : null,
             "intersection" : true,
             "last_check_ledger" : 24311536,
             "node_count" : 21
@@ -750,6 +751,9 @@ The output looks something like:
       }
    },
    "transitive" : {
+      "critical": [
+         [ "GDM7M262ZJJPV4BZ5SLGYYUTJGIGM25ID2XGKI3M6IDN6QLSTWQKTXQM" ]
+      ],
       "intersection" : true,
       "last_check_ledger" : 24311536,
       "node_count" : 21
@@ -799,10 +803,10 @@ the `transitive` field. This has several important sub-fields:
 
   * `last_check_ledger` : the last ledger in which the transitive closure was checked for quorum intersection. This will reset when the node boots and whenever a node in the transitive quorum changes its quorum set. It may lag behind the last-closed ledger by a few ledgers depending on the computational cost of checking quorum intersection.
   * `node_count` : the number of nodes in the transitive closure, which are considered when calculating quorum intersection.
-  * `intersection` : whether or not the transitive closure enjoyed quorum intersection at the most recent check. This is of **critical importance** in preventing network splits. It should always be true. If it is ever false, one or more nodes in the transitive closure of the quorum set is misconfigured, and the network is at risk of splitting. Corrective action should be taken immediately, for which two additional sub-fields will be present to help suggest remedies:
+  * `intersection` : whether or not the transitive closure enjoyed quorum intersection at the most recent check. This is of **utmost importance** in preventing network splits. It should always be true. If it is ever false, one or more nodes in the transitive closure of the quorum set is _currently_ misconfigured, and the network is at risk of splitting. Corrective action should be taken immediately, for which two additional sub-fields will be present to help suggest remedies:
     * `last_good_ledger` : this will note the last ledger for which the `intersection` field was evaluated as true; if some node reconfigured at or around that ledger, reverting that configuration change is the easiest corrective action to take.
     * `potential_split` : this will contain a pair of lists of validator IDs, which is a potential pair of disjoint quorums that allowed by the current configuration. In other words, a possible split in consensus allowed by the current configuration. This may help narrow down the cause of the misconfiguration: likely the misconfiguration involves too-low a consensus threshold in one of the two potential quorums, and/or the absence of a mandatory trust relationship that would bridge the two.
-
+  * `critical`: an "advance warning" field that lists nodes that _could cause_ the network to fail to enjoy quorum intersection, if they were misconfigured sufficiently badly. In a healthy transitive network configuration, this field will be `null`. If it is non-`null` then the network is essentially "one misconfiguration" (of the quorum sets of the listed nodes) away from no longer enjoying quorum intersection, and again, corrective action should be taken: careful adjustment to the quorum sets of _nodes that depend on_ the listed nodes, typically to strengthen quorums that depend on them.
 
 #### Detailed transitive quorum analysis
 
@@ -816,6 +820,7 @@ The output looks something like:
 
 ```json
 {
+ "critical": null,
  "intersection" : true,
  "last_check_ledger" : 121235,
  "node_count" : 4,
