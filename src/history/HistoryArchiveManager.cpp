@@ -172,7 +172,8 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
     // First check that there's no existing HAS in the archive
     CLOG(INFO, "History") << "Probing history archive '" << arch
                           << "' for existing state";
-    auto getHas = ws.executeWork<GetHistoryArchiveStateWork>(0, archive, 0);
+    auto getHas =
+        ws.executeWork<GetHistoryArchiveStateWork>(0, archive, "hist-init", 0);
     if (getHas->getState() == BasicWork::State::WORK_SUCCESS)
     {
         CLOG(ERROR, "History")

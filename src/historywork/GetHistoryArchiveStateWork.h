@@ -33,7 +33,7 @@ class GetHistoryArchiveStateWork : public Work
     GetHistoryArchiveStateWork(
         Application& app, uint32_t seq = 0,
         std::shared_ptr<HistoryArchive> archive = nullptr,
-        size_t maxRetries = BasicWork::RETRY_A_FEW);
+        std::string mode = "", size_t maxRetries = BasicWork::RETRY_A_FEW);
     ~GetHistoryArchiveStateWork() = default;
 
     HistoryArchiveState const&

@@ -87,8 +87,8 @@ PutSnapshotFilesWork::doWork()
     for (auto const& archive :
          mApp.getHistoryArchiveManager().getWritableHistoryArchives())
     {
-        mGetStateWorks.emplace_back(
-            addWork<GetHistoryArchiveStateWork>(0, archive));
+        mGetStateWorks.emplace_back(addWork<GetHistoryArchiveStateWork>(
+            0, archive, "publish", BasicWork::RETRY_A_FEW));
     }
 
     return State::WORK_RUNNING;

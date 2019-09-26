@@ -232,8 +232,7 @@ class CatchupSimulation
     CatchupMetrics getCatchupMetrics(Application::pointer app);
     CatchupPerformedWork computeCatchupPerformedWork(
         uint32_t lastClosedLedger,
-        CatchupConfiguration const& catchupConfiguration,
-        HistoryManager const& historyManager);
+        CatchupConfiguration const& catchupConfiguration, Application& app);
     void validateCatchup(Application::pointer app);
 
   public:
@@ -280,7 +279,8 @@ class CatchupSimulation
 
     Application::pointer createCatchupApplication(uint32_t count,
                                                   Config::TestDbMode dbMode,
-                                                  std::string const& appName);
+                                                  std::string const& appName,
+                                                  bool publish = false);
     bool catchupOffline(Application::pointer app, uint32_t toLedger);
     bool catchupOnline(Application::pointer app, uint32_t initLedger,
                        uint32_t bufferLedgers = 0, uint32_t gapLedger = 0);
