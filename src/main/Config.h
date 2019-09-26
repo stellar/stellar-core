@@ -26,14 +26,23 @@ struct HistoryArchiveConfiguration
     std::string mMkdirCmd;
 };
 
+enum class ValidationThresholdLevels : int
+{
+    SIMPLE_MAJORITY = 0,
+    BYZANTINE_FAULT_TOLERANCE = 1,
+    ALL_REQUIRED = 2
+};
+
 class Config : public std::enable_shared_from_this<Config>
 {
     enum class ValidatorQuality : int
     {
         VALIDATOR_LOW_QUALITY = 0,
         VALIDATOR_MED_QUALITY = 1,
-        VALIDATOR_HIGH_QUALITY = 2
+        VALIDATOR_HIGH_QUALITY = 2,
+        VALIDATOR_CRITICAL_QUALITY = 3
     };
+
     struct ValidatorEntry
     {
         std::string mName;
@@ -43,7 +52,7 @@ class Config : public std::enable_shared_from_this<Config>
         bool mHasHistory;
     };
 
-    void validateConfig(bool mixed);
+    void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
                   int level);
 
