@@ -337,7 +337,6 @@ HistoryArchiveState::prepareForPublish(Application& app)
             level.next.makeLive(app, maxProtocolVersion, i);
         }
     }
-    assert(containsValidBuckets(app));
 }
 
 HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
