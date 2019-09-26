@@ -299,13 +299,13 @@ class HistoryManager
     // Return the number of checkpoints that have been enqueued for
     // publication. This may be less than the number "started", but every
     // enqueued checkpoint should eventually start.
-    virtual uint64_t getPublishQueueCount() = 0;
+    virtual uint64_t getPublishQueueCount() const = 0;
 
     // Return the number of checkpoints that completed publication successfully.
-    virtual uint64_t getPublishSuccessCount() = 0;
+    virtual uint64_t getPublishSuccessCount() const = 0;
 
     // Return the number of checkpoints that failed publication.
-    virtual uint64_t getPublishFailureCount() = 0;
+    virtual uint64_t getPublishFailureCount() const = 0;
 
 #ifdef BUILD_TESTS
     // Enable or disable history publication, purely a testing interface.

@@ -444,19 +444,19 @@ HistoryManagerImpl::historyPublished(
 }
 
 uint64_t
-HistoryManagerImpl::getPublishQueueCount()
+HistoryManagerImpl::getPublishQueueCount() const
 {
     return mPublishQueued;
 }
 
 uint64_t
-HistoryManagerImpl::getPublishSuccessCount()
+HistoryManagerImpl::getPublishSuccessCount() const
 {
     return mPublishSuccess.count();
 }
 
 uint64_t
-HistoryManagerImpl::getPublishFailureCount()
+HistoryManagerImpl::getPublishFailureCount() const
 {
     return mPublishFailure.count();
 }

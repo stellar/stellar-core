@@ -85,9 +85,9 @@ class HistoryManagerImpl : public HistoryManager
 
     std::string localFilename(std::string const& basename) override;
 
-    uint64_t getPublishQueueCount() override;
-    uint64_t getPublishSuccessCount() override;
-    uint64_t getPublishFailureCount() override;
+    uint64_t getPublishQueueCount() const override;
+    uint64_t getPublishSuccessCount() const override;
+    uint64_t getPublishFailureCount() const override;
 
 #ifdef BUILD_TESTS
     void setPublicationEnabled(bool enabled) override;
