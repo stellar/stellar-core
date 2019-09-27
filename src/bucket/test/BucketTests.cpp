@@ -57,6 +57,7 @@ for_versions_with_differing_bucket_logic(
     Config const& cfg, std::function<void(Config const&)> const& f)
 {
     for_versions({Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1,
+                  Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY,
                   Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED},
                  cfg, f);
 }

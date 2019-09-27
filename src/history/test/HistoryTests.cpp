@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManager.h"
+#include "bucket/BucketTests.h"
 #include "catchup/test/CatchupWorkTests.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchiveManager.h"
@@ -824,53 +825,68 @@ TEST_CASE("Publish catchup via s3", "[!hide][s3]")
     REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
 }
 
-TEST_CASE("HAS in publish queue is resolved", "[history]")
+TEST_CASE("HAS in publishqueue remains in pristine state until publish",
+          "[history]")
 {
     // In this test we generate some buckets and cause a checkpoint to be
     // published, checking that the (cached) set of buckets referenced by the
-    // publish queue is/was equal to the set we'd expect from a fully-resolved
-    // HAS. This test is unfortunately quite "aware" of the internals of the
-    // subsystems it's touching; they don't really have well-developed testing
-    // interfaces. It's also a bit sensitive to the amount of work done in a
-    // single crank and the fact that we're stopping the crank just before
-    // firing the callback that clears the cached set of buckets referenced by
-    // the publish queue.
+    // publish queue is/was equal to the set we'd expect from a
+    // partially-resolved HAS. This test is unfortunately quite "aware" of the
+    // internals of the subsystems it's touching; they don't really have
+    // well-developed testing interfaces. It's also a bit sensitive to the
+    // amount of work done in a single crank and the fact that we're stopping
+    // the crank just before firing the callback that clears the cached set of
+    // buckets referenced by the publish queue.
 
     Config cfg(getTestConfig(0));
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
     TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
     VirtualClock clock;
-    Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
-    auto& hm = app->getHistoryManager();
-    auto& lm = app->getLedgerManager();
-    auto& bl = app->getBucketManager().getBucketList();
 
-    while (hm.getPublishQueueCount() != 1)
-    {
-        uint32_t ledger = lm.getLastClosedLedgerNum() + 1;
-        bl.addBatch(*app, ledger, cfg.LEDGER_PROTOCOL_VERSION, {},
-                    LedgerTestUtils::generateValidLedgerEntries(8), {});
+    BucketTests::for_versions_with_differing_bucket_logic(
+        cfg, [&](Config const& cfg) {
+            Application::pointer app = createTestApplication(clock, cfg);
+            app->start();
+            auto& hm = app->getHistoryManager();
+            auto& lm = app->getLedgerManager();
+            auto& bl = app->getBucketManager().getBucketList();
 
-        // This serves as a synchronization barrier on the worker threads doing
-        // merges, while _not_ intrusively modifying the BucketList. Without
-        // this barrier there's still a possible race between a merge started
-        // at some ledger and the publsih-capture of the FutureBucket, but this
-        // is only going to be a problem for a short/small merge it's not very
-        // bad to re-run at publish time.
-        HistoryArchiveState has(
-            app->getLedgerManager().getLastClosedLedgerNum(),
-            app->getBucketManager().getBucketList());
-        has.resolveAllFutures();
+            while (hm.getPublishQueueCount() != 1)
+            {
+                uint32_t ledger = lm.getLastClosedLedgerNum() + 1;
+                bl.addBatch(*app, ledger, cfg.LEDGER_PROTOCOL_VERSION, {},
+                            LedgerTestUtils::generateValidLedgerEntries(8), {});
+                clock.crank(true);
+            }
 
-        clock.crank(true);
-    }
-    auto pqb = hm.getBucketsReferencedByPublishQueue();
-    HistoryArchiveState has(app->getLedgerManager().getLastClosedLedgerNum(),
-                            app->getBucketManager().getBucketList());
-    has.resolveAllFutures();
-    REQUIRE(has.allBuckets() == pqb);
+            // Capture publish queue's view of HAS right before taking snapshot
+            auto queuedHAS = hm.getPublishQueueStates()[0];
+
+            // Now take snapshot and schedule publish, this should *not* modify
+            // HAS in any way
+            hm.publishQueuedHistory();
+
+            // First, ensure bucket references are intact
+            auto pqb = hm.getBucketsReferencedByPublishQueue();
+            REQUIRE(queuedHAS.allBuckets() == pqb);
+
+            // Second, ensure `next` is in the exact same state as when it was
+            // queued
+            for (int i = 0; i < BucketList::kNumLevels; i++)
+            {
+                auto const& currentNext = bl.getLevel(i).getNext();
+                auto const& queuedNext = queuedHAS.currentBuckets[i].next;
+
+                // Verify state against potential race: HAS was queued with a
+                // merge still in-progress, then dequeued and made live
+                // (re-starting any merges in-progress) too early, possibly
+                // handing off already resolved merges to publish work.
+                REQUIRE(currentNext.hasOutputHash() ==
+                        queuedNext.hasOutputHash());
+                REQUIRE(currentNext.isClear() == queuedNext.isClear());
+            }
+        });
 }
 
 TEST_CASE("persist publish queue", "[history][publish][acceptance]")
