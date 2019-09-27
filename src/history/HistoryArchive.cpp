@@ -315,8 +315,8 @@ HistoryArchiveState::prepareForPublish(Application& app)
 
         auto snap =
             app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
-        if (Bucket::getBucketVersion(snap) >=
-            Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        if (!level.next.isClear() && Bucket::getBucketVersion(snap) >=
+                                         Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
         {
             level.next.clear();
         }
