@@ -30,12 +30,13 @@ ResolveSnapshotWork::onRun()
         return State::WORK_FAILURE;
     }
 
-    mSnapshot->mLocalState.resolveAnyReadyFutures();
     mSnapshot->mLocalState.prepareForPublish(mApp);
+    mSnapshot->mLocalState.resolveAnyReadyFutures();
     if ((mApp.getLedgerManager().getLastClosedLedgerNum() >
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
+        assert(mSnapshot->mLocalState.containsValidBuckets(mApp));
         return State::WORK_SUCCESS;
     }
     else
