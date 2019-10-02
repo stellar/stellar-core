@@ -146,53 +146,71 @@ TEST_CASE("load validators config", "[config]")
     c.load("testdata/stellar-core_example_validators.cfg");
     auto actualS = c.toString(c.QUORUM_SET);
     std::string expected = R"({
-   "t" : 3,
+   "t" : 4,
    "v" : [
       {
-         "t" : 4,
+         "t" : 3,
          "v" : [
-            "i1",
-            "j1",
             {
-               "t" : 3,
+               "t" : 4,
                "v" : [
-                  "h1",
-                  "f1",
-                  "g1",
+                  "i1",
+                  "j1",
+                  {
+                     "t" : 3,
+                     "v" : [
+                        "h1",
+                        "f1",
+                        "g1",
+                        {
+                           "t" : 2,
+                           "v" : [ "e1", "e2", "e3" ]
+                        }
+                     ]
+                  },
                   {
                      "t" : 2,
-                     "v" : [ "e1", "e2", "e3" ]
+                     "v" : [ "d2", "d1" ]
+                  },
+                  {
+                     "t" : 2,
+                     "v" : [ "c2", "c1" ]
                   }
                ]
             },
             {
                "t" : 2,
-               "v" : [ "d2", "d1" ]
+               "v" : [ "K1", "K2", "K3" ]
             },
             {
                "t" : 2,
-               "v" : [ "c2", "c1" ]
+               "v" : [ "a2", "a3", "a1" ]
+            },
+            {
+               "t" : 2,
+               "v" : [ "b1", "b2", "b3" ]
             }
          ]
       },
       {
          "t" : 2,
-         "v" : [ "K1", "K2", "K3" ]
+         "v" : [ "N3", "N1", "N2" ]
       },
       {
          "t" : 2,
-         "v" : [ "a2", "a3", "a1" ]
+         "v" : [ "L3", "L1", "L2" ]
       },
       {
          "t" : 2,
-         "v" : [ "b1", "b2", "b3" ]
+         "v" : [ "M1", "M2", "M3" ]
       }
    ]
 }
 )";
+
     REQUIRE(actualS == expected);
-    REQUIRE(c.KNOWN_PEERS.size() == 6);
-    REQUIRE(c.HISTORY.size() == 11);
+    REQUIRE(c.KNOWN_PEERS.size() == 15);
+    REQUIRE(c.HISTORY.size() == 20);
 }
 
 TEST_CASE("bad validators configs", "[config]")

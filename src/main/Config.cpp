@@ -43,24 +43,35 @@ static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
 namespace
 {
 // compute a default threshold for qset:
-// if simpleMajority is set and there are no inner sets, only require majority
-// (>50%) otherwise assume byzantine failures (~67%)
+// if thresholdLevel is SIMPLE_MAJORITY there are no inner sets, only
+// require majority
+// (>50%). If thresholdLevel is ALL_REQUIRED, require 100%, otherwise assume
+// byzantine failures (~67%)
 unsigned int
-computeDefaultThreshold(SCPQuorumSet const& qset, bool simpleMajority)
+computeDefaultThreshold(SCPQuorumSet const& qset,
+                        ValidationThresholdLevels thresholdLevel)
 {
     unsigned int res = 0;
     unsigned int topSize = static_cast<unsigned int>(qset.validators.size() +
                                                      qset.innerSets.size());
+
     if (topSize == 0)
     {
         // leave the quorum set empty
         return 0;
     }
-    if (simpleMajority && qset.innerSets.empty())
+
+    if (thresholdLevel == ValidationThresholdLevels::SIMPLE_MAJORITY &&
+        qset.innerSets.empty())
     {
         // n=2f+1
         // compute res = n - f
         res = topSize - (topSize - 1) / 2;
+    }
+    else if (thresholdLevel == ValidationThresholdLevels::ALL_REQUIRED)
+    {
+        // all are required
+        res = topSize;
     }
     else
     {
@@ -71,7 +82,6 @@ computeDefaultThreshold(SCPQuorumSet const& qset, bool simpleMajority)
     return res;
 }
 }
-
 Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
@@ -307,7 +317,8 @@ Config::addHistoryArchive(std::string const& name, std::string const& get,
     }
 }
 
-static std::array<std::string, 3> const kQualities = {"LOW", "MEDIUM", "HIGH"};
+static std::array<std::string, 4> const kQualities = {"LOW", "MEDIUM", "HIGH",
+                                                      "CRITICAL"};
 
 std::string
 Config::toString(ValidatorQuality q) const
@@ -430,13 +441,14 @@ Config::parseValidators(
         {
             addHistoryArchive(ve.mName, hist, "", "");
         }
-        if (ve.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY &&
+        if ((ve.mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY ||
+             ve.mQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY) &&
             hist.empty())
         {
-            throw std::invalid_argument(
-                fmt::format("malformed VALIDATORS entry {} (high quality must "
-                            "have an archive)",
-                            ve.mName));
+            throw std::invalid_argument(fmt::format(
+                "malformed VALIDATORS entry {} (critical and high quality must "
+                "have an archive)",
+                ve.mName));
         }
         res.emplace_back(ve);
     }
@@ -959,7 +971,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
 
         auto autoQSet = generateQuorumSet(validators);
         auto autoQSetStr = toString(autoQSet);
-        bool mixedDomains;
+        ValidationThresholdLevels thresholdLevel;
 
         if (t->contains("QUORUM_SET"))
         {
@@ -982,8 +994,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                     throw std::invalid_argument("SCP unsafe");
                 }
             }
-            mixedDomains =
-                true; // assume validators are from different entities
+            thresholdLevel = ValidationThresholdLevels::
+                BYZANTINE_FAULT_TOLERANCE; // assume validators are from
+                                           // different entities
         }
         else
         {
@@ -996,11 +1009,14 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 domains.insert(v.mHomeDomain);
             }
-            mixedDomains = domains.size() > 1;
+            thresholdLevel =
+                domains.size() > 1
+                    ? ValidationThresholdLevels::BYZANTINE_FAULT_TOLERANCE
+                    : ValidationThresholdLevels::SIMPLE_MAJORITY;
         }
 
         adjust();
-        validateConfig(mixedDomains);
+        validateConfig(thresholdLevel);
     }
     catch (cpptoml::parse_exception& ex)
     {
@@ -1123,7 +1139,7 @@ Config::logBasicInfo()
 }
 
 void
-Config::validateConfig(bool mixed)
+Config::validateConfig(ValidationThresholdLevels thresholdLevel)
 {
     std::set<NodeID> nodes;
     LocalNode::forAllNodes(QUORUM_SET,
@@ -1139,7 +1155,7 @@ Config::validateConfig(bool mixed)
     auto selfID = NODE_SEED.getPublicKey();
     auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes, nullptr);
 
-    unsigned int minSize = computeDefaultThreshold(QUORUM_SET, !mixed);
+    unsigned int minSize = computeDefaultThreshold(QUORUM_SET, thresholdLevel);
 
     if (FAILURE_SAFETY == -1)
     {
@@ -1405,13 +1421,17 @@ Config::generateQuorumSetHelper(
             vals.emplace_back(it2->mKey);
         }
         if (vals.size() < 3 &&
-            it->mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY)
+            (it->mQuality == ValidatorQuality::VALIDATOR_HIGH_QUALITY ||
+             it->mQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY))
         {
-            throw std::invalid_argument(fmt::format(
-                "High quality validator {} must have redundancy of at least 3",
-                it->mName));
+            throw std::invalid_argument(
+                fmt::format("Critical and High quality validators {} must have "
+                            "redundancy of at least 3",
+                            it->mName));
         }
-        innerSet.threshold = computeDefaultThreshold(innerSet, true);
+        innerSet.threshold = computeDefaultThreshold(
+            innerSet, ValidationThresholdLevels::SIMPLE_MAJORITY);
+
         ret.innerSets.emplace_back(innerSet);
         it = it2;
     }
@@ -1426,7 +1446,12 @@ Config::generateQuorumSetHelper(
         auto lowQ = generateQuorumSetHelper(it, end, it->mQuality);
         ret.innerSets.emplace_back(lowQ);
     }
-    ret.threshold = computeDefaultThreshold(ret, false);
+    auto thresholdLevel =
+        curQuality == ValidatorQuality::VALIDATOR_CRITICAL_QUALITY
+            ? ValidationThresholdLevels::ALL_REQUIRED
+            : ValidationThresholdLevels::BYZANTINE_FAULT_TOLERANCE;
+
+    ret.threshold = computeDefaultThreshold(ret, thresholdLevel);
     return ret;
 }
 
@@ -1449,7 +1474,7 @@ Config::generateQuorumSet(std::vector<ValidatorEntry> const& validators)
               });
 
     auto res = generateQuorumSetHelper(
-        todo.begin(), todo.end(), ValidatorQuality::VALIDATOR_HIGH_QUALITY);
+        todo.begin(), todo.end(), ValidatorQuality::VALIDATOR_CRITICAL_QUALITY);
     normalizeQSet(res);
     return res;
 }
