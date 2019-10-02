@@ -276,9 +276,9 @@ Here’s an example:
 HOME_DOMAIN="testnet.stellar.org"
 QUALITY="HIGH"
 
- [[HOME_DOMAINS]]
- HOME_DOMAIN="some-other-domain"
- QUALITY="LOW"
+[[HOME_DOMAINS]]
+HOME_DOMAIN="some-other-domain"
+QUALITY="LOW"
 ```
 
 #### Validators array
