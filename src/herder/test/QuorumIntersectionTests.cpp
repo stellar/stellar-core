@@ -291,7 +291,7 @@ interconnectOrgs(xdr::xvector<xdr::xvector<PublicKey>> const& orgs,
             }
             if (shouldDepend(i, j))
             {
-                CLOG(DEBUG, "SCP") << "dep: org#" << i << " => org#" << j;
+                CLOG(DEBUG, "Herder") << "dep: org#" << i << " => org#" << j;
                 auto& otherOrg = orgs.at(j);
                 auto thresh = roundUpPct(otherOrg.size(), innerThreshPct);
                 depOrgs.emplace_back(thresh, otherOrg, emptySet);
@@ -764,12 +764,12 @@ debugQmap(Config const& cfg, QuorumTracker::QuorumMap const& qm)
                 LocalNode::toJson(*pair.second, [&cfg](PublicKey const& k) {
                     return cfg.toShortString(k);
                 });
-            CLOG(DEBUG, "SCP")
+            CLOG(DEBUG, "Herder")
                 << "qmap[" << cfg.toShortString(pair.first) << "] = " << str;
         }
         else
         {
-            CLOG(DEBUG, "SCP")
+            CLOG(DEBUG, "Herder")
                 << "qmap[" << cfg.toShortString(pair.first) << "] = nullptr";
         }
     }
@@ -839,4 +839,62 @@ TEST_CASE("quorum intersection criticality",
         QuorumIntersectionChecker::getIntersectionCriticalGroups(qm, cfg);
     REQUIRE(groups.size() == 1);
     REQUIRE(groups == std::set<std::set<PublicKey>>{{orgs[3][0]}});
+}
+
+TEST_CASE("quorum intersection finds smaller SCC with quorums",
+          "[herder][quorumintersectionsize]")
+{
+    // This test checks that the SCC examined by the quorum intersection
+    // checker's enumeration phase is "the SCC that actually has quorums", even
+    // if it's not the largest one.
+    //
+    // We test this by manufacturing a large SCC A that contains no quorums and
+    // a smaller SCC B that contains quorums, and checking that we actually
+    // found some quorums (meaning: we scanned SCC B). Previously we picked the
+    // larger SCC no matter what, and this would cause the checker to focus on
+    // A and see "no quorums, vacuously enjoys intersection".
+    //
+    //
+    //     SCC A
+    //
+    //    org0 <--+
+    //      |     |
+    //      v     |
+    //    org1    |
+    //      |     |      SCC B
+    //      v     |
+    //    org2    |     org7 <-+
+    //      |     |      ^     |
+    //      |     |      |     |
+    //      v     |      v     |
+    //    org3    |     org6   |
+    //      |     |      ^     |
+    //      |     |      |     |
+    //      v     |      v     |
+    //    org4 ---+---> org5 <-+
+    //
+
+    auto orgs = generateOrgs(8, {1});
+    auto qm = interconnectOrgsUnidir(orgs,
+                                     {
+                                         {0, 1},
+                                         {1, 2},
+                                         {2, 3},
+                                         {3, 4},
+                                         {4, 0},
+                                         {4, 5},
+                                         {5, 6},
+                                         {6, 5},
+                                         {6, 7},
+                                         {7, 6},
+                                         {7, 5},
+                                         {5, 7},
+                                     },
+                                     /* ownThreshPct=*/100);
+    Config cfg(getTestConfig());
+    cfg = configureShortNames(cfg, orgs);
+    debugQmap(cfg, qm);
+    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    REQUIRE(qic->networkEnjoysQuorumIntersection());
+    REQUIRE(qic->getMaxQuorumsFound() != 0);
 }

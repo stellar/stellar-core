@@ -181,15 +181,16 @@ MinQuorumEnumerator::pickSplitNode() const
 size_t
 MinQuorumEnumerator::maxCommit() const
 {
-    return (mQic.mMaxSCC.count() / 2) + 1;
+    return (mScanSCC.count() / 2) + 1;
 }
 
 MinQuorumEnumerator::MinQuorumEnumerator(
-    BitSet const& committed, BitSet const& remaining,
+    BitSet const& committed, BitSet const& remaining, BitSet const& scanSCC,
     QuorumIntersectionCheckerImpl const& qic)
     : mCommitted(committed)
     , mRemaining(remaining)
     , mPerimeter(committed | remaining)
+    , mScanSCC(scanSCC)
     , mQic(qic)
 {
 }
@@ -245,7 +246,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
                     << "early exit 3.1: minimal quorum=" << committedQuorum;
             }
             mQic.mStats.mEarlyExit31s++;
-            return mQic.hasDisjointQuorum(committedQuorum);
+            return hasDisjointQuorum(committedQuorum);
         }
         if (mQic.mLogTrace)
         {
@@ -308,7 +309,8 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
         CLOG(TRACE, "SCP") << "recursing into subproblems, split=" << split;
     }
     mRemaining.unset(split);
-    MinQuorumEnumerator childExcludingSplit(mCommitted, mRemaining, mQic);
+    MinQuorumEnumerator childExcludingSplit(mCommitted, mRemaining, mScanSCC,
+                                            mQic);
     mQic.mStats.mFirstRecursionsTaken++;
     if (childExcludingSplit.anyMinQuorumHasDisjointQuorum())
     {
@@ -320,7 +322,8 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
         return true;
     }
     mCommitted.set(split);
-    MinQuorumEnumerator childIncludingSplit(mCommitted, mRemaining, mQic);
+    MinQuorumEnumerator childIncludingSplit(mCommitted, mRemaining, mScanSCC,
+                                            mQic);
     mQic.mStats.mSecondRecursionsTaken++;
     return childIncludingSplit.anyMinQuorumHasDisjointQuorum();
 }
@@ -359,7 +362,7 @@ QuorumIntersectionCheckerImpl::Stats::log() const
     size_t exits = (mEarlyExit1s + mEarlyExit21s + mEarlyExit22s +
                     mEarlyExit31s + mEarlyExit32s);
     CLOG(DEBUG, "SCP") << "[Nodes: " << mTotalNodes << ", SCCs: " << mNumSCCs
-                       << ", MaxSCC: " << mMaxSCC
+                       << ", ScanSCC: " << mScanSCCSize
                        << ", MaxQs:" << mMaxQuorumsSeen
                        << ", MinQs:" << mMinQuorumsSeen
                        << ", Calls:" << mCallsStarted
@@ -563,19 +566,19 @@ QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
 }
 
 bool
-QuorumIntersectionCheckerImpl::hasDisjointQuorum(BitSet const& nodes) const
+MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
 {
-    BitSet disj = contractToMaximalQuorum(mMaxSCC - nodes);
+    BitSet disj = mQic.contractToMaximalQuorum(mScanSCC - nodes);
     if (disj)
     {
-        noteFoundDisjointQuorums(nodes, disj);
+        mQic.noteFoundDisjointQuorums(nodes, disj);
     }
     else
     {
-        if (mLogTrace)
+        if (mQic.mLogTrace)
         {
             CLOG(TRACE, "SCP")
-                << "no quorum in complement  = " << (mMaxSCC - nodes);
+                << "no quorum in complement  = " << (mScanSCC - nodes);
         }
     }
     return disj;
@@ -674,18 +677,7 @@ void
 QuorumIntersectionCheckerImpl::buildSCCs()
 {
     mTSC.calculateSCCs();
-    mMaxSCC.clear();
-    for (auto const& scc : mTSC.mSCCs)
-    {
-        if (scc.count() > mMaxSCC.count())
-        {
-            mMaxSCC = scc;
-        }
-        CLOG(DEBUG, "SCP") << "Found " << scc.count() << "-node SCC " << scc;
-    }
-    CLOG(DEBUG, "SCP") << "Maximal SCC is " << mMaxSCC;
     mStats.mNumSCCs = mTSC.mSCCs.size();
-    mStats.mMaxSCC = mMaxSCC.count();
 }
 
 std::string
@@ -697,68 +689,74 @@ QuorumIntersectionCheckerImpl::nodeName(size_t node) const
 bool
 QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
 {
-    // First stage: check the graph-level SCCs for disjoint quorums,
-    // and filter out nodes that aren't in the main SCC.
-    bool foundDisjoint = false;
     size_t nNodes = mPubKeyBitNums.size();
     if (!mQuiet)
     {
         CLOG(INFO, "SCP") << "Calculating " << nNodes
                           << "-node network quorum intersection";
     }
+
+    // First stage: do a single pass over the SCCs searching for one with a
+    // quorum (on which to focus second stage enumeration); also note and bypass
+    // second stage exhaustive scan if there are _two_ such SCCs with quorums,
+    // as they necessarily contain disjoint min-quorums.
+    bool foundDisjoint = false;
+    BitSet scanSCC;
     for (auto const& scc : mTSC.mSCCs)
     {
-        if (scc == mMaxSCC)
+        if (auto q = contractToMaximalQuorum(scc))
         {
-            continue;
-        }
-        if (auto other = contractToMaximalQuorum(scc))
-        {
-            CLOG(DEBUG, "SCP") << "found SCC-disjoint quorum = " << other;
-            CLOG(DEBUG, "SCP") << "disjoint from quorum = "
-                               << contractToMaximalQuorum(mMaxSCC);
-            noteFoundDisjointQuorums(contractToMaximalQuorum(mMaxSCC), other);
-            foundDisjoint = true;
-            break;
+            if (scanSCC.empty())
+            {
+                // This is the first SCC with a quorum, we'll make it the
+                // scan SCC.
+                scanSCC = scc;
+                mStats.mScanSCCSize = scanSCC.count();
+                CLOG(DEBUG, "SCP") << "Found scan SCC: " << scc;
+                CLOG(DEBUG, "SCP") << "Containing quorum: " << q;
+                for (size_t i = 0; scanSCC.nextSet(i); ++i)
+                {
+                    CLOG(DEBUG, "SCP") << "SCC node to scan: " << nodeName(i);
+                }
+            }
+            else
+            {
+                CLOG(DEBUG, "SCP") << "Found extra SCC: " << scc;
+                CLOG(DEBUG, "SCP") << "Containing quorum: " << q;
+                noteFoundDisjointQuorums(contractToMaximalQuorum(scanSCC), q);
+                foundDisjoint = true;
+                break;
+            }
         }
         else
         {
             CLOG(DEBUG, "SCP") << "SCC contains no quorums = " << scc;
             for (size_t i = 0; scc.nextSet(i); ++i)
             {
-                CLOG(DEBUG, "SCP") << "Node outside main SCC: " << nodeName(i);
+                CLOG(DEBUG, "SCP") << "Node outside scan-SCC: " << nodeName(i);
             }
         }
     }
-    for (size_t i = 0; mMaxSCC.nextSet(i); ++i)
-    {
-        CLOG(DEBUG, "SCP") << "Main SCC node: " << nodeName(i);
-    }
 
-    auto q = contractToMaximalQuorum(mMaxSCC);
-    if (q)
-    {
-        CLOG(DEBUG, "SCP") << "Maximal main SCC quorum: " << q;
-    }
-    else
+    if (scanSCC.empty())
     {
         // We vacuously "enjoy quorum intersection" if there are no quorums,
         // though this is probably enough of a potential problem itself that
         // it's worth warning about.
         if (!mQuiet)
         {
-            CLOG(WARNING, "SCP") << "No quorum found in transitive closure "
+            CLOG(WARNING, "SCP") << "No quorums found in any SCC "
                                     "(possible network halt)";
         }
         return true;
     }
 
-    // Second stage: scan the main SCC powerset, potentially expensive.
+    // Second stage: scan the scan-SCC powerset, potentially expensive.
     if (!foundDisjoint)
     {
         BitSet committed;
-        BitSet remaining = mMaxSCC;
-        MinQuorumEnumerator mqe(committed, remaining, *this);
+        BitSet remaining = scanSCC;
+        MinQuorumEnumerator mqe(committed, remaining, scanSCC, *this);
         foundDisjoint = mqe.anyMinQuorumHasDisjointQuorum();
         mStats.log();
     }
