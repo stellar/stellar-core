@@ -1935,3 +1935,56 @@ TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
     REQUIRE_THROWS(executeUpgrade(*app, makeTxCountUpgrade(0)));
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
 }
+
+TEST_CASE("validate upgrade expiration logic", "[upgrades]")
+{
+    auto cfg = getTestConfig();
+    cfg.LEDGER_PROTOCOL_VERSION = 10;
+    cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 50;
+    cfg.TESTING_UPGRADE_RESERVE = 100000000;
+    cfg.TESTING_UPGRADE_DATETIME = genesis(0, 0);
+
+    auto header = LedgerHeader{};
+
+    // make sure the network info is different than what's armed
+    header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION - 1;
+    header.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE - 1;
+    header.baseReserve = cfg.TESTING_UPGRADE_RESERVE - 1;
+    header.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE - 1;
+
+    SECTION("remove expired upgrades")
+    {
+        header.scpValue.closeTime = VirtualClock::to_time_t(
+            cfg.TESTING_UPGRADE_DATETIME + Upgrades::UPDGRADE_EXPIRATION_HOURS);
+
+        bool updated = false;
+        auto upgrades = Upgrades{cfg}.removeUpgrades(
+            header.scpValue.upgrades.begin(), header.scpValue.upgrades.end(),
+            header.scpValue.closeTime, updated);
+
+        REQUIRE(updated);
+        REQUIRE(!upgrades.mProtocolVersion);
+        REQUIRE(!upgrades.mBaseFee);
+        REQUIRE(!upgrades.mMaxTxSize);
+        REQUIRE(!upgrades.mBaseReserve);
+    }
+
+    SECTION("upgrades not yet expired")
+    {
+        header.scpValue.closeTime = VirtualClock::to_time_t(
+            cfg.TESTING_UPGRADE_DATETIME + Upgrades::UPDGRADE_EXPIRATION_HOURS -
+            std::chrono::seconds(1));
+
+        bool updated = false;
+        auto upgrades = Upgrades{cfg}.removeUpgrades(
+            header.scpValue.upgrades.begin(), header.scpValue.upgrades.end(),
+            header.scpValue.closeTime, updated);
+
+        REQUIRE(!updated);
+        REQUIRE(upgrades.mProtocolVersion);
+        REQUIRE(upgrades.mBaseFee);
+        REQUIRE(upgrades.mMaxTxSize);
+        REQUIRE(upgrades.mBaseReserve);
+    }
+}
