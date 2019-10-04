@@ -271,6 +271,7 @@ CatchupWork::runCatchupStep()
                                  mVerifiedLedgerRangeStart,
                                  mCatchupConfiguration.mode());
                 mBucketsAppliedEmitted = true;
+                mBuckets.clear();
                 mLastApplied =
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
             }

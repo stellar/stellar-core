@@ -15,7 +15,7 @@ namespace stellar
 
 class DownloadBucketsWork : public BatchWork
 {
-    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+    std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     std::vector<std::string> mHashes;
     std::vector<std::string>::const_iterator mNextBucketIter;
     TmpDir const& mDownloadDir;
