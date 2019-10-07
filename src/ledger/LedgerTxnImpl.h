@@ -22,6 +22,19 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
+struct AssetPair
+{
+    Asset buying;
+    Asset selling;
+};
+
+bool operator==(AssetPair const& lhs, AssetPair const& rhs);
+
+struct AssetPairHash
+{
+    size_t operator()(AssetPair const& key) const;
+};
+
 // A defensive heuristic to ensure prefetching stops if entry cache is filling
 // up.
 static const double ENTRY_CACHE_FILL_RATIO = 0.5;
@@ -394,13 +407,17 @@ class LedgerTxnRoot::Impl
 
     typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
-    typedef std::string BestOffersCacheKey;
+    typedef AssetPair BestOffersCacheKey;
+
     struct BestOffersCacheEntry
     {
         std::list<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef RandomEvictionCache<std::string, BestOffersCacheEntry>
+    typedef std::shared_ptr<BestOffersCacheEntry> BestOffersCacheEntryPtr;
+
+    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntryPtr,
+                                AssetPairHash>
         BestOffersCache;
 
     Database& mDatabase;
@@ -470,9 +487,8 @@ class LedgerTxnRoot::Impl
                          std::shared_ptr<LedgerEntry const> const& entry,
                          LoadType type) const;
 
-    BestOffersCacheEntry&
-    getFromBestOffersCache(Asset const& buying, Asset const& selling,
-                           BestOffersCacheEntry& defaultValue) const;
+    BestOffersCacheEntryPtr getFromBestOffersCache(Asset const& buying,
+                                                   Asset const& selling) const;
 
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadAccounts(std::unordered_set<LedgerKey> const& keys) const;

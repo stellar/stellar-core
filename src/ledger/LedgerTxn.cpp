@@ -52,6 +52,19 @@ populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
     return res;
 }
 
+bool
+operator==(AssetPair const& lhs, AssetPair const& rhs)
+{
+    return lhs.buying == rhs.buying && lhs.selling == rhs.selling;
+}
+
+size_t
+AssetPairHash::operator()(AssetPair const& key) const
+{
+    std::hash<Asset> hashAsset;
+    return hashAsset(key.buying) ^ (hashAsset(key.selling) << 1);
+}
+
 // Implementation of AbstractLedgerTxnParent --------------------------------
 AbstractLedgerTxnParent::~AbstractLedgerTxnParent()
 {
@@ -1749,14 +1762,13 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).
-    BestOffersCacheEntry emptyCacheEntry{{}, false};
-    auto& cached = getFromBestOffersCache(buying, selling, emptyCacheEntry);
-    auto& offers = cached.bestOffers;
+    auto cached = getFromBestOffersCache(buying, selling);
+    auto& offers = cached->bestOffers;
 
     auto res = findIncludedOffer(offers.cbegin(), offers.cend(), exclude);
 
     size_t const BATCH_SIZE = 5;
-    while (!res && !cached.allLoaded)
+    while (!res && !cached->allLoaded)
     {
         std::list<LedgerEntry>::const_iterator newOfferIter;
         try
@@ -1778,7 +1790,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
         if (std::distance(newOfferIter, offers.cend()) < BATCH_SIZE)
         {
-            cached.allLoaded = true;
+            cached->allLoaded = true;
         }
         res = findIncludedOffer(newOfferIter, offers.cend(), exclude);
     }
@@ -1978,22 +1990,22 @@ LedgerTxnRoot::Impl::putInEntryCache(
     }
 }
 
-LedgerTxnRoot::Impl::BestOffersCacheEntry&
-LedgerTxnRoot::Impl::getFromBestOffersCache(
-    Asset const& buying, Asset const& selling,
-    BestOffersCacheEntry& defaultValue) const
+LedgerTxnRoot::Impl::BestOffersCacheEntryPtr
+LedgerTxnRoot::Impl::getFromBestOffersCache(Asset const& buying,
+                                            Asset const& selling) const
 {
     try
     {
-        auto cacheKey = binToHex(xdr::xdr_to_opaque(buying)) +
-                        binToHex(xdr::xdr_to_opaque(selling));
-        if (!mBestOffersCache.exists(cacheKey))
+        BestOffersCacheKey cacheKey{buying, selling};
+        if (mBestOffersCache.exists(cacheKey))
         {
-            mBestOffersCache.put(cacheKey, defaultValue);
+            return mBestOffersCache.get(cacheKey);
         }
-        return mBestOffersCache.exists(cacheKey)
-                   ? mBestOffersCache.get(cacheKey)
-                   : defaultValue;
+
+        auto emptyPtr = std::make_shared<BestOffersCacheEntry>(
+            BestOffersCacheEntry{{}, false});
+        mBestOffersCache.put(cacheKey, emptyPtr);
+        return emptyPtr;
     }
     catch (...)
     {
