@@ -22,6 +22,10 @@ void for_versions_with_differing_bucket_logic(
     stellar::Config const& cfg,
     std::function<void(stellar::Config const&)> const& f);
 
+void for_versions_with_differing_initentry_logic(
+    stellar::Config const& cfg,
+    std::function<void(stellar::Config const&)> const& f);
+
 struct EntryCounts
 {
     size_t nMeta{0};

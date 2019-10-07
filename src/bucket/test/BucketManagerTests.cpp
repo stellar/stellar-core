@@ -520,7 +520,7 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
     stellar::historytestutils::TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
 
-    {
+    for_versions_with_differing_bucket_logic(cfg, [&](Config const& cfg) {
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
         auto vers = getAppLedgerVersion(app);
@@ -557,22 +557,24 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
         REQUIRE(HASs.size() == 5);
         for (auto& has : HASs)
         {
-            for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
-            {
-                if (has.currentBuckets[level].next.hasHashes())
-                {
-                    has.currentBuckets[level].next.makeLive(
-                        *app, vers, BucketList::keepDeadEntries(level));
-                }
-            }
+            has.prepareForPublish(*app);
         }
 
-        // This is the key check of the test: re-enabling the merges worked
-        // and caused a bunch of finished-merge reattachments.
         auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
-        REQUIRE(ra != oldReattachments);
-        CLOG(INFO, "Bucket")
-            << "finished-merge reattachments after making-live: " << ra;
+        if (vers < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        {
+            // Versions prior to FIRST_PROTOCOL_SHADOWS_REMOVED re-attach to
+            // finished merges
+            REQUIRE(ra > oldReattachments);
+            CLOG(INFO, "Bucket")
+                << "finished-merge reattachments after making-live: " << ra;
+        }
+        else
+        {
+            // Versions after FIRST_PROTOCOL_SHADOWS_REMOVED do not re-attach,
+            // because merges are cleared
+            REQUIRE(ra == oldReattachments);
+        }
 
         // Un-cork the publication process, nothing should be broken.
         hm.setPublicationEnabled(true);
@@ -584,7 +586,7 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
             ExternalQueue ps(*app);
             ps.deleteOldEntries(50000);
         }
-    }
+    });
 }
 
 // Running one of these tests involves comparing three timelines with different
