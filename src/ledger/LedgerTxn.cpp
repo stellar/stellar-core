@@ -1461,7 +1461,6 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // Clearing the cache does not throw
     mBestOffersCache.clear();
     mEntryCache.clear();
-    mPrefetchMetrics.clear();
 
     // std::unique_ptr<...>::reset does not throw
     mTransaction.reset();
@@ -1878,11 +1877,6 @@ LedgerTxnRoot::Impl::getNewestVersion(LedgerKey const& key) const
     {
         return getFromEntryCache(key);
     }
-    else
-    {
-        auto& metrics = mPrefetchMetrics[key];
-        ++metrics.misses;
-    }
 
     std::shared_ptr<LedgerEntry const> entry;
     try
@@ -1957,13 +1951,6 @@ LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
         auto cached = mEntryCache.get(key);
         if (cached.type == LoadType::PREFETCH)
         {
-            auto metric = mPrefetchMetrics.find(key);
-            if (metric == mPrefetchMetrics.end())
-            {
-                throw std::runtime_error(
-                    "Inconsistent state when retrieving entry from cache");
-            }
-            ++metric->second.hits;
             ++mTotalPrefetchHits;
         }
         return cached.entry;
@@ -1983,15 +1970,6 @@ LedgerTxnRoot::Impl::putInEntryCache(
     try
     {
         mEntryCache.put(key, {entry, type});
-        if (type == LoadType::PREFETCH)
-        {
-            if (mPrefetchMetrics.find(key) != mPrefetchMetrics.end())
-            {
-                throw std::runtime_error(
-                    "Inconsistent state when putting entry into cache");
-            }
-            mPrefetchMetrics.emplace(key, KeyAccesses{});
-        }
     }
     catch (...)
     {
