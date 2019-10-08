@@ -1487,12 +1487,13 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             // Check several subtle characteristics of the post-upgrade
             // environment:
             //   - Old-protocol merges stop happening (there should have
-            //     been 6 before the upgrade, and we stop there.)
+            //     been 6 before the upgrade, but we re-use a merge we did at
+            //     ledger 1 for ledger 2 spill, so the counter is at 5)
             //   - New-protocol merges start happening.
             //   - At the upgrade (5), we find 1 INITENTRY in lev[0].curr
             //   - The next two (6, 7), propagate INITENTRYs to lev[0].snap
             //   - From 8 on, the INITENTRYs propagate to lev[1].curr
-            REQUIRE(mc.mPreInitEntryProtocolMerges == 6);
+            REQUIRE(mc.mPreInitEntryProtocolMerges == 5);
             REQUIRE(mc.mPostInitEntryProtocolMerges != 0);
             auto& lev0 = bm.getBucketList().getLevel(0);
             auto& lev1 = bm.getBucketList().getLevel(1);
@@ -1601,25 +1602,25 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                 // One more old-style merge despite the upgrade
                 // At ledger 8, level 2 spills, and starts an old-style merge,
                 // as level 1 snap is still of old version
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 7);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
                 break;
             case 7:
                 REQUIRE(getVers(lev0Snap) == newProto);
                 REQUIRE(getVers(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 4);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
                 break;
             case 6:
                 REQUIRE(getVers(lev0Snap) == newProto);
                 REQUIRE(getVers(lev1Curr) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 3);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
                 break;
             case 5:
                 REQUIRE(getVers(lev0Curr) == newProto);
                 REQUIRE(getVers(lev0Snap) == oldProto);
                 REQUIRE(mc.mPostShadowRemovalProtocolMerges == 1);
-                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 6);
+                REQUIRE(mc.mPreShadowRemovalProtocolMerges == 5);
                 break;
             default:
                 break;
