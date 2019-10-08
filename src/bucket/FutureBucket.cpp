@@ -317,8 +317,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     // deserialized. In this case we want to attach to the existing merge, which
     // will have left a std::shared_future behind in a shared cache in the
     // bucket manager.
-    MergeKey mk{maxProtocolVersion, BucketList::keepDeadEntries(level), curr,
-                snap, shadows};
+    MergeKey mk{BucketList::keepDeadEntries(level), curr, snap, shadows};
     auto f = bm.getMergeFuture(mk);
     if (f.valid())
     {
