@@ -25,6 +25,7 @@ class ApplyBucketsWork : public BasicWork
 {
     std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
     HistoryArchiveState const& mApplyState;
+    bool mHaveCheckedApplyStateValidity{false};
 
     bool mApplying{false};
     size_t mTotalBuckets{0};
