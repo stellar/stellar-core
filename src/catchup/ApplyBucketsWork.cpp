@@ -149,11 +149,14 @@ ApplyBucketsWork::startLevel()
 BasicWork::State
 ApplyBucketsWork::onRun()
 {
-    if (mLevel == BucketList::kNumLevels - 1 &&
-        !mApplyState.containsValidBuckets(mApp))
+    if (!mHaveCheckedApplyStateValidity && mLevel == BucketList::kNumLevels - 1)
     {
-        CLOG(ERROR, "History") << "Malformed HAS: unable to apply buckets";
-        return State::WORK_FAILURE;
+        if (!mApplyState.containsValidBuckets(mApp))
+        {
+            CLOG(ERROR, "History") << "Malformed HAS: unable to apply buckets";
+            return State::WORK_FAILURE;
+        }
+        mHaveCheckedApplyStateValidity = true;
     }
 
     if (mResolveMerges && mDelayTimer)
