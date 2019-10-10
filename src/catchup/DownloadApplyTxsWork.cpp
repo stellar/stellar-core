@@ -16,13 +16,14 @@ namespace stellar
 
 DownloadApplyTxsWork::DownloadApplyTxsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
-    LedgerHeaderHistoryEntry& lastApplied)
+    LedgerHeaderHistoryEntry& lastApplied, bool waitForPublish)
     : BatchWork(app, "download-apply-ledgers")
     , mRange(range)
     , mDownloadDir(downloadDir)
     , mLastApplied(lastApplied)
     , mCheckpointToQueue(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
+    , mWaitForPublish(waitForPublish)
 {
 }
 
@@ -53,13 +54,40 @@ DownloadApplyTxsWork::yieldMoreWork()
     if (mLastYieldedWork)
     {
         auto prev = mLastYieldedWork;
-        auto predicate = [prev]() {
+        bool pqFellBehind = false;
+        auto predicate = [
+            prev, pqFellBehind, waitForPublish = mWaitForPublish, &hm
+        ]() mutable
+        {
             if (!prev)
             {
                 throw std::runtime_error("Download and apply txs: related Work "
                                          "is destroyed unexpectedly");
             }
-            return prev->getState() == State::WORK_SUCCESS;
+
+            // First, ensure download work is finished
+            if (prev->getState() != State::WORK_SUCCESS)
+            {
+                return false;
+            }
+
+            // Second, check if publish queue isn't too far off
+            bool res = true;
+            if (waitForPublish)
+            {
+                auto length = hm.publishQueueLength();
+                if (length <= CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION)
+                {
+                    pqFellBehind = false;
+                }
+                else if (length > CatchupWork::PUBLISH_QUEUE_MAX_SIZE)
+                {
+                    pqFellBehind = true;
+                }
+                res = !pqFellBehind;
+            }
+
+            return res;
         };
         seq.push_back(std::make_shared<ConditionalWork>(
             mApp, "conditional-" + apply->getName(), predicate, apply));

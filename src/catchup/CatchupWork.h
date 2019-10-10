@@ -110,6 +110,15 @@ class CatchupWork : public Work
         FAILED
     };
 
+    // Resume application when publish queue shrinks down to this many
+    // checkpoints
+    static uint32_t const PUBLISH_QUEUE_UNBLOCK_APPLICATION;
+
+    // Allow at most this many checkpoints in the publish queue while catching
+    // up. If the queue grows too big, ApplyCheckpointWork will wait until
+    // enough snapshots were published, and unblock itself.
+    static uint32_t const PUBLISH_QUEUE_MAX_SIZE;
+
     // ProgressHandler is called in different phases of catchup with following
     // values of ProgressState argument:
     // - APPLIED_BUCKETS - called after buckets had been applied at lastClosed

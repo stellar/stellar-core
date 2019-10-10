@@ -27,11 +27,13 @@ class DownloadApplyTxsWork : public BatchWork
     LedgerHeaderHistoryEntry& mLastApplied;
     uint32_t mCheckpointToQueue;
     std::shared_ptr<BasicWork> mLastYieldedWork;
+    bool const mWaitForPublish;
 
   public:
     DownloadApplyTxsWork(Application& app, TmpDir const& downloadDir,
                          LedgerRange const& range,
-                         LedgerHeaderHistoryEntry& lastApplied);
+                         LedgerHeaderHistoryEntry& lastApplied,
+                         bool waitForPublish);
 
   protected:
     bool hasNext() const override;
