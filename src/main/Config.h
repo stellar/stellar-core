@@ -319,6 +319,13 @@ class Config : public std::enable_shared_from_this<Config>
     // the entry cache
     size_t PREFETCH_BATCH_SIZE;
 
+#ifdef BUILD_TESTS
+    // If set to true, the application will be aware this run is for a test
+    // case.  This is used right now in the signal handler to exit() instead of
+    // doing a graceful shutdown
+    bool TEST_CASES_ENABLED;
+#endif
+
     Config();
 
     void load(std::string const& filename);

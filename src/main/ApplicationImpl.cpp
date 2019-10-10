@@ -96,6 +96,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         if (!ec)
         {
             LOG(INFO) << "got signal " << sig << ", shutting down";
+
+#ifdef BUILD_TESTS
+            if (mConfig.TEST_CASES_ENABLED)
+            {
+                exit(1);
+            }
+#endif
             this->gracefulStop();
         }
     });
