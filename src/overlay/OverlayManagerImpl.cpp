@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/OverlayManagerImpl.h"
-#include "crypto/ByteSliceHasher.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
+#include "crypto/ShortHash.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -954,8 +954,7 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
     }
 
     size_t size = xdr::xdr_argpack_size(stellarMsg);
-    auto opaque = xdr::xdr_to_opaque(stellarMsg);
-    auto hash = shortHash::computeHash(ByteSlice(opaque));
+    auto hash = shortHash::xdrComputeHash(stellarMsg);
     if (mMessageCache.exists(hash))
     {
         if (flood)

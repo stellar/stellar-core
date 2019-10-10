@@ -180,3 +180,11 @@ lib/util/cbitset.{c,h} and cbitset_portability.h
   https://github.com/lemire/cbitset
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
+
+lib/util/siphash.{cpp,h}
+
+  SipHash C++ implementation
+  Copyright 2016 Isaac Whitfield
+  (https://github.com/whitfin/siphash-cpp)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
