@@ -14,7 +14,11 @@
 
 #ifdef _WIN32
 #include <direct.h>
-#include <filesystem>
+
+// Latest version of VC++ complains without this define (confused by C++ 17)
+#define _SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING 1
+#include <experimental/filesystem>
+
 #include <io.h>
 #else
 #include <dirent.h>

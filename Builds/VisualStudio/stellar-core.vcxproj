@@ -252,6 +252,7 @@ exit /b 0
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\easylogging++.cc" />
+    <ClCompile Include="..\..\lib\util\siphash.cpp" />
     <ClCompile Include="..\..\src\bucket\Bucket.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp" />
@@ -276,17 +277,18 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\test\CatchupWorkTests.cpp" />
     <ClCompile Include="..\..\src\catchup\DownloadApplyTxsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp" />
-    <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp" />
     <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
     <ClCompile Include="..\..\src\crypto\KeyUtils.cpp" />
     <ClCompile Include="..\..\src\crypto\Random.cpp" />
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
+    <ClCompile Include="..\..\src\crypto\ShortHash.cpp" />
     <ClCompile Include="..\..\src\crypto\SignerKey.cpp" />
     <ClCompile Include="..\..\src\crypto\SignerKeyUtils.cpp" />
     <ClCompile Include="..\..\src\crypto\StrKey.cpp" />
     <ClCompile Include="..\..\src\crypto\test\CryptoTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\test\ShortHashTests.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseConnectionString.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseUtils.cpp" />
@@ -568,6 +570,7 @@ exit /b 0
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\catch.hpp" />
+    <ClInclude Include="..\..\lib\util\siphash.h" />
     <ClInclude Include="..\..\src\bucket\Bucket.h" />
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h" />
     <ClInclude Include="..\..\src\bucket\BucketInputIterator.h" />
@@ -593,16 +596,17 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
-    <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h" />
     <ClInclude Include="..\..\src\crypto\ECDH.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
     <ClInclude Include="..\..\src\crypto\KeyUtils.h" />
     <ClInclude Include="..\..\src\crypto\Random.h" />
     <ClInclude Include="..\..\src\crypto\SecretKey.h" />
     <ClInclude Include="..\..\src\crypto\SHA.h" />
+    <ClInclude Include="..\..\src\crypto\ShortHash.h" />
     <ClInclude Include="..\..\src\crypto\SignerKey.h" />
     <ClInclude Include="..\..\src\crypto\SignerKeyUtils.h" />
     <ClInclude Include="..\..\src\crypto\StrKey.h" />
+    <ClInclude Include="..\..\src\crypto\XDRHasher.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\database\DatabaseConnectionString.h" />
     <ClInclude Include="..\..\src\database\DatabaseTypeSpecificOperation.h" />

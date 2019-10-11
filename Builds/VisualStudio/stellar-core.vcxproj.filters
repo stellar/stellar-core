@@ -450,9 +450,6 @@
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\ByteSliceHasher.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\crypto\ECDH.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
@@ -993,6 +990,15 @@
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\lib\util\siphash.cpp">
+      <Filter>lib\util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\ShortHash.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\test\ShortHashTests.cpp">
+      <Filter>crypto\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1344,9 +1350,6 @@
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\ByteSlice.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\ByteSliceHasher.h">
       <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\ECDH.h">
@@ -1714,6 +1717,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\siphash.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ShortHash.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\XDRHasher.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
