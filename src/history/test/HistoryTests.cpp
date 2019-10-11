@@ -529,6 +529,18 @@ TEST_CASE("History catchup", "[history][catchup][acceptance]")
     }
 }
 
+TEST_CASE("Publish throttles catchup", "[history][catchup][acceptance]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(20);
+    catchupSimulation.ensureLedgerAvailable(checkpointLedger + 1);
+    catchupSimulation.ensurePublishesComplete();
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        "app", /* publish */ true);
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger));
+}
+
 TEST_CASE("History catchup with different modes",
           "[history][catchup][acceptance]")
 {
@@ -763,9 +775,9 @@ TEST_CASE("Publish catchup alternation with stall",
     // Publish in simulation, catch up in completeApp and minimalApp.
     // CompleteApp will catch up using CATCHUP_COMPLETE, minimalApp will use
     // CATCHUP_MINIMAL.
-    auto checkpoint = 3;
+    int checkpoints = 3;
     auto checkpointLedger =
-        catchupSimulation.getLastCheckpointLedger(checkpoint);
+        catchupSimulation.getLastCheckpointLedger(checkpoints);
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
     auto completeApp = catchupSimulation.createCatchupApplication(
@@ -780,9 +792,9 @@ TEST_CASE("Publish catchup alternation with stall",
     for (int i = 1; i < 4; ++i)
     {
         // Now alternate between publishing new stuff and catching up to it.
-        checkpoint += i;
+        checkpoints += i;
         checkpointLedger =
-            catchupSimulation.getLastCheckpointLedger(checkpoint);
+            catchupSimulation.getLastCheckpointLedger(checkpoints);
         catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
 
         REQUIRE(

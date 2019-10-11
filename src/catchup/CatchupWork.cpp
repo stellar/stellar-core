@@ -24,6 +24,9 @@
 namespace stellar
 {
 
+uint32_t const CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION = 16;
+uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 32;
+
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
                          ProgressHandler progressHandler)
@@ -156,10 +159,12 @@ CatchupWork::assertBucketState()
 void
 CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 {
+    auto waitForPublish =
+        mCatchupConfiguration.mode() == CatchupConfiguration::Mode::OFFLINE;
     auto range =
         LedgerRange{catchupRange.mLedgers.mFirst, catchupRange.getLast()};
     mTransactionsVerifyApplySeq = std::make_shared<DownloadApplyTxsWork>(
-        mApp, *mDownloadDir, range, mLastApplied);
+        mApp, *mDownloadDir, range, mLastApplied, waitForPublish);
 }
 
 BasicWork::State

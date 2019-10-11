@@ -31,7 +31,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
                     fmt::format("{}-{}", range.mFirst, range.mLast),
                 BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
-    , mCheckpointRange(range)
+    , mLedgerRange(range)
     , mCheckpoint(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
     , mApplyLedgerSuccess(app.getMetrics().NewMeter(
@@ -43,12 +43,12 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
     auto const& hm = mApp.getHistoryManager();
     auto low = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
                         hm.prevCheckpointLedger(mCheckpoint));
-    if (mCheckpointRange.mFirst != low)
+    if (mLedgerRange.mFirst != low)
     {
         throw std::runtime_error(
             "Ledger range start must be aligned with checkpoint start");
     }
-    if (mCheckpointRange.mLast > mCheckpoint)
+    if (mLedgerRange.mLast > mCheckpoint)
     {
         throw std::runtime_error(
             "Ledger range must span at most 1 checkpoint worth of ledgers");
@@ -267,7 +267,7 @@ ApplyCheckpointWork::onRun()
 
         auto result = applyHistoryOfSingleLedger();
         auto const& lm = mApp.getLedgerManager();
-        auto done = lm.getLastClosedLedgerNum() == mCheckpointRange.mLast;
+        auto done = lm.getLastClosedLedgerNum() == mLedgerRange.mLast;
 
         if (done)
         {

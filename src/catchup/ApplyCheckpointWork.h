@@ -45,7 +45,7 @@ struct LedgerHeaderHistoryEntry;
 class ApplyCheckpointWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
-    LedgerRange const mCheckpointRange;
+    LedgerRange const mLedgerRange;
     uint32_t const mCheckpoint;
 
     XDRInputFileStream mHdrIn;
