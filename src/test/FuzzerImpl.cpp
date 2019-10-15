@@ -89,8 +89,8 @@ class FuzzTransactionFrame : public TransactionFrame
         // protocols < 8, this triggered buggy caching, and potentially may do
         // so in the future
         loadSourceAccount(ltx, ltx.loadHeader());
-        TransactionMeta tm(1);
-        applyOperations(signatureChecker, app, ltx, tm.v1());
+        TransactionMeta tm(2);
+        applyOperations(signatureChecker, app, ltx, tm);
     }
 };
 

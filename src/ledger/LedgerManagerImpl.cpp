@@ -1065,7 +1065,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
-        TransactionMeta tm(1);
+        TransactionMeta tm(mApp.getConfig().SUPPORTED_META_VERSION);
         try
         {
             CLOG(DEBUG, "Tx")
@@ -1073,7 +1073,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 << " ops=" << tx->getOperations().size()
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
-            tx->apply(mApp, ltx, tm.v1());
+            tx->apply(mApp, ltx, tm);
         }
         catch (InvariantDoesNotHold&)
         {
