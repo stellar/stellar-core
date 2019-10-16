@@ -126,6 +126,8 @@ class BucketManager : NonMovableOrCopyable
                       size_t nObjects, size_t nBytes,
                       MergeKey* mergeKey = nullptr) = 0;
 
+    virtual void noteEmptyMergeOutput(MergeKey const& mergeKey) = 0;
+
     // Return a bucket by hash if we have it, else return nullptr.
     virtual std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) = 0;
 

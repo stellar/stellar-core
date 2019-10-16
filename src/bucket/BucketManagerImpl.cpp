@@ -374,6 +374,22 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     return b;
 }
 
+void
+BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
+{
+    // We _do_ want to remove the mergeKey from mLiveFutures, both so that that
+    // map does not grow without bound and more importantly so that we drop the
+    // refcount on the input buckets so they get GC'ed from the bucket dir.
+    //
+    // But: we do _not_ want to store the empty merge in mFinishedMerges,
+    // despite it being a theoretically meaningful place to record empty merges,
+    // because it'd over-identify multiple individual inputs with the empty
+    // output, potentially retaining far too many inputs, as lots of different
+    // mergeKeys result in an empty output.
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    mLiveFutures.erase(mergeKey);
+}
+
 std::shared_ptr<Bucket>
 BucketManagerImpl::getBucketByHash(uint256 const& hash)
 {
