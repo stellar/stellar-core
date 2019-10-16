@@ -123,6 +123,10 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         assert(mBytesPut == 0);
         CLOG(DEBUG, "Bucket") << "Deleting empty bucket file " << mFilename;
         std::remove(mFilename.c_str());
+        if (mergeKey)
+        {
+            bucketManager.noteEmptyMergeOutput(*mergeKey);
+        }
         return std::make_shared<Bucket>();
     }
     return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),

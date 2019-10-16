@@ -95,6 +95,7 @@ class BucketManagerImpl : public BucketManager
     adoptFileAsBucket(std::string const& filename, uint256 const& hash,
                       size_t nObjects, size_t nBytes,
                       MergeKey* mergeKey = nullptr) override;
+    void noteEmptyMergeOutput(MergeKey const& mergeKey) override;
     std::shared_ptr<Bucket> getBucketByHash(uint256 const& hash) override;
 
     std::shared_future<std::shared_ptr<Bucket>>
