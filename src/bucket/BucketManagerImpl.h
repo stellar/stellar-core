@@ -63,7 +63,6 @@ class BucketManagerImpl : public BucketManager
     // alive. Needs to be queried and updated on mSharedBuckets GC events.
     BucketMergeMap mFinishedMerges;
 
-    std::set<Hash> getReferencedBuckets() const;
     void cleanupStaleFiles();
     void cleanDir();
     bool renameBucket(std::string const& src, std::string const& dst);
@@ -85,7 +84,7 @@ class BucketManagerImpl : public BucketManager
     void initialize() override;
     void dropAll() override;
     std::string const& getTmpDir() override;
-    std::string const& getBucketDir() override;
+    std::string const& getBucketDir() const override;
     BucketList& getBucketList() override;
     medida::Timer& getMergeTimer() override;
     MergeCounters readMergeCounters() override;
@@ -120,8 +119,11 @@ class BucketManagerImpl : public BucketManager
     // testing in a specific type of history replay.
     void setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
                                               uint256 const& hash) override;
+
+    std::set<Hash> getBucketHashesInBucketDirForTesting() const override;
 #endif
 
+    std::set<Hash> getReferencedBuckets() const override;
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has,
