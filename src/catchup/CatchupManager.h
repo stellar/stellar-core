@@ -30,6 +30,7 @@ class CatchupManager
 
     // Run catchup with given configuration and verify mode.
     virtual void catchupHistory(CatchupConfiguration catchupConfiguration,
+                                std::shared_ptr<HistoryArchive> archive,
                                 CatchupWork::ProgressHandler handler) = 0;
 
     // Return status of catchup for or empty string, if no catchup in progress

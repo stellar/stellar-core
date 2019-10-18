@@ -141,7 +141,8 @@ class CatchupWork : public Work
         CatchupConfiguration::Mode catchupMode)>;
 
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
-                ProgressHandler progressHandler);
+                ProgressHandler progressHandler,
+                std::shared_ptr<HistoryArchive> archive = nullptr);
     virtual ~CatchupWork();
     std::string getStatus() const override;
 
@@ -151,6 +152,7 @@ class CatchupWork : public Work
     LedgerHeaderHistoryEntry mVerifiedLedgerRangeStart;
     LedgerHeaderHistoryEntry mLastApplied;
     ProgressHandler mProgressHandler;
+    std::shared_ptr<HistoryArchive> mArchive;
     bool mBucketsAppliedEmitted{false};
 
     std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;

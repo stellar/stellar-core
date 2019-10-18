@@ -148,7 +148,8 @@ class LedgerManager
     // LedgerManager detects it is desynchronized from SCP's consensus ledger.
     // This method is present in the public interface to permit testing and
     // offline catchups.
-    virtual void startCatchup(CatchupConfiguration configuration) = 0;
+    virtual void startCatchup(CatchupConfiguration configuration,
+                              std::shared_ptr<HistoryArchive> archive) = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of

@@ -16,7 +16,8 @@ namespace stellar
 
 DownloadApplyTxsWork::DownloadApplyTxsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
-    LedgerHeaderHistoryEntry& lastApplied, bool waitForPublish)
+    LedgerHeaderHistoryEntry& lastApplied, bool waitForPublish,
+    std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app, "download-apply-ledgers")
     , mRange(range)
     , mDownloadDir(downloadDir)
@@ -24,6 +25,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
     , mCheckpointToQueue(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
     , mWaitForPublish(waitForPublish)
+    , mArchive(archive)
 {
 }
 
@@ -40,7 +42,8 @@ DownloadApplyTxsWork::yieldMoreWork()
                           << " for checkpoint " << mCheckpointToQueue;
     FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS,
                         mCheckpointToQueue);
-    auto getAndUnzip = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft);
+    auto getAndUnzip =
+        std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
     auto const& hm = mApp.getHistoryManager();
     auto low = std::max(LedgerManager::GENESIS_LEDGER_SEQ,

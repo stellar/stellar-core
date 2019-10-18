@@ -4,6 +4,7 @@
 
 #include "main/CommandLine.h"
 #include "catchup/CatchupConfiguration.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/InferredQuorumUtils.h"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
@@ -14,6 +15,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 #include "util/optional.h"
+#include "util/types.h"
 
 #include "catchup/simulation/ApplyTransactionsWork.h"
 #include "historywork/BatchDownloadWork.h"
@@ -203,6 +205,13 @@ disableBucketGCParser(bool& disableBucketGC)
 {
     return clara::Opt{disableBucketGC}["--disable-bucket-gc"](
         "keeps all, even old, buckets on disk");
+}
+
+clara::Opt
+historyArchiveParser(std::string& archive)
+{
+    return clara::Opt(archive, "ARCHIVE-NAME")["--archive"](
+        "Archive name to be used for catchup. Use 'any' to select randomly");
 }
 
 clara::Opt
@@ -459,6 +468,7 @@ runCatchup(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
     std::string catchupString;
     std::string outputFile;
+    std::string archive;
 
     auto validateCatchupString = [&] {
         try
@@ -471,15 +481,33 @@ runCatchup(CommandLineArgs const& args)
             return std::string{e.what()};
         }
     };
+
+    auto validateCatchupArchive = [&] {
+        if (iequals(archive, "any") || archive.empty())
+        {
+            return std::string{};
+        }
+
+        auto config = configOption.getConfig();
+        if (config.HISTORY.find(archive) != config.HISTORY.end())
+        {
+            return std::string{};
+        }
+        return std::string{"Catchup error: bad archive name"};
+    };
+
     auto catchupStringParser = ParserWithValidation{
         clara::Arg(catchupString, "DESTINATION-LEDGER/LEDGER-COUNT").required(),
         validateCatchupString};
+    auto catchupArchiveParser = ParserWithValidation{
+        historyArchiveParser(archive), validateCatchupArchive};
     auto disableBucketGC = false;
 
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
-         outputFileParser(outputFile), disableBucketGCParser(disableBucketGC)},
+         catchupArchiveParser, outputFileParser(outputFile),
+         disableBucketGCParser(disableBucketGC)},
         [&] {
             auto config = configOption.getConfig();
             config.setNoListen();
@@ -498,11 +526,20 @@ runCatchup(CommandLineArgs const& args)
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto app = Application::create(clock, config, false);
+            auto const& ham = app->getHistoryArchiveManager();
+            auto archivePtr = ham.getHistoryArchive(archive);
+            if (iequals(archive, "any"))
+            {
+                archivePtr = ham.selectRandomReadableHistoryArchive();
+            }
+
             Json::Value catchupInfo;
-            auto result =
-                catchup(app, parseCatchup(catchupString), catchupInfo);
+            auto result = catchup(app, parseCatchup(catchupString), catchupInfo,
+                                  archivePtr);
             if (!catchupInfo.isNull())
+            {
                 writeCatchupInfo(catchupInfo, outputFile);
+            }
 
             return result;
         });

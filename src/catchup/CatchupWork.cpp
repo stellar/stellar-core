@@ -29,14 +29,21 @@ uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 32;
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
-                         ProgressHandler progressHandler)
+                         ProgressHandler progressHandler,
+                         std::shared_ptr<HistoryArchive> archive)
     : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getLedgerManager().getLastClosedLedgerHAS()}
     , mDownloadDir{std::make_unique<TmpDir>(
           mApp.getTmpDirManager().tmpDir(getName()))}
     , mCatchupConfiguration{catchupConfiguration}
     , mProgressHandler{progressHandler}
+    , mArchive{archive}
 {
+    if (mArchive)
+    {
+        CLOG(INFO, "History")
+            << "CatchupWork: selected archive " << mArchive->getName();
+    }
 }
 
 CatchupWork::~CatchupWork()
@@ -91,7 +98,8 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     auto checkpointRange =
         CheckpointRange{verifyRange, mApp.getHistoryManager()};
     auto getLedgers = std::make_shared<BatchDownloadWork>(
-        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+        mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir,
+        mArchive);
     mVerifyLedgers = std::make_shared<VerifyLedgerChainWork>(
         mApp, *mDownloadDir, verifyRange, mLastClosedLedgerHashPair, rangeEnd);
 
@@ -113,7 +121,7 @@ CatchupWork::downloadApplyBuckets()
     auto const& has = mGetBucketStateWork->getHistoryArchiveState();
     std::vector<std::string> hashes = has.differingBuckets(mLocalState);
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
-        mApp, mBuckets, hashes, *mDownloadDir);
+        mApp, mBuckets, hashes, *mDownloadDir, mArchive);
 
     // A consequence of FIRST_PROTOCOL_SHADOWS_REMOVED upgrade, inputs or
     // outputs aren't published to the archives anymore: new-style merges are
@@ -164,7 +172,7 @@ CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
     auto range =
         LedgerRange{catchupRange.mLedgers.mFirst, catchupRange.getLast()};
     mTransactionsVerifyApplySeq = std::make_shared<DownloadApplyTxsWork>(
-        mApp, *mDownloadDir, range, mLastApplied, waitForPublish);
+        mApp, *mDownloadDir, range, mLastApplied, waitForPublish, mArchive);
 }
 
 BasicWork::State
@@ -190,7 +198,7 @@ CatchupWork::runCatchupStep()
                       mCatchupConfiguration.toLedger() + 1) -
                       1;
         mGetHistoryArchiveStateWork =
-            addWork<GetHistoryArchiveStateWork>(toCheckpoint);
+            addWork<GetHistoryArchiveStateWork>(toCheckpoint, mArchive);
         return State::WORK_RUNNING;
     }
     else if (mGetHistoryArchiveStateWork->getState() != State::WORK_SUCCESS)
@@ -241,8 +249,8 @@ CatchupWork::runCatchupStep()
         {
             if (!mGetBucketStateWork)
             {
-                mGetBucketStateWork =
-                    addWork<GetHistoryArchiveStateWork>(applyBucketsAt);
+                mGetBucketStateWork = addWork<GetHistoryArchiveStateWork>(
+                    applyBucketsAt, mArchive);
             }
             if (mGetBucketStateWork->getState() != State::WORK_SUCCESS)
             {

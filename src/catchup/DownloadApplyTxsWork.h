@@ -18,6 +18,7 @@ namespace stellar
 {
 
 class TmpDir;
+class HistoryArchive;
 struct LedgerHeaderHistoryEntry;
 
 class DownloadApplyTxsWork : public BatchWork
@@ -28,12 +29,14 @@ class DownloadApplyTxsWork : public BatchWork
     uint32_t mCheckpointToQueue;
     std::shared_ptr<BasicWork> mLastYieldedWork;
     bool const mWaitForPublish;
+    std::shared_ptr<HistoryArchive> mArchive;
 
   public:
     DownloadApplyTxsWork(Application& app, TmpDir const& downloadDir,
                          LedgerRange const& range,
                          LedgerHeaderHistoryEntry& lastApplied,
-                         bool waitForPublish);
+                         bool waitForPublish,
+                         std::shared_ptr<HistoryArchive> archive = nullptr);
 
   protected:
     bool hasNext() const override;

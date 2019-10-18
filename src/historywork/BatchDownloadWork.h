@@ -16,16 +16,20 @@ class Meter;
 namespace stellar
 {
 
+class HistoryArchive;
+
 class BatchDownloadWork : public BatchWork
 {
     CheckpointRange const mRange;
     uint32_t mNext;
     std::string const mFileType;
     TmpDir const& mDownloadDir;
+    std::shared_ptr<HistoryArchive> mArchive;
 
   public:
     BatchDownloadWork(Application& app, CheckpointRange range,
-                      std::string const& type, TmpDir const& downloadDir);
+                      std::string const& type, TmpDir const& downloadDir,
+                      std::shared_ptr<HistoryArchive> archive = nullptr);
     ~BatchDownloadWork() = default;
     std::string getStatus() const override;
 

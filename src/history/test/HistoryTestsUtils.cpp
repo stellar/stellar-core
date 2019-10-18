@@ -664,7 +664,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger)
     auto catchupConfiguration =
         CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT,
                              CatchupConfiguration::Mode::OFFLINE};
-    lm.startCatchup(catchupConfiguration);
+    lm.startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
     auto finished = [&]() {

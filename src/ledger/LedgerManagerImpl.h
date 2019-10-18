@@ -137,7 +137,8 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchup(CatchupConfiguration configuration) override;
+    void startCatchup(CatchupConfiguration configuration,
+                      std::shared_ptr<HistoryArchive> archive) override;
 
     void closeLedger(LedgerCloseData const& ledgerData) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,

@@ -616,7 +616,8 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
             mSyncingLedgers.front().getTxSet()->previousLedgerHash());
         startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
                       getCatchupCount(mApp),
-                      CatchupConfiguration::Mode::ONLINE});
+                      CatchupConfiguration::Mode::ONLINE},
+                     nullptr);
     }
     else
     {
@@ -630,7 +631,8 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
 }
 
 void
-LedgerManagerImpl::startCatchup(CatchupConfiguration configuration)
+LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
+                                std::shared_ptr<HistoryArchive> archive)
 {
     auto lastClosedLedger = getLastClosedLedgerNum();
     if ((configuration.toLedger() != CatchupConfiguration::CURRENT) &&
@@ -646,7 +648,7 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration)
 
     using namespace std::placeholders;
     mApp.getCatchupManager().catchupHistory(
-        configuration,
+        configuration, archive,
         std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
 }
 
