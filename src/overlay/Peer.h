@@ -37,6 +37,21 @@ class Peer : public std::enable_shared_from_this<Peer>,
   public:
     typedef std::shared_ptr<Peer> pointer;
 
+    /*
+      general connection flow is
+      originator                  remote
+      s=CONNECTING                -
+         \_ connect      --TCP-->          accept
+      s=CONNECTED        <-TCP---  s=CONNECTED _/
+        \_ send HELLO    -HELLO-->     s=GOT_HELLO
+      s=GOT_HELLO         <--HELLO-  send HELLO _/
+         \_ send AUTH     -AUTH-->  s=GOT_AUTH_PROBATION
+      s=GOT_AUTH_PROBATION <--AUTH-     send AUTH     _/
+
+      ...
+       Transition to GOT_AUTH_ACTIVE is managed by OverlayManager
+    */
+
     enum PeerState
     {
         CLOSING = -1,

@@ -59,9 +59,24 @@ class OverlayManagerImpl : public OverlayManager
         std::string mDirectionString;
         int mMaxAuthenticatedCount;
 
-        // connections move from pending to authenticated
+        // connection management invariant:
+        // a peer can only be connected once when authenticated permanently
+        // (regardless of direction)
+
+        // if there isn't already a permanently authenticated connection,
+        // connections proceed as mPending connections.
+        // When the initial handshake is succesful, they move from mPending to
+        // mAuthenticatedProbation.
+        // In this stage connections are still not stable so we allow
+        // bidirectional connections to co-exist in case one direction gets
+        // dropped (too many inbound connections for example).
         std::vector<Peer::pointer> mPending;
         std::map<NodeID, Peer::pointer> mAuthenticatedProbation;
+
+        // After some time, peers move from mAuthenticatedProbation to
+        // mAuthenticated which means that as soon as a connection is promoted
+        // to authenticated, we drop any other reverse connection as to preserve
+        // invariants
         std::map<NodeID, Peer::pointer> mAuthenticated;
 
         Peer::pointer byAddress(PeerBareAddress const& address) const;
