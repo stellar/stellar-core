@@ -932,7 +932,8 @@ The network settings are:
 
 When the network time is later than the `upgradetime` specified in
 the upgrade settings, the validator will vote to update the network
-to the value specified in the upgrade setting.
+to the value specified in the upgrade setting. If the network time 
+is passed the `upgradetime` by more than 12 hours, the upgrade will be ignored
 
 When a validator is armed to change network values, the output of `info` will contain information about the vote.
 
