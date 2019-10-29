@@ -210,7 +210,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     // Evict slots that are outside of our ledger validity bracket
     if (slotIndex > MAX_SLOTS_TO_REMEMBER)
     {
-        getSCP().purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
+        auto maxSlot = slotIndex - MAX_SLOTS_TO_REMEMBER;
+        getSCP().purgeSlots(maxSlot);
+        mPendingEnvelopes.eraseBelow(maxSlot);
     }
 
     ledgerClosed();
@@ -548,14 +550,6 @@ HerderImpl::processSCPQueue()
 {
     if (mHerderSCPDriver.trackingSCP())
     {
-        // drop obsolete slots
-        if (mHerderSCPDriver.nextConsensusLedgerIndex() > MAX_SLOTS_TO_REMEMBER)
-        {
-            mPendingEnvelopes.eraseBelow(
-                mHerderSCPDriver.nextConsensusLedgerIndex() -
-                MAX_SLOTS_TO_REMEMBER);
-        }
-
         processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
     }
     else
