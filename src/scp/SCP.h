@@ -100,10 +100,6 @@ class SCP
 
     // check if we are holding some slots
     bool empty() const;
-    // return lowest slot index value
-    uint64 getLowSlotIndex() const;
-    // return highest slot index value
-    uint64 getHighSlotIndex() const;
 
     // invokes f for all latest messages
     // f returns false to stop processing, true otherwise
@@ -134,5 +130,53 @@ class SCP
     std::shared_ptr<Slot> getSlot(uint64 slotIndex, bool create);
 
     friend class TestSCP;
+
+  public:
+    template <class IT>
+    class slotIterator : public std::iterator<std::input_iterator_tag, uint64>
+    {
+        IT mCur;
+
+      public:
+        explicit slotIterator(IT it) : mCur(it)
+        {
+        }
+        iterator& operator++()
+        {
+            mCur++;
+            return *this;
+        }
+        iterator operator++(int)
+        {
+            iterator retval = *this;
+            ++(*this);
+            return retval;
+        }
+        bool
+        operator==(slotIterator const& o) const
+        {
+            return mCur == o.mCur;
+        }
+        bool
+        operator!=(slotIterator const& o) const
+        {
+            return !(*this == o);
+        }
+        uint64 operator*() const
+        {
+            return mCur->first;
+        }
+    };
+
+    using incSlotIterator =
+        slotIterator<std::map<uint64, std::shared_ptr<Slot>>::const_iterator>;
+    using decSlotIterator = slotIterator<
+        std::map<uint64, std::shared_ptr<Slot>>::const_reverse_iterator>;
+
+    // returns the begin/end pair
+    // ascending order
+    std::pair<incSlotIterator, incSlotIterator> ascSlots() const;
+    // descending order
+    std::pair<decSlotIterator, decSlotIterator> descSlots() const;
 };
 }

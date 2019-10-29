@@ -216,22 +216,6 @@ SCP::empty() const
     return mKnownSlots.empty();
 }
 
-uint64
-SCP::getLowSlotIndex() const
-{
-    assert(!empty());
-    return mKnownSlots.begin()->first;
-}
-
-uint64
-SCP::getHighSlotIndex() const
-{
-    assert(!empty());
-    auto it = mKnownSlots.end();
-    it--;
-    return it->first;
-}
-
 bool
 SCP::processCurrentState(uint64 slotIndex,
                          std::function<bool(SCPEnvelope const&)> const& f)
@@ -387,5 +371,19 @@ SCP::envToStr(SCPStatement const& st, bool fullKeys) const
 
     oss << " }";
     return oss.str();
+}
+
+std::pair<SCP::incSlotIterator, SCP::incSlotIterator>
+SCP::ascSlots() const
+{
+    return std::make_pair(SCP::incSlotIterator(mKnownSlots.begin()),
+                          SCP::incSlotIterator(mKnownSlots.end()));
+}
+
+std::pair<SCP::decSlotIterator, SCP::decSlotIterator>
+SCP::descSlots() const
+{
+    return std::make_pair(SCP::decSlotIterator(mKnownSlots.rbegin()),
+                          SCP::decSlotIterator(mKnownSlots.rend()));
 }
 }
