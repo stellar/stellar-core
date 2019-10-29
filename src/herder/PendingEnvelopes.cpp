@@ -15,7 +15,6 @@
 
 using namespace std;
 
-#define QSET_CACHE_SIZE 10000
 #define TXSET_CACHE_SIZE 10000
 
 namespace stellar
@@ -24,7 +23,6 @@ namespace stellar
 PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     : mApp(app)
     , mHerder(herder)
-    , mQsetCache(QSET_CACHE_SIZE)
     , mTxSetFetcher(
           app, [](Peer::pointer peer, Hash hash) { peer->sendGetTxSet(hash); })
     , mQuorumSetFetcher(app, [](Peer::pointer peer,
@@ -72,7 +70,7 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
     assert(isQuorumSetSane(q, false));
 
     auto qset = std::make_shared<SCPQuorumSet>(q);
-    mQsetCache.put(hash, qset);
+    mKnownQSet.emplace(hash, qset);
 
     mQuorumSetFetcher.recv(hash);
 }
@@ -317,8 +315,8 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(
-            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
+    if (mKnownQSet.find(Slot::getCompanionQuorumSetHashFromStatement(
+            envelope.statement)) == mKnownQSet.end())
         return false;
 
     auto txSetHashes = getTxSetHashes(envelope);
@@ -333,7 +331,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
 
-    if (!mQsetCache.exists(h))
+    if (mKnownQSet.find(h) == mKnownQSet.end())
     {
         mQuorumSetFetcher.fetch(h, envelope);
     }
@@ -370,11 +368,6 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 {
     auto qsetHash =
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
-    if (mQsetCache.exists(qsetHash))
-    {
-        // touch LRU
-        mQsetCache.get(qsetHash);
-    }
 
     for (auto const& h : getTxSetHashes(envelope))
     {
@@ -477,9 +470,10 @@ PendingEnvelopes::getTxSet(Hash const& hash)
 SCPQuorumSetPtr
 PendingEnvelopes::getQSet(Hash const& hash)
 {
-    if (mQsetCache.exists(hash))
+    auto qSetCacheIt = mKnownQSet.find(hash);
+    if (qSetCacheIt != mKnownQSet.end())
     {
-        return mQsetCache.get(hash);
+        return qSetCacheIt->second;
     }
     SCPQuorumSetPtr qset;
     auto& scp = mHerder.getSCP();
@@ -494,7 +488,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     }
     if (qset)
     {
-        mQsetCache.put(hash, qset);
+        mKnownQSet.emplace(hash, qset);
     }
     return qset;
 }

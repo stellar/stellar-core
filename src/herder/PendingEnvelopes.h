@@ -11,6 +11,7 @@
 #include <medida/medida.h>
 #include <queue>
 #include <set>
+#include <unordered_map>
 #include <util/optional.h>
 
 /*
@@ -45,7 +46,7 @@ class PendingEnvelopes
     std::map<uint64, SlotEnvelopes> mEnvelopes;
 
     // all the quorum sets we have learned about
-    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
+    std::unordered_map<Hash, SCPQuorumSetPtr> mKnownQSet;
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
