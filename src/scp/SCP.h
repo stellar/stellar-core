@@ -102,9 +102,11 @@ class SCP
     bool empty() const;
 
     // invokes f for all latest messages
+    // if forceSelf, return messages for self even if not fully validated
     // f returns false to stop processing, true otherwise
     bool processCurrentState(uint64 slotIndex,
-                             std::function<bool(SCPEnvelope const&)> const& f);
+                             std::function<bool(SCPEnvelope const&)> const& f,
+                             bool forceSelf);
 
     // returns the latest message from a node
     // or nullptr if not found

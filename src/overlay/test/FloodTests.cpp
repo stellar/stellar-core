@@ -277,13 +277,15 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
 
             HerderImpl& herder = *static_cast<HerderImpl*>(&app->getHerder());
             herder.getSCP().processCurrentState(
-                lcl.header.ledgerSeq + 1, [&](SCPEnvelope const& e) {
+                lcl.header.ledgerSeq + 1,
+                [&](SCPEnvelope const& e) {
                     if (keysMap.find(e.statement.nodeID) != keysMap.end())
                     {
                         okCount++;
                     }
                     return true;
-                });
+                },
+                true);
             bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "

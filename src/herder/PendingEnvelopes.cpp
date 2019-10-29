@@ -623,10 +623,12 @@ PendingEnvelopes::DropUnrefencedQsets()
     for (; itt.first != itt.second; ++itt.first)
     {
         auto slot = *itt.first;
-        scp.processCurrentState(slot, [&](SCPEnvelope const& e) {
-            addQset(e);
-            return true;
-        });
+        scp.processCurrentState(slot,
+                                [&](SCPEnvelope const& e) {
+                                    addQset(e);
+                                    return true;
+                                },
+                                true);
     }
     // add qsets referenced by quorum
     rebuildQuorumTrackerState(false);

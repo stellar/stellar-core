@@ -1778,12 +1778,12 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
 
 bool
 BallotProtocol::processCurrentState(
-    std::function<bool(SCPEnvelope const&)> const& f) const
+    std::function<bool(SCPEnvelope const&)> const& f, bool forceSelf) const
 {
     for (auto const& n : mLatestEnvelopes)
     {
         // only return messages for self if the slot is fully validated
-        if (!(n.first == mSlot.getSCP().getLocalNodeID()) ||
+        if (forceSelf || !(n.first == mSlot.getSCP().getLocalNodeID()) ||
             mSlot.isFullyValidated())
         {
             if (!f(n.second))

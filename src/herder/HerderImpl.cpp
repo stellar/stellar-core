@@ -521,13 +521,15 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
         auto seq = *itt.first;
         if (seq >= ledgerSeq)
         {
-            getSCP().processCurrentState(seq, [&](SCPEnvelope const& e) {
-                StellarMessage m;
-                m.type(SCP_MESSAGE);
-                m.envelope() = e;
-                peer->sendMessage(m);
-                return true;
-            });
+            getSCP().processCurrentState(seq,
+                                         [&](SCPEnvelope const& e) {
+                                             StellarMessage m;
+                                             m.type(SCP_MESSAGE);
+                                             m.envelope() = e;
+                                             peer->sendMessage(m);
+                                             return true;
+                                         },
+                                         false);
         }
     }
 }
@@ -841,16 +843,19 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
             {
                 seq--;
             }
-            getSCP().processCurrentState(seq, [&](SCPEnvelope const& e) {
-                std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
-                if (curK.compare(0, arg.size(), arg) == 0)
-                {
-                    retKey = e.statement.nodeID;
-                    r = true;
-                    return false;
-                }
-                return true;
-            });
+            getSCP().processCurrentState(
+                seq,
+                [&](SCPEnvelope const& e) {
+                    std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
+                    if (curK.compare(0, arg.size(), arg) == 0)
+                    {
+                        retKey = e.statement.nodeID;
+                        r = true;
+                        return false;
+                    }
+                    return true;
+                },
+                true);
         }
     }
     return r;

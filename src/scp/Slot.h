@@ -88,8 +88,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     void setStateFromEnvelope(SCPEnvelope const& e);
 
     // calls f for all latest messages
-    bool
-    processCurrentState(std::function<bool(SCPEnvelope const&)> const& f) const;
+    bool processCurrentState(std::function<bool(SCPEnvelope const&)> const& f,
+                             bool forceSelf) const;
 
     // returns the latest message from a node
     // or nullptr if not found

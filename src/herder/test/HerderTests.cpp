@@ -1514,7 +1514,8 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
             HerderImpl& herder = *static_cast<HerderImpl*>(&c->getHerder());
 
             auto const& lcl = c->getLedgerManager().getLastClosedLedgerHeader();
-            herder.getSCP().processCurrentState(lcl.header.ledgerSeq, proc);
+            herder.getSCP().processCurrentState(lcl.header.ledgerSeq, proc,
+                                                true);
         }
     };
 

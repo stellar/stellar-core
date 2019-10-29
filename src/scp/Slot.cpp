@@ -81,11 +81,11 @@ Slot::setStateFromEnvelope(SCPEnvelope const& e)
 }
 
 bool
-Slot::processCurrentState(
-    std::function<bool(SCPEnvelope const&)> const& f) const
+Slot::processCurrentState(std::function<bool(SCPEnvelope const&)> const& f,
+                          bool forceSelf) const
 {
-    return mNominationProtocol.processCurrentState(f) &&
-           mBallotProtocol.processCurrentState(f);
+    return mNominationProtocol.processCurrentState(f, forceSelf) &&
+           mBallotProtocol.processCurrentState(f, forceSelf);
 }
 
 SCPEnvelope const*
@@ -381,15 +381,13 @@ Slot::getLocalNode()
 std::vector<SCPEnvelope>
 Slot::getEntireCurrentState()
 {
-    bool old = mFullyValidated;
-    // fake fully validated to force returning all envelopes
-    mFullyValidated = true;
     std::vector<SCPEnvelope> res;
-    processCurrentState([&](SCPEnvelope const& e) {
-        res.emplace_back(e);
-        return true;
-    });
-    mFullyValidated = old;
+    processCurrentState(
+        [&](SCPEnvelope const& e) {
+            res.emplace_back(e);
+            return true;
+        },
+        true);
     return res;
 }
 }
