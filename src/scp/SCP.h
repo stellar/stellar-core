@@ -105,8 +105,10 @@ class SCP
     // return highest slot index value
     uint64 getHighSlotIndex() const;
 
-    // returns all messages for the slot
-    std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
+    // invokes f for all latest messages
+    // f returns false to stop processing, true otherwise
+    bool processCurrentState(uint64 slotIndex,
+                             std::function<bool(SCPEnvelope const&)> const& f);
 
     // returns the latest message from a node
     // or nullptr if not found

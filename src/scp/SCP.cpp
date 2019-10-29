@@ -232,17 +232,18 @@ SCP::getHighSlotIndex() const
     return it->first;
 }
 
-std::vector<SCPEnvelope>
-SCP::getCurrentState(uint64 slotIndex)
+bool
+SCP::processCurrentState(uint64 slotIndex,
+                         std::function<bool(SCPEnvelope const&)> const& f)
 {
     auto slot = getSlot(slotIndex, false);
     if (slot)
     {
-        return slot->getCurrentState();
+        return slot->processCurrentState(f);
     }
     else
     {
-        return std::vector<SCPEnvelope>();
+        return true;
     }
 }
 

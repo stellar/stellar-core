@@ -527,21 +527,13 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 
     for (uint32_t seq = minSeq; seq <= maxSeq; seq++)
     {
-        auto const& envelopes = getSCP().getCurrentState(seq);
-
-        if (envelopes.size() != 0)
-        {
-            CLOG(DEBUG, "Herder")
-                << "Send state " << envelopes.size() << " for ledger " << seq;
-
-            for (auto const& e : envelopes)
-            {
-                StellarMessage m;
-                m.type(SCP_MESSAGE);
-                m.envelope() = e;
-                peer->sendMessage(m);
-            }
-        }
+        getSCP().processCurrentState(seq, [&](SCPEnvelope const& e) {
+            StellarMessage m;
+            m.type(SCP_MESSAGE);
+            m.envelope() = e;
+            peer->sendMessage(m);
+            return true;
+        });
     }
 }
 
@@ -854,17 +846,16 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
             {
                 seq--;
             }
-            auto const& envelopes = getSCP().getCurrentState(seq);
-            for (auto const& e : envelopes)
-            {
+            getSCP().processCurrentState(seq, [&](SCPEnvelope const& e) {
                 std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
                 if (curK.compare(0, arg.size(), arg) == 0)
                 {
                     retKey = e.statement.nodeID;
                     r = true;
-                    break;
+                    return false;
                 }
-            }
+                return true;
+            });
         }
     }
     return r;

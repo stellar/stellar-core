@@ -601,21 +601,23 @@ NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
     mLastEnvelope = std::make_unique<SCPEnvelope>(e);
 }
 
-std::vector<SCPEnvelope>
-NominationProtocol::getCurrentState() const
+bool
+NominationProtocol::processCurrentState(
+    std::function<bool(SCPEnvelope const&)> const& f) const
 {
-    std::vector<SCPEnvelope> res;
-    res.reserve(mLatestNominations.size());
     for (auto const& n : mLatestNominations)
     {
         // only return messages for self if the slot is fully validated
         if (!(n.first == mSlot.getSCP().getLocalNodeID()) ||
             mSlot.isFullyValidated())
         {
-            res.emplace_back(n.second);
+            if (!f(n.second))
+            {
+                return false;
+            }
         }
     }
-    return res;
+    return true;
 }
 
 SCPEnvelope const*

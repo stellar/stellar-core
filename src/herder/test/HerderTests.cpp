@@ -1507,31 +1507,25 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
                     std::chrono::seconds(20), false);
 
     // process scp messages for each core node
-    auto checkCoreNodes =
-        [&](std::function<void(std::vector<SCPEnvelope> const&)> proc) {
-            for (auto const& k : qSetBase.validators)
-            {
-                auto c = sim->getNode(k);
-                HerderImpl& herder = *static_cast<HerderImpl*>(&c->getHerder());
+    auto checkCoreNodes = [&](std::function<bool(SCPEnvelope const&)> proc) {
+        for (auto const& k : qSetBase.validators)
+        {
+            auto c = sim->getNode(k);
+            HerderImpl& herder = *static_cast<HerderImpl*>(&c->getHerder());
 
-                auto const& lcl =
-                    c->getLedgerManager().getLastClosedLedgerHeader();
-                auto state =
-                    herder.getSCP().getCurrentState(lcl.header.ledgerSeq);
-                proc(state);
-            }
-        };
+            auto const& lcl = c->getLedgerManager().getLastClosedLedgerHeader();
+            herder.getSCP().processCurrentState(lcl.header.ledgerSeq, proc);
+        }
+    };
 
     // none of the messages from the extra nodes should be present
-    checkCoreNodes([&](std::vector<SCPEnvelope> const& envs) {
-        for (auto const& e : envs)
-        {
-            bool r = std::find_if(
-                         extraK.begin(), extraK.end(), [&](SecretKey const& s) {
-                             return e.statement.nodeID == s.getPublicKey();
-                         }) != extraK.end();
-            REQUIRE(!r);
-        }
+    checkCoreNodes([&](SCPEnvelope const& e) {
+        bool r =
+            std::find_if(extraK.begin(), extraK.end(), [&](SecretKey const& s) {
+                return e.statement.nodeID == s.getPublicKey();
+            }) != extraK.end();
+        REQUIRE(!r);
+        return true;
     });
 
     // then, change the quorum set of node Core3 to also include "E_2" and "E_3"
@@ -1559,22 +1553,21 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
     sim->crankUntil([&]() { return sim->haveAllExternalized(6, 3); },
                     std::chrono::seconds(20), true);
 
-    checkCoreNodes([&](std::vector<SCPEnvelope> const& envs) {
+    std::vector<bool> found;
+    found.resize(extraK.size(), false);
+
+    checkCoreNodes([&](SCPEnvelope const& e) {
         // messages for E1..E3 are present, E0 is still filtered
-        std::vector<bool> found;
-        found.resize(extraK.size(), false);
-        for (auto const& e : envs)
+        for (int i = 0; i <= 3; i++)
         {
-            for (int i = 0; i <= 3; i++)
-            {
-                found[i] = found[i] ||
-                           (e.statement.nodeID == extraK[i].getPublicKey());
-            }
+            found[i] =
+                found[i] || (e.statement.nodeID == extraK[i].getPublicKey());
         }
-        int actual =
-            static_cast<int>(std::count(++found.begin(), found.end(), true));
-        int expected = static_cast<int>(extraK.size() - 1);
-        REQUIRE(actual == expected);
-        REQUIRE(!found[0]);
+        return true;
     });
+    int actual =
+        static_cast<int>(std::count(++found.begin(), found.end(), true));
+    int expected = static_cast<int>(extraK.size() - 1);
+    REQUIRE(actual == expected);
+    REQUIRE(!found[0]);
 }

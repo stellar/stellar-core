@@ -116,7 +116,8 @@ class NominationProtocol
 
     void setStateFromEnvelope(SCPEnvelope const& e);
 
-    std::vector<SCPEnvelope> getCurrentState() const;
+    bool
+    processCurrentState(std::function<bool(SCPEnvelope const&)> const& f) const;
 
     // returns the latest message from a node
     // or nullptr if not found

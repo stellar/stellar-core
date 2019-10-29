@@ -87,8 +87,9 @@ class Slot : public std::enable_shared_from_this<Slot>
     // this is used when rebuilding the state after a crash for example
     void setStateFromEnvelope(SCPEnvelope const& e);
 
-    // returns the latest messages known for this slot
-    std::vector<SCPEnvelope> getCurrentState() const;
+    // calls f for all latest messages
+    bool
+    processCurrentState(std::function<bool(SCPEnvelope const&)> const& f) const;
 
     // returns the latest message from a node
     // or nullptr if not found
