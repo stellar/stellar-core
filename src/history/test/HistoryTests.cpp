@@ -885,7 +885,7 @@ TEST_CASE("HAS in publishqueue remains in pristine state until publish",
 
             // Second, ensure `next` is in the exact same state as when it was
             // queued
-            for (int i = 0; i < BucketList::kNumLevels; i++)
+            for (uint32_t i = 0; i < BucketList::kNumLevels; i++)
             {
                 auto const& currentNext = bl.getLevel(i).getNext();
                 auto const& queuedNext = queuedHAS.currentBuckets[i].next;
