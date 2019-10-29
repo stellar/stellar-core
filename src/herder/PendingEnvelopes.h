@@ -26,13 +26,14 @@ class HerderImpl;
 
 struct SlotEnvelopes
 {
-    // list of envelopes we have processed already
-    std::vector<SCPEnvelope> mProcessedEnvelopes;
-    // list of envelopes we have discarded already
+    // envelopes we have discarded
     std::set<SCPEnvelope> mDiscardedEnvelopes;
-    // list of envelopes we are fetching right now
+    // envelopes we have processed already
+    std::set<SCPEnvelope> mProcessedEnvelopes;
+    // envelopes we are fetching right now
     std::map<SCPEnvelope, std::chrono::steady_clock::time_point>
         mFetchingEnvelopes;
+
     // list of ready envelopes that haven't been sent to SCP yet
     std::vector<SCPEnvelope> mReadyEnvelopes;
 };
@@ -66,9 +67,16 @@ class PendingEnvelopes
 
     // discards all SCP envelopes thats use QSet with given hash,
     // as it is not sane QSet
-    void discardSCPEnvelopesWithQSet(Hash hash);
+    void discardSCPEnvelopesWithQSet(Hash const& hash);
 
     void updateMetrics();
+
+    void envelopeReady(SCPEnvelope const& envelope);
+    void discardSCPEnvelope(SCPEnvelope const& envelope);
+    bool isFullyFetched(SCPEnvelope const& envelope);
+    void startFetch(SCPEnvelope const& envelope);
+    void stopFetch(SCPEnvelope const& envelope);
+    void touchFetchCache(SCPEnvelope const& envelope);
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
@@ -87,7 +95,7 @@ class PendingEnvelopes
      * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
      * in PendingEnvelopes.
      */
-    void addSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    void addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset);
 
     /**
      * Check if @p qset identified by @p hash was requested before from peers.
@@ -96,7 +104,7 @@ class PendingEnvelopes
      *
      * Return true if SCPQuorumSet is sane and useful (was asked for).
      */
-    bool recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    bool recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& qset);
 
     /**
      * Add @p txset identified by @p hash to local cache. Notifies
@@ -104,7 +112,8 @@ class PendingEnvelopes
      * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
      * in PendingEnvelopes.
      */
-    void addTxSet(Hash hash, uint64 lastSeenSlotIndex, TxSetFramePtr txset);
+    void addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
+                  TxSetFramePtr txset);
 
     /**
      * Check if @p txset identified by @p hash was requested before from peers.
@@ -113,19 +122,12 @@ class PendingEnvelopes
      *
      * Return true if TxSet useful (was asked for).
      */
-    bool recvTxSet(Hash hash, TxSetFramePtr txset);
-    void discardSCPEnvelope(SCPEnvelope const& envelope);
+    bool recvTxSet(Hash const& hash, TxSetFramePtr txset);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
     bool isDiscarded(SCPEnvelope const& envelope) const;
-    bool isFullyFetched(SCPEnvelope const& envelope);
-    void startFetch(SCPEnvelope const& envelope);
-    void stopFetch(SCPEnvelope const& envelope);
-    void touchFetchCache(SCPEnvelope const& envelope);
-
-    void envelopeReady(SCPEnvelope const& envelope);
 
     bool pop(uint64 slotIndex, SCPEnvelope& ret);
 
@@ -149,5 +151,10 @@ class PendingEnvelopes
 
     // updates internal state when an envelope was succesfuly processed
     void envelopeProcessed(SCPEnvelope const& env);
+
+    // queries state
+
+    bool isReady(SCPEnvelope const& e) const;
+    bool isProcessed(SCPEnvelope const& e) const;
 };
 }
