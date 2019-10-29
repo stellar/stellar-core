@@ -31,6 +31,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mTxSetCache(TXSET_CACHE_SIZE)
     , mRebuildQuorum(true)
     , mQuorumTracker(mHerder.getSCP())
+    , mQSetGCThreshold(0)
     , mProcessedCount(
           app.getMetrics().NewCounter({"scp", "pending", "processed"}))
     , mDiscardedCount(
@@ -99,6 +100,14 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
         discardSCPEnvelopesWithQSet(hash);
         res = false;
     }
+
+    // trigger cleanup of quorum sets if we have too many of them
+    if (mKnownQSet.size() > mQSetGCThreshold)
+    {
+        DropUnrefencedQsets();
+        mQSetGCThreshold = mKnownQSet.size() * 2;
+    }
+
     return res;
 }
 
@@ -165,11 +174,7 @@ PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFramePtr txset)
 bool
 PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
 {
-    if (mRebuildQuorum)
-    {
-        rebuildQuorumTrackerState();
-        mRebuildQuorum = false;
-    }
+    rebuildQuorumTrackerState(false);
     return mQuorumTracker.isNodeDefinitelyInQuorum(node);
 }
 
@@ -531,19 +536,25 @@ PendingEnvelopes::getJsonInfo(size_t limit)
 }
 
 void
-PendingEnvelopes::rebuildQuorumTrackerState()
+PendingEnvelopes::rebuildQuorumTrackerState(bool force)
 {
+    if (!force && !mRebuildQuorum)
+    {
+        return;
+    }
+    mRebuildQuorum = false;
+    auto& scp = mHerder.getSCP();
     // rebuild quorum information using data sources starting with the
     // freshest source
     mQuorumTracker.rebuild([&](NodeID const& id) -> SCPQuorumSetPtr {
         SCPQuorumSetPtr res;
-        if (id == mHerder.getSCP().getLocalNodeID())
+        if (id == scp.getLocalNodeID())
         {
-            res = getQSet(mHerder.getSCP().getLocalNode()->getQuorumSetHash());
+            res = getQSet(scp.getLocalNode()->getQuorumSetHash());
         }
         else
         {
-            auto m = mHerder.getSCP().getLatestMessage(id);
+            auto m = scp.getLatestMessage(id);
             if (m != nullptr)
             {
                 auto h =
@@ -586,6 +597,88 @@ PendingEnvelopes::envelopeProcessed(SCPEnvelope const& env)
         // could not expand quorum, queue up a rebuild
         mRebuildQuorum = true;
     }
+}
+
+void
+PendingEnvelopes::DropUnrefencedQsets()
+{
+    std::unordered_map<Hash, SCPQuorumSetPtr> qsets;
+
+    auto addQset = [&](SCPEnvelope const& e) {
+        auto r = qsets.emplace(
+            Slot::getCompanionQuorumSetHashFromStatement(e.statement),
+            SCPQuorumSetPtr());
+        if (r.second)
+        {
+            // if we didn't know of this hash, also set the QSet
+            r.first->second = getQSet(r.first->first);
+        }
+    };
+
+    auto& scp = mHerder.getSCP();
+
+    // computes the qsets referenced
+    // by all slots
+    auto itt = scp.descSlots();
+    for (; itt.first != itt.second; ++itt.first)
+    {
+        auto slot = *itt.first;
+        scp.processCurrentState(slot, [&](SCPEnvelope const& e) {
+            addQset(e);
+            return true;
+        });
+    }
+    // add qsets referenced by quorum
+    rebuildQuorumTrackerState(false);
+    for (auto const& q : mQuorumTracker.getQuorum())
+    {
+        if (q.second)
+        {
+            auto qHash = sha256(xdr::xdr_to_opaque(*q.second));
+            qsets.emplace(qHash, q.second);
+        }
+    }
+    // now, compute qsets referenced by pending envelopes
+    // NB: skip "processed" as "ready" is the subset of processed
+    // that is still owned by this class
+    for (auto const& ee : mEnvelopes)
+    {
+        for (auto const& e : ee.second.mFetchingEnvelopes)
+        {
+            addQset(e.first);
+        }
+        for (auto const& e : ee.second.mReadyEnvelopes)
+        {
+            addQset(e);
+        }
+    }
+
+    // transform into map of known quorum sets (not just referenced)
+    for (auto it = qsets.begin(); it != qsets.end();)
+    {
+        if (it->second == nullptr)
+        {
+            it = qsets.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (Logging::logDebug("Herder"))
+    {
+        for (auto const& qs : mKnownQSet)
+        {
+            if (qsets.find(qs.first) == qsets.end())
+            {
+                CLOG(DEBUG, "Herder")
+                    << "Dropping QSet " << hexAbbrev(qs.first);
+            }
+        }
+    }
+
+    mKnownQSet = std::move(qsets);
 }
 
 bool

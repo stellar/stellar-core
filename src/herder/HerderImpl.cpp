@@ -1254,7 +1254,7 @@ HerderImpl::restoreSCPState()
                                     "proceeding without them : "
                                  << e.what();
         }
-        mPendingEnvelopes.rebuildQuorumTrackerState();
+        mPendingEnvelopes.rebuildQuorumTrackerState(true);
     }
 
     startRebroadcastTimer();

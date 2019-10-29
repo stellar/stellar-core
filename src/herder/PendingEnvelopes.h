@@ -48,6 +48,7 @@ class PendingEnvelopes
 
     // all the quorum sets we have learned about
     std::unordered_map<Hash, SCPQuorumSetPtr> mKnownQSet;
+    size_t mQSetGCThreshold; // threshold to trigger QSet GC
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
@@ -146,11 +147,14 @@ class PendingEnvelopes
     // sure
     bool isNodeDefinitelyInQuorum(NodeID const& node);
 
-    void rebuildQuorumTrackerState();
+    void rebuildQuorumTrackerState(bool force);
     QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const;
 
     // updates internal state when an envelope was succesfuly processed
     void envelopeProcessed(SCPEnvelope const& env);
+
+    // erases qsets not referenced anymore
+    void DropUnrefencedQsets();
 
     // queries state
 
