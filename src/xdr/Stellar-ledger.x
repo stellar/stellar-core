@@ -306,6 +306,15 @@ struct TransactionMetaV1
     OperationMeta operations<>;   // meta for each operation
 };
 
+struct TransactionMetaV2
+{
+    LedgerEntryChanges txChangesBefore; // tx level changes before operations
+                                        // are applied if any
+    OperationMeta operations<>;         // meta for each operation
+    LedgerEntryChanges txChangesAfter;  // tx level changes after operations are
+                                        // applied if any
+};
+
 // this is the meta produced when applying transactions
 // it does not include pre-apply updates such as fees
 union TransactionMeta switch (int v)
@@ -314,5 +323,7 @@ case 0:
     OperationMeta operations<>;
 case 1:
     TransactionMetaV1 v1;
+case 2:
+    TransactionMetaV2 v2;
 };
 }

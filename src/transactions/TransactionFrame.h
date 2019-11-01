@@ -93,7 +93,7 @@ class TransactionFrame
     void markResultFailed();
 
     bool applyOperations(SignatureChecker& checker, Application& app,
-                         AbstractLedgerTxn& ltx, TransactionMetaV1& meta);
+                         AbstractLedgerTxn& ltx, TransactionMeta& meta);
 
     void processSeqNum(AbstractLedgerTxn& ltx);
 
@@ -182,8 +182,7 @@ class TransactionFrame
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(Application& app, AbstractLedgerTxn& ltx,
-               TransactionMetaV1& meta);
+    bool apply(Application& app, AbstractLedgerTxn& ltx, TransactionMeta& meta);
 
     // version without meta
     bool apply(Application& app, AbstractLedgerTxn& ltx);

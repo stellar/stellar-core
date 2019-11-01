@@ -160,6 +160,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BEST_OFFERS_CACHE_SIZE = 64;
     PREFETCH_BATCH_SIZE = 1000;
 
+    SUPPORTED_META_VERSION = 1;
+
 #ifdef BUILD_TESTS
     TEST_CASES_ENABLED = false;
 #endif
@@ -931,6 +933,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "HOME_DOMAINS")
             {
                 domainQualityMap = parseDomainsQuality(item.second);
+            }
+            else if (item.first == "SUPPORTED_META_VERSION")
+            {
+                SUPPORTED_META_VERSION = readInt<uint32_t>(item, 1, 2);
             }
             else
             {
