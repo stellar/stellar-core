@@ -105,7 +105,7 @@ GetAndUnzipRemoteFileWork::doWork()
             << "Downloading and unzipping " << mFt.remoteName();
         mGetRemoteFileWork =
             addWork<GetRemoteFileWork>(mFt.remoteName(), mFt.localPath_gz_tmp(),
-                                       nullptr, BasicWork::RETRY_NEVER);
+                                       mArchive, BasicWork::RETRY_NEVER);
         mDownloadStart.Mark();
         return State::WORK_RUNNING;
     }

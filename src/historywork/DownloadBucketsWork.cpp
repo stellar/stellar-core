@@ -5,6 +5,7 @@
 #include "historywork/DownloadBucketsWork.h"
 #include "catchup/CatchupManager.h"
 #include "history/FileTransferInfo.h"
+#include "history/HistoryArchive.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
 #include "util/format.h"
@@ -14,12 +15,14 @@ namespace stellar
 
 DownloadBucketsWork::DownloadBucketsWork(
     Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    std::vector<std::string> hashes, TmpDir const& downloadDir)
+    std::vector<std::string> hashes, TmpDir const& downloadDir,
+    std::shared_ptr<HistoryArchive> archive)
     : BatchWork{app, "download-verify-buckets"}
     , mBuckets{buckets}
     , mHashes{hashes}
     , mNextBucketIter{mHashes.begin()}
     , mDownloadDir{downloadDir}
+    , mArchive{archive}
 {
 }
 
@@ -63,7 +66,7 @@ DownloadBucketsWork::yieldMoreWork()
 
     auto hash = *mNextBucketIter;
     FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-    auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft);
+    auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
     auto w2 = std::make_shared<VerifyBucketWork>(
         mApp, mBuckets, ft.localPath_nogz(), hexToBin256(hash));
     std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};

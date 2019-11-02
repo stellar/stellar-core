@@ -357,13 +357,13 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
 
 int
 catchup(Application::pointer app, CatchupConfiguration cc,
-        Json::Value& catchupInfo)
+        Json::Value& catchupInfo, std::shared_ptr<HistoryArchive> archive)
 {
     app->start();
 
     try
     {
-        app->getLedgerManager().startCatchup(cc);
+        app->getLedgerManager().startCatchup(cc, archive);
     }
     catch (std::invalid_argument const&)
     {
