@@ -91,7 +91,7 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
     return le;
 }
 
-TEST_CASE("LedgerTxn addChild", "[ledgerstate]")
+TEST_CASE("LedgerTxn addChild", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -125,7 +125,7 @@ TEST_CASE("LedgerTxn addChild", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgerstate]")
+TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -196,7 +196,7 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgerstate]")
+TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -267,7 +267,7 @@ TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
+TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
 {
     std::bernoulli_distribution shouldCommitDist;
 
@@ -418,7 +418,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgerstate]")
+TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -471,7 +471,7 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn create", "[ledgerstate]")
+TEST_CASE("LedgerTxn create", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -529,7 +529,7 @@ TEST_CASE("LedgerTxn create", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgerstate]")
+TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -600,7 +600,7 @@ TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn erase", "[ledgerstate]")
+TEST_CASE("LedgerTxn erase", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -659,7 +659,7 @@ TEST_CASE("LedgerTxn erase", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgerstate]")
+TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -843,7 +843,7 @@ testInflationWinners(
     }
 }
 
-TEST_CASE("LedgerTxn queryInflationWinners", "[ledgerstate]")
+TEST_CASE("LedgerTxn queryInflationWinners", "[ledgertxn]")
 {
     int64_t const QUERY_VOTE_MINIMUM = 1000000000;
 
@@ -1125,7 +1125,7 @@ TEST_CASE("LedgerTxn queryInflationWinners", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn loadHeader", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1167,7 +1167,7 @@ TEST_CASE("LedgerTxn loadHeader", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn load", "[ledgerstate]")
+TEST_CASE("LedgerTxn load", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1224,7 +1224,7 @@ TEST_CASE("LedgerTxn load", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -1419,7 +1419,7 @@ testAllOffers(
     }
 }
 
-TEST_CASE("LedgerTxn loadAllOffers", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
@@ -1671,7 +1671,7 @@ testBestOffer(
     }
 }
 
-TEST_CASE("LedgerTxn loadBestOffer", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
@@ -1914,7 +1914,7 @@ testOffersByAccountAndAsset(
     }
 }
 
-TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgerstate]")
+TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgertxn]")
 {
     auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
     auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
@@ -2031,7 +2031,7 @@ TEST_CASE("LedgerTxn loadOffersByAccountAndAsset", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxn unsealHeader", "[ledgerstate]")
+TEST_CASE("LedgerTxn unsealHeader", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -2067,7 +2067,7 @@ TEST_CASE("LedgerTxn unsealHeader", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
+TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
 {
     VirtualClock clock;
     auto app = createTestApplication(clock, getTestConfig());
@@ -2159,7 +2159,7 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgerstate]")
     }
 }
 
-TEST_CASE("LedgerTxnRoot prefetch", "[ledgerstate]")
+TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
