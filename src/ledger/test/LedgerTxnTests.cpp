@@ -1704,6 +1704,22 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
                           std::runtime_error);
     }
 
+    SECTION("fails with active entries")
+    {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig());
+        app->start();
+
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        auto ltxe = ltx1.create(LedgerTestUtils::generateValidLedgerEntry());
+        REQUIRE_THROWS_AS(ltx1.getBestOffer(buying, selling),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(ltx1.getBestOffer(buying, selling, {Price{1, 1}, 1}),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
+                          std::runtime_error);
+    }
+
     SECTION("empty parent")
     {
         SECTION("no offers")
