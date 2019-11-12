@@ -676,7 +676,11 @@ class LedgerTxnRoot::Impl
     loadOffers(StatementContext& prep, std::deque<LedgerEntry>& offers) const;
     std::deque<LedgerEntry>::const_iterator
     loadBestOffers(std::deque<LedgerEntry>& offers, Asset const& buying,
-                   Asset const& selling, size_t numOffers, size_t offset) const;
+                   Asset const& selling, size_t numOffers) const;
+    std::deque<LedgerEntry>::const_iterator
+    loadBestOffers(std::deque<LedgerEntry>& offers, Asset const& buying,
+                   Asset const& selling, OfferDescriptor const& worseThan,
+                   size_t numOffers) const;
     std::vector<LedgerEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;

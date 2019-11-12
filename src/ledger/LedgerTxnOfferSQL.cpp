@@ -65,27 +65,84 @@ LedgerTxnRoot::Impl::loadAllOffers() const
 std::deque<LedgerEntry>::const_iterator
 LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
                                     Asset const& buying, Asset const& selling,
-                                    size_t numOffers, size_t offset) const
+                                    size_t numOffers) const
 {
+    // price is an approximation of the actual n/d (truncated math, 15 digits)
+    // ordering by offerid gives precendence to older offers for fairness
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
                       "FROM offers "
-                      "WHERE sellingasset = :v1 AND buyingasset = :v2";
+                      "WHERE sellingasset = :v1 AND buyingasset = :v2 "
+                      "ORDER BY price, offerid LIMIT :n";
 
     std::string buyingAsset, sellingAsset;
     buyingAsset = decoder::encode_b64(xdr::xdr_to_opaque(buying));
     sellingAsset = decoder::encode_b64(xdr::xdr_to_opaque(selling));
-
-    // price is an approximation of the actual n/d (truncated math, 15 digits)
-    // ordering by offerid gives precendence to older offers for fairness
-    sql += " ORDER BY price, offerid LIMIT :n OFFSET :o";
 
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::use(sellingAsset));
     st.exchange(soci::use(buyingAsset));
     st.exchange(soci::use(numOffers));
-    st.exchange(soci::use(offset));
+
+    {
+        auto timer = mDatabase.getSelectTimer("offer");
+        return loadOffers(prep, offers);
+    }
+}
+
+std::deque<LedgerEntry>::const_iterator
+LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
+                                    Asset const& buying, Asset const& selling,
+                                    OfferDescriptor const& worseThan,
+                                    size_t numOffers) const
+{
+    // ManageOffer and related operations won't work correctly with an offerID
+    // equal to or exceeding INT64_MAX, so there is no reason to support it
+    // here. We are far from this limit anyway.
+    if (worseThan.offerID == INT64_MAX)
+    {
+        throw std::runtime_error("maximum offerID encountered");
+    }
+
+    // price is an approximation of the actual n/d (truncated math, 15 digits)
+    // ordering by offerid gives precendence to older offers for fairness
+    std::string sql =
+        "WITH r1 AS "
+        "(SELECT sellerid, offerid, sellingasset, buyingasset, amount, price, "
+        "pricen, priced, flags, lastmodified FROM offers "
+        "WHERE sellingasset = :v1 AND buyingasset = :v2 AND price > :v3 "
+        "ORDER BY price, offerid LIMIT :v4), "
+        "r2 AS "
+        "(SELECT sellerid, offerid, sellingasset, buyingasset, amount, price, "
+        "pricen, priced, flags, lastmodified FROM offers "
+        "WHERE sellingasset = :v5 AND buyingasset = :v6 AND price = :v7 "
+        "AND offerid >= :v8 ORDER BY price, offerid LIMIT :v9) "
+        "SELECT sellerid, offerid, sellingasset, buyingasset, "
+        "amount, pricen, priced, flags, lastmodified "
+        "FROM (SELECT * FROM r1 UNION ALL SELECT * FROM r2) AS res "
+        "ORDER BY price, offerid LIMIT :v10";
+
+    std::string buyingAsset, sellingAsset;
+    buyingAsset = decoder::encode_b64(xdr::xdr_to_opaque(buying));
+    sellingAsset = decoder::encode_b64(xdr::xdr_to_opaque(selling));
+
+    double worseThanPrice =
+        (double)worseThan.price.n / (double)worseThan.price.d;
+    int64_t worseThanOfferID = worseThan.offerID + 1;
+
+    auto prep = mDatabase.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(soci::use(sellingAsset));
+    st.exchange(soci::use(buyingAsset));
+    st.exchange(soci::use(worseThanPrice));
+    st.exchange(soci::use(numOffers));
+    st.exchange(soci::use(sellingAsset));
+    st.exchange(soci::use(buyingAsset));
+    st.exchange(soci::use(worseThanPrice));
+    st.exchange(soci::use(worseThanOfferID));
+    st.exchange(soci::use(numOffers));
+    st.exchange(soci::use(numOffers));
 
     {
         auto timer = mDatabase.getSelectTimer("offer");

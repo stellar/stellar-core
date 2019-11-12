@@ -2305,8 +2305,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling)
     if (offers.empty() && !cached->allLoaded)
     {
         size_t const BATCH_SIZE = MIN_BEST_OFFERS_BATCH_SIZE;
-        auto newOfferIter =
-            loadBestOffers(offers, buying, selling, BATCH_SIZE, 0);
+        auto newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE);
         cached->allLoaded =
             std::distance(newOfferIter, offers.cend()) < BATCH_SIZE;
     }
@@ -2362,8 +2361,8 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         std::deque<LedgerEntry>::const_iterator newOfferIter;
         try
         {
-            newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE,
-                                          offers.size());
+            newOfferIter =
+                loadBestOffers(offers, buying, selling, worseThan, BATCH_SIZE);
         }
         catch (std::exception& e)
         {
