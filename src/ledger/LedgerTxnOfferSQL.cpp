@@ -112,6 +112,13 @@ isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
     }
 }
 
+bool
+isBetterOffer(OfferDescriptor const& lhs, LedgerEntry const& rhsEntry)
+{
+    auto const& rhs = rhsEntry.data.offer();
+    return isBetterOffer(lhs, {rhs.price, rhs.offerID});
+}
+
 // Note: The order induced by this function must match the order used in the
 // SQL query for loadBestOffers above.
 bool

@@ -222,6 +222,7 @@ struct OfferDescriptor
 bool operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs);
 
 bool isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry);
+bool isBetterOffer(OfferDescriptor const& lhs, LedgerEntry const& rhsEntry);
 bool isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs);
 
 struct IsBetterOfferComparator
@@ -340,7 +341,8 @@ class AbstractLedgerTxnParent
     virtual std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling) = 0;
     virtual std::shared_ptr<LedgerEntry const>
-    getBestOffer(LedgerEntry const& worseThan) = 0;
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 OfferDescriptor const& worseThan) = 0;
     virtual std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
@@ -529,7 +531,8 @@ class LedgerTxn final : public AbstractLedgerTxn
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling) override;
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(LedgerEntry const& worseThan) override;
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 OfferDescriptor const& worseThan) override;
 
     LedgerEntryChanges getChanges() override;
 
@@ -614,7 +617,8 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling) override;
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(LedgerEntry const& worseThan) override;
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 OfferDescriptor const& worseThan) override;
 
     std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,

@@ -255,7 +255,8 @@ class LedgerTxn::Impl
     std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
                                                     Asset const& selling);
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(LedgerEntry const& worseThan);
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 OfferDescriptor const& worseThan);
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -562,7 +563,8 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
                                                     Asset const& selling);
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(LedgerEntry const& worseThan);
+    getBestOffer(Asset const& buying, Asset const& selling,
+                 OfferDescriptor const& worseThan);
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then

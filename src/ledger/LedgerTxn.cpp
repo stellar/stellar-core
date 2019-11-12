@@ -566,34 +566,37 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
         {
             return parentBest;
         }
-        parentBest = mParent.getBestOffer(*parentBest);
+        auto const& oe = parentBest->data.offer();
+        parentBest =
+            mParent.getBestOffer(buying, selling, {oe.price, oe.offerID});
     }
     return selfBest;
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxn::getBestOffer(LedgerEntry const& worseThan)
+LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
+                        OfferDescriptor const& worseThan)
 {
-    return getImpl()->getBestOffer(worseThan);
+    return getImpl()->getBestOffer(buying, selling, worseThan);
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxn::Impl::getBestOffer(LedgerEntry const& worseThan)
+LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
+                              OfferDescriptor const& worseThan)
 {
     if (!mActive.empty())
     {
         throw std::runtime_error("active entries when getting best offer");
     }
 
-    auto const& oe = worseThan.data.offer();
-    AssetPair const assets{oe.buying, oe.selling};
+    AssetPair const assets{buying, selling};
 
     std::shared_ptr<LedgerEntry const> selfBest;
     auto mobIter = mMultiOrderBook.find(assets);
     if (mobIter != mMultiOrderBook.end())
     {
         auto const& offers = mobIter->second;
-        auto iter = offers.upper_bound({oe.price, oe.offerID});
+        auto iter = offers.upper_bound(worseThan);
         if (iter != offers.end())
         {
             auto entryIter = mEntry.find(iter->second);
@@ -605,7 +608,7 @@ LedgerTxn::Impl::getBestOffer(LedgerEntry const& worseThan)
         }
     }
 
-    auto parentBest = mParent.getBestOffer(worseThan);
+    auto parentBest = mParent.getBestOffer(buying, selling, worseThan);
 
     // If parentBest is nullptr, then the parent contains no offers that are
     // worse than worseThan. Therefore we always return selfBest (which may also
@@ -636,7 +639,9 @@ LedgerTxn::Impl::getBestOffer(LedgerEntry const& worseThan)
         {
             return parentBest;
         }
-        parentBest = mParent.getBestOffer(*parentBest);
+        auto const& oe = parentBest->data.offer();
+        parentBest =
+            mParent.getBestOffer(buying, selling, {oe.price, oe.offerID});
     }
     return selfBest;
 }
@@ -1983,15 +1988,16 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling)
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::getBestOffer(LedgerEntry const& worseThan)
+LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
+                            OfferDescriptor const& worseThan)
 {
-    return mImpl->getBestOffer(worseThan);
+    return mImpl->getBestOffer(buying, selling, worseThan);
 }
 
 static std::shared_ptr<LedgerEntry const>
 findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
                   std::list<LedgerEntry>::const_iterator const& end,
-                  LedgerEntry const& worseThan)
+                  OfferDescriptor const& worseThan)
 {
     for (; iter != end; ++iter)
     {
@@ -2004,16 +2010,15 @@ findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::Impl::getBestOffer(LedgerEntry const& worseThan)
+LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
+                                  OfferDescriptor const& worseThan)
 {
-    auto const& oe = worseThan.data.offer();
-
     // Note: Elements of mBestOffersCache are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).
-    auto cached = getFromBestOffersCache(oe.buying, oe.selling);
+    auto cached = getFromBestOffersCache(buying, selling);
     auto& offers = cached->bestOffers;
 
     auto res = findIncludedOffer(offers.cbegin(), offers.cend(), worseThan);
@@ -2024,8 +2029,8 @@ LedgerTxnRoot::Impl::getBestOffer(LedgerEntry const& worseThan)
         std::list<LedgerEntry>::const_iterator newOfferIter;
         try
         {
-            newOfferIter = loadBestOffers(offers, oe.buying, oe.selling,
-                                          BATCH_SIZE, offers.size());
+            newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE,
+                                          offers.size());
         }
         catch (std::exception& e)
         {
