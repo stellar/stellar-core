@@ -338,8 +338,9 @@ class AbstractLedgerTxnParent
     //     buying or selling the specified asset.
     virtual std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() = 0;
     virtual std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude) = 0;
+    getBestOffer(Asset const& buying, Asset const& selling) = 0;
+    virtual std::shared_ptr<LedgerEntry const>
+    getBestOffer(LedgerEntry const& worseThan) = 0;
     virtual std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
@@ -526,8 +527,9 @@ class LedgerTxn final : public AbstractLedgerTxn
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude) override;
+    getBestOffer(Asset const& buying, Asset const& selling) override;
+    std::shared_ptr<LedgerEntry const>
+    getBestOffer(LedgerEntry const& worseThan) override;
 
     LedgerEntryChanges getChanges() override;
 
@@ -610,8 +612,9 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
 
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude) override;
+    getBestOffer(Asset const& buying, Asset const& selling) override;
+    std::shared_ptr<LedgerEntry const>
+    getBestOffer(LedgerEntry const& worseThan) override;
 
     std::unordered_map<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,

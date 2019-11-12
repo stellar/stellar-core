@@ -252,9 +252,10 @@ class LedgerTxn::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
+    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
+                                                    Asset const& selling);
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude);
+    getBestOffer(LedgerEntry const& worseThan);
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -558,9 +559,10 @@ class LedgerTxnRoot::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
+    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
+                                                    Asset const& selling);
     std::shared_ptr<LedgerEntry const>
-    getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude);
+    getBestOffer(LedgerEntry const& worseThan);
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then

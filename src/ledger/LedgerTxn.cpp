@@ -510,68 +510,135 @@ LedgerTxn::Impl::getAllOffers()
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling,
-                        std::unordered_set<LedgerKey>& exclude)
+LedgerTxn::getBestOffer(Asset const& buying, Asset const& selling)
 {
-    return getImpl()->getBestOffer(buying, selling, exclude);
+    return getImpl()->getBestOffer(buying, selling);
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                              std::unordered_set<LedgerKey>& exclude)
+LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
 {
-    auto end = mEntry.cend();
-    auto bestOfferIter = end;
-    if (exclude.size() + mEntry.size() > exclude.bucket_count())
+    if (!mActive.empty())
     {
-        // taking a best guess as a starting point for how big exclude can get
-        // this avoids rehashing when processing transactions after a lot of
-        // changes already occured
-        exclude.reserve(exclude.size() + mEntry.size());
+        throw std::runtime_error("active entries when getting best offer");
     }
-    for (auto iter = mEntry.cbegin(); iter != end; ++iter)
+
+    AssetPair const assets{buying, selling};
+
+    std::shared_ptr<LedgerEntry const> selfBest;
+    auto mobIter = mMultiOrderBook.find(assets);
+    if (mobIter != mMultiOrderBook.end())
     {
-        auto const& key = iter->first;
-        auto const& entry = iter->second;
-        if (key.type() != OFFER)
+        auto const& offers = mobIter->second;
+        if (!offers.empty())
         {
-            continue;
-        }
-
-        if (!exclude.insert(key).second)
-        {
-            continue;
-        }
-
-        if (!(entry && entry->data.offer().buying == buying &&
-              entry->data.offer().selling == selling))
-        {
-            continue;
-        }
-
-        if ((bestOfferIter == end) ||
-            isBetterOffer(*entry, *bestOfferIter->second))
-        {
-            bestOfferIter = iter;
+            auto entryIter = mEntry.find(offers.begin()->second);
+            if (entryIter == mEntry.end() || !entryIter->second)
+            {
+                throw std::runtime_error("invalid order book state");
+            }
+            selfBest = std::make_shared<LedgerEntry const>(*entryIter->second);
         }
     }
 
-    std::shared_ptr<LedgerEntry const> bestOffer;
-    if (bestOfferIter != end)
+    auto parentBest = mParent.getBestOffer(buying, selling);
+    // If parentBest is not nullptr, then the parent contains at least one offer
+    // with the specified asset pair. If selfBest is not nullptr and parentBest
+    // is not better than selfBest, then we must return selfBest because
+    // parentBest cannot be the best offer. Otherwise, either selfBest is
+    // nullptr or parentBest is better than selfBest. In the first case, self
+    // has no recorded offer with the specified asset pair. In the second case,
+    // self has a recorded offer with the specified asset pair but it is worse
+    // than parentBest. Either way, we should return parentBest if it is not
+    // recorded in self. If it is recorded in self, then one of the following is
+    // true:
+    // - it has been erased, in which case it is not the best offer
+    // - it has been modified to a different asset pair or a worse price, in
+    //   which case it is not the best offer
+    // - it has been modified to a price no worse than its price in the parent,
+    //   but this possibility is excluded by the fact that either selfBest is
+    //   nullptr or parentBest is better than selfBest
+    // If parentBest is recorded in self, then we must ask parent for the next
+    // best offer that is worse than parentBest and repeat.
+    while (parentBest && (!selfBest || isBetterOffer(*parentBest, *selfBest)))
     {
-        bestOffer = std::make_shared<LedgerEntry const>(*bestOfferIter->second);
+        if (mEntry.find(LedgerEntryKey(*parentBest)) == mEntry.end())
+        {
+            return parentBest;
+        }
+        parentBest = mParent.getBestOffer(*parentBest);
+    }
+    return selfBest;
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxn::getBestOffer(LedgerEntry const& worseThan)
+{
+    return getImpl()->getBestOffer(worseThan);
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxn::Impl::getBestOffer(LedgerEntry const& worseThan)
+{
+    if (!mActive.empty())
+    {
+        throw std::runtime_error("active entries when getting best offer");
     }
 
-    auto parentBestOffer = mParent.getBestOffer(buying, selling, exclude);
-    if (bestOffer && parentBestOffer)
+    auto const& oe = worseThan.data.offer();
+    AssetPair const assets{oe.buying, oe.selling};
+
+    std::shared_ptr<LedgerEntry const> selfBest;
+    auto mobIter = mMultiOrderBook.find(assets);
+    if (mobIter != mMultiOrderBook.end())
     {
-        return isBetterOffer(*bestOffer, *parentBestOffer) ? bestOffer
-                                                           : parentBestOffer;
+        auto const& offers = mobIter->second;
+        auto iter = offers.upper_bound({oe.price, oe.offerID});
+        if (iter != offers.end())
+        {
+            auto entryIter = mEntry.find(iter->second);
+            if (entryIter == mEntry.end() || !entryIter->second)
+            {
+                throw std::runtime_error("invalid order book state");
+            }
+            selfBest = std::make_shared<LedgerEntry const>(*entryIter->second);
+        }
     }
-    else
+
+    auto parentBest = mParent.getBestOffer(worseThan);
+
+    // If parentBest is nullptr, then the parent contains no offers that are
+    // worse than worseThan. Therefore we always return selfBest (which may also
+    // be nullptr).
+    //
+    // If parentBest is not nullptr, then the parent contains at least one offer
+    // with the specified asset pair that is worse than worseThan. If selfBest
+    // is not nullptr and parentBest is not better than selfBest, then we must
+    // return selfBest because parentBest cannot be the best offer. Otherwise,
+    // either selfBest is nullptr or parentBest is better than selfBest. In the
+    // first case, self has no recorded offer with the specified asset pair that
+    // is worse than worseThan. In the second case, self has a recorded offer
+    // with the specified asset pair that is worse than worseThan but it is also
+    // worse than parentBest. Either way, we should return parentBest if it is
+    // not recorded in self. If it is recorded in self, then one of the
+    // following is true:
+    // - it has been erased, in which case it is not the best offer
+    // - it has been modified to a different asset pair or a worse price, in
+    //   which case it is not the best offer
+    // - it has been modified to a price no worse than its price in the parent,
+    //   but this possibility is excluded by the fact that either selfBest is
+    //   nullptr or parentBest is better than selfBest
+    // If parentBest is recorded in self, then we must ask parent for the next
+    // best offer that is worse than parentBest and repeat.
+    while (parentBest && (!selfBest || isBetterOffer(*parentBest, *selfBest)))
     {
-        return bestOffer ? bestOffer : parentBestOffer;
+        if (mEntry.find(LedgerEntryKey(*parentBest)) == mEntry.end())
+        {
+            return parentBest;
+        }
+        parentBest = mParent.getBestOffer(*parentBest);
     }
+    return selfBest;
 }
 
 LedgerEntryChanges
@@ -1018,9 +1085,9 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
     throwIfSealed();
     throwIfChild();
 
-    std::unordered_set<LedgerKey> exclude;
-    auto le = getBestOffer(buying, selling, exclude);
-    return le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
+    auto le = getBestOffer(buying, selling);
+    auto res = le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
+    return res;
 }
 
 LedgerTxnHeader
@@ -1884,31 +1951,13 @@ LedgerTxnRoot::Impl::getAllOffers()
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
-                            std::unordered_set<LedgerKey>& exclude)
+LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling)
 {
-    return mImpl->getBestOffer(buying, selling, exclude);
-}
-
-static std::shared_ptr<LedgerEntry const>
-findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
-                  std::list<LedgerEntry>::const_iterator const& end,
-                  std::unordered_set<LedgerKey> const& exclude)
-{
-    for (; iter != end; ++iter)
-    {
-        auto key = LedgerEntryKey(*iter);
-        if (exclude.find(key) == exclude.end())
-        {
-            return std::make_shared<LedgerEntry const>(*iter);
-        }
-    }
-    return {};
+    return mImpl->getBestOffer(buying, selling);
 }
 
 std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                  std::unordered_set<LedgerKey>& exclude)
+LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling)
 {
     // Note: Elements of mBestOffersCache are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
@@ -1918,7 +1967,56 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     auto cached = getFromBestOffersCache(buying, selling);
     auto& offers = cached->bestOffers;
 
-    auto res = findIncludedOffer(offers.cbegin(), offers.cend(), exclude);
+    if (offers.empty() && !cached->allLoaded)
+    {
+        loadBestOffers(offers, buying, selling, 1, 0);
+        cached->allLoaded = offers.empty();
+    }
+
+    if (!offers.empty())
+    {
+        auto res = std::make_shared<LedgerEntry const>(offers.front());
+        putInEntryCache(LedgerEntryKey(*res), res, LoadType::IMMEDIATE);
+        return res;
+    }
+    return nullptr;
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::getBestOffer(LedgerEntry const& worseThan)
+{
+    return mImpl->getBestOffer(worseThan);
+}
+
+static std::shared_ptr<LedgerEntry const>
+findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
+                  std::list<LedgerEntry>::const_iterator const& end,
+                  LedgerEntry const& worseThan)
+{
+    for (; iter != end; ++iter)
+    {
+        if (isBetterOffer(worseThan, *iter))
+        {
+            return std::make_shared<LedgerEntry const>(*iter);
+        }
+    }
+    return {};
+}
+
+std::shared_ptr<LedgerEntry const>
+LedgerTxnRoot::Impl::getBestOffer(LedgerEntry const& worseThan)
+{
+    auto const& oe = worseThan.data.offer();
+
+    // Note: Elements of mBestOffersCache are properly sorted lists of the best
+    // offers for a certain asset pair. This function maintaints the invariant
+    // that the lists of best offers remain properly sorted. The sort order is
+    // that determined by loadBestOffers and isBetterOffer (both induce the same
+    // order).
+    auto cached = getFromBestOffersCache(oe.buying, oe.selling);
+    auto& offers = cached->bestOffers;
+
+    auto res = findIncludedOffer(offers.cbegin(), offers.cend(), worseThan);
 
     size_t const BATCH_SIZE = 5;
     while (!res && !cached->allLoaded)
@@ -1926,8 +2024,8 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         std::list<LedgerEntry>::const_iterator newOfferIter;
         try
         {
-            newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE,
-                                          offers.size());
+            newOfferIter = loadBestOffers(offers, oe.buying, oe.selling,
+                                          BATCH_SIZE, offers.size());
         }
         catch (std::exception& e)
         {
@@ -1945,7 +2043,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         {
             cached->allLoaded = true;
         }
-        res = findIncludedOffer(newOfferIter, offers.cend(), exclude);
+        res = findIncludedOffer(newOfferIter, offers.cend(), worseThan);
     }
 
     if (res)
