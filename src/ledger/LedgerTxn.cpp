@@ -53,6 +53,19 @@ populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
 }
 
 bool
+operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
+{
+    return lhs.price == rhs.price && lhs.offerID == rhs.offerID;
+}
+
+bool
+IsBetterOfferComparator::operator()(OfferDescriptor const& lhs,
+                                    OfferDescriptor const& rhs) const
+{
+    return isBetterOffer(lhs, rhs);
+}
+
+bool
 operator==(AssetPair const& lhs, AssetPair const& rhs)
 {
     return lhs.buying == rhs.buying && lhs.selling == rhs.selling;
@@ -186,6 +199,23 @@ LedgerTxn::Impl::addChild(AbstractLedgerTxn& child)
 
     mChild = &child;
 
+    try
+    {
+        for (auto const& kv : mActive)
+        {
+            updateEntryIfRecorded(kv.first, false);
+        }
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("fatal error during add child to LedgerTxn: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("unknown fatal error during add child to LedgerTxn");
+    }
+
     // std::set<...>::clear is noexcept
     mActive.clear();
 
@@ -271,17 +301,14 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
         for (; (bool)iter; ++iter)
         {
             auto const& key = iter.key();
+
             if (iter.entryExists())
             {
-                mEntry[key] = std::make_shared<LedgerEntry>(iter.entry());
-            }
-            else if (!mParent.getNewestVersion(key))
-            { // Created in this LedgerTxn
-                mEntry.erase(key);
+                updateEntry(key, std::make_shared<LedgerEntry>(iter.entry()));
             }
             else
-            { // Existed in a previous LedgerTxn
-                mEntry[key] = nullptr;
+            {
+                updateEntry(key, nullptr);
             }
         }
     }
@@ -328,8 +355,7 @@ LedgerTxn::Impl::create(LedgerTxn& self, LedgerEntry const& entry)
     mActive.emplace(key, toEntryImplBase(impl));
     LedgerTxnEntry ltxe(impl);
 
-    // std::shared_ptr assignment is noexcept
-    mEntry[key] = current;
+    updateEntry(key, current);
     return ltxe;
 }
 
@@ -353,9 +379,7 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
         throw std::runtime_error("Key is already active");
     }
 
-    // std::shared_ptr assignment is noexcept, and map
-    // index on a single key is strong-guarantee.
-    mEntry[key] = std::make_shared<LedgerEntry>(entry);
+    updateEntry(key, std::make_shared<LedgerEntry>(entry));
 }
 
 void
@@ -372,6 +396,11 @@ LedgerTxn::Impl::deactivate(LedgerKey const& key)
     {
         throw std::runtime_error("Key is not active");
     }
+
+    updateEntryIfRecorded(key, false);
+
+    // C++14 requirements for exception safety of containers guarantee that
+    // erase(iter) does not throw
     mActive.erase(iter);
 }
 
@@ -412,32 +441,14 @@ LedgerTxn::Impl::erase(LedgerKey const& key)
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
 
-    if (!mParent.getNewestVersion(key))
-    { // Created in this LedgerTxn
-        mEntry.erase(key);
-    }
-    else
-    { // Existed in a previous LedgerTxn
-        auto iter = mEntry.find(key);
-        if (iter != mEntry.end())
-        {
-            iter->second.reset();
-        }
-        else
-        {
-            // C++14 requirements for exception safety of associative containers
-            // guarantee that if emplace throws when inserting a single element
-            // then the insertion has no effect
-            mEntry.emplace(key, nullptr);
-        }
-    }
+    updateEntry(key, nullptr, false);
     // Note: Cannot throw after this point because the entry will not be
     // deactivated in that case
 
+    // C++14 requirements for exception safety of containers guarantee that
+    // erase(iter) does not throw
     if (isActive)
     {
-        // C++14 requirements for exception safety of containers guarantee that
-        // erase(iter) does not throw
         mActive.erase(activeIter);
     }
 }
@@ -457,18 +468,7 @@ LedgerTxn::Impl::eraseWithoutLoading(LedgerKey const& key)
     auto activeIter = mActive.find(key);
     bool isActive = activeIter != mActive.end();
 
-    auto iter = mEntry.find(key);
-    if (iter != mEntry.end())
-    {
-        iter->second.reset();
-    }
-    else
-    {
-        // C++14 requirements for exception safety of associative containers
-        // guarantee that if emplace throws when inserting a single element
-        // then the insertion has no effect
-        mEntry.emplace(key, nullptr);
-    }
+    updateEntry(key, nullptr, false, false);
     // Note: Cannot throw after this point because the entry will not be
     // deactivated in that case
 
@@ -961,8 +961,10 @@ LedgerTxn::Impl::load(LedgerTxn& self, LedgerKey const& key)
     mActive.emplace(key, toEntryImplBase(impl));
     LedgerTxnEntry ltxe(impl);
 
-    // std::shared_ptr assignment is noexcept
-    mEntry[key] = current;
+    // If this throws, the order book will not be modified because of the strong
+    // exception safety guarantee. Furthermore, ltxe will be destructed leading
+    // to key being deactivated. This will leave LedgerTxn unmodified.
+    updateEntry(key, current);
     return ltxe;
 }
 
@@ -979,6 +981,7 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
     throwIfChild();
 
     auto previousEntries = mEntry;
+    auto previousMultiOrderBook = mMultiOrderBook;
     auto offers = getAllOffers();
     try
     {
@@ -997,6 +1000,7 @@ LedgerTxn::Impl::loadAllOffers(LedgerTxn& self)
         // is thrown by the swap of the Compare object (which is of type
         // std::less<LedgerKey>, so this should not throw when swapped)
         mEntry.swap(previousEntries);
+        mMultiOrderBook.swap(previousMultiOrderBook);
         throw;
     }
 }
@@ -1059,6 +1063,7 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
     throwIfChild();
 
     auto previousEntries = mEntry;
+    auto previousMultiOrderBook = mMultiOrderBook;
     auto offers = getOffersByAccountAndAsset(accountID, asset);
     try
     {
@@ -1077,6 +1082,7 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
         // is thrown by the swap of the Compare object (which is of type
         // std::less<LedgerKey>, so this should not throw when swapped)
         mEntry.swap(previousEntries);
+        mMultiOrderBook.swap(previousMultiOrderBook);
         throw;
     }
 }
@@ -1110,7 +1116,16 @@ LedgerTxn::Impl::loadWithoutRecord(LedgerTxn& self, LedgerKey const& key)
     // contains key. ConstLedgerTxnEntry constructor does not throw so this is
     // still exception safe.
     mActive.emplace(key, toEntryImplBase(impl));
-    return ConstLedgerTxnEntry(impl);
+    ConstLedgerTxnEntry ltxe(impl);
+
+    // If this throws, the order book will not be modified because of the strong
+    // exception safety guarantee. Furthermore, ltxe will be destructed leading
+    // to key being deactivated. This will leave LedgerTxn unmodified.
+    //
+    // If key has not been recorded, this function does nothing. If key has been
+    // recorded, this removes the corresponding entry from mMultiOrderBook.
+    updateEntryIfRecorded(key, true);
+    return ltxe;
 }
 
 void
@@ -1128,8 +1143,11 @@ LedgerTxn::Impl::rollback()
         mChild->rollback();
     }
 
+    mEntry.clear();
+    mMultiOrderBook.clear();
     mActive.clear();
     mActiveHeader.reset();
+    mIsSealed = true;
 
     mParent.rollbackChild();
 }
@@ -1213,8 +1231,10 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
         // std::less<LedgerKey>, so this should not throw when swapped)
         mEntry.swap(entries);
 
+        // std::multiset<...>::clear does not throw
         // std::set<...>::clear does not throw
         // std::shared_ptr<...>::reset does not throw
+        mMultiOrderBook.clear();
         mActive.clear();
         mActiveHeader.reset();
         mIsSealed = true;
@@ -1222,6 +1242,139 @@ LedgerTxn::Impl::maybeUpdateLastModifiedThenInvokeThenSeal(
     else // Note: can't have child if sealed
     {
         f(mEntry);
+    }
+}
+
+std::pair<LedgerTxn::Impl::MultiOrderBook::iterator,
+          LedgerTxn::Impl::OrderBook::iterator>
+LedgerTxn::Impl::findInOrderBook(LedgerEntry const& le)
+{
+    auto const& oe = le.data.offer();
+    auto mobIter = mMultiOrderBook.find({oe.buying, oe.selling});
+    OrderBook::iterator obIter;
+    if (mobIter != mMultiOrderBook.end())
+    {
+        obIter = mobIter->second.find({oe.price, oe.offerID});
+    }
+    return {mobIter, obIter};
+}
+
+void
+LedgerTxn::Impl::updateEntryIfRecorded(LedgerKey const& key,
+                                       bool effectiveActive)
+{
+    auto entryIter = mEntry.find(key);
+    // If loadWithoutRecord was used, then key may not be in mEntry. But if key
+    // is not in mEntry, then there is no reason to have an entry in the order
+    // book. Therefore we only updateEntry if key is in mEntry.
+    if (entryIter != mEntry.end())
+    {
+        updateEntry(key, entryIter->second, effectiveActive);
+    }
+}
+
+void
+LedgerTxn::Impl::updateEntry(LedgerKey const& key,
+                             std::shared_ptr<LedgerEntry> lePtr)
+{
+    bool effectiveActive = mActive.find(key) != mActive.end();
+    updateEntry(key, lePtr, effectiveActive);
+}
+
+void
+LedgerTxn::Impl::updateEntry(LedgerKey const& key,
+                             std::shared_ptr<LedgerEntry> lePtr,
+                             bool effectiveActive)
+{
+    bool eraseIfNull = !lePtr && !mParent.getNewestVersion(key);
+    updateEntry(key, lePtr, effectiveActive, eraseIfNull);
+}
+
+void
+LedgerTxn::Impl::updateEntry(LedgerKey const& key,
+                             std::shared_ptr<LedgerEntry> lePtr,
+                             bool effectiveActive, bool eraseIfNull)
+{
+    // recordEntry has the strong exception safety guarantee because
+    // - std::unordered_map<...>::erase has the strong exception safety
+    //   guarantee
+    // - std::unordered_map<...>::operator[] has the strong exception safety
+    //   guarantee
+    // - std::shared_ptr<...>::operator= does not throw
+    auto recordEntry = [&]() {
+        if (eraseIfNull)
+        {
+            mEntry.erase(key);
+        }
+        else
+        {
+            mEntry[key] = lePtr;
+        }
+    };
+
+    // If the key does not correspond to an offer, we do not need to manage the
+    // order book. Record the update in mEntry and return.
+    if (key.type() != OFFER)
+    {
+        recordEntry();
+        return;
+    }
+
+    auto mobIterPrev = mMultiOrderBook.end();
+    OrderBook::iterator obIterPrev;
+    auto iter = mEntry.find(key);
+    if (iter != mEntry.end() && iter->second)
+    {
+        std::tie(mobIterPrev, obIterPrev) = findInOrderBook(*iter->second);
+    }
+
+    // We only insert the new offer into the order book if it exists and is not
+    // active. Otherwise, we just record the update in mEntry and return.
+    if (lePtr && !effectiveActive)
+    {
+        auto const& oe = lePtr->data.offer();
+        AssetPair assetPair{oe.buying, oe.selling};
+
+        auto mobIterNew = mMultiOrderBook.find(assetPair);
+        if (mobIterNew != mMultiOrderBook.end())
+        {
+            auto& obNew = mobIterNew->second;
+            auto res = obNew.insert({{oe.price, oe.offerID}, key});
+            try
+            {
+                recordEntry();
+            }
+            catch (...)
+            {
+                obNew.erase(res);
+                throw;
+            }
+        }
+        else
+        {
+            auto res = mMultiOrderBook.emplace(
+                assetPair, OrderBook{{{oe.price, oe.offerID}, key}});
+            try
+            {
+                recordEntry();
+            }
+            catch (...)
+            {
+                mMultiOrderBook.erase(res.first);
+                throw;
+            }
+        }
+    }
+    else
+    {
+        recordEntry();
+    }
+
+    // This never throws
+    if (mobIterPrev != mMultiOrderBook.end() &&
+        obIterPrev != mobIterPrev->second.end())
+    {
+        mobIterPrev->second.erase(obIterPrev);
     }
 }
 

@@ -22,19 +22,6 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
-struct AssetPair
-{
-    Asset buying;
-    Asset selling;
-};
-
-bool operator==(AssetPair const& lhs, AssetPair const& rhs);
-
-struct AssetPairHash
-{
-    size_t operator()(AssetPair const& key) const;
-};
-
 // A defensive heuristic to ensure prefetching stops if entry cache is filling
 // up.
 static const double ENTRY_CACHE_FILL_RATIO = 0.5;
@@ -158,6 +145,21 @@ class LedgerTxn::Impl
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
 
+    // In theory, we only need an std::map<...> per asset pair. Unfortunately
+    // std::map<...> does not provide any remotely exception safe way to update
+    // the keys. So we use std::multimap<...> in order to achieve an exception
+    // safe update. The observable state of the std::multimap<...> should never
+    // have multiple elements with the same key.
+    typedef std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
+        OrderBook;
+    typedef std::unordered_map<AssetPair, OrderBook, AssetPairHash>
+        MultiOrderBook;
+    // mMultiOrderbook is an in-memory representation of the order book that
+    // contains an entry if and only if it is recorded in this LedgerTxn and is
+    // not active. It is grouped by asset pair, and for each asset pair all
+    // entries are sorted according to the better offer relation.
+    MultiOrderBook mMultiOrderBook;
+
     void throwIfChild() const;
     void throwIfSealed() const;
     void throwIfNotExactConsistency() const;
@@ -190,6 +192,17 @@ class LedgerTxn::Impl
     // guarantee as f
     void maybeUpdateLastModifiedThenInvokeThenSeal(
         std::function<void(EntryMap const&)> f);
+
+    // findInOrderBook has the strong exception safety guarantee
+    std::pair<MultiOrderBook::iterator, OrderBook::iterator>
+    findInOrderBook(LedgerEntry const& le);
+
+    void updateEntryIfRecorded(LedgerKey const& key, bool effectiveActive);
+    void updateEntry(LedgerKey const& key, std::shared_ptr<LedgerEntry> lePtr);
+    void updateEntry(LedgerKey const& key, std::shared_ptr<LedgerEntry> lePtr,
+                     bool effectiveActive);
+    void updateEntry(LedgerKey const& key, std::shared_ptr<LedgerEntry> lePtr,
+                     bool effectiveActive, bool eraseIfNull);
 
   public:
     // Constructor has the strong exception safety guarantee

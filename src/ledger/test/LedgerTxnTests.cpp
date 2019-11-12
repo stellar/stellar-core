@@ -2686,7 +2686,9 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         }
         for (auto& kv : sortedOffers)
         {
-            std::sort(kv.second.begin(), kv.second.end(), isBetterOffer);
+            std::sort(kv.second.begin(), kv.second.end(),
+                      (bool (*)(LedgerEntry const&,
+                                LedgerEntry const&))isBetterOffer);
         }
 
         writeEntries(*app, offers);

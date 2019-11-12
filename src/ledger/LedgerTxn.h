@@ -214,7 +214,33 @@ struct LedgerEntry;
 struct LedgerKey;
 struct LedgerRange;
 
+struct OfferDescriptor
+{
+    Price price;
+    int64_t offerID;
+};
+bool operator==(OfferDescriptor const& lhs, OfferDescriptor const& rhs);
+
 bool isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry);
+bool isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs);
+
+struct IsBetterOfferComparator
+{
+    bool operator()(OfferDescriptor const& lhs,
+                    OfferDescriptor const& rhs) const;
+};
+
+struct AssetPair
+{
+    Asset buying;
+    Asset selling;
+};
+bool operator==(AssetPair const& lhs, AssetPair const& rhs);
+
+struct AssetPairHash
+{
+    size_t operator()(AssetPair const& key) const;
+};
 
 class AbstractLedgerTxn;
 

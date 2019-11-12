@@ -93,17 +93,9 @@ LedgerTxnRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
     }
 }
 
-// Note: The order induced by this function must match the order used in the
-// SQL query for loadBestOffers above.
 bool
-isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
+isBetterOffer(OfferDescriptor const& lhs, OfferDescriptor const& rhs)
 {
-    auto const& lhs = lhsEntry.data.offer();
-    auto const& rhs = rhsEntry.data.offer();
-
-    assert(lhs.buying == rhs.buying);
-    assert(lhs.selling == rhs.selling);
-
     double lhsPrice = double(lhs.price.n) / double(lhs.price.d);
     double rhsPrice = double(rhs.price.n) / double(rhs.price.d);
     if (lhsPrice < rhsPrice)
@@ -118,6 +110,20 @@ isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
     {
         return false;
     }
+}
+
+// Note: The order induced by this function must match the order used in the
+// SQL query for loadBestOffers above.
+bool
+isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
+{
+    auto const& lhs = lhsEntry.data.offer();
+    auto const& rhs = rhsEntry.data.offer();
+
+    assert(lhs.buying == rhs.buying);
+    assert(lhs.selling == rhs.selling);
+
+    return isBetterOffer({lhs.price, lhs.offerID}, {rhs.price, rhs.offerID});
 }
 
 // Note: This function is currently only used in AllowTrustOpFrame, which means
