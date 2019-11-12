@@ -62,8 +62,8 @@ LedgerTxnRoot::Impl::loadAllOffers() const
     return offers;
 }
 
-std::list<LedgerEntry>::const_iterator
-LedgerTxnRoot::Impl::loadBestOffers(std::list<LedgerEntry>& offers,
+std::deque<LedgerEntry>::const_iterator
+LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
                                     Asset const& buying, Asset const& selling,
                                     size_t numOffers, size_t offset) const
 {
@@ -178,9 +178,9 @@ processAsset(std::string const& asset)
     return res;
 }
 
-std::list<LedgerEntry>::const_iterator
+std::deque<LedgerEntry>::const_iterator
 LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
-                                std::list<LedgerEntry>& offers) const
+                                std::deque<LedgerEntry>& offers) const
 {
     std::string actIDStrKey;
     std::string sellingAsset, buyingAsset;
@@ -202,25 +202,19 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
     st.define_and_bind();
     st.execute(true);
 
-    auto iterNext = offers.cend();
+    size_t n = 0;
     while (st.got_data())
     {
+        ++n;
         oe.sellerID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
         oe.selling = processAsset(sellingAsset);
         oe.buying = processAsset(buyingAsset);
 
-        if (iterNext == offers.cend())
-        {
-            iterNext = offers.emplace(iterNext, le);
-        }
-        else
-        {
-            offers.emplace_back(le);
-        }
+        offers.emplace_back(le);
         st.fetch();
     }
 
-    return iterNext;
+    return offers.cend() - n;
 }
 
 std::vector<LedgerEntry>

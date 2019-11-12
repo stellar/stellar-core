@@ -2321,18 +2321,15 @@ LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
 }
 
 static std::shared_ptr<LedgerEntry const>
-findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
-                  std::list<LedgerEntry>::const_iterator const& end,
+findIncludedOffer(std::deque<LedgerEntry>::const_iterator iter,
+                  std::deque<LedgerEntry>::const_iterator const& end,
                   OfferDescriptor const& worseThan)
 {
-    for (; iter != end; ++iter)
-    {
-        if (isBetterOffer(worseThan, *iter))
-        {
-            return std::make_shared<LedgerEntry const>(*iter);
-        }
-    }
-    return {};
+    iter = std::upper_bound(
+        iter, end, worseThan,
+        static_cast<bool (*)(OfferDescriptor const&, LedgerEntry const&)>(
+            isBetterOffer));
+    return (iter == end) ? nullptr : std::make_shared<LedgerEntry const>(*iter);
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -2352,7 +2349,7 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     size_t const BATCH_SIZE = 5;
     while (!res && !cached->allLoaded)
     {
-        std::list<LedgerEntry>::const_iterator newOfferIter;
+        std::deque<LedgerEntry>::const_iterator newOfferIter;
         try
         {
             newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE,
