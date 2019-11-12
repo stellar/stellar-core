@@ -11,6 +11,7 @@
 #include <ledger/LedgerHashUtils.h>
 #include <map>
 #include <memory>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -242,8 +243,6 @@ struct AssetPairHash
 {
     size_t operator()(AssetPair const& key) const;
 };
-
-class AbstractLedgerTxn;
 
 struct InflationWinner
 {
@@ -616,6 +615,14 @@ class LedgerTxn final : public AbstractLedgerTxn
     void rollbackChild() override;
 
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
+
+#ifdef BUILD_TESTS
+    std::unordered_map<
+        AssetPair,
+        std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+        AssetPairHash> const&
+    getOrderBook();
+#endif
 };
 
 class LedgerTxnRoot : public AbstractLedgerTxnParent

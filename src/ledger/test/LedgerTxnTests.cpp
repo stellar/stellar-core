@@ -2724,3 +2724,387 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         runTest(Config::TESTDB_ON_DISK_SQLITE, 10, 5, 25000);
     }
 }
+
+typedef std::unordered_map<AssetPair, std::vector<LedgerEntry>, AssetPairHash>
+    OrderBook;
+typedef std::unordered_map<
+    AssetPair,
+    std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+    AssetPairHash>
+    SortedOrderBook;
+
+static void
+checkOrderBook(LedgerTxn& ltx, OrderBook const& expected)
+{
+    SortedOrderBook sortedExpected;
+    for (auto const& kv : expected)
+    {
+        auto& inner = sortedExpected[kv.first];
+        for (auto const& le : kv.second)
+        {
+            auto const& oe = le.data.offer();
+            inner.insert({{oe.price, oe.offerID}, LedgerEntryKey(le)});
+        }
+    }
+
+    auto check = [](auto const& lhs, auto const& rhs) {
+        for (auto const& kv : lhs)
+        {
+            auto iter = rhs.find(kv.first);
+            if (kv.second.empty())
+            {
+                REQUIRE((iter == rhs.end() || iter->second.empty()));
+            }
+            else
+            {
+                REQUIRE((iter != rhs.end() && iter->second == kv.second));
+            }
+        }
+    };
+
+    check(ltx.getOrderBook(), sortedExpected);
+    check(sortedExpected, ltx.getOrderBook());
+}
+
+static LedgerEntry
+generateOfferWithSameAssets(LedgerEntry const& leBase)
+{
+    LedgerEntry le;
+    le.data.type(OFFER);
+    auto& oe = le.data.offer();
+    oe = LedgerTestUtils::generateValidOfferEntry();
+    oe.buying = leBase.data.offer().buying;
+    oe.selling = leBase.data.offer().selling;
+    return le;
+}
+
+static LedgerEntry
+generateOfferWithSameKeyAndAssets(LedgerEntry const& leBase)
+{
+    LedgerEntry le = generateLedgerEntryWithSameKey(leBase);
+    auto& oe = le.data.offer();
+    oe.buying = leBase.data.offer().buying;
+    oe.selling = leBase.data.offer().selling;
+    return le;
+}
+
+static LedgerEntry
+generateOfferWithSameKeyAndSwappedAssets(LedgerEntry const& leBase)
+{
+    LedgerEntry le = generateLedgerEntryWithSameKey(leBase);
+    auto& oe = le.data.offer();
+    oe.buying = leBase.data.offer().selling;
+    oe.selling = leBase.data.offer().buying;
+    return le;
+}
+
+TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    SECTION("one offer, one asset pair")
+    {
+        LedgerEntry le1;
+        le1.data.type(OFFER);
+        le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        LedgerEntry le2 = generateOfferWithSameKeyAndAssets(le1);
+        AssetPair assets{le1.data.offer().buying, le1.data.offer().selling};
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        {
+            auto lte = ltx.create(le1);
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1}}});
+
+        {
+            auto lte = ltx.load(LedgerEntryKey(le1));
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1}}});
+
+        {
+            auto lte = ltx.load(LedgerEntryKey(le1));
+            lte.current() = le2;
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le2}}});
+
+        SECTION("erase without loading")
+        {
+            ltx.erase(LedgerEntryKey(le1));
+            checkOrderBook(ltx, {});
+        }
+        SECTION("erase after loading")
+        {
+            ltx.load(LedgerEntryKey(le1)).erase();
+            checkOrderBook(ltx, {});
+        }
+    }
+
+    SECTION("two offers, one asset pair")
+    {
+        LedgerEntry le1a;
+        le1a.data.type(OFFER);
+        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        LedgerEntry le1b = generateOfferWithSameKeyAndAssets(le1a);
+        LedgerEntry le2a = generateOfferWithSameAssets(le1a);
+        LedgerEntry le2b = generateOfferWithSameKeyAndAssets(le2a);
+        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        {
+            auto lte1 = ltx.create(le1a);
+            auto lte2 = ltx.create(le2a);
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+
+        {
+            auto lte1 = ltx.load(LedgerEntryKey(le1a));
+            checkOrderBook(ltx, {{assets, {le2a}}});
+        }
+        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+        {
+            auto lte2 = ltx.load(LedgerEntryKey(le2a));
+            checkOrderBook(ltx, {{assets, {le1a}}});
+        }
+        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+
+        {
+            auto lte1 = ltx.load(LedgerEntryKey(le1a));
+            lte1.current() = le1b;
+            checkOrderBook(ltx, {{assets, {le2a}}});
+        }
+        checkOrderBook(ltx, {{assets, {le1b, le2a}}});
+        {
+            auto lte2 = ltx.load(LedgerEntryKey(le2a));
+            lte2.current() = le2b;
+            checkOrderBook(ltx, {{assets, {le1b}}});
+        }
+        checkOrderBook(ltx, {{assets, {le1b, le2b}}});
+
+        {
+            auto lte1 = ltx.load(LedgerEntryKey(le1b));
+            auto lte2 = ltx.load(LedgerEntryKey(le2b));
+            lte1.current() = le1a;
+            lte2.current() = le2a;
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+
+        SECTION("erase one at a time")
+        {
+            ltx.erase(LedgerEntryKey(le1a));
+            checkOrderBook(ltx, {{assets, {le2a}}});
+            ltx.erase(LedgerEntryKey(le2a));
+            checkOrderBook(ltx, {});
+        }
+        SECTION("load then erase both")
+        {
+            auto lte1 = ltx.load(LedgerEntryKey(le1a));
+            auto lte2 = ltx.load(LedgerEntryKey(le2a));
+            lte1.erase();
+            checkOrderBook(ltx, {});
+            lte2.erase();
+            checkOrderBook(ltx, {});
+        }
+    }
+
+    SECTION("four offers, two asset pairs")
+    {
+        LedgerEntry le1a;
+        le1a.data.type(OFFER);
+        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        LedgerEntry le1b = generateOfferWithSameKeyAndSwappedAssets(le1a);
+        LedgerEntry le2a = generateOfferWithSameAssets(le1a);
+        LedgerEntry le2b = generateOfferWithSameKeyAndSwappedAssets(le2a);
+        LedgerEntry le3a = generateOfferWithSameAssets(le1a);
+        LedgerEntry le3b = generateOfferWithSameKeyAndSwappedAssets(le3a);
+        LedgerEntry le4a = generateOfferWithSameAssets(le1a);
+        LedgerEntry le4b = generateOfferWithSameKeyAndSwappedAssets(le4a);
+        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
+        AssetPair swappedAssets{assets.selling, assets.buying};
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        {
+            auto lte1 = ltx.create(le1a);
+            auto lte2 = ltx.create(le2a);
+            auto lte3 = ltx.create(le3a);
+            auto lte4 = ltx.create(le4a);
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1a, le2a, le3a, le4a}}});
+
+        {
+            auto lte1 = ltx.load(LedgerEntryKey(le1a));
+            lte1.current() = le1b;
+            checkOrderBook(ltx, {{assets, {le2a, le3a, le4a}}});
+        }
+        checkOrderBook(ltx,
+                       {{assets, {le2a, le3a, le4a}}, {swappedAssets, {le1b}}});
+
+        {
+            auto lte2 = ltx.load(LedgerEntryKey(le2a));
+            auto lte3 = ltx.load(LedgerEntryKey(le3a));
+            lte2.current() = le2b;
+            lte3.current() = le3b;
+            checkOrderBook(ltx, {{assets, {le4a}}, {swappedAssets, {le1b}}});
+        }
+        checkOrderBook(ltx,
+                       {{assets, {le4a}}, {swappedAssets, {le1b, le2b, le3b}}});
+
+        {
+            auto lte4 = ltx.load(LedgerEntryKey(le4a));
+            lte4.current() = le4b;
+            checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b}}});
+        }
+        checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b, le4b}}});
+    }
+
+    SECTION("createOrUpdateWithoutLoading correctly modifies order book")
+    {
+        LedgerEntry le1a;
+        le1a.data.type(OFFER);
+        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        LedgerEntry le1b = generateLedgerEntryWithSameKey(le1a);
+        AssetPair assetsA{le1a.data.offer().buying, le1a.data.offer().selling};
+        AssetPair assetsB{le1b.data.offer().buying, le1b.data.offer().selling};
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.createOrUpdateWithoutLoading(le1a);
+        checkOrderBook(ltx, {{assetsA, {le1a}}});
+        ltx.createOrUpdateWithoutLoading(le1b);
+        checkOrderBook(ltx, {{assetsB, {le1b}}});
+    }
+
+    SECTION("eraseWithoutLoading correctly modifies order book")
+    {
+        LedgerEntry le1a;
+        le1a.data.type(OFFER);
+        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.eraseWithoutLoading(LedgerEntryKey(le1a));
+            checkOrderBook(ltx, {});
+            ltx.create(le1a);
+            checkOrderBook(ltx, {{assets, {le1a}}});
+            ltx.eraseWithoutLoading(LedgerEntryKey(le1a));
+            checkOrderBook(ltx, {});
+        }
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            {
+                LedgerTxn ltxChild(ltx);
+                ltxChild.eraseWithoutLoading(LedgerEntryKey(le1a));
+                ltxChild.commit();
+            }
+            checkOrderBook(ltx, {});
+        }
+    }
+
+    SECTION("deactivating ConstLedgerTxnEntry does not modify order book")
+    {
+        LedgerEntry le1a;
+        le1a.data.type(OFFER);
+        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        {
+            auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {});
+
+        {
+            auto lte = ltx.create(le1a);
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1a}}});
+
+        {
+            auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
+            checkOrderBook(ltx, {});
+        }
+        checkOrderBook(ltx, {{assets, {le1a}}});
+    }
+
+    SECTION("parent updates correctly on addChild")
+    {
+        OrderBook orderBook;
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+
+        std::vector<LedgerTxnEntry> entries;
+        for (size_t i = 0; i < 20; ++i)
+        {
+            LedgerEntry le;
+            le.data.type(OFFER);
+            auto& oe = le.data.offer();
+            oe = LedgerTestUtils::generateValidOfferEntry();
+            entries.emplace_back(ltx.create(le));
+
+            AssetPair assets{oe.buying, oe.selling};
+            orderBook[assets].emplace_back(le);
+        }
+        checkOrderBook(ltx, {});
+
+        {
+            LedgerTxn ltxChild(ltx);
+            checkOrderBook(ltx, orderBook);
+            checkOrderBook(ltxChild, {});
+
+            OrderBook newOrderBook;
+            OrderBook combinedOrderBook;
+
+            size_t j = 0;
+            for (auto& kv : orderBook)
+            {
+                for (auto const& le : kv.second)
+                {
+                    if (j % 3 == 0)
+                    {
+                        auto leNew = generateLedgerEntryWithSameKey(le);
+                        ltxChild.load(LedgerEntryKey(le)).current() = leNew;
+
+                        auto const& oe = leNew.data.offer();
+                        AssetPair assets{oe.buying, oe.selling};
+                        newOrderBook[assets].emplace_back(leNew);
+                        combinedOrderBook[assets].emplace_back(leNew);
+                    }
+                    else if (j % 3 == 1)
+                    {
+                        auto const& oe = le.data.offer();
+                        AssetPair assets{oe.buying, oe.selling};
+                        combinedOrderBook[assets].emplace_back(le);
+                    }
+                    else if (j % 3 == 2)
+                    {
+                        ltxChild.erase(LedgerEntryKey(le));
+                    }
+                    ++j;
+                }
+            }
+
+            checkOrderBook(ltxChild, newOrderBook);
+            checkOrderBook(ltx, orderBook);
+
+            SECTION("parent updates correctly on commit")
+            {
+                ltxChild.commit();
+                checkOrderBook(ltx, combinedOrderBook);
+            }
+
+            SECTION("parent does not update on rollback")
+            {
+                ltxChild.rollback();
+                checkOrderBook(ltx, orderBook);
+            }
+        }
+    }
+}

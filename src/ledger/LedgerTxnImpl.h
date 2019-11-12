@@ -432,6 +432,10 @@ class LedgerTxn::Impl
 
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
+
+#ifdef BUILD_TESTS
+    MultiOrderBook const& getOrderBook();
+#endif
 };
 
 class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl

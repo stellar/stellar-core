@@ -1694,6 +1694,23 @@ LedgerTxn::Impl::getWorstBestOfferIterator()
     return WorstBestOfferIterator(std::move(iterImpl));
 }
 
+#ifdef BUILD_TESTS
+std::unordered_map<
+    AssetPair,
+    std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
+    AssetPairHash> const&
+LedgerTxn::getOrderBook()
+{
+    return getImpl()->getOrderBook();
+}
+
+LedgerTxn::Impl::MultiOrderBook const&
+LedgerTxn::Impl::getOrderBook()
+{
+    return mMultiOrderBook;
+}
+#endif
+
 // Implementation of LedgerTxn::Impl::EntryIteratorImpl ---------------------
 LedgerTxn::Impl::EntryIteratorImpl::EntryIteratorImpl(IteratorType const& begin,
                                                       IteratorType const& end)
