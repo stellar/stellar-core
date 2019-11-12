@@ -251,6 +251,8 @@ struct InflationWinner
     int64_t votes;
 };
 
+class AbstractLedgerTxn;
+
 // LedgerTxnDelta represents the difference between a LedgerTxn and its
 // parent. Used in the Invariants subsystem.
 struct LedgerTxnDelta
@@ -301,6 +303,32 @@ class EntryIterator
     bool entryExists() const;
 
     LedgerKey const& key() const;
+};
+
+class WorstBestOfferIterator
+{
+  public:
+    class AbstractImpl;
+
+  private:
+    std::unique_ptr<AbstractImpl> mImpl;
+
+    std::unique_ptr<AbstractImpl> const& getImpl() const;
+
+  public:
+    WorstBestOfferIterator(std::unique_ptr<AbstractImpl>&& impl);
+
+    WorstBestOfferIterator(WorstBestOfferIterator const& other);
+
+    WorstBestOfferIterator(WorstBestOfferIterator&& other);
+
+    WorstBestOfferIterator& operator++();
+
+    explicit operator bool() const;
+
+    AssetPair const& assets() const;
+
+    std::shared_ptr<OfferDescriptor const> const& offerDescriptor() const;
 };
 
 // An abstraction for an object that can be the parent of an AbstractLedgerTxn
@@ -464,6 +492,12 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
                                std::vector<LedgerEntry>& liveEntries,
                                std::vector<LedgerKey>& deadEntries) = 0;
 
+    // getWorstBestOfferIterator allows a parent AbstractLedgerTxn to get the
+    // worst best offers (an offer is a worst best offer if every better offer
+    // in any parent AbstractLedgerTxn has already been loaded). This function
+    // is intended for use with commit.
+    virtual WorstBestOfferIterator getWorstBestOfferIterator() = 0;
+
     // loadAllOffers, loadBestOffer, and loadOffersByAccountAndAsset are used to
     // handle some specific queries related to Offers. These functions are built
     // on top of load, and so share many properties with that function.
@@ -533,6 +567,8 @@ class LedgerTxn final : public AbstractLedgerTxn
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) override;
+
+    WorstBestOfferIterator getWorstBestOfferIterator() override;
 
     LedgerEntryChanges getChanges() override;
 

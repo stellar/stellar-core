@@ -138,6 +138,57 @@ EntryIterator::key() const
     return getImpl()->key();
 }
 
+// Implementation of WorstBestOfferIterator -----------------------------------
+WorstBestOfferIterator::WorstBestOfferIterator(
+    std::unique_ptr<AbstractImpl>&& impl)
+    : mImpl(std::move(impl))
+{
+}
+
+WorstBestOfferIterator::WorstBestOfferIterator(WorstBestOfferIterator&& other)
+    : mImpl(std::move(other.mImpl))
+{
+}
+
+WorstBestOfferIterator::WorstBestOfferIterator(
+    WorstBestOfferIterator const& other)
+    : mImpl(other.mImpl->clone())
+{
+}
+
+std::unique_ptr<WorstBestOfferIterator::AbstractImpl> const&
+WorstBestOfferIterator::getImpl() const
+{
+    if (!mImpl)
+    {
+        throw std::runtime_error("Iterator is empty");
+    }
+    return mImpl;
+}
+
+WorstBestOfferIterator& WorstBestOfferIterator::operator++()
+{
+    getImpl()->advance();
+    return *this;
+}
+
+WorstBestOfferIterator::operator bool() const
+{
+    return !getImpl()->atEnd();
+}
+
+AssetPair const&
+WorstBestOfferIterator::assets() const
+{
+    return getImpl()->assets();
+}
+
+std::shared_ptr<OfferDescriptor const> const&
+WorstBestOfferIterator::offerDescriptor() const
+{
+    return getImpl()->offerDescriptor();
+}
+
 // Implementation of AbstractLedgerTxn --------------------------------------
 AbstractLedgerTxn::~AbstractLedgerTxn()
 {
@@ -310,6 +361,73 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
             {
                 updateEntry(key, nullptr);
             }
+        }
+
+        // We will show that the following update procedure leaves the self
+        // worst best offer map in a correct state.
+        //
+        // Fix an asset pair P in the child worst best offer map, and let V be
+        // the value associated with P. By definition, every offer in
+        // NotWorseThan[Self, P, V] has been recorded in the child. Note that
+        // NotWorseThan[Self, P, V] contains (among other things)
+        // - Every offer in NotWorseThan[Parent, P, V] that was not recorded in
+        //   self
+        // - Every offer in NotWorseThan[Parent, P, V] that was recorded in self
+        //   and was not erased, not modified to a different asset pair, and not
+        //   modified to be worse than V
+        // and does not contain (among other things)
+        // - Every offer in NotWorseThan[Parent, P, V] that was recorded in self
+        //   and erased, modified to a different asset pair, or modified to be
+        //   worse than V
+        // The union of these three groups is NotWorseThan[Parent, P, V]. Then
+        // we can say that every offer in NotWorseThan[Parent, P, V] is either
+        // in NotWorseThan[Self, P, V] or is recorded in self. But because every
+        // offer in NotWorseThan[Self, P, V] is recorded in child, after the
+        // commit we know that every offer in NotWorseThan[Parent, P, V] must be
+        // recorded in self.
+        //
+        // In the above lemma, we proved that NotWorseThan[Parent, P, V] must be
+        // recorded in self after the commit. But it is possible that P was in
+        // the self worst best offer map before the commit, with associated
+        // value W. In that case, we also know that every offer in
+        // NotWorstThan[Parent, P, W] is recorded in self after the commit
+        // because they were already recorded in self before the commit. It is
+        // clear from the definition of NotWorseThan that
+        // - NotWorseThan[Parent, P, V] contains NotWorseThan[Parent, P, W] if
+        //   W <= V, or
+        // - NotWorseThan[Parent, P, W] contains NotWorseThan[Parent, P, V] if
+        //   V <= W
+        // (it is possible that both statements are true if V = W). Then we can
+        // conclude that if
+        //     Z = (W <= V) ? V : W
+        // then every offer in NotWorseThan[Parent, P, Z] is recorded in self
+        // after the commit.
+        //
+        // It follows from these two results that the following update procedure
+        // is correct for each asset pair P in the child worst best offer map
+        // with associated value V:
+        // - If P is not in the self worst best offer map, then insert (P, V)
+        //   into the self worst best offer map
+        // - If P is in the self worst best offer map with associated value W,
+        //   then update (P, W) to (P, V) if V > W and do nothing otherwise
+        //
+        // Fix an asset pair P that is not in the child worst best offer map. In
+        // this case, the child provides no new information. If P is in the self
+        // worst best offer map with associated value W, then we know that every
+        // offer in NotWorseThan[Self, P, W] was recorded in self prior to the
+        // commit so they still will be recorded in self after the commit. If P
+        // is also not in the self worst best offer map, then there is no claim
+        // about the offers with asset pair P that exist in parent and have been
+        // recorded in self both before and after the commit. In either case,
+        // there is no need to update the self worst best offer map.
+        auto wboIter = mChild->getWorstBestOfferIterator();
+        for (; (bool)wboIter; ++wboIter)
+        {
+            auto fromChild = wboIter.offerDescriptor();
+            std::shared_ptr<OfferDescriptor const> descPtr =
+                fromChild ? std::make_shared<OfferDescriptor const>(*fromChild)
+                          : nullptr;
+            updateWorstBestOffer(wboIter.assets(), descPtr);
         }
     }
     catch (std::exception& e)
@@ -541,7 +659,40 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
         }
     }
 
-    auto parentBest = mParent.getBestOffer(buying, selling);
+    std::shared_ptr<LedgerEntry const> parentBest;
+    auto wboIter = mWorstBestOffer.find(assets);
+    if (wboIter != mWorstBestOffer.end())
+    {
+        // Let P be the asset pair (buying, selling). Because wboIter->second is
+        // the worst best offer for P, every offer in
+        // NotWorseThan[Parent, P, wboIter->second] is recorded in self. There
+        // is no reason to consider any offer in parent that has been recorded
+        // in self, because they will be excluded by the loop at the end of this
+        // function (see the comment before that loop for more details).
+        // Therefore, we get the best offer that existed in the parent and is
+        // worse than wboIter->second. But if wboIter->second is nullptr, then
+        // there is no such offer by definition so we can avoid the recursive
+        // call and simply set parentBest = nullptr.
+        if (wboIter->second)
+        {
+            parentBest =
+                mParent.getBestOffer(buying, selling, *wboIter->second);
+        }
+        // If parentBest is nullptr, then either wboIter->second is nullptr or
+        // the parent contains no offers that are worse than wboIter->second. In
+        // the first case, we have already returned nullptr for the specified
+        // asset pair so we know that that parent does not have any offers that
+        // have not been recorded in self. In either case, we always return
+        // selfBest (which may also be nullptr).
+    }
+    else
+    {
+        parentBest = mParent.getBestOffer(buying, selling);
+        // If parentBest is nullptr, then the parent contains no offers with the
+        // specified asset pair. Therefore we always return selfBest (which may
+        // also be nullptr).
+    }
+
     // If parentBest is not nullptr, then the parent contains at least one offer
     // with the specified asset pair. If selfBest is not nullptr and parentBest
     // is not better than selfBest, then we must return selfBest because
@@ -1092,6 +1243,61 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
 
     auto le = getBestOffer(buying, selling);
     auto res = le ? load(self, LedgerEntryKey(*le)) : LedgerTxnEntry();
+
+    try
+    {
+        std::shared_ptr<OfferDescriptor const> descPtr;
+        if (le)
+        {
+            auto const& oe = le->data.offer();
+            descPtr = std::make_shared<OfferDescriptor const>(
+                OfferDescriptor{oe.price, oe.offerID});
+        }
+
+        // We will show that the following update procedure leaves the worst
+        // best offer map in a correct state.
+        //
+        // Let P be the asset pair (buying, selling). Every offer in
+        // NotWorseThan[Parent, P, le] except le must have been recorded in self
+        // and erased, modified to a different asset pair, or modified to be
+        // worse than le. For if this were not the case then there exists an
+        // offer A better than le that exists in self, and this contradicts the
+        // fact that le is the best offer with asset pair P that exists in self.
+        // But now le has also been recorded in self as well, so every offer in
+        // NotWorseThan[Parent, P, le] is recorded in self after loadBestOffer.
+        //
+        // But it is possible that P was in the self worst best offer map before
+        // loadBestOffer, with associated value W. In that case, we also know
+        // that every offer in NotWorseThan[Parent, P, W] is recorded in self.
+        // It is clear from the definition of NotWorseThan that
+        // - NotWorseThan[Parent, P, le] contains NotWorseThan[Parent, P, W] if
+        //   W <= le,
+        // - NotWorseThan[Parent, P, W] contains NotWorseThan[Parent, P, le] if
+        //   le <= W
+        // (it is possible that both statements are true if le = W). Then we can
+        // conclude that if
+        //     Z = (W <= le) ? le : W
+        // then every offer in NotWorseThan[Parent, P, Z] is recorded in self
+        // after the commit. Note that the situation described in this lemma can
+        // occur, for example, if the following sequence occurs:
+        // 1. A = loadBestOffer(buying, selling)
+        // 2. Create an offer better than A with asset pair (buying, selling)
+        // 3. B = loadBestOffer(buying, selling)
+        //
+        // It follows from these two results that the following update procedure
+        // is correct:
+        // - If P is not in the self worst best offer map, then insert (P, le)
+        //   into the self worst best offer map
+        // - If P is in the self worst best offer map with associated value W,
+        //   then update (P, W) to (P, le) if le > W and do nothing otherwise
+
+        // updateWorstBestOffer has the strong exception safety guarantee
+        updateWorstBestOffer({buying, selling}, descPtr);
+    }
+    catch (...)
+    {
+        // We don't need to update mWorstBestOffer, it's just an optimization
+    }
     return res;
 }
 
@@ -1450,6 +1656,44 @@ LedgerTxn::Impl::updateEntry(LedgerKey const& key,
     }
 }
 
+static bool
+isWorseThan(std::shared_ptr<OfferDescriptor const> const& lhs,
+            std::shared_ptr<OfferDescriptor const> const& rhs)
+{
+    return rhs && (!lhs || isBetterOffer(*rhs, *lhs));
+}
+
+void
+LedgerTxn::Impl::updateWorstBestOffer(
+    AssetPair const& assets, std::shared_ptr<OfferDescriptor const> offerDesc)
+{
+    // Update mWorstBestOffer if
+    // - assets is currently not in mWorstBestOffer
+    // - offerDesc is worse than mWorstBestOffer[assets]
+    auto iter = mWorstBestOffer.find(assets);
+    if (iter == mWorstBestOffer.end() || isWorseThan(offerDesc, iter->second))
+    {
+        // std::unordered_map<...>::operator[] has the strong exception safety
+        // guarantee
+        // std::shared_ptr<...>::operator= does not throw
+        mWorstBestOffer[assets] = offerDesc;
+    }
+}
+
+WorstBestOfferIterator
+LedgerTxn::getWorstBestOfferIterator()
+{
+    return getImpl()->getWorstBestOfferIterator();
+}
+
+WorstBestOfferIterator
+LedgerTxn::Impl::getWorstBestOfferIterator()
+{
+    auto iterImpl = std::make_unique<WorstBestOfferIteratorImpl>(
+        mWorstBestOffer.cbegin(), mWorstBestOffer.cend());
+    return WorstBestOfferIterator(std::move(iterImpl));
+}
+
 // Implementation of LedgerTxn::Impl::EntryIteratorImpl ---------------------
 LedgerTxn::Impl::EntryIteratorImpl::EntryIteratorImpl(IteratorType const& begin,
                                                       IteratorType const& end)
@@ -1491,6 +1735,43 @@ std::unique_ptr<EntryIterator::AbstractImpl>
 LedgerTxn::Impl::EntryIteratorImpl::clone() const
 {
     return std::make_unique<EntryIteratorImpl>(mIter, mEnd);
+}
+
+// Implementation of LedgerTxn::Impl::WorstBestOfferIteratorImpl --------------
+LedgerTxn::Impl::WorstBestOfferIteratorImpl::WorstBestOfferIteratorImpl(
+    IteratorType const& begin, IteratorType const& end)
+    : mIter(begin), mEnd(end)
+{
+}
+
+void
+LedgerTxn::Impl::WorstBestOfferIteratorImpl::advance()
+{
+    ++mIter;
+}
+
+AssetPair const&
+LedgerTxn::Impl::WorstBestOfferIteratorImpl::assets() const
+{
+    return mIter->first;
+}
+
+bool
+LedgerTxn::Impl::WorstBestOfferIteratorImpl::atEnd() const
+{
+    return mIter == mEnd;
+}
+
+std::shared_ptr<OfferDescriptor const> const&
+LedgerTxn::Impl::WorstBestOfferIteratorImpl::offerDescriptor() const
+{
+    return mIter->second;
+}
+
+std::unique_ptr<WorstBestOfferIterator::AbstractImpl>
+LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
+{
+    return std::make_unique<WorstBestOfferIteratorImpl>(mIter, mEnd);
 }
 
 // Implementation of LedgerTxnRoot ------------------------------------------
