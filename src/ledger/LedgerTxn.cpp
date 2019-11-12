@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -2376,15 +2377,31 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                "from LedgerTxnRoot");
         }
 
+        std::unordered_set<LedgerKey> toPrefetch;
+        for (auto iter = newOfferIter; iter != offers.cend(); ++iter)
+        {
+            putInEntryCache(LedgerEntryKey(*iter),
+                            std::make_shared<LedgerEntry const>(*iter),
+                            LoadType::IMMEDIATE);
+
+            auto const& oe = iter->data.offer();
+            toPrefetch.emplace(accountKey(oe.sellerID));
+            if (oe.buying.type() != ASSET_TYPE_NATIVE)
+            {
+                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
+            }
+            if (oe.selling.type() != ASSET_TYPE_NATIVE)
+            {
+                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
+            }
+        }
+        prefetch(toPrefetch);
+
         cached->allLoaded =
             std::distance(newOfferIter, offers.cend()) < BATCH_SIZE;
         res = findIncludedOffer(newOfferIter, offers.cend(), worseThan);
     }
 
-    if (res)
-    {
-        putInEntryCache(LedgerEntryKey(*res), res, LoadType::IMMEDIATE);
-    }
     return res;
 }
 
