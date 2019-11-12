@@ -1820,6 +1820,9 @@ LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
 }
 
 // Implementation of LedgerTxnRoot ------------------------------------------
+size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
+size_t const LedgerTxnRoot::Impl::MAX_BEST_OFFERS_BATCH_SIZE = 1024;
+
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
                              size_t bestOfferCacheSize,
                              size_t prefetchBatchSize)
@@ -2300,8 +2303,11 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling)
 
     if (offers.empty() && !cached->allLoaded)
     {
-        loadBestOffers(offers, buying, selling, 1, 0);
-        cached->allLoaded = offers.empty();
+        size_t const BATCH_SIZE = MIN_BEST_OFFERS_BATCH_SIZE;
+        auto newOfferIter =
+            loadBestOffers(offers, buying, selling, BATCH_SIZE, 0);
+        cached->allLoaded =
+            std::distance(newOfferIter, offers.cend()) < BATCH_SIZE;
     }
 
     if (!offers.empty())
@@ -2346,9 +2352,12 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
     auto res = findIncludedOffer(offers.cbegin(), offers.cend(), worseThan);
 
-    size_t const BATCH_SIZE = 5;
     while (!res && !cached->allLoaded)
     {
+        size_t const BATCH_SIZE =
+            std::min(MAX_BEST_OFFERS_BATCH_SIZE,
+                     std::max(MIN_BEST_OFFERS_BATCH_SIZE, offers.size()));
+
         std::deque<LedgerEntry>::const_iterator newOfferIter;
         try
         {
@@ -2367,10 +2376,8 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                "from LedgerTxnRoot");
         }
 
-        if (std::distance(newOfferIter, offers.cend()) < BATCH_SIZE)
-        {
-            cached->allLoaded = true;
-        }
+        cached->allLoaded =
+            std::distance(newOfferIter, offers.cend()) < BATCH_SIZE;
         res = findIncludedOffer(newOfferIter, offers.cend(), worseThan);
     }
 
