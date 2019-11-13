@@ -22,19 +22,6 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
-struct AssetPair
-{
-    Asset buying;
-    Asset selling;
-};
-
-bool operator==(AssetPair const& lhs, AssetPair const& rhs);
-
-struct AssetPairHash
-{
-    size_t operator()(AssetPair const& key) const;
-};
-
 // A defensive heuristic to ensure prefetching stops if entry cache is filling
 // up.
 static const double ENTRY_CACHE_FILL_RATIO = 0.5;
@@ -55,6 +42,25 @@ class EntryIterator::AbstractImpl
     virtual bool entryExists() const = 0;
 
     virtual LedgerKey const& key() const = 0;
+
+    virtual std::unique_ptr<AbstractImpl> clone() const = 0;
+};
+
+class WorstBestOfferIterator::AbstractImpl
+{
+  public:
+    virtual ~AbstractImpl()
+    {
+    }
+
+    virtual void advance() = 0;
+
+    virtual AssetPair const& assets() const = 0;
+
+    virtual bool atEnd() const = 0;
+
+    virtual std::shared_ptr<OfferDescriptor const> const&
+    offerDescriptor() const = 0;
 
     virtual std::unique_ptr<AbstractImpl> clone() const = 0;
 };
@@ -144,6 +150,7 @@ class BulkLedgerEntryChangeAccumulator
 class LedgerTxn::Impl
 {
     class EntryIteratorImpl;
+    class WorstBestOfferIteratorImpl;
 
     typedef std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry>>
         EntryMap;
@@ -157,6 +164,52 @@ class LedgerTxn::Impl
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
+
+    // In theory, we only need an std::map<...> per asset pair. Unfortunately
+    // std::map<...> does not provide any remotely exception safe way to update
+    // the keys. So we use std::multimap<...> in order to achieve an exception
+    // safe update. The observable state of the std::multimap<...> should never
+    // have multiple elements with the same key.
+    typedef std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
+        OrderBook;
+    typedef std::unordered_map<AssetPair, OrderBook, AssetPairHash>
+        MultiOrderBook;
+    // mMultiOrderbook is an in-memory representation of the order book that
+    // contains an entry if and only if it is recorded in this LedgerTxn and is
+    // not active. It is grouped by asset pair, and for each asset pair all
+    // entries are sorted according to the better offer relation.
+    MultiOrderBook mMultiOrderBook;
+
+    typedef std::unordered_map<
+        AssetPair, std::shared_ptr<OfferDescriptor const>, AssetPairHash>
+        WorstBestOfferMap;
+    // In what follows, we will only work with offer-descriptors. The defintions
+    // are equally valid with any instance of offer-descriptor changed to offer.
+    //
+    // We say an offer-descriptor A is worse than an offer-descriptor B if
+    //     A.price > B.price || (A.price == B.price && A.offerID > B.offerID)
+    // We write this as A > B, and write !(A > B) as B <= A to denote that B is
+    // not worse than A.
+    //
+    // We say a pointer-to-offer-descriptor A is worse than a
+    // pointer-to-offer-descriptor B if
+    //     B && (!A || *A > *B)
+    // We again write this as A > B, and write !(A > B) as B <= A to denote that
+    // B is not worse than A. That nullptr > &B for any offer-descriptor B is
+    // motivated by the fact that nullptr is only the result of loadBestOffer if
+    // there are no offers for the specified asset pair.
+    //
+    // Let NotWorseThan[L, P, B] be the set of all offers O with asset pair P
+    // that exist as of the LedgerTxn L and are not worse than B.
+    //
+    // If the worst best offer map contains an asset pair P with
+    // pointer-to-offer-descriptor V, then every offer in
+    // NotWorseThan[Parent, P, V] has been recorded in this LedgerTxn. Note that
+    // V is not guaranteed to be the worst pointer-to-offer-descriptor that
+    // satisfies this requirement. Informally, it is possible that offers with
+    // asset pair P that existed as of the Parent and are worse than V have also
+    // been recorded in this LedgerTxn.
+    WorstBestOfferMap mWorstBestOffer;
 
     void throwIfChild() const;
     void throwIfSealed() const;
@@ -190,6 +243,23 @@ class LedgerTxn::Impl
     // guarantee as f
     void maybeUpdateLastModifiedThenInvokeThenSeal(
         std::function<void(EntryMap const&)> f);
+
+    // findInOrderBook has the strong exception safety guarantee
+    std::pair<MultiOrderBook::iterator, OrderBook::iterator>
+    findInOrderBook(LedgerEntry const& le);
+
+    // updateEntryIfRecorded and updateEntry have the strong exception safety
+    // guarantee
+    void updateEntryIfRecorded(LedgerKey const& key, bool effectiveActive);
+    void updateEntry(LedgerKey const& key, std::shared_ptr<LedgerEntry> lePtr);
+    void updateEntry(LedgerKey const& key, std::shared_ptr<LedgerEntry> lePtr,
+                     bool effectiveActive);
+    void updateEntry(LedgerKey const& key, std::shared_ptr<LedgerEntry> lePtr,
+                     bool effectiveActive, bool eraseIfNull);
+
+    // updateWorstBestOffer has the strong exception safety guarantee
+    void updateWorstBestOffer(AssetPair const& assets,
+                              std::shared_ptr<OfferDescriptor const> offerDesc);
 
   public:
     // Constructor has the strong exception safety guarantee
@@ -239,9 +309,14 @@ class LedgerTxn::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
+    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
+                                                    Asset const& selling);
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude);
+                 OfferDescriptor const& worseThan);
+
+    // getWorstBestOfferIterator has the strong exception safety guarantee
+    WorstBestOfferIterator getWorstBestOfferIterator();
 
     // getChanges has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -357,6 +432,10 @@ class LedgerTxn::Impl
 
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
+
+#ifdef BUILD_TESTS
+    MultiOrderBook const& getOrderBook();
+#endif
 };
 
 class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
@@ -379,6 +458,30 @@ class LedgerTxn::Impl::EntryIteratorImpl : public EntryIterator::AbstractImpl
     LedgerKey const& key() const override;
 
     std::unique_ptr<EntryIterator::AbstractImpl> clone() const override;
+};
+
+class LedgerTxn::Impl::WorstBestOfferIteratorImpl
+    : public WorstBestOfferIterator::AbstractImpl
+{
+    typedef LedgerTxn::Impl::WorstBestOfferMap::const_iterator IteratorType;
+    IteratorType mIter;
+    IteratorType const mEnd;
+
+  public:
+    WorstBestOfferIteratorImpl(IteratorType const& begin,
+                               IteratorType const& end);
+
+    AssetPair const& assets() const override;
+
+    void advance() override;
+
+    bool atEnd() const override;
+
+    std::shared_ptr<OfferDescriptor const> const&
+    offerDescriptor() const override;
+
+    std::unique_ptr<WorstBestOfferIterator::AbstractImpl>
+    clone() const override;
 };
 
 // Many functions in LedgerTxnRoot::Impl provide a basic exception safety
@@ -545,9 +648,11 @@ class LedgerTxnRoot::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
+    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
+                                                    Asset const& selling);
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 std::unordered_set<LedgerKey>& exclude);
+                 OfferDescriptor const& worseThan);
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
