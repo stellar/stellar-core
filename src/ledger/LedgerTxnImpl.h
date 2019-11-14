@@ -175,9 +175,24 @@ class LedgerTxn::Impl
     typedef std::unordered_map<AssetPair, OrderBook, AssetPairHash>
         MultiOrderBook;
     // mMultiOrderbook is an in-memory representation of the order book that
-    // contains an entry if and only if it is recorded in this LedgerTxn and is
-    // not active. It is grouped by asset pair, and for each asset pair all
-    // entries are sorted according to the better offer relation.
+    // contains an entry if and only if it is live, and recorded in this
+    // LedgerTxn, and not active. It is grouped by asset pair, and for each
+    // asset pair all entries are sorted according to the better offer relation.
+    //
+    // The "if and only if" part of this definition, and the extent to which
+    // that makes the mMultiOrderbook _observably exact_ relative to possibly
+    // changing entries in mEntry, is maintained by two mechanisms.
+    //
+    //   - First: the only code that consults mMultiOrderbook (getBestOffer)
+    //     checks that mActive is empty, and throws otherwise. So
+    //     mMultiOrderbook can't be _observed_ while "edits are in progress"
+    //     (entries activated).
+    //
+    //   - Second: entries are added to mMultiOrderbook when loaded, and then
+    //     removed from mMultiOrderbook when made-active (or deleted), and then
+    //     added back when deactivated (say after an edit). All this happens via
+    //     calls to LedgerTxn::Impl::updateEntry(), which essentially
+    //     re-synchronizes an entry in mMultiOrderbook with mEntry/mActive.
     MultiOrderBook mMultiOrderBook;
 
     typedef std::unordered_map<
