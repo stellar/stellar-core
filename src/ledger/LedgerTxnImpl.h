@@ -305,32 +305,39 @@ class LedgerTxn::Impl
     typedef std::unordered_map<
         AssetPair, std::shared_ptr<OfferDescriptor const>, AssetPairHash>
         WorstBestOfferMap;
+    // The exact definition / invariant of the WorstBestOfferMap's data is
+    // unfortunately a bit subtle.
+    //
     // In what follows, we will only work with offer-descriptors. The defintions
     // are equally valid with any instance of offer-descriptor changed to offer.
     //
     // We say an offer-descriptor A is worse than an offer-descriptor B if
+    //
     //     A.price > B.price || (A.price == B.price && A.offerID > B.offerID)
     //
     // We write this as A > B, and write !(A > B) as A <= B to denote that A is
     // not worse than B.
+    //
     // We say a pointer-to-offer-descriptor A is worse than a
     // pointer-to-offer-descriptor B if
+    //
     //     B && (!A || *A > *B)
+    //
     // We again write this as A > B, and write !(A > B) as A <= B to denote that
     // A is not worse than B. That nullptr > &B for any offer-descriptor B is
     // motivated by the fact that nullptr is only the result of loadBestOffer if
     // there are no offers for the specified asset pair.
     //
-    // Let NotWorseThan[L, P, B] be the set of all offers O with asset pair P
-    // that exist as of the LedgerTxn L and are not worse than B.
+    // Let LtEq[L, P, B] be the set of all offers O with asset pair P that exist
+    // as of the LedgerTxn L and are <= B.
     //
     // If the worst best offer map contains an asset pair P with
-    // pointer-to-offer-descriptor V, then every offer in
-    // NotWorseThan[Parent, P, V] has been recorded in this LedgerTxn. Note that
-    // V is not guaranteed to be the worst pointer-to-offer-descriptor that
-    // satisfies this requirement. Informally, it is possible that offers with
-    // asset pair P that existed as of the Parent and are worse than V have also
-    // been recorded in this LedgerTxn.
+    // pointer-to-offer-descriptor V, then every offer in LtEq[Parent, P, V] has
+    // been recorded in this LedgerTxn. Note that V is not guaranteed to be the
+    // worst pointer-to-offer-descriptor that satisfies this
+    // requirement. Informally, it is possible that offers with asset pair P
+    // that existed as of the Parent and are worse than V have also been
+    // recorded in this LedgerTxn.
     WorstBestOfferMap mWorstBestOffer;
 
     void throwIfChild() const;
