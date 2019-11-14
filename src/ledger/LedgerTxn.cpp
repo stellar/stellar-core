@@ -368,53 +368,64 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
         //
         // Fix an asset pair P in the child worst best offer map, and let V be
         // the value associated with P. By definition, every offer in
-        // NotWorseThan[Self, P, V] has been recorded in the child. Note that
-        // NotWorseThan[Self, P, V] contains (among other things)
-        // - Every offer in NotWorseThan[Parent, P, V] that was not recorded in
-        //   self
-        // - Every offer in NotWorseThan[Parent, P, V] that was recorded in self
-        //   and was not erased, not modified to a different asset pair, and not
+        // LtEq[Self, P, V] has been recorded in the child.
+        //
+        // Note that LtEq[Self, P, V] contains (among other things):
+        //
+        // - Every offer in LtEq[Parent, P, V] that was not recorded in self
+        //
+        // - Every offer in LtEq[Parent, P, V] that was recorded in self and was
+        //   not erased, not modified to a different asset pair, and not
         //   modified to be worse than V
-        // and does not contain (among other things)
-        // - Every offer in NotWorseThan[Parent, P, V] that was recorded in self
-        //   and erased, modified to a different asset pair, or modified to be
-        //   worse than V
-        // The union of these three groups is NotWorseThan[Parent, P, V]. Then
-        // we can say that every offer in NotWorseThan[Parent, P, V] is either
-        // in NotWorseThan[Self, P, V] or is recorded in self. But because every
-        // offer in NotWorseThan[Self, P, V] is recorded in child, after the
-        // commit we know that every offer in NotWorseThan[Parent, P, V] must be
+        //
+        // and does not contain (among other things):
+        //
+        // - Every offer in LtEq[Parent, P, V] that was recorded in self and
+        //   erased, modified to a different asset pair, or modified to be worse
+        //   than V
+        //
+        // The union of these three groups is LtEq[Parent, P, V]. Then
+        // we can say that every offer in LtEq[Parent, P, V] is either
+        // in LtEq[Self, P, V] or is recorded in self. But because every
+        // offer in LtEq[Self, P, V] is recorded in child, after the
+        // commit we know that every offer in LtEq[Parent, P, V] must be
         // recorded in self.
         //
-        // In the above lemma, we proved that NotWorseThan[Parent, P, V] must be
+        // In the above lemma, we proved that LtEq[Parent, P, V] must be
         // recorded in self after the commit. But it is possible that P was in
         // the self worst best offer map before the commit, with associated
         // value W. In that case, we also know that every offer in
         // NotWorstThan[Parent, P, W] is recorded in self after the commit
         // because they were already recorded in self before the commit. It is
-        // clear from the definition of NotWorseThan that
-        // - NotWorseThan[Parent, P, V] contains NotWorseThan[Parent, P, W] if
-        //   W <= V, or
-        // - NotWorseThan[Parent, P, W] contains NotWorseThan[Parent, P, V] if
-        //   V <= W
-        // (it is possible that both statements are true if V = W). Then we can
-        // conclude that if
+        // clear from the definition of LtEq that
+        //
+        // - LtEq[Parent, P, V] contains LtEq[Parent, P, W] if W <= V, or
+        //
+        // - LtEq[Parent, P, W] contains LtEq[Parent, P, V] if V <= W
+        //
+        // (it is possible that both statements are true if V = W).
+        //
+        // Then we can conclude that if
+        //
         //     Z = (W <= V) ? V : W
-        // then every offer in NotWorseThan[Parent, P, Z] is recorded in self
-        // after the commit.
+        //
+        // then every offer in LtEq[Parent, P, Z] is recorded in self after the
+        // commit.
         //
         // It follows from these two results that the following update procedure
         // is correct for each asset pair P in the child worst best offer map
         // with associated value V:
+        //
         // - If P is not in the self worst best offer map, then insert (P, V)
         //   into the self worst best offer map
+        //
         // - If P is in the self worst best offer map with associated value W,
         //   then update (P, W) to (P, V) if V > W and do nothing otherwise
         //
         // Fix an asset pair P that is not in the child worst best offer map. In
         // this case, the child provides no new information. If P is in the self
         // worst best offer map with associated value W, then we know that every
-        // offer in NotWorseThan[Self, P, W] was recorded in self prior to the
+        // offer in LtEq[Self, P, W] was recorded in self prior to the
         // commit so they still will be recorded in self after the commit. If P
         // is also not in the self worst best offer map, then there is no claim
         // about the offers with asset pair P that exist in parent and have been
@@ -665,7 +676,7 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
     {
         // Let P be the asset pair (buying, selling). Because wboIter->second is
         // the worst best offer for P, every offer in
-        // NotWorseThan[Parent, P, wboIter->second] is recorded in self. There
+        // LtEq[Parent, P, wboIter->second] is recorded in self. There
         // is no reason to consider any offer in parent that has been recorded
         // in self, because they will be excluded by the loop at the end of this
         // function (see the comment before that loop for more details).
@@ -703,12 +714,16 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling)
     // than parentBest. Either way, we should return parentBest if it is not
     // recorded in self. If it is recorded in self, then one of the following is
     // true:
+    //
     // - it has been erased, in which case it is not the best offer
+    //
     // - it has been modified to a different asset pair or a worse price, in
     //   which case it is not the best offer
+    //
     // - it has been modified to a price no worse than its price in the parent,
     //   but this possibility is excluded by the fact that either selfBest is
     //   nullptr or parentBest is better than selfBest
+    //
     // If parentBest is recorded in self, then we must ask parent for the next
     // best offer that is worse than parentBest and repeat.
     while (parentBest && (!selfBest || isBetterOffer(*parentBest, *selfBest)))
@@ -776,12 +791,16 @@ LedgerTxn::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     // worse than parentBest. Either way, we should return parentBest if it is
     // not recorded in self. If it is recorded in self, then one of the
     // following is true:
+    //
     // - it has been erased, in which case it is not the best offer
+    //
     // - it has been modified to a different asset pair or a worse price, in
     //   which case it is not the best offer
+    //
     // - it has been modified to a price no worse than its price in the parent,
     //   but this possibility is excluded by the fact that either selfBest is
     //   nullptr or parentBest is better than selfBest
+    //
     // If parentBest is recorded in self, then we must ask parent for the next
     // best offer that is worse than parentBest and repeat.
     while (parentBest && (!selfBest || isBetterOffer(*parentBest, *selfBest)))
@@ -1258,36 +1277,45 @@ LedgerTxn::Impl::loadBestOffer(LedgerTxn& self, Asset const& buying,
         // best offer map in a correct state.
         //
         // Let P be the asset pair (buying, selling). Every offer in
-        // NotWorseThan[Parent, P, le] except le must have been recorded in self
+        // LtEq[Parent, P, le] except le must have been recorded in self
         // and erased, modified to a different asset pair, or modified to be
         // worse than le. For if this were not the case then there exists an
         // offer A better than le that exists in self, and this contradicts the
         // fact that le is the best offer with asset pair P that exists in self.
         // But now le has also been recorded in self as well, so every offer in
-        // NotWorseThan[Parent, P, le] is recorded in self after loadBestOffer.
+        // LtEq[Parent, P, le] is recorded in self after loadBestOffer.
         //
         // But it is possible that P was in the self worst best offer map before
         // loadBestOffer, with associated value W. In that case, we also know
-        // that every offer in NotWorseThan[Parent, P, W] is recorded in self.
-        // It is clear from the definition of NotWorseThan that
-        // - NotWorseThan[Parent, P, le] contains NotWorseThan[Parent, P, W] if
-        //   W <= le,
-        // - NotWorseThan[Parent, P, W] contains NotWorseThan[Parent, P, le] if
-        //   le <= W
-        // (it is possible that both statements are true if le = W). Then we can
-        // conclude that if
+        // that every offer in LtEq[Parent, P, W] is recorded in self.
+        // It is clear from the definition of LtEq that
+        //
+        // - LtEq[Parent, P, le] contains LtEq[Parent, P, W] if W <= le,
+        //
+        // - LtEq[Parent, P, W] contains LtEq[Parent, P, le] if le <= W
+        //
+        // (it is possible that both statements are true if le = W).
+        //
+        // Then we can conclude that if
+        //
         //     Z = (W <= le) ? le : W
-        // then every offer in NotWorseThan[Parent, P, Z] is recorded in self
-        // after the commit. Note that the situation described in this lemma can
-        // occur, for example, if the following sequence occurs:
-        // 1. A = loadBestOffer(buying, selling)
-        // 2. Create an offer better than A with asset pair (buying, selling)
-        // 3. B = loadBestOffer(buying, selling)
+        //
+        // then every offer in LtEq[Parent, P, Z] is recorded in self
+        // after the commit.
+        //
+        //   Note that the situation described in this lemma can occur, for
+        //   example, if the following sequence occurs:
+        //
+        //   1. A = loadBestOffer(buying, selling)
+        //   2. Create an offer better than A with asset pair (buying, selling)
+        //   3. B = loadBestOffer(buying, selling)
         //
         // It follows from these two results that the following update procedure
         // is correct:
+        //
         // - If P is not in the self worst best offer map, then insert (P, le)
         //   into the self worst best offer map
+        //
         // - If P is in the self worst best offer map with associated value W,
         //   then update (P, W) to (P, le) if le > W and do nothing otherwise
 

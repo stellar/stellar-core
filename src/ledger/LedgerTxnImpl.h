@@ -175,40 +175,169 @@ class LedgerTxn::Impl
     typedef std::unordered_map<AssetPair, OrderBook, AssetPairHash>
         MultiOrderBook;
     // mMultiOrderbook is an in-memory representation of the order book that
-    // contains an entry if and only if it is recorded in this LedgerTxn and is
-    // not active. It is grouped by asset pair, and for each asset pair all
-    // entries are sorted according to the better offer relation.
+    // contains an entry if and only if it is live, and recorded in this
+    // LedgerTxn, and not active. It is grouped by asset pair, and for each
+    // asset pair all entries are sorted according to the better offer relation.
+    //
+    // The "if and only if" part of this definition, and the extent to which
+    // that makes the mMultiOrderbook _observably exact_ relative to possibly
+    // changing entries in mEntry, is maintained by two mechanisms.
+    //
+    //   - First: the only code that consults mMultiOrderbook (getBestOffer)
+    //     checks that mActive is empty, and throws otherwise. So
+    //     mMultiOrderbook can't be _observed_ while "edits are in progress"
+    //     (entries activated).
+    //
+    //   - Second: entries are added to mMultiOrderbook when loaded, and then
+    //     removed from mMultiOrderbook when made-active (or deleted), and then
+    //     added back when deactivated (say after an edit). All this happens via
+    //     calls to LedgerTxn::Impl::updateEntry(), which essentially
+    //     re-synchronizes an entry in mMultiOrderbook with mEntry/mActive.
     MultiOrderBook mMultiOrderBook;
+
+    // The WorstBestOfferMap is a cache which retains, for each asset pair, the
+    // worst value (including possibly nullptr) returned from calling
+    // loadBestOffer on this LedgerTxn. Each time we call loadBestOffer, we call
+    // updateWorstBestOffer and possibly replace this cached value with the new
+    // return value (if it's worse). Then we _use_ this value as a parameter
+    // indicating the query restart-point when asking our _parent_ for its
+    // next-best offer (in getBestOffer).
+    //
+    // The WorstBestOfferMap exists to accelerate _repeated_ calls to
+    // loadBestOffer within _nested_ LedgerTxns. You could remove it and all
+    // associated logic and everything would still _work_, but it would be too
+    // slow.
+    //
+    // Specifically: in the performance-critical loop of convertWithOffers in
+    // transactions/OfferExchange.cpp, an "outer" loop-spanning LedgerTxn is
+    // held open while sub-LedgerTxns are, inside the loop, repeatedly opened
+    // and committed against it, each requesting and then crossing one next-best
+    // offer. While this "outer" LedgerTxn's MultiOrderBook will be kept
+    // up-to-date with respect to the depleting supply of offers, its _parent_
+    // LedgerTxn will answer each such request starting from its own
+    // MultiOrderBook, which contains an increasingly-long sequence of offers
+    // that have already been crossed and marked dead in the loop-spanning
+    // LedgerTxn.
+    //
+    // The WorstBestOfferMap accelerates this specific case (and cases like it),
+    // but it's worth understanding how, very clearly. Here's a diagram,
+    // simplified to both collapse the MultiOrderBook and Entry/Active map, and
+    // only deal with the OrderBook and WorstBestOffer of a single asset-pair.
+    //
+    //
+    //  +-------------------------------------------------------+
+    //  |Transaction-spanning LedgerTxn "X"                     |
+    //  |                                                       |
+    //  | +-------+  +-------+  +-------+  +-------+  +-------+ |
+    //  | |Offer A|  |Offer B|  |Offer C|  |Offer D|  |Offer E| |
+    //  | |$0.20  |  |$0.25  |  |$0.30  |  |$0.35  |  |$0.40  | |
+    //  | |LIVE   |  |LIVE   |  |LIVE   |  |LIVE   |  |LIVE   | |
+    //  | +-------+  +-------+  +-------+  +-------+  +-------+ |
+    //  +-------------------------------------------------------+
+    //                              ^
+    //                              | Parent
+    //                              |
+    //  +-------------------------------------------------------+
+    //  |Operation loop-spanning LedgerTxn "Y"                  |
+    //  |                                                       |
+    //  | +--------------+                                      |
+    //  | |WorstBestOffer|----------+                           |
+    //  | +--------------+          v                           |
+    //  | +-------+  +-------+  +-------+  +-------+            |
+    //  | |Offer A|  |Offer B|  |Offer C|  |Offer D|            |
+    //  | |$0.20  |  |$0.25  |  |$0.30  |  |$0.35  |            |
+    //  | |DEAD   |  |DEAD   |  |DEAD   |  |LIVE   |            |
+    //  | +-------+  +-------+  +-------+  +-------+            |
+    //  +-------------------------------------------------------+
+    //                              ^
+    //                              | Parent
+    //                              |
+    //  +-------------------------------------------------------+
+    //  |Loop-iteration LedgerTxn "Z"                           |
+    //  |                                                       |
+    //  |   +--------------+                                    |
+    //  |   |WorstBestOffer|-------------------+                |
+    //  |   +--------------+                   v                |
+    //  |                                  +-------+            |
+    //  |                                  |Offer D|            |
+    //  |                                  |$0.35  |            |
+    //  |                                  |LIVE   |            |
+    //  |                                  +-------+            |
+    //  +-------------------------------------------------------+
+    //
+    // This diagram shows innermost LedgerTxn Z which has called loadBestOffer
+    // and received offer D, which it will then cross, committing a dead entry
+    // for that offer (D) into its loop-spanning LedgerTxn parent Y. This
+    // already happened for offers A, B and C, and will proceed to E. This
+    // is a typical pattern.
+    //
+    // Note however that this means Y is accumulating a sequence of dead offers
+    // in its entry map. They're not in its MultiOrderBook (they do not
+    // interfere with finding the next-best offer Y knows about), but they are
+    // "pending changes" that Y has accumulated and needs to exclude from
+    // consideration any time it asks _its_ parent, X, for a next-best offer.
+    //
+    // As shown, X has no idea there's a pending set of offers-to-be-deleted in
+    // its child Y, so naively (without a WorstBestOffer cache) if, after Z
+    // commits its illustrated delete of D to Y, Z's successor-iteration then
+    // asks Y for the next-best offer, Y will ask X for its next-best offer, and
+    // X will return A, which is correct from X's perspective, but obsolete from
+    // Y's perspective. Y would then have to "reject" that returned A and ask
+    // again to get B, C, and D, before getting to the "actual" next-best offer
+    // (from Y's perspective) E.
+    //
+    // The WorstBestOfferMap (cache) exists to bypass this re-scanning of
+    // entries in X: Z retains a pointer-to-D from the result of its call to
+    // loadBestOffers, and when Z commits to Y, Z _also_ commits its
+    // WorstBestOffer (D) to Y, which will update Y's WorstBestOffer.  Then when
+    // Y asks X for the next-best offer, it'll pass (as a filter) its
+    // WorstBestOffer (D) and X will immediately return E, avoiding the re-scan
+    // of dead offers.
+    //
+    // Note in the diagram that the WorstBestOffer value in Y was _not_ set to
+    // its value by a call to loadBestOffers in Y. Rather it was set by
+    // _commits_ coming in from the inner Z child-LedgerTxns. The
+    // WorstBestOfferMap is surprising this way: it's initially "populated" at
+    // the innermost child, but then propagated on commit to that child's
+    // parent, and finally _used_ when that parent asks _its_ parent to
+    // getBestOffer.
 
     typedef std::unordered_map<
         AssetPair, std::shared_ptr<OfferDescriptor const>, AssetPairHash>
         WorstBestOfferMap;
+    // The exact definition / invariant of the WorstBestOfferMap's data is
+    // unfortunately a bit subtle.
+    //
     // In what follows, we will only work with offer-descriptors. The defintions
     // are equally valid with any instance of offer-descriptor changed to offer.
     //
     // We say an offer-descriptor A is worse than an offer-descriptor B if
+    //
     //     A.price > B.price || (A.price == B.price && A.offerID > B.offerID)
-    // We write this as A > B, and write !(A > B) as B <= A to denote that B is
-    // not worse than A.
+    //
+    // We write this as A > B, and write !(A > B) as A <= B to denote that A is
+    // not worse than B.
     //
     // We say a pointer-to-offer-descriptor A is worse than a
     // pointer-to-offer-descriptor B if
+    //
     //     B && (!A || *A > *B)
-    // We again write this as A > B, and write !(A > B) as B <= A to denote that
-    // B is not worse than A. That nullptr > &B for any offer-descriptor B is
+    //
+    // We again write this as A > B, and write !(A > B) as A <= B to denote that
+    // A is not worse than B. That nullptr > &B for any offer-descriptor B is
     // motivated by the fact that nullptr is only the result of loadBestOffer if
     // there are no offers for the specified asset pair.
     //
-    // Let NotWorseThan[L, P, B] be the set of all offers O with asset pair P
-    // that exist as of the LedgerTxn L and are not worse than B.
+    // Let LtEq[L, P, B] be the set of all offers O with asset pair P that exist
+    // as of the LedgerTxn L and are <= B.
     //
     // If the worst best offer map contains an asset pair P with
-    // pointer-to-offer-descriptor V, then every offer in
-    // NotWorseThan[Parent, P, V] has been recorded in this LedgerTxn. Note that
-    // V is not guaranteed to be the worst pointer-to-offer-descriptor that
-    // satisfies this requirement. Informally, it is possible that offers with
-    // asset pair P that existed as of the Parent and are worse than V have also
-    // been recorded in this LedgerTxn.
+    // pointer-to-offer-descriptor V, then every offer in LtEq[Parent, P, V] has
+    // been recorded in this LedgerTxn. Note that V is not guaranteed to be the
+    // worst pointer-to-offer-descriptor that satisfies this
+    // requirement. Informally, it is possible that offers with asset pair P
+    // that existed as of the Parent and are worse than V have also been
+    // recorded in this LedgerTxn.
     WorstBestOfferMap mWorstBestOffer;
 
     void throwIfChild() const;
