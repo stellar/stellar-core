@@ -30,7 +30,7 @@ BatchDownloadWork::BatchDownloadWork(Application& app, CheckpointRange range,
 std::string
 BatchDownloadWork::getStatus() const
 {
-    if (getState() == State::WORK_RUNNING)
+    if (!isDone() && !isAborting())
     {
         auto task = fmt::format("downloading {:s} files", mFileType);
         return fmtProgress(mApp, task, mRange.mFirst, mRange.mLast, mNext);
