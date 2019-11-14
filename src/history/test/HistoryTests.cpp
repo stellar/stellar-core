@@ -415,6 +415,18 @@ TEST_CASE("History publish to multiple archives", "[history]")
     REQUIRE(catchupSimulation.catchupOffline(catchupApp, checkpointLedger));
 }
 
+TEST_CASE("History catchup with extra validation", "[history][publish]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_ON_DISK_SQLITE,
+        "app");
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger, true));
+}
+
 TEST_CASE("Publish works correctly post shadow removal", "[history]")
 {
     // Given a HAS, verify that appropriate levels have "next" cleared, while

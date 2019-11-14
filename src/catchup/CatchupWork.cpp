@@ -13,6 +13,7 @@
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/DownloadBucketsWork.h"
+#include "historywork/DownloadVerifyTxResultsWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/VerifyBucketWork.h"
@@ -74,6 +75,8 @@ CatchupWork::doReset()
         LedgerNumHashPair(lcl.header.ledgerSeq, make_optional<Hash>(lcl.hash));
     mCatchupSeq.reset();
     mGetBucketStateWork.reset();
+    mVerifyTxResults.reset();
+    mVerifyLedgers.reset();
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
 }
 
@@ -108,6 +111,16 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
         addWork<WorkSequence>("download-verify-ledgers-seq", seq);
 }
 
+void
+CatchupWork::downloadVerifyTxResults(CatchupRange const& catchupRange)
+{
+    auto range =
+        LedgerRange{catchupRange.mLedgers.mFirst, catchupRange.getLast()};
+    auto checkpointRange = CheckpointRange{range, mApp.getHistoryManager()};
+    mVerifyTxResults = std::make_shared<DownloadVerifyTxResultsWork>(
+        mApp, checkpointRange, *mDownloadDir);
+}
+
 bool
 CatchupWork::alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const
 {
@@ -128,8 +141,7 @@ CatchupWork::downloadApplyBuckets()
     // re-started from scratch. To avoid going out of sync during online
     // catchup, allow bucket application work to wait for merges to be complete
     // before marking itself as "successful".
-    bool waitForMerges =
-        mCatchupConfiguration.mode() == CatchupConfiguration::Mode::ONLINE;
+    bool waitForMerges = mCatchupConfiguration.online();
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
         mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion,
         waitForMerges);
@@ -167,8 +179,7 @@ CatchupWork::assertBucketState()
 void
 CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 {
-    auto waitForPublish =
-        mCatchupConfiguration.mode() == CatchupConfiguration::Mode::OFFLINE;
+    auto waitForPublish = mCatchupConfiguration.offline();
     auto range =
         LedgerRange{catchupRange.mLedgers.mFirst, catchupRange.getLast()};
     mTransactionsVerifyApplySeq = std::make_shared<DownloadApplyTxsWork>(
@@ -304,6 +315,13 @@ CatchupWork::runCatchupStep()
             }
 
             std::vector<std::shared_ptr<BasicWork>> seq;
+            if (mCatchupConfiguration.mode() ==
+                CatchupConfiguration::Mode::OFFLINE_COMPLETE)
+            {
+                downloadVerifyTxResults(catchupRange);
+                seq.push_back(mVerifyTxResults);
+            }
+
             if (catchupRange.mApplyBuckets)
             {
                 // Step 4.2: Download, verify and apply buckets

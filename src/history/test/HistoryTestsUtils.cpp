@@ -657,7 +657,8 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
 }
 
 bool
-CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger)
+CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
+                                  bool extraValidation)
 {
     CLOG(INFO, "History") << "starting offline catchup with toLedger="
                           << toLedger;
@@ -665,9 +666,10 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger)
     auto startCatchupMetrics = getCatchupMetrics(app);
     auto& lm = app->getLedgerManager();
     auto lastLedger = lm.getLastClosedLedgerNum();
+    auto mode = extraValidation ? CatchupConfiguration::Mode::OFFLINE_COMPLETE
+                                : CatchupConfiguration::Mode::OFFLINE_BASIC;
     auto catchupConfiguration =
-        CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT,
-                             CatchupConfiguration::Mode::OFFLINE};
+        CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT, mode};
     lm.startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 

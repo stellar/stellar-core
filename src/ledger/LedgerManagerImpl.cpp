@@ -642,8 +642,7 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
     }
 
     setCatchupState(CatchupState::APPLYING_HISTORY);
-    auto offlineCatchup =
-        configuration.mode() == CatchupConfiguration::Mode::OFFLINE;
+    auto offlineCatchup = configuration.offline();
     assert(offlineCatchup == mSyncingLedgers.empty());
 
     using namespace std::placeholders;
