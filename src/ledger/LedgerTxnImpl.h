@@ -310,14 +310,14 @@ class LedgerTxn::Impl
     //
     // We say an offer-descriptor A is worse than an offer-descriptor B if
     //     A.price > B.price || (A.price == B.price && A.offerID > B.offerID)
-    // We write this as A > B, and write !(A > B) as B <= A to denote that B is
-    // not worse than A.
     //
+    // We write this as A > B, and write !(A > B) as A <= B to denote that A is
+    // not worse than B.
     // We say a pointer-to-offer-descriptor A is worse than a
     // pointer-to-offer-descriptor B if
     //     B && (!A || *A > *B)
-    // We again write this as A > B, and write !(A > B) as B <= A to denote that
-    // B is not worse than A. That nullptr > &B for any offer-descriptor B is
+    // We again write this as A > B, and write !(A > B) as A <= B to denote that
+    // A is not worse than B. That nullptr > &B for any offer-descriptor B is
     // motivated by the fact that nullptr is only the result of loadBestOffer if
     // there are no offers for the specified asset pair.
     //
