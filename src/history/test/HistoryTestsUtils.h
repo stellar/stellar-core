@@ -261,12 +261,6 @@ class CatchupSimulation
         return *mHistoryConfigurator.get();
     }
 
-    BucketList
-    getBucketListAtLastPublish() const
-    {
-        return mBucketListAtLastPublish;
-    }
-
     uint32_t getLastCheckpointLedger(uint32_t checkpointIndex) const;
 
     void generateRandomLedger(uint32_t version = 0);

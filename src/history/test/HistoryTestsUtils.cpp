@@ -467,16 +467,20 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     auto carol = TestAccount{mApp, getAccount("carol")};
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(root.tx({createAccount(alice, big)}));
-    txSet->add(root.tx({createAccount(bob, big)}));
-    txSet->add(root.tx({createAccount(carol, big)}));
-    txSet->add(root.tx({payment(alice, big)}));
-    txSet->add(root.tx({payment(bob, big)}));
-    txSet->add(root.tx({payment(carol, big)}));
-
-    // They all randomly send a little to one another every ledger after #4
-    if (ledgerSeq > 4)
+    if (ledgerSeq < 5)
     {
+        txSet->add(root.tx({createAccount(alice, big)}));
+        txSet->add(root.tx({createAccount(bob, big)}));
+        txSet->add(root.tx({createAccount(carol, big)}));
+    }
+    // Allow an occasional empty ledger
+    else if (rand_flip() || rand_flip())
+    {
+        txSet->add(root.tx({payment(alice, big)}));
+        txSet->add(root.tx({payment(bob, big)}));
+        txSet->add(root.tx({payment(carol, big)}));
+
+        // They all randomly send a little to one another every ledger after #4
         if (rand_flip())
             txSet->add(alice.tx({payment(bob, small)}));
         if (rand_flip())
