@@ -324,6 +324,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
     <ClCompile Include="..\..\src\work\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\DownloadVerifyTxResultsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetHistoryArchiveStateWork.cpp" />
@@ -340,6 +341,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\ResolveSnapshotWork.cpp" />
     <ClCompile Include="..\..\src\historywork\RunCommandWork.cpp" />
     <ClCompile Include="..\..\src\historywork\VerifyBucketWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\VerifyTxResultsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp" />
     <ClCompile Include="..\..\src\history\FileTransferInfo.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
@@ -635,6 +637,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\simulation\SimulationTransactionFrame.h" />
     <ClInclude Include="..\..\src\work\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
+    <ClInclude Include="..\..\src\historywork\DownloadVerifyTxResultsWork.h" />
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h" />
     <ClInclude Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GetHistoryArchiveStateWork.h" />
@@ -651,6 +654,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\ResolveSnapshotWork.h" />
     <ClInclude Include="..\..\src\historywork\RunCommandWork.h" />
     <ClInclude Include="..\..\src\historywork\VerifyBucketWork.h" />
+    <ClInclude Include="..\..\src\historywork\VerifyTxResultsWork.h" />
     <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h" />
     <ClInclude Include="..\..\src\history\FileTransferInfo.h" />
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
