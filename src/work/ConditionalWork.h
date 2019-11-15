@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #pragma once
 
+#include "util/LogSlowExecution.h"
 #include "work/BasicWork.h"
 
 namespace stellar
@@ -62,12 +63,16 @@ class ConditionalWork : public BasicWork
     std::unique_ptr<VirtualTimer> mSleepTimer;
     bool mWorkStarted{false};
 
+    std::unique_ptr<LogSlowExecution> mStartTimer;
+
   public:
     ConditionalWork(
         Application& app, std::string name, ConditionFn condition,
         std::shared_ptr<BasicWork> conditionedWork,
         std::chrono::milliseconds sleepTime = std::chrono::milliseconds(100));
     void shutdown() override;
+
+    std::string getStatus() const override;
 
   protected:
     BasicWork::State onRun() override;
