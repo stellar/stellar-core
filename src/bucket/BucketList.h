@@ -422,7 +422,11 @@ class BucketList
     // HistoryArchiveStates, that can cause repeated merges when re-activated.
     void resolveAnyReadyFutures();
 
-    bool futuresAllResolved() const;
+    // returns true if levels [0, maxLevel] are resolved
+    bool futuresAllResolved(uint32_t maxLevel = kNumLevels - 1) const;
+
+    // returns the largest level that this ledger will need to merge
+    uint32_t getMaxMergeLevel(uint32_t currLedger) const;
 
     // Add a batch of initial (created), live (updated) and dead entries to the
     // bucketlist, representing the entries effected by closing
