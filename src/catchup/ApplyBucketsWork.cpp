@@ -25,8 +25,7 @@ namespace stellar
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion,
-    bool resolveMerges)
+    HistoryArchiveState const& applyState, uint32_t maxProtocolVersion)
     : BasicWork(app, "apply-buckets", BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mApplyState(applyState)
@@ -41,7 +40,6 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mBucketApplyFailure(app.getMetrics().NewMeter(
           {"history", "bucket-apply", "failure"}, "event"))
     , mCounters(app.getClock().now())
-    , mResolveMerges(resolveMerges)
 {
 }
 
@@ -95,7 +93,6 @@ ApplyBucketsWork::onReset()
     mLevel = BucketList::kNumLevels - 1;
     mApplying = false;
 
-    mDelayTimer.reset();
     mSnapBucket.reset();
     mCurrBucket.reset();
     mSnapApplicator.reset();
@@ -159,35 +156,6 @@ ApplyBucketsWork::onRun()
         mHaveCheckedApplyStateValidity = true;
     }
 
-    if (mResolveMerges && mDelayTimer)
-    {
-        CLOG(INFO, "History") << "ApplyBucketsWork: application completed; "
-                                 "waiting for merge resolution";
-        auto& bl = mApp.getBucketManager().getBucketList();
-        bl.resolveAnyReadyFutures();
-        if (bl.futuresAllResolved())
-        {
-            return State::WORK_SUCCESS;
-        }
-        else
-        {
-            std::weak_ptr<ApplyBucketsWork> weak(
-                std::static_pointer_cast<ApplyBucketsWork>(shared_from_this()));
-            auto handler = [weak](asio::error_code const& ec) {
-                auto self = weak.lock();
-                if (self)
-                {
-                    self->wakeUp();
-                }
-            };
-
-            // Check back later
-            mDelayTimer->expires_from_now(std::chrono::milliseconds(500));
-            mDelayTimer->async_wait(handler);
-            return State::WORK_WAITING;
-        }
-    }
-
     // Check if we're at the beginning of the new level
     if (isLevelComplete())
     {
@@ -237,12 +205,6 @@ ApplyBucketsWork::onRun()
 
     CLOG(INFO, "History") << "ApplyBuckets : done, restarting merges";
     mApp.getBucketManager().assumeState(mApplyState, mMaxProtocolVersion);
-
-    if (mResolveMerges)
-    {
-        mDelayTimer = std::make_unique<VirtualTimer>(mApp.getClock());
-        return State::WORK_RUNNING;
-    }
 
     return State::WORK_SUCCESS;
 }
@@ -306,18 +268,5 @@ void
 ApplyBucketsWork::onFailureRetry()
 {
     mBucketApplyFailure.Mark();
-}
-
-void
-ApplyBucketsWork::onSuccess()
-{
-    if (mResolveMerges)
-    {
-        if (!mApp.getBucketManager().getBucketList().futuresAllResolved())
-        {
-            throw std::runtime_error(
-                "Not all futures were resolved after bucket application!");
-        }
-    }
 }
 }

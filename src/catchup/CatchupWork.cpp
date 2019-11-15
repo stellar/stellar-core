@@ -136,15 +136,8 @@ CatchupWork::downloadApplyBuckets()
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
         mApp, mBuckets, hashes, *mDownloadDir, mArchive);
 
-    // A consequence of FIRST_PROTOCOL_SHADOWS_REMOVED upgrade, inputs or
-    // outputs aren't published to the archives anymore: new-style merges are
-    // re-started from scratch. To avoid going out of sync during online
-    // catchup, allow bucket application work to wait for merges to be complete
-    // before marking itself as "successful".
-    bool waitForMerges = mCatchupConfiguration.online();
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion,
-        waitForMerges);
+        mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
