@@ -276,7 +276,7 @@ runWithHelp(CommandLineArgs const& args,
 }
 
 CatchupConfiguration
-parseCatchup(std::string const& catchup)
+parseCatchup(std::string const& catchup, bool extraValidation)
 {
     auto static errorMessage =
         "catchup value should be passed as <DESTINATION-LEDGER/LEDGER-COUNT>, "
@@ -291,9 +291,11 @@ parseCatchup(std::string const& catchup)
 
     try
     {
+        auto mode = extraValidation
+                        ? CatchupConfiguration::Mode::OFFLINE_COMPLETE
+                        : CatchupConfiguration::Mode::OFFLINE_BASIC;
         return {parseLedger(catchup.substr(0, separatorIndex)),
-                parseLedgerCount(catchup.substr(separatorIndex + 1)),
-                CatchupConfiguration::Mode::OFFLINE};
+                parseLedgerCount(catchup.substr(separatorIndex + 1)), mode};
     }
     catch (std::exception&)
     {
@@ -469,11 +471,12 @@ runCatchup(CommandLineArgs const& args)
     std::string catchupString;
     std::string outputFile;
     std::string archive;
+    bool completeValidation = false;
 
     auto validateCatchupString = [&] {
         try
         {
-            parseCatchup(catchupString);
+            parseCatchup(catchupString, completeValidation);
             return std::string{};
         }
         catch (std::runtime_error& e)
@@ -503,11 +506,17 @@ runCatchup(CommandLineArgs const& args)
         historyArchiveParser(archive), validateCatchupArchive};
     auto disableBucketGC = false;
 
+    auto validationParser = [](bool& completeValidation) {
+        return clara::Opt{completeValidation}["--extra-verification"](
+            "verify all files from the archive for the catchup range");
+    };
+
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
          catchupArchiveParser, outputFileParser(outputFile),
-         disableBucketGCParser(disableBucketGC)},
+         disableBucketGCParser(disableBucketGC),
+         validationParser(completeValidation)},
         [&] {
             auto config = configOption.getConfig();
             config.setNoListen();
@@ -534,8 +543,9 @@ runCatchup(CommandLineArgs const& args)
             }
 
             Json::Value catchupInfo;
-            auto result = catchup(app, parseCatchup(catchupString), catchupInfo,
-                                  archivePtr);
+            auto result =
+                catchup(app, parseCatchup(catchupString, completeValidation),
+                        catchupInfo, archivePtr);
             if (!catchupInfo.isNull())
             {
                 writeCatchupInfo(catchupInfo, outputFile);

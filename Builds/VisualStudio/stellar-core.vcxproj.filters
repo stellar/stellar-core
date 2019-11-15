@@ -375,6 +375,9 @@
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\historywork\DownloadVerifyTxResultsWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
@@ -421,6 +424,9 @@
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\VerifyBucketWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\VerifyTxResultsWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp">
@@ -1268,6 +1274,9 @@
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\historywork\DownloadVerifyTxResultsWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
@@ -1314,6 +1323,9 @@
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\VerifyBucketWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\VerifyTxResultsWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h">

@@ -261,12 +261,6 @@ class CatchupSimulation
         return *mHistoryConfigurator.get();
     }
 
-    BucketList
-    getBucketListAtLastPublish() const
-    {
-        return mBucketListAtLastPublish;
-    }
-
     uint32_t getLastCheckpointLedger(uint32_t checkpointIndex) const;
 
     void generateRandomLedger(uint32_t version = 0);
@@ -281,7 +275,8 @@ class CatchupSimulation
                                                   Config::TestDbMode dbMode,
                                                   std::string const& appName,
                                                   bool publish = false);
-    bool catchupOffline(Application::pointer app, uint32_t toLedger);
+    bool catchupOffline(Application::pointer app, uint32_t toLedger,
+                        bool extraValidation = false);
     bool catchupOnline(Application::pointer app, uint32_t initLedger,
                        uint32_t bufferLedgers = 0, uint32_t gapLedger = 0);
 

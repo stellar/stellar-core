@@ -25,7 +25,10 @@
 #include "util/Logging.h"
 #include "work/WorkScheduler.h"
 
+#include "historywork/BatchDownloadWork.h"
 #include "historywork/DownloadBucketsWork.h"
+#include "historywork/DownloadVerifyTxResultsWork.h"
+#include "historywork/VerifyTxResultsWork.h"
 #include <lib/catch.hpp>
 #include <lib/util/format.h>
 
@@ -288,6 +291,97 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     }
 }
 
+TEST_CASE("Tx results verification", "[batching][resultsverification]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    auto tmpDir =
+        catchupSimulation.getApp().getTmpDirManager().tmpDir("tx-results-test");
+    auto& wm = catchupSimulation.getApp().getWorkScheduler();
+    CheckpointRange range{{1, checkpointLedger},
+                          catchupSimulation.getApp().getHistoryManager()};
+
+    auto verifyHeadersWork = wm.executeWork<BatchDownloadWork>(
+        range, HISTORY_FILE_TYPE_LEDGER, tmpDir);
+    REQUIRE(verifyHeadersWork->getState() == BasicWork::State::WORK_SUCCESS);
+    SECTION("basic")
+    {
+        auto verify =
+            wm.executeWork<DownloadVerifyTxResultsWork>(range, tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_SUCCESS);
+    }
+    SECTION("header file missing")
+    {
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.mLast);
+        std::remove(ft.localPath_nogz().c_str());
+        auto verify =
+            wm.executeWork<DownloadVerifyTxResultsWork>(range, tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("hash mismatch")
+    {
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.mLast);
+        XDRInputFileStream res;
+        res.open(ft.localPath_nogz());
+        std::vector<LedgerHeaderHistoryEntry> entries;
+        LedgerHeaderHistoryEntry curr;
+        while (res && res.readOne(curr))
+        {
+            entries.push_back(curr);
+        }
+        res.close();
+        REQUIRE_FALSE(entries.empty());
+        auto& lastEntry = entries.at(entries.size() - 1);
+        lastEntry.header.txSetResultHash = HashUtils::random();
+        std::remove(ft.localPath_nogz().c_str());
+
+        XDROutputFileStream out(true);
+        out.open(ft.localPath_nogz());
+        for (auto const& item : entries)
+        {
+            out.writeOne(item);
+        }
+        out.close();
+
+        auto verify =
+            wm.executeWork<DownloadVerifyTxResultsWork>(range, tmpDir);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+    SECTION("invalid result entries")
+    {
+        auto getResults = wm.executeWork<BatchDownloadWork>(
+            range, HISTORY_FILE_TYPE_RESULTS, tmpDir);
+        REQUIRE(getResults->getState() == BasicWork::State::WORK_SUCCESS);
+
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.mLast);
+        XDRInputFileStream res;
+        res.open(ft.localPath_nogz());
+        std::vector<TransactionHistoryResultEntry> entries;
+        TransactionHistoryResultEntry curr;
+        while (res && res.readOne(curr))
+        {
+            entries.push_back(curr);
+        }
+        res.close();
+        REQUIRE_FALSE(entries.empty());
+        std::remove(ft.localPath_nogz().c_str());
+
+        XDROutputFileStream out(true);
+        out.open(ft.localPath_nogz());
+        // Duplicate entries
+        for (int i = 0; i < entries.size(); ++i)
+        {
+            out.writeOne(entries[0]);
+        }
+        out.close();
+
+        auto verify = wm.executeWork<VerifyTxResultsWork>(tmpDir, range.mLast);
+        REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
+    }
+}
+
 TEST_CASE("History publish", "[history][publish]")
 {
     CatchupSimulation catchupSimulation{};
@@ -319,6 +413,18 @@ TEST_CASE("History publish to multiple archives", "[history]")
 
     // Actually perform catchup and make sure everything is correct
     REQUIRE(catchupSimulation.catchupOffline(catchupApp, checkpointLedger));
+}
+
+TEST_CASE("History catchup with extra validation", "[history][publish]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    catchupSimulation.ensureOfflineCatchupPossible(checkpointLedger);
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_ON_DISK_SQLITE,
+        "app");
+    REQUIRE(catchupSimulation.catchupOffline(app, checkpointLedger, true));
 }
 
 TEST_CASE("Publish works correctly post shadow removal", "[history]")

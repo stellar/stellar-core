@@ -160,6 +160,7 @@ class CatchupWork : public Work
 
     WorkSeqPtr mDownloadVerifyLedgersSeq;
     std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgers;
+    std::shared_ptr<Work> mVerifyTxResults;
     WorkSeqPtr mBucketVerifyApplySeq;
     std::shared_ptr<Work> mTransactionsVerifyApplySeq;
     WorkSeqPtr mCatchupSeq;
@@ -172,6 +173,7 @@ class CatchupWork : public Work
                                    LedgerNumHashPair rangeEnd);
     WorkSeqPtr downloadApplyBuckets();
     void downloadApplyTransactions(CatchupRange const& catchupRange);
+    void downloadVerifyTxResults(CatchupRange const& catchupRange);
     BasicWork::State runCatchupStep();
 };
 }
