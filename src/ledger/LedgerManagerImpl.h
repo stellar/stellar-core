@@ -97,7 +97,6 @@ class LedgerManagerImpl : public LedgerManager
 
     SyncingLedgerChain mSyncingLedgers;
 
-    void applyBufferedLedgers();
     void setCatchupState(CatchupState s);
     void advanceLedgerPointers(LedgerHeader const& header);
 

@@ -709,52 +709,14 @@ LedgerManagerImpl::historyCaughtup(CatchupWork::ProgressState progressState,
 
     if (catchupMode == CatchupConfiguration::Mode::ONLINE)
     {
-        CLOG(INFO, "Ledger") << "Catchup will apply buffered ledgers";
-        setCatchupState(CatchupState::APPLYING_BUFFERED_LEDGERS);
-        applyBufferedLedgers();
+        CLOG(INFO, "Ledger") << "Buffered ledgers have been applied";
+        setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
     }
     else
     {
         CLOG(INFO, "Ledger") << "Catchup finished";
         setState(LM_SYNCED_STATE);
     }
-}
-
-void
-LedgerManagerImpl::applyBufferedLedgers()
-{
-    assert(mCatchupState == CatchupState::APPLYING_BUFFERED_LEDGERS);
-    if (mSyncingLedgers.empty())
-    {
-        CLOG(INFO, "Ledger")
-            << "Caught up to LCL including recent network activity: "
-            << ledgerAbbrev(mLastClosedLedger)
-            << "; waiting for closing ledger";
-        setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
-        return;
-    }
-
-    mApp.postOnMainThreadWithDelay(
-        [&] {
-            auto lcd = mSyncingLedgers.front();
-            mSyncingLedgers.pop();
-            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-
-            assert(lcd.getLedgerSeq() ==
-                   mLastClosedLedger.header.ledgerSeq + 1);
-            CLOG(INFO, "Ledger")
-                << "Replaying buffered ledger-close: "
-                << "[seq=" << lcd.getLedgerSeq()
-                << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-                << ", txs=" << lcd.getTxSet()->sizeTx()
-                << ", ops=" << lcd.getTxSet()->sizeOp() << ", sv: "
-                << stellarValueToString(mApp.getConfig(), lcd.getValue())
-                << "]";
-            closeLedger(lcd);
-
-            applyBufferedLedgers();
-        },
-        "LedgerManager: applyBufferedLedgers");
 }
 
 uint64_t
