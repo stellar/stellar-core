@@ -510,6 +510,73 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
     });
 }
 
+TEST_CASE("bucketmanager don't leak empty-merge futures",
+          "[bucket][bucketmanager]")
+{
+    // The point of this test is to confirm that
+    // BucketManager::noteEmptyMergeOutput is being called properly from merges
+    // that produce empty outputs, and that the input buckets to those merges
+    // are thereby not leaking.
+    VirtualClock clock;
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+    cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
+    cfg.LEDGER_PROTOCOL_VERSION =
+        Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY - 1;
+
+    auto app = createTestApplication<LedgerManagerTestApplication>(clock, cfg);
+    app->start();
+
+    BucketManager& bm = app->getBucketManager();
+    BucketList& bl = bm.getBucketList();
+    LedgerManagerForBucketTests& lm = app->getLedgerManager();
+    auto vers = getAppLedgerVersion(app);
+
+    // We create 8 live ledger entries spread across 8 ledgers then add a ledger
+    // that destroys all 8, which then serves to shadow-out the entries when
+    // subsequent merges touch them, producing empty buckets.
+    for (size_t i = 0; i < 128; ++i)
+    {
+        auto entries = LedgerTestUtils::generateValidLedgerEntries(8);
+        REQUIRE(entries.size() == 8);
+        for (auto const& e : entries)
+        {
+            lm.setNextLedgerEntryBatchForBucketTesting({}, {e}, {});
+            closeLedger(*app);
+        }
+        std::vector<LedgerKey> dead;
+        for (auto const& e : entries)
+        {
+            dead.emplace_back(LedgerEntryKey(e));
+        }
+        lm.setNextLedgerEntryBatchForBucketTesting({}, {}, dead);
+        closeLedger(*app);
+    }
+
+    // Now check that the bucket dir has only as many buckets as
+    // we expect given the nonzero entries in the bucketlist.
+    while (!bl.futuresAllResolved())
+    {
+        bl.resolveAnyReadyFutures();
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    bm.forgetUnreferencedBuckets();
+    auto bmRefBuckets = bm.getReferencedBuckets();
+    auto bmDirBuckets = bm.getBucketHashesInBucketDirForTesting();
+
+    // Remove the 0 bucket in case it's "referenced"; it's never a file.
+    bmRefBuckets.erase(Hash());
+
+    for (auto const& bmr : bmRefBuckets)
+    {
+        CLOG(DEBUG, "Bucket") << "bucketmanager ref: " << bmr;
+    }
+    for (auto const& bmd : bmDirBuckets)
+    {
+        CLOG(DEBUG, "Bucket") << "bucketmanager dir: " << bmd;
+    }
+    REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
+}
+
 TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
           "[bucket][bucketmanager]")
 {

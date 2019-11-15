@@ -159,7 +159,7 @@ BucketManagerImpl::getTmpDir()
 }
 
 std::string const&
-BucketManagerImpl::getBucketDir()
+BucketManagerImpl::getBucketDir() const
 {
     return *(mLockedBucketDir);
 }
@@ -387,6 +387,8 @@ BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
     // output, potentially retaining far too many inputs, as lots of different
     // mergeKeys result in an empty output.
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    CLOG(TRACE, "Bucket") << "BucketManager::noteEmptyMergeOutput(" << mergeKey
+                          << ")";
     mLiveFutures.erase(mergeKey);
 }
 
@@ -673,6 +675,17 @@ BucketManagerImpl::setNextCloseVersionAndHashForTesting(uint32_t protocolVers,
     mUseFakeTestValuesForNextClose = true;
     mFakeTestProtocolVersion = protocolVers;
     mFakeTestBucketListHash = hash;
+}
+
+std::set<Hash>
+BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
+{
+    std::set<Hash> hashes;
+    for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
+    {
+        hashes.emplace(extractFromFilename(f));
+    }
+    return hashes;
 }
 #endif
 
