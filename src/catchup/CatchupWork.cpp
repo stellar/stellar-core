@@ -5,6 +5,7 @@
 #include "catchup/CatchupWork.h"
 #include "bucket/BucketList.h"
 #include "catchup/ApplyBucketsWork.h"
+#include "catchup/ApplyBufferedLedgersWork.h"
 #include "catchup/ApplyCheckpointWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/DownloadApplyTxsWork.h"
@@ -65,11 +66,13 @@ void
 CatchupWork::doReset()
 {
     mBucketsAppliedEmitted = false;
+    mTransactionsVerifyEmitted = false;
     mBuckets.clear();
     mDownloadVerifyLedgersSeq.reset();
     mBucketVerifyApplySeq.reset();
     mTransactionsVerifyApplySeq.reset();
     mGetHistoryArchiveStateWork.reset();
+    mApplyBufferedLedgersWork.reset();
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     mLastClosedLedgerHashPair =
         LedgerNumHashPair(lcl.header.ledgerSeq, make_optional<Hash>(lcl.hash));
@@ -136,15 +139,8 @@ CatchupWork::downloadApplyBuckets()
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
         mApp, mBuckets, hashes, *mDownloadDir, mArchive);
 
-    // A consequence of FIRST_PROTOCOL_SHADOWS_REMOVED upgrade, inputs or
-    // outputs aren't published to the archives anymore: new-style merges are
-    // re-started from scratch. To avoid going out of sync during online
-    // catchup, allow bucket application work to wait for merges to be complete
-    // before marking itself as "successful".
-    bool waitForMerges = mCatchupConfiguration.online();
     auto applyBuckets = std::make_shared<ApplyBucketsWork>(
-        mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion,
-        waitForMerges);
+        mApp, mBuckets, has, mVerifiedLedgerRangeStart.header.ledgerVersion);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getBuckets, applyBuckets};
     return std::make_shared<WorkSequence>(mApp, "download-verify-apply-buckets",
@@ -300,6 +296,17 @@ CatchupWork::runCatchupStep()
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
             }
         }
+        else if (mTransactionsVerifyApplySeq)
+        {
+            if (mTransactionsVerifyApplySeq->getState() ==
+                    State::WORK_SUCCESS &&
+                !mTransactionsVerifyEmitted)
+            {
+                mTransactionsVerifyEmitted = true;
+                mProgressHandler(ProgressState::APPLIED_TRANSACTIONS,
+                                 mLastApplied, mCatchupConfiguration.mode());
+            }
+        }
         return mCatchupSeq->getState();
     }
     // Still waiting for ledger headers
@@ -335,6 +342,11 @@ CatchupWork::runCatchupStep()
                 downloadApplyTransactions(catchupRange);
                 seq.push_back(mTransactionsVerifyApplySeq);
             }
+
+            // Step 4.4: Apply buffered ledgers
+            mApplyBufferedLedgersWork =
+                std::make_shared<ApplyBufferedLedgersWork>(mApp);
+            seq.push_back(mApplyBufferedLedgersWork);
 
             mCatchupSeq =
                 addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
@@ -375,8 +387,6 @@ CatchupWork::onSuccess()
 {
     CLOG(INFO, "History") << "Catchup finished";
 
-    mProgressHandler(ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
-                     mCatchupConfiguration.mode());
     mProgressHandler(ProgressState::FINISHED, mLastApplied,
                      mCatchupConfiguration.mode());
     mApp.getCatchupManager().historyCaughtup();

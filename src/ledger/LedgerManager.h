@@ -66,7 +66,6 @@ class LedgerManager
         NONE,
         WAITING_FOR_TRIGGER_LEDGER,
         APPLYING_HISTORY,
-        APPLYING_BUFFERED_LEDGERS,
         WAITING_FOR_CLOSING_LEDGER
     };
 
@@ -160,6 +159,10 @@ class LedgerManager
     // deletes old entries stored in the database
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                   uint32_t count) = 0;
+
+    // popBufferedLedger will throw if there are no buffered ledgers
+    virtual bool hasBufferedLedger() const = 0;
+    virtual LedgerCloseData popBufferedLedger() = 0;
 
     virtual ~LedgerManager()
     {
