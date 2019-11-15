@@ -3,31 +3,31 @@ name: Documentation
 about: Create a report for fixing or adding additional documentation related to stellar-core
 title: "[Short Description] (Version: [stellar-core version])"
 labels: docs
-assignees: theaeolianmachine
+assignees: ''
 
 ---
 
-## Before Creating an Issue
+## Read before creating an issue
 
-### Hey, I have a question!
+In general, we close any issues that are
+* unactionable (fill the template below under "Description")
+* questions best served elsewhere
 
-Fantastic! However, the stellar-core issues repository is meant for reporting bugs and feature
-requests related to stellar-core's implementation — if you have a question, we would recommend that
-you:
+We have a small community of people that manages issues, and we want to ensure that the issues that remain open are high quality (so we actually get around to implementing them!).
 
-* Take a look at Stellar's [developer portal][1], where you'll find comprehensive documentation
-  related to Stellar.
-* If you can't find an answer to your question, please submit a question to [Stellar's Stack
-  Exchange][2].
-* If your question is non-developer centric, take a look at [Stellar's Community][3].
+### I have a question!
 
-In general, we close any issues that are questions best served elsewhere — we have a small
-community of people that manages issues, and we want to ensure that the issues that remain open are
-high quality (so we actually get around to implementing them!)
+The stellar-core issues repository is meant for reporting bugs and feature requests related to stellar-core's implementation.
+
+If you have a question, we would recommend that you take a look at Stellar's [developer portal][1], where you'll find comprehensive documentation related to Stellar.
+
+If you can't find an answer to your question you can:
+* submit a question to [Stellar's Stack Exchange][2].
+* or ask one of [Stellar's communities][3].
 
 [1]: https://www.stellar.org/developers/
 [2]: https://stellar.stackexchange.com/
-[3]: https://www.stellar.org/community
+[3]: https://www.stellar.org/community/#communities
 
 ### I'd like to report a bug or feature request related to the documentation!
 
@@ -36,10 +36,6 @@ First, consider that Stellar's documentation is spread across multiple repositor
 [4]: https://github.com/stellar/docs
 
 ## Description
-
-### What type of documentation change are you looking to report?
-* `stellar-core` Docs Bug
-* `stellar-core` Docs Feature Request
 
 ### Explain in detail the incorrect or additional documentation you'd like to see.
 

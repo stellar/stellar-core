@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General question for the community
+    url: https://www.stellar.org/community/#communities
+    about: Please ask and answer questions here.
+  - name: Protocol requests
+    url: https://github.com/stellar/stellar-protocol
+    about: If you have suggestions for changes to the core protocol (new operation for example) or ecosystem standards.
+  - name: Security bug bounty program
+    url: https://www.stellar.org/community/bug-bounty-program/
+    about: Please report security vulnerabilities here.
