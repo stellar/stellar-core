@@ -154,6 +154,7 @@ class CatchupWork : public Work
     ProgressHandler mProgressHandler;
     std::shared_ptr<HistoryArchive> mArchive;
     bool mBucketsAppliedEmitted{false};
+    bool mTransactionsVerifyEmitted{false};
 
     std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;
     std::shared_ptr<GetHistoryArchiveStateWork> mGetBucketStateWork;
@@ -163,6 +164,7 @@ class CatchupWork : public Work
     std::shared_ptr<Work> mVerifyTxResults;
     WorkSeqPtr mBucketVerifyApplySeq;
     std::shared_ptr<Work> mTransactionsVerifyApplySeq;
+    std::shared_ptr<BasicWork> mApplyBufferedLedgersWork;
     WorkSeqPtr mCatchupSeq;
 
     bool hasAnyLedgersToCatchupTo() const;

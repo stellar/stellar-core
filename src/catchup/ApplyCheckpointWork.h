@@ -4,9 +4,11 @@
 
 #pragma once
 
+#include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerRange.h"
 #include "util/XDRStream.h"
+#include "work/ConditionalWork.h"
 #include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
@@ -51,15 +53,19 @@ class ApplyCheckpointWork : public BasicWork
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
+    LedgerHeaderHistoryEntry mHeaderHistoryEntry;
 
     medida::Meter& mApplyLedgerSuccess;
     medida::Meter& mApplyLedgerFailure;
 
     bool mFilesOpen{false};
 
+    std::shared_ptr<ConditionalWork> mConditionalWork;
+
     TxSetFramePtr getCurrentTxSet();
     void openInputFiles();
-    bool applyHistoryOfSingleLedger();
+
+    std::shared_ptr<LedgerCloseData> getNextLedgerCloseData();
 
   public:
     ApplyCheckpointWork(Application& app, TmpDir const& downloadDir,

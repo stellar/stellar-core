@@ -5,6 +5,7 @@
 #include "catchup/CatchupWork.h"
 #include "bucket/BucketList.h"
 #include "catchup/ApplyBucketsWork.h"
+#include "catchup/ApplyBufferedLedgersWork.h"
 #include "catchup/ApplyCheckpointWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/DownloadApplyTxsWork.h"
@@ -65,11 +66,13 @@ void
 CatchupWork::doReset()
 {
     mBucketsAppliedEmitted = false;
+    mTransactionsVerifyEmitted = false;
     mBuckets.clear();
     mDownloadVerifyLedgersSeq.reset();
     mBucketVerifyApplySeq.reset();
     mTransactionsVerifyApplySeq.reset();
     mGetHistoryArchiveStateWork.reset();
+    mApplyBufferedLedgersWork.reset();
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     mLastClosedLedgerHashPair =
         LedgerNumHashPair(lcl.header.ledgerSeq, make_optional<Hash>(lcl.hash));
@@ -293,6 +296,17 @@ CatchupWork::runCatchupStep()
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
             }
         }
+        else if (mTransactionsVerifyApplySeq)
+        {
+            if (mTransactionsVerifyApplySeq->getState() ==
+                    State::WORK_SUCCESS &&
+                !mTransactionsVerifyEmitted)
+            {
+                mTransactionsVerifyEmitted = true;
+                mProgressHandler(ProgressState::APPLIED_TRANSACTIONS,
+                                 mLastApplied, mCatchupConfiguration.mode());
+            }
+        }
         return mCatchupSeq->getState();
     }
     // Still waiting for ledger headers
@@ -328,6 +342,11 @@ CatchupWork::runCatchupStep()
                 downloadApplyTransactions(catchupRange);
                 seq.push_back(mTransactionsVerifyApplySeq);
             }
+
+            // Step 4.4: Apply buffered ledgers
+            mApplyBufferedLedgersWork =
+                std::make_shared<ApplyBufferedLedgersWork>(mApp);
+            seq.push_back(mApplyBufferedLedgersWork);
 
             mCatchupSeq =
                 addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
@@ -368,8 +387,6 @@ CatchupWork::onSuccess()
 {
     CLOG(INFO, "History") << "Catchup finished";
 
-    mProgressHandler(ProgressState::APPLIED_TRANSACTIONS, mLastApplied,
-                     mCatchupConfiguration.mode());
     mProgressHandler(ProgressState::FINISHED, mLastApplied,
                      mCatchupConfiguration.mode());
     mApp.getCatchupManager().historyCaughtup();
