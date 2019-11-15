@@ -957,6 +957,28 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
     txscope.commit();
 }
 
+bool
+LedgerManagerImpl::hasBufferedLedger() const
+{
+    return !mSyncingLedgers.empty();
+}
+
+LedgerCloseData
+LedgerManagerImpl::popBufferedLedger()
+{
+    if (!hasBufferedLedger())
+    {
+        throw std::runtime_error(
+            "popBufferedLedger called when mSyncingLedgers is empty!");
+    }
+
+    auto lcd = mSyncingLedgers.front();
+    mSyncingLedgers.pop();
+    mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+
+    return lcd;
+}
+
 void
 LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 {

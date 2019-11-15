@@ -143,5 +143,8 @@ class LedgerManagerImpl : public LedgerManager
     void closeLedger(LedgerCloseData const& ledgerData) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
+
+    bool hasBufferedLedger() const override;
+    LedgerCloseData popBufferedLedger() override;
 };
 }
