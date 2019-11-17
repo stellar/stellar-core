@@ -643,7 +643,7 @@ class LedgerTxnRoot::Impl
 
     struct BestOffersCacheEntry
     {
-        std::list<LedgerEntry> bestOffers;
+        std::deque<LedgerEntry> bestOffers;
         bool allLoaded;
     };
     typedef std::shared_ptr<BestOffersCacheEntry> BestOffersCacheEntryPtr;
@@ -651,6 +651,9 @@ class LedgerTxnRoot::Impl
     typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntryPtr,
                                 AssetPairHash>
         BestOffersCache;
+
+    static size_t const MIN_BEST_OFFERS_BATCH_SIZE;
+    static size_t const MAX_BEST_OFFERS_BATCH_SIZE;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;
@@ -669,11 +672,15 @@ class LedgerTxnRoot::Impl
     std::shared_ptr<LedgerEntry const> loadData(LedgerKey const& key) const;
     std::shared_ptr<LedgerEntry const> loadOffer(LedgerKey const& key) const;
     std::vector<LedgerEntry> loadAllOffers() const;
-    std::list<LedgerEntry>::const_iterator
-    loadOffers(StatementContext& prep, std::list<LedgerEntry>& offers) const;
-    std::list<LedgerEntry>::const_iterator
-    loadBestOffers(std::list<LedgerEntry>& offers, Asset const& buying,
-                   Asset const& selling, size_t numOffers, size_t offset) const;
+    std::deque<LedgerEntry>::const_iterator
+    loadOffers(StatementContext& prep, std::deque<LedgerEntry>& offers) const;
+    std::deque<LedgerEntry>::const_iterator
+    loadBestOffers(std::deque<LedgerEntry>& offers, Asset const& buying,
+                   Asset const& selling, size_t numOffers) const;
+    std::deque<LedgerEntry>::const_iterator
+    loadBestOffers(std::deque<LedgerEntry>& offers, Asset const& buying,
+                   Asset const& selling, OfferDescriptor const& worseThan,
+                   size_t numOffers) const;
     std::vector<LedgerEntry>
     loadOffersByAccountAndAsset(AccountID const& accountID,
                                 Asset const& asset) const;

@@ -57,7 +57,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 9;
-static unsigned long const SCHEMA_VERSION = 10;
+static unsigned long const SCHEMA_VERSION = 11;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -194,6 +194,11 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 10:
         // add tracking table information
         mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
+        break;
+    case 11:
+        mSession << "DROP INDEX IF EXISTS bestofferindex;";
+        mSession << "CREATE INDEX bestofferindex ON offers "
+                    "(sellingasset,buyingasset,price,offerid);";
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");

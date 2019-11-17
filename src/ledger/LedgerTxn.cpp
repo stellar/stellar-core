@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -1820,6 +1821,9 @@ LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
 }
 
 // Implementation of LedgerTxnRoot ------------------------------------------
+size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
+size_t const LedgerTxnRoot::Impl::MAX_BEST_OFFERS_BATCH_SIZE = 1024;
+
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
                              size_t bestOfferCacheSize,
                              size_t prefetchBatchSize)
@@ -2300,8 +2304,10 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling)
 
     if (offers.empty() && !cached->allLoaded)
     {
-        loadBestOffers(offers, buying, selling, 1, 0);
-        cached->allLoaded = offers.empty();
+        size_t const BATCH_SIZE = MIN_BEST_OFFERS_BATCH_SIZE;
+        auto newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE);
+        cached->allLoaded =
+            std::distance(newOfferIter, offers.cend()) < BATCH_SIZE;
     }
 
     if (!offers.empty())
@@ -2321,18 +2327,15 @@ LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
 }
 
 static std::shared_ptr<LedgerEntry const>
-findIncludedOffer(std::list<LedgerEntry>::const_iterator iter,
-                  std::list<LedgerEntry>::const_iterator const& end,
+findIncludedOffer(std::deque<LedgerEntry>::const_iterator iter,
+                  std::deque<LedgerEntry>::const_iterator const& end,
                   OfferDescriptor const& worseThan)
 {
-    for (; iter != end; ++iter)
-    {
-        if (isBetterOffer(worseThan, *iter))
-        {
-            return std::make_shared<LedgerEntry const>(*iter);
-        }
-    }
-    return {};
+    iter = std::upper_bound(
+        iter, end, worseThan,
+        static_cast<bool (*)(OfferDescriptor const&, LedgerEntry const&)>(
+            isBetterOffer));
+    return (iter == end) ? nullptr : std::make_shared<LedgerEntry const>(*iter);
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -2349,14 +2352,17 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 
     auto res = findIncludedOffer(offers.cbegin(), offers.cend(), worseThan);
 
-    size_t const BATCH_SIZE = 5;
     while (!res && !cached->allLoaded)
     {
-        std::list<LedgerEntry>::const_iterator newOfferIter;
+        size_t const BATCH_SIZE =
+            std::min(MAX_BEST_OFFERS_BATCH_SIZE,
+                     std::max(MIN_BEST_OFFERS_BATCH_SIZE, offers.size()));
+
+        std::deque<LedgerEntry>::const_iterator newOfferIter;
         try
         {
-            newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE,
-                                          offers.size());
+            newOfferIter =
+                loadBestOffers(offers, buying, selling, worseThan, BATCH_SIZE);
         }
         catch (std::exception& e)
         {
@@ -2370,17 +2376,31 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                "from LedgerTxnRoot");
         }
 
-        if (std::distance(newOfferIter, offers.cend()) < BATCH_SIZE)
+        std::unordered_set<LedgerKey> toPrefetch;
+        for (auto iter = newOfferIter; iter != offers.cend(); ++iter)
         {
-            cached->allLoaded = true;
+            putInEntryCache(LedgerEntryKey(*iter),
+                            std::make_shared<LedgerEntry const>(*iter),
+                            LoadType::IMMEDIATE);
+
+            auto const& oe = iter->data.offer();
+            toPrefetch.emplace(accountKey(oe.sellerID));
+            if (oe.buying.type() != ASSET_TYPE_NATIVE)
+            {
+                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
+            }
+            if (oe.selling.type() != ASSET_TYPE_NATIVE)
+            {
+                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
+            }
         }
+        prefetch(toPrefetch);
+
+        cached->allLoaded =
+            std::distance(newOfferIter, offers.cend()) < BATCH_SIZE;
         res = findIncludedOffer(newOfferIter, offers.cend(), worseThan);
     }
 
-    if (res)
-    {
-        putInEntryCache(LedgerEntryKey(*res), res, LoadType::IMMEDIATE);
-    }
     return res;
 }
 
