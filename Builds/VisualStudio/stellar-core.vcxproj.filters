@@ -1005,6 +1005,12 @@
     <ClCompile Include="..\..\src\crypto\test\ShortHashTests.cpp">
       <Filter>crypto\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\catchup\ApplyBufferedLedgersWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\ApplyLedgerWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1738,6 +1744,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\XDRHasher.h">
       <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\ApplyBufferedLedgersWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\ApplyLedgerWork.h">
+      <Filter>catchup</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

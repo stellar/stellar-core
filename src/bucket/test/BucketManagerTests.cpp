@@ -529,7 +529,6 @@ TEST_CASE("bucketmanager don't leak empty-merge futures",
     BucketManager& bm = app->getBucketManager();
     BucketList& bl = bm.getBucketList();
     LedgerManagerForBucketTests& lm = app->getLedgerManager();
-    auto vers = getAppLedgerVersion(app);
 
     // We create 8 live ledger entries spread across 8 ledgers then add a ledger
     // that destroys all 8, which then serves to shadow-out the entries when

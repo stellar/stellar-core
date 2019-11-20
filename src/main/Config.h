@@ -322,7 +322,7 @@ class Config : public std::enable_shared_from_this<Config>
     // The version of TransactionMeta that will be generated. Acceptable values
     // are 1 (default) and 2. Set to 2 only if downstream systems have been
     // updated to handle TransactionMetaV2.
-    size_t SUPPORTED_META_VERSION;
+    int32_t SUPPORTED_META_VERSION;
 
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
