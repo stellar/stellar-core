@@ -268,7 +268,9 @@ exit /b 0
     <ClCompile Include="..\..\src\bucket\test\BucketMergeMapTests.cpp" />
     <ClCompile Include="..\..\src\bucket\test\BucketTests.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\ApplyBufferedLedgersWork.cpp" />
     <ClCompile Include="..\..\src\catchup\ApplyCheckpointWork.cpp" />
+    <ClCompile Include="..\..\src\catchup\ApplyLedgerWork.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
@@ -587,7 +589,9 @@ exit /b 0
     <ClInclude Include="..\..\src\bucket\MergeKey.h" />
     <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h" />
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h" />
+    <ClInclude Include="..\..\src\catchup\ApplyBufferedLedgersWork.h" />
     <ClInclude Include="..\..\src\catchup\ApplyCheckpointWork.h" />
+    <ClInclude Include="..\..\src\catchup\ApplyLedgerWork.h" />
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManager.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h" />
