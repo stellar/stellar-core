@@ -689,16 +689,9 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 }
 
 void
-setAuthorized(LedgerTxnEntry& entry, bool authorized)
+setAuthorized(LedgerTxnEntry& entry, uint32_t authorized)
 {
     auto& tl = entry.current().data.trustLine();
-    if (authorized)
-    {
-        tl.flags |= AUTHORIZED_FLAG;
-    }
-    else
-    {
-        tl.flags &= ~AUTHORIZED_FLAG;
-    }
+    tl.flags = authorized;
 }
 }

@@ -130,5 +130,5 @@ void normalizeSigners(LedgerTxnEntry& entry);
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
-void setAuthorized(LedgerTxnEntry& entry, bool authorized);
+void setAuthorized(LedgerTxnEntry& entry, uint32_t authorized);
 }
