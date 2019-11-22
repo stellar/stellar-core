@@ -431,7 +431,7 @@ changeTrust(Asset const& asset, int64_t limit)
 }
 
 Operation
-allowTrust(PublicKey const& trustor, Asset const& asset, bool authorize)
+allowTrust(PublicKey const& trustor, Asset const& asset, uint32_t authorize)
 {
     Operation op;
 
