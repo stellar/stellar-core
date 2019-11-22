@@ -174,7 +174,11 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl, uint32 version) const
         return fmt::format("TrustLine balance ({}) exceeds limit ({})",
                            tl.balance, tl.limit);
     }
-    if ((tl.flags & ~MASK_TRUSTLINE_FLAGS) != 0)
+
+    uint32_t invalidAuthCombo =
+        AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
+    if ((tl.flags & ~MASK_TRUSTLINE_FLAGS) != 0 ||
+        (tl.flags & invalidAuthCombo) == invalidAuthCombo)
     {
         return "TrustLine flags are invalid";
     }

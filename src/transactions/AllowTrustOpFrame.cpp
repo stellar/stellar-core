@@ -40,6 +40,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
     }
 
+    bool authNotRevocable;
     {
         LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
         auto header = ltxSource.loadHeader();
@@ -52,8 +53,8 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        if (!(sourceAccount.flags & AUTH_REVOCABLE_FLAG) &&
-            !mAllowTrust.authorize)
+        authNotRevocable = !(sourceAccount.flags & AUTH_REVOCABLE_FLAG);
+        if (authNotRevocable && !mAllowTrust.authorize)
         {
             innerResult().code(ALLOW_TRUST_CANT_REVOKE);
             return false;
@@ -92,7 +93,17 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
             return false;
         }
-        didRevokeAuth = isAuthorized(trust) && !mAllowTrust.authorize;
+
+        if (authNotRevocable &&
+            (isAuthorized(trust) &&
+             (mAllowTrust.authorize & AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)))
+        {
+            innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+            return false;
+        }
+
+        didRevokeAuth =
+            isAuthorizedToMaintainLiabilities(trust) && !mAllowTrust.authorize;
     }
 
     auto header = ltx.loadHeader();
@@ -136,6 +147,14 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
+
+    if (Config::CURRENT_LEDGER_PROTOCOL_VERSION < 13 &&
+        (mAllowTrust.authorize & AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG))
+    {
+        innerResult().code(ALLOW_TRUST_MALFORMED);
+        return false;
+    }
+
     Asset ci;
     ci.type(mAllowTrust.asset.type());
     if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)

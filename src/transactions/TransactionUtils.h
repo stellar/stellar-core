@@ -36,28 +36,34 @@ LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
 LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
                          int64_t offerID);
 
-TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
-                               AccountID const& accountID, Asset const& asset);
+TrustLineWrapper
+loadTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
+              Asset const& asset,
+              TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
 ConstTrustLineWrapper loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx,
                                                  AccountID const& accountID,
                                                  Asset const& asset);
 
-TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
-                                          AccountID const& accountID,
-                                          Asset const& asset);
+TrustLineWrapper loadTrustLineIfNotNative(
+    AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset,
+    TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
     AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset);
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
-                        LedgerTxnEntry const& offer);
+                        LedgerTxnEntry const& offer,
+                        TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
 bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                int64_t delta);
+                int64_t delta,
+                TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
-bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                          int64_t delta);
+bool
+addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                     int64_t delta,
+                     TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
 enum class AddSubentryResult
 {
@@ -68,8 +74,10 @@ enum class AddSubentryResult
 AddSubentryResult addNumEntries(LedgerTxnHeader const& header,
                                 LedgerTxnEntry& entry, int count);
 
-bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                           int64_t delta);
+bool
+addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                      int64_t delta,
+                      TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
 uint64_t generateID(LedgerTxnHeader& header);
 
@@ -85,12 +93,16 @@ int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
 int64_t getBuyingLiabilities(LedgerTxnHeader const& header,
                              LedgerTxnEntry const& offer);
 
-int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
-                            LedgerEntry const& le);
-int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
-                            LedgerTxnEntry const& entry);
-int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
-                            ConstLedgerTxnEntry const& entry);
+int64_t
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le,
+                    TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
+int64_t
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerTxnEntry const& entry,
+                    TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
+int64_t
+getMaxAmountReceive(LedgerTxnHeader const& header,
+                    ConstLedgerTxnEntry const& entry,
+                    TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG);
 
 int64_t getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount);
 
@@ -120,6 +132,10 @@ uint64_t getStartingSequenceNumber(LedgerTxnHeader const& header);
 bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);
 bool isAuthorized(ConstLedgerTxnEntry const& entry);
+
+bool isAuthorizedToMaintainLiabilities(LedgerEntry const& le);
+bool isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry);
+bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 

@@ -159,12 +159,12 @@ struct AccountEntry
 
 enum TrustLineFlags
 {
-    // issuer has authorized account to perform transactions with its credit
-    AUTHORIZED_FLAG = 1
+    AUTHORIZED_FLAG = 1,                        // issuer has authorized account to perform transactions with its credit
+    AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG = 2 // issuer has authorized account to maintain and reduce liabilities for its credit
 };
 
 // mask for all trustline flags
-const MASK_TRUSTLINE_FLAGS = 1;
+const MASK_TRUSTLINE_FLAGS = 3;
 
 struct TrustLineEntry
 {

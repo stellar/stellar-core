@@ -16,9 +16,10 @@ namespace stellar
 class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
 {
     LedgerTxnEntry mEntry;
+    TrustLineFlags const mExpectedAuthorization;
 
   public:
-    NonIssuerImpl(LedgerTxnEntry&& entry);
+    NonIssuerImpl(LedgerTxnEntry&& entry, TrustLineFlags expectedAuthorization);
 
     operator bool() const override;
 
@@ -37,6 +38,7 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t delta) override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -68,6 +70,7 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t delta) override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -81,7 +84,8 @@ TrustLineWrapper::TrustLineWrapper()
 
 TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
                                    AccountID const& accountID,
-                                   Asset const& asset)
+                                   Asset const& asset,
+                                   TrustLineFlags expectedAuthorization)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -96,7 +100,8 @@ TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
         auto entry = ltx.load(key);
         if (entry)
         {
-            mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));
+            mImpl = std::make_unique<NonIssuerImpl>(std::move(entry),
+                                                    expectedAuthorization);
         }
     }
     else
@@ -105,11 +110,13 @@ TrustLineWrapper::TrustLineWrapper(AbstractLedgerTxn& ltx,
     }
 }
 
-TrustLineWrapper::TrustLineWrapper(LedgerTxnEntry&& entry)
+TrustLineWrapper::TrustLineWrapper(LedgerTxnEntry&& entry,
+                                   TrustLineFlags expectedAuthorization)
 {
     if (entry)
     {
-        mImpl = std::make_unique<NonIssuerImpl>(std::move(entry));
+        mImpl = std::make_unique<NonIssuerImpl>(std::move(entry),
+                                                expectedAuthorization);
     }
 }
 
@@ -174,6 +181,12 @@ TrustLineWrapper::isAuthorized() const
     return getImpl()->isAuthorized();
 }
 
+bool
+TrustLineWrapper::isAuthorizedToMaintainLiabilities() const
+{
+    return getImpl()->isAuthorizedToMaintainLiabilities();
+}
+
 int64_t
 TrustLineWrapper::getAvailableBalance(LedgerTxnHeader const& header) const
 {
@@ -203,8 +216,9 @@ TrustLineWrapper::getImpl() const
 }
 
 // Implementation of TrustLineWrapper::NonIssuerImpl --------------------------
-TrustLineWrapper::NonIssuerImpl::NonIssuerImpl(LedgerTxnEntry&& entry)
-    : mEntry(std::move(entry))
+TrustLineWrapper::NonIssuerImpl::NonIssuerImpl(
+    LedgerTxnEntry&& entry, TrustLineFlags expectedAuthorization)
+    : mEntry(std::move(entry)), mExpectedAuthorization(expectedAuthorization)
 {
 }
 
@@ -235,7 +249,7 @@ bool
 TrustLineWrapper::NonIssuerImpl::addBalance(LedgerTxnHeader const& header,
                                             int64_t delta)
 {
-    return stellar::addBalance(header, mEntry, delta);
+    return stellar::addBalance(header, mEntry, delta, mExpectedAuthorization);
 }
 
 int64_t
@@ -256,20 +270,28 @@ int64_t
 TrustLineWrapper::NonIssuerImpl::addBuyingLiabilities(
     LedgerTxnHeader const& header, int64_t delta)
 {
-    return stellar::addBuyingLiabilities(header, mEntry, delta);
+    return stellar::addBuyingLiabilities(header, mEntry, delta,
+                                         mExpectedAuthorization);
 }
 
 int64_t
 TrustLineWrapper::NonIssuerImpl::addSellingLiabilities(
     LedgerTxnHeader const& header, int64_t delta)
 {
-    return stellar::addSellingLiabilities(header, mEntry, delta);
+    return stellar::addSellingLiabilities(header, mEntry, delta,
+                                          mExpectedAuthorization);
 }
 
 bool
 TrustLineWrapper::NonIssuerImpl::isAuthorized() const
 {
     return stellar::isAuthorized(mEntry);
+}
+
+bool
+TrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
+{
+    return stellar::isAuthorizedToMaintainLiabilities(mEntry);
 }
 
 int64_t
@@ -283,7 +305,7 @@ int64_t
 TrustLineWrapper::NonIssuerImpl::getMaxAmountReceive(
     LedgerTxnHeader const& header) const
 {
-    return stellar::getMaxAmountReceive(header, mEntry);
+    return stellar::getMaxAmountReceive(header, mEntry, mExpectedAuthorization);
 }
 
 // Implementation of TrustLineWrapper::IssuerImpl -----------------------------
@@ -357,6 +379,12 @@ TrustLineWrapper::IssuerImpl::isAuthorized() const
     return true;
 }
 
+bool
+TrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
+{
+    return true;
+}
+
 int64_t
 TrustLineWrapper::IssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
@@ -385,6 +413,7 @@ class ConstTrustLineWrapper::NonIssuerImpl
     int64_t getBalance() const override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -400,6 +429,7 @@ class ConstTrustLineWrapper::IssuerImpl
     int64_t getBalance() const override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -457,6 +487,12 @@ ConstTrustLineWrapper::isAuthorized() const
     return getImpl()->isAuthorized();
 }
 
+bool
+ConstTrustLineWrapper::isAuthorizedToMaintainLiabilities() const
+{
+    return getImpl()->isAuthorizedToMaintainLiabilities();
+}
+
 int64_t
 ConstTrustLineWrapper::getAvailableBalance(LedgerTxnHeader const& header) const
 {
@@ -502,6 +538,12 @@ ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
     return stellar::isAuthorized(mEntry);
 }
 
+bool
+ConstTrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
+{
+    return stellar::isAuthorizedToMaintainLiabilities(mEntry);
+}
+
 int64_t
 ConstTrustLineWrapper::NonIssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
@@ -530,6 +572,12 @@ ConstTrustLineWrapper::IssuerImpl::getBalance() const
 
 bool
 ConstTrustLineWrapper::IssuerImpl::isAuthorized() const
+{
+    return true;
+}
+
+bool
+ConstTrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
 {
     return true;
 }

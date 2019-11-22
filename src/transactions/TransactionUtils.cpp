@@ -15,6 +15,41 @@
 namespace stellar
 {
 
+static bool
+isAuthorizedForLiabilityDelta(int64_t delta, LedgerTxnEntry const& entry)
+{
+    // we allow offers to be deleted even if we're in the
+    // AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG state
+    if (delta >= 0)
+    {
+        if (!isAuthorized(entry))
+        {
+            return false;
+        }
+    }
+    else if (!isAuthorizedToMaintainLiabilities(entry))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+static bool
+expectedAuthorizationMet(TrustLineFlags expectedAuthorization,
+                         LedgerEntry const& entry)
+{
+    switch (expectedAuthorization)
+    {
+    case AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG:
+        return isAuthorizedToMaintainLiabilities(entry);
+    case AUTHORIZED_FLAG:
+        return isAuthorized(entry);
+    default:
+        throw std::runtime_error("Unknown TrustLineFlags type");
+    }
+}
+
 LedgerKey
 accountKey(AccountID const& accountID)
 {
@@ -77,9 +112,9 @@ loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, int64_t offerID)
 
 TrustLineWrapper
 loadTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
-              Asset const& asset)
+              Asset const& asset, TrustLineFlags expectedAuthorization)
 {
-    return TrustLineWrapper(ltx, accountID, asset);
+    return TrustLineWrapper(ltx, accountID, asset, expectedAuthorization);
 }
 
 ConstTrustLineWrapper
@@ -91,13 +126,14 @@ loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID,
 
 TrustLineWrapper
 loadTrustLineIfNotNative(AbstractLedgerTxn& ltx, AccountID const& accountID,
-                         Asset const& asset)
+                         Asset const& asset,
+                         TrustLineFlags expectedAuthorization)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return {};
     }
-    return TrustLineWrapper(ltx, accountID, asset);
+    return TrustLineWrapper(ltx, accountID, asset, expectedAuthorization);
 }
 
 ConstTrustLineWrapper
@@ -113,9 +149,10 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
 }
 
 static void
-acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
-                            LedgerTxnHeader const& header,
-                            LedgerTxnEntry const& offerEntry, bool isAcquire)
+acquireOrReleaseLiabilities(
+    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+    LedgerTxnEntry const& offerEntry, bool isAcquire,
+    TrustLineFlags expectedAuthorization = AUTHORIZED_FLAG)
 {
     // This should never happen
     auto const& offer = offerEntry.current().data.offer();
@@ -134,8 +171,10 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
         return account;
     };
 
-    auto loadTrustAndValidate = [&ltx, &sellerID](Asset const& asset) {
-        auto trust = stellar::loadTrustLine(ltx, sellerID, asset);
+    auto loadTrustAndValidate = [&ltx, &sellerID,
+                                 expectedAuthorization](Asset const& asset) {
+        auto trust =
+            stellar::loadTrustLine(ltx, sellerID, asset, expectedAuthorization);
         if (!trust)
         {
             throw std::runtime_error("trustline does not exist");
@@ -186,13 +225,16 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
 
 void
 acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
-                   LedgerTxnEntry const& offer)
+                   LedgerTxnEntry const& offer,
+                   TrustLineFlags expectedAuthorization)
 {
-    acquireOrReleaseLiabilities(ltx, header, offer, true);
+    acquireOrReleaseLiabilities(ltx, header, offer, true,
+                                expectedAuthorization);
 }
 
 bool
-addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
+addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta,
+           TrustLineFlags expectedAuthorization)
 {
     if (entry.current().data.type() == ACCOUNT)
     {
@@ -230,7 +272,8 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
         {
             return true;
         }
-        if (!isAuthorized(entry))
+
+        if (!expectedAuthorizationMet(expectedAuthorization, entry.current()))
         {
             return false;
         }
@@ -264,7 +307,7 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
 
 bool
 addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                     int64_t delta)
+                     int64_t delta, TrustLineFlags expectedAuthorization)
 {
     int64_t buyingLiab = getBuyingLiabilities(header, entry);
 
@@ -294,7 +337,10 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     else if (entry.current().data.type() == TRUSTLINE)
     {
         auto& tl = entry.current().data.trustLine();
-        if (!isAuthorized(entry))
+        // We either need to be authorized for this delta OR meet our expected
+        // authorization to pass
+        if (!isAuthorizedForLiabilityDelta(delta, entry) &&
+            !expectedAuthorizationMet(expectedAuthorization, entry.current()))
         {
             return false;
         }
@@ -352,7 +398,7 @@ addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
 
 bool
 addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                      int64_t delta)
+                      int64_t delta, TrustLineFlags expectedAuthorization)
 {
     int64_t sellingLiab = getSellingLiabilities(header, entry);
 
@@ -387,7 +433,8 @@ addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     else if (entry.current().data.type() == TRUSTLINE)
     {
         auto& tl = entry.current().data.trustLine();
-        if (!isAuthorized(entry))
+        if (!isAuthorizedForLiabilityDelta(delta, entry) &&
+            !expectedAuthorizationMet(expectedAuthorization, entry.current()))
         {
             return false;
         }
@@ -483,7 +530,8 @@ getBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
 }
 
 int64_t
-getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le,
+                    TrustLineFlags expectedAuthorization)
 {
     if (le.data.type() == ACCOUNT)
     {
@@ -498,7 +546,7 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
     if (le.data.type() == TRUSTLINE)
     {
         int64_t amount = 0;
-        if (isAuthorized(le))
+        if (expectedAuthorizationMet(expectedAuthorization, le))
         {
             auto const& tl = le.data.trustLine();
             amount = tl.limit - tl.balance;
@@ -516,16 +564,18 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
 }
 
 int64_t
-getMaxAmountReceive(LedgerTxnHeader const& header, LedgerTxnEntry const& entry)
+getMaxAmountReceive(LedgerTxnHeader const& header, LedgerTxnEntry const& entry,
+                    TrustLineFlags expectedAuthorization)
 {
-    return getMaxAmountReceive(header, entry.current());
+    return getMaxAmountReceive(header, entry.current(), expectedAuthorization);
 }
 
 int64_t
 getMaxAmountReceive(LedgerTxnHeader const& header,
-                    ConstLedgerTxnEntry const& entry)
+                    ConstLedgerTxnEntry const& entry,
+                    TrustLineFlags expectedAuthorization)
 {
-    return getMaxAmountReceive(header, entry.current());
+    return getMaxAmountReceive(header, entry.current(), expectedAuthorization);
 }
 
 int64_t
@@ -658,6 +708,25 @@ bool
 isAuthorized(ConstLedgerTxnEntry const& entry)
 {
     return isAuthorized(entry.current());
+}
+
+bool
+isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
+{
+    return isAuthorized(le) || (le.data.trustLine().flags &
+                                AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG) != 0;
+}
+
+bool
+isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry)
+{
+    return isAuthorizedToMaintainLiabilities(entry.current());
+}
+
+bool
+isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry)
+{
+    return isAuthorizedToMaintainLiabilities(entry.current());
 }
 
 bool

@@ -168,7 +168,7 @@ generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
 
 static LedgerEntry
 generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
-                           bool authorized)
+                           uint32_t authorized)
 {
     auto const& oe = offer.data.offer();
 
@@ -200,14 +200,8 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
     {
         auto trust = LedgerTestUtils::generateValidTrustLineEntry();
         trust.accountID = oe.sellerID;
-        if (authorized)
-        {
-            trust.flags |= AUTHORIZED_FLAG;
-        }
-        else
-        {
-            trust.flags &= ~AUTHORIZED_FLAG;
-        }
+        trust.flags = authorized;
+
         trust.asset = oe.selling;
         trust.balance = excess ? std::min(trust.balance, oe.amount - 1)
                                : std::max(trust.balance, oe.amount);
@@ -223,7 +217,7 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
 }
 
 static LedgerEntry
-generateBuyingLiabilities(LedgerEntry offer, bool excess, bool authorized)
+generateBuyingLiabilities(LedgerEntry offer, bool excess, uint32_t authorized)
 {
     auto const& oe = offer.data.offer();
 
@@ -248,14 +242,8 @@ generateBuyingLiabilities(LedgerEntry offer, bool excess, bool authorized)
     {
         auto trust = LedgerTestUtils::generateValidTrustLineEntry();
         trust.accountID = oe.sellerID;
-        if (authorized)
-        {
-            trust.flags |= AUTHORIZED_FLAG;
-        }
-        else
-        {
-            trust.flags &= ~AUTHORIZED_FLAG;
-        }
+        trust.flags = authorized;
+
         trust.asset = oe.buying;
 
         trust.limit = std::max({trust.limit, oe.amount});

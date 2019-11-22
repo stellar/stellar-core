@@ -9,6 +9,7 @@
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/TransactionUtils.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
 
@@ -87,7 +88,7 @@ checkAuthorized(std::shared_ptr<LedgerEntry const> const& current)
     if (current->data.type() == TRUSTLINE)
     {
         auto const& trust = current->data.trustLine();
-        if (!(trust.flags & AUTHORIZED_FLAG))
+        if (!isAuthorizedToMaintainLiabilities(*current))
         {
             if (getSellingLiabilities(*current) > 0 ||
                 getBuyingLiabilities(*current) > 0)

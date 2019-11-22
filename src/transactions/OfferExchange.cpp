@@ -50,7 +50,7 @@ canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
         return std::max({getAvailableBalance(header, account), int64_t(0)});
     }
 
-    if (trustLine && trustLine.isAuthorized())
+    if (trustLine && trustLine.isAuthorizedToMaintainLiabilities())
     {
         return std::max({trustLine.getAvailableBalance(header), int64_t(0)});
     }
@@ -68,7 +68,7 @@ canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
         return std::max({getAvailableBalance(header, account), int64_t(0)});
     }
 
-    if (trustLine && trustLine.isAuthorized())
+    if (trustLine && trustLine.isAuthorizedToMaintainLiabilities())
     {
         return std::max({trustLine.getAvailableBalance(header), int64_t(0)});
     }
@@ -1106,8 +1106,10 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     {
         accountB = stellar::loadAccount(ltx, accountBID);
     }
-    auto sheepLineAccountB = loadTrustLineIfNotNative(ltx, accountBID, sheep);
-    auto wheatLineAccountB = loadTrustLineIfNotNative(ltx, accountBID, wheat);
+    auto sheepLineAccountB = loadTrustLineIfNotNative(
+        ltx, accountBID, sheep, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
+    auto wheatLineAccountB = loadTrustLineIfNotNative(
+        ltx, accountBID, wheat, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
 
     // As of the protocol version 10, this call to adjustOffer should have no
     // effect. We leave it here only as a preventative measure.
@@ -1189,7 +1191,8 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
         }
         else
         {
-            acquireLiabilities(ltxInner, header, sellingWheatOffer);
+            acquireLiabilities(ltxInner, header, sellingWheatOffer,
+                               AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
         }
         ltxInner.commit();
     }
