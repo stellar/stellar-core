@@ -156,8 +156,8 @@ class OverlayManager
 
     virtual bool isShuttingDown() const = 0;
 
-    virtual void
-    recordDuplicateMessageMetric(StellarMessage const& stellarMsg) = 0;
+    virtual void recordDuplicateMessageMetric(StellarMessage const& stellarMsg,
+                                              Peer::pointer peer) = 0;
 
     virtual ~OverlayManager()
     {

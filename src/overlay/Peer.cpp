@@ -52,6 +52,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mLastEmpty(app.getClock().now())
+    , mPeerMetrics(app.getClock().now())
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -118,8 +119,12 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
     mLastRead = mApp.getClock().now();
     if (gotFullMessage)
+    {
         getOverlayMetrics().mMessageRead.Mark();
+        ++mPeerMetrics.mMessageRead;
+    }
     getOverlayMetrics().mByteRead.Mark(byteCount);
+    mPeerMetrics.mByteRead += byteCount;
 }
 
 void
@@ -529,7 +534,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     assert(isAuthenticated() || stellarMsg.type() == HELLO ||
            stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
-    mApp.getOverlayManager().recordDuplicateMessageMetric(stellarMsg);
+    mApp.getOverlayManager().recordDuplicateMessageMetric(stellarMsg,
+                                                          shared_from_this());
 
     switch (stellarMsg.type())
     {
@@ -1044,5 +1050,22 @@ Peer::recvPeers(StellarMessage const& msg)
             mApp.getOverlayManager().getPeerManager().ensureExists(address);
         }
     }
+}
+
+Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
+    : mMessageRead(0)
+    , mMessageWrite(0)
+    , mByteRead(0)
+    , mByteWrite(0)
+    , mUniqueFloodBytesRecv(0)
+    , mDuplicateFloodBytesRecv(0)
+    , mUniqueFetchBytesRecv(0)
+    , mDuplicateFetchBytesRecv(0)
+    , mUniqueFloodMessageRecv(0)
+    , mDuplicateFloodMessageRecv(0)
+    , mUniqueFetchMessageRecv(0)
+    , mDuplicateFetchMessageRecv(0)
+    , mConnectedTime(connectedTime)
+{
 }
 }

@@ -142,8 +142,8 @@ class OverlayManagerImpl : public OverlayManager
 
     bool isShuttingDown() const override;
 
-    void
-    recordDuplicateMessageMetric(StellarMessage const& stellarMsg) override;
+    void recordDuplicateMessageMetric(StellarMessage const& stellarMsg,
+                                      Peer::pointer peer) override;
 
   private:
     struct ResolvedPeers

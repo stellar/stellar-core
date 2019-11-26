@@ -935,10 +935,12 @@ logDuplicateMessage(el::Level level, size_t size, std::string const& dupOrUniq,
 
 void
 OverlayManagerImpl::recordDuplicateMessageMetric(
-    StellarMessage const& stellarMsg)
+    StellarMessage const& stellarMsg, Peer::pointer peer)
 {
     bool flood = false;
-    if (stellarMsg.type() == TRANSACTION || stellarMsg.type() == SCP_MESSAGE)
+    if (stellarMsg.type() == TRANSACTION || stellarMsg.type() == SCP_MESSAGE ||
+        stellarMsg.type() == SURVEY_REQUEST ||
+        stellarMsg.type() == SURVEY_RESPONSE)
     {
         flood = true;
     }
@@ -953,6 +955,8 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
         mPerfLogLevel = Logging::getLogLevel("Perf");
     }
 
+    auto& peerMetrics = peer->getPeerMetrics();
+
     size_t size = xdr::xdr_argpack_size(stellarMsg);
     auto hash = shortHash::xdrComputeHash(stellarMsg);
     if (mMessageCache.exists(hash))
@@ -960,11 +964,19 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
         if (flood)
         {
             mOverlayMetrics.mDuplicateFloodBytesRecv.Mark(size);
+
+            peerMetrics.mDuplicateFloodBytesRecv += size;
+            ++peerMetrics.mDuplicateFloodMessageRecv;
+
             logDuplicateMessage(mPerfLogLevel, size, "duplicate", "flood");
         }
         else
         {
             mOverlayMetrics.mDuplicateFetchBytesRecv.Mark(size);
+
+            peerMetrics.mDuplicateFetchBytesRecv += size;
+            ++peerMetrics.mDuplicateFetchMessageRecv;
+
             logDuplicateMessage(mPerfLogLevel, size, "duplicate", "fetch");
         }
     }
@@ -976,11 +988,19 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
         if (flood)
         {
             mOverlayMetrics.mUniqueFloodBytesRecv.Mark(size);
+
+            peerMetrics.mUniqueFloodBytesRecv += size;
+            ++peerMetrics.mUniqueFloodMessageRecv;
+
             logDuplicateMessage(mPerfLogLevel, size, "unique", "flood");
         }
         else
         {
             mOverlayMetrics.mUniqueFetchBytesRecv.Mark(size);
+
+            peerMetrics.mUniqueFetchBytesRecv += size;
+            ++peerMetrics.mUniqueFetchMessageRecv;
+
             logDuplicateMessage(mPerfLogLevel, size, "unique", "fetch");
         }
     }

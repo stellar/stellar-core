@@ -64,6 +64,27 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_DROPPED_REMOTE
     };
 
+    struct PeerMetrics
+    {
+        PeerMetrics(VirtualClock::time_point connectedTime);
+        uint64_t mMessageRead;
+        uint64_t mMessageWrite;
+        uint64_t mByteRead;
+        uint64_t mByteWrite;
+
+        uint64_t mUniqueFloodBytesRecv;
+        uint64_t mDuplicateFloodBytesRecv;
+        uint64_t mUniqueFetchBytesRecv;
+        uint64_t mDuplicateFetchBytesRecv;
+
+        uint64_t mUniqueFloodMessageRecv;
+        uint64_t mDuplicateFloodMessageRecv;
+        uint64_t mUniqueFetchMessageRecv;
+        uint64_t mDuplicateFetchMessageRecv;
+
+        VirtualClock::time_point mConnectedTime;
+    };
+
   protected:
     Application& mApp;
 
@@ -89,6 +110,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
     VirtualClock::time_point mLastEmpty;
+
+    PeerMetrics mPeerMetrics;
 
     OverlayMetrics& getOverlayMetrics();
 
@@ -211,6 +234,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     getPeerID()
     {
         return mPeerID;
+    }
+
+    PeerMetrics&
+    getPeerMetrics()
+    {
+        return mPeerMetrics;
     }
 
     std::string toString();
