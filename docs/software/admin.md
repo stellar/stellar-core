@@ -198,6 +198,8 @@ Here is an [example public network config](https://github.com/stellar/docs/blob/
 
 The examples in this file don't specify `--conf betterfile.cfg` for brevity.
 
+Auditing of the P2P network is enabled by default, see the [overlay topology](#overlay-topology-survey) section for more detail if you'd like to disable it
+
 ### Validating node
 Nodes are considered **validating** if they take part in SCP and sign messages 
 pledging that the network agreed to a particular transaction set.
@@ -712,6 +714,83 @@ This list is the result of both inbound connections from other peers and outboun
    }
 }
 ```
+
+#### Overlay topology survey
+
+There is a survey mechanism in the overlay that allows a validator to request connection information from other nodes on the network. The survey can be triggered from a validator, and will flood through the network like any other message, but will request information about which other nodes each node is connected to and a brief summary of their per-connection traffic volumes.
+
+By default, a node will relay or respond to a survey message if the message originated from a node in the receiving nodes transitive quorum. This behavior can be overridden by setting `SURVEYOR_KEYS` in the config file to a more restrictive set of nodes to relay or respond to.
+
+##### Example survey command
+
+In this example, we have three nodes `GBBN`, `GDEX`, and `GBUI` (we'll refer to them by the first four letters of their public keys). We will execute the commands below from `GBUI`, and note that `GBBN` has `SURVEYOR_KEYS=["$self"]` in it's config file, so `GBBN` will not relay or respond to any survey messages.
+
+  1. `$ stellar-core http-command 'surveytopology?duration=1000&node=GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL'`
+  2. `$ stellar-core http-command 'surveytopology?duration=1000&node=GDEXJV6XKKLDUWKTSXOOYVOYWZGVNIKKQ7GVNR5FOV7VV5K4MGJT5US4'`
+  3. `$ stellar-core http-command 'getsurveyresult'`
+
+Once the responses are received, the `getsurveyresult` command will return a result like this:
+```json
+   {
+   "backlog" : [],
+   "badResponseNodes" : null,
+   "surveyInProgress" : true,
+   "topology" : {
+      "GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL" : null,
+      "GDEXJV6XKKLDUWKTSXOOYVOYWZGVNIKKQ7GVNR5FOV7VV5K4MGJT5US4" : {
+         "inboundPeers" : [
+            {
+               "bytesRead" : 26392,
+               "bytesWritten" : 26960,
+               "duplicateFetchBytesRecv" : 0,
+               "duplicateFetchMessageRecv" : 0,
+               "duplicateFloodBytesRecv" : 10424,
+               "duplicateFloodMessageRecv" : 43,
+               "messagesRead" : 93,
+               "messagesWritten" : 96,
+               "nodeId" : "GBBNXPPGDFDUQYH6RT5VGPDSOWLZEXXFD3ACUPG5YXRHLTATTUKY42CL",
+               "secondsConnected" : 22,
+               "uniqueFetchBytesRecv" : 0,
+               "uniqueFetchMessageRecv" : 0,
+               "uniqueFloodBytesRecv" : 11200,
+               "uniqueFloodMessageRecv" : 46,
+               "version" : "v12.2.0-46-g61aadd29"
+            },
+            {
+               "bytesRead" : 32204,
+               "bytesWritten" : 31212,
+               "duplicateFetchBytesRecv" : 0,
+               "duplicateFetchMessageRecv" : 0,
+               "duplicateFloodBytesRecv" : 11200,
+               "duplicateFloodMessageRecv" : 46,
+               "messagesRead" : 115,
+               "messagesWritten" : 112,
+               "nodeId" : "GBUICIITZTGKL7PUBHUPWD67GDRAIYUA4KCOH2PUIMMZ6JQLNVA7C4JL",
+               "secondsConnected" : 23,
+               "uniqueFetchBytesRecv" : 176,
+               "uniqueFetchMessageRecv" : 2,
+               "uniqueFloodBytesRecv" : 14968,
+               "uniqueFloodMessageRecv" : 62,
+               "version" : "v12.2.0-46-g61aadd29"
+            }
+         ],
+         "numTotalInboundPeers" : 2,
+         "numTotalOutboundPeers" : 0,
+         "outboundPeers" : null
+      }
+   }
+   }
+```
+
+In this example, note that the node `GBBN` under the `topology` field has a `null` value because it's configured to not respond to the survey message.
+
+Notable field definitions
+
+* `backlog` : List of nodes for which the survey request are yet to be sent
+* `badResponseNodes` : List of nodes that sent a malformed response
+* `topology` : Map of nodes to connection information
+  * `inboundPeers`/`outboundPeers` : List of connection information by nodes
+  * `numTotalInboundPeers`/`numTotalOutboundPeers` : The number of total inbound and outbound peers this node is connected to. The response will have a random subset of 25 connected peers per direction (inbound/outbound). These fields tell you if you're missing nodes so you can send another request out to get another random subset of nodes.
 
 ### Quorum Health
 
