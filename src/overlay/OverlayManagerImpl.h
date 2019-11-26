@@ -101,8 +101,8 @@ class OverlayManagerImpl : public OverlayManager
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
     bool recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
-    void broadcastMessage(StellarMessage const& msg,
-                          bool force = false) override;
+    void broadcastMessage(StellarMessage const& msg, bool force = false,
+                          uint32_t minOverlayVersion = 0) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;

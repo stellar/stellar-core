@@ -66,8 +66,8 @@ class OverlayManager
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.
-    virtual void broadcastMessage(StellarMessage const& msg,
-                                  bool force = false) = 0;
+    virtual void broadcastMessage(StellarMessage const& msg, bool force = false,
+                                  uint32_t minOverlayVersion = 0) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a
     // given broadcast message, so that it is inhibited from being resent to

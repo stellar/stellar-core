@@ -856,10 +856,11 @@ OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
 }
 
 void
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force,
+                                     uint32_t minOverlayVersion)
 {
     mOverlayMetrics.mMessagesBroadcast.Mark();
-    mFloodGate.broadcast(msg, force);
+    mFloodGate.broadcast(msg, force, minOverlayVersion);
 }
 
 void
