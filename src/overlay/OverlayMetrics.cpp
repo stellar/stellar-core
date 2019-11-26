@@ -56,6 +56,11 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mRecvSCPExternalizeTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-externalize"}))
 
+    , mRecvSurveyRequestTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "survey-request"}))
+    , mRecvSurveyResponseTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "survey-response"}))
+
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))
     , mSendHelloMeter(
@@ -82,6 +87,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "send", "scp-message"}, "message"))
     , mSendGetSCPStateMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-state"}, "message"))
+    , mSendSurveyRequestMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "survey-request"}, "message"))
+    , mSendSurveyResponseMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "survey-response"}, "message"))
     , mMessagesBroadcast(app.getMetrics().NewMeter(
           {"overlay", "message", "broadcast"}, "message"))
     , mPendingPeersSize(

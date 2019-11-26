@@ -415,6 +415,12 @@ Peer::sendMessage(StellarMessage const& msg)
     case GET_SCP_STATE:
         getOverlayMetrics().mSendGetSCPStateMeter.Mark();
         break;
+    case SURVEY_REQUEST:
+        getOverlayMetrics().mSendSurveyRequestMeter.Mark();
+        break;
+    case SURVEY_RESPONSE:
+        getOverlayMetrics().mSendSurveyResponseMeter.Mark();
+        break;
     };
 
     AuthenticatedMessage amsg;
@@ -589,12 +595,14 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     case SURVEY_REQUEST:
     {
+        auto t = getOverlayMetrics().mRecvSurveyRequestTimer.TimeScope();
         recvSurveyRequestMessage(stellarMsg);
     }
     break;
 
     case SURVEY_RESPONSE:
     {
+        auto t = getOverlayMetrics().mRecvSurveyResponseTimer.TimeScope();
         recvSurveyResponseMessage(stellarMsg);
     }
     break;
