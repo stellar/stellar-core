@@ -55,6 +55,9 @@ class CommandHandler
     void tx(std::string const& params, std::string& retStr);
     void unban(std::string const& params, std::string& retStr);
     void upgrades(std::string const& params, std::string& retStr);
+    void surveyTopology(std::string const&, std::string& retStr);
+    void stopSurvey(std::string const&, std::string& retStr);
+    void getSurveyResult(std::string const&, std::string& retStr);
 
 #ifdef BUILD_TESTS
     void generateLoad(std::string const& params, std::string& retStr);
