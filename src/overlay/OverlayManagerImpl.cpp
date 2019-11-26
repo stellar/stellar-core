@@ -848,11 +848,11 @@ OverlayManagerImpl::getRandomAuthenticatedPeers()
     return goodPeers;
 }
 
-void
+bool
 OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
                                    Peer::pointer peer)
 {
-    mFloodGate.addRecord(msg, peer);
+    return mFloodGate.addRecord(msg, peer);
 }
 
 void

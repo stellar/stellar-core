@@ -73,7 +73,8 @@ class OverlayManager
     // given broadcast message, so that it is inhibited from being resent to
     // that peer. This does _not_ cause the message to be broadcast anew; to do
     // that, call broadcastMessage, above.
-    virtual void recvFloodedMsg(StellarMessage const& msg,
+    // Returns true if this is a new message
+    virtual bool recvFloodedMsg(StellarMessage const& msg,
                                 Peer::pointer peer) = 0;
 
     // Return a list of random peers from the set of authenticated peers.
