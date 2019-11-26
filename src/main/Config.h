@@ -12,6 +12,7 @@
 
 #include <map>
 #include <memory>
+#include <set>
 #include <string>
 
 #define DEFAULT_PEER_PORT 11625
@@ -61,6 +62,10 @@ class Config : public std::enable_shared_from_this<Config>
     void parseNodeID(std::string configStr, PublicKey& retKey);
     void parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                      bool isSeed);
+
+    void parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
+                             std::string const& configStr,
+                             std::set<PublicKey>& keySet);
 
     std::string expandNodeID(std::string const& s) const;
     void addValidatorName(std::string const& pubKeyStr,
@@ -272,6 +277,9 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_STRAGGLER_TIMEOUT;
     static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
     static constexpr auto const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
+
+    // survey config
+    std::set<PublicKey> SURVEYOR_KEYS;
 
     // Peers we will always try to stay connected to
     std::vector<std::string> PREFERRED_PEERS;

@@ -20,6 +20,8 @@
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
+#include "overlay/SurveyManager.h"
+#include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -355,6 +357,10 @@ msgSummary(StellarMessage const& msg)
         }
     case GET_SCP_STATE:
         return "GET_SCP_STATE";
+
+    case SURVEY_REQUEST:
+    case SURVEY_RESPONSE:
+        return SurveyManager::getMsgSummary(msg);
     }
     return "UNKNOWN";
 }
@@ -578,6 +584,18 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
         auto t = getOverlayMetrics().mRecvPeersTimer.TimeScope();
         recvPeers(stellarMsg);
+    }
+    break;
+
+    case SURVEY_REQUEST:
+    {
+        recvSurveyRequestMessage(stellarMsg);
+    }
+    break;
+
+    case SURVEY_RESPONSE:
+    {
+        recvSurveyResponseMessage(stellarMsg);
     }
     break;
 
@@ -1050,6 +1068,20 @@ Peer::recvPeers(StellarMessage const& msg)
             mApp.getOverlayManager().getPeerManager().ensureExists(address);
         }
     }
+}
+
+void
+Peer::recvSurveyRequestMessage(StellarMessage const& msg)
+{
+    mApp.getOverlayManager().getSurveyManager().relayOrProcessRequest(
+        msg, shared_from_this());
+}
+
+void
+Peer::recvSurveyResponseMessage(StellarMessage const& msg)
+{
+    mApp.getOverlayManager().getSurveyManager().relayOrProcessResponse(
+        msg, shared_from_this());
 }
 
 Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)

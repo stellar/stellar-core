@@ -943,6 +943,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 SUPPORTED_META_VERSION = readInt<uint32_t>(item, 1, 2);
             }
+            else if (item.first == "SURVEYOR_KEYS")
+            {
+                // processed later (may depend on previously defined public
+                // keys)
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -983,6 +988,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 }
             }
         }
+
+        parseNodeIDsIntoSet(t, "SURVEYOR_KEYS", SURVEYOR_KEYS);
 
         auto autoQSet = generateQuorumSet(validators);
         auto autoQSetStr = toString(autoQSet);
@@ -1302,6 +1309,27 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
             if (commonName.size())
             {
                 addValidatorName(nodestr, commonName);
+            }
+        }
+    }
+}
+
+void
+Config::parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
+                            std::string const& configStr,
+                            std::set<PublicKey>& keySet)
+{
+    if (t->contains(configStr))
+    {
+        auto nodes = t->get(configStr);
+        if (nodes)
+        {
+            auto values = readStringArray(ConfigItem{configStr, nodes});
+            for (auto const& v : values)
+            {
+                PublicKey nodeID;
+                parseNodeID(v, nodeID);
+                keySet.emplace(nodeID);
             }
         }
     }

@@ -15,6 +15,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
+#include "overlay/SurveyManager.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -95,6 +96,8 @@ class OverlayManagerImpl : public OverlayManager
 
     Floodgate mFloodGate;
 
+    std::shared_ptr<SurveyManager> mSurveyManager;
+
   public:
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
@@ -128,6 +131,8 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getConnectedPeer(PeerBareAddress const& address) override;
 
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getRandomInboundAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getRandomOutboundAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
@@ -136,6 +141,8 @@ class OverlayManagerImpl : public OverlayManager
 
     LoadManager& getLoadManager() override;
     PeerManager& getPeerManager() override;
+
+    SurveyManager& getSurveyManager() override;
 
     void start() override;
     void shutdown() override;
@@ -178,5 +185,9 @@ class OverlayManagerImpl : public OverlayManager
     bool isPossiblyPreferred(std::string const& ip);
 
     void updateSizeCounters();
+
+    void extractPeersFromMap(std::map<NodeID, Peer::pointer> const& peerMap,
+                             std::vector<Peer::pointer>& result);
+    void shufflePeerList(std::vector<Peer::pointer>& peerList);
 };
 }

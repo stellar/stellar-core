@@ -281,6 +281,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
+    , mSurveyManager(make_shared<SurveyManager>(app))
 {
     mPeerSources[PeerType::INBOUND] = std::make_unique<RandomPeerSource>(
         mPeerManager, RandomPeerSource::nextAttemptCutoff(PeerType::INBOUND));
@@ -620,6 +621,7 @@ void
 OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
 {
     mFloodGate.clearBelow(lastClosedledgerSeq);
+    mSurveyManager->clearOldLedgers(lastClosedledgerSeq);
 }
 
 void
@@ -834,18 +836,47 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
-    auto goodPeers = std::vector<Peer::pointer>{};
+    auto result = std::vector<Peer::pointer>{};
+    extractPeersFromMap(mInboundPeers.mAuthenticated, result);
+    extractPeersFromMap(mOutboundPeers.mAuthenticated, result);
+    shufflePeerList(result);
+    return result;
+}
+
+std::vector<Peer::pointer>
+OverlayManagerImpl::getRandomInboundAuthenticatedPeers()
+{
+    auto result = std::vector<Peer::pointer>{};
+    extractPeersFromMap(mInboundPeers.mAuthenticated, result);
+    shufflePeerList(result);
+    return result;
+}
+
+std::vector<Peer::pointer>
+OverlayManagerImpl::getRandomOutboundAuthenticatedPeers()
+{
+    auto result = std::vector<Peer::pointer>{};
+    extractPeersFromMap(mOutboundPeers.mAuthenticated, result);
+    shufflePeerList(result);
+    return result;
+}
+
+void
+OverlayManagerImpl::extractPeersFromMap(
+    std::map<NodeID, Peer::pointer> const& peerMap,
+    std::vector<Peer::pointer>& result)
+{
     auto extractPeer = [](std::pair<NodeID, Peer::pointer> const& peer) {
         return peer.second;
     };
-    std::transform(std::begin(mInboundPeers.mAuthenticated),
-                   std::end(mInboundPeers.mAuthenticated),
-                   std::back_inserter(goodPeers), extractPeer);
-    std::transform(std::begin(mOutboundPeers.mAuthenticated),
-                   std::end(mOutboundPeers.mAuthenticated),
-                   std::back_inserter(goodPeers), extractPeer);
-    std::shuffle(goodPeers.begin(), goodPeers.end(), gRandomEngine);
-    return goodPeers;
+    std::transform(std::begin(peerMap), std::end(peerMap),
+                   std::back_inserter(result), extractPeer);
+}
+
+void
+OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
+{
+    std::shuffle(peerList.begin(), peerList.end(), gRandomEngine);
 }
 
 bool
@@ -897,6 +928,12 @@ PeerManager&
 OverlayManagerImpl::getPeerManager()
 {
     return mPeerManager;
+}
+
+SurveyManager&
+OverlayManagerImpl::getSurveyManager()
+{
+    return *mSurveyManager;
 }
 
 void
