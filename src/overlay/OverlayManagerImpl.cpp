@@ -815,10 +815,7 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 
     if (peer->isAuthenticated())
     {
-        std::string kstr = KeyUtils::toStrKey(peer->getPeerID());
-        std::vector<std::string> const& pk =
-            mApp.getConfig().PREFERRED_PEER_KEYS;
-        if (std::find(pk.begin(), pk.end(), kstr) != pk.end())
+        if (mApp.getConfig().PREFERRED_PEER_KEYS.count(peer->getPeerID()) != 0)
         {
             CLOG(DEBUG, "Overlay")
                 << "Peer key "

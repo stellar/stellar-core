@@ -973,22 +973,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             addSelfToValidators(validators, domainQualityMap);
         }
 
-        if (t->contains("PREFERRED_PEER_KEYS"))
-        {
-            auto pkeys = t->get("PREFERRED_PEER_KEYS");
-            if (pkeys)
-            {
-                auto values =
-                    readStringArray(ConfigItem{"PREFERRED_PEER_KEYS", pkeys});
-                for (auto const& v : values)
-                {
-                    PublicKey nodeID;
-                    parseNodeID(v, nodeID);
-                    PREFERRED_PEER_KEYS.push_back(KeyUtils::toStrKey(nodeID));
-                }
-            }
-        }
-
+        parseNodeIDsIntoSet(t, "PREFERRED_PEER_KEYS", PREFERRED_PEER_KEYS);
         parseNodeIDsIntoSet(t, "SURVEYOR_KEYS", SURVEYOR_KEYS);
 
         auto autoQSet = generateQuorumSet(validators);
