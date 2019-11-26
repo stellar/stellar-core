@@ -132,7 +132,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     }
 }
 
-void
+std::string
 CommandHandler::manualCmd(std::string const& cmd)
 {
     http::server::reply reply;
@@ -140,6 +140,7 @@ CommandHandler::manualCmd(std::string const& cmd)
     request.uri = cmd;
     mServer->handle_request(request, reply);
     LOG(INFO) << cmd << " -> " << reply.content;
+    return reply.content;
 }
 
 void

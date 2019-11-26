@@ -31,7 +31,7 @@ class CommandHandler
   public:
     CommandHandler(Application& app);
 
-    void manualCmd(std::string const& cmd);
+    std::string manualCmd(std::string const& cmd);
 
     void fileNotFound(std::string const& params, std::string& retStr);
 
