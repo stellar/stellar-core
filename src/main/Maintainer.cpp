@@ -6,6 +6,8 @@
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
 #include "util/Logging.h"
+#include "util/format.h"
+#include "util/numeric.h"
 
 namespace stellar
 {
@@ -21,6 +23,18 @@ Maintainer::start()
     if (c.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
         c.AUTOMATIC_MAINTENANCE_COUNT > 0)
     {
+        // compare number of ledgers deleted per maintenance cycle with actual
+        // number
+        int64 ledgersPerMaintenancePeriod = bigDivide(
+            c.AUTOMATIC_MAINTENANCE_PERIOD.count(), 1,
+            c.getExpectedLedgerCloseTime().count(), Rounding::ROUND_UP);
+        if (c.AUTOMATIC_MAINTENANCE_COUNT <= ledgersPerMaintenancePeriod)
+        {
+            LOG(WARNING) << fmt::format(
+                "Maintenance may not be able to keep up: "
+                "AUTOMATIC_MAINTENANCE_COUNT={} <= {}",
+                c.AUTOMATIC_MAINTENANCE_COUNT, ledgersPerMaintenancePeriod);
+        }
         scheduleMaintenance();
     }
 }
