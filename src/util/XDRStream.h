@@ -14,6 +14,9 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#ifdef _WIN32
+#include <io.h>
+#endif
 
 namespace stellar
 {
@@ -160,6 +163,37 @@ class XDROutputFileStream
                 "XDROutputFileStream::close() failed on fclose(): ");
         }
         mOut = nullptr;
+    }
+
+    void
+    fdopen(int fd)
+    {
+        if (mOut)
+        {
+            FileSystemException::failWith(
+                "XDROutputFileStream::fdopen() on already-open stream");
+        }
+        mOut = ::fdopen(fd, "wb");
+        if (!mOut)
+        {
+            FileSystemException::failWithErrno(
+                "XDROutputFileStream::fdopen() failed");
+        }
+    }
+
+    void
+    flush()
+    {
+        if (!mOut)
+        {
+            FileSystemException::failWith(
+                "XDROutputFileStream::flush() on non-open FILE*");
+        }
+        if (fflush(mOut) != 0)
+        {
+            FileSystemException::failWith(
+                "XDROutputFileStream::flush() failed");
+        }
     }
 
     void
