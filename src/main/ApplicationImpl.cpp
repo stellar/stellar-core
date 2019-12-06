@@ -24,6 +24,7 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
+#include "ledger/InMemoryLedgerTxnRoot.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/CommandHandler.h"
@@ -61,9 +62,11 @@ static const int SHUTDOWN_DELAY_SECONDS = 1;
 namespace stellar
 {
 
-ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
+ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg,
+                                 AppMode mode)
     : mVirtualClock(clock)
     , mConfig(cfg)
+    , mAppMode(mode)
     , mWorkerIOContext(mConfig.WORKER_THREADS)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
     , mWorkerThreads()
@@ -123,7 +126,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::initialize(bool createNewDB)
 {
-    mDatabase = std::make_unique<Database>(*this);
+    if (modeHasDatabase(mAppMode))
+    {
+        mDatabase = std::make_unique<Database>(*this);
+    }
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
@@ -134,14 +140,32 @@ ApplicationImpl::initialize(bool createNewDB)
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
-    mMaintainer = std::make_unique<Maintainer>(*this);
+    if (modeHasDatabase(mAppMode))
+    {
+        mMaintainer = std::make_unique<Maintainer>(*this);
+    }
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
-    mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-        *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.BEST_OFFERS_CACHE_SIZE,
-        mConfig.PREFETCH_BATCH_SIZE);
+
+    switch (mAppMode)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
+            *mDatabase, mConfig.ENTRY_CACHE_SIZE,
+            mConfig.BEST_OFFERS_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE);
+        break;
+    case AppMode::REPLAY_IN_MEMORY:
+        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>();
+        mNeverCommittingLedgerTxn =
+            std::make_unique<LedgerTxn>(*mLedgerTxnRoot);
+        break;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        break;
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -169,8 +193,11 @@ ApplicationImpl::initialize(bool createNewDB)
 void
 ApplicationImpl::newDB()
 {
-    mDatabase->initialize();
-    mDatabase->upgradeToCurrentSchema();
+    if (modeHasDatabase(mAppMode))
+    {
+        mDatabase->initialize();
+        mDatabase->upgradeToCurrentSchema();
+    }
     mBucketManager->dropAll();
     mLedgerManager->startNewLedger();
 }
@@ -178,7 +205,10 @@ ApplicationImpl::newDB()
 void
 ApplicationImpl::upgradeDB()
 {
-    mDatabase->upgradeToCurrentSchema();
+    if (modeHasDatabase(mAppMode))
+    {
+        mDatabase->upgradeToCurrentSchema();
+    }
 }
 
 void
@@ -336,6 +366,18 @@ ApplicationImpl::~ApplicationImpl()
     reportCfgMetrics();
     shutdownMainIOContext();
     joinAllThreads();
+    if (!modeHasDatabase(mAppMode))
+    {
+        // Note: BucketManager::dropAll will delete the $BUCKETDIR/tmp which is
+        // where process and history manager write _their_ temp files to, so we
+        // make sure to tear them down first here.
+        mProcessManager = nullptr;
+        mHistoryManager = nullptr;
+        if (mBucketManager)
+        {
+            mBucketManager->dropAll();
+        }
+    }
     LOG(INFO) << "Application destroyed";
 }
 
@@ -353,7 +395,23 @@ ApplicationImpl::start()
         CLOG(INFO, "Ledger") << "Skipping application start up";
         return;
     }
-    CLOG(INFO, "Ledger") << "Starting up application";
+    switch (mAppMode)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        // Default mode, don't mention modes; most users are not interested.
+        CLOG(INFO, "Ledger") << "Starting up application";
+        break;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        CLOG(INFO, "Ledger") << "Starting up application"
+                             << " in RELAY_LIVE_TRAFFIC mode";
+        break;
+    case AppMode::REPLAY_IN_MEMORY:
+        CLOG(INFO, "Ledger") << "Starting up application"
+                             << " in REPLAY_IN_MEMORY mode";
+        break;
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
     mStarted = true;
 
     if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
@@ -371,6 +429,22 @@ ApplicationImpl::start()
             throw std::invalid_argument("NODE_IS_VALIDATOR not set");
         }
         mConfig.FORCE_SCP = true;
+    }
+
+    if (!modeHasDatabase())
+    {
+        if (mConfig.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting stellar-core in a non-database mode "
+                          "requires NODE_IS_VALIDATOR to be unset";
+            throw std::invalid_argument("NODE_IS_VALIDATOR is set");
+        }
+        if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())
+        {
+            LOG(ERROR) << "Starting stellar-core in a non-database mode "
+                          "requires all history archives to be non-writable";
+            throw std::invalid_argument("some history archives are writable");
+        }
     }
 
     if (mConfig.QUORUM_SET.threshold == 0)
@@ -391,10 +465,13 @@ ApplicationImpl::start()
 
             // restores Herder's state before starting overlay
             mHerder->restoreState();
-            // set known cursors before starting maintenance job
-            ExternalQueue ps(*this);
-            ps.setInitialCursors(mConfig.KNOWN_CURSORS);
-            mMaintainer->start();
+            if (modeHasDatabase(mAppMode))
+            {
+                // set known cursors before starting maintenance job
+                ExternalQueue ps(*this);
+                ps.setInitialCursors(mConfig.KNOWN_CURSORS);
+                mMaintainer->start();
+            }
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
@@ -602,6 +679,12 @@ ApplicationImpl::isStopping() const
     return mStopping;
 }
 
+Application::AppMode
+ApplicationImpl::getMode() const
+{
+    return mAppMode;
+}
+
 VirtualClock&
 ApplicationImpl::getClock()
 {
@@ -700,6 +783,7 @@ ApplicationImpl::getHistoryManager()
 Maintainer&
 ApplicationImpl::getMaintainer()
 {
+    releaseAssertOrThrow(modeHasDatabase(mAppMode));
     return *mMaintainer;
 }
 
@@ -736,6 +820,7 @@ ApplicationImpl::getOverlayManager()
 Database&
 ApplicationImpl::getDatabase() const
 {
+    releaseAssertOrThrow(modeHasDatabase(mAppMode));
     return *mDatabase;
 }
 
@@ -844,10 +929,21 @@ ApplicationImpl::createLedgerManager()
     return LedgerManager::create(*this);
 }
 
-LedgerTxnRoot&
+AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
     assertThreadIsMain();
-    return *mLedgerTxnRoot;
+    switch (mAppMode)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        return *mLedgerTxnRoot;
+    case AppMode::REPLAY_IN_MEMORY:
+        return *mNeverCommittingLedgerTxn;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        throw std::runtime_error(
+            "accessing LedgerTxnRoot in RELAY_LIVE_TRAFFIC mode");
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
 }
 }

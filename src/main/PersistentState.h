@@ -5,7 +5,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Application.h"
+#include <memory>
 #include <string>
+#include <unordered_map>
 
 namespace stellar
 {
@@ -41,6 +43,12 @@ class PersistentState
     static std::string mapping[kLastEntry];
 
     Application& mApp;
+
+    // When running in a mode with !Application::modeHasDatabase() we still let
+    // subsystems write "persistent" root-state values like the LCL and LCL HAS
+    // to this object. In that case such values "persist" only across ledgers /
+    // calls to this object, not restarts of the process.
+    std::unique_ptr<std::unordered_map<std::string, std::string>> mNonDBState;
 
     std::string getStoreStateName(Entry n, uint32 subscript = 0);
     void updateDb(std::string const& entry, std::string const& value);

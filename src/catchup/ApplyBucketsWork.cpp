@@ -110,7 +110,7 @@ ApplyBucketsWork::startLevel()
 
     bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
     bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
-    if (!mApplying && (applySnap || applyCurr))
+    if (!mApplying && mApp.modeHasDatabase() && (applySnap || applyCurr))
     {
         uint32_t oldestLedger = applySnap
                                     ? BucketList::oldestLedgerInSnap(

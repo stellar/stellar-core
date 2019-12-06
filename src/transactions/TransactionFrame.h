@@ -194,8 +194,9 @@ class TransactionFrame
                                AccountID const& accountID);
 
     // transaction history
-    void storeTransaction(Database& db, uint32_t ledgerSeq, TransactionMeta& tm,
-                          int txindex, TransactionResultSet& resultSet) const;
+    void storeTransaction(Database& db, uint32_t ledgerSeq,
+                          TransactionMeta const& tm, int txindex,
+                          TransactionResultSet const& resultSet) const;
 
     // fee history
     void storeTransactionFee(Database& db, uint32_t ledgerSeq,

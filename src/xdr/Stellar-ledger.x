@@ -326,4 +326,47 @@ case 1:
 case 2:
     TransactionMetaV2 v2;
 };
+
+// This struct groups together changes on a per transaction basis
+// note however that fees and transaction application are done in separate
+// phases
+struct TransactionResultMeta
+{
+    TransactionResultPair result;
+    LedgerEntryChanges feeProcessing;
+    TransactionMeta txApplyProcessing;
+};
+
+// this represents a single upgrade that was performed as part of a ledger
+// upgrade
+struct UpgradeEntryMeta
+{
+    LedgerUpgrade upgrade;
+    LedgerEntryChanges changes;
+};
+
+struct LedgerCloseMetaV0
+{
+    LedgerHeaderHistoryEntry ledgerHeader;
+    // NB: txSet is sorted in "Hash order"
+    TransactionSet txSet;
+
+    // NB: transactions are sorted in apply order here
+    // fees for all transactions are processed first
+    // followed by applying transactions
+    TransactionResultMeta txProcessing<>;
+
+    // upgrades are applied last
+    UpgradeEntryMeta upgradesProcessing<>;
+
+    // other misc information attached to the ledger close
+    SCPHistoryEntry scpInfo<>;
+};
+
+union LedgerCloseMeta switch (int v)
+{
+case 0:
+     LedgerCloseMetaV0 v0;
+};
+
 }

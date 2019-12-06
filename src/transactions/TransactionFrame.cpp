@@ -699,12 +699,10 @@ TransactionFrame::toStellarMessage() const
 
 void
 TransactionFrame::storeTransaction(Database& db, uint32_t ledgerSeq,
-                                   TransactionMeta& tm, int txindex,
-                                   TransactionResultSet& resultSet) const
+                                   TransactionMeta const& tm, int txindex,
+                                   TransactionResultSet const& resultSet) const
 {
     auto txBytes(xdr::xdr_to_opaque(mEnvelope));
-
-    resultSet.results.emplace_back(getResultPair());
     auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
     std::string txBody;

@@ -10,6 +10,7 @@
 #include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
+#include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 #include <string>
 
@@ -39,6 +40,7 @@ class LedgerManagerImpl : public LedgerManager
 
   protected:
     Application& mApp;
+    std::unique_ptr<XDROutputFileStream> mMetaStream;
 
   private:
     medida::Timer& mTransactionApply;
@@ -66,12 +68,15 @@ class LedgerManagerImpl : public LedgerManager
                          LedgerHeaderHistoryEntry const& lastClosed,
                          CatchupConfiguration::Mode catchupMode);
 
-    void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            AbstractLedgerTxn& ltxOuter, int64_t baseFee);
+    void
+    processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
+                       AbstractLedgerTxn& ltxOuter, int64_t baseFee,
+                       std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta);
 
-    void applyTransactions(std::vector<TransactionFramePtr>& txs,
-                           AbstractLedgerTxn& ltx,
-                           TransactionResultSet& txResultSet);
+    void
+    applyTransactions(std::vector<TransactionFramePtr>& txs,
+                      AbstractLedgerTxn& ltx, TransactionResultSet& txResultSet,
+                      std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta);
 
     void ledgerClosed(AbstractLedgerTxn& ltx);
 
@@ -145,5 +150,7 @@ class LedgerManagerImpl : public LedgerManager
 
     bool hasBufferedLedger() const override;
     LedgerCloseData popBufferedLedger() override;
+
+    void setupLedgerCloseMetaStream();
 };
 }

@@ -1011,6 +1011,12 @@
     <ClCompile Include="..\..\src\catchup\ApplyLedgerWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxnRoot.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1750,6 +1756,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\ApplyLedgerWork.h">
       <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

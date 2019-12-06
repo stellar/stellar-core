@@ -80,8 +80,9 @@ TestInvariantManager::handleInvariantFailure(
     throw InvariantDoesNotHold{message};
 }
 
-TestApplication::TestApplication(VirtualClock& clock, Config const& cfg)
-    : ApplicationImpl(clock, cfg)
+TestApplication::TestApplication(VirtualClock& clock, Config const& cfg,
+                                 AppMode mode)
+    : ApplicationImpl(clock, cfg, mode)
 {
 }
 

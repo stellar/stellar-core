@@ -70,21 +70,25 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
+    if (mApp.modeHasDatabase())
+    {
+        addRoute("dropcursor", &CommandHandler::dropcursor);
+        addRoute("getcursor", &CommandHandler::getcursor);
+        addRoute("setcursor", &CommandHandler::setcursor);
+        addRoute("maintenance", &CommandHandler::maintenance);
+    }
+
     addRoute("bans", &CommandHandler::bans);
     addRoute("clearmetrics", &CommandHandler::clearMetrics);
     addRoute("connect", &CommandHandler::connect);
-    addRoute("dropcursor", &CommandHandler::dropcursor);
     addRoute("droppeer", &CommandHandler::dropPeer);
-    addRoute("getcursor", &CommandHandler::getcursor);
     addRoute("info", &CommandHandler::info);
     addRoute("ll", &CommandHandler::ll);
     addRoute("logrotate", &CommandHandler::logRotate);
-    addRoute("maintenance", &CommandHandler::maintenance);
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("peers", &CommandHandler::peers);
     addRoute("quorum", &CommandHandler::quorum);
-    addRoute("setcursor", &CommandHandler::setcursor);
     addRoute("scp", &CommandHandler::scpInfo);
     addRoute("tx", &CommandHandler::tx);
     addRoute("unban", &CommandHandler::unban);

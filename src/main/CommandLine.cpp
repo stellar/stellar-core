@@ -6,6 +6,7 @@
 #include "catchup/CatchupConfiguration.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/InferredQuorumUtils.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
 #include "main/Config.h"
@@ -472,6 +473,7 @@ runCatchup(CommandLineArgs const& args)
     std::string outputFile;
     std::string archive;
     bool completeValidation = false;
+    bool replayInMemory = false;
 
     auto validateCatchupString = [&] {
         try
@@ -511,12 +513,18 @@ runCatchup(CommandLineArgs const& args)
             "verify all files from the archive for the catchup range");
     };
 
+    auto replayInMemoryParser = [](bool& replayInMemory) {
+        return clara::Opt{replayInMemory}["--replay-in-memory"](
+            "don't use a database, just replay ledgers in memory");
+    };
+
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
          catchupArchiveParser, outputFileParser(outputFile),
          disableBucketGCParser(disableBucketGC),
-         validationParser(completeValidation)},
+         validationParser(completeValidation),
+         replayInMemoryParser(replayInMemory)},
         [&] {
             auto config = configOption.getConfig();
             config.setNoListen();
@@ -533,8 +541,18 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
             }
 
+            auto mode = (replayInMemory ? Application::AppMode::REPLAY_IN_MEMORY
+                                        : Application::AppMode::RUN_LIVE_NODE);
+
+            if (!Application::modeHasDatabase(mode))
+            {
+                // And don't bother fsyncing buckets without a DB,
+                // they're temporary anyways.
+                config.DISABLE_XDR_FSYNC = true;
+            }
+
             VirtualClock clock(VirtualClock::REAL_TIME);
-            auto app = Application::create(clock, config, false);
+            auto app = Application::create(clock, config, false, mode);
             auto const& ham = app->getHistoryArchiveManager();
             auto archivePtr = ham.getHistoryArchive(archive);
             if (iequals(archive, "any"))

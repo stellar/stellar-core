@@ -34,6 +34,7 @@ class AbstractTxSetFrameForApply
     virtual size_t sizeOp() const = 0;
 
     virtual std::vector<TransactionFramePtr> sortForApply() = 0;
+    virtual void toXDR(TransactionSet& set) = 0;
 };
 
 class TxSetFrame : public AbstractTxSetFrameForApply
@@ -108,6 +109,6 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     // return the sum of all fees that this transaction set would take
     int64_t getTotalFees(LedgerHeader const& lh) const;
-    void toXDR(TransactionSet& set);
+    void toXDR(TransactionSet& set) override;
 };
 } // namespace stellar

@@ -5,6 +5,7 @@
 #include "main/Maintainer.h"
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -12,6 +13,7 @@ namespace stellar
 
 Maintainer::Maintainer(Application& app) : mApp{app}, mTimer{mApp}
 {
+    releaseAssertOrThrow(mApp.modeHasDatabase());
 }
 
 void
