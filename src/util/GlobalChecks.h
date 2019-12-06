@@ -12,6 +12,24 @@ void dbgAbort();
 
 [[noreturn]] void printErrorAndAbort(const char* s1);
 [[noreturn]] void printErrorAndAbort(const char* s1, const char* s2);
+[[noreturn]] void printAssertFailureAndAbort(const char* s1, const char* file,
+                                             int line);
+[[noreturn]] void printAssertFailureAndThrow(const char* s1, const char* file,
+                                             int line);
+
+// This is like `assert()` but it is _not_ sensitive to the presence of
+// NDEBUG. We don't compile with NDEBUG but "compiling out important asserts" is
+// enough of a footgun that we want to avoid even the possibility.
+#define releaseAssert(e) \
+    (static_cast<bool>(e) \
+         ? void(0) \
+         : printAssertFailureAndAbort(#e, __FILE__, __LINE__))
+
+// Same as above, but throwing rather than aborting.
+#define releaseAssertOrThrow(e) \
+    (static_cast<bool>(e) \
+         ? void(0) \
+         : printAssertFailureAndThrow(#e, __FILE__, __LINE__))
 
 #ifdef NDEBUG
 
