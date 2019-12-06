@@ -83,4 +83,18 @@ SimulationTxSetFrame::sortForApply()
     }
     return res;
 }
+
+void
+SimulationTxSetFrame::toXDR(TransactionSet& set)
+{
+    // Delegate to TxSetFrame and explicitly call sortForHash on it for now;
+    // likely this whole class will go away at some point.
+    TransactionSet txSet;
+    txSet.previousLedgerHash = mPreviousLedgerHash;
+    txSet.txs.insert(txSet.txs.end(), mTransactions.begin(),
+                     mTransactions.end());
+    TxSetFrame tf(mNetworkID, txSet);
+    tf.sortForHash();
+    tf.toXDR(set);
+}
 }

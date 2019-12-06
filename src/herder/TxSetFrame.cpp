@@ -15,6 +15,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
@@ -512,6 +513,8 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 void
 TxSetFrame::toXDR(TransactionSet& txSet)
 {
+    releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
+                                 HashTxSorter));
     txSet.txs.resize(xdr::size32(mTransactions.size()));
     for (unsigned int n = 0; n < mTransactions.size(); n++)
     {
