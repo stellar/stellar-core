@@ -354,6 +354,18 @@ ApplicationImpl::~ApplicationImpl()
     reportCfgMetrics();
     shutdownMainIOContext();
     joinAllThreads();
+    if (!modeHasDatabase(mAppMode))
+    {
+        // Note: BucketManager::dropAll will delete the $BUCKETDIR/tmp which is
+        // where process and history manager write _their_ temp files to, so we
+        // make sure to tear them down first here.
+        mProcessManager = nullptr;
+        mHistoryManager = nullptr;
+        if (mBucketManager)
+        {
+            mBucketManager->dropAll();
+        }
+    }
     LOG(INFO) << "Application destroyed";
 }
 
