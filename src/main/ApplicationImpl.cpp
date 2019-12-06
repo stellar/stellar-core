@@ -431,6 +431,22 @@ ApplicationImpl::start()
         mConfig.FORCE_SCP = true;
     }
 
+    if (!modeHasDatabase())
+    {
+        if (mConfig.NODE_IS_VALIDATOR)
+        {
+            LOG(ERROR) << "Starting stellar-core in a non-database mode "
+                          "requires NODE_IS_VALIDATOR to be unset";
+            throw std::invalid_argument("NODE_IS_VALIDATOR is set");
+        }
+        if (getHistoryArchiveManager().hasAnyWritableHistoryArchive())
+        {
+            LOG(ERROR) << "Starting stellar-core in a non-database mode "
+                          "requires all history archives to be non-writable";
+            throw std::invalid_argument("some history archives are writable");
+        }
+    }
+
     if (mConfig.QUORUM_SET.threshold == 0)
     {
         throw std::invalid_argument("Quorum not configured");
