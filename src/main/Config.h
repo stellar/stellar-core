@@ -218,6 +218,23 @@ class Config : public std::enable_shared_from_this<Config>
     // you want to make that trade.
     bool DISABLE_XDR_FSYNC;
 
+    // A string specifying a stream to write fine-grained metadata to for each
+    // ledger close while running. This will be opened at startup and
+    // synchronously streamed-to during both catchup and live ledger-closing.
+    //
+    // Streams may be specified either as a pathname (typically a named FIFO on
+    // POSIX or a named pipe on Windows, though plain files also work) or a
+    // string of the form "fd:N" for some integer N which, on POSIX, specifies
+    // the existing open file descriptor N inherited by the process (for example
+    // to write to an anonymous pipe).
+    //
+    // As a further safety check, this option is mutually exclusive with
+    // NODE_IS_VALIDATOR, as its typical use writing to a pipe with a reader
+    // process on the other end introduces a potentially-unbounded synchronous
+    // delay in closing a ledger, and should not be used on a node participating
+    // in consensus, only a passive "watcher" node.
+    std::string METADATA_OUTPUT_STREAM;
+
     // Set of cursors added at each startup with value '1'.
     std::vector<std::string> KNOWN_CURSORS;
 

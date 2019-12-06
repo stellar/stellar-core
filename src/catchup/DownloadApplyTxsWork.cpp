@@ -89,7 +89,6 @@ DownloadApplyTxsWork::yieldMoreWork()
                 }
                 res = !pqFellBehind;
             }
-
             return res;
         };
         seq.push_back(std::make_shared<ConditionalWork>(
