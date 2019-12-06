@@ -560,15 +560,19 @@ Database::recentIdleDbPercent()
 
 DBTimeExcluder::DBTimeExcluder(Application& app)
     : mApp(app)
-    , mStartQueryTime(app.getDatabase().totalQueryTime())
+    , mStartQueryTime(app.modeHasDatabase() ? app.getDatabase().totalQueryTime()
+                                            : std::chrono::nanoseconds(0))
     , mStartTotalTime(app.getClock().now())
 {
 }
 
 DBTimeExcluder::~DBTimeExcluder()
 {
-    auto deltaQ = mApp.getDatabase().totalQueryTime() - mStartQueryTime;
-    auto deltaT = mApp.getClock().now() - mStartTotalTime;
-    mApp.getDatabase().excludeTime(deltaQ, deltaT);
+    if (mApp.modeHasDatabase())
+    {
+        auto deltaQ = mApp.getDatabase().totalQueryTime() - mStartQueryTime;
+        auto deltaT = mApp.getClock().now() - mStartTotalTime;
+        mApp.getDatabase().excludeTime(deltaQ, deltaT);
+    }
 }
 }
