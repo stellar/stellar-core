@@ -272,17 +272,25 @@ LedgerManagerImpl::loadLastKnownLedger(
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        auto currentLedger =
-            LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
-        if (!currentLedger)
+        if (Application::modeHasDatabase(mApp.getMode()))
         {
-            throw std::runtime_error("Could not load ledger from database");
-        }
-
-        {
+            auto currentLedger =
+                LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
+            if (!currentLedger)
+            {
+                throw std::runtime_error("Could not load ledger from database");
+            }
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
             ltx.loadHeader().current() = *currentLedger;
             ltx.commit();
+        }
+        else
+        {
+            // In a non-database AppMode, this method should only be called when
+            // the LCL is genesis.
+            releaseAssertOrThrow(mLastClosedLedger.hash == lastLedgerHash);
+            releaseAssertOrThrow(mLastClosedLedger.header.ledgerSeq ==
+                                 GENESIS_LEDGER_SEQ);
         }
 
         if (handler)
@@ -849,12 +857,16 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             LedgerTxn ltxUpgrade(ltx);
             Upgrades::applyTo(lupgrade, ltxUpgrade);
 
-            auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
+            LedgerEntryChanges changes = ltxUpgrade.getChanges();
             // Note: Index from 1 rather than 0 to match the behavior of
             // storeTransaction and storeTransactionFee.
-            Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq, lupgrade,
-                                          ltxUpgrade.getChanges(),
-                                          static_cast<int>(i + 1));
+            if (Application::modeHasDatabase(mApp.getMode()))
+            {
+                auto ledgerSeq = ltxUpgrade.loadHeader().current().ledgerSeq;
+                Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq,
+                                              lupgrade, changes,
+                                              static_cast<int>(i + 1));
+            }
             ltxUpgrade.commit();
         }
         catch (std::runtime_error& e)
@@ -969,8 +981,19 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
         {
             LedgerTxn ltxTx(ltx);
             tx->processFeeSeqNum(ltxTx, baseFee);
-            tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq,
-                                    ltxTx.getChanges(), ++index);
+            LedgerEntryChanges changes = ltxTx.getChanges();
+            // Note to future: when we eliminate the txhistory and txfeehistory
+            // tables, the following step can be removed.
+            //
+            // Also note: for historical reasons the history tables number
+            // txs counting from 1, not 0. We preserve this for the time being
+            // in case anyone depends on it.
+            ++index;
+            if (Application::modeHasDatabase(mApp.getMode()))
+            {
+                tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq, changes,
+                                        index);
+            }
             ltxTx.commit();
         }
         ltx.commit();
@@ -1082,9 +1105,14 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
             mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
-        auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-        tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, ++index,
-                             txResultSet);
+        ++index;
+        txResultSet.results.emplace_back(tx->getResultPair());
+        if (Application::modeHasDatabase(mApp.getMode()))
+        {
+            auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
+            tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, index,
+                                 txResultSet);
+        }
     }
 
     logTxApplyMetrics(ltx, numTxs, numOps);
@@ -1108,7 +1136,10 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 void
 LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 {
-    LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
+    if (Application::modeHasDatabase(mApp.getMode()))
+    {
+        LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
+    }
 
     Hash hash = sha256(xdr::xdr_to_opaque(header));
     assert(!isZero(hash));
