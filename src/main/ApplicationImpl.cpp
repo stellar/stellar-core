@@ -61,9 +61,11 @@ static const int SHUTDOWN_DELAY_SECONDS = 1;
 namespace stellar
 {
 
-ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
+ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg,
+                                 AppMode mode)
     : mVirtualClock(clock)
     , mConfig(cfg)
+    , mAppMode(mode)
     , mWorkerIOContext(mConfig.WORKER_THREADS)
     , mWork(std::make_unique<asio::io_context::work>(mWorkerIOContext))
     , mWorkerThreads()
@@ -353,7 +355,23 @@ ApplicationImpl::start()
         CLOG(INFO, "Ledger") << "Skipping application start up";
         return;
     }
-    CLOG(INFO, "Ledger") << "Starting up application";
+    switch (mAppMode)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        // Default mode, don't mention modes; most users are not interested.
+        CLOG(INFO, "Ledger") << "Starting up application";
+        break;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        CLOG(INFO, "Ledger") << "Starting up application"
+                             << " in RELAY_LIVE_TRAFFIC mode";
+        break;
+    case AppMode::REPLAY_IN_MEMORY:
+        CLOG(INFO, "Ledger") << "Starting up application"
+                             << " in REPLAY_IN_MEMORY mode";
+        break;
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
     mStarted = true;
 
     if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
@@ -600,6 +618,12 @@ bool
 ApplicationImpl::isStopping() const
 {
     return mStopping;
+}
+
+Application::AppMode
+ApplicationImpl::getMode() const
+{
+    return mAppMode;
 }
 
 VirtualClock&

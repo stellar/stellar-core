@@ -4,6 +4,7 @@
 
 #include "Application.h"
 #include "ApplicationImpl.h"
+#include "util/GlobalChecks.h"
 #include "util/format.h"
 
 namespace stellar
@@ -37,8 +38,41 @@ validateNetworkPassphrase(Application::pointer app)
 }
 
 Application::pointer
-Application::create(VirtualClock& clock, Config const& cfg, bool newDB)
+Application::create(VirtualClock& clock, Config const& cfg, bool newDB,
+                    AppMode mode)
 {
-    return create<ApplicationImpl>(clock, cfg, newDB);
+    return create<ApplicationImpl>(clock, cfg, newDB, mode);
+}
+
+bool
+Application::modeHasOverlay(AppMode m)
+{
+    switch (m)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        return true;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        return true;
+    case AppMode::REPLAY_IN_MEMORY:
+        return false;
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
+}
+
+bool
+Application::modeHasDatabase(AppMode m)
+{
+    switch (m)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        return true;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        return false;
+    case AppMode::REPLAY_IN_MEMORY:
+        return false;
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
 }
 }

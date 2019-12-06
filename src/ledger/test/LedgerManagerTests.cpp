@@ -43,8 +43,9 @@ class LedgerManagerForTests : public LedgerManagerImpl
 class LedgerManagerTestApplication : public TestApplication
 {
   public:
-    LedgerManagerTestApplication(VirtualClock& clock, Config const& cfg)
-        : TestApplication(clock, cfg)
+    LedgerManagerTestApplication(VirtualClock& clock, Config const& cfg,
+                                 Application::AppMode mode)
+        : TestApplication(clock, cfg, mode)
     {
     }
 
