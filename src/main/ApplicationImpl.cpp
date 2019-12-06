@@ -137,7 +137,10 @@ ApplicationImpl::initialize(bool createNewDB)
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
-    mMaintainer = std::make_unique<Maintainer>(*this);
+    if (modeHasDatabase(mAppMode))
+    {
+        mMaintainer = std::make_unique<Maintainer>(*this);
+    }
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
@@ -437,10 +440,13 @@ ApplicationImpl::start()
 
             // restores Herder's state before starting overlay
             mHerder->restoreState();
-            // set known cursors before starting maintenance job
-            ExternalQueue ps(*this);
-            ps.setInitialCursors(mConfig.KNOWN_CURSORS);
-            mMaintainer->start();
+            if (modeHasDatabase(mAppMode))
+            {
+                // set known cursors before starting maintenance job
+                ExternalQueue ps(*this);
+                ps.setInitialCursors(mConfig.KNOWN_CURSORS);
+                mMaintainer->start();
+            }
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
@@ -752,6 +758,7 @@ ApplicationImpl::getHistoryManager()
 Maintainer&
 ApplicationImpl::getMaintainer()
 {
+    releaseAssertOrThrow(modeHasDatabase(mAppMode));
     return *mMaintainer;
 }
 
