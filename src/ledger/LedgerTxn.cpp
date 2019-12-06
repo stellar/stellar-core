@@ -1495,6 +1495,73 @@ LedgerTxn::Impl::unsealHeader(LedgerTxn& self,
     f(header.current());
 }
 
+uint64_t
+LedgerTxn::countObjects(LedgerEntryType let) const
+{
+    throw std::runtime_error("called countObjects on non-root LedgerTxn");
+}
+
+uint64_t
+LedgerTxn::countObjects(LedgerEntryType let, LedgerRange const& ledgers) const
+{
+    throw std::runtime_error("called countObjects on non-root LedgerTxn");
+}
+
+void
+LedgerTxn::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
+{
+    throw std::runtime_error(
+        "called deleteObjectsModifiedOnOrAfterLedger on non-root LedgerTxn");
+}
+
+void
+LedgerTxn::dropAccounts()
+{
+    throw std::runtime_error("called dropAccounts on non-root LedgerTxn");
+}
+
+void
+LedgerTxn::dropData()
+{
+    throw std::runtime_error("called dropData on non-root LedgerTxn");
+}
+
+void
+LedgerTxn::dropOffers()
+{
+    throw std::runtime_error("called dropOffers on non-root LedgerTxn");
+}
+
+void
+LedgerTxn::dropTrustLines()
+{
+    throw std::runtime_error("called dropTrustLines on non-root LedgerTxn");
+}
+
+double
+LedgerTxn::getPrefetchHitRate() const
+{
+    return getImpl()->getPrefetchHitRate();
+}
+
+double
+LedgerTxn::Impl::getPrefetchHitRate() const
+{
+    return mParent.getPrefetchHitRate();
+}
+
+uint32_t
+LedgerTxn::prefetch(std::unordered_set<LedgerKey> const& keys)
+{
+    return getImpl()->prefetch(keys);
+}
+
+uint32_t
+LedgerTxn::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
+{
+    return mParent.prefetch(keys);
+}
+
 LedgerTxn::Impl::EntryMap
 LedgerTxn::Impl::maybeUpdateLastModified() const
 {

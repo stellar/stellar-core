@@ -391,6 +391,48 @@ class AbstractLedgerTxnParent
     // or if the corresponding LedgerEntry has been erased.
     virtual std::shared_ptr<LedgerEntry const>
     getNewestVersion(LedgerKey const& key) const = 0;
+
+    // Return the count of the number of ledger objects of type `let`. Will
+    // throw when called on anything other than a (real or stub) root LedgerTxn.
+    virtual uint64_t countObjects(LedgerEntryType let) const = 0;
+
+    // Return the count of the number of ledger objects of type `let` within
+    // range of ledgers `ledgers`. Will throw when called on anything other than
+    // a (real or stub) root LedgerTxn.
+    virtual uint64_t countObjects(LedgerEntryType let,
+                                  LedgerRange const& ledgers) const = 0;
+
+    // Delete all ledger entries modified on-or-after `ledger`. Will throw
+    // when called on anything other than a (real or stub) root LedgerTxn.
+    virtual void
+    deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const = 0;
+
+    // Delete all account ledger entries in the database. Will throw when called
+    // on anything other than a (real or stub) root LedgerTxn.
+    virtual void dropAccounts() = 0;
+
+    // Delete all account-data ledger entries. Will throw when called on
+    // anything other than a (real or stub) root LedgerTxn.
+    virtual void dropData() = 0;
+
+    // Delete all offer ledger entries. Will throw when called on anything other
+    // than a (real or stub) root LedgerTxn.
+    virtual void dropOffers() = 0;
+
+    // Delete all trustline ledger entries. Will throw when called on anything
+    // other than a (real or stub) root LedgerTxn.
+    virtual void dropTrustLines() = 0;
+
+    // Return the current cache hit rate for prefetched ledger entries, as a
+    // fraction from 0.0 to 1.0. Will throw when called on anything other than a
+    // (real or stub) root LedgerTxn.
+    virtual double getPrefetchHitRate() const = 0;
+
+    // Prefetch a set of ledger entries into memory, anticipating their use.
+    // This is purely advisory and can be a no-op, or do any level of actual
+    // work, while still being correct. Will throw when called on anything other
+    // than a (real or stub) root LedgerTxn.
+    virtual uint32_t prefetch(std::unordered_set<LedgerKey> const& keys) = 0;
 };
 
 // An abstraction for an object that is an AbstractLedgerTxnParent and has
@@ -616,6 +658,17 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     void unsealHeader(std::function<void(LedgerHeader&)> f) override;
 
+    uint64_t countObjects(LedgerEntryType let) const override;
+    uint64_t countObjects(LedgerEntryType let,
+                          LedgerRange const& ledgers) const override;
+    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
+    void dropAccounts() override;
+    void dropData() override;
+    void dropOffers() override;
+    void dropTrustLines() override;
+    double getPrefetchHitRate() const override;
+    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys) override;
+
 #ifdef BUILD_TESTS
     std::unordered_map<
         AssetPair,
@@ -640,16 +693,16 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void commitChild(EntryIterator iter, LedgerTxnConsistency cons) override;
 
-    uint64_t countObjects(LedgerEntryType let) const;
+    uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,
-                          LedgerRange const& ledgers) const;
+                          LedgerRange const& ledgers) const override;
 
-    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const;
+    void deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const override;
 
-    void dropAccounts();
-    void dropData();
-    void dropOffers();
-    void dropTrustLines();
+    void dropAccounts() override;
+    void dropData() override;
+    void dropOffers() override;
+    void dropTrustLines() override;
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     void resetForFuzzer();
@@ -677,7 +730,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void rollbackChild() override;
 
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
-    double getPrefetchHitRate() const;
+    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys) override;
+    double getPrefetchHitRate() const override;
 };
 }

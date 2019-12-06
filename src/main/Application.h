@@ -40,7 +40,7 @@ class CommandHandler;
 class WorkScheduler;
 class BanManager;
 class StatusManager;
-class LedgerTxnRoot;
+class AbstractLedgerTxnParent;
 
 #ifdef BUILD_TESTS
 class LoadGenerator;
@@ -339,7 +339,7 @@ class Application
     // instances
     virtual Hash const& getNetworkID() const = 0;
 
-    virtual LedgerTxnRoot& getLedgerTxnRoot() = 0;
+    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`, and running in `AppMode` `mode`.

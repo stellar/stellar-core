@@ -113,7 +113,7 @@ class ApplicationImpl : public Application
 
     virtual Hash const& getNetworkID() const override;
 
-    virtual LedgerTxnRoot& getLedgerTxnRoot() override;
+    virtual AbstractLedgerTxnParent& getLedgerTxnRoot() override;
 
   protected:
     std::unique_ptr<LedgerManager>

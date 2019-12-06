@@ -562,6 +562,10 @@ class LedgerTxn::Impl
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
 
+    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+
+    double getPrefetchHitRate() const;
+
 #ifdef BUILD_TESTS
     MultiOrderBook const& getOrderBook();
 #endif
