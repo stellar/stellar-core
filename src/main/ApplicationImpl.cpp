@@ -24,6 +24,7 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/LiabilitiesMatchOffers.h"
+#include "ledger/InMemoryLedgerTxnRoot.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/CommandHandler.h"
@@ -141,9 +142,24 @@ ApplicationImpl::initialize(bool createNewDB)
     mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
-    mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-        *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.BEST_OFFERS_CACHE_SIZE,
-        mConfig.PREFETCH_BATCH_SIZE);
+
+    switch (mAppMode)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
+            *mDatabase, mConfig.ENTRY_CACHE_SIZE,
+            mConfig.BEST_OFFERS_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE);
+        break;
+    case AppMode::REPLAY_IN_MEMORY:
+        mLedgerTxnRoot = std::make_unique<InMemoryLedgerTxnRoot>();
+        mNeverCommittingLedgerTxn =
+            std::make_unique<LedgerTxn>(*mLedgerTxnRoot);
+        break;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        break;
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -868,10 +884,21 @@ ApplicationImpl::createLedgerManager()
     return LedgerManager::create(*this);
 }
 
-LedgerTxnRoot&
+AbstractLedgerTxnParent&
 ApplicationImpl::getLedgerTxnRoot()
 {
     assertThreadIsMain();
-    return *mLedgerTxnRoot;
+    switch (mAppMode)
+    {
+    case AppMode::RUN_LIVE_NODE:
+        return *mLedgerTxnRoot;
+    case AppMode::REPLAY_IN_MEMORY:
+        return *mNeverCommittingLedgerTxn;
+    case AppMode::RELAY_LIVE_TRAFFIC:
+        throw std::runtime_error(
+            "accessing LedgerTxnRoot in RELAY_LIVE_TRAFFIC mode");
+    default:
+        throw std::runtime_error("unhandled application mode");
+    }
 }
 }
