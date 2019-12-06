@@ -434,7 +434,8 @@ hexStr(uint32_t checkpointNum)
 std::string
 hexDir(std::string const& hexStr)
 {
-    std::regex rx("([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
+    static const std::regex rx(
+        "([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
     std::smatch sm;
     bool matched = std::regex_match(hexStr, sm, rx);
     assert(matched);
@@ -465,7 +466,7 @@ remoteName(std::string const& type, std::string const& hexStr,
 void
 checkGzipSuffix(std::string const& filename)
 {
-    std::string suf(".gz");
+    static const std::string suf(".gz");
     if (!(filename.size() >= suf.size() &&
           equal(suf.rbegin(), suf.rend(), filename.rbegin())))
     {
@@ -476,7 +477,7 @@ checkGzipSuffix(std::string const& filename)
 void
 checkNoGzipSuffix(std::string const& filename)
 {
-    std::string suf(".gz");
+    static const std::string suf(".gz");
     if (filename.size() >= suf.size() &&
         equal(suf.rbegin(), suf.rend(), filename.rbegin()))
     {
