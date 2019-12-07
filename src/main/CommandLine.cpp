@@ -544,15 +544,18 @@ runCatchup(CommandLineArgs const& args)
             auto mode = (replayInMemory ? Application::AppMode::REPLAY_IN_MEMORY
                                         : Application::AppMode::RUN_LIVE_NODE);
 
+            auto newDb = false;
             if (!Application::modeHasDatabase(mode))
             {
+                // Need to "initialize a new db" if running in memory.
+                newDb = true;
                 // And don't bother fsyncing buckets without a DB,
                 // they're temporary anyways.
                 config.DISABLE_XDR_FSYNC = true;
             }
 
             VirtualClock clock(VirtualClock::REAL_TIME);
-            auto app = Application::create(clock, config, false, mode);
+            auto app = Application::create(clock, config, newDb, mode);
             auto const& ham = app->getHistoryArchiveManager();
             auto archivePtr = ham.getHistoryArchive(archive);
             if (iequals(archive, "any"))
