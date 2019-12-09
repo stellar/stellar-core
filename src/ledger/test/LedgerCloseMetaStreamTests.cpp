@@ -9,6 +9,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/ApplicationUtils.h"
+#include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -21,32 +22,72 @@ using namespace stellar;
 TEST_CASE("LedgerCloseMetaStream file descriptor - LIVE_NODE",
           "[ledgerclosemetastreamlive]")
 {
-    // Step 1: open a writable file and pass it to config.
+    // Live reqires a multinode simulation, as we're not allowed to run a
+    // validator and record metadata streams at the same time (to avoid the
+    // unbounded-latency stream-write step): N nodes participating in consensus,
+    // and one watching and streamnig metadata.
+
+    Hash hash;
     TmpDirManager tdm(std::string("streamtmp-") + binToHex(randomBytes(8)));
     TmpDir td = tdm.tmpDir("streams");
     std::string path = td.getName() + "/stream.xdr";
-    auto cfg = getTestConfig();
+
+    {
+        // Step 1: Set up a 4 node simulation with 3 validators and 1 watcher.
+        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+        auto simulation =
+            std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+        SIMULATION_CREATE_NODE(Node1); // Validator
+        SIMULATION_CREATE_NODE(Node2); // Validator
+        SIMULATION_CREATE_NODE(Node3); // Validator
+
+        SIMULATION_CREATE_NODE(Node4); // Watcher
+
+        SCPQuorumSet qSet;
+        qSet.threshold = 3;
+        qSet.validators.push_back(vNode1NodeID);
+        qSet.validators.push_back(vNode2NodeID);
+        qSet.validators.push_back(vNode3NodeID);
+
+        Config const& cfg1 = getTestConfig(1);
+        Config const& cfg2 = getTestConfig(2);
+        Config const& cfg3 = getTestConfig(3);
+        Config cfg4 = getTestConfig(4);
+
+        // Step 2: open a writable file and pass it to config 4 (watcher).
+        cfg4.NODE_IS_VALIDATOR = false;
+        cfg4.FORCE_SCP = false;
 #ifdef _WIN32
-    cfg.METADATA_OUTPUT_STREAM = path;
+        cfg4.METADATA_OUTPUT_STREAM = path;
 #else
-    int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0644);
-    REQUIRE(fd != -1);
-    cfg.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fd);
+        int fd = ::open(path.c_str(), O_CREAT | O_WRONLY, 0644);
+        REQUIRE(fd != -1);
+        cfg4.METADATA_OUTPUT_STREAM = fmt::format("fd:{}", fd);
 #endif
 
-    // Step 2: pass it to an application and close some ledgers,
-    // streaming ledgerCloseMeta to the file descriptor.
-    VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
-    app->start();
-    while (app->getLedgerManager().getLastClosedLedgerNum() < 10)
-    {
-        clock.crank(true);
-    }
-    Hash hash = app->getLedgerManager().getLastClosedLedgerHeader().hash;
-    app.reset();
+        // Step 3: Run simulation a few steps to stream metadata.
+        auto app1 = simulation->addNode(vNode1SecretKey, qSet, &cfg1);
+        auto app2 = simulation->addNode(vNode2SecretKey, qSet, &cfg2);
+        auto app3 = simulation->addNode(vNode3SecretKey, qSet, &cfg3);
+        auto app4 = simulation->addNode(vNode4SecretKey, qSet, &cfg4);
 
-    // Step 3: reopen the file as an XDR stream and read back the LCMs
+        simulation->addPendingConnection(vNode1NodeID, vNode2NodeID);
+        simulation->addPendingConnection(vNode1NodeID, vNode3NodeID);
+        simulation->addPendingConnection(vNode1NodeID, vNode4NodeID);
+
+        simulation->startAllNodes();
+        simulation->crankUntil(
+            [&]() {
+                return app4->getLedgerManager().getLastClosedLedgerNum() == 10;
+            },
+            std::chrono::seconds{200}, false);
+
+        REQUIRE(app4->getLedgerManager().getLastClosedLedgerNum() == 10);
+        hash = app4->getLedgerManager().getLastClosedLedgerHeader().hash;
+    }
+
+    // Step 4: reopen the file as an XDR stream and read back the LCMs
     // and check they have the expected content.
     XDRInputFileStream stream;
     stream.open(path);
