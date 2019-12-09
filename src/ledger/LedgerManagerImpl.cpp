@@ -995,14 +995,19 @@ LedgerManagerImpl::setupLedgerCloseMetaStream()
     {
         mMetaStream =
             std::make_unique<XDROutputFileStream>(/*fsyncOnClose=*/true);
-        std::regex fdrx("^fd:([0-9])+$");
+        std::regex fdrx("^fd:([0-9]+)$");
         std::smatch sm;
         if (std::regex_match(cfg.METADATA_OUTPUT_STREAM, sm, fdrx))
         {
-            mMetaStream->fdopen(std::stoi(sm[1]));
+            int fd = std::stoi(sm[1]);
+            CLOG(INFO, "Ledger")
+                << "Streaming metadata to file descriptor " << fd;
+            mMetaStream->fdopen(fd);
         }
         else
         {
+            CLOG(INFO, "Ledger") << "Streaming metadata to '"
+                                 << cfg.METADATA_OUTPUT_STREAM << "'";
             mMetaStream->open(cfg.METADATA_OUTPUT_STREAM);
         }
     }
