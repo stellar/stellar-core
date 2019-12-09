@@ -4,7 +4,8 @@ These are instructions for building stellar-core from source.
 
 For a potentially quicker set up, the following projects could be good alternatives:
 
-* stellar-core in a [docker container](https://github.com/stellar/docker-stellar-core-horizon)
+* stellar-core in a [docker container](https://github.com/stellar/docker-stellar-core)
+* stellar-core and [horizon](https://github.com/stellar/go/tree/master/services/horizon) in a [docker container](https://github.com/stellar/docker-stellar-core-horizon)
 * pre-compiled [packages](https://github.com/stellar/packages)
 
 ## Picking a version to run
