@@ -431,6 +431,13 @@ ApplicationImpl::start()
         mConfig.FORCE_SCP = true;
     }
 
+    if (mConfig.METADATA_OUTPUT_STREAM != "" && mConfig.NODE_IS_VALIDATOR)
+    {
+        LOG(ERROR) << "Starting stellar-core with METADATA_OUTPUT_STREAM "
+                      "requires NODE_IS_VALIDATOR to be unset";
+        throw std::invalid_argument("NODE_IS_VALIDATOR is set");
+    }
+
     if (!modeHasDatabase())
     {
         if (mConfig.NODE_IS_VALIDATOR)
