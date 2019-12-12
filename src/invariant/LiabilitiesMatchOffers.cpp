@@ -174,9 +174,9 @@ shouldCheckAccount(std::shared_ptr<LedgerEntry const> const& current,
     if (ledgerVersion >= 10)
     {
         bool sellingLiabilitiesInc =
-            getSellingLiabilities(*current) > getSellingLiabilities(*current);
+            getSellingLiabilities(*current) > getSellingLiabilities(*previous);
         bool buyingLiabilitiesInc =
-            getBuyingLiabilities(*current) > getBuyingLiabilities(*current);
+            getBuyingLiabilities(*current) > getBuyingLiabilities(*previous);
         bool didLiabilitiesIncrease =
             sellingLiabilitiesInc || buyingLiabilitiesInc;
         return didBalanceDecrease || didLiabilitiesIncrease;

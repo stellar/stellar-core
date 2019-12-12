@@ -272,6 +272,40 @@ generateBuyingLiabilities(LedgerEntry offer, bool excess, bool authorized)
     return le;
 }
 
+TEST_CASE("Create account then increase liabilities without changing balance",
+          "[invariant][liabilitiesmatchoffers]")
+{
+    Config cfg = getTestConfig(0);
+    cfg.INVARIANT_CHECKS = {"LiabilitiesMatchOffers"};
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    Asset native;
+
+    Asset cur1;
+    cur1.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(cur1.alphaNum4().assetCode, "CUR1");
+
+    auto offer = generateOffer(native, cur1, 100, Price{1, 1});
+    auto selling = generateSellingLiabilities(*app, offer, true, true);
+    ++selling.data.account().balance;
+    auto buying = generateBuyingLiabilities(offer, false, true);
+    std::vector<LedgerEntry> entries{offer, selling, buying};
+    auto updates = makeUpdateList(entries, nullptr);
+    REQUIRE(store(*app, updates));
+
+    auto offer2 = offer;
+    ++offer2.data.offer().amount;
+    auto selling2 = selling;
+    ++selling2.data.account().ext.v1().liabilities.selling;
+    auto buying2 = buying;
+    ++buying2.data.trustLine().ext.v1().liabilities.buying;
+    std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
+    auto updates2 = makeUpdateList(entries2, entries);
+    REQUIRE(!store(*app, updates2));
+}
+
 TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
 {
     Config cfg = getTestConfig(0);
@@ -290,99 +324,153 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
     cur2.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(cur2.alphaNum4().assetCode, "CUR2");
 
+    auto assetCode = [](auto const& asset) {
+        if (asset.type() == ASSET_TYPE_NATIVE)
+        {
+            return std::string("NATIVE");
+        }
+        else
+        {
+            std::string code;
+            assetCodeToStr(asset.alphaNum4().assetCode, code);
+            return code;
+        }
+    };
+
+    auto forAssets = [&](auto f) {
+        for (auto curA : {native, cur1, cur2})
+        {
+            for (auto curB : {native, cur1, cur2})
+            {
+                if (!(curA == curB))
+                {
+                    SECTION(assetCode(curA) + " and " + assetCode(curB))
+                    {
+                        f(curA, curB);
+                    }
+                }
+            }
+        }
+    };
+
     SECTION("create then modify then delete offer")
     {
-        auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-        auto selling = generateSellingLiabilities(*app, offer, false, true);
-        auto buying = generateBuyingLiabilities(offer, false, true);
-        std::vector<LedgerEntry> entries{offer, selling, buying};
-        auto updates = makeUpdateList(entries, nullptr);
-        REQUIRE(store(*app, updates));
+        forAssets([&](auto const& curA, auto const& curB) {
+            auto offer = generateOffer(curA, curB, 100, Price{1, 1});
+            auto selling = generateSellingLiabilities(*app, offer, false, true);
+            auto buying = generateBuyingLiabilities(offer, false, true);
+            std::vector<LedgerEntry> entries{offer, selling, buying};
+            auto updates = makeUpdateList(entries, nullptr);
+            REQUIRE(store(*app, updates));
 
-        auto offer2 = generateOffer(cur1, cur2, 200, Price{1, 1});
-        offer2.data.offer().sellerID = offer.data.offer().sellerID;
-        offer2.data.offer().offerID = offer.data.offer().offerID;
-        auto selling2 = generateSellingLiabilities(*app, offer2, false, true);
-        auto buying2 = generateBuyingLiabilities(offer2, false, true);
-        std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
-        auto updates2 = makeUpdateList(entries2, entries);
-        REQUIRE(store(*app, updates2));
+            auto offer2 = generateOffer(curA, curB, 200, Price{1, 1});
+            offer2.data.offer().sellerID = offer.data.offer().sellerID;
+            offer2.data.offer().offerID = offer.data.offer().offerID;
+            auto selling2 =
+                generateSellingLiabilities(*app, offer2, false, true);
+            auto buying2 = generateBuyingLiabilities(offer2, false, true);
+            std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
+            auto updates2 = makeUpdateList(entries2, entries);
+            REQUIRE(store(*app, updates2));
 
-        auto updates3 = makeUpdateList(nullptr, entries2);
-        REQUIRE(store(*app, updates3));
+            auto updates3 = makeUpdateList(nullptr, entries2);
+            REQUIRE(store(*app, updates3));
+        });
     }
 
     SECTION("create offer with excess liabilities")
     {
-        auto verify = [&](bool excessSelling, bool authorizedSelling,
-                          bool excessBuying, bool authorizedBuying) {
-            auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-            auto selling = generateSellingLiabilities(
-                *app, offer, excessSelling, authorizedSelling);
-            auto buying = generateBuyingLiabilities(offer, excessBuying,
-                                                    authorizedBuying);
-            std::vector<LedgerEntry> entries{offer, selling, buying};
-            auto updates = makeUpdateList(entries, nullptr);
-            REQUIRE(!store(*app, updates));
-        };
+        forAssets([&](auto const& curA, auto const& curB) {
+            auto verify = [&](bool excessSelling, bool authorizedSelling,
+                              bool excessBuying, bool authorizedBuying) {
+                auto offer = generateOffer(curA, curB, 100, Price{1, 1});
+                auto selling = generateSellingLiabilities(
+                    *app, offer, excessSelling, authorizedSelling);
+                auto buying = generateBuyingLiabilities(offer, excessBuying,
+                                                        authorizedBuying);
+                std::vector<LedgerEntry> entries{offer, selling, buying};
+                auto updates = makeUpdateList(entries, nullptr);
+                REQUIRE(!store(*app, updates));
+            };
 
-        SECTION("excess selling")
-        {
-            verify(true, true, false, true);
-        }
-        SECTION("unauthorized selling")
-        {
-            verify(false, false, false, true);
-        }
-        SECTION("excess buying")
-        {
-            verify(false, true, true, true);
-        }
-        SECTION("unauthorized buying")
-        {
-            verify(false, true, false, false);
-        }
+            SECTION("excess selling")
+            {
+                verify(true, true, false, true);
+            }
+
+            if (curA.type() != ASSET_TYPE_NATIVE)
+            {
+                SECTION("unauthorized selling")
+                {
+                    verify(false, false, false, true);
+                }
+            }
+
+            SECTION("excess buying")
+            {
+                verify(false, true, true, true);
+            }
+
+            if (curB.type() != ASSET_TYPE_NATIVE)
+            {
+                SECTION("unauthorized buying")
+                {
+                    verify(false, true, false, false);
+                }
+            }
+        });
     }
 
     SECTION("modify offer to have excess liabilities")
     {
-        auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-        auto selling = generateSellingLiabilities(*app, offer, false, true);
-        auto buying = generateBuyingLiabilities(offer, false, true);
-        std::vector<LedgerEntry> entries{offer, selling, buying};
-        auto updates = makeUpdateList(entries, nullptr);
-        REQUIRE(store(*app, updates));
+        forAssets([&](auto const& curA, auto const& curB) {
+            auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
+            auto selling = generateSellingLiabilities(*app, offer, false, true);
+            auto buying = generateBuyingLiabilities(offer, false, true);
+            std::vector<LedgerEntry> entries{offer, selling, buying};
+            auto updates = makeUpdateList(entries, nullptr);
+            REQUIRE(store(*app, updates));
 
-        auto verify = [&](bool excessSelling, bool authorizedSelling,
-                          bool excessBuying, bool authorizedBuying) {
-            auto offer2 = generateOffer(cur1, cur2, 200, Price{1, 1});
-            offer2.data.offer().sellerID = offer.data.offer().sellerID;
-            offer2.data.offer().offerID = offer.data.offer().offerID;
-            auto selling2 = generateSellingLiabilities(
-                *app, offer, excessSelling, authorizedSelling);
-            auto buying2 = generateBuyingLiabilities(offer, excessBuying,
-                                                     authorizedBuying);
-            std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
-            auto updates2 = makeUpdateList(entries2, entries);
-            REQUIRE(!store(*app, updates2));
-        };
+            auto verify = [&](bool excessSelling, bool authorizedSelling,
+                              bool excessBuying, bool authorizedBuying) {
+                auto offer2 = generateOffer(cur1, cur2, 200, Price{1, 1});
+                offer2.data.offer().sellerID = offer.data.offer().sellerID;
+                offer2.data.offer().offerID = offer.data.offer().offerID;
+                auto selling2 = generateSellingLiabilities(
+                    *app, offer, excessSelling, authorizedSelling);
+                auto buying2 = generateBuyingLiabilities(offer, excessBuying,
+                                                         authorizedBuying);
+                std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
+                auto updates2 = makeUpdateList(entries2, entries);
+                REQUIRE(!store(*app, updates2));
+            };
 
-        SECTION("excess selling")
-        {
-            verify(true, true, false, true);
-        }
-        SECTION("unauthorized selling")
-        {
-            verify(false, false, false, true);
-        }
-        SECTION("excess buying")
-        {
-            verify(false, true, true, true);
-        }
-        SECTION("unauthorized buying")
-        {
-            verify(false, true, false, false);
-        }
+            SECTION("excess selling")
+            {
+                verify(true, true, false, true);
+            }
+
+            if (curA.type() != ASSET_TYPE_NATIVE)
+            {
+                SECTION("unauthorized selling")
+                {
+                    verify(false, false, false, true);
+                }
+            }
+
+            SECTION("excess buying")
+            {
+                verify(false, true, true, true);
+            }
+
+            if (curB.type() != ASSET_TYPE_NATIVE)
+            {
+                SECTION("unauthorized buying")
+                {
+                    verify(false, true, false, false);
+                }
+            }
+        });
     }
 
     SECTION("revoke authorization")
