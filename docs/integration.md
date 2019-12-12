@@ -139,11 +139,10 @@ A process (singleton) can import data from the [historical SQL tables](#sql-tabl
 
 The data that needs to be processed as ledger closes is, in order:
 * the ledger header (in `ledgerheaders`)
-* transaction set "meta"
-  * `txfee` - before and after changes related to fee processing (fees are processed before everything else)
-  * transactions in `txhistory`
-    * before and after state at operation granularity
-    * also contains associated `TransactionResult`
+* `txfee` - before and after changes related to fee processing (fees of all transactions are processed before everything else below: TX1_FEE, TX2_FEE, ..., TX1_META, TX2_META, ...)
+* transaction set "meta" (transactions in `txhistory`):
+  * before and after state at operation granularity
+  * also contains associated `TransactionResult`
 * ledger upgrades "meta" (in `upgradehistory`)
   * contains ledger entries before/after of ledger entries that potentially get modified by upgrades
   * contains network wide settings upgrade information (protocol version, base fee, etc)
