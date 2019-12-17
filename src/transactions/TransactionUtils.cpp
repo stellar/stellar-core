@@ -22,17 +22,10 @@ isAuthorizedForLiabilityDelta(int64_t delta, LedgerTxnEntry const& entry)
     // AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG state
     if (delta >= 0)
     {
-        if (!isAuthorized(entry))
-        {
-            return false;
-        }
-    }
-    else if (!isAuthorizedToMaintainLiabilities(entry))
-    {
-        return false;
+        return isAuthorized(entry);
     }
 
-    return true;
+    return isAuthorizedToMaintainLiabilities(entry);
 }
 
 static bool

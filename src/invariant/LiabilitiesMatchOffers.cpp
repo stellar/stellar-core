@@ -78,7 +78,8 @@ getSellingLiabilities(LedgerEntry const& le)
 }
 
 static std::string
-checkAuthorized(std::shared_ptr<LedgerEntry const> const& current)
+checkAuthorized(std::shared_ptr<LedgerEntry const> const& current,
+                std::shared_ptr<LedgerEntry const> const& previous)
 {
     if (!current)
     {
@@ -95,6 +96,28 @@ checkAuthorized(std::shared_ptr<LedgerEntry const> const& current)
             {
                 return fmt::format("Unauthorized trust line has liabilities {}",
                                    xdr::xdr_to_string(trust));
+            }
+        }
+
+        if (!isAuthorized(*current))
+        {
+            auto curSellingLiabilities = getSellingLiabilities(*current);
+            auto curBuyingLiabilities = getBuyingLiabilities(*current);
+
+            bool sellingLiabilitiesInc =
+                previous
+                    ? curSellingLiabilities > getSellingLiabilities(*previous)
+                    : curSellingLiabilities > 0;
+            bool buyingLiabilitiesInc =
+                previous
+                    ? curBuyingLiabilities > getBuyingLiabilities(*previous)
+                    : curBuyingLiabilities > 0;
+
+            if (sellingLiabilitiesInc || buyingLiabilitiesInc)
+            {
+                return fmt::format(
+                    "Liabilities increased on unauthorized trust line {}",
+                    xdr::xdr_to_string(trust));
             }
         }
     }
@@ -268,8 +291,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
         std::map<AccountID, std::map<Asset, Liabilities>> deltaLiabilities;
         for (auto const& entryDelta : ltxDelta.entry)
         {
-            auto checkAuthStr =
-                stellar::checkAuthorized(entryDelta.second.current);
+            auto checkAuthStr = stellar::checkAuthorized(
+                entryDelta.second.current, entryDelta.second.previous);
             if (!checkAuthStr.empty())
             {
                 return checkAuthStr;

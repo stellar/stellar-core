@@ -171,6 +171,12 @@ TestAccount::allowMaintainLiabilities(Asset const& asset,
                                    AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)}),
             mApp);
 }
+void
+TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
+                        uint32_t flags)
+{
+    applyTx(tx({txtest::allowTrust(trustor, asset, flags)}), mApp);
+}
 
 TrustLineEntry
 TestAccount::loadTrustLine(Asset const& asset) const

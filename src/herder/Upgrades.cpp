@@ -460,7 +460,7 @@ getAvailableBalanceExcludingLiabilities(AccountID const& accountID,
     else
     {
         auto trust = stellar::loadTrustLineWithoutRecord(ltx, accountID, asset);
-        if (trust && trust.isAuthorized())
+        if (trust && trust.isAuthorizedToMaintainLiabilities())
         {
             return trust.getBalance();
         }
@@ -491,7 +491,7 @@ getAvailableLimitExcludingLiabilities(AccountID const& accountID,
         key.trustLine().accountID = accountID;
         key.trustLine().asset = asset;
         auto trust = ltx.loadWithoutRecord(key);
-        if (trust && isAuthorized(trust))
+        if (trust && isAuthorizedToMaintainLiabilities(trust))
         {
             auto const& tl = trust.current().data.trustLine();
             return tl.limit - tl.balance;
@@ -730,6 +730,14 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
                 if (deltaSelling != 0 || deltaBuying != 0)
                 {
                     ++nChangedTrustLines;
+                }
+
+                // the deltas should only be positive when liabilities were
+                // introduced in ledgerVersion 10
+                if (header.current().ledgerVersion > 10 &&
+                    (deltaSelling > 0 || deltaBuying > 0))
+                {
+                    throw std::runtime_error("invalid liabilities delta");
                 }
 
                 if (!trustEntry.addSellingLiabilities(header, deltaSelling))

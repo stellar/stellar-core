@@ -264,10 +264,25 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
 
     };
 
-    for_versions_to(12, *app, [&] {
-        REQUIRE_THROWS_AS(gateway.allowMaintainLiabilities(idr, a1),
-                          ex_ALLOW_TRUST_MALFORMED);
-    });
+    SECTION("allowMaintainLiabilities only works from version 12")
+    {
+        for_versions_to(12, *app, [&] {
+            REQUIRE_THROWS_AS(gateway.allowMaintainLiabilities(idr, a1),
+                              ex_ALLOW_TRUST_MALFORMED);
+        });
+    }
+
+    SECTION("AUTHORIZED_FLAG and AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG can't "
+            "be used together")
+    {
+        for_versions_from(13, *app, [&] {
+            REQUIRE_THROWS_AS(
+                gateway.allowTrust(idr, a1,
+                                   AUTHORIZED_FLAG |
+                                       AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG),
+                ex_ALLOW_TRUST_MALFORMED);
+        });
+    }
 
     for_versions_from(13, *app, [&] {
 
