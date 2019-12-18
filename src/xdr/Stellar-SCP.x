@@ -5,18 +5,18 @@
 %#include "xdr/Stellar-types.h"
 
 namespace stellar
-{
+{Ekkarat304
 
-typedef opaque Value<>;
+typedef opaque Value<>;10000
 
 struct SCPBallot
-{
+{//x
     uint32 counter; // n
     Value value;    // x
 };
 
 enum SCPStatementType
-{
+{1
     SCP_ST_PREPARE = 0,
     SCP_ST_CONFIRM = 1,
     SCP_ST_EXTERNALIZE = 2,
@@ -24,19 +24,19 @@ enum SCPStatementType
 };
 
 struct SCPNomination
-{
+{//x
     Hash quorumSetHash; // D
     Value votes<>;      // X
     Value accepted<>;   // Y
 };
 
 struct SCPStatement
-{
+{//v
     NodeID nodeID;    // v
     uint64 slotIndex; // i
 
     union switch (SCPStatementType type)
-    {
+    {ekkarat.w@gmail.com
     case SCP_ST_PREPARE:
         struct
         {
