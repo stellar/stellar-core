@@ -4,8 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ByteSlice.h"
+#include "util/Logging.h"
+#include "util/format.h"
 #include "xdr/Stellar-types.h"
 #include <functional>
+#include <sodium.h>
 
 namespace stellar
 {
@@ -24,10 +28,14 @@ namespace stellar
 // them with the long-lived Ed25519 keys during p2p handshake.
 
 // Read a scalar from /dev/urandom.
-Curve25519Secret EcdhRandomSecret();
+Curve25519Secret curve25519RandomSecret();
 
 // Calculate a public Curve25519 point from a private scalar.
-Curve25519Public EcdhDerivePublic(Curve25519Secret const& sec);
+Curve25519Public curve25519DerivePublic(Curve25519Secret const& sec);
+
+// clears the keys by running sodium_memzero
+void clearCurve25519Keys(Curve25519Public& localPublic,
+                         Curve25519Secret& localSecret);
 
 // Calculate HKDF_extract(localSecret * remotePublic || publicA || publicB)
 //
@@ -35,10 +43,36 @@ Curve25519Public EcdhDerivePublic(Curve25519Secret const& sec);
 //   publicA = localFirst ? localPublic : remotePublic
 //   publicB = localFirst ? remotePublic : localPublic
 
-HmacSha256Key EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
-                                  Curve25519Public const& localPublic,
-                                  Curve25519Public const& remotePublic,
-                                  bool localFirst);
+HmacSha256Key curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
+                                        Curve25519Public const& localPublic,
+                                        Curve25519Public const& remotePublic,
+                                        bool localFirst);
+
+xdr::opaque_vec<> curve25519Decrypt(Curve25519Secret const& localSecret,
+                                    Curve25519Public const& localPublic,
+                                    ByteSlice const& encrypted);
+
+template <uint32_t N>
+xdr::opaque_vec<N>
+curve25519Encrypt(Curve25519Public const& remotePublic, ByteSlice const& bin)
+{
+    const uint64_t CIPHERTEXT_LEN = crypto_box_SEALBYTES + bin.size();
+    if (CIPHERTEXT_LEN > N)
+    {
+        throw std::runtime_error(fmt::format(
+            "CIPHERTEXT_LEN({}) is greater than N({})", CIPHERTEXT_LEN, N));
+    }
+
+    xdr::opaque_vec<N> ciphertext(CIPHERTEXT_LEN, 0);
+
+    if (crypto_box_seal(ciphertext.data(), bin.data(), bin.size(),
+                        remotePublic.key.data()) != 0)
+    {
+        throw std::runtime_error("curve25519Encrypt failed");
+    }
+
+    return ciphertext;
+}
 }
 
 namespace std

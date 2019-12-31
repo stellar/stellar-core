@@ -240,6 +240,8 @@ LoopbackPeer::deliverOne()
         }
         getOverlayMetrics().mMessageWrite.Mark();
         getOverlayMetrics().mByteWrite.Mark(nBytes);
+        ++mPeerMetrics.mMessageWrite;
+        mPeerMetrics.mByteWrite += nBytes;
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
     }

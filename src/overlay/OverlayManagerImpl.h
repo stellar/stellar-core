@@ -15,6 +15,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
+#include "overlay/SurveyManager.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -95,14 +96,16 @@ class OverlayManagerImpl : public OverlayManager
 
     Floodgate mFloodGate;
 
+    std::shared_ptr<SurveyManager> mSurveyManager;
+
   public:
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
-    void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
-    void broadcastMessage(StellarMessage const& msg,
-                          bool force = false) override;
+    bool recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
+    void broadcastMessage(StellarMessage const& msg, bool force = false,
+                          uint32_t minOverlayVersion = 0) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;
@@ -128,6 +131,8 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getConnectedPeer(PeerBareAddress const& address) override;
 
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getRandomInboundAuthenticatedPeers() override;
+    std::vector<Peer::pointer> getRandomOutboundAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
@@ -137,13 +142,15 @@ class OverlayManagerImpl : public OverlayManager
     LoadManager& getLoadManager() override;
     PeerManager& getPeerManager() override;
 
+    SurveyManager& getSurveyManager() override;
+
     void start() override;
     void shutdown() override;
 
     bool isShuttingDown() const override;
 
-    void
-    recordDuplicateMessageMetric(StellarMessage const& stellarMsg) override;
+    void recordDuplicateMessageMetric(StellarMessage const& stellarMsg,
+                                      Peer::pointer peer) override;
 
   private:
     struct ResolvedPeers
@@ -178,5 +185,9 @@ class OverlayManagerImpl : public OverlayManager
     bool isPossiblyPreferred(std::string const& ip);
 
     void updateSizeCounters();
+
+    void extractPeersFromMap(std::map<NodeID, Peer::pointer> const& peerMap,
+                             std::vector<Peer::pointer>& result);
+    void shufflePeerList(std::vector<Peer::pointer>& peerList);
 };
 }

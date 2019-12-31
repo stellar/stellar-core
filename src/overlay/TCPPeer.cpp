@@ -310,6 +310,9 @@ TCPPeer::writeHandler(asio::error_code const& error,
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         getOverlayMetrics().mMessageWrite.Mark();
         getOverlayMetrics().mByteWrite.Mark(bytes_transferred);
+
+        ++mPeerMetrics.mMessageWrite;
+        mPeerMetrics.mByteWrite += bytes_transferred;
     }
 }
 

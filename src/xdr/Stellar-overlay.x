@@ -90,13 +90,90 @@ enum MessageType
     GET_SCP_STATE = 12,
 
     // new messages
-    HELLO = 13
+    HELLO = 13,
+
+    SURVEY_REQUEST = 14,
+    SURVEY_RESPONSE = 15
 };
 
 struct DontHave
 {
     MessageType type;
     uint256 reqHash;
+};
+
+enum SurveyMessageCommandType
+{
+    SURVEY_TOPOLOGY = 0
+};
+
+struct SurveyRequestMessage
+{
+    NodeID surveyorPeerID;
+    NodeID surveyedPeerID;
+    uint32 ledgerNum;
+    Curve25519Public encryptionKey;
+    SurveyMessageCommandType commandType;
+};
+
+struct SignedSurveyRequestMessage
+{
+    Signature requestSignature;
+    SurveyRequestMessage request;
+};
+
+typedef opaque EncryptedBody<64000>;
+struct SurveyResponseMessage
+{
+    NodeID surveyorPeerID;
+    NodeID surveyedPeerID;
+    uint32 ledgerNum;
+    SurveyMessageCommandType commandType;
+    EncryptedBody encryptedBody;
+};
+
+struct SignedSurveyResponseMessage
+{
+    Signature responseSignature;
+    SurveyResponseMessage response;
+};
+
+struct PeerStats
+{
+    NodeID id;
+    string versionStr<100>;
+    uint64 messagesRead;
+    uint64 messagesWritten;
+    uint64 bytesRead;
+    uint64 bytesWritten;
+    uint64 secondsConnected;
+
+    uint64 uniqueFloodBytesRecv;
+    uint64 duplicateFloodBytesRecv;
+    uint64 uniqueFetchBytesRecv;
+    uint64 duplicateFetchBytesRecv;
+
+    uint64 uniqueFloodMessageRecv;
+    uint64 duplicateFloodMessageRecv;
+    uint64 uniqueFetchMessageRecv;
+    uint64 duplicateFetchMessageRecv;
+};
+
+typedef PeerStats PeerStatList<25>;
+
+struct TopologyResponseBody
+{
+    PeerStatList inboundPeers;
+    PeerStatList outboundPeers;
+
+    uint32 totalInboundPeerCount;
+    uint32 totalOutboundPeerCount;
+};
+
+union SurveyResponseBody switch (SurveyMessageCommandType type)
+{
+    case SURVEY_TOPOLOGY:
+        TopologyResponseBody topologyResponseBody;
 };
 
 union StellarMessage switch (MessageType type)
@@ -121,6 +198,12 @@ case TX_SET:
 
 case TRANSACTION:
     TransactionEnvelope transaction;
+
+case SURVEY_REQUEST:
+    SignedSurveyRequestMessage signedSurveyRequestMessage;
+
+case SURVEY_RESPONSE:
+    SignedSurveyResponseMessage signedSurveyResponseMessage;
 
 // SCP
 case GET_SCP_QUORUMSET:

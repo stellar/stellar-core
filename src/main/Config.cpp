@@ -93,7 +93,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAXIMUM_LEDGER_CLOSETIME_DRIFT = 50;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 10;
-    OVERLAY_PROTOCOL_VERSION = 10;
+    OVERLAY_PROTOCOL_VERSION = 11;
 
     VERSION_STR = STELLAR_CORE_VERSION;
 
@@ -943,6 +943,11 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 SUPPORTED_META_VERSION = readInt<uint32_t>(item, 1, 2);
             }
+            else if (item.first == "SURVEYOR_KEYS")
+            {
+                // processed later (may depend on previously defined public
+                // keys)
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -968,21 +973,8 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             addSelfToValidators(validators, domainQualityMap);
         }
 
-        if (t->contains("PREFERRED_PEER_KEYS"))
-        {
-            auto pkeys = t->get("PREFERRED_PEER_KEYS");
-            if (pkeys)
-            {
-                auto values =
-                    readStringArray(ConfigItem{"PREFERRED_PEER_KEYS", pkeys});
-                for (auto const& v : values)
-                {
-                    PublicKey nodeID;
-                    parseNodeID(v, nodeID);
-                    PREFERRED_PEER_KEYS.push_back(KeyUtils::toStrKey(nodeID));
-                }
-            }
-        }
+        parseNodeIDsIntoSet(t, "PREFERRED_PEER_KEYS", PREFERRED_PEER_KEYS);
+        parseNodeIDsIntoSet(t, "SURVEYOR_KEYS", SURVEYOR_KEYS);
 
         auto autoQSet = generateQuorumSet(validators);
         auto autoQSetStr = toString(autoQSet);
@@ -1302,6 +1294,27 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
             if (commonName.size())
             {
                 addValidatorName(nodestr, commonName);
+            }
+        }
+    }
+}
+
+void
+Config::parseNodeIDsIntoSet(std::shared_ptr<cpptoml::table> t,
+                            std::string const& configStr,
+                            std::set<PublicKey>& keySet)
+{
+    if (t->contains(configStr))
+    {
+        auto nodes = t->get(configStr);
+        if (nodes)
+        {
+            auto values = readStringArray(ConfigItem{configStr, nodes});
+            for (auto const& v : values)
+            {
+                PublicKey nodeID;
+                parseNodeID(v, nodeID);
+                keySet.emplace(nodeID);
             }
         }
     }

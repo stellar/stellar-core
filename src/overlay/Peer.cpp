@@ -20,6 +20,8 @@
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerManager.h"
 #include "overlay/StellarXDR.h"
+#include "overlay/SurveyManager.h"
+#include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -52,6 +54,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mLastEmpty(app.getClock().now())
+    , mPeerMetrics(app.getClock().now())
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -118,8 +121,12 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
     mLastRead = mApp.getClock().now();
     if (gotFullMessage)
+    {
         getOverlayMetrics().mMessageRead.Mark();
+        ++mPeerMetrics.mMessageRead;
+    }
     getOverlayMetrics().mByteRead.Mark(byteCount);
+    mPeerMetrics.mByteRead += byteCount;
 }
 
 void
@@ -350,6 +357,10 @@ msgSummary(StellarMessage const& msg)
         }
     case GET_SCP_STATE:
         return "GET_SCP_STATE";
+
+    case SURVEY_REQUEST:
+    case SURVEY_RESPONSE:
+        return SurveyManager::getMsgSummary(msg);
     }
     return "UNKNOWN";
 }
@@ -403,6 +414,12 @@ Peer::sendMessage(StellarMessage const& msg)
         break;
     case GET_SCP_STATE:
         getOverlayMetrics().mSendGetSCPStateMeter.Mark();
+        break;
+    case SURVEY_REQUEST:
+        getOverlayMetrics().mSendSurveyRequestMeter.Mark();
+        break;
+    case SURVEY_RESPONSE:
+        getOverlayMetrics().mSendSurveyResponseMeter.Mark();
         break;
     };
 
@@ -529,7 +546,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     assert(isAuthenticated() || stellarMsg.type() == HELLO ||
            stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
-    mApp.getOverlayManager().recordDuplicateMessageMetric(stellarMsg);
+    mApp.getOverlayManager().recordDuplicateMessageMetric(stellarMsg,
+                                                          shared_from_this());
 
     switch (stellarMsg.type())
     {
@@ -572,6 +590,20 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     {
         auto t = getOverlayMetrics().mRecvPeersTimer.TimeScope();
         recvPeers(stellarMsg);
+    }
+    break;
+
+    case SURVEY_REQUEST:
+    {
+        auto t = getOverlayMetrics().mRecvSurveyRequestTimer.TimeScope();
+        recvSurveyRequestMessage(stellarMsg);
+    }
+    break;
+
+    case SURVEY_RESPONSE:
+    {
+        auto t = getOverlayMetrics().mRecvSurveyResponseTimer.TimeScope();
+        recvSurveyResponseMessage(stellarMsg);
     }
     break;
 
@@ -1044,5 +1076,36 @@ Peer::recvPeers(StellarMessage const& msg)
             mApp.getOverlayManager().getPeerManager().ensureExists(address);
         }
     }
+}
+
+void
+Peer::recvSurveyRequestMessage(StellarMessage const& msg)
+{
+    mApp.getOverlayManager().getSurveyManager().relayOrProcessRequest(
+        msg, shared_from_this());
+}
+
+void
+Peer::recvSurveyResponseMessage(StellarMessage const& msg)
+{
+    mApp.getOverlayManager().getSurveyManager().relayOrProcessResponse(
+        msg, shared_from_this());
+}
+
+Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)
+    : mMessageRead(0)
+    , mMessageWrite(0)
+    , mByteRead(0)
+    , mByteWrite(0)
+    , mUniqueFloodBytesRecv(0)
+    , mDuplicateFloodBytesRecv(0)
+    , mUniqueFetchBytesRecv(0)
+    , mDuplicateFetchBytesRecv(0)
+    , mUniqueFloodMessageRecv(0)
+    , mDuplicateFloodMessageRecv(0)
+    , mUniqueFetchMessageRecv(0)
+    , mDuplicateFetchMessageRecv(0)
+    , mConnectedTime(connectedTime)
+{
 }
 }

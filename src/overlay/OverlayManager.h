@@ -50,6 +50,7 @@ class LoadManager;
 class PeerAuth;
 class PeerBareAddress;
 class PeerManager;
+class SurveyManager;
 
 class OverlayManager
 {
@@ -66,18 +67,28 @@ class OverlayManager
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.
-    virtual void broadcastMessage(StellarMessage const& msg,
-                                  bool force = false) = 0;
+    virtual void broadcastMessage(StellarMessage const& msg, bool force = false,
+                                  uint32_t minOverlayVersion = 0) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a
     // given broadcast message, so that it is inhibited from being resent to
     // that peer. This does _not_ cause the message to be broadcast anew; to do
     // that, call broadcastMessage, above.
-    virtual void recvFloodedMsg(StellarMessage const& msg,
+    // Returns true if this is a new message
+    virtual bool recvFloodedMsg(StellarMessage const& msg,
                                 Peer::pointer peer) = 0;
 
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
+
+    // Return a list of random peers from the set of inbound authenticated
+    // peers.
+    virtual std::vector<Peer::pointer> getRandomInboundAuthenticatedPeers() = 0;
+
+    // Return a list of random peers from the set of outbound authenticated
+    // peers.
+    virtual std::vector<Peer::pointer>
+    getRandomOutboundAuthenticatedPeers() = 0;
 
     // Return an already-connected peer at the given address; returns a
     // `nullptr`-valued pointer if no such connected peer exists.
@@ -149,6 +160,8 @@ class OverlayManager
     // Return the persistent peer manager
     virtual PeerManager& getPeerManager() = 0;
 
+    virtual SurveyManager& getSurveyManager() = 0;
+
     // start up all background tasks for overlay
     virtual void start() = 0;
     // drops all connections
@@ -156,8 +169,8 @@ class OverlayManager
 
     virtual bool isShuttingDown() const = 0;
 
-    virtual void
-    recordDuplicateMessageMetric(StellarMessage const& stellarMsg) = 0;
+    virtual void recordDuplicateMessageMetric(StellarMessage const& stellarMsg,
+                                              Peer::pointer peer) = 0;
 
     virtual ~OverlayManager()
     {

@@ -91,6 +91,10 @@ overlay.outbound.establish               | meter     | outbound connection estab
 overlay.recv.<X>                         | timer     | received message <X>
 overlay.send.<X>                         | meter     | sent message <X>
 overlay.timeout.idle                     | meter     | idle peer timeout
+overlay.recv.survey-request              | timer     | time spent in processing survey request
+overlay.recv.survey-response             | timer     | time spent in processing survey response
+overlay.send.survey-request              | meter     | sent survey request
+overlay.send.survey-response             | meter     | sent survey response
 scp.envelope.emit                        | meter     | SCP message sent
 scp.envelope.invalidsig                  | meter     | envelope failed signature verification
 scp.envelope.receive                     | meter     | SCP message received
@@ -110,3 +114,4 @@ scp.timing.externalized                  | timer     | time spent in ballot prot
 scp.timing.nominated                     | timer     | time spent in nomination
 scp.value.invalid                        | meter     | SCP value is invalid
 scp.value.valid                          | meter     | SCP value is valid
+

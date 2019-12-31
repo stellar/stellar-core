@@ -1,6 +1,6 @@
 #pragma once
 
-#include "crypto/ECDH.h"
+#include "crypto/Curve25519.h"
 #include "overlay/Peer.h"
 #include "overlay/PeerSharedKeyId.h"
 #include "util/lrucache.hpp"

@@ -17,6 +17,7 @@
 #include "main/Maintainer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/SurveyManager.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
@@ -93,6 +94,9 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("tx", &CommandHandler::tx);
     addRoute("unban", &CommandHandler::unban);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("surveytopology", &CommandHandler::surveyTopology);
+    addRoute("stopsurvey", &CommandHandler::stopSurvey);
+    addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
 
 #ifdef BUILD_TESTS
     addRoute("generateload", &CommandHandler::generateLoad);
@@ -128,7 +132,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     }
 }
 
-void
+std::string
 CommandHandler::manualCmd(std::string const& cmd)
 {
     http::server::reply reply;
@@ -136,6 +140,7 @@ CommandHandler::manualCmd(std::string const& cmd)
     request.uri = cmd;
     mServer->handle_request(request, reply);
     LOG(INFO) << cmd << " -> " << reply.content;
+    return reply.content;
 }
 
 void
@@ -690,6 +695,43 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
     mApp.clearMetrics(domain);
 
     retStr = fmt::format("Cleared {} metrics!", domain);
+}
+
+void
+CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    auto duration = std::chrono::seconds(parseParam<uint32>(map, "duration"));
+    auto idString = parseParam<std::string>(map, "node");
+    NodeID id = KeyUtils::fromStrKey<PublicKey>(idString);
+
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+
+    bool success = surveyManager.startSurvey(
+        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration);
+
+    surveyManager.addNodeToRunningSurveyBacklog(
+        SurveyMessageCommandType::SURVEY_TOPOLOGY, duration, id);
+    retStr = "Adding node.";
+
+    retStr += success ? "Survey started " : "Survey already running!";
+}
+
+void
+CommandHandler::stopSurvey(std::string const&, std::string& retStr)
+{
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+    surveyManager.stopSurvey();
+    retStr = "survey stopped";
+}
+
+void
+CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
+{
+    auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
+    retStr = surveyManager.getJsonResults().toStyledString();
 }
 
 #ifdef BUILD_TESTS

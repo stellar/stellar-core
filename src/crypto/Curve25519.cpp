@@ -2,11 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/ECDH.h"
+#include "crypto/Curve25519.h"
 #include "crypto/SHA.h"
 #include "util/HashOfHash.h"
 #include <functional>
-#include <sodium.h>
 
 #ifdef MSAN_ENABLED
 #include <sanitizer/msan_interface.h>
@@ -16,7 +15,7 @@ namespace stellar
 {
 
 Curve25519Secret
-EcdhRandomSecret()
+curve25519RandomSecret()
 {
     Curve25519Secret out;
     randombytes_buf(out.key.data(), out.key.size());
@@ -27,7 +26,7 @@ EcdhRandomSecret()
 }
 
 Curve25519Public
-EcdhDerivePublic(Curve25519Secret const& sec)
+curve25519DerivePublic(Curve25519Secret const& sec)
 {
     Curve25519Public out;
     if (crypto_scalarmult_base(out.key.data(), sec.key.data()) != 0)
@@ -37,10 +36,18 @@ EcdhDerivePublic(Curve25519Secret const& sec)
     return out;
 }
 
+void
+clearCurve25519Keys(Curve25519Public& localPublic,
+                    Curve25519Secret& localSecret)
+{
+    sodium_memzero(localPublic.key.data(), localPublic.key.size());
+    sodium_memzero(localSecret.key.data(), localSecret.key.size());
+}
+
 HmacSha256Key
-EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
-                    Curve25519Public const& localPublic,
-                    Curve25519Public const& remotePublic, bool localFirst)
+curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
+                          Curve25519Public const& localPublic,
+                          Curve25519Public const& remotePublic, bool localFirst)
 {
     auto const& publicA = localFirst ? localPublic : remotePublic;
     auto const& publicB = localFirst ? remotePublic : localPublic;
@@ -61,6 +68,30 @@ EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
     buf.insert(buf.end(), publicA.key.begin(), publicA.key.end());
     buf.insert(buf.end(), publicB.key.begin(), publicB.key.end());
     return hkdfExtract(buf);
+}
+
+xdr::opaque_vec<>
+curve25519Decrypt(Curve25519Secret const& localSecret,
+                  Curve25519Public const& localPublic,
+                  ByteSlice const& encrypted)
+{
+    if (encrypted.size() < crypto_box_SEALBYTES)
+    {
+        throw std::runtime_error(
+            "encrypted.size() is less than crypto_box_SEALBYTES!");
+    }
+
+    const uint64_t MESSAGE_LEN = encrypted.size() - crypto_box_SEALBYTES;
+    xdr::opaque_vec<> decrypted(MESSAGE_LEN, 0);
+
+    if (crypto_box_seal_open(decrypted.data(), encrypted.data(),
+                             encrypted.size(), localPublic.key.data(),
+                             localSecret.key.data()) != 0)
+    {
+        throw std::runtime_error("curve25519Decrypt failed");
+    }
+
+    return decrypted;
 }
 }
 

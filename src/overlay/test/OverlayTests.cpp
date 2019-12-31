@@ -198,8 +198,7 @@ TEST_CASE("accept preferred peer even when strict", "[overlay][connections]")
     Config cfg2 = getTestConfig(1);
 
     cfg2.PREFERRED_PEERS_ONLY = true;
-    cfg2.PREFERRED_PEER_KEYS.push_back(
-        KeyUtils::toStrKey(cfg1.NODE_SEED.getPublicKey()));
+    cfg2.PREFERRED_PEER_KEYS.emplace(cfg1.NODE_SEED.getPublicKey());
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
@@ -315,8 +314,7 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
         {
             cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
             cfg2.TARGET_PEER_CONNECTIONS = 0;
-            cfg2.PREFERRED_PEER_KEYS.push_back(
-                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+            cfg2.PREFERRED_PEER_KEYS.emplace(cfg3.NODE_SEED.getPublicKey());
 
             auto app1 = createTestApplication(clock, cfg1);
             auto app2 = createTestApplication(clock, cfg2);
@@ -346,8 +344,7 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
         {
             cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
             cfg2.TARGET_PEER_CONNECTIONS = 1;
-            cfg2.PREFERRED_PEER_KEYS.push_back(
-                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+            cfg2.PREFERRED_PEER_KEYS.emplace(cfg3.NODE_SEED.getPublicKey());
 
             auto app1 = createTestApplication(clock, cfg1);
             auto app2 = createTestApplication(clock, cfg2);
@@ -380,8 +377,7 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
         {
             cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 1;
             cfg2.TARGET_PEER_CONNECTIONS = 0;
-            cfg2.PREFERRED_PEER_KEYS.push_back(
-                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+            cfg2.PREFERRED_PEER_KEYS.emplace(cfg3.NODE_SEED.getPublicKey());
 
             auto app1 = createTestApplication(clock, cfg1);
             auto app2 = createTestApplication(clock, cfg2);
@@ -412,8 +408,7 @@ TEST_CASE("reject peers beyond max - preferred peer wins",
         {
             cfg2.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
             cfg2.TARGET_PEER_CONNECTIONS = 1;
-            cfg2.PREFERRED_PEER_KEYS.push_back(
-                KeyUtils::toStrKey(cfg3.NODE_SEED.getPublicKey()));
+            cfg2.PREFERRED_PEER_KEYS.emplace(cfg3.NODE_SEED.getPublicKey());
 
             auto app1 = createTestApplication(clock, cfg1);
             auto app2 = createTestApplication(clock, cfg2);

@@ -78,7 +78,8 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
 
 // send message to anyone you haven't gotten it from
 void
-Floodgate::broadcast(StellarMessage const& msg, bool force)
+Floodgate::broadcast(StellarMessage const& msg, bool force,
+                     uint32_t minOverlayVersion)
 {
     if (mShuttingDown)
     {
@@ -104,7 +105,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     for (auto peer : peers)
     {
         assert(peer.second->isAuthenticated());
-        if (peersTold.find(peer.second->toString()) == peersTold.end())
+        if (peersTold.find(peer.second->toString()) == peersTold.end() &&
+            peer.second->getRemoteOverlayVersion() >= minOverlayVersion)
         {
             mSendFromBroadcast.Mark();
             peer.second->sendMessage(msg);
