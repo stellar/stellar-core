@@ -508,6 +508,12 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     std::unordered_map<stellar::PublicKey, size_t> mPubKeyBitNums;
     QGraph mGraph;
 
+    // This is a temporary structure that's reused very often within the
+    // MinQuorumEnumerators, but never reentrantly / simultaneously. So we
+    // allocate it once here and let the MQEs use it to avoid hammering
+    // on malloc.
+    mutable std::vector<size_t> mInDegrees;
+
     // This just calculates SCCs, from which we extract the first one found with
     // a quorum, which (assuming no other SCCs have quorums) we'll use for the
     // remainder of the search.
