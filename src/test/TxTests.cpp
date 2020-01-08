@@ -235,14 +235,13 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                     else
                     {
                         auto ltxDelta = ltxTx.getDelta();
-                        REQUIRE(ltxDelta.entry.size() == 1);
-                        auto current = ltxDelta.entry.begin()->second.current;
-                        REQUIRE(current);
-                        auto previous = ltxDelta.entry.begin()->second.previous;
-                        REQUIRE(previous);
-                        auto currAcc = current->data.account();
-                        REQUIRE(currAcc.accountID ==
-                                srcAccountBefore.accountID);
+                        for (auto const& kvp : ltxDelta.entry)
+                        {
+                            auto current = kvp.second.current;
+                            REQUIRE(current);
+                            auto previous = kvp.second.previous;
+                            REQUIRE(previous);
+                        }
                         // could check more here if needed
                     }
                 }

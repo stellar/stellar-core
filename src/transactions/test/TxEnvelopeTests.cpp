@@ -710,6 +710,45 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         });
                     }
 
+                    SECTION("signatures removed from multiple accounts even "
+                            "though transaction failed")
+                    {
+                        auto tx = a1.tx({root.op(payment(a1, 100))});
+                        tx->getEnvelope().signatures.clear();
+
+                        // add signer twice.
+                        tx->addSignature(s1);
+                        tx->addSignature(s1);
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
+                        auto setup = [&]() {
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            a1.setOptions(setSigner(sk1));
+                            root.setOptions(setSigner(sk1));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                            alternative.sign(*tx);
+                        };
+                        for_versions({9}, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        });
+
+                        for_versions({10}, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
+                            REQUIRE(getAccountSigners(root, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
+                        });
+                    }
+
                     SECTION("success signature + " + alternative.name)
                     {
                         auto tx = a1.tx({payment(root, 1000)});
