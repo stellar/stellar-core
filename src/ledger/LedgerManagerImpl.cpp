@@ -268,11 +268,13 @@ LedgerManagerImpl::loadLastKnownLedger(
 
     if (lastLedger.empty())
     {
-        throw std::runtime_error("No ledger in the DB");
+        throw std::runtime_error(
+            "No reference in DB to any last closed ledger");
     }
     else
     {
-        LOG(INFO) << "Loading last known ledger";
+        CLOG(INFO, "Ledger")
+            << "Last closed ledger (LCL) hash is " << lastLedger;
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
         if (mApp.modeHasDatabase())
@@ -283,6 +285,8 @@ LedgerManagerImpl::loadLastKnownLedger(
             {
                 throw std::runtime_error("Could not load ledger from database");
             }
+            CLOG(INFO, "Ledger") << "Loaded LCL header from database: "
+                                 << ledgerAbbrev(*currentLedger);
             LedgerTxn ltx(mApp.getLedgerTxnRoot());
             ltx.loadHeader().current() = *currentLedger;
             ltx.commit();
@@ -294,6 +298,8 @@ LedgerManagerImpl::loadLastKnownLedger(
             releaseAssertOrThrow(mLastClosedLedger.hash == lastLedgerHash);
             releaseAssertOrThrow(mLastClosedLedger.header.ledgerSeq ==
                                  GENESIS_LEDGER_SEQ);
+            CLOG(INFO, "Ledger")
+                << "LCL is genesis: " << ledgerAbbrev(mLastClosedLedger);
         }
 
         if (handler)
@@ -313,7 +319,7 @@ LedgerManagerImpl::loadLastKnownLedger(
                         auto header = ltx.loadHeader();
                         mApp.getBucketManager().assumeState(
                             has, header.current().ledgerVersion);
-                        CLOG(INFO, "Ledger") << "Loaded last known ledger: "
+                        CLOG(INFO, "Ledger") << "Assumed bucket-state for LCL: "
                                              << ledgerAbbrev(header.current());
                         advanceLedgerPointers(header.current());
                     }
