@@ -197,10 +197,13 @@ copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
 void
 dropAll(Database& db)
 {
+    std::string coll = db.getSimpleCollationClause();
+
     db.getSession() << "DROP TABLE IF EXISTS ledgerheaders;";
     db.getSession() << "CREATE TABLE ledgerheaders ("
-                       "ledgerhash      CHARACTER(64) PRIMARY KEY,"
-                       "prevhash        CHARACTER(64) NOT NULL,"
+                    << "ledgerhash      CHARACTER(64) " << coll
+                    << " PRIMARY KEY,"
+                    << "prevhash        CHARACTER(64) NOT NULL,"
                        "bucketlisthash  CHARACTER(64) NOT NULL,"
                        "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
                        "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"

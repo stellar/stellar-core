@@ -459,11 +459,13 @@ LedgerTxnRoot::Impl::dropAccounts()
     mDatabase.getSession() << "DROP TABLE IF EXISTS accounts;";
     mDatabase.getSession() << "DROP TABLE IF EXISTS signers;";
 
+    std::string coll = mDatabase.getSimpleCollationClause();
+
     mDatabase.getSession()
         << "CREATE TABLE accounts"
-           "("
-           "accountid          VARCHAR(56)  PRIMARY KEY,"
-           "balance            BIGINT       NOT NULL CHECK (balance >= 0),"
+        << "("
+        << "accountid          VARCHAR(56)  " << coll << " PRIMARY KEY,"
+        << "balance            BIGINT       NOT NULL CHECK (balance >= 0),"
            "buyingliabilities  BIGINT CHECK (buyingliabilities >= 0),"
            "sellingliabilities BIGINT CHECK (sellingliabilities >= 0),"
            "seqnum             BIGINT       NOT NULL,"

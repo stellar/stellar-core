@@ -400,15 +400,17 @@ LedgerTxnRoot::Impl::dropTrustLines()
     mEntryCache.clear();
     mBestOffersCache.clear();
 
+    std::string coll = mDatabase.getSimpleCollationClause();
+
     mDatabase.getSession() << "DROP TABLE IF EXISTS trustlines;";
     mDatabase.getSession()
         << "CREATE TABLE trustlines"
-           "("
-           "accountid    VARCHAR(56)     NOT NULL,"
-           "assettype    INT             NOT NULL,"
-           "issuer       VARCHAR(56)     NOT NULL,"
-           "assetcode    VARCHAR(12)     NOT NULL,"
-           "tlimit       BIGINT          NOT NULL CHECK (tlimit > 0),"
+        << "("
+        << "accountid    VARCHAR(56) " << coll << " NOT NULL,"
+        << "assettype    INT             NOT NULL,"
+        << "issuer       VARCHAR(56) " << coll << " NOT NULL,"
+        << "assetcode    VARCHAR(12) " << coll << " NOT NULL,"
+        << "tlimit       BIGINT          NOT NULL CHECK (tlimit > 0),"
            "balance      BIGINT          NOT NULL CHECK (balance >= 0),"
            "buyingliabilities BIGINT CHECK (buyingliabilities >= 0),"
            "sellingliabilities BIGINT CHECK (sellingliabilities >= 0),"
