@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -318,10 +319,14 @@ LedgerManagerImpl::loadLastKnownLedger(
                     {
                         LedgerTxn ltx(mApp.getLedgerTxnRoot());
                         auto header = ltx.loadHeader();
-                        mApp.getBucketManager().assumeState(
-                            has, header.current().ledgerVersion);
-                        CLOG(INFO, "Ledger") << "Assumed bucket-state for LCL: "
-                                             << ledgerAbbrev(header.current());
+                        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+                        {
+                            mApp.getBucketManager().assumeState(
+                                has, header.current().ledgerVersion);
+                            CLOG(INFO, "Ledger")
+                                << "Assumed bucket-state for LCL: "
+                                << ledgerAbbrev(header.current());
+                        }
                         advanceLedgerPointers(header.current());
                     }
                     handler(ec);
@@ -1244,10 +1249,14 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));
 
+    BucketList bl;
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        bl = mApp.getBucketManager().getBucketList();
+    }
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
-    HistoryArchiveState has(header.ledgerSeq,
-                            mApp.getBucketManager().getBucketList());
+    HistoryArchiveState has(header.ledgerSeq, bl);
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
@@ -1262,8 +1271,11 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers, initEntries,
-                                     liveEntries, deadEntries);
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+                                         initEntries, liveEntries, deadEntries);
+    }
 }
 
 void

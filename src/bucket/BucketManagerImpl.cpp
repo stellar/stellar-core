@@ -12,6 +12,7 @@
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -71,6 +72,11 @@ BucketManagerImpl::initialize()
 
     mLockedBucketDir = std::make_unique<std::string>(d);
     mTmpDirManager = std::make_unique<TmpDirManager>(d + "/tmp");
+
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        mBucketList = std::make_unique<BucketList>();
+    }
 }
 
 void
@@ -96,6 +102,7 @@ BucketManagerImpl::getTmpDirManager()
 
 BucketManagerImpl::BucketManagerImpl(Application& app)
     : mApp(app)
+    , mBucketList(nullptr)
     , mTmpDirManager(nullptr)
     , mWorkDir(nullptr)
     , mLockedBucketDir(nullptr)
@@ -187,7 +194,8 @@ BucketManagerImpl::cleanDir()
 BucketList&
 BucketManagerImpl::getBucketList()
 {
-    return mBucketList;
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+    return *mBucketList;
 }
 
 medida::Timer&
@@ -311,6 +319,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
                                      uint256 const& hash, size_t nObjects,
                                      size_t nBytes, MergeKey* mergeKey)
 {
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
 
     if (mergeKey)
@@ -377,6 +386,8 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 void
 BucketManagerImpl::noteEmptyMergeOutput(MergeKey const& mergeKey)
 {
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
+
     // We _do_ want to remove the mergeKey from mLiveFutures, both so that that
     // map does not grow without bound and more importantly so that we drop the
     // refcount on the input buckets so they get GC'ed from the bucket dir.
@@ -467,6 +478,7 @@ void
 BucketManagerImpl::putMergeFuture(
     MergeKey const& key, std::shared_future<std::shared_ptr<Bucket>> wp)
 {
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     CLOG(TRACE, "Bucket") << "BucketManager::putMergeFuture storing future "
                           << "for running merge " << key;
@@ -486,10 +498,15 @@ std::set<Hash>
 BucketManagerImpl::getReferencedBuckets() const
 {
     std::set<Hash> referenced;
+    if (!mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        return referenced;
+    }
+
     // retain current bucket list
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
-        auto const& level = mBucketList.getLevel(i);
+        auto const& level = mBucketList->getLevel(i);
         auto rit = referenced.emplace(level.getCurr()->getHash());
         if (rit.second)
         {
@@ -654,6 +671,7 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
                             std::vector<LedgerEntry> const& liveEntries,
                             std::vector<LedgerKey> const& deadEntries)
 {
+    releaseAssertOrThrow(app.getConfig().MODE_ENABLES_BUCKETLIST);
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -663,8 +681,8 @@ BucketManagerImpl::addBatch(Application& app, uint32_t currLedger,
     auto timer = mBucketAddBatch.TimeScope();
     mBucketObjectInsertBatch.Mark(initEntries.size() + liveEntries.size() +
                                   deadEntries.size());
-    mBucketList.addBatch(app, currLedger, currLedgerProtocol, initEntries,
-                         liveEntries, deadEntries);
+    mBucketList->addBatch(app, currLedger, currLedgerProtocol, initEntries,
+                          liveEntries, deadEntries);
 }
 
 #ifdef BUILD_TESTS
@@ -694,7 +712,13 @@ BucketManagerImpl::getBucketHashesInBucketDirForTesting() const
 void
 BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 {
-    currentHeader.bucketListHash = mBucketList.getHash();
+    Hash hash;
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        hash = mBucketList->getHash();
+    }
+
+    currentHeader.bucketListHash = hash;
 #ifdef BUILD_TESTS
     if (mUseFakeTestValuesForNextClose)
     {
@@ -750,6 +774,7 @@ void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has,
                                uint32_t maxProtocolVersion)
 {
+    releaseAssertOrThrow(mApp.getConfig().MODE_ENABLES_BUCKETLIST);
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
@@ -759,12 +784,12 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has,
             throw std::runtime_error(
                 "Missing bucket files while assuming saved BucketList state");
         }
-        mBucketList.getLevel(i).setCurr(curr);
-        mBucketList.getLevel(i).setSnap(snap);
-        mBucketList.getLevel(i).setNext(has.currentBuckets.at(i).next);
+        mBucketList->getLevel(i).setCurr(curr);
+        mBucketList->getLevel(i).setSnap(snap);
+        mBucketList->getLevel(i).setNext(has.currentBuckets.at(i).next);
     }
 
-    mBucketList.restartMerges(mApp, maxProtocolVersion, has.currentLedger);
+    mBucketList->restartMerges(mApp, maxProtocolVersion, has.currentLedger);
     cleanupStaleFiles();
 }
 
