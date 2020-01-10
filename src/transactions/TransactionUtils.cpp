@@ -230,7 +230,8 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
         {
             return true;
         }
-        if (!isAuthorized(entry))
+
+        if (header.current().ledgerVersion < 10 && !isAuthorized(entry))
         {
             return false;
         }
@@ -293,12 +294,12 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
     else if (entry.current().data.type() == TRUSTLINE)
     {
-        auto& tl = entry.current().data.trustLine();
-        if (!isAuthorized(entry))
+        if (header.current().ledgerVersion < 10 && !isAuthorized(entry))
         {
             return false;
         }
 
+        auto& tl = entry.current().data.trustLine();
         int64_t maxLiabilities = tl.limit - tl.balance;
         bool res = stellar::addBalance(buyingLiab, delta, maxLiabilities);
         if (res)
@@ -386,12 +387,12 @@ addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
     else if (entry.current().data.type() == TRUSTLINE)
     {
-        auto& tl = entry.current().data.trustLine();
-        if (!isAuthorized(entry))
+        if (header.current().ledgerVersion < 10 && !isAuthorized(entry))
         {
             return false;
         }
 
+        auto& tl = entry.current().data.trustLine();
         int64_t maxLiabilities = tl.balance;
         bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
         if (res)
@@ -497,15 +498,15 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
     }
     if (le.data.type() == TRUSTLINE)
     {
-        int64_t amount = 0;
-        if (isAuthorized(le))
+        auto const& tl = le.data.trustLine();
+        int64_t amount = tl.limit - tl.balance;
+        if (header.current().ledgerVersion >= 10)
         {
-            auto const& tl = le.data.trustLine();
-            amount = tl.limit - tl.balance;
-            if (header.current().ledgerVersion >= 10)
-            {
-                amount -= getBuyingLiabilities(header, le);
-            }
+            amount -= getBuyingLiabilities(header, le);
+        }
+        else if (!isAuthorized(le))
+        {
+            return 0;
         }
         return amount;
     }
