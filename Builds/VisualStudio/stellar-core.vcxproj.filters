@@ -456,9 +456,6 @@
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\ECDH.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\crypto\Hex.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
@@ -1017,6 +1014,21 @@
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\Curve25519.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\SurveyManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\SurveyMessageLimiter.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\SurveyManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1374,9 +1386,6 @@
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\ByteSlice.h">
-      <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\ECDH.h">
       <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\Hex.h">
@@ -1759,6 +1768,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\Curve25519.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\SurveyManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
