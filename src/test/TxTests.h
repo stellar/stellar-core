@@ -106,7 +106,7 @@ TransactionFramePtr transactionFromOperations(Application& app,
 Operation changeTrust(Asset const& asset, int64_t limit);
 
 Operation allowTrust(PublicKey const& trustor, Asset const& asset,
-                     bool authorize);
+                     uint32_t authorize);
 
 Operation inflation();
 

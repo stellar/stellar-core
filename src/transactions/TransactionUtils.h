@@ -122,6 +122,7 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);
 bool isAuthorized(ConstLedgerTxnEntry const& entry);
 
+
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);
@@ -131,5 +132,9 @@ void normalizeSigners(LedgerTxnEntry& entry);
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
-void setAuthorized(LedgerTxnEntry& entry, bool authorized);
+void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
+                   uint32_t authorized);
+
+bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
 }

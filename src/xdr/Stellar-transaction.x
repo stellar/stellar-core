@@ -232,7 +232,8 @@ struct AllowTrustOp
     }
     asset;
 
-    bool authorize;
+    // 0, or any bitwise combination of TrustLineFlags
+    uint32 authorize;
 };
 
 /* Inflation

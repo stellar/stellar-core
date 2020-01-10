@@ -152,15 +152,22 @@ TestAccount::changeTrust(Asset const& asset, int64_t limit)
 }
 
 void
+TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor,
+                        uint32_t flag)
+{
+    applyTx(tx({txtest::allowTrust(trustor, asset, flag)}), mApp);
+}
+
+void
 TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor)
 {
-    applyTx(tx({txtest::allowTrust(trustor, asset, true)}), mApp);
+    applyTx(tx({txtest::allowTrust(trustor, asset, AUTHORIZED_FLAG)}), mApp);
 }
 
 void
 TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 {
-    applyTx(tx({txtest::allowTrust(trustor, asset, false)}), mApp);
+    applyTx(tx({txtest::allowTrust(trustor, asset, 0)}), mApp);
 }
 
 TrustLineEntry

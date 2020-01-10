@@ -95,6 +95,12 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                 gateway.allowTrust(idr, a1);
                 gateway.pay(a1, idr, trustLineStartingBalance);
             }
+            SECTION("invalid authorization flag")
+            {
+                REQUIRE_THROWS_AS(
+                    gateway.allowTrust(idr, a1, AUTHORIZED_FLAG + 1),
+                    ex_ALLOW_TRUST_MALFORMED);
+            }
             SECTION("do not set revocable flag")
             {
                 REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1),

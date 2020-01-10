@@ -53,7 +53,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
 
         if (!(sourceAccount.flags & AUTH_REVOCABLE_FLAG) &&
-            !mAllowTrust.authorize)
+            mAllowTrust.authorize == 0)
         {
             innerResult().code(ALLOW_TRUST_CANT_REVOKE);
             return false;
@@ -92,7 +92,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
             return false;
         }
-        didRevokeAuth = isAuthorized(trust) && !mAllowTrust.authorize;
+        didRevokeAuth = isAuthorized(trust) && mAllowTrust.authorize == 0;
     }
 
     auto header = ltx.loadHeader();
@@ -122,7 +122,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
     }
 
     auto trustLineEntry = ltx.load(key);
-    setAuthorized(trustLineEntry, mAllowTrust.authorize);
+    setAuthorized(header, trustLineEntry, mAllowTrust.authorize);
 
     innerResult().code(ALLOW_TRUST_SUCCESS);
     return true;
@@ -136,6 +136,13 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
+
+    if (!trustLineFlagIsValid(mAllowTrust.authorize, ledgerVersion))
+    {
+        innerResult().code(ALLOW_TRUST_MALFORMED);
+        return false;
+    }
+
     Asset ci;
     ci.type(mAllowTrust.asset.type());
     if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
