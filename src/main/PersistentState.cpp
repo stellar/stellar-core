@@ -28,11 +28,6 @@ std::string PersistentState::kSQLCreateStatement =
 
 PersistentState::PersistentState(Application& app) : mApp(app)
 {
-    if (!mApp.modeHasDatabase())
-    {
-        mNonDBState =
-            std::make_unique<std::unordered_map<std::string, std::string>>();
-    }
 }
 
 void
@@ -100,13 +95,6 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 void
 PersistentState::updateDb(std::string const& entry, std::string const& value)
 {
-    if (!mApp.modeHasDatabase())
-    {
-        releaseAssertOrThrow(mNonDBState);
-        (*mNonDBState)[entry] = value;
-        return;
-    }
-
     auto prep = mApp.getDatabase().getPreparedStatement(
         "UPDATE storestate SET state = :v WHERE statename = :n;");
 
@@ -139,12 +127,6 @@ PersistentState::updateDb(std::string const& entry, std::string const& value)
 std::string
 PersistentState::getFromDb(std::string const& entry)
 {
-    if (!mApp.modeHasDatabase())
-    {
-        releaseAssertOrThrow(mNonDBState);
-        return (*mNonDBState)[entry];
-    }
-
     std::string res;
 
     auto& db = mApp.getDatabase();

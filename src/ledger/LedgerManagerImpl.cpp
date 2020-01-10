@@ -29,6 +29,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/format.h"
@@ -277,7 +278,7 @@ LedgerManagerImpl::loadLastKnownLedger(
             << "Last closed ledger (LCL) hash is " << lastLedger;
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        if (mApp.modeHasDatabase())
+        if (mApp.getConfig().MODE_STORES_HISTORY)
         {
             auto currentLedger =
                 LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
@@ -889,7 +890,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             }
             // Note: Index from 1 rather than 0 to match the behavior of
             // storeTransaction and storeTransactionFee.
-            if (mApp.modeHasDatabase())
+            if (mApp.getConfig().MODE_STORES_HISTORY)
             {
                 Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq,
                                               lupgrade, changes,
@@ -1061,7 +1062,7 @@ LedgerManagerImpl::processFeesSeqNums(
             // txs counting from 1, not 0. We preserve this for the time being
             // in case anyone depends on it.
             ++index;
-            if (mApp.modeHasDatabase())
+            if (mApp.getConfig().MODE_STORES_HISTORY)
             {
                 tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq, changes,
                                         index);
@@ -1204,7 +1205,7 @@ LedgerManagerImpl::applyTransactions(
         // txs counting from 1, not 0. We preserve this for the time being
         // in case anyone depends on it.
         ++index;
-        if (mApp.modeHasDatabase())
+        if (mApp.getConfig().MODE_STORES_HISTORY)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, index,
@@ -1233,7 +1234,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 void
 LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 {
-    if (mApp.modeHasDatabase())
+    if (mApp.getConfig().MODE_STORES_HISTORY)
     {
         LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
     }

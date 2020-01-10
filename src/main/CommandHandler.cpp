@@ -71,7 +71,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
-    if (mApp.modeHasDatabase())
+    if (mApp.getConfig().MODE_STORES_HISTORY)
     {
         addRoute("dropcursor", &CommandHandler::dropcursor);
         addRoute("getcursor", &CommandHandler::getcursor);

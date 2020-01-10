@@ -34,7 +34,8 @@ static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
     "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
     "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
     "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING",
-    "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING"};
+    "ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING",
+    "OP_APPLY_SLEEP_TIME_FOR_TESTING"};
 
 // Options that should only be used for testing
 static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
@@ -87,6 +88,11 @@ Config::Config() : NODE_SEED(SecretKey::random())
     // fill in defaults
 
     // non configurable
+    MODE_ENABLES_BUCKETLIST = true;
+    MODE_USES_IN_MEMORY_LEDGER = false;
+    MODE_STORES_HISTORY = true;
+    OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
+
     FORCE_SCP = false;
     LEDGER_PROTOCOL_VERSION = CURRENT_LEDGER_PROTOCOL_VERSION;
 

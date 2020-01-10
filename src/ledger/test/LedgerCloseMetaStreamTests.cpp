@@ -152,10 +152,14 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
         cfg.NODE_IS_VALIDATOR = false;
         cfg.FORCE_SCP = false;
         cfg.RUN_STANDALONE = true;
+        // Replay-in-memory configs
+        cfg.DISABLE_XDR_FSYNC = true;
+        cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
+        cfg.MODE_STORES_HISTORY = false;
+        cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+        cfg.MODE_ENABLES_BUCKETLIST = true;
         VirtualClock clock;
-        auto app =
-            createTestApplication(clock, cfg, /*newdb=*/false,
-                                  Application::AppMode::REPLAY_IN_MEMORY);
+        auto app = createTestApplication(clock, cfg, /*newdb=*/false);
 
         CatchupConfiguration cc{CatchupConfiguration::CURRENT,
                                 std::numeric_limits<uint32_t>::max(),

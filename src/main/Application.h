@@ -122,29 +122,6 @@ void validateNetworkPassphrase(std::shared_ptr<Application> app);
  * to the Application through std::futures or similar standard
  * thread-synchronization primitives.
  *
- *
- * Application Mode
- * ----------------
- *
- * Each application has an AppMode value that causes broad variation in what the
- * app is _doing_ while it runs. AppModes differentiate, for example, those
- * applications that are doing network-packet relay, or in-memory history replay
- * and metadata generation, from those applications that are connected to a live
- * network. Different AppModes typically involve inhibiting the construction or
- * function of one or more complete subsystems.
- *
- * As a general guideline, AppModes should be used when a behaviour variation is
- * both (a) to-be-deployed in production, not just testing; and (b)
- * significantly incompatible with the intention expressed by the 'stellar-core
- * run' subcommand, i.e. some wholly different-seeming activity than live
- * transaction processing.
- *
- * The variant functionality of AppModes could also have been accomplished by
- * subclassing and overriding, but we decided that explicit branching on AppMode
- * makes the set of logic variants more obvious and leads to less code churn,
- * spurious virtual/override/factory scaffolding just to introduce variants, and
- * less need to compare & maintain divergent replicas of logic across source
- * files.
  */
 
 class Application
@@ -181,42 +158,6 @@ class Application
         APP_NUM_STATE
     };
 
-    enum class AppMode
-    {
-        // Application will connect to networks (unless Cfg.RUN_STANDALONE),
-        // bind to a database and bucket list, and receive and apply
-        // consensus transactions. "Normal operation".
-        RUN_LIVE_NODE,
-
-        // Application will connect to networks but _not_ establish a database
-        // of any sort, nor apply transactions or even verify them. Simply
-        // relays traffic between nodes and drives the SCP state machine.
-        RELAY_LIVE_TRAFFIC,
-
-        // Application will not connect to networks nor establish a database
-        // of any sort. Simply reads history archive content and replays
-        // transactions against _in memory_ ledger, while writing metadata
-        // stream.
-        REPLAY_IN_MEMORY
-    };
-
-    // AppModes should be accessed using either a narrow centralized query like
-    // one of the following static functions, or an exhaustive switch on the
-    // enum. These options give the least chance of missing or combining cases
-    // incorrectly.
-    static bool modeHasOverlay(AppMode m);
-    static bool modeHasDatabase(AppMode m);
-    bool
-    modeHasOverlay() const
-    {
-        return Application::modeHasOverlay(getMode());
-    }
-    bool
-    modeHasDatabase() const
-    {
-        return Application::modeHasDatabase(getMode());
-    }
-
     virtual ~Application(){};
 
     virtual void initialize(bool createNewDB) = 0;
@@ -234,11 +175,6 @@ class Application
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
     virtual bool isStopping() const = 0;
-
-    // Gets the current Application mode. This is a constant established
-    // when the Application is constructed and will not change while it
-    // runs.
-    virtual AppMode getMode() const = 0;
 
     // Get the external VirtualClock to which this Application is bound.
     virtual VirtualClock& getClock() = 0;
@@ -342,16 +278,14 @@ class Application
     virtual AbstractLedgerTxnParent& getLedgerTxnRoot() = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
-    // copy made of `cfg`, and running in `AppMode` `mode`.
+    // copy made of `cfg`
     static pointer create(VirtualClock& clock, Config const& cfg,
-                          bool newDB = true,
-                          AppMode mode = AppMode::RUN_LIVE_NODE);
+                          bool newDB = true);
     template <typename T>
     static std::shared_ptr<T>
-    create(VirtualClock& clock, Config const& cfg, bool newDB = true,
-           AppMode mode = AppMode::RUN_LIVE_NODE)
+    create(VirtualClock& clock, Config const& cfg, bool newDB = true)
     {
-        auto ret = std::make_shared<T>(clock, cfg, mode);
+        auto ret = std::make_shared<T>(clock, cfg);
         ret->initialize(newDB);
         validateNetworkPassphrase(ret);
 

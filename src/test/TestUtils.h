@@ -59,8 +59,7 @@ class TestInvariantManager : public InvariantManagerImpl
 class TestApplication : public ApplicationImpl
 {
   public:
-    TestApplication(VirtualClock& clock, Config const& cfg,
-                    AppMode mode = AppMode::RUN_LIVE_NODE);
+    TestApplication(VirtualClock& clock, Config const& cfg);
 
   private:
     std::unique_ptr<InvariantManager> createInvariantManager() override;
@@ -70,13 +69,11 @@ template <typename T = TestApplication,
           typename = typename std::enable_if<
               std::is_base_of<TestApplication, T>::value>::type>
 std::shared_ptr<T>
-createTestApplication(
-    VirtualClock& clock, Config const& cfg, bool newDB = true,
-    Application::AppMode mode = Application::AppMode::RUN_LIVE_NODE)
+createTestApplication(VirtualClock& clock, Config const& cfg, bool newDB = true)
 {
     Config c2(cfg);
     c2.adjust();
-    auto app = Application::create<T>(clock, c2, newDB, mode);
+    auto app = Application::create<T>(clock, c2, newDB);
     return app;
 }
 
