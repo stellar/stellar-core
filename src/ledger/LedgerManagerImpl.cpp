@@ -295,7 +295,7 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
         else
         {
-            // In a non-database AppMode, this method should only be called when
+            // In no-history mode, this method should only be called when
             // the LCL is genesis.
             releaseAssertOrThrow(mLastClosedLedger.hash == lastLedgerHash);
             releaseAssertOrThrow(mLastClosedLedger.header.ledgerSeq ==
@@ -771,6 +771,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     DBTimeExcluder qtExclude(mApp);
+    LogSlowExecution closeLedgerTime{"closeLedger",
+                                     LogSlowExecution::Mode::MANUAL, "",
+                                     std::chrono::milliseconds::max()};
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
@@ -953,6 +956,19 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 4
     mApp.getBucketManager().forgetUnreferencedBuckets();
+
+    // Maybe sleep for parameterized amount of time in simulation mode
+    auto sleepFor = std::chrono::microseconds{
+        mApp.getConfig().OP_APPLY_SLEEP_TIME_FOR_TESTING * txSet->sizeOp()};
+    std::chrono::microseconds applicationTime =
+        closeLedgerTime.checkElapsedTime();
+    if (applicationTime < sleepFor)
+    {
+        sleepFor -= applicationTime;
+        CLOG(DEBUG, "Perf") << "Simulate application: sleep for "
+                            << sleepFor.count() << " microseconds";
+        std::this_thread::sleep_for(sleepFor);
+    }
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG(DEBUG, "Perf") << "Applied ledger in " << ledgerTimeSeconds.count()

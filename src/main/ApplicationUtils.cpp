@@ -43,6 +43,11 @@ runWithConfig(Config cfg)
         cfg.FORCE_SCP = true;
     }
 
+    if (cfg.NODE_IS_VALIDATOR && cfg.DATABASE.value == "sqlite3://:memory:")
+    {
+        cfg.FORCE_SCP = true;
+    }
+
     LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer app;

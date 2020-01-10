@@ -780,16 +780,35 @@ run(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
+    uint32_t simulateSleepPerOp = 0;
+
+    auto simulateParser = [](uint32_t& simulateSleepPerOp) {
+        return clara::Opt{simulateSleepPerOp,
+                          "MICROSECONDS"}["--simulate-apply-per-op"](
+            "simulate application time per operation");
+    };
 
     return runWithHelp(args,
                        {configurationParser(configOption),
-                        disableBucketGCParser(disableBucketGC)},
+                        disableBucketGCParser(disableBucketGC),
+                        simulateParser(simulateSleepPerOp)},
                        [&] {
                            Config cfg;
                            try
                            {
                                cfg = configOption.getConfig();
                                cfg.DISABLE_BUCKET_GC = disableBucketGC;
+                               if (simulateSleepPerOp > 0)
+                               {
+                                   cfg.DATABASE =
+                                       SecretValue{"sqlite3://:memory:"};
+                                   cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING =
+                                       simulateSleepPerOp;
+                                   cfg.MODE_STORES_HISTORY = false;
+                                   cfg.MODE_USES_IN_MEMORY_LEDGER = false;
+                                   cfg.MODE_ENABLES_BUCKETLIST = false;
+                                   cfg.PREFETCH_BATCH_SIZE = 0;
+                               }
                            }
                            catch (std::exception& e)
                            {
