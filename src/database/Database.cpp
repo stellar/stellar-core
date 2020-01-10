@@ -366,6 +366,24 @@ Database::initialize()
     // normally you do not want to touch this section as
     // schema updates are done in applySchemaUpgrade
 
+    if (isSqlite() && mApp.getConfig().DATABASE.value != "sqlite3://:memory:")
+    {
+        // When we're in non-memory (i.e. "disk") mode of SQLite we want to bump
+        // up the page size to 64k (the maximum supported). On fast SSDs / NVMe
+        // this actually is a slight speed-loss, but it's a significant win on
+        // slow disks (spinning platters, low-IOPS EBS, etc.)
+        //
+        // To do this we need to disable journalling, adjust the page_size, then
+        // vacuum and re-enable journalling. NB: WAL mode is _ignored_ in memory
+        // mode, so it's important that this code not run in memory mode, it'll
+        // disable all journalling and silently _not_ re-enable it.
+
+        mSession << "PRAGMA journal_mode = OFF";
+        mSession << "PRAGMA page_size = 65536";
+        mSession << "VACUUM";
+        mSession << "PRAGMA journal_mode = WAL";
+    }
+
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
     Upgrades::dropAll(*this);

@@ -71,6 +71,15 @@ TEST_CASE("database smoketest", "[db]")
     transactionTest(app);
 }
 
+TEST_CASE("database on-disk smoketest", "[db]")
+{
+    Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
+
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    transactionTest(app);
+}
+
 void
 checkMVCCIsolation(Application::pointer app)
 {
