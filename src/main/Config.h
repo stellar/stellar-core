@@ -242,6 +242,10 @@ class Config : public std::enable_shared_from_this<Config>
     // you want to make that trade.
     bool DISABLE_XDR_FSYNC;
 
+    // Number of most recent ledgers to remember. Defaults to 12, or
+    // approximately ~1 min of network activity.
+    uint32 MAX_SLOTS_TO_REMEMBER;
+
     // A string specifying a stream to write fine-grained metadata to for each
     // ledger close while running. This will be opened at startup and
     // synchronously streamed-to during both catchup and live ledger-closing.
