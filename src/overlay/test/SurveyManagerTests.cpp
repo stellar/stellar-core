@@ -22,7 +22,7 @@ TEST_CASE("topology encrypted response memory check",
     auto& topologyBody = body.topologyResponseBody();
 
     // Fill up the PeerStatLists
-    for (int i = 0; i < PeerStatList::max_size(); ++i)
+    for (uint32_t i = 0; i < PeerStatList::max_size(); ++i)
     {
         PeerStats s;
         s.versionStr = std::string(s.versionStr.max_size(), 'a');
