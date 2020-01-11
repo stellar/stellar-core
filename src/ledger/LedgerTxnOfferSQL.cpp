@@ -612,15 +612,17 @@ LedgerTxnRoot::Impl::dropOffers()
     mEntryCache.clear();
     mBestOffersCache.clear();
 
+    std::string coll = mDatabase.getSimpleCollationClause();
+
     mDatabase.getSession() << "DROP TABLE IF EXISTS offers;";
     mDatabase.getSession()
         << "CREATE TABLE offers"
-           "("
-           "sellerid         VARCHAR(56)      NOT NULL,"
-           "offerid          BIGINT           NOT NULL CHECK (offerid >= 0),"
-           "sellingasset     TEXT             NOT NULL,"
-           "buyingasset      TEXT             NOT NULL,"
-           "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
+        << "("
+        << "sellerid         VARCHAR(56) " << coll << "NOT NULL,"
+        << "offerid          BIGINT           NOT NULL CHECK (offerid >= 0),"
+        << "sellingasset     TEXT " << coll << " NOT NULL,"
+        << "buyingasset      TEXT " << coll << " NOT NULL,"
+        << "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
            "pricen           INT              NOT NULL,"
            "priced           INT              NOT NULL,"
            "price            DOUBLE PRECISION NOT NULL,"

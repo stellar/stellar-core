@@ -278,12 +278,16 @@ LedgerTxnRoot::Impl::dropData()
     mEntryCache.clear();
     mBestOffersCache.clear();
 
+    std::string coll = mDatabase.getSimpleCollationClause();
+
     mDatabase.getSession() << "DROP TABLE IF EXISTS accountdata;";
     mDatabase.getSession() << "CREATE TABLE accountdata"
-                              "("
-                              "accountid    VARCHAR(56)  NOT NULL,"
-                              "dataname     VARCHAR(88)  NOT NULL,"
-                              "datavalue    VARCHAR(112) NOT NULL,"
+                           << "("
+                           << "accountid    VARCHAR(56) " << coll
+                           << " NOT NULL,"
+                           << "dataname     VARCHAR(88) " << coll
+                           << " NOT NULL,"
+                           << "datavalue    VARCHAR(112) NOT NULL,"
                               "lastmodified INT          NOT NULL,"
                               "PRIMARY KEY  (accountid, dataname)"
                               ");";

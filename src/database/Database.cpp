@@ -57,7 +57,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 9;
-static unsigned long const SCHEMA_VERSION = 11;
+static unsigned long const SCHEMA_VERSION = 12;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -200,6 +200,42 @@ Database::applySchemaUpgrade(unsigned long vers)
         mSession << "CREATE INDEX bestofferindex ON offers "
                     "(sellingasset,buyingasset,price,offerid);";
         break;
+    case 12:
+        if (!isSqlite())
+        {
+            // Set column collations to "C" if postgres; sqlite doesn't support
+            // altering them at all (and the defaults are correct anyways).
+            mSession << "ALTER TABLE accounts "
+                     << "ALTER COLUMN accountid "
+                     << "TYPE VARCHAR(56) COLLATE \"C\"";
+
+            mSession << "ALTER TABLE ledgerheaders "
+                     << "ALTER COLUMN ledgerhash "
+                     << "TYPE CHARACTER(64) COLLATE \"C\"";
+
+            mSession << "ALTER TABLE accountdata "
+                     << "ALTER COLUMN accountid "
+                     << "TYPE VARCHAR(56) COLLATE \"C\", "
+                     << "ALTER COLUMN dataname "
+                     << "TYPE VARCHAR(88) COLLATE \"C\"";
+
+            mSession << "ALTER TABLE offers "
+                     << "ALTER COLUMN sellerid "
+                     << "TYPE VARCHAR(56) COLLATE \"C\", "
+                     << "ALTER COLUMN buyingasset "
+                     << "TYPE TEXT COLLATE \"C\", "
+                     << "ALTER COLUMN sellingasset "
+                     << "TYPE TEXT COLLATE \"C\"";
+
+            mSession << "ALTER TABLE trustlines "
+                     << "ALTER COLUMN accountid "
+                     << "TYPE VARCHAR(56) COLLATE \"C\", "
+                     << "ALTER COLUMN issuer "
+                     << "TYPE VARCHAR(56) COLLATE \"C\", "
+                     << "ALTER COLUMN assetcode "
+                     << "TYPE VARCHAR(12) COLLATE \"C\"";
+        }
+        break;
     default:
         throw std::runtime_error("Unknown DB schema version");
     }
@@ -338,6 +374,19 @@ Database::isSqlite() const
 {
     return mApp.getConfig().DATABASE.value.find("sqlite3:") !=
            std::string::npos;
+}
+
+std::string
+Database::getSimpleCollationClause() const
+{
+    if (isSqlite())
+    {
+        return "";
+    }
+    else
+    {
+        return " COLLATE \"C\" ";
+    }
 }
 
 bool
