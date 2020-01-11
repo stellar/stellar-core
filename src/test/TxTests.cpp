@@ -171,9 +171,10 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     bool res = false;
     {
         LedgerTxn ltxTx(ltx);
+        TransactionMeta tm(2);
         try
         {
-            res = tx->apply(app, ltxTx);
+            res = tx->apply(app, ltxTx, tm);
         }
         catch (...)
         {
@@ -181,6 +182,10 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         }
         REQUIRE((!res || tx->getResultCode() == txSUCCESS));
 
+        if (!res || tx->getResultCode() != txSUCCESS)
+        {
+            REQUIRE(tm.v2().operations.size() == 0);
+        }
         // checks that the failure is the same if pre checks failed
         if (!check)
         {
