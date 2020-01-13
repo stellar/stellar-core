@@ -13,6 +13,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/Signpost.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -2087,6 +2088,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     auto bleca = BulkLedgerEntryChangeAccumulator();
     try
     {
+        STELLAR_SIGNPOST_INTERVAL_BEGIN("LedgerTxn::bulkApply");
         while ((bool)iter)
         {
             bleca.accumulate(iter);
@@ -2095,12 +2097,15 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
+        STELLAR_SIGNPOST_INTERVAL_END("LedgerTxn::bulkApply");
         // NB: we want to clear the prepared statement cache _before_
         // committing; on postgres this doesn't matter but on SQLite the passive
         // WAL-auto-checkpointing-at-commit behaviour will starve if there are
         // still prepared statements open at commit time.
         mDatabase.clearPreparedStatementCache();
+        STELLAR_SIGNPOST_INTERVAL_BEGIN("soci::commit");
         mTransaction->commit();
+        STELLAR_SIGNPOST_INTERVAL_END("soci::commit");
     }
     catch (std::exception& e)
     {
@@ -2242,6 +2247,7 @@ uint32_t
 LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
 {
     uint32_t total = 0;
+    STELLAR_SIGNPOST_INTERVAL_BEGIN("LedgerTxn::prefetch");
 
     std::unordered_set<LedgerKey> accounts;
     std::unordered_set<LedgerKey> offers;
@@ -2271,6 +2277,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
         if ((static_cast<double>(mEntryCache.size()) / mMaxCacheSize) >=
             ENTRY_CACHE_FILL_RATIO)
         {
+            STELLAR_SIGNPOST_INTERVAL_END("LedgerTxn::prefetch");
             return total;
         }
 
@@ -2317,6 +2324,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
     cacheResult(bulkLoadTrustLines(trustlines));
     cacheResult(bulkLoadData(data));
 
+    STELLAR_SIGNPOST_INTERVAL_END("LedgerTxn::prefetch");
     return total;
 }
 

@@ -23,6 +23,7 @@
 #include "util/Algoritm.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
+#include "util/Signpost.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
@@ -667,6 +668,7 @@ bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                         TransactionMeta& meta)
 {
+    STELLAR_SIGNPOST_INTERVAL_BEGIN("TransactionFrame::apply");
     mCachedAccount.reset();
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(), mEnvelope.signatures};
@@ -691,7 +693,9 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         ltxTx.commit();
         valid = signaturesValid && (cv == ValidationType::kFullyValid);
     }
-    return valid && applyOperations(signatureChecker, app, ltx, meta);
+    bool ret = valid && applyOperations(signatureChecker, app, ltx, meta);
+    STELLAR_SIGNPOST_INTERVAL_END("TransactionFrame::apply");
+    return ret;
 }
 
 StellarMessage
