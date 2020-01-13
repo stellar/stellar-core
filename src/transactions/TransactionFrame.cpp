@@ -594,11 +594,13 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx)
 bool
 TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Application& app, AbstractLedgerTxn& ltx,
-                                  TransactionMeta& meta)
+                                  TransactionMeta& outerMeta)
 {
-    bool errorEncountered = false;
-    auto& operationsMeta =
-        meta.v() == 1 ? meta.v1().operations : meta.v2().operations;
+    bool success = true;
+
+    TransactionMeta newMeta(2);
+    auto& operationsMeta = newMeta.v2().operations;
+    operationsMeta.reserve(mOperations.size());
 
     // shield outer scope of any side effects with LedgerTxn
     LedgerTxn ltxTx(ltx);
@@ -611,9 +613,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
         if (!txRes)
         {
-            errorEncountered = true;
+            success = false;
         }
-        if (!errorEncountered)
+        if (success)
         {
             app.getInvariantManager().checkOnOperationApply(
                 op->getOperation(), op->getResult(), ltxOp.getDelta());
@@ -623,7 +625,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         ltxOp.commit();
     }
 
-    if (!errorEncountered)
+    if (success)
     {
         if (ltxTx.loadHeader().current().ledgerVersion < 10)
         {
@@ -639,22 +641,26 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             // to remove that signer
             LedgerTxn ltxAfter(ltxTx);
             removeUsedOneTimeSignerKeys(signatureChecker, ltxAfter);
-            if (meta.v() == 2)
-            {
-                meta.v2().txChangesAfter = ltxAfter.getChanges();
-            }
+            newMeta.v2().txChangesAfter = ltxAfter.getChanges();
             ltxAfter.commit();
         }
 
         ltxTx.commit();
+        // commit -> propagate the meta to the outer scope
+        auto& omOperations = outerMeta.v() == 1 ? outerMeta.v1().operations
+                                                : outerMeta.v2().operations;
+        std::swap(omOperations, operationsMeta);
+        if (outerMeta.v() == 2)
+        {
+            std::swap(outerMeta.v2().txChangesAfter,
+                      newMeta.v2().txChangesAfter);
+        }
     }
-
-    if (errorEncountered)
+    else
     {
-        operationsMeta.clear();
         markResultFailed();
     }
-    return !errorEncountered;
+    return success;
 }
 
 bool
