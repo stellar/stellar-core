@@ -53,18 +53,9 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
     static void
     reseed()
     {
-        if (sCommandLineSeed == 0)
-        {
-            srand(1);
-            gRandomEngine.seed(gRandomEngine.default_seed);
-            Catch::rng().seed(Catch::rng().default_seed);
-        }
-        else
-        {
-            srand(sCommandLineSeed);
-            gRandomEngine.seed(sCommandLineSeed);
-            Catch::rng().seed(sCommandLineSeed);
-        }
+        srand(sCommandLineSeed);
+        gRandomEngine.seed(sCommandLineSeed);
+        Catch::rng().seed(sCommandLineSeed);
     }
     virtual void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override
@@ -204,6 +195,11 @@ runTest(CommandLineArgs const& args)
 
     Catch::Session session{};
 
+    auto& seed = session.configData().rngSeed;
+
+    // rotate the seed every 24 hours
+    seed = static_cast<unsigned int>(std::time(nullptr)) / (24 * 3600);
+
     auto parser = session.cli();
     parser |= Catch::clara::Opt(
         [&](std::string const& arg) {
@@ -245,6 +241,9 @@ runTest(CommandLineArgs const& args)
         return 0;
     }
 
+    ReseedPRNGListener::sCommandLineSeed = seed;
+    ReseedPRNGListener::reseed();
+
     // Note: Have to setLogLevel twice here to ensure --list-test-names-only is
     // not mixed with stellar-core logging.
     Logging::setFmt("<test>");
@@ -252,7 +251,6 @@ runTest(CommandLineArgs const& args)
     Config const& cfg = getTestConfig();
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(logLevel, nullptr);
-    auto seed = session.configData().rngSeed;
 
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
@@ -261,15 +259,11 @@ runTest(CommandLineArgs const& args)
     {
         gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     }
-    if (seed != 0)
-    {
-        stellar::gRandomEngine.seed(seed);
-    }
 
     auto r = session.run();
     gTestRoots.clear();
     gTestCfg->clear();
-    if (r != 0 && seed != 0)
+    if (r != 0)
     {
         LOG(FATAL) << "Nonzero test result with --rng-seed " << seed;
     }
