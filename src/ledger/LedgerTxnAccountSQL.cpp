@@ -478,9 +478,6 @@ LedgerTxnRoot::Impl::dropAccounts()
            "signers            TEXT,"
            "lastmodified       INT          NOT NULL"
            ");";
-    mDatabase.getSession()
-        << "CREATE INDEX accountbalances ON accounts (balance) WHERE "
-           "balance >= 1000000000";
 }
 
 class BulkLoadAccountsOperation

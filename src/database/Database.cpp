@@ -238,6 +238,10 @@ Database::applySchemaUpgrade(unsigned long vers)
                      << "ALTER COLUMN assetcode "
                      << "TYPE VARCHAR(12) COLLATE \"C\"";
         }
+
+        // With inflation disabled, it's not worth keeping
+        // the accountbalances index around.
+        mSession << "DROP INDEX IF EXISTS accountbalances";
         break;
     default:
         throw std::runtime_error("Unknown DB schema version");
