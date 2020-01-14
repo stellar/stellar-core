@@ -84,8 +84,7 @@ class OverlayManagerTests
     class ApplicationStub : public TestApplication
     {
       public:
-        ApplicationStub(VirtualClock& clock, Config const& cfg,
-                        Application::AppMode mode)
+        ApplicationStub(VirtualClock& clock, Config const& cfg)
             : TestApplication(clock, cfg)
         {
         }

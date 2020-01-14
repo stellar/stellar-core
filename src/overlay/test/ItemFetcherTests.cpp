@@ -40,9 +40,8 @@ class HerderStub : public HerderImpl
 class ApplicationStub : public TestApplication
 {
   public:
-    ApplicationStub(VirtualClock& clock, Config const& cfg,
-                    Application::AppMode mode)
-        : TestApplication(clock, cfg, mode)
+    ApplicationStub(VirtualClock& clock, Config const& cfg)
+        : TestApplication(clock, cfg)
     {
     }
 

@@ -28,11 +28,6 @@ std::string PersistentState::kSQLCreateStatement =
 
 PersistentState::PersistentState(Application& app) : mApp(app)
 {
-    if (!mApp.modeHasDatabase())
-    {
-        mNonDBState =
-            std::make_unique<std::unordered_map<std::string, std::string>>();
-    }
 }
 
 void
@@ -77,7 +72,7 @@ PersistentState::getSCPStateAllSlots()
 {
     // Collect all slots persisted
     std::vector<std::string> states;
-    for (uint32 i = 0; i <= Herder::MAX_SLOTS_TO_REMEMBER; i++)
+    for (uint32 i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
     {
         auto val = getFromDb(getStoreStateName(kLastSCPData, i));
         if (!val.empty())
@@ -92,21 +87,14 @@ PersistentState::getSCPStateAllSlots()
 void
 PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 {
-    auto slotIdx =
-        static_cast<uint32>(slot % (Herder::MAX_SLOTS_TO_REMEMBER + 1));
+    auto slotIdx = static_cast<uint32>(
+        slot % (mApp.getConfig().MAX_SLOTS_TO_REMEMBER + 1));
     updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
 }
 
 void
 PersistentState::updateDb(std::string const& entry, std::string const& value)
 {
-    if (!mApp.modeHasDatabase())
-    {
-        releaseAssertOrThrow(mNonDBState);
-        (*mNonDBState)[entry] = value;
-        return;
-    }
-
     auto prep = mApp.getDatabase().getPreparedStatement(
         "UPDATE storestate SET state = :v WHERE statename = :n;");
 
@@ -139,12 +127,6 @@ PersistentState::updateDb(std::string const& entry, std::string const& value)
 std::string
 PersistentState::getFromDb(std::string const& entry)
 {
-    if (!mApp.modeHasDatabase())
-    {
-        releaseAssertOrThrow(mNonDBState);
-        return (*mNonDBState)[entry];
-    }
-
     std::string res;
 
     auto& db = mApp.getDatabase();

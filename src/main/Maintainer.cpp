@@ -15,7 +15,6 @@ namespace stellar
 
 Maintainer::Maintainer(Application& app) : mApp{app}, mTimer{mApp}
 {
-    releaseAssertOrThrow(mApp.modeHasDatabase());
 }
 
 void

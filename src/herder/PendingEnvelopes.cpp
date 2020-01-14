@@ -447,9 +447,10 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
 
     // stop processing envelopes & downloads for the slot falling off the
     // window
-    if (slotIndex > Herder::MAX_SLOTS_TO_REMEMBER)
+    auto maxSlots = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
+    if (slotIndex > maxSlots)
     {
-        slotIndex -= Herder::MAX_SLOTS_TO_REMEMBER;
+        slotIndex -= maxSlots;
 
         mEnvelopes.erase(slotIndex);
 

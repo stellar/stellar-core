@@ -196,9 +196,12 @@ Database::applySchemaUpgrade(unsigned long vers)
         mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
         break;
     case 11:
-        mSession << "DROP INDEX IF EXISTS bestofferindex;";
-        mSession << "CREATE INDEX bestofferindex ON offers "
-                    "(sellingasset,buyingasset,price,offerid);";
+        if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+        {
+            mSession << "DROP INDEX IF EXISTS bestofferindex;";
+            mSession << "CREATE INDEX bestofferindex ON offers "
+                        "(sellingasset,buyingasset,price,offerid);";
+        }
         break;
     case 12:
         if (!isSqlite())
@@ -436,9 +439,13 @@ Database::initialize()
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
     Upgrades::dropAll(*this);
-    mApp.getLedgerTxnRoot().dropAccounts();
-    mApp.getLedgerTxnRoot().dropOffers();
-    mApp.getLedgerTxnRoot().dropTrustLines();
+    if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+    {
+        mApp.getLedgerTxnRoot().dropAccounts();
+        mApp.getLedgerTxnRoot().dropOffers();
+        mApp.getLedgerTxnRoot().dropTrustLines();
+        mApp.getLedgerTxnRoot().dropData();
+    }
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
@@ -446,7 +453,6 @@ Database::initialize()
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
-    mApp.getLedgerTxnRoot().dropData();
     BanManager::dropAll(*this);
     putSchemaVersion(MIN_SCHEMA_VERSION);
 
@@ -627,19 +633,15 @@ Database::recentIdleDbPercent()
 
 DBTimeExcluder::DBTimeExcluder(Application& app)
     : mApp(app)
-    , mStartQueryTime(app.modeHasDatabase() ? app.getDatabase().totalQueryTime()
-                                            : std::chrono::nanoseconds(0))
+    , mStartQueryTime(app.getDatabase().totalQueryTime())
     , mStartTotalTime(app.getClock().now())
 {
 }
 
 DBTimeExcluder::~DBTimeExcluder()
 {
-    if (mApp.modeHasDatabase())
-    {
-        auto deltaQ = mApp.getDatabase().totalQueryTime() - mStartQueryTime;
-        auto deltaT = mApp.getClock().now() - mStartTotalTime;
-        mApp.getDatabase().excludeTime(deltaQ, deltaT);
-    }
+    auto deltaQ = mApp.getDatabase().totalQueryTime() - mStartQueryTime;
+    auto deltaT = mApp.getClock().now() - mStartTotalTime;
+    mApp.getDatabase().excludeTime(deltaQ, deltaT);
 }
 }

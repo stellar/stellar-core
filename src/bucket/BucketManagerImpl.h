@@ -36,7 +36,7 @@ class BucketManagerImpl : public BucketManager
     static std::string const kLockFilename;
 
     Application& mApp;
-    BucketList mBucketList;
+    std::unique_ptr<BucketList> mBucketList;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<TmpDir> mWorkDir;
     std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;

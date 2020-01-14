@@ -541,35 +541,44 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
             }
 
-            auto mode = (replayInMemory ? Application::AppMode::REPLAY_IN_MEMORY
-                                        : Application::AppMode::RUN_LIVE_NODE);
-
-            auto newDb = false;
-            if (!Application::modeHasDatabase(mode))
+            if (replayInMemory)
             {
-                // Need to "initialize a new db" if running in memory.
-                newDb = true;
+                // Adjust configs for in-memory-replay mode
+                config.DATABASE = SecretValue{"sqlite3://:memory:"};
+                config.MODE_STORES_HISTORY = false;
+                config.MODE_USES_IN_MEMORY_LEDGER = true;
+                config.MODE_ENABLES_BUCKETLIST = true;
                 // And don't bother fsyncing buckets without a DB,
                 // they're temporary anyways.
                 config.DISABLE_XDR_FSYNC = true;
             }
 
             VirtualClock clock(VirtualClock::REAL_TIME);
-            auto app = Application::create(clock, config, newDb, mode);
-            auto const& ham = app->getHistoryArchiveManager();
-            auto archivePtr = ham.getHistoryArchive(archive);
-            if (iequals(archive, "any"))
+            int result;
             {
-                archivePtr = ham.selectRandomReadableHistoryArchive();
+                auto app = Application::create(clock, config, replayInMemory);
+                auto const& ham = app->getHistoryArchiveManager();
+                auto archivePtr = ham.getHistoryArchive(archive);
+                if (iequals(archive, "any"))
+                {
+                    archivePtr = ham.selectRandomReadableHistoryArchive();
+                }
+
+                Json::Value catchupInfo;
+                result = catchup(
+                    app, parseCatchup(catchupString, completeValidation),
+                    catchupInfo, archivePtr);
+                if (!catchupInfo.isNull())
+                {
+                    writeCatchupInfo(catchupInfo, outputFile);
+                }
             }
 
-            Json::Value catchupInfo;
-            auto result =
-                catchup(app, parseCatchup(catchupString, completeValidation),
-                        catchupInfo, archivePtr);
-            if (!catchupInfo.isNull())
+            if (replayInMemory)
             {
-                writeCatchupInfo(catchupInfo, outputFile);
+                // Clean up `buckets` folder when in in-memory-replay mode
+                VirtualClock clockBuckets(VirtualClock::REAL_TIME);
+                auto app = Application::create(clockBuckets, config, true);
             }
 
             return result;
@@ -771,16 +780,35 @@ run(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
+    uint32_t simulateSleepPerOp = 0;
+
+    auto simulateParser = [](uint32_t& simulateSleepPerOp) {
+        return clara::Opt{simulateSleepPerOp,
+                          "MICROSECONDS"}["--simulate-apply-per-op"](
+            "simulate application time per operation");
+    };
 
     return runWithHelp(args,
                        {configurationParser(configOption),
-                        disableBucketGCParser(disableBucketGC)},
+                        disableBucketGCParser(disableBucketGC),
+                        simulateParser(simulateSleepPerOp)},
                        [&] {
                            Config cfg;
                            try
                            {
                                cfg = configOption.getConfig();
                                cfg.DISABLE_BUCKET_GC = disableBucketGC;
+                               if (simulateSleepPerOp > 0)
+                               {
+                                   cfg.DATABASE =
+                                       SecretValue{"sqlite3://:memory:"};
+                                   cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING =
+                                       simulateSleepPerOp;
+                                   cfg.MODE_STORES_HISTORY = false;
+                                   cfg.MODE_USES_IN_MEMORY_LEDGER = false;
+                                   cfg.MODE_ENABLES_BUCKETLIST = false;
+                                   cfg.PREFETCH_BATCH_SIZE = 0;
+                               }
                            }
                            catch (std::exception& e)
                            {

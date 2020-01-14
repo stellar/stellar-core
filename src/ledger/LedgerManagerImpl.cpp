@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -29,6 +30,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/format.h"
@@ -277,7 +279,7 @@ LedgerManagerImpl::loadLastKnownLedger(
             << "Last closed ledger (LCL) hash is " << lastLedger;
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        if (mApp.modeHasDatabase())
+        if (mApp.getConfig().MODE_STORES_HISTORY)
         {
             auto currentLedger =
                 LedgerHeaderUtils::loadByHash(getDatabase(), lastLedgerHash);
@@ -293,7 +295,7 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
         else
         {
-            // In a non-database AppMode, this method should only be called when
+            // In no-history mode, this method should only be called when
             // the LCL is genesis.
             releaseAssertOrThrow(mLastClosedLedger.hash == lastLedgerHash);
             releaseAssertOrThrow(mLastClosedLedger.header.ledgerSeq ==
@@ -317,10 +319,14 @@ LedgerManagerImpl::loadLastKnownLedger(
                     {
                         LedgerTxn ltx(mApp.getLedgerTxnRoot());
                         auto header = ltx.loadHeader();
-                        mApp.getBucketManager().assumeState(
-                            has, header.current().ledgerVersion);
-                        CLOG(INFO, "Ledger") << "Assumed bucket-state for LCL: "
-                                             << ledgerAbbrev(header.current());
+                        if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+                        {
+                            mApp.getBucketManager().assumeState(
+                                has, header.current().ledgerVersion);
+                            CLOG(INFO, "Ledger")
+                                << "Assumed bucket-state for LCL: "
+                                << ledgerAbbrev(header.current());
+                        }
                         advanceLedgerPointers(header.current());
                     }
                     handler(ec);
@@ -765,6 +771,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     auto ledgerTime = mLedgerClose.TimeScope();
     DBTimeExcluder qtExclude(mApp);
+    LogSlowExecution closeLedgerTime{"closeLedger",
+                                     LogSlowExecution::Mode::MANUAL, "",
+                                     std::chrono::milliseconds::max()};
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
@@ -889,7 +898,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             }
             // Note: Index from 1 rather than 0 to match the behavior of
             // storeTransaction and storeTransactionFee.
-            if (mApp.modeHasDatabase())
+            if (mApp.getConfig().MODE_STORES_HISTORY)
             {
                 Upgrades::storeUpgradeHistory(getDatabase(), ledgerSeq,
                                               lupgrade, changes,
@@ -947,6 +956,19 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 4
     mApp.getBucketManager().forgetUnreferencedBuckets();
+
+    // Maybe sleep for parameterized amount of time in simulation mode
+    auto sleepFor = std::chrono::microseconds{
+        mApp.getConfig().OP_APPLY_SLEEP_TIME_FOR_TESTING * txSet->sizeOp()};
+    std::chrono::microseconds applicationTime =
+        closeLedgerTime.checkElapsedTime();
+    if (applicationTime < sleepFor)
+    {
+        sleepFor -= applicationTime;
+        CLOG(DEBUG, "Perf") << "Simulate application: sleep for "
+                            << sleepFor.count() << " microseconds";
+        std::this_thread::sleep_for(sleepFor);
+    }
 
     std::chrono::duration<double> ledgerTimeSeconds = ledgerTime.Stop();
     CLOG(DEBUG, "Perf") << "Applied ledger in " << ledgerTimeSeconds.count()
@@ -1061,7 +1083,7 @@ LedgerManagerImpl::processFeesSeqNums(
             // txs counting from 1, not 0. We preserve this for the time being
             // in case anyone depends on it.
             ++index;
-            if (mApp.modeHasDatabase())
+            if (mApp.getConfig().MODE_STORES_HISTORY)
             {
                 tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq, changes,
                                         index);
@@ -1204,7 +1226,7 @@ LedgerManagerImpl::applyTransactions(
         // txs counting from 1, not 0. We preserve this for the time being
         // in case anyone depends on it.
         ++index;
-        if (mApp.modeHasDatabase())
+        if (mApp.getConfig().MODE_STORES_HISTORY)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
             tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, index,
@@ -1233,7 +1255,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 void
 LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 {
-    if (mApp.modeHasDatabase())
+    if (mApp.getConfig().MODE_STORES_HISTORY)
     {
         LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
     }
@@ -1243,10 +1265,14 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));
 
+    BucketList bl;
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        bl = mApp.getBucketManager().getBucketList();
+    }
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
-    HistoryArchiveState has(header.ledgerSeq,
-                            mApp.getBucketManager().getBucketList());
+    HistoryArchiveState has(header.ledgerSeq, bl);
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
@@ -1261,8 +1287,11 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
-    mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers, initEntries,
-                                     liveEntries, deadEntries);
+    if (mApp.getConfig().MODE_ENABLES_BUCKETLIST)
+    {
+        mApp.getBucketManager().addBatch(mApp, ledgerSeq, ledgerVers,
+                                         initEntries, liveEntries, deadEntries);
+    }
 }
 
 void

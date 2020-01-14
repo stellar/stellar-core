@@ -88,8 +88,7 @@ class LedgerManagerForBucketTests : public LedgerManagerImpl
 class BucketManagerTestApplication : public TestApplication
 {
   public:
-    BucketManagerTestApplication(VirtualClock& clock, Config const& cfg,
-                                 Application::AppMode mode)
+    BucketManagerTestApplication(VirtualClock& clock, Config const& cfg)
         : TestApplication(clock, cfg)
     {
     }

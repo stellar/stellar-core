@@ -1406,7 +1406,8 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
 
     // SMALL_GAP happens to be the maximum number of ledgers
     // that are kept in memory
-    auto static const SMALL_GAP = Herder::MAX_SLOTS_TO_REMEMBER + 1;
+    auto app = simulation->getNode(listenerKey.getPublicKey());
+    auto static const SMALL_GAP = app->getConfig().MAX_SLOTS_TO_REMEMBER + 1;
     auto static const BIG_GAP = SMALL_GAP + 1;
 
     auto beforeGap = currentLedger;

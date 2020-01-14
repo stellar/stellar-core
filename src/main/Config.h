@@ -188,6 +188,25 @@ class Config : public std::enable_shared_from_this<Config>
     // system.
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
+    // A config parameter that forces transaction application during ledger
+    // close to sleep for a given number of microseconds. This option is only
+    // for consensus and overlay simulation testing.
+    uint32_t OP_APPLY_SLEEP_TIME_FOR_TESTING;
+
+    // A config parameter that allows a node to generate buckets. This should
+    // be set to `false` only for testing purposes.
+    bool MODE_ENABLES_BUCKETLIST;
+
+    // A config parameter that uses a never-committing ledger. This means that
+    // all ledger entries will be kept in memory, and not persisted to DB
+    // (relevant tables won't even be created). This should not be set for
+    // production validators.
+    bool MODE_USES_IN_MEMORY_LEDGER;
+
+    // A config parameter that stores historical data, such as transactions,
+    // fees, and scp history in the database
+    bool MODE_STORES_HISTORY;
+
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;
@@ -222,6 +241,10 @@ class Config : public std::enable_shared_from_this<Config>
     // durability guarantees. Do not set it to true unless you're very certain
     // you want to make that trade.
     bool DISABLE_XDR_FSYNC;
+
+    // Number of most recent ledgers to remember. Defaults to 12, or
+    // approximately ~1 min of network activity.
+    uint32 MAX_SLOTS_TO_REMEMBER;
 
     // A string specifying a stream to write fine-grained metadata to for each
     // ledger close while running. This will be opened at startup and

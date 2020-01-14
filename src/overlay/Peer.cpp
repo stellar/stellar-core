@@ -1015,9 +1015,10 @@ Peer::recvAuth(StellarMessage const& msg)
     // possible) we need to ask for older slots in case other peers need
     // messages we didn't need ourself
     auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-    if (low > Herder::MAX_SLOTS_TO_REMEMBER)
+    auto maxSlots = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
+    if (low > maxSlots)
     {
-        low -= Herder::MAX_SLOTS_TO_REMEMBER;
+        low -= maxSlots;
     }
     else
     {
