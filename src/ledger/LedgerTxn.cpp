@@ -1694,12 +1694,17 @@ LedgerTxn::Impl::updateEntry(LedgerKey const& key,
         return;
     }
 
-    auto mobIterPrev = mMultiOrderBook.end();
-    OrderBook::iterator obIterPrev;
+    OrderBook* obOld = nullptr;
+    OrderBook::iterator obIterOld;
     auto iter = mEntry.find(key);
     if (iter != mEntry.end() && iter->second)
     {
-        std::tie(mobIterPrev, obIterPrev) = findInOrderBook(*iter->second);
+        MultiOrderBook::iterator mobIterOld;
+        std::tie(mobIterOld, obIterOld) = findInOrderBook(*iter->second);
+        if (mobIterOld != mMultiOrderBook.end())
+        {
+            obOld = &mobIterOld->second;
+        }
     }
 
     // We only insert the new offer into the order book if it exists and is not
@@ -1713,6 +1718,13 @@ LedgerTxn::Impl::updateEntry(LedgerKey const& key,
         if (mobIterNew != mMultiOrderBook.end())
         {
             auto& obNew = mobIterNew->second;
+            // obNew is a reference to an OrderBook, which is a typedef for
+            // std::multimap<...>. std::multimap<...> does not invalidate any
+            // iterators on insertion, so obIterOld is still valid after this
+            // insertion. From the standard:
+            //
+            //    The insert and emplace members shall not affect the validity
+            //    of iterators and references to the container.
             auto res = obNew.insert({{oe.price, oe.offerID}, key});
             try
             {
@@ -1726,6 +1738,15 @@ LedgerTxn::Impl::updateEntry(LedgerKey const& key,
         }
         else
         {
+            // mMultiOrderBook is a MultiOrderBook, which is a typedef for
+            // std::unordered_map<...>. std::unordered_map<...> may invalidate
+            // all iterators on insertion if a rehash is required, but pointers
+            // are guaranteed to remain valid so obOld is still valid after
+            // this insertion. From the standard:
+            //
+            //    The insert and emplace members shall not affect the validity
+            //    of references to container elements, but may invalidate all
+            //    iterators to the container.
             auto res = mMultiOrderBook.emplace(
                 assetPair, OrderBook{{{oe.price, oe.offerID}, key}});
             try
@@ -1745,10 +1766,9 @@ LedgerTxn::Impl::updateEntry(LedgerKey const& key,
     }
 
     // This never throws
-    if (mobIterPrev != mMultiOrderBook.end() &&
-        obIterPrev != mobIterPrev->second.end())
+    if (obOld && obIterOld != obOld->end())
     {
-        mobIterPrev->second.erase(obIterPrev);
+        obOld->erase(obIterOld);
     }
 }
 
