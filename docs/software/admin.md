@@ -1005,7 +1005,7 @@ A node can be configured to vote for upgrades using the `upgrades` endpoint . se
 The network settings are:
 
   * the version of the protocol used to process transactions
-  * the maximum number of transactions that can be included in a given ledger close
+  * the maximum number of operations that can be included in a given ledger close
   * the cost (fee) associated with processing operations
   * the base reserve used to calculate the lumen balance needed to store things in the ledger
 
