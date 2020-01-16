@@ -395,6 +395,15 @@ PendingEnvelopes::cleanKnownData()
     }
 }
 
+#ifdef BUILD_TESTS
+void
+PendingEnvelopes::clearQSetCache()
+{
+    mQsetCache.clear();
+    mKnownQSets.clear();
+}
+#endif
+
 void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {

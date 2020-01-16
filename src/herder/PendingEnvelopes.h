@@ -97,6 +97,10 @@ class PendingEnvelopes
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
 
+#ifdef BUILD_TESTS
+    void clearQSetCache();
+#endif
+
     /**
      * Process received @p envelope.
      *
