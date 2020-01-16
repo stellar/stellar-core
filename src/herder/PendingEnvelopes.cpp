@@ -123,8 +123,6 @@ PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
     auto envelopes = mQuorumSetFetcher.fetchingFor(hash);
     for (auto& envelope : envelopes)
         discardSCPEnvelope(envelope);
-
-    updateMetrics();
 }
 
 void
@@ -253,11 +251,9 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             fetching.erase(fetchIt);
 
             envelopeReady(envelope);
-            updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         } // else just keep waiting for it to come in
 
-        updateMetrics();
         return Herder::ENVELOPE_STATUS_FETCHING;
     }
     catch (xdr::xdr_runtime_error& e)
@@ -286,7 +282,6 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
         envs.mFetchingEnvelopes.erase(envelope);
 
         stopFetch(envelope);
-        updateMetrics();
     }
     catch (xdr::xdr_runtime_error& e)
     {
@@ -446,8 +441,6 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
         return i.first != 0 && i.first < slotIndex;
     });
-
-    updateMetrics();
 }
 
 void
@@ -471,8 +464,6 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
         mTxSetCache.erase_if(
             [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
     }
-
-    updateMetrics();
 }
 
 TxSetFramePtr
