@@ -90,6 +90,7 @@ class HerderSCPDriver : public SCPDriver
     void recordSCPEvent(uint64_t slotIndex, bool isNomination);
 
     // envelope handling
+    SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope) override;
     void signEnvelope(SCPEnvelope& envelope) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
 

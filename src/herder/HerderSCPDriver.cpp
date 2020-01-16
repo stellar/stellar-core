@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderSCPDriver.h"
+#include "HerderUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
@@ -100,6 +101,48 @@ HerderSCPDriver::restoreSCPState(uint64_t index, StellarValue const& value)
 }
 
 // envelope handling
+
+class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
+{
+    HerderImpl& mHerder;
+
+    SCPQuorumSetPtr mQSet;
+    std::vector<TxSetFramePtr> mTxSets;
+
+  public:
+    explicit SCPHerderEnvelopeWrapper(SCPEnvelope const& e, HerderImpl& herder)
+        : SCPEnvelopeWrapper(e), mHerder(herder)
+    {
+        // attach everything we can to the wrapper
+        auto qSetH = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
+        mQSet = mHerder.getQSet(qSetH);
+        if (!mQSet)
+        {
+            throw std::runtime_error("Wrapping an unknown qset from envelope");
+        }
+        auto txSets = getTxSetHashes(e);
+        for (auto const& txSetH : txSets)
+        {
+            auto txSet = mHerder.getTxSet(txSetH);
+            if (txSet)
+            {
+                mTxSets.emplace_back(txSet);
+            }
+            else
+            {
+                throw std::runtime_error(
+                    "Wrapping an unknown tx set from envelope");
+            }
+        }
+    }
+};
+
+SCPEnvelopeWrapperPtr
+HerderSCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
+{
+    auto r = std::make_shared<SCPHerderEnvelopeWrapper>(envelope, mHerder);
+    return r;
+}
 
 void
 HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
