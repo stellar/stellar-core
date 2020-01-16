@@ -200,9 +200,13 @@ NominationProtocol::applyAll(SCPNomination const& nom,
     {
         processor(v);
     }
+    // NB: "accepted" should be a subset of "votes", so this should no-op
     for (auto const& a : nom.accepted)
     {
-        processor(a);
+        if (std::find(nom.votes.begin(), nom.votes.end(), a) == nom.votes.end())
+        {
+            processor(a);
+        }
     }
 }
 
