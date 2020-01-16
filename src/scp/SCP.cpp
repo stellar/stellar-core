@@ -216,22 +216,6 @@ SCP::empty() const
     return mKnownSlots.empty();
 }
 
-uint64
-SCP::getLowSlotIndex() const
-{
-    assert(!empty());
-    return mKnownSlots.begin()->first;
-}
-
-uint64
-SCP::getHighSlotIndex() const
-{
-    assert(!empty());
-    auto it = mKnownSlots.end();
-    it--;
-    return it->first;
-}
-
 void
 SCP::processCurrentState(uint64 slotIndex,
                          std::function<bool(SCPEnvelope const&)> const& f)
@@ -240,6 +224,20 @@ SCP::processCurrentState(uint64 slotIndex,
     if (slot)
     {
         slot->processCurrentState(f);
+    }
+}
+
+void
+SCP::processSlotsAscendingFrom(uint64 startingSlot,
+                               std::function<bool(uint64)> const& f)
+{
+    for (auto iter = mKnownSlots.lower_bound(startingSlot);
+         iter != mKnownSlots.end(); ++iter)
+    {
+        if (!f(iter->first))
+        {
+            break;
+        }
     }
 }
 

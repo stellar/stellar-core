@@ -100,15 +100,15 @@ class SCP
 
     // check if we are holding some slots
     bool empty() const;
-    // return lowest slot index value
-    uint64 getLowSlotIndex() const;
-    // return highest slot index value
-    uint64 getHighSlotIndex() const;
 
     // invokes f for all latest messages
     // f returns false to stop processing, true otherwise
     void processCurrentState(uint64 slotIndex,
                              std::function<bool(SCPEnvelope const&)> const& f);
+
+    // iterates through slots, starting from ledgerSeq
+    void processSlotsAscendingFrom(uint64 startIndex,
+                                   std::function<bool(uint64)> const& f);
 
     // returns the latest message from a node
     // or nullptr if not found

@@ -515,23 +515,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
-    if (getSCP().empty())
-    {
-        return;
-    }
-
-    if (getSCP().getLowSlotIndex() > std::numeric_limits<uint32_t>::max() ||
-        getSCP().getHighSlotIndex() >= std::numeric_limits<uint32_t>::max())
-    {
-        return;
-    }
-
-    auto minSeq =
-        std::max(ledgerSeq, static_cast<uint32_t>(getSCP().getLowSlotIndex()));
-    auto maxSeq = static_cast<uint32_t>(getSCP().getHighSlotIndex());
-
-    for (uint32_t seq = minSeq; seq <= maxSeq; seq++)
-    {
+    getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
         getSCP().processCurrentState(seq, [&](SCPEnvelope const& e) {
             StellarMessage m;
             m.type(SCP_MESSAGE);
@@ -539,7 +523,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
             peer->sendMessage(m);
             return true;
         });
-    }
+        return true;
+    });
 }
 
 void
