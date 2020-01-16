@@ -1776,21 +1776,23 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
     }
 }
 
-std::vector<SCPEnvelope>
-BallotProtocol::getCurrentState() const
+bool
+BallotProtocol::processCurrentState(
+    std::function<bool(SCPEnvelope const&)> const& f) const
 {
-    std::vector<SCPEnvelope> res;
-    res.reserve(mLatestEnvelopes.size());
     for (auto const& n : mLatestEnvelopes)
     {
         // only return messages for self if the slot is fully validated
         if (!(n.first == mSlot.getSCP().getLocalNodeID()) ||
             mSlot.isFullyValidated())
         {
-            res.emplace_back(n.second);
+            if (!f(n.second))
+            {
+                return false;
+            }
         }
     }
-    return res;
+    return true;
 }
 
 SCPEnvelope const*
