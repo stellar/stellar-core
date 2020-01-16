@@ -559,13 +559,13 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     while (true)
     {
-        SCPEnvelope env;
-        if (mPendingEnvelopes.pop(slotIndex, env))
+        SCPEnvelopeWrapperPtr env = mPendingEnvelopes.pop(slotIndex);
+        if (env)
         {
             auto r = getSCP().receiveEnvelope(env);
             if (r == SCP::EnvelopeState::VALID)
             {
-                mPendingEnvelopes.envelopeProcessed(env);
+                mPendingEnvelopes.envelopeProcessed(env->getEnvelope());
             }
         }
         else
@@ -1240,7 +1240,8 @@ HerderImpl::restoreSCPState()
             }
             for (auto const& e : latestEnvs)
             {
-                getSCP().setStateFromEnvelope(e.statement.slotIndex, e);
+                auto envW = getHerderSCPDriver().wrapEnvelope(e);
+                getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
                 mLastSlotSaved =
                     std::max<uint64>(mLastSlotSaved, e.statement.slotIndex);
             }

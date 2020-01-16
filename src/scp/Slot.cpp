@@ -41,7 +41,7 @@ Slot::getLatestMessagesSend() const
     std::vector<SCPEnvelope> res;
     if (mFullyValidated)
     {
-        SCPEnvelope* e;
+        SCPEnvelope const* e;
         e = mNominationProtocol.getLastMessageSend();
         if (e)
         {
@@ -57,18 +57,19 @@ Slot::getLatestMessagesSend() const
 }
 
 void
-Slot::setStateFromEnvelope(SCPEnvelope const& e)
+Slot::setStateFromEnvelope(SCPEnvelopeWrapperPtr env)
 {
+    auto& e = env->getEnvelope();
     if (e.statement.nodeID == getSCP().getLocalNodeID() &&
         e.statement.slotIndex == mSlotIndex)
     {
         if (e.statement.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
         {
-            mNominationProtocol.setStateFromEnvelope(e);
+            mNominationProtocol.setStateFromEnvelope(env);
         }
         else
         {
-            mBallotProtocol.setStateFromEnvelope(e);
+            mBallotProtocol.setStateFromEnvelope(env);
         }
     }
     else
@@ -117,21 +118,21 @@ Slot::recordStatement(SCPStatement const& st)
 }
 
 SCP::EnvelopeState
-Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
+Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 {
-    dbgAssert(envelope.statement.slotIndex == mSlotIndex);
+    dbgAssert(envelope->getStatement().slotIndex == mSlotIndex);
 
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "Slot::processEnvelope"
                            << " i: " << getSlotIndex() << " "
-                           << mSCP.envToStr(envelope);
+                           << mSCP.envToStr(envelope->getEnvelope());
 
     SCP::EnvelopeState res;
 
     try
     {
 
-        if (envelope.statement.pledges.type() ==
+        if (envelope->getStatement().pledges.type() ==
             SCPStatementType::SCP_ST_NOMINATE)
         {
             res = mNominationProtocol.processEnvelope(envelope);
@@ -146,8 +147,8 @@ Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
         CLOG(FATAL, "SCP") << "SCP context:";
         CLOG(FATAL, "SCP") << getJsonInfo().toStyledString();
         CLOG(FATAL, "SCP") << "Exception processing SCP messages at "
-                           << mSlotIndex
-                           << ", envelope: " << mSCP.envToStr(envelope);
+                           << mSlotIndex << ", envelope: "
+                           << mSCP.envToStr(envelope->getEnvelope());
         CLOG(FATAL, "SCP") << REPORT_INTERNAL_BUG;
 
         throw;
@@ -340,7 +341,7 @@ Slot::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
 
 bool
 Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                      std::map<NodeID, SCPEnvelope> const& envs)
+                      std::map<NodeID, SCPEnvelopeWrapperPtr> const& envs)
 {
     // Checks if the nodes that claimed to accept the statement form a
     // v-blocking set
@@ -370,7 +371,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 
 bool
 Slot::federatedRatify(StatementPredicate voted,
-                      std::map<NodeID, SCPEnvelope> const& envs)
+                      std::map<NodeID, SCPEnvelopeWrapperPtr> const& envs)
 {
     return LocalNode::isQuorum(
         getLocalNode()->getQuorumSet(), envs,

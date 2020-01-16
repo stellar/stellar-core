@@ -316,8 +316,8 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     msg.envelope() = envelope;
     mApp.getOverlayManager().broadcastMessage(msg);
 
-    mEnvelopes[envelope.statement.slotIndex].mReadyEnvelopes.push_back(
-        envelope);
+    auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);
+    mEnvelopes[envelope.statement.slotIndex].mReadyEnvelopes.push_back(envW);
 }
 
 bool
@@ -392,8 +392,8 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
     }
 }
 
-bool
-PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
+SCPEnvelopeWrapperPtr
+PendingEnvelopes::pop(uint64 slotIndex)
 {
     auto it = mEnvelopes.begin();
     while (it != mEnvelopes.end() && slotIndex >= it->first)
@@ -401,14 +401,14 @@ PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
         auto& v = it->second.mReadyEnvelopes;
         if (v.size() != 0)
         {
-            ret = v.back();
+            auto ret = v.back();
             v.pop_back();
 
-            return true;
+            return ret;
         }
         it++;
     }
-    return false;
+    return nullptr;
 }
 
 vector<uint64>
@@ -528,7 +528,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["pending"];
                 for (auto const& e : it->second.mReadyEnvelopes)
                 {
-                    slot.append(scp.envToStr(e));
+                    slot.append(scp.envToStr(e->getEnvelope()));
                 }
             }
             it++;

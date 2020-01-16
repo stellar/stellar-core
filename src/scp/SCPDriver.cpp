@@ -15,6 +15,21 @@
 namespace stellar
 {
 
+SCPEnvelopeWrapper::SCPEnvelopeWrapper(SCPEnvelope const& e) : mEnvelope(e)
+{
+}
+
+SCPEnvelopeWrapper::~SCPEnvelopeWrapper()
+{
+}
+
+SCPEnvelopeWrapperPtr
+SCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
+{
+    auto res = std::make_shared<SCPEnvelopeWrapper>(envelope);
+    return res;
+}
+
 std::string
 SCPDriver::getValueString(Value const& v) const
 {

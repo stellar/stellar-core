@@ -49,7 +49,7 @@ class SCP
     // this is the main entry point of the SCP library
     // it processes the envelope, updates the internal state and
     // invokes the appropriate methods
-    EnvelopeState receiveEnvelope(SCPEnvelope const& envelope);
+    EnvelopeState receiveEnvelope(SCPEnvelopeWrapperPtr envelope);
 
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
@@ -96,7 +96,7 @@ class SCP
 
     // forces the state to match the one in the envelope
     // this is used when rebuilding the state after a crash for example
-    void setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e);
+    void setStateFromEnvelope(uint64 slotIndex, SCPEnvelopeWrapperPtr e);
 
     // check if we are holding some slots
     bool empty() const;

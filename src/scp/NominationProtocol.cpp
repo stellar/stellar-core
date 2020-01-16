@@ -39,7 +39,8 @@ NominationProtocol::isNewerStatement(NodeID const& nodeID,
     }
     else
     {
-        res = isNewerStatement(oldp->second.statement.pledges.nominate(), st);
+        res = isNewerStatement(oldp->second->getStatement().pledges.nominate(),
+                               st);
     }
     return res;
 }
@@ -125,9 +126,9 @@ NominationProtocol::isSane(SCPStatement const& st)
 // only called after a call to isNewerStatement so safe to replace the
 // mLatestNomination
 void
-NominationProtocol::recordEnvelope(SCPEnvelope const& env)
+NominationProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
 {
-    auto const& st = env.statement;
+    auto const& st = env->getStatement();
     auto oldp = mLatestNominations.find(st.nodeID);
     if (oldp == mLatestNominations.end())
     {
@@ -137,7 +138,7 @@ NominationProtocol::recordEnvelope(SCPEnvelope const& env)
     {
         oldp->second = env;
     }
-    mSlot.recordStatement(env.statement);
+    mSlot.recordStatement(env->getStatement());
 }
 
 void
@@ -161,13 +162,15 @@ NominationProtocol::emitNomination()
 
     SCPEnvelope envelope = mSlot.createEnvelope(st);
 
-    if (mSlot.processEnvelope(envelope, true) == SCP::EnvelopeState::VALID)
+    auto envW = mSlot.getSCPDriver().wrapEnvelope(envelope);
+
+    if (mSlot.processEnvelope(envW, true) == SCP::EnvelopeState::VALID)
     {
         if (!mLastEnvelope ||
-            isNewerStatement(mLastEnvelope->statement.pledges.nominate(),
+            isNewerStatement(mLastEnvelope->getStatement().pledges.nominate(),
                              st.pledges.nominate()))
         {
-            mLastEnvelope = std::make_unique<SCPEnvelope>(envelope);
+            mLastEnvelope = envW;
             if (mSlot.isFullyValidated())
             {
                 mSlot.getSCPDriver().emitEnvelope(envelope);
@@ -331,9 +334,9 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
 }
 
 SCP::EnvelopeState
-NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
+NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
 {
-    auto const& st = envelope.statement;
+    auto const& st = envelope->getStatement();
     auto const& nom = st.pledges.nominate();
 
     SCP::EnvelopeState res = SCP::EnvelopeState::INVALID;
@@ -507,7 +510,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
         if (it != mLatestNominations.end())
         {
             nominatingValue = getNewValueFromNomination(
-                it->second.statement.pledges.nominate());
+                it->second->getStatement().pledges.nominate());
             if (!nominatingValue.empty())
             {
                 mVotes.insert(nominatingValue);
@@ -584,7 +587,7 @@ NominationProtocol::getJsonInfo()
 }
 
 void
-NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
+NominationProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
 {
     if (mNominationStarted)
     {
@@ -592,7 +595,7 @@ NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
             "Cannot set state after nomination is started");
     }
     recordEnvelope(e);
-    auto const& nom = e.statement.pledges.nominate();
+    auto const& nom = e->getStatement().pledges.nominate();
     for (auto const& a : nom.accepted)
     {
         mAccepted.emplace(a);
@@ -602,7 +605,7 @@ NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
         mVotes.emplace(v);
     }
 
-    mLastEnvelope = std::make_unique<SCPEnvelope>(e);
+    mLastEnvelope = e;
 }
 
 bool
@@ -615,7 +618,7 @@ NominationProtocol::processCurrentState(
         if (forceSelf || !(n.first == mSlot.getSCP().getLocalNodeID()) ||
             mSlot.isFullyValidated())
         {
-            if (!f(n.second))
+            if (!f(n.second->getEnvelope()))
             {
                 return false;
             }
@@ -630,7 +633,7 @@ NominationProtocol::getLatestMessage(NodeID const& id) const
     auto it = mLatestNominations.find(id);
     if (it != mLatestNominations.end())
     {
-        return &it->second;
+        return &it->second->getEnvelope();
     }
     return nullptr;
 }

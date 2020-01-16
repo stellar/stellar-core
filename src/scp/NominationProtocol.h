@@ -20,13 +20,12 @@ class NominationProtocol
     Slot& mSlot;
 
     int32 mRoundNumber;
-    std::set<Value> mVotes;                           // X
-    std::set<Value> mAccepted;                        // Y
-    std::set<Value> mCandidates;                      // Z
-    std::map<NodeID, SCPEnvelope> mLatestNominations; // N
+    std::set<Value> mVotes;                                     // X
+    std::set<Value> mAccepted;                                  // Y
+    std::set<Value> mCandidates;                                // Z
+    std::map<NodeID, SCPEnvelopeWrapperPtr> mLatestNominations; // N
 
-    std::unique_ptr<SCPEnvelope>
-        mLastEnvelope; // last envelope emitted by this node
+    SCPEnvelopeWrapperPtr mLastEnvelope; // last envelope emitted by this node
 
     // nodes from quorum set that have the highest priority this round
     std::set<NodeID> mRoundLeaders;
@@ -55,7 +54,7 @@ class NominationProtocol
 
     bool isSane(SCPStatement const& st);
 
-    void recordEnvelope(SCPEnvelope const& env);
+    void recordEnvelope(SCPEnvelopeWrapperPtr env);
 
     void emitNomination();
 
@@ -86,7 +85,7 @@ class NominationProtocol
   public:
     NominationProtocol(Slot& slot);
 
-    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
+    SCP::EnvelopeState processEnvelope(SCPEnvelopeWrapperPtr envelope);
 
     static std::vector<Value> getStatementValues(SCPStatement const& st);
 
@@ -108,13 +107,13 @@ class NominationProtocol
 
     Json::Value getJsonInfo();
 
-    SCPEnvelope*
+    SCPEnvelope const*
     getLastMessageSend() const
     {
-        return mLastEnvelope.get();
+        return mLastEnvelope ? &mLastEnvelope->getEnvelope() : nullptr;
     }
 
-    void setStateFromEnvelope(SCPEnvelope const& e);
+    void setStateFromEnvelope(SCPEnvelopeWrapperPtr e);
 
     bool processCurrentState(std::function<bool(SCPEnvelope const&)> const& f,
                              bool forceSelf) const;

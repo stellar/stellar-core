@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/NonCopyable.h"
 #include <chrono>
 #include <functional>
 #include <map>
@@ -16,6 +17,28 @@ namespace stellar
 {
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
 
+class SCPEnvelopeWrapper : public NonMovableOrCopyable
+{
+    SCPEnvelope const mEnvelope;
+
+  public:
+    explicit SCPEnvelopeWrapper(SCPEnvelope const& e);
+    virtual ~SCPEnvelopeWrapper();
+
+    SCPEnvelope const&
+    getEnvelope() const
+    {
+        return mEnvelope;
+    }
+    SCPStatement const&
+    getStatement() const
+    {
+        return mEnvelope.statement;
+    }
+};
+
+typedef std::shared_ptr<SCPEnvelopeWrapper> SCPEnvelopeWrapperPtr;
+
 class SCPDriver
 {
   public:
@@ -25,6 +48,9 @@ class SCPDriver
 
     // Envelope signature
     virtual void signEnvelope(SCPEnvelope& envelope) = 0;
+
+    // SCPEnvelopeWrapper factory
+    virtual SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope);
 
     // Retrieves a quorum set from its hash
     //

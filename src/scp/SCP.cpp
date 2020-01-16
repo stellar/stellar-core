@@ -27,9 +27,9 @@ SCP::SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
 }
 
 SCP::EnvelopeState
-SCP::receiveEnvelope(SCPEnvelope const& envelope)
+SCP::receiveEnvelope(SCPEnvelopeWrapperPtr envelope)
 {
-    uint64 slotIndex = envelope.statement.slotIndex;
+    uint64 slotIndex = envelope->getStatement().slotIndex;
     return getSlot(slotIndex, true)->processEnvelope(envelope, false);
 }
 
@@ -204,7 +204,7 @@ SCP::getLatestMessagesSend(uint64 slotIndex)
 }
 
 void
-SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e)
+SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelopeWrapperPtr e)
 {
     auto slot = getSlot(slotIndex, true);
     slot->setStateFromEnvelope(e);

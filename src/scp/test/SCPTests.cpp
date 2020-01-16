@@ -237,7 +237,8 @@ class TestSCP : public SCPDriver
     void
     receiveEnvelope(SCPEnvelope const& envelope)
     {
-        mSCP.receiveEnvelope(envelope);
+        auto envW = mSCP.getDriver().wrapEnvelope(envelope);
+        mSCP.receiveEnvelope(envW);
     }
 
     Slot&
@@ -2287,17 +2288,20 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         SECTION("prepare")
         {
             scp2.mSCP.setStateFromEnvelope(
-                0, makePrepare(v0SecretKey, qSetHash0, 0, b));
+                0,
+                scp2.wrapEnvelope(makePrepare(v0SecretKey, qSetHash0, 0, b)));
         }
         SECTION("confirm")
         {
             scp2.mSCP.setStateFromEnvelope(
-                0, makeConfirm(v0SecretKey, qSetHash0, 0, 2, b, 1, 2));
+                0, scp2.wrapEnvelope(
+                       makeConfirm(v0SecretKey, qSetHash0, 0, 2, b, 1, 2)));
         }
         SECTION("externalize")
         {
             scp2.mSCP.setStateFromEnvelope(
-                0, makeExternalize(v0SecretKey, qSetHash0, 0, b, 2));
+                0, scp2.wrapEnvelope(
+                       makeExternalize(v0SecretKey, qSetHash0, 0, b, 2)));
         }
     }
 }
@@ -2596,8 +2600,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     auto nominationRestore = [&]() {
                         // restores from the previous state
                         scp2.mSCP.setStateFromEnvelope(
-                            0, makeNominate(v0SecretKey, qSetHash0, 0, votes,
-                                            accepted));
+                            0,
+                            scp2.wrapEnvelope(makeNominate(
+                                v0SecretKey, qSetHash0, 0, votes, accepted)));
                         // tries to start nomination with yValue
                         REQUIRE(scp2.nominate(0, yValue, false));
 
@@ -2642,8 +2647,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     SECTION("ballot protocol started (on value k)")
                     {
                         scp2.mSCP.setStateFromEnvelope(
-                            0, makePrepare(v0SecretKey, qSetHash0, 0,
-                                           SCPBallot(1, kValue)));
+                            0, scp2.wrapEnvelope(
+                                   makePrepare(v0SecretKey, qSetHash0, 0,
+                                               SCPBallot(1, kValue))));
                         nominationRestore();
                         // nomination didn't do anything (already working on k)
                         REQUIRE(scp2.mEnvs.size() == 1);

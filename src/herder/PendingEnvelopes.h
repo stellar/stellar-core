@@ -34,7 +34,7 @@ struct SlotEnvelopes
         mFetchingEnvelopes;
 
     // list of ready envelopes that haven't been sent to SCP yet
-    std::vector<SCPEnvelope> mReadyEnvelopes;
+    std::vector<SCPEnvelopeWrapperPtr> mReadyEnvelopes;
 };
 
 class PendingEnvelopes
@@ -128,7 +128,7 @@ class PendingEnvelopes
     void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
-    bool pop(uint64 slotIndex, SCPEnvelope& ret);
+    SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 
     void eraseBelow(uint64 slotIndex);
 

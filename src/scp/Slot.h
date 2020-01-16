@@ -85,7 +85,7 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // forces the state to match the one in the envelope
     // this is used when rebuilding the state after a crash for example
-    void setStateFromEnvelope(SCPEnvelope const& e);
+    void setStateFromEnvelope(SCPEnvelopeWrapperPtr e);
 
     // calls f for all latest messages
     void processCurrentState(std::function<bool(SCPEnvelope const&)> const& f,
@@ -105,7 +105,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     // the slot accordingly.
     // self: set to true when node wants to record its own messages (potentially
     // triggering more transitions)
-    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope, bool self);
+    SCP::EnvelopeState processEnvelope(SCPEnvelopeWrapperPtr envelope,
+                                       bool self);
 
     bool abandonBallot();
 
@@ -165,11 +166,11 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns true if the statement defined by voted and accepted
     // should be accepted
     bool federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                         std::map<NodeID, SCPEnvelope> const& envs);
+                         std::map<NodeID, SCPEnvelopeWrapperPtr> const& envs);
     // returns true if the statement defined by voted
     // is ratified
     bool federatedRatify(StatementPredicate voted,
-                         std::map<NodeID, SCPEnvelope> const& envs);
+                         std::map<NodeID, SCPEnvelopeWrapperPtr> const& envs);
 
     std::shared_ptr<LocalNode> getLocalNode();
 
