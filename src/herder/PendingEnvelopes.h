@@ -87,8 +87,6 @@ class PendingEnvelopes
     // extending the lifetime of the result
     SCPQuorumSetPtr getKnownQSet(Hash const& hash, bool touch);
 
-    // NB: caller should use the return value to avoid duplicate tx sets
-    TxSetFramePtr putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset);
     // tries to find a txset in memory, setting touch also touches the LRU,
     // extending the lifetime of the result
     TxSetFramePtr getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
@@ -131,6 +129,13 @@ class PendingEnvelopes
      */
     void addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                   TxSetFramePtr txset);
+
+    /**
+        Adds @p txset to the cache and returns the txset referenced by the cache
+        NB: if caller wants to continue using txset after the call, it should
+       use the returned value instead
+    */
+    TxSetFramePtr putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset);
 
     /**
      * Check if @p txset identified by @p hash was requested before from peers.

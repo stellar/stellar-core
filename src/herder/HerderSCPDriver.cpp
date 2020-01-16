@@ -729,6 +729,10 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         CLOG(WARNING, "Herder") << "Candidate set had " << removed.size()
                                 << " invalid transactions";
 
+        // learn the updated tx set
+        bestTxSet = mPendingEnvelopes.putTxSet(bestTxSet->getContentsHash(),
+                                               slotIndex, bestTxSet);
+
         // post to avoid triggering SCP handling code recursively
         mApp.postOnMainThreadWithDelay(
             [this, bestTxSet]() {
