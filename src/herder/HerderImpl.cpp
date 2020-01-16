@@ -214,7 +214,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
     if (slotIndex > maxSlotsToRemember)
     {
-        getSCP().purgeSlots(slotIndex - maxSlotsToRemember);
+        auto maxSlot = slotIndex - maxSlotsToRemember;
+        getSCP().purgeSlots(maxSlot);
+        mPendingEnvelopes.eraseBelow(maxSlot);
     }
 
     ledgerClosed();
@@ -553,15 +555,6 @@ HerderImpl::processSCPQueue()
 {
     if (mHerderSCPDriver.trackingSCP())
     {
-        // drop obsolete slots
-        auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-        if (mHerderSCPDriver.nextConsensusLedgerIndex() > maxSlotsToRemember)
-        {
-            mPendingEnvelopes.eraseBelow(
-                mHerderSCPDriver.nextConsensusLedgerIndex() -
-                maxSlotsToRemember);
-        }
-
         processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
     }
     else

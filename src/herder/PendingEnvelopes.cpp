@@ -83,7 +83,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
-    if (lastSeenSlotIndex <= 0)
+    if (lastSeenSlotIndex == 0)
     {
         return false;
     }
