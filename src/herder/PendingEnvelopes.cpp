@@ -67,18 +67,34 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 }
 
 SCPQuorumSetPtr
+PendingEnvelopes::getKnownQSet(Hash const& hash, bool touch)
+{
+    SCPQuorumSetPtr res;
+    auto it = mKnownQSets.find(hash);
+    if (it != mKnownQSets.end())
+    {
+        res = it->second.lock();
+    }
+
+    // refresh the cache for this key
+    if (res && touch)
+    {
+        mQsetCache.put(hash, res);
+    }
+    return res;
+}
+
+SCPQuorumSetPtr
 PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
 {
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(qSetHash);
     SCPQuorumSetPtr res;
     assert(isQuorumSetSane(qSet, false));
-    if (mQsetCache.exists(qSetHash))
-    {
-        res = mQsetCache.get(qSetHash);
-    }
-    else
+    res = getKnownQSet(qSetHash, true);
+    if (!res)
     {
         res = std::make_shared<SCPQuorumSet>(qSet);
+        mKnownQSets[qSetHash] = res;
         mQsetCache.put(qSetHash, res);
     }
     return res;
@@ -306,6 +322,23 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
 }
 
 void
+PendingEnvelopes::cleanKnownData()
+{
+    auto it = mKnownQSets.begin();
+    while (it != mKnownQSets.end())
+    {
+        if (it->second.expired())
+        {
+            it = mKnownQSets.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
     CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
@@ -323,9 +356,12 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(
-            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
+    if (!getKnownQSet(
+            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement),
+            false))
+    {
         return false;
+    }
 
     auto txSetHashes = getTxSetHashes(envelope);
     return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
@@ -339,7 +375,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
 
-    if (!mQsetCache.exists(h))
+    if (!getKnownQSet(h, false))
     {
         mQuorumSetFetcher.fetch(h, envelope);
     }
@@ -376,11 +412,7 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 {
     auto qsetHash =
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
-    if (mQsetCache.exists(qsetHash))
-    {
-        // touch LRU
-        mQsetCache.get(qsetHash);
-    }
+    getKnownQSet(qsetHash, true);
 
     for (auto const& h : getTxSetHashes(envelope))
     {
@@ -464,6 +496,8 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
         mTxSetCache.erase_if(
             [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
     }
+
+    cleanKnownData();
 }
 
 TxSetFramePtr
@@ -480,11 +514,12 @@ PendingEnvelopes::getTxSet(Hash const& hash)
 SCPQuorumSetPtr
 PendingEnvelopes::getQSet(Hash const& hash)
 {
-    if (mQsetCache.exists(hash))
+    auto qset = getKnownQSet(hash, false);
+    if (qset)
     {
-        return mQsetCache.get(hash);
+        return qset;
     }
-    SCPQuorumSetPtr qset;
+    // if it was not known, see if we can find it somewhere else
     auto& scp = mHerder.getSCP();
     if (hash == scp.getLocalNode()->getQuorumSetHash())
     {

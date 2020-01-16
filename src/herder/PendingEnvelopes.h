@@ -45,8 +45,10 @@ class PendingEnvelopes
     // ledger# and list of envelopes in various states
     std::map<uint64, SlotEnvelopes> mEnvelopes;
 
-    // all the quorum sets we have learned about
+    // recent quorum sets
     cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
+    // weak references to all known qsets
+    std::unordered_map<Hash, std::weak_ptr<SCPQuorumSet>> mKnownQSets;
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
@@ -70,7 +72,6 @@ class PendingEnvelopes
 
     void updateMetrics();
 
-    SCPQuorumSetPtr putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet);
     void envelopeReady(SCPEnvelope const& envelope);
     void discardSCPEnvelope(SCPEnvelope const& envelope);
     bool isFullyFetched(SCPEnvelope const& envelope);
@@ -78,6 +79,13 @@ class PendingEnvelopes
     void stopFetch(SCPEnvelope const& envelope);
     void touchFetchCache(SCPEnvelope const& envelope);
     bool isDiscarded(SCPEnvelope const& envelope) const;
+
+    SCPQuorumSetPtr putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet);
+    // tries to find a qset in memory, setting touch also touches the LRU,
+    // extending the lifetime of the result
+    SCPQuorumSetPtr getKnownQSet(Hash const& hash, bool touch);
+
+    void cleanKnownData();
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
