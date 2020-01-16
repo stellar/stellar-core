@@ -322,7 +322,13 @@ BallotProtocol::abandonBallot(uint32 n)
 {
     CLOG(TRACE, "SCP") << "BallotProtocol::abandonBallot";
     bool res = false;
-    Value v = mSlot.getLatestCompositeCandidate();
+    auto vw = mSlot.getLatestCompositeCandidate();
+    Value v;
+
+    if (vw)
+    {
+        v = vw->getValue();
+    }
     if (v.empty())
     {
         if (mCurrentBallot)

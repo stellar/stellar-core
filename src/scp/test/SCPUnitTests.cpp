@@ -96,11 +96,11 @@ class TestNominationSCP : public SCPDriver
     {
     }
 
-    Value
+    ValueWrapperPtr
     combineCandidates(uint64 slotIndex,
-                      std::set<Value> const& candidates) override
+                      ValueWrapperPtrSet const& candidates) override
     {
-        return {};
+        return nullptr;
     }
 
     void

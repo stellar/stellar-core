@@ -53,7 +53,7 @@ class SCP
 
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
-    bool nominate(uint64 slotIndex, Value const& value,
+    bool nominate(uint64 slotIndex, ValueWrapperPtr value,
                   Value const& previousValue);
 
     // stops nomination for a slot

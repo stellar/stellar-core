@@ -34,7 +34,8 @@ SCP::receiveEnvelope(SCPEnvelopeWrapperPtr envelope)
 }
 
 bool
-SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
+SCP::nominate(uint64 slotIndex, ValueWrapperPtr value,
+              Value const& previousValue)
 {
     dbgAssert(isValidator());
     return getSlot(slotIndex, true)->nominate(value, previousValue, false);

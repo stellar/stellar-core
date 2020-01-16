@@ -29,7 +29,7 @@ Slot::Slot(uint64 slotIndex, SCP& scp)
 {
 }
 
-Value const&
+ValueWrapperPtr const&
 Slot::getLatestCompositeCandidate()
 {
     return mNominationProtocol.getLatestCompositeCandidate();
@@ -170,7 +170,7 @@ Slot::bumpState(Value const& value, bool force)
 }
 
 bool
-Slot::nominate(Value const& value, Value const& previousValue, bool timedout)
+Slot::nominate(ValueWrapperPtr value, Value const& previousValue, bool timedout)
 {
     return mNominationProtocol.nominate(value, previousValue, timedout);
 }

@@ -126,18 +126,27 @@ class TestSCP : public SCPDriver
     bool
     nominate(uint64 slotIndex, Value const& value, bool timedout)
     {
-        return mSCP.getSlot(slotIndex, true)->nominate(value, value, timedout);
+        auto wv = wrapValue(value);
+        return mSCP.getSlot(slotIndex, true)->nominate(wv, value, timedout);
     }
 
     // only used by nomination protocol
-    Value
+    ValueWrapperPtr
     combineCandidates(uint64 slotIndex,
-                      std::set<Value> const& candidates) override
+                      ValueWrapperPtrSet const& candidates) override
     {
-        REQUIRE(candidates == mExpectedCandidates);
+        REQUIRE(candidates.size() == mExpectedCandidates.size());
+        auto it1 = candidates.begin();
+        auto it2 = mExpectedCandidates.end();
+        for (; it1 != candidates.end() && it2 != mExpectedCandidates.end();
+             it1++, it2++)
+        {
+            REQUIRE((*it1)->getValue() == *it2);
+        }
+
         REQUIRE(!mCompositeValue.empty());
 
-        return mCompositeValue;
+        return wrapValue(mCompositeValue);
     }
 
     std::set<Value> mExpectedCandidates;
@@ -231,7 +240,9 @@ class TestSCP : public SCPDriver
     Value const&
     getLatestCompositeCandidate(uint64 slotIndex)
     {
-        return mSCP.getSlot(slotIndex, true)->getLatestCompositeCandidate();
+        return mSCP.getSlot(slotIndex, true)
+            ->getLatestCompositeCandidate()
+            ->getValue();
     }
 
     void

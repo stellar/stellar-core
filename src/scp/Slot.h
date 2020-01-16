@@ -78,7 +78,7 @@ class Slot : public std::enable_shared_from_this<Slot>
         return mBallotProtocol;
     }
 
-    Value const& getLatestCompositeCandidate();
+    ValueWrapperPtr const& getLatestCompositeCandidate();
 
     // returns the latest messages the slot emitted
     std::vector<SCPEnvelope> getLatestMessagesSend() const;
@@ -118,7 +118,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     bool bumpState(Value const& value, bool force);
 
     // attempts to nominate a value for consensus
-    bool nominate(Value const& value, Value const& previousValue,
+    bool nominate(ValueWrapperPtr value, Value const& previousValue,
                   bool timedout);
 
     void stopNomination();
