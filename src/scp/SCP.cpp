@@ -218,12 +218,13 @@ SCP::empty() const
 
 void
 SCP::processCurrentState(uint64 slotIndex,
-                         std::function<bool(SCPEnvelope const&)> const& f)
+                         std::function<bool(SCPEnvelope const&)> const& f,
+                         bool forceSelf)
 {
     auto slot = getSlot(slotIndex, false);
     if (slot)
     {
-        slot->processCurrentState(f);
+        slot->processCurrentState(f, forceSelf);
     }
 }
 
