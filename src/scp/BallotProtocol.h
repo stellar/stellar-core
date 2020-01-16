@@ -118,6 +118,9 @@ class BallotProtocol
 
     std::vector<SCPEnvelope> getExternalizingState() const;
 
+    // returns all values referenced by a statement
+    static std::set<Value> getStatementValues(SCPStatement const& st);
+
   private:
     // attempts to make progress using the latest statement as a hint
     // calls into the various attempt* methods, emits message

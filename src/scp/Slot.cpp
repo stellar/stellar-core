@@ -247,7 +247,12 @@ Slot::getStatementValues(SCPStatement const& st)
     }
     else
     {
-        res.emplace_back(BallotProtocol::getWorkingBallot(st).value);
+        auto vals = BallotProtocol::getStatementValues(st);
+        res.reserve(vals.size());
+        for (auto const& v : vals)
+        {
+            res.emplace_back(v);
+        }
     }
     return res;
 }

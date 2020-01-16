@@ -1894,10 +1894,11 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
     }
 }
 
-SCPDriver::ValidationLevel
-BallotProtocol::validateValues(SCPStatement const& st)
+std::set<Value>
+BallotProtocol::getStatementValues(SCPStatement const& st)
 {
     std::set<Value> values;
+
     switch (st.pledges.type())
     {
     case SCPStatementType::SCP_ST_PREPARE:
@@ -1921,6 +1922,20 @@ BallotProtocol::validateValues(SCPStatement const& st)
         values.insert(st.pledges.externalize().commit.value);
         break;
     default:
+        abort();
+    }
+    return values;
+}
+
+SCPDriver::ValidationLevel
+BallotProtocol::validateValues(SCPStatement const& st)
+{
+    std::set<Value> values;
+
+    values = getStatementValues(st);
+
+    if (values.empty())
+    {
         // This shouldn't happen
         return SCPDriver::kInvalidValue;
     }
