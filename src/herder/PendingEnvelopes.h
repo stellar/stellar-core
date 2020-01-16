@@ -54,8 +54,10 @@ class PendingEnvelopes
     ItemFetcher mQuorumSetFetcher;
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
-    // all the txsets we have learned about per ledger#
+    // recent txsets
     cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
+    // weak references to all known txsets
+    std::unordered_map<Hash, std::weak_ptr<TxSetFrame>> mKnownTxSets;
 
     bool mRebuildQuorum;
     QuorumTracker mQuorumTracker;
@@ -84,6 +86,12 @@ class PendingEnvelopes
     // tries to find a qset in memory, setting touch also touches the LRU,
     // extending the lifetime of the result
     SCPQuorumSetPtr getKnownQSet(Hash const& hash, bool touch);
+
+    // NB: caller should use the return value to avoid duplicate tx sets
+    TxSetFramePtr putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset);
+    // tries to find a txset in memory, setting touch also touches the LRU,
+    // extending the lifetime of the result
+    TxSetFramePtr getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
 
     void cleanKnownData();
 

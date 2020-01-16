@@ -163,13 +163,58 @@ PendingEnvelopes::updateMetrics()
     mReadyCount.set_count(ready);
 }
 
+TxSetFramePtr
+PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset)
+{
+    auto res = getKnownTxSet(hash, slot, true);
+    if (!res)
+    {
+        res = txset;
+        mKnownTxSets[hash] = res;
+        mTxSetCache.put(hash, std::make_pair(slot, res));
+    }
+    return res;
+}
+
+// tries to find a txset in memory, setting touch also touches the LRU,
+// extending the lifetime of the result *and* updating the slot number
+// to a greater value if needed
+TxSetFramePtr
+PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
+{
+    // slot is only used when `touch` is set
+    assert(touch || (slot == 0));
+    TxSetFramePtr res;
+    auto it = mKnownTxSets.find(hash);
+    if (it != mKnownTxSets.end())
+    {
+        res = it->second.lock();
+    }
+
+    // refresh the cache for this key
+    if (res && touch)
+    {
+        bool update = true;
+        if (mTxSetCache.exists(hash))
+        {
+            auto& v = mTxSetCache.get(hash);
+            update = (slot > v.first);
+        }
+        if (update)
+        {
+            mTxSetCache.put(hash, std::make_pair(slot, res));
+        }
+    }
+    return res;
+}
+
 void
 PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                            TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
-    mTxSetCache.put(hash, std::make_pair(lastSeenSlotIndex, txset));
+    putTxSet(hash, lastSeenSlotIndex, txset);
     mTxSetFetcher.recv(hash);
 }
 
@@ -336,6 +381,18 @@ PendingEnvelopes::cleanKnownData()
             ++it;
         }
     }
+    auto it2 = mKnownTxSets.begin();
+    while (it2 != mKnownTxSets.end())
+    {
+        if (it2->second.expired())
+        {
+            it2 = mKnownTxSets.erase(it2);
+        }
+        else
+        {
+            ++it2;
+        }
+    }
 }
 
 void
@@ -365,8 +422,8 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 
     auto txSetHashes = getTxSetHashes(envelope);
     return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
-                       [this](Hash const& txSetHash) {
-                           return mTxSetCache.exists(txSetHash);
+                       [&](Hash const& txSetHash) {
+                           return getKnownTxSet(txSetHash, 0, false);
                        });
 }
 
@@ -382,7 +439,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 
     for (auto const& h2 : getTxSetHashes(envelope))
     {
-        if (!mTxSetCache.exists(h2))
+        if (!getKnownTxSet(h2, 0, false))
         {
             mTxSetFetcher.fetch(h2, envelope);
         }
@@ -416,11 +473,7 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 
     for (auto const& h : getTxSetHashes(envelope))
     {
-        if (mTxSetCache.exists(h))
-        {
-            auto& item = mTxSetCache.get(h);
-            item.first = std::max(item.first, envelope.statement.slotIndex);
-        }
+        getKnownTxSet(h, envelope.statement.slotIndex, true);
     }
 }
 
@@ -503,12 +556,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
 TxSetFramePtr
 PendingEnvelopes::getTxSet(Hash const& hash)
 {
-    if (mTxSetCache.exists(hash))
-    {
-        return mTxSetCache.get(hash).second;
-    }
-
-    return TxSetFramePtr();
+    return getKnownTxSet(hash, 0, false);
 }
 
 SCPQuorumSetPtr
