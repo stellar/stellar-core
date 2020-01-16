@@ -11,6 +11,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include <unordered_set>
 #include <xdrpp/marshal.h>
 
 using namespace std;
@@ -66,7 +67,7 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 }
 
 void
-PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
     assert(isQuorumSetSane(q, false));
@@ -78,7 +79,7 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 }
 
 bool
-PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
@@ -88,20 +89,20 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
         return false;
     }
 
-    if (isQuorumSetSane(q, false))
+    bool res = isQuorumSetSane(q, false);
+    if (res)
     {
         addSCPQuorumSet(hash, q);
-        return true;
     }
     else
     {
         discardSCPEnvelopesWithQSet(hash);
-        return false;
     }
+    return res;
 }
 
 void
-PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash hash)
+PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
 {
     CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with SCPQSet "
                           << hexAbbrev(hash);
@@ -136,7 +137,7 @@ PendingEnvelopes::updateMetrics()
 }
 
 void
-PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex,
+PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                            TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
@@ -146,7 +147,7 @@ PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex,
 }
 
 bool
-PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
+PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
@@ -198,20 +199,19 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 
         touchFetchCache(envelope);
 
-        auto& set = mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
-        auto& processedList =
-            mEnvelopes[envelope.statement.slotIndex].mProcessedEnvelopes;
+        auto& envs = mEnvelopes[envelope.statement.slotIndex];
+        auto& fetching = envs.mFetchingEnvelopes;
+        auto& processed = envs.mProcessedEnvelopes;
 
-        auto fetching = set.find(envelope);
+        auto fetchIt = fetching.find(envelope);
 
-        if (fetching == set.end())
+        if (fetchIt == fetching.end())
         { // we aren't fetching this envelope
-            if (find(processedList.begin(), processedList.end(), envelope) ==
-                processedList.end())
+            if (processed.find(envelope) == processed.end())
             { // we haven't seen this envelope before
                 // insert it into the fetching set
-                fetching =
-                    set.emplace(envelope, std::chrono::steady_clock::now())
+                fetchIt =
+                    fetching.emplace(envelope, std::chrono::steady_clock::now())
                         .first;
                 startFetch(envelope);
             }
@@ -226,10 +226,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         // check if we are done fetching it
         if (isFullyFetched(envelope))
         {
-            // move the item from fetching to processed
-            processedList.emplace_back(fetching->first);
             std::chrono::nanoseconds durationNano =
-                std::chrono::steady_clock::now() - fetching->second;
+                std::chrono::steady_clock::now() - fetchIt->second;
             mFetchDuration.Update(durationNano);
             CLOG(TRACE, "Perf")
                 << "Herder fetched for "
@@ -237,7 +235,10 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 << std::chrono::duration<double>(durationNano).count()
                 << " seconds";
 
-            set.erase(fetching);
+            // move the item from fetching to processed
+            processed.emplace(envelope);
+            fetching.erase(fetchIt);
+
             envelopeReady(envelope);
             updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
@@ -260,18 +261,16 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
 {
     try
     {
-        if (isDiscarded(envelope))
+        auto& envs = mEnvelopes[envelope.statement.slotIndex];
+        auto& discardedSet = envs.mDiscardedEnvelopes;
+        auto r = discardedSet.insert(envelope);
+
+        if (!r.second)
         {
             return;
         }
 
-        auto& discardedSet =
-            mEnvelopes[envelope.statement.slotIndex].mDiscardedEnvelopes;
-        discardedSet.insert(envelope);
-
-        auto& fetchingSet =
-            mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
-        fetchingSet.erase(envelope);
+        envs.mFetchingEnvelopes.erase(envelope);
 
         stopFetch(envelope);
         updateMetrics();
@@ -294,8 +293,7 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
     }
 
     auto& discardedSet = envelopes->second.mDiscardedEnvelopes;
-    auto discarded =
-        std::find(std::begin(discardedSet), std::end(discardedSet), envelope);
+    auto discarded = discardedSet.find(envelope);
     return discarded != discardedSet.end();
 }
 
@@ -507,6 +505,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
 
     updateMetrics();
 
+    auto& scp = mHerder.getSCP();
     {
         auto it = mEnvelopes.rbegin();
         size_t l = limit;
@@ -517,7 +516,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["fetching"];
                 for (auto const& kv : it->second.mFetchingEnvelopes)
                 {
-                    slot.append(mHerder.getSCP().envToStr(kv.first));
+                    slot.append(scp.envToStr(kv.first));
                 }
             }
             if (it->second.mReadyEnvelopes.size() != 0)
@@ -525,7 +524,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["pending"];
                 for (auto const& e : it->second.mReadyEnvelopes)
                 {
-                    slot.append(mHerder.getSCP().envToStr(e));
+                    slot.append(scp.envToStr(e));
                 }
             }
             it++;
