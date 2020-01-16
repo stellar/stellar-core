@@ -207,7 +207,7 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
             // note: this handles also our own messages
             // in particular our final EXTERNALIZE message
             if (mPhase == SCP_PHASE_EXTERNALIZE &&
-                mCommit->value == getWorkingBallot(statement).value)
+                mCommit->getBallot().value == getWorkingBallot(statement).value)
             {
                 recordEnvelope(envelope);
                 res = SCP::EnvelopeState::VALID;
@@ -322,29 +322,24 @@ BallotProtocol::abandonBallot(uint32 n)
 {
     CLOG(TRACE, "SCP") << "BallotProtocol::abandonBallot";
     bool res = false;
-    auto vw = mSlot.getLatestCompositeCandidate();
-    Value v;
+    auto v = mSlot.getLatestCompositeCandidate();
 
-    if (vw)
-    {
-        v = vw->getValue();
-    }
-    if (v.empty())
+    if (!v || v->getValue().empty())
     {
         if (mCurrentBallot)
         {
-            v = mCurrentBallot->value;
+            v = mCurrentBallot->getWValue();
         }
     }
-    if (!v.empty())
+    if (v && !v->getValue().empty())
     {
         if (n == 0)
         {
-            res = bumpState(v, true);
+            res = bumpState(v->getValue(), true);
         }
         else
         {
-            res = bumpState(v, n);
+            res = bumpState(v->getValue(), n);
         }
     }
     return res;
@@ -359,7 +354,7 @@ BallotProtocol::bumpState(Value const& value, bool force)
         return false;
     }
 
-    n = mCurrentBallot ? (mCurrentBallot->counter + 1) : 1;
+    n = mCurrentBallot ? (mCurrentBallot->getBallot().counter + 1) : 1;
 
     return bumpState(value, n);
 }
@@ -380,7 +375,7 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
     {
         // we use the value that we saw confirmed prepared
         // or that we at least voted to commit to
-        newb.value = *mValueOverride;
+        newb.value = mValueOverride->getValue();
     }
     else
     {
@@ -421,14 +416,14 @@ BallotProtocol::updateCurrentValue(SCPBallot const& ballot)
     }
     else
     {
-        dbgAssert(compareBallots(*mCurrentBallot, ballot) <= 0);
+        dbgAssert(compareBallots(mCurrentBallot->getBallot(), ballot) <= 0);
 
-        if (mCommit && !areBallotsCompatible(*mCommit, ballot))
+        if (mCommit && !areBallotsCompatible(mCommit->getBallot(), ballot))
         {
             return false;
         }
 
-        int comp = compareBallots(*mCurrentBallot, ballot);
+        int comp = compareBallots(mCurrentBallot->getBallot(), ballot);
         if (comp < 0)
         {
             bumpToBallot(ballot, true);
@@ -477,11 +472,11 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
     {
         // We should move mCurrentBallot monotonically only
         dbgAssert(!mCurrentBallot ||
-                  compareBallots(ballot, *mCurrentBallot) >= 0);
+                  compareBallots(ballot, mCurrentBallot->getBallot()) >= 0);
     }
 
-    bool gotBumped =
-        !mCurrentBallot || (mCurrentBallot->counter != ballot.counter);
+    bool gotBumped = !mCurrentBallot ||
+                     (mCurrentBallot->getBallot().counter != ballot.counter);
 
     if (!mCurrentBallot)
     {
@@ -489,10 +484,11 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
                                                    ballot);
     }
 
-    mCurrentBallot = std::make_unique<SCPBallot>(ballot);
+    mCurrentBallot = makeBallot(ballot);
 
     // invariant: h.value = b.value
-    if (mHighBallot && !areBallotsCompatible(*mCurrentBallot, *mHighBallot))
+    if (mHighBallot && !areBallotsCompatible(mCurrentBallot->getBallot(),
+                                             mHighBallot->getBallot()))
     {
         mHighBallot.reset();
     }
@@ -506,8 +502,8 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
 void
 BallotProtocol::startBallotProtocolTimer()
 {
-    std::chrono::milliseconds timeout =
-        mSlot.getSCPDriver().computeTimeout(mCurrentBallot->counter);
+    std::chrono::milliseconds timeout = mSlot.getSCPDriver().computeTimeout(
+        mCurrentBallot->getBallot().counter);
 
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(
@@ -546,23 +542,23 @@ BallotProtocol::createStatement(SCPStatementType const& type)
         p.quorumSetHash = getLocalNode()->getQuorumSetHash();
         if (mCurrentBallot)
         {
-            p.ballot = *mCurrentBallot;
+            p.ballot = mCurrentBallot->getBallot();
         }
         if (mCommit)
         {
-            p.nC = mCommit->counter;
+            p.nC = mCommit->getBallot().counter;
         }
         if (mPrepared)
         {
-            p.prepared.activate() = *mPrepared;
+            p.prepared.activate() = mPrepared->getBallot();
         }
         if (mPreparedPrime)
         {
-            p.preparedPrime.activate() = *mPreparedPrime;
+            p.preparedPrime.activate() = mPreparedPrime->getBallot();
         }
         if (mHighBallot)
         {
-            p.nH = mHighBallot->counter;
+            p.nH = mHighBallot->getBallot().counter;
         }
     }
     break;
@@ -570,17 +566,17 @@ BallotProtocol::createStatement(SCPStatementType const& type)
     {
         auto& c = statement.pledges.confirm();
         c.quorumSetHash = getLocalNode()->getQuorumSetHash();
-        c.ballot = *mCurrentBallot;
-        c.nPrepared = mPrepared->counter;
-        c.nCommit = mCommit->counter;
-        c.nH = mHighBallot->counter;
+        c.ballot = mCurrentBallot->getBallot();
+        c.nPrepared = mPrepared->getBallot().counter;
+        c.nCommit = mCommit->getBallot().counter;
+        c.nH = mHighBallot->getBallot().counter;
     }
     break;
     case SCPStatementType::SCP_ST_EXTERNALIZE:
     {
         auto& e = statement.pledges.externalize();
-        e.commit = *mCommit;
-        e.nH = mHighBallot->counter;
+        e.commit = mCommit->getBallot();
+        e.nH = mHighBallot->getBallot().counter;
         e.commitQuorumSetHash = getLocalNode()->getQuorumSetHash();
     }
     break;
@@ -651,22 +647,26 @@ BallotProtocol::checkInvariants()
 {
     if (mCurrentBallot)
     {
-        dbgAssert(mCurrentBallot->counter != 0);
+        dbgAssert(mCurrentBallot->getBallot().counter != 0);
     }
     if (mPrepared && mPreparedPrime)
     {
-        dbgAssert(areBallotsLessAndIncompatible(*mPreparedPrime, *mPrepared));
+        dbgAssert(areBallotsLessAndIncompatible(mPreparedPrime->getBallot(),
+                                                mPrepared->getBallot()));
     }
     if (mHighBallot)
     {
         dbgAssert(mCurrentBallot);
-        dbgAssert(areBallotsLessAndCompatible(*mHighBallot, *mCurrentBallot));
+        dbgAssert(areBallotsLessAndCompatible(mHighBallot->getBallot(),
+                                              mCurrentBallot->getBallot()));
     }
     if (mCommit)
     {
         dbgAssert(mCurrentBallot);
-        dbgAssert(areBallotsLessAndCompatible(*mCommit, *mHighBallot));
-        dbgAssert(areBallotsLessAndCompatible(*mHighBallot, *mCurrentBallot));
+        dbgAssert(areBallotsLessAndCompatible(mCommit->getBallot(),
+                                              mHighBallot->getBallot()));
+        dbgAssert(areBallotsLessAndCompatible(mHighBallot->getBallot(),
+                                              mCurrentBallot->getBallot()));
     }
 
     switch (mPhase)
@@ -793,7 +793,7 @@ bool
 BallotProtocol::updateCurrentIfNeeded(SCPBallot const& h)
 {
     bool didWork = false;
-    if (!mCurrentBallot || compareBallots(*mCurrentBallot, h) < 0)
+    if (!mCurrentBallot || compareBallots(mCurrentBallot->getBallot(), h) < 0)
     {
         bumpToBallot(h, true);
         didWork = true;
@@ -820,17 +820,18 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
         {
             // only consider the ballot if it may help us increase
             // p (note: at this point, p ~ c)
-            if (!areBallotsLessAndCompatible(*mPrepared, ballot))
+            if (!areBallotsLessAndCompatible(mPrepared->getBallot(), ballot))
             {
                 continue;
             }
-            dbgAssert(areBallotsCompatible(*mCommit, ballot));
+            dbgAssert(areBallotsCompatible(mCommit->getBallot(), ballot));
         }
 
         // if we already prepared this ballot, don't bother checking again
 
         // if ballot <= p' ballot is neither a candidate for p nor p'
-        if (mPreparedPrime && compareBallots(ballot, *mPreparedPrime) <= 0)
+        if (mPreparedPrime &&
+            compareBallots(ballot, mPreparedPrime->getBallot()) <= 0)
         {
             continue;
         }
@@ -838,7 +839,7 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
         if (mPrepared)
         {
             // if ballot is already covered by p, skip
-            if (areBallotsLessAndCompatible(ballot, *mPrepared))
+            if (areBallotsLessAndCompatible(ballot, mPrepared->getBallot()))
             {
                 continue;
             }
@@ -902,9 +903,11 @@ BallotProtocol::setAcceptPrepared(SCPBallot const& ballot)
     if (mCommit && mHighBallot)
     {
         if ((mPrepared &&
-             areBallotsLessAndIncompatible(*mHighBallot, *mPrepared)) ||
+             areBallotsLessAndIncompatible(mHighBallot->getBallot(),
+                                           mPrepared->getBallot())) ||
             (mPreparedPrime &&
-             areBallotsLessAndIncompatible(*mHighBallot, *mPreparedPrime)))
+             areBallotsLessAndIncompatible(mHighBallot->getBallot(),
+                                           mPreparedPrime->getBallot())))
         {
             dbgAssert(mPhase == SCP_PHASE_PREPARE);
             mCommit.reset();
@@ -947,7 +950,8 @@ BallotProtocol::attemptConfirmPrepared(SCPStatement const& hint)
         SCPBallot ballot = *cur;
 
         // only consider it if we can potentially raise h
-        if (mHighBallot && compareBallots(*mHighBallot, ballot) >= 0)
+        if (mHighBallot &&
+            compareBallots(mHighBallot->getBallot(), ballot) >= 0)
         {
             break;
         }
@@ -969,11 +973,13 @@ BallotProtocol::attemptConfirmPrepared(SCPStatement const& hint)
         SCPBallot newC;
         // now, look for newC (left as 0 if no update)
         // step (3) from the paper
-        SCPBallot b = mCurrentBallot ? *mCurrentBallot : SCPBallot();
+        SCPBallot b =
+            mCurrentBallot ? mCurrentBallot->getBallot() : SCPBallot();
         if (!mCommit &&
-            (!mPrepared || !areBallotsLessAndIncompatible(newH, *mPrepared)) &&
+            (!mPrepared ||
+             !areBallotsLessAndIncompatible(newH, mPrepared->getBallot())) &&
             (!mPreparedPrime ||
-             !areBallotsLessAndIncompatible(newH, *mPreparedPrime)))
+             !areBallotsLessAndIncompatible(newH, mPreparedPrime->getBallot())))
         {
             // continue where we left off (cur is at newH at this point)
             for (; cur != candidates.rend(); cur++)
@@ -1050,21 +1056,22 @@ BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
     bool didWork = false;
 
     // remember newH's value
-    mValueOverride = std::make_unique<Value>(newH.value);
+    mValueOverride = mSlot.getSCPDriver().wrapValue(newH.value);
 
     // we don't set c/h if we're not on a compatible ballot
-    if (!mCurrentBallot || areBallotsCompatible(*mCurrentBallot, newH))
+    if (!mCurrentBallot ||
+        areBallotsCompatible(mCurrentBallot->getBallot(), newH))
     {
-        if (!mHighBallot || compareBallots(newH, *mHighBallot) > 0)
+        if (!mHighBallot || compareBallots(newH, mHighBallot->getBallot()) > 0)
         {
             didWork = true;
-            mHighBallot = std::make_unique<SCPBallot>(newH);
+            mHighBallot = makeBallot(newH);
         }
 
         if (newC.counter != 0)
         {
             dbgAssert(!mCommit);
-            mCommit = std::make_unique<SCPBallot>(newC);
+            mCommit = makeBallot(newC);
             didWork = true;
         }
 
@@ -1219,7 +1226,7 @@ BallotProtocol::attemptAcceptCommit(SCPStatement const& hint)
 
     if (mPhase == SCP_PHASE_CONFIRM)
     {
-        if (!areBallotsCompatible(ballot, *mHighBallot))
+        if (!areBallotsCompatible(ballot, mHighBallot->getBallot()))
         {
             return false;
         }
@@ -1288,7 +1295,7 @@ BallotProtocol::attemptAcceptCommit(SCPStatement const& hint)
     if (candidate.first != 0)
     {
         if (mPhase != SCP_PHASE_CONFIRM ||
-            candidate.second > mHighBallot->counter)
+            candidate.second > mHighBallot->getBallot().counter)
         {
             SCPBallot c = SCPBallot(candidate.first, ballot.value);
             SCPBallot h = SCPBallot(candidate.second, ballot.value);
@@ -1311,13 +1318,14 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
     bool didWork = false;
 
     // remember h's value
-    mValueOverride = std::make_unique<Value>(h.value);
+    mValueOverride = mSlot.getSCPDriver().wrapValue(h.value);
 
-    if (!mHighBallot || !mCommit || compareBallots(*mHighBallot, h) != 0 ||
-        compareBallots(*mCommit, c) != 0)
+    if (!mHighBallot || !mCommit ||
+        compareBallots(mHighBallot->getBallot(), h) != 0 ||
+        compareBallots(mCommit->getBallot(), c) != 0)
     {
-        mCommit = std::make_unique<SCPBallot>(c);
-        mHighBallot = std::make_unique<SCPBallot>(h);
+        mCommit = makeBallot(c);
+        mHighBallot = makeBallot(h);
 
         didWork = true;
     }
@@ -1325,7 +1333,8 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
     if (mPhase == SCP_PHASE_PREPARE)
     {
         mPhase = SCP_PHASE_CONFIRM;
-        if (mCurrentBallot && !areBallotsLessAndCompatible(h, *mCurrentBallot))
+        if (mCurrentBallot &&
+            !areBallotsLessAndCompatible(h, mCurrentBallot->getBallot()))
         {
             bumpToBallot(h, false);
         }
@@ -1336,7 +1345,7 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
 
     if (didWork)
     {
-        updateCurrentIfNeeded(*mHighBallot);
+        updateCurrentIfNeeded(mHighBallot->getBallot());
 
         mSlot.getSCPDriver().acceptedCommit(mSlot.getSlotIndex(), h);
         emitCurrentStateStatement();
@@ -1399,7 +1408,8 @@ BallotProtocol::attemptBump()
         // is no v-blocking set ahead of the local node, there's nothing
         // to do, return early.
         auto localNode = getLocalNode();
-        uint32 localCounter = mCurrentBallot ? mCurrentBallot->counter : 0;
+        uint32 localCounter =
+            mCurrentBallot ? mCurrentBallot->getBallot().counter : 0;
         if (!hasVBlockingSubsetStrictlyAheadOf(localNode, mLatestEnvelopes,
                                                localCounter))
         {
@@ -1471,7 +1481,7 @@ BallotProtocol::attemptConfirmCommit(SCPStatement const& hint)
         abort();
     };
 
-    if (!areBallotsCompatible(ballot, *mCommit))
+    if (!areBallotsCompatible(ballot, mCommit->getBallot()))
     {
         return false;
     }
@@ -1505,9 +1515,9 @@ BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
                            << " new c: " << mSlot.getSCP().ballotToStr(c)
                            << " new h: " << mSlot.getSCP().ballotToStr(h);
 
-    mCommit = std::make_unique<SCPBallot>(c);
-    mHighBallot = std::make_unique<SCPBallot>(h);
-    updateCurrentIfNeeded(*mHighBallot);
+    mCommit = makeBallot(c);
+    mHighBallot = makeBallot(h);
+    updateCurrentIfNeeded(mHighBallot->getBallot());
 
     mPhase = SCP_PHASE_EXTERNALIZE;
 
@@ -1516,7 +1526,7 @@ BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
     mSlot.stopNomination();
 
     mSlot.getSCPDriver().valueExternalized(mSlot.getSlotIndex(),
-                                           mCommit->value);
+                                           mCommit->getBallot().value);
 
     return true;
 }
@@ -1612,15 +1622,15 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
     // p and p' are the two higest prepared and incompatible ballots
     if (mPrepared)
     {
-        int comp = compareBallots(*mPrepared, ballot);
+        int comp = compareBallots(mPrepared->getBallot(), ballot);
         if (comp < 0)
         {
             // as we're replacing p, we see if we should also replace p'
-            if (!areBallotsCompatible(*mPrepared, ballot))
+            if (!areBallotsCompatible(mPrepared->getBallot(), ballot))
             {
-                mPreparedPrime = std::make_unique<SCPBallot>(*mPrepared);
+                mPreparedPrime = std::make_unique<SCPBallotWrapper>(*mPrepared);
             }
-            mPrepared = std::make_unique<SCPBallot>(ballot);
+            mPrepared = makeBallot(ballot);
             didWork = true;
         }
         else if (comp > 0)
@@ -1633,17 +1643,17 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
             // not called with a value that would not allow us to make progress
 
             if (!mPreparedPrime ||
-                ((compareBallots(*mPreparedPrime, ballot) < 0) &&
-                 !areBallotsCompatible(*mPrepared, ballot)))
+                ((compareBallots(mPreparedPrime->getBallot(), ballot) < 0) &&
+                 !areBallotsCompatible(mPrepared->getBallot(), ballot)))
             {
-                mPreparedPrime = std::make_unique<SCPBallot>(ballot);
+                mPreparedPrime = makeBallot(ballot);
                 didWork = true;
             }
         }
     }
     else
     {
-        mPrepared = std::make_unique<SCPBallot>(ballot);
+        mPrepared = makeBallot(ballot);
         didWork = true;
     }
     return didWork;
@@ -1744,19 +1754,19 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
         bumpToBallot(b, true);
         if (prep.prepared)
         {
-            mPrepared = std::make_unique<SCPBallot>(*prep.prepared);
+            mPrepared = makeBallot(*prep.prepared);
         }
         if (prep.preparedPrime)
         {
-            mPreparedPrime = std::make_unique<SCPBallot>(*prep.preparedPrime);
+            mPreparedPrime = makeBallot(*prep.preparedPrime);
         }
         if (prep.nH)
         {
-            mHighBallot = std::make_unique<SCPBallot>(prep.nH, b.value);
+            mHighBallot = makeBallot(prep.nH, b.value);
         }
         if (prep.nC)
         {
-            mCommit = std::make_unique<SCPBallot>(prep.nC, b.value);
+            mCommit = makeBallot(prep.nC, b.value);
         }
         mPhase = SCP_PHASE_PREPARE;
     }
@@ -1766,9 +1776,9 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
         auto const& c = pl.confirm();
         auto const& v = c.ballot.value;
         bumpToBallot(c.ballot, true);
-        mPrepared = std::make_unique<SCPBallot>(c.nPrepared, v);
-        mHighBallot = std::make_unique<SCPBallot>(c.nH, v);
-        mCommit = std::make_unique<SCPBallot>(c.nCommit, v);
+        mPrepared = makeBallot(c.nPrepared, v);
+        mHighBallot = makeBallot(c.nH, v);
+        mCommit = makeBallot(c.nCommit, v);
         mPhase = SCP_PHASE_CONFIRM;
     }
     break;
@@ -1777,9 +1787,9 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
         auto const& ext = pl.externalize();
         auto const& v = ext.commit.value;
         bumpToBallot(SCPBallot(UINT32_MAX, v), true);
-        mPrepared = std::make_unique<SCPBallot>(UINT32_MAX, v);
-        mHighBallot = std::make_unique<SCPBallot>(ext.nH, v);
-        mCommit = std::make_unique<SCPBallot>(ext.commit);
+        mPrepared = makeBallot(UINT32_MAX, v);
+        mHighBallot = makeBallot(ext.nH, v);
+        mCommit = makeBallot(ext.commit);
         mPhase = SCP_PHASE_EXTERNALIZE;
     }
     break;
@@ -1833,7 +1843,8 @@ BallotProtocol::getExternalizingState() const
                 // externalized
                 // we could filter more using mConfirmedPrepared as well
                 if (areBallotsCompatible(
-                        getWorkingBallot(n.second->getStatement()), *mCommit))
+                        getWorkingBallot(n.second->getStatement()),
+                        mCommit->getBallot()))
                 {
                     res.emplace_back(n.second->getEnvelope());
                 }
@@ -1993,7 +2004,7 @@ BallotProtocol::getJsonInfo()
 {
     Json::Value ret;
     ret["heard"] = mHeardFromQuorum;
-    ret["ballot"] = mSlot.getSCP().ballotToStr(mCurrentBallot);
+    ret["ballot"] = ballotToStr(mCurrentBallot);
     ret["phase"] = phaseNames[mPhase];
 
     ret["state"] = getLocalState();
@@ -2134,11 +2145,11 @@ BallotProtocol::getLocalState() const
     std::ostringstream oss;
 
     oss << "i: " << mSlot.getSlotIndex() << " | " << phaseNames[mPhase]
-        << " | b: " << mSlot.getSCP().ballotToStr(mCurrentBallot)
-        << " | p: " << mSlot.getSCP().ballotToStr(mPrepared)
-        << " | p': " << mSlot.getSCP().ballotToStr(mPreparedPrime)
-        << " | h: " << mSlot.getSCP().ballotToStr(mHighBallot)
-        << " | c: " << mSlot.getSCP().ballotToStr(mCommit)
+        << " | b: " << ballotToStr(mCurrentBallot)
+        << " | p: " << ballotToStr(mPrepared)
+        << " | p': " << ballotToStr(mPreparedPrime)
+        << " | h: " << ballotToStr(mHighBallot)
+        << " | c: " << ballotToStr(mCommit)
         << " | M: " << mLatestEnvelopes.size();
     return oss.str();
 }
@@ -2180,7 +2191,7 @@ BallotProtocol::checkHeardFromQuorum()
                     bool res;
                     if (st.pledges.type() == SCP_ST_PREPARE)
                     {
-                        res = mCurrentBallot->counter <=
+                        res = mCurrentBallot->getBallot().counter <=
                               st.pledges.prepare().ballot.counter;
                     }
                     else
@@ -2196,7 +2207,7 @@ BallotProtocol::checkHeardFromQuorum()
             {
                 // if we transition from not heard -> heard, we start the timer
                 mSlot.getSCPDriver().ballotDidHearFromQuorum(
-                    mSlot.getSlotIndex(), *mCurrentBallot);
+                    mSlot.getSlotIndex(), mCurrentBallot->getBallot());
                 if (mPhase != SCP_PHASE_EXTERNALIZE)
                 {
                     startBallotProtocolTimer();
@@ -2213,5 +2224,35 @@ BallotProtocol::checkHeardFromQuorum()
             stopBallotProtocolTimer();
         }
     }
+}
+
+BallotProtocol::SCPBallotWrapperUPtr
+BallotProtocol::makeBallot(SCPBallot const& b) const
+{
+    auto res = std::make_unique<SCPBallotWrapper>(
+        b.counter, mSlot.getSCPDriver().wrapValue(b.value));
+    return res;
+}
+
+BallotProtocol::SCPBallotWrapperUPtr
+BallotProtocol::makeBallot(uint32 c, Value const& v) const
+{
+    return makeBallot(SCPBallot(c, v));
+}
+
+std::string
+BallotProtocol::ballotToStr(
+    BallotProtocol::SCPBallotWrapperUPtr const& ballot) const
+{
+    std::string res;
+    if (ballot)
+    {
+        res = mSlot.getSCP().ballotToStr(ballot->getBallot());
+    }
+    else
+    {
+        res = "(<null_ballot>)";
+    }
+    return res;
 }
 }

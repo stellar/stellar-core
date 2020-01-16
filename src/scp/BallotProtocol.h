@@ -41,14 +41,47 @@ class BallotProtocol
     // human readable names matching SCPPhase
     static const char* phaseNames[];
 
-    std::unique_ptr<SCPBallot> mCurrentBallot;                // b
-    std::unique_ptr<SCPBallot> mPrepared;                     // p
-    std::unique_ptr<SCPBallot> mPreparedPrime;                // p'
-    std::unique_ptr<SCPBallot> mHighBallot;                   // h
-    std::unique_ptr<SCPBallot> mCommit;                       // c
+    class SCPBallotWrapper
+    {
+        // NB: mWvalue and mBallot contain the same value
+        ValueWrapperPtr mWvalue;
+        SCPBallot const mBallot;
+
+      public:
+        explicit SCPBallotWrapper(uint32 c, ValueWrapperPtr vw)
+            : mWvalue(vw), mBallot(c, vw->getValue())
+        {
+            assert(vw);
+        }
+        explicit SCPBallotWrapper(SCPBallotWrapper const& o)
+            : mWvalue(o.mWvalue), mBallot(o.mBallot)
+        {
+            assert(o.mWvalue);
+        }
+
+        SCPBallot const&
+        getBallot() const
+        {
+            return mBallot;
+        }
+
+        ValueWrapperPtr const&
+        getWValue() const
+        {
+            return mWvalue;
+        }
+    };
+
+    typedef std::unique_ptr<SCPBallotWrapper> SCPBallotWrapperUPtr;
+
+    SCPBallotWrapperUPtr mCurrentBallot;                      // b
+    SCPBallotWrapperUPtr mPrepared;                           // p
+    SCPBallotWrapperUPtr mPreparedPrime;                      // p'
+    SCPBallotWrapperUPtr mHighBallot;                         // h
+    SCPBallotWrapperUPtr mCommit;                             // c
     std::map<NodeID, SCPEnvelopeWrapperPtr> mLatestEnvelopes; // M
     SCPPhase mPhase;                                          // Phi
-    std::unique_ptr<Value> mValueOverride;                    // z
+    ValueWrapperPtr mValueOverride;                           // z
 
     int mCurrentMessageLevel; // number of messages triggered in one run
 
@@ -272,5 +305,10 @@ class BallotProtocol
     void startBallotProtocolTimer();
     void stopBallotProtocolTimer();
     void checkHeardFromQuorum();
+
+    SCPBallotWrapperUPtr makeBallot(SCPBallot const& b) const;
+    SCPBallotWrapperUPtr makeBallot(uint32 c, Value const& v) const;
+
+    std::string ballotToStr(SCPBallotWrapperUPtr const& ballot) const;
 };
 }
