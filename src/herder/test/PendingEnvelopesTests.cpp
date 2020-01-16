@@ -47,8 +47,10 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         auto envelope = SCPEnvelope{};
         envelope.statement.slotIndex = slotIndex;
         envelope.statement.pledges.type(SCP_ST_PREPARE);
-        envelope.statement.pledges.prepare().ballot.value = p.first;
-        envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
+        auto& prep = envelope.statement.pledges.prepare();
+        prep.ballot.counter = 1;
+        prep.ballot.value = p.first;
+        prep.quorumSetHash = qSetHash;
         envelope.statement.nodeID = s.getPublicKey();
         herder.signEnvelope(s, envelope);
         return envelope;
