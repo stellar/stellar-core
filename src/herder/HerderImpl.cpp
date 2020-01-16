@@ -80,9 +80,9 @@ HerderImpl::HerderImpl(Application& app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
 {
-    Hash hash = getSCP().getLocalNode()->getQuorumSetHash();
-    mPendingEnvelopes.addSCPQuorumSet(hash,
-                                      getSCP().getLocalNode()->getQuorumSet());
+    auto ln = getSCP().getLocalNode();
+    mPendingEnvelopes.addSCPQuorumSet(ln->getQuorumSetHash(),
+                                      ln->getQuorumSet());
 }
 
 HerderImpl::~HerderImpl()

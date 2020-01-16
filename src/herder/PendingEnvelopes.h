@@ -70,6 +70,7 @@ class PendingEnvelopes
 
     void updateMetrics();
 
+    SCPQuorumSetPtr putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet);
     void envelopeReady(SCPEnvelope const& envelope);
     void discardSCPEnvelope(SCPEnvelope const& envelope);
     bool isFullyFetched(SCPEnvelope const& envelope);

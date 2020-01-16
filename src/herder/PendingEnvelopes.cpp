@@ -66,15 +66,28 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
     }
 }
 
+SCPQuorumSetPtr
+PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
+{
+    CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(qSetHash);
+    SCPQuorumSetPtr res;
+    assert(isQuorumSetSane(qSet, false));
+    if (mQsetCache.exists(qSetHash))
+    {
+        res = mQsetCache.get(qSetHash);
+    }
+    else
+    {
+        res = std::make_shared<SCPQuorumSet>(qSet);
+        mQsetCache.put(qSetHash, res);
+    }
+    return res;
+}
+
 void
 PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
-    CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
-    assert(isQuorumSetSane(q, false));
-
-    auto qset = std::make_shared<SCPQuorumSet>(q);
-    mQsetCache.put(hash, qset);
-
+    putQSet(hash, q);
     mQuorumSetFetcher.recv(hash);
 }
 
@@ -493,7 +506,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     }
     if (qset)
     {
-        mQsetCache.put(hash, qset);
+        qset = putQSet(hash, *qset);
     }
     return qset;
 }
