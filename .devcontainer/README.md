@@ -12,7 +12,7 @@
   * If you are installing Docker on Windows, please make sure your settings have enabled Linux, rather than Windows containers.
 * Special note for Windows users:
   * This feature mounts your git repository into the container so that you can use it from Linux.
-  * If you are using Docker Desktop + Hyper-V (as opposed to new WSL2 features built into Windows version 10.0.18945.x and forward not covered here):
+  * If you are using Docker Desktop + Hyper-V (as opposed to new [WSL2](https://docs.microsoft.com/en-us/windows/wsl/wsl2-index) features built into Windows version 10.0.18945.x and forward not covered here):
     * You will need to 'share your drive' with Docker. To do this in the most secure way, we recommend that you:
       * Create a dedicated local-only user for this purpose (as an admin): `net user DockerMount DockerMountUserPassword /add`
       * Grant read/write permission to that user to your git repository directory
@@ -32,17 +32,49 @@
 - Then go to Terminal => New Terminal, and it will automatically launch a new Linux shell in that container for you.
 
 ## How do I build once I'm in the container?
-- `git submodule init`
-- `git submodule update`
-- Type `./autogen.sh`.
-- Type `./configure`   
-- Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
-- Type `su vscode` to switch to a non-root user for test execution purposes.   (Tests that rely on postgresql will not run under root)
-- Type `make check` to run tests.
-- Type `make install` to install.
+
+In general, you build just like you would normally on Ubuntu.
+Only difference is that tests that rely on postgresql will not run under root, so you need to run tests with a non priviledged account like `vscode`.
+So before building etc, just run `su vscode` if needed.
+
+### Build straight from the shared workspace
+The shared folder is mounted in something like `/workspaces/stellar-core`.
+
+Advantage of building from the shared folder is that you get to use all vscode features directly:
+what you edit is what you build.
+
+You may run into problems with various tools (git) that get confused by the hybrid setup.
+
+For git when running from Windows, the following configuration helps (it tells git to use Linux line endings in the workspace):
+```
+[core]
+        eol = lf
+        autocrlf = input
+```
+NB: if you change this setting in an existing working folder, you need to reset it to have the proper line ending.
+
+
+### Build in a different folder
+
+On some platforms (Windows), there is a large overhead when building from the workspace folder (and if you're using WSL2 on Windows, cross OS file speed is [slower than WSL1](https://docs.microsoft.com/en-us/windows/wsl/wsl2-ux-changes#cross-os-file-speed-will-be-slower-in-initial-preview-builds)), the alternative
+is to simply mirror your workspace into your home directory from within the container with a command such as
+```
+rsync -a -HAX --exclude=*.o /workspaces/ ~/src/
+```
+
+You can then use the new folder for building and testing (just `cd ~/src/stellar-core` and build like normal).
+
+Note: `-C` cannot be used here as git files (the `.git` folder) are needed for `autogen.sh` to work properly.
+
+Note (Windows): the `.git` folder may be invisible in the workspace, which causes mirroring to skip it. A workaround is to uncheck the "hidden" property from Windows explorer.
+
+To mirror any changes done back into the workspace (note `-C` to skip git related files in this direction):
+```
+rsync --progress -v -ru -C --exclude=*.o ~/src/ /workspaces/
+```
 
 ## Known issues
-* Test failures on Windows:
+* Test failures on Windows when building on the shared workspace:
   * bucket/test/BucketManagerTests.cpp:1310 will fail 
     * Failed to fsync directory stellar-core-test-52c416044e9cfd23/bucket :Invalid argument (FileSystemException.h:21)
     * Root cause - The host machine's git repository directory is shared with the docker container via CIFS, but CIFS does not implement directory fsync operations:
