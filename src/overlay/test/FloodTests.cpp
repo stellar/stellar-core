@@ -276,11 +276,16 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 app->getLedgerManager().getLastClosedLedgerHeader();
 
             HerderImpl& herder = *static_cast<HerderImpl*>(&app->getHerder());
-            auto state =
-                herder.getSCP().getCurrentState(lcl.header.ledgerSeq + 1);
-            okCount = std::count_if(state.begin(), state.end(), [&](auto& e) {
-                return keysMap.find(e.statement.nodeID) != keysMap.end();
-            });
+            herder.getSCP().processCurrentState(
+                lcl.header.ledgerSeq + 1,
+                [&](SCPEnvelope const& e) {
+                    if (keysMap.find(e.statement.nodeID) != keysMap.end())
+                    {
+                        okCount++;
+                    }
+                    return true;
+                },
+                true);
             bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "

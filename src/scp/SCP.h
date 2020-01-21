@@ -49,11 +49,11 @@ class SCP
     // this is the main entry point of the SCP library
     // it processes the envelope, updates the internal state and
     // invokes the appropriate methods
-    EnvelopeState receiveEnvelope(SCPEnvelope const& envelope);
+    EnvelopeState receiveEnvelope(SCPEnvelopeWrapperPtr envelope);
 
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1
-    bool nominate(uint64 slotIndex, Value const& value,
+    bool nominate(uint64 slotIndex, ValueWrapperPtr value,
                   Value const& previousValue);
 
     // stops nomination for a slot
@@ -96,17 +96,21 @@ class SCP
 
     // forces the state to match the one in the envelope
     // this is used when rebuilding the state after a crash for example
-    void setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e);
+    void setStateFromEnvelope(uint64 slotIndex, SCPEnvelopeWrapperPtr e);
 
     // check if we are holding some slots
     bool empty() const;
-    // return lowest slot index value
-    uint64 getLowSlotIndex() const;
-    // return highest slot index value
-    uint64 getHighSlotIndex() const;
 
-    // returns all messages for the slot
-    std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
+    // invokes f for all latest messages
+    // if forceSelf, return messages for self even if not fully validated
+    // f returns false to stop processing, true otherwise
+    void processCurrentState(uint64 slotIndex,
+                             std::function<bool(SCPEnvelope const&)> const& f,
+                             bool forceSelf);
+
+    // iterates through slots, starting from ledgerSeq
+    void processSlotsAscendingFrom(uint64 startIndex,
+                                   std::function<bool(uint64)> const& f);
 
     // returns the latest message from a node
     // or nullptr if not found

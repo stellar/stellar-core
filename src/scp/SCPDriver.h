@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/NonCopyable.h"
 #include <chrono>
 #include <functional>
 #include <map>
@@ -14,7 +15,53 @@
 
 namespace stellar
 {
+class ValueWrapper : public NonMovableOrCopyable
+{
+    Value const mValue;
+
+  public:
+    explicit ValueWrapper(Value const& value);
+    virtual ~ValueWrapper();
+
+    Value const&
+    getValue() const
+    {
+        return mValue;
+    }
+};
+
 typedef std::shared_ptr<SCPQuorumSet> SCPQuorumSetPtr;
+typedef std::shared_ptr<ValueWrapper> ValueWrapperPtr;
+
+class WrappedValuePtrComparator
+{
+  public:
+    bool operator()(ValueWrapperPtr const& l, ValueWrapperPtr const& r) const;
+};
+
+typedef std::set<ValueWrapperPtr, WrappedValuePtrComparator> ValueWrapperPtrSet;
+
+class SCPEnvelopeWrapper : public NonMovableOrCopyable
+{
+    SCPEnvelope const mEnvelope;
+
+  public:
+    explicit SCPEnvelopeWrapper(SCPEnvelope const& e);
+    virtual ~SCPEnvelopeWrapper();
+
+    SCPEnvelope const&
+    getEnvelope() const
+    {
+        return mEnvelope;
+    }
+    SCPStatement const&
+    getStatement() const
+    {
+        return mEnvelope.statement;
+    }
+};
+
+typedef std::shared_ptr<SCPEnvelopeWrapper> SCPEnvelopeWrapperPtr;
 
 class SCPDriver
 {
@@ -25,6 +72,12 @@ class SCPDriver
 
     // Envelope signature
     virtual void signEnvelope(SCPEnvelope& envelope) = 0;
+
+    // SCPEnvelopeWrapper factory
+    virtual SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope);
+
+    // ValueWrapperPtr factory
+    virtual ValueWrapperPtr wrapValue(Value const& value);
 
     // Retrieves a quorum set from its hash
     //
@@ -75,11 +128,11 @@ class SCPDriver
     // value that the local node would agree to (fully validated).
     // This is used during nomination when encountering an invalid value (ie
     // validateValue did not return `kFullyValidatedValue` for this value).
-    // returning Value() means no valid value could be extracted
-    virtual Value
+    // returning nullptr means no valid value could be extracted
+    virtual ValueWrapperPtr
     extractValidValue(uint64 slotIndex, Value const& value)
     {
-        return Value();
+        return nullptr;
     }
 
     // `getValueString` is used for debugging
@@ -106,8 +159,9 @@ class SCPDriver
 
     // `combineCandidates` computes the composite value based off a list
     // of candidate values.
-    virtual Value combineCandidates(uint64 slotIndex,
-                                    std::set<Value> const& candidates) = 0;
+    virtual ValueWrapperPtr
+    combineCandidates(uint64 slotIndex,
+                      ValueWrapperPtrSet const& candidates) = 0;
 
     // `setupTimer`: requests to trigger 'cb' after timeout
     // if cb is nullptr, the timer is cancelled

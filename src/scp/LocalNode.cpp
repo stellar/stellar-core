@@ -218,13 +218,13 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
 
 bool
 LocalNode::isVBlocking(SCPQuorumSet const& qSet,
-                       std::map<NodeID, SCPEnvelope> const& map,
+                       std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
                        std::function<bool(SCPStatement const&)> const& filter)
 {
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
-        if (filter(it.second.statement))
+        if (filter(it.second->getStatement()))
         {
             pNodes.push_back(it.first);
         }
@@ -235,14 +235,15 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
 
 bool
 LocalNode::isQuorum(
-    SCPQuorumSet const& qSet, std::map<NodeID, SCPEnvelope> const& map,
+    SCPQuorumSet const& qSet,
+    std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
     std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
     std::function<bool(SCPStatement const&)> const& filter)
 {
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
-        if (filter(it.second.statement))
+        if (filter(it.second->getStatement()))
         {
             pNodes.push_back(it.first);
         }
@@ -254,7 +255,7 @@ LocalNode::isQuorum(
         count = pNodes.size();
         std::vector<NodeID> fNodes(pNodes.size());
         auto quorumFilter = [&](NodeID nodeID) -> bool {
-            auto qSetPtr = qfun(map.find(nodeID)->second.statement);
+            auto qSetPtr = qfun(map.find(nodeID)->second->getStatement());
             if (qSetPtr)
             {
                 return isQuorumSlice(*qSetPtr, pNodes);
@@ -275,14 +276,15 @@ LocalNode::isQuorum(
 
 std::vector<NodeID>
 LocalNode::findClosestVBlocking(
-    SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
+    SCPQuorumSet const& qset,
+    std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
     std::function<bool(SCPStatement const&)> const& filter,
     NodeID const* excluded)
 {
     std::set<NodeID> s;
     for (auto const& n : map)
     {
-        if (filter(n.second.statement))
+        if (filter(n.second->getStatement()))
         {
             s.emplace(n.first);
         }

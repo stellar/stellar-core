@@ -20,13 +20,13 @@ class NominationProtocol
     Slot& mSlot;
 
     int32 mRoundNumber;
-    std::set<Value> mVotes;                           // X
-    std::set<Value> mAccepted;                        // Y
-    std::set<Value> mCandidates;                      // Z
-    std::map<NodeID, SCPEnvelope> mLatestNominations; // N
 
-    std::unique_ptr<SCPEnvelope>
-        mLastEnvelope; // last envelope emitted by this node
+    ValueWrapperPtrSet mVotes;                                  // X
+    ValueWrapperPtrSet mAccepted;                               // Y
+    ValueWrapperPtrSet mCandidates;                             // Z
+    std::map<NodeID, SCPEnvelopeWrapperPtr> mLatestNominations; // N
+
+    SCPEnvelopeWrapperPtr mLastEnvelope; // last envelope emitted by this node
 
     // nodes from quorum set that have the highest priority this round
     std::set<NodeID> mRoundLeaders;
@@ -35,7 +35,7 @@ class NominationProtocol
     bool mNominationStarted;
 
     // the latest (if any) candidate value
-    Value mLatestCompositeCandidate;
+    ValueWrapperPtr mLatestCompositeCandidate;
 
     // the value from the previous slot
     Value mPreviousValue;
@@ -51,11 +51,11 @@ class NominationProtocol
                                xdr::xvector<Value> const& v, bool& notEqual);
 
     SCPDriver::ValidationLevel validateValue(Value const& v);
-    Value extractValidValue(Value const& value);
+    ValueWrapperPtr extractValidValue(Value const& value);
 
     bool isSane(SCPStatement const& st);
 
-    void recordEnvelope(SCPEnvelope const& env);
+    void recordEnvelope(SCPEnvelopeWrapperPtr env);
 
     void emitNomination();
 
@@ -80,18 +80,18 @@ class NominationProtocol
 
     // returns the highest value that we don't have yet, that we should
     // vote for, extracted from a nomination.
-    // returns the empty value if no new value was found
-    Value getNewValueFromNomination(SCPNomination const& nom);
+    // returns nullptr if no new value was found
+    ValueWrapperPtr getNewValueFromNomination(SCPNomination const& nom);
 
   public:
     NominationProtocol(Slot& slot);
 
-    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
+    SCP::EnvelopeState processEnvelope(SCPEnvelopeWrapperPtr envelope);
 
     static std::vector<Value> getStatementValues(SCPStatement const& st);
 
     // attempts to nominate a value for consensus
-    bool nominate(Value const& value, Value const& previousValue,
+    bool nominate(ValueWrapperPtr value, Value const& previousValue,
                   bool timedout);
 
     // stops the nomination protocol
@@ -100,7 +100,7 @@ class NominationProtocol
     // return the current leaders
     std::set<NodeID> const& getLeaders() const;
 
-    Value const&
+    ValueWrapperPtr const&
     getLatestCompositeCandidate() const
     {
         return mLatestCompositeCandidate;
@@ -108,15 +108,16 @@ class NominationProtocol
 
     Json::Value getJsonInfo();
 
-    SCPEnvelope*
+    SCPEnvelope const*
     getLastMessageSend() const
     {
-        return mLastEnvelope.get();
+        return mLastEnvelope ? &mLastEnvelope->getEnvelope() : nullptr;
     }
 
-    void setStateFromEnvelope(SCPEnvelope const& e);
+    void setStateFromEnvelope(SCPEnvelopeWrapperPtr e);
 
-    std::vector<SCPEnvelope> getCurrentState() const;
+    bool processCurrentState(std::function<bool(SCPEnvelope const&)> const& f,
+                             bool forceSelf) const;
 
     // returns the latest message from a node
     // or nullptr if not found

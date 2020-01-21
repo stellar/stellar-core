@@ -27,14 +27,15 @@ SCP::SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
 }
 
 SCP::EnvelopeState
-SCP::receiveEnvelope(SCPEnvelope const& envelope)
+SCP::receiveEnvelope(SCPEnvelopeWrapperPtr envelope)
 {
-    uint64 slotIndex = envelope.statement.slotIndex;
+    uint64 slotIndex = envelope->getStatement().slotIndex;
     return getSlot(slotIndex, true)->processEnvelope(envelope, false);
 }
 
 bool
-SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
+SCP::nominate(uint64 slotIndex, ValueWrapperPtr value,
+              Value const& previousValue)
 {
     dbgAssert(isValidator());
     return getSlot(slotIndex, true)->nominate(value, previousValue, false);
@@ -204,7 +205,7 @@ SCP::getLatestMessagesSend(uint64 slotIndex)
 }
 
 void
-SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e)
+SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelopeWrapperPtr e)
 {
     auto slot = getSlot(slotIndex, true);
     slot->setStateFromEnvelope(e);
@@ -216,33 +217,29 @@ SCP::empty() const
     return mKnownSlots.empty();
 }
 
-uint64
-SCP::getLowSlotIndex() const
-{
-    assert(!empty());
-    return mKnownSlots.begin()->first;
-}
-
-uint64
-SCP::getHighSlotIndex() const
-{
-    assert(!empty());
-    auto it = mKnownSlots.end();
-    it--;
-    return it->first;
-}
-
-std::vector<SCPEnvelope>
-SCP::getCurrentState(uint64 slotIndex)
+void
+SCP::processCurrentState(uint64 slotIndex,
+                         std::function<bool(SCPEnvelope const&)> const& f,
+                         bool forceSelf)
 {
     auto slot = getSlot(slotIndex, false);
     if (slot)
     {
-        return slot->getCurrentState();
+        slot->processCurrentState(f, forceSelf);
     }
-    else
+}
+
+void
+SCP::processSlotsAscendingFrom(uint64 startingSlot,
+                               std::function<bool(uint64)> const& f)
+{
+    for (auto iter = mKnownSlots.lower_bound(startingSlot);
+         iter != mKnownSlots.end(); ++iter)
     {
-        return std::vector<SCPEnvelope>();
+        if (!f(iter->first))
+        {
+            break;
+        }
     }
 }
 

@@ -90,6 +90,7 @@ class HerderSCPDriver : public SCPDriver
     void recordSCPEvent(uint64_t slotIndex, bool isNomination);
 
     // envelope handling
+    SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope) override;
     void signEnvelope(SCPEnvelope& envelope) override;
     void emitEnvelope(SCPEnvelope const& envelope) override;
 
@@ -97,7 +98,8 @@ class HerderSCPDriver : public SCPDriver
     SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,
                                              Value const& value,
                                              bool nomination) override;
-    Value extractValidValue(uint64_t slotIndex, Value const& value) override;
+    ValueWrapperPtr extractValidValue(uint64_t slotIndex,
+                                      Value const& value) override;
 
     // value marshaling
     std::string toShortString(PublicKey const& pk) const override;
@@ -109,8 +111,9 @@ class HerderSCPDriver : public SCPDriver
                     std::function<void()> cb) override;
 
     // core SCP
-    Value combineCandidates(uint64_t slotIndex,
-                            std::set<Value> const& candidates) override;
+    ValueWrapperPtr
+    combineCandidates(uint64_t slotIndex,
+                      ValueWrapperPtrSet const& candidates) override;
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
 
     // Submit a value to consider for slotIndex
@@ -142,6 +145,11 @@ class HerderSCPDriver : public SCPDriver
     // validate close time as much as possible
     bool checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
                         StellarValue const& b) const;
+
+    // wraps a *valid* StellarValue (throws if it can't find txSet/qSet)
+    ValueWrapperPtr wrapStellarValue(StellarValue const& sv);
+
+    ValueWrapperPtr wrapValue(Value const& sv) override;
 
   private:
     Application& mApp;
@@ -192,7 +200,7 @@ class HerderSCPDriver : public SCPDriver
     std::map<uint64_t, SCPTiming> mSCPExecutionTimes;
 
     uint32_t mLedgerSeqNominating;
-    Value mCurrentValue;
+    ValueWrapperPtr mCurrentValue;
 
     // timers used by SCP
     // indexed by slotIndex, timerID

@@ -11,6 +11,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include <unordered_set>
 #include <xdrpp/marshal.h>
 
 using namespace std;
@@ -65,43 +66,72 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
     }
 }
 
-void
-PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+SCPQuorumSetPtr
+PendingEnvelopes::getKnownQSet(Hash const& hash, bool touch)
 {
-    CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
-    assert(isQuorumSetSane(q, false));
+    SCPQuorumSetPtr res;
+    auto it = mKnownQSets.find(hash);
+    if (it != mKnownQSets.end())
+    {
+        res = it->second.lock();
+    }
 
-    auto qset = std::make_shared<SCPQuorumSet>(q);
-    mQsetCache.put(hash, qset);
+    // refresh the cache for this key
+    if (res && touch)
+    {
+        mQsetCache.put(hash, res);
+    }
+    return res;
+}
 
+SCPQuorumSetPtr
+PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
+{
+    CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(qSetHash);
+    SCPQuorumSetPtr res;
+    assert(isQuorumSetSane(qSet, false));
+    res = getKnownQSet(qSetHash, true);
+    if (!res)
+    {
+        res = std::make_shared<SCPQuorumSet>(qSet);
+        mKnownQSets[qSetHash] = res;
+        mQsetCache.put(qSetHash, res);
+    }
+    return res;
+}
+
+void
+PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
+{
+    putQSet(hash, q);
     mQuorumSetFetcher.recv(hash);
 }
 
 bool
-PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
-    if (lastSeenSlotIndex <= 0)
+    if (lastSeenSlotIndex == 0)
     {
         return false;
     }
 
-    if (isQuorumSetSane(q, false))
+    bool res = isQuorumSetSane(q, false);
+    if (res)
     {
         addSCPQuorumSet(hash, q);
-        return true;
     }
     else
     {
         discardSCPEnvelopesWithQSet(hash);
-        return false;
     }
+    return res;
 }
 
 void
-PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash hash)
+PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
 {
     CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with SCPQSet "
                           << hexAbbrev(hash);
@@ -109,8 +139,6 @@ PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash hash)
     auto envelopes = mQuorumSetFetcher.fetchingFor(hash);
     for (auto& envelope : envelopes)
         discardSCPEnvelope(envelope);
-
-    updateMetrics();
 }
 
 void
@@ -135,18 +163,63 @@ PendingEnvelopes::updateMetrics()
     mReadyCount.set_count(ready);
 }
 
+TxSetFramePtr
+PendingEnvelopes::putTxSet(Hash const& hash, uint64 slot, TxSetFramePtr txset)
+{
+    auto res = getKnownTxSet(hash, slot, true);
+    if (!res)
+    {
+        res = txset;
+        mKnownTxSets[hash] = res;
+        mTxSetCache.put(hash, std::make_pair(slot, res));
+    }
+    return res;
+}
+
+// tries to find a txset in memory, setting touch also touches the LRU,
+// extending the lifetime of the result *and* updating the slot number
+// to a greater value if needed
+TxSetFramePtr
+PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
+{
+    // slot is only used when `touch` is set
+    assert(touch || (slot == 0));
+    TxSetFramePtr res;
+    auto it = mKnownTxSets.find(hash);
+    if (it != mKnownTxSets.end())
+    {
+        res = it->second.lock();
+    }
+
+    // refresh the cache for this key
+    if (res && touch)
+    {
+        bool update = true;
+        if (mTxSetCache.exists(hash))
+        {
+            auto& v = mTxSetCache.get(hash);
+            update = (slot > v.first);
+        }
+        if (update)
+        {
+            mTxSetCache.put(hash, std::make_pair(slot, res));
+        }
+    }
+    return res;
+}
+
 void
-PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex,
+PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                            TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
-    mTxSetCache.put(hash, std::make_pair(lastSeenSlotIndex, txset));
+    putTxSet(hash, lastSeenSlotIndex, txset);
     mTxSetFetcher.recv(hash);
 }
 
 bool
-PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
+PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
@@ -198,20 +271,19 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 
         touchFetchCache(envelope);
 
-        auto& set = mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
-        auto& processedList =
-            mEnvelopes[envelope.statement.slotIndex].mProcessedEnvelopes;
+        auto& envs = mEnvelopes[envelope.statement.slotIndex];
+        auto& fetching = envs.mFetchingEnvelopes;
+        auto& processed = envs.mProcessedEnvelopes;
 
-        auto fetching = set.find(envelope);
+        auto fetchIt = fetching.find(envelope);
 
-        if (fetching == set.end())
+        if (fetchIt == fetching.end())
         { // we aren't fetching this envelope
-            if (find(processedList.begin(), processedList.end(), envelope) ==
-                processedList.end())
+            if (processed.find(envelope) == processed.end())
             { // we haven't seen this envelope before
                 // insert it into the fetching set
-                fetching =
-                    set.emplace(envelope, std::chrono::steady_clock::now())
+                fetchIt =
+                    fetching.emplace(envelope, std::chrono::steady_clock::now())
                         .first;
                 startFetch(envelope);
             }
@@ -226,10 +298,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         // check if we are done fetching it
         if (isFullyFetched(envelope))
         {
-            // move the item from fetching to processed
-            processedList.emplace_back(fetching->first);
             std::chrono::nanoseconds durationNano =
-                std::chrono::steady_clock::now() - fetching->second;
+                std::chrono::steady_clock::now() - fetchIt->second;
             mFetchDuration.Update(durationNano);
             CLOG(TRACE, "Perf")
                 << "Herder fetched for "
@@ -237,13 +307,14 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 << std::chrono::duration<double>(durationNano).count()
                 << " seconds";
 
-            set.erase(fetching);
+            // move the item from fetching to processed
+            processed.emplace(envelope);
+            fetching.erase(fetchIt);
+
             envelopeReady(envelope);
-            updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         } // else just keep waiting for it to come in
 
-        updateMetrics();
         return Herder::ENVELOPE_STATUS_FETCHING;
     }
     catch (xdr::xdr_runtime_error& e)
@@ -260,21 +331,18 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
 {
     try
     {
-        if (isDiscarded(envelope))
+        auto& envs = mEnvelopes[envelope.statement.slotIndex];
+        auto& discardedSet = envs.mDiscardedEnvelopes;
+        auto r = discardedSet.insert(envelope);
+
+        if (!r.second)
         {
             return;
         }
 
-        auto& discardedSet =
-            mEnvelopes[envelope.statement.slotIndex].mDiscardedEnvelopes;
-        discardedSet.insert(envelope);
-
-        auto& fetchingSet =
-            mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
-        fetchingSet.erase(envelope);
+        envs.mFetchingEnvelopes.erase(envelope);
 
         stopFetch(envelope);
-        updateMetrics();
     }
     catch (xdr::xdr_runtime_error& e)
     {
@@ -294,10 +362,47 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
     }
 
     auto& discardedSet = envelopes->second.mDiscardedEnvelopes;
-    auto discarded =
-        std::find(std::begin(discardedSet), std::end(discardedSet), envelope);
+    auto discarded = discardedSet.find(envelope);
     return discarded != discardedSet.end();
 }
+
+void
+PendingEnvelopes::cleanKnownData()
+{
+    auto it = mKnownQSets.begin();
+    while (it != mKnownQSets.end())
+    {
+        if (it->second.expired())
+        {
+            it = mKnownQSets.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+    auto it2 = mKnownTxSets.begin();
+    while (it2 != mKnownTxSets.end())
+    {
+        if (it2->second.expired())
+        {
+            it2 = mKnownTxSets.erase(it2);
+        }
+        else
+        {
+            ++it2;
+        }
+    }
+}
+
+#ifdef BUILD_TESTS
+void
+PendingEnvelopes::clearQSetCache()
+{
+    mQsetCache.clear();
+    mKnownQSets.clear();
+}
+#endif
 
 void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
@@ -310,21 +415,24 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     msg.envelope() = envelope;
     mApp.getOverlayManager().broadcastMessage(msg);
 
-    mEnvelopes[envelope.statement.slotIndex].mReadyEnvelopes.push_back(
-        envelope);
+    auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);
+    mEnvelopes[envelope.statement.slotIndex].mReadyEnvelopes.push_back(envW);
 }
 
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(
-            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
+    if (!getKnownQSet(
+            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement),
+            false))
+    {
         return false;
+    }
 
     auto txSetHashes = getTxSetHashes(envelope);
     return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
-                       [this](Hash const& txSetHash) {
-                           return mTxSetCache.exists(txSetHash);
+                       [&](Hash const& txSetHash) {
+                           return getKnownTxSet(txSetHash, 0, false);
                        });
 }
 
@@ -333,14 +441,14 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
 
-    if (!mQsetCache.exists(h))
+    if (!getKnownQSet(h, false))
     {
         mQuorumSetFetcher.fetch(h, envelope);
     }
 
     for (auto const& h2 : getTxSetHashes(envelope))
     {
-        if (!mTxSetCache.exists(h2))
+        if (!getKnownTxSet(h2, 0, false))
         {
             mTxSetFetcher.fetch(h2, envelope);
         }
@@ -370,24 +478,16 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 {
     auto qsetHash =
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
-    if (mQsetCache.exists(qsetHash))
-    {
-        // touch LRU
-        mQsetCache.get(qsetHash);
-    }
+    getKnownQSet(qsetHash, true);
 
     for (auto const& h : getTxSetHashes(envelope))
     {
-        if (mTxSetCache.exists(h))
-        {
-            auto& item = mTxSetCache.get(h);
-            item.first = std::max(item.first, envelope.statement.slotIndex);
-        }
+        getKnownTxSet(h, envelope.statement.slotIndex, true);
     }
 }
 
-bool
-PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
+SCPEnvelopeWrapperPtr
+PendingEnvelopes::pop(uint64 slotIndex)
 {
     auto it = mEnvelopes.begin();
     while (it != mEnvelopes.end() && slotIndex >= it->first)
@@ -395,14 +495,14 @@ PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
         auto& v = it->second.mReadyEnvelopes;
         if (v.size() != 0)
         {
-            ret = v.back();
+            auto ret = v.back();
             v.pop_back();
 
-            return true;
+            return ret;
         }
         it++;
     }
-    return false;
+    return nullptr;
 }
 
 vector<uint64>
@@ -435,8 +535,6 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
         return i.first != 0 && i.first < slotIndex;
     });
-
-    updateMetrics();
 }
 
 void
@@ -461,28 +559,24 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
             [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
     }
 
-    updateMetrics();
+    cleanKnownData();
 }
 
 TxSetFramePtr
 PendingEnvelopes::getTxSet(Hash const& hash)
 {
-    if (mTxSetCache.exists(hash))
-    {
-        return mTxSetCache.get(hash).second;
-    }
-
-    return TxSetFramePtr();
+    return getKnownTxSet(hash, 0, false);
 }
 
 SCPQuorumSetPtr
 PendingEnvelopes::getQSet(Hash const& hash)
 {
-    if (mQsetCache.exists(hash))
+    auto qset = getKnownQSet(hash, false);
+    if (qset)
     {
-        return mQsetCache.get(hash);
+        return qset;
     }
-    SCPQuorumSetPtr qset;
+    // if it was not known, see if we can find it somewhere else
     auto& scp = mHerder.getSCP();
     if (hash == scp.getLocalNode()->getQuorumSetHash())
     {
@@ -495,7 +589,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
     }
     if (qset)
     {
-        mQsetCache.put(hash, qset);
+        qset = putQSet(hash, *qset);
     }
     return qset;
 }
@@ -507,6 +601,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
 
     updateMetrics();
 
+    auto& scp = mHerder.getSCP();
     {
         auto it = mEnvelopes.rbegin();
         size_t l = limit;
@@ -517,7 +612,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["fetching"];
                 for (auto const& kv : it->second.mFetchingEnvelopes)
                 {
-                    slot.append(mHerder.getSCP().envToStr(kv.first));
+                    slot.append(scp.envToStr(kv.first));
                 }
             }
             if (it->second.mReadyEnvelopes.size() != 0)
@@ -525,7 +620,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["pending"];
                 for (auto const& e : it->second.mReadyEnvelopes)
                 {
-                    slot.append(mHerder.getSCP().envToStr(e));
+                    slot.append(scp.envToStr(e->getEnvelope()));
                 }
             }
             it++;

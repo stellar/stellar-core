@@ -80,9 +80,9 @@ HerderImpl::HerderImpl(Application& app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
 {
-    Hash hash = getSCP().getLocalNode()->getQuorumSetHash();
-    mPendingEnvelopes.addSCPQuorumSet(hash,
-                                      getSCP().getLocalNode()->getQuorumSet());
+    auto ln = getSCP().getLocalNode();
+    mPendingEnvelopes.addSCPQuorumSet(ln->getQuorumSetHash(),
+                                      ln->getQuorumSet());
 }
 
 HerderImpl::~HerderImpl()
@@ -214,7 +214,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
     if (slotIndex > maxSlotsToRemember)
     {
-        getSCP().purgeSlots(slotIndex - maxSlotsToRemember);
+        auto maxSlot = slotIndex - maxSlotsToRemember;
+        getSCP().purgeSlots(maxSlot);
+        mPendingEnvelopes.eraseBelow(maxSlot);
     }
 
     ledgerClosed();
@@ -513,39 +515,18 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
-    if (getSCP().empty())
-    {
-        return;
-    }
-
-    if (getSCP().getLowSlotIndex() > std::numeric_limits<uint32_t>::max() ||
-        getSCP().getHighSlotIndex() >= std::numeric_limits<uint32_t>::max())
-    {
-        return;
-    }
-
-    auto minSeq =
-        std::max(ledgerSeq, static_cast<uint32_t>(getSCP().getLowSlotIndex()));
-    auto maxSeq = static_cast<uint32_t>(getSCP().getHighSlotIndex());
-
-    for (uint32_t seq = minSeq; seq <= maxSeq; seq++)
-    {
-        auto const& envelopes = getSCP().getCurrentState(seq);
-
-        if (envelopes.size() != 0)
-        {
-            CLOG(DEBUG, "Herder")
-                << "Send state " << envelopes.size() << " for ledger " << seq;
-
-            for (auto const& e : envelopes)
-            {
-                StellarMessage m;
-                m.type(SCP_MESSAGE);
-                m.envelope() = e;
-                peer->sendMessage(m);
-            }
-        }
-    }
+    getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
+        getSCP().processCurrentState(seq,
+                                     [&](SCPEnvelope const& e) {
+                                         StellarMessage m;
+                                         m.type(SCP_MESSAGE);
+                                         m.envelope() = e;
+                                         peer->sendMessage(m);
+                                         return true;
+                                     },
+                                     false);
+        return true;
+    });
 }
 
 void
@@ -553,15 +534,6 @@ HerderImpl::processSCPQueue()
 {
     if (mHerderSCPDriver.trackingSCP())
     {
-        // drop obsolete slots
-        auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-        if (mHerderSCPDriver.nextConsensusLedgerIndex() > maxSlotsToRemember)
-        {
-            mPendingEnvelopes.eraseBelow(
-                mHerderSCPDriver.nextConsensusLedgerIndex() -
-                maxSlotsToRemember);
-        }
-
         processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
     }
     else
@@ -587,13 +559,13 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     while (true)
     {
-        SCPEnvelope env;
-        if (mPendingEnvelopes.pop(slotIndex, env))
+        SCPEnvelopeWrapperPtr env = mPendingEnvelopes.pop(slotIndex);
+        if (env)
         {
             auto r = getSCP().receiveEnvelope(env);
             if (r == SCP::EnvelopeState::VALID)
             {
-                mPendingEnvelopes.envelopeProcessed(env);
+                mPendingEnvelopes.envelopeProcessed(env->getEnvelope());
             }
         }
         else
@@ -866,17 +838,19 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
             {
                 seq--;
             }
-            auto const& envelopes = getSCP().getCurrentState(seq);
-            for (auto const& e : envelopes)
-            {
-                std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
-                if (curK.compare(0, arg.size(), arg) == 0)
-                {
-                    retKey = e.statement.nodeID;
-                    r = true;
-                    break;
-                }
-            }
+            getSCP().processCurrentState(
+                seq,
+                [&](SCPEnvelope const& e) {
+                    std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
+                    if (curK.compare(0, arg.size(), arg) == 0)
+                    {
+                        retKey = e.statement.nodeID;
+                        r = true;
+                        return false;
+                    }
+                    return true;
+                },
+                true);
         }
     }
     return r;
@@ -1266,7 +1240,8 @@ HerderImpl::restoreSCPState()
             }
             for (auto const& e : latestEnvs)
             {
-                getSCP().setStateFromEnvelope(e.statement.slotIndex, e);
+                auto envW = getHerderSCPDriver().wrapEnvelope(e);
+                getSCP().setStateFromEnvelope(e.statement.slotIndex, envW);
                 mLastSlotSaved =
                     std::max<uint64>(mLastSlotSaved, e.statement.slotIndex);
             }
