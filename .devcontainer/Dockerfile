@@ -52,9 +52,6 @@ RUN sudo apt-get -y install gcc-6 g++-6 cpp-6 libstdc++6
 ENV CC=gcc-6
 ENV CXX=g++-6
 
-# Install pandoc (to build manpages)
-RUN sudo apt-get -y install pandoc
-
 # Install postgresql to enable tests under make check
 RUN sudo apt-get -y install postgresql
 

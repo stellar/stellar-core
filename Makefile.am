@@ -9,8 +9,6 @@ dist_doc_DATA = docs/stellar-core_example.cfg			\
 	docs/stellar-core_testnet.cfg docs/software/admin.md	\
 	docs/software/commands.md
 
-man_MANS = docs/stellar-core.1
-
 include $(top_srcdir)/common.mk
 
 .PHONY: always

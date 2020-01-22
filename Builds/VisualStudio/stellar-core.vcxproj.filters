@@ -1886,9 +1886,6 @@
     <None Include="..\..\docs\software\security-protocol-release-notes.md">
       <Filter>docs\software</Filter>
     </None>
-    <None Include="..\..\docs\stellar-core.1.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\stellar-core_testnet_legacy.cfg">
       <Filter>docs</Filter>
     </None>

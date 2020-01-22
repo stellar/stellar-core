@@ -42,7 +42,6 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
 - `clang-format-5.0` (for `make format` to work)
-- `pandoc`
 - `perl`
 
 ### Ubuntu
@@ -76,9 +75,6 @@ After installing packages, head to [building with clang and libc++](#building-wi
     # if using g++ or building with libstdc++
     # sudo apt-get install gcc-6 g++-6 cpp-6
 
-    # optional: pandoc (to compile man pages)
-    sudo apt-get install pandoc
-
 In order to make changes, you'll need to install the proper version of clang-format.
 
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
@@ -95,7 +91,6 @@ When building on OSX, here's some dependencies you'll need:
 - brew install automake
 - brew install pkg-config
 - brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
-- brew install pandoc
 - brew install parallel (required for running tests)
 
 ### Windows
