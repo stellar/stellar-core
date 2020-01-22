@@ -809,7 +809,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
 
-    using TxPair = std::pair<ValueWrapperPtr, TxSetFramePtr>;
+    using TxPair = std::pair<Value, TxSetFramePtr>;
     auto makeTxPair = [&](HerderImpl& herder, TxSetFramePtr txSet,
                           uint64_t closeTime, bool sig) {
         txSet->sortForHash();
@@ -819,8 +819,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         {
             herder.signStellarValue(root.getSecretKey(), sv);
         }
-        auto v = herder.getHerderSCPDriver().wrapStellarValue(sv);
-
+        auto v = xdr::xdr_to_opaque(sv);
         return TxPair{v, txSet};
     };
     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
@@ -832,15 +831,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         if (nomination)
         {
             envelope.statement.pledges.type(SCP_ST_NOMINATE);
-            envelope.statement.pledges.nominate().votes.push_back(
-                p.first->getValue());
+            envelope.statement.pledges.nominate().votes.push_back(p.first);
             envelope.statement.pledges.nominate().quorumSetHash = qSetHash;
         }
         else
         {
             envelope.statement.pledges.type(SCP_ST_PREPARE);
-            envelope.statement.pledges.prepare().ballot.value =
-                p.first->getValue();
+            envelope.statement.pledges.prepare().ballot.value = p.first;
             envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
         }
         envelope.statement.nodeID = s.getPublicKey();
@@ -872,12 +869,13 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         ValueWrapperPtrSet candidates;
 
         auto addToCandidates = [&](TxPair const& p) {
-            candidates.emplace(p.first);
             auto envelope = makeEnvelope(
                 herder, p, {}, herder.getCurrentLedgerSeq() + 1, true);
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
+            auto v = herder.getHerderSCPDriver().wrapValue(p.first);
+            candidates.emplace(v);
         };
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
@@ -953,30 +951,30 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         SECTION("valid")
         {
             auto nomV = makeTxPair(herder, txSet0, ct, withSCPsignature);
-            REQUIRE(scp.validateValue(seq, nomV.first->getValue(), true) ==
+            REQUIRE(scp.validateValue(seq, nomV.first, true) ==
                     SCPDriver::kFullyValidatedValue);
 
             auto balV = makeTxPair(herder, txSet0, ct, false);
-            REQUIRE(scp.validateValue(seq, balV.first->getValue(), false) ==
+            REQUIRE(scp.validateValue(seq, balV.first, false) ==
                     SCPDriver::kFullyValidatedValue);
         }
         SECTION("invalid")
         {
             // nomination, requires signature iff withSCPsignature is true
             auto nomV = makeTxPair(herder, txSet0, ct, !withSCPsignature);
-            REQUIRE(scp.validateValue(seq, nomV.first->getValue(), true) ==
+            REQUIRE(scp.validateValue(seq, nomV.first, true) ==
                     SCPDriver::kInvalidValue);
 
             // ballot protocol, with signature is never valid
             auto balV = makeTxPair(herder, txSet0, ct, true);
-            REQUIRE(scp.validateValue(seq, balV.first->getValue(), false) ==
+            REQUIRE(scp.validateValue(seq, balV.first, false) ==
                     SCPDriver::kInvalidValue);
 
             if (withSCPsignature)
             {
                 auto p = makeTxPair(herder, txSet0, ct, withSCPsignature);
                 StellarValue sv;
-                xdr::xdr_from_opaque(p.first->getValue(), sv);
+                xdr::xdr_from_opaque(p.first, sv);
 
                 auto checkInvalid = [&](StellarValue const& sv) {
                     auto v = xdr::xdr_to_opaque(sv);
