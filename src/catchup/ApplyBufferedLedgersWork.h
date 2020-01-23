@@ -13,14 +13,19 @@ namespace stellar
 
 class ApplyBufferedLedgersWork : public BasicWork
 {
+    using OnSuccessHandler =
+        std::function<void(LedgerHeaderHistoryEntry const& lastClosed)>;
+    const OnSuccessHandler mOnSuccessHandler;
     std::shared_ptr<ConditionalWork> mConditionalWork;
 
   public:
-    ApplyBufferedLedgersWork(Application& app);
+    ApplyBufferedLedgersWork(Application& app,
+                             OnSuccessHandler const& onSuccessHandler);
 
   protected:
     void onReset() override;
     State onRun() override;
+    void onSuccess() override;
     bool
     onAbort() override
     {

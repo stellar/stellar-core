@@ -343,9 +343,17 @@ CatchupWork::runCatchupStep()
                 seq.push_back(mTransactionsVerifyApplySeq);
             }
 
-            // Step 4.4: Apply buffered ledgers
+            auto onSuccessCallback = [&progressHandler = this->mProgressHandler, mode = this->mCatchupConfiguration.mode()](LedgerHeaderHistoryEntry const& lastClosed)
+            {
+                progressHandler(ProgressState::FINISHED, lastClosed, mode);
+            };
+
+            // Step 4.4: Apply buffered ledgers. This is the last step of
+            // catchup. onSuccessCallback will let listeners know when catchup
+            // is done
             mApplyBufferedLedgersWork =
-                std::make_shared<ApplyBufferedLedgersWork>(mApp);
+                std::make_shared<ApplyBufferedLedgersWork>(mApp,
+                                                           onSuccessCallback);
             seq.push_back(mApplyBufferedLedgersWork);
 
             mCatchupSeq =
@@ -386,9 +394,6 @@ void
 CatchupWork::onSuccess()
 {
     CLOG(INFO, "History") << "Catchup finished";
-
-    mProgressHandler(ProgressState::FINISHED, mLastApplied,
-                     mCatchupConfiguration.mode());
     mApp.getCatchupManager().historyCaughtup();
     Work::onSuccess();
 }

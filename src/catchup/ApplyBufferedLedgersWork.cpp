@@ -13,8 +13,10 @@
 
 namespace stellar
 {
-ApplyBufferedLedgersWork::ApplyBufferedLedgersWork(Application& app)
+ApplyBufferedLedgersWork::ApplyBufferedLedgersWork(
+    Application& app, OnSuccessHandler const& onSuccessHandler)
     : BasicWork(app, "apply-buffered-ledgers", BasicWork::RETRY_NEVER)
+    , mOnSuccessHandler(onSuccessHandler)
 {
 }
 
@@ -71,5 +73,11 @@ ApplyBufferedLedgersWork::onRun()
     mConditionalWork->startWork(wakeSelfUpCallback());
 
     return State::WORK_RUNNING;
+}
+
+void
+ApplyBufferedLedgersWork::onSuccess()
+{
+    mOnSuccessHandler(mApp.getLedgerManager().getLastClosedLedgerHeader());
 }
 }
