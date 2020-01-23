@@ -286,6 +286,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                     fetching.emplace(envelope, std::chrono::steady_clock::now())
                         .first;
                 startFetch(envelope);
+                updateMetrics();
             }
             else
             {
@@ -312,6 +313,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             fetching.erase(fetchIt);
 
             envelopeReady(envelope);
+            updateMetrics();
             return Herder::ENVELOPE_STATUS_READY;
         } // else just keep waiting for it to come in
 
@@ -350,6 +352,7 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
             << "PendingEnvelopes::discardSCPEnvelope got corrupt message: "
             << e.what();
     }
+    updateMetrics();
 }
 
 bool
@@ -498,6 +501,7 @@ PendingEnvelopes::pop(uint64 slotIndex)
             auto ret = v.back();
             v.pop_back();
 
+            updateMetrics();
             return ret;
         }
         it++;
@@ -535,6 +539,8 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
         return i.first != 0 && i.first < slotIndex;
     });
+
+    updateMetrics();
 }
 
 void
@@ -560,6 +566,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
     }
 
     cleanKnownData();
+    updateMetrics();
 }
 
 TxSetFramePtr
