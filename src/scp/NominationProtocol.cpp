@@ -493,7 +493,8 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     mRoundNumber++;
     updateRoundLeaders();
 
-    ValueWrapperPtr nominatingValue;
+    std::chrono::milliseconds timeout =
+        mSlot.getSCPDriver().computeTimeout(mRoundNumber);
 
     // if we're leader, add our value
     if (mRoundLeaders.find(mSlot.getLocalNode()->getNodeID()) !=
@@ -503,8 +504,9 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         if (ins.second)
         {
             updated = true;
+            mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
+                                                 value->getValue());
         }
-        nominatingValue = value;
     }
     // add a few more values from other leaders
     for (auto const& leader : mRoundLeaders)
@@ -512,21 +514,17 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
         auto it = mLatestNominations.find(leader);
         if (it != mLatestNominations.end())
         {
-            nominatingValue = getNewValueFromNomination(
+            auto lnmV = getNewValueFromNomination(
                 it->second->getStatement().pledges.nominate());
-            if (nominatingValue)
+            if (lnmV)
             {
-                mVotes.insert(nominatingValue);
+                mVotes.insert(lnmV);
                 updated = true;
+                mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
+                                                     lnmV->getValue());
             }
         }
     }
-
-    std::chrono::milliseconds timeout =
-        mSlot.getSCPDriver().computeTimeout(mRoundNumber);
-
-    mSlot.getSCPDriver().nominatingValue(mSlot.getSlotIndex(),
-                                         nominatingValue->getValue());
 
     std::shared_ptr<Slot> slot = mSlot.shared_from_this();
     mSlot.getSCPDriver().setupTimer(
