@@ -70,6 +70,25 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
     std::copy(str.begin(), str.begin() + n, ret.begin());
 }
 
+inline std::string
+assetToString(const Asset& asset)
+{
+    auto r = std::string{};
+    switch (asset.type())
+    {
+    case stellar::ASSET_TYPE_NATIVE:
+        r = std::string{"XLM"};
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+        assetCodeToStr(asset.alphaNum4().assetCode, r);
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+        assetCodeToStr(asset.alphaNum12().assetCode, r);
+        break;
+    }
+    return r;
+};
+
 bool addBalance(int64_t& balance, int64_t delta,
                 int64_t maxBalance = std::numeric_limits<int64_t>::max());
 
