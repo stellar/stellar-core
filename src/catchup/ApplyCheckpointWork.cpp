@@ -334,4 +334,25 @@ ApplyCheckpointWork::onRun()
         return State::WORK_FAILURE;
     }
 }
+
+void
+ApplyCheckpointWork::shutdown()
+{
+    if (mConditionalWork)
+    {
+        mConditionalWork->shutdown();
+    }
+    BasicWork::shutdown();
+}
+
+bool
+ApplyCheckpointWork::onAbort()
+{
+    if (mConditionalWork && !mConditionalWork->isDone())
+    {
+        mConditionalWork->crankWork();
+        return false;
+    }
+    return true;
+}
 }
