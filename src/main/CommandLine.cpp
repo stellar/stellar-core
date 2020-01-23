@@ -629,9 +629,11 @@ int
 runDumpXDR(CommandLineArgs const& args)
 {
     std::string xdr;
+    bool json = false;
+    auto jsonOption = clara::Opt{json}["--json"]("dump json");
 
-    return runWithHelp(args, {fileNameParser(xdr)}, [&] {
-        dumpXdrStream(xdr);
+    return runWithHelp(args, {jsonOption, fileNameParser(xdr)}, [&] {
+        dumpXdrStream(xdr, json);
         return 0;
     });
 }
