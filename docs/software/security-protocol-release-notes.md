@@ -53,6 +53,38 @@ It then follows that:
 
 # List of releases
 
+## v12.1.0 (2019-10-24)
+
+* `SCP` - protocol - added `CRITICAL` quality to quorum config generator
+
+## v12.0.0 (2019-09-30)
+
+* `Ledger` - protocol - CAP0024 - Make PathPayment symmetrical
+* `Ledger` - protocol - CAP0025 - Remove bucket shadowing
+* `Ledger` - protocol - CAP0026 - Disable inflation
+
+## v11.4.0 (2019-08-28)
+
+* `Herder` - security - connection string to the database could be logged unencrypted
+    * exploited: no
+    * mitigation: code fix
+
+## v11.2.0 (2019-06-27)
+
+* `SCP` - protocol - switch to auto generated quorum configuration
+* `SCP` - protocol - persist SCP messages across restarts, increasing the chance of propagating externalize messages
+* `SCP` - protocol - added quorum intersection monitoring
+* `Ledger` - protocol - changed to reject a ledger containing an unknown upgrade instead of corrupting the local ledger state
+
+## v11.1.0 (2019-05-23)
+
+* `Ledger` - security - crash when processing bad archive files
+    * exploited: no
+    * mitigation: code fix
+* `Overlay` - security - ignore SCP messages from a previous incarnation of the network (testnet reset)
+    * exploited: no
+    * mitigation: code fix
+
 ## v11.0.0 (2019-04-24)
 
 * `Ledger` - protocol - implementing CAP0005 (Transaction pricing improvement)
@@ -65,6 +97,8 @@ It then follows that:
     * exploited: no
     * mitigation: code fix
     * bug bounty: [ahook](https://hackerone.com/ahook)
+
+* `SCP` - protocol - attach validator ID to values introduced by that validator
 
 ## v10.0.0 (2018-09-05)
 
