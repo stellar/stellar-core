@@ -280,6 +280,28 @@ CatchupWork::runCatchupStep()
 
         if (mCatchupSeq->getState() == State::WORK_SUCCESS)
         {
+            // Step 4.4: Apply buffered ledgers
+            if (mApplyBufferedLedgersWork)
+            {
+                if (mApplyBufferedLedgersWork->getState() ==
+                    State::WORK_SUCCESS)
+                {
+                    mApplyBufferedLedgersWork.reset();
+                }
+                else
+                {
+                    // waiting for mApplyBufferedLedgersWork to complete/error
+                    // out
+                    return mApplyBufferedLedgersWork->getState();
+                }
+            }
+            // see if we need to apply buffered ledgers
+            if (mApp.getLedgerManager().hasBufferedLedger())
+            {
+                mApplyBufferedLedgersWork = addWork<ApplyBufferedLedgersWork>();
+                return State::WORK_RUNNING;
+            }
+
             return State::WORK_SUCCESS;
         }
         else if (mBucketVerifyApplySeq)
@@ -342,11 +364,6 @@ CatchupWork::runCatchupStep()
                 downloadApplyTransactions(catchupRange);
                 seq.push_back(mTransactionsVerifyApplySeq);
             }
-
-            // Step 4.4: Apply buffered ledgers
-            mApplyBufferedLedgersWork =
-                std::make_shared<ApplyBufferedLedgersWork>(mApp);
-            seq.push_back(mApplyBufferedLedgersWork);
 
             mCatchupSeq =
                 addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
