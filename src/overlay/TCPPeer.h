@@ -26,11 +26,20 @@ class TCPPeer : public Peer
     typedef asio::buffered_stream<asio::ip::tcp::socket> SocketType;
 
   private:
+    struct TimestampedMessage
+    {
+        VirtualClock::time_point mEnqueuedTime;
+        VirtualClock::time_point mIssuedTime;
+        VirtualClock::time_point mCompletedTime;
+        void recordWriteTiming(OverlayMetrics& metrics);
+        xdr::msg_ptr mMessage;
+    };
+
     std::shared_ptr<SocketType> mSocket;
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
-    std::queue<std::shared_ptr<xdr::msg_ptr>> mWriteQueue;
+    std::queue<std::shared_ptr<TimestampedMessage>> mWriteQueue;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};

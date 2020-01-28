@@ -145,11 +145,14 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     assertThreadIsMain();
 
     // places the buffer to write into the write queue
-    auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
+    TimestampedMessage msg;
+    msg.mEnqueuedTime = mApp.getClock().now();
+    msg.mMessage = std::move(xdrBytes);
+    auto tsm = std::make_shared<TimestampedMessage>(std::move(msg));
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-    self->mWriteQueue.emplace(buf);
+    self->mWriteQueue.emplace(tsm);
 
     if (!self->mWriting)
     {
@@ -260,20 +263,35 @@ TCPPeer::messageSender()
     // peek the buffer from the queue
     // do not remove it yet as we need the buffer for the duration of the
     // write operation
-    auto buf = mWriteQueue.front();
+    auto tsm = mWriteQueue.front();
+    tsm->mIssuedTime = mApp.getClock().now();
 
-    asio::async_write(*(mSocket.get()),
-                      asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-                      [self](asio::error_code const& ec, std::size_t length) {
-                          self->writeHandler(ec, length);
-                          self->mWriteQueue.pop(); // done with front element
+    asio::async_write(
+        *(mSocket.get()),
+        asio::buffer(tsm->mMessage->raw_data(), tsm->mMessage->raw_size()),
+        [self, tsm](asio::error_code const& ec, std::size_t length) {
+            self->writeHandler(ec, length);
+            tsm->mCompletedTime = self->mApp.getClock().now();
+            tsm->recordWriteTiming(self->getOverlayMetrics());
+            self->mWriteQueue.pop(); // done with front element
 
-                          // continue processing the queue/flush
-                          if (!ec)
-                          {
-                              self->messageSender();
-                          }
-                      });
+            // continue processing the queue/flush
+            if (!ec)
+            {
+                self->messageSender();
+            }
+        });
+}
+
+void
+TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
+{
+    auto qdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        mIssuedTime - mEnqueuedTime);
+    auto wdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        mCompletedTime - mIssuedTime);
+    metrics.mMessageDelayInWriteQueueTimer.Update(qdelay);
+    metrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
 }
 
 void
