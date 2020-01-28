@@ -5,9 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/FutureBucket.h"
-#include "overlay/StellarXDR.h"
-#include "xdrpp/message.h"
-#include <future>
+#include "xdr/Stellar-types.h"
+#include <algorithm>
+#include <cstdint>
+#include <memory>
+#include <vector>
 
 namespace stellar
 {
@@ -295,6 +297,8 @@ namespace stellar
 
 class Application;
 class Bucket;
+struct LedgerEntry;
+struct LedgerKey;
 
 namespace testutil
 {

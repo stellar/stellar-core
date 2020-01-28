@@ -4,12 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/LedgerCmp.h"
-#include "crypto/Hex.h"
-#include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
-#include "util/XDRStream.h"
+#include "xdr/Stellar-types.h"
+#include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <string>
+#include <vector>
 
 namespace stellar
 {
@@ -27,8 +28,10 @@ namespace stellar
 
 class Application;
 class BucketManager;
+struct BucketEntry;
 class BucketList;
-class Database;
+struct LedgerEntry;
+struct LedgerKey;
 
 class Bucket : public std::enable_shared_from_this<Bucket>,
                public NonMovableOrCopyable

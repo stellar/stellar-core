@@ -14,17 +14,36 @@
 #include "bucket/BucketTests.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketOutputIterator.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
+#include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-types.h"
 #include "xdrpp/autocheck.h"
+
+#include <algorithm>
+#include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <fstream>
+#include <functional>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 using namespace stellar;
 

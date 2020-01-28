@@ -4,6 +4,10 @@
 
 #include "bucket/BucketInputIterator.h"
 #include "bucket/Bucket.h"
+#include "util/Logging.h"
+#include <memory>
+#include <stdexcept>
+#include <string>
 
 namespace stellar
 {

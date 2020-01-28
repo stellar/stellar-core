@@ -1,4 +1,6 @@
 #pragma once
+#include <cstddef>
+#include <unordered_map>
 #include <xdr/Stellar-types.h>
 
 namespace std

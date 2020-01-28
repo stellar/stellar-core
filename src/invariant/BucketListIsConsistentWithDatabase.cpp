@@ -5,6 +5,7 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerRange.h"

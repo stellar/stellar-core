@@ -3,14 +3,17 @@
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
-#include "bucket/Bucket.h"
 #include "xdr/Stellar-types.h"
-#include <cstdint>
 #include <iosfwd>
+#include <memory>
+#include <system_error>
 #include <vector>
 
 namespace stellar
 {
+
+class Bucket;
+
 // Key type for cache of merges-in-progress. These only exist to enable
 // re-attaching a deserialized FutureBucket to a std::shared_future, or (if the
 // merge is finished and has been promoted to a live bucket) to identify which

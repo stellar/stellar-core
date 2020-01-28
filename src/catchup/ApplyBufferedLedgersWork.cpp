@@ -6,9 +6,18 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "catchup/ApplyLedgerWork.h"
+#include "crypto/Hex.h"
+#include "herder/LedgerCloseData.h"
+#include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "util/Logging.h"
+#include "work/ConditionalWork.h"
 
+#include <algorithm>
+#include <chrono>
+#include <memory>
+#include <string>
 #include <util/format.h>
 
 namespace stellar
