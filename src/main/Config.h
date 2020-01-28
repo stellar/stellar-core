@@ -399,6 +399,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     void logBasicInfo();
     void setNoListen();
+    void setNoPublish();
 
     // function to stringify a quorum set
     std::string toString(SCPQuorumSet const& qset);

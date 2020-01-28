@@ -1436,6 +1436,15 @@ Config::setNoListen()
     MANUAL_CLOSE = true;
 }
 
+void
+Config::setNoPublish()
+{
+    for (auto& item : HISTORY)
+    {
+        item.second.mPutCmd = "";
+    }
+}
+
 SCPQuorumSet
 Config::generateQuorumSetHelper(
     std::vector<ValidatorEntry>::const_iterator begin,
