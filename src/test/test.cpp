@@ -97,8 +97,14 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
     if (!cfgs[instanceNumber])
     {
+        if (gTestRoots.empty())
+        {
+            gTestRoots.emplace_back(
+                fmt::format("stellar-core-test-{}", gBaseInstance));
+        }
+        auto const& testBase = gTestRoots[0].getName();
         gTestRoots.emplace_back(
-            fmt::format("stellar-core-test-{}", instanceNumber));
+            fmt::format("{}/test-{}", testBase, instanceNumber));
 
         std::string rootDir = gTestRoots.back().getName();
         rootDir += "/";
