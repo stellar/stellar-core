@@ -107,10 +107,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         Config& thisConfig = *cfgs[instanceNumber];
         thisConfig.USE_CONFIG_FOR_GENESIS = true;
 
-        std::ostringstream sstream;
-
-        sstream << "stellar" << instanceNumber << ".log";
-        thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
         thisConfig.INVARIANT_CHECKS = {".*"};
@@ -248,12 +244,15 @@ runTest(CommandLineArgs const& args)
     // not mixed with stellar-core logging.
     Logging::setFmt("<test>");
     Logging::setLogLevel(logLevel, nullptr);
-    Config const& cfg = getTestConfig();
-    Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
+    // use base instance for logging as we're guaranteed to not have conflicting
+    // instances of stellar-core running at the same time with the same base
+    // instance
+    auto logFile = fmt::format("stellar{}.log", gBaseInstance);
+    Logging::setLoggingToFile(logFile);
     Logging::setLogLevel(logLevel, nullptr);
 
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
-    LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
+    LOG(INFO) << "Logging to " << logFile;
 
     if (gVersionsToTest.empty())
     {
