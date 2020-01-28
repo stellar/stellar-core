@@ -70,6 +70,8 @@ overlay.byte.read                        | meter     | number of bytes received
 overlay.byte.write                       | meter     | number of bytes sent
 overlay.connection.authenticated         | counter   | number of authenticated peers
 overlay.connection.pending               | counter   | number of pending connections
+overlay.delay.async-write                | timer     | time between each message's async write issue and completion
+overlay.delay.write-queue                | timer     | time between each message's entry and exit from peer write queue
 overlay.error.read                       | meter     | error while receiving a message
 overlay.error.write                      | meter     | error while sending a message
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
