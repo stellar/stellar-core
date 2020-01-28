@@ -212,10 +212,6 @@ Database::applySchemaUpgrade(unsigned long vers)
                      << "ALTER COLUMN accountid "
                      << "TYPE VARCHAR(56) COLLATE \"C\"";
 
-            mSession << "ALTER TABLE ledgerheaders "
-                     << "ALTER COLUMN ledgerhash "
-                     << "TYPE CHARACTER(64) COLLATE \"C\"";
-
             mSession << "ALTER TABLE accountdata "
                      << "ALTER COLUMN accountid "
                      << "TYPE VARCHAR(56) COLLATE \"C\", "
