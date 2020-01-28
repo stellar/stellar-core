@@ -97,7 +97,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
     if (!cfgs[instanceNumber])
     {
-        gTestRoots.emplace_back("stellar-core-test");
+        gTestRoots.emplace_back(
+            fmt::format("stellar-core-test-{}", instanceNumber));
 
         std::string rootDir = gTestRoots.back().getName();
         rootDir += "/";
@@ -166,8 +167,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             thisConfig.DISABLE_XDR_FSYNC = true;
             break;
         case Config::TESTDB_ON_DISK_SQLITE:
-            dbname << "sqlite3://" << rootDir << "test" << instanceNumber
-                   << ".db";
+            dbname << "sqlite3://" << rootDir << "test.db";
             break;
 #ifdef USE_POSTGRES
         case Config::TESTDB_POSTGRESQL:
