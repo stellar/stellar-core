@@ -29,6 +29,8 @@ using namespace std;
 // TCPPeer
 ///////////////////////////////////////////////////////////////////////
 
+const size_t TCPPeer::BUFSZ;
+
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket)
     : Peer(app, role), mSocket(socket)
@@ -43,7 +45,8 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << address.toString();
     assertThreadIsMain();
-    auto socket = make_shared<SocketType>(app.getClock().getIOContext());
+    auto socket =
+        make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ, BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
     result->startIdleTimer();
@@ -343,6 +346,7 @@ TCPPeer::startRead()
         return;
     }
 
+    const size_t HDRSZ = 4;
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     assert(self->mIncomingHeader.size() == 0);
@@ -350,7 +354,57 @@ TCPPeer::startRead()
     if (Logging::logTrace("Overlay"))
         CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
-    self->mIncomingHeader.resize(4);
+    self->mIncomingHeader.resize(HDRSZ);
+
+    // We read large-ish (1MB) buffers of data from TCP which might have quite a
+    // few messages in them. We want to digest as many of these _synchronously_
+    // as we can before we issue an async_read against ASIO.
+    YieldTimer yt(mApp.getClock());
+    while (mSocket->in_avail() >= HDRSZ && yt.shouldKeepGoing())
+    {
+        size_t n = mSocket->read_some(asio::buffer(mIncomingHeader));
+        if (n != HDRSZ)
+        {
+            drop("error during header read_some",
+                 Peer::DropDirection::WE_DROPPED_REMOTE,
+                 Peer::DropMode::IGNORE_WRITE_QUEUE);
+            return;
+        }
+        size_t length = static_cast<size_t>(getIncomingMsgLength());
+        if (length != 0)
+        {
+            if (mSocket->in_avail() >= length)
+            {
+                // We can finish reading a full message here synchronously.
+                mIncomingBody.resize(length);
+                n = mSocket->read_some(asio::buffer(mIncomingBody));
+                if (n != length)
+                {
+                    drop("error during body read_some",
+                         Peer::DropDirection::WE_DROPPED_REMOTE,
+                         Peer::DropMode::IGNORE_WRITE_QUEUE);
+                    return;
+                }
+                receivedBytes(length, true);
+                recvMessage();
+            }
+            else
+            {
+                // We read a header synchronously, but don't have enough data in
+                // the buffered_stream to read the body synchronously. Pretend
+                // we just finished reading the header asynchronously, and punt
+                // to readHeaderHandler to let it re-read the header and issue
+                // an async read for the body.
+                readHeaderHandler(asio::error_code(), HDRSZ);
+                return;
+            }
+        }
+    }
+
+    // If there wasn't enough readable in the buffered stream to even get a
+    // header (message length), issue an async_read and hope that the buffering
+    // pulls in much more than just the 4 bytes we ask for here.
+    getOverlayMetrics().mAsyncRead.Mark();
     asio::async_read(*(self->mSocket.get()),
                      asio::buffer(self->mIncomingHeader),
                      [self](asio::error_code ec, std::size_t length) {
