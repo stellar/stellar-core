@@ -74,6 +74,8 @@ compile_commands.json
 /src/src.mk
 /lib/medida.mk
 /lib/lib.mk
+/scripts/*.graphml
+/scripts/*.json
 
 # test output
 /stellar-core-test-*
