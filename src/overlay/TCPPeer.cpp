@@ -132,7 +132,7 @@ TCPPeer::getIP() const
 }
 
 void
-TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
+TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
 {
     if (mState == CLOSING)
     {
@@ -154,7 +154,15 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-    self->mWriteQueue.emplace_back(tsm);
+    switch (priority)
+    {
+    case Peer::MessagePriority::TOP_PRIORITY:
+        self->mWriteQueueTopPriority.emplace_back(tsm);
+        break;
+    case Peer::MessagePriority::LOW_PRIORITY:
+        self->mWriteQueueLowPriority.emplace_back(tsm);
+        break;
+    }
 
     if (!self->mWriting)
     {
@@ -236,7 +244,7 @@ TCPPeer::messageSender()
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     // if nothing to do, mark progress and return.
-    if (mWriteQueue.empty())
+    if (mWriteQueueTopPriority.empty() && mWriteQueueLowPriority.empty())
     {
         mLastEmpty = mApp.getClock().now();
         self->mWriting = false;
@@ -249,17 +257,22 @@ TCPPeer::messageSender()
         return;
     }
 
-    // Take a snapshot of the contents of mWriteQueue into mWriteBuffers, in
-    // terms of asio::mutable_buffers pointing into the elements of mWriteQueue,
+    std::deque<std::shared_ptr<TimestampedMessage>>& writeQueue =
+        (mWriteQueueTopPriority.empty() ? mWriteQueueLowPriority
+                                        : mWriteQueueTopPriority);
+    assert(!writeQueue.empty());
+
+    // Take a snapshot of the contents of writeQueue into mWriteBuffers, in
+    // terms of asio::mutable_buffers pointing into the elements of writeQueue,
     // and then issue a single multi-buffer ("scatter-gather") async_write that
     // covers the whole snapshot. We'll get called back when the batch is
     // completed, at which point we'll clear mWriteBuffers and remove the entire
-    // snapshot worth of corresponding messages from mWriteQueue (though it may
+    // snapshot worth of corresponding messages from writeQueue (though it may
     // have grown a bit in the meantime -- we remove only a prefix).
     assert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
     size_t expected_length = 0;
-    for (auto& tsm : mWriteQueue)
+    for (auto& tsm : writeQueue)
     {
         tsm->mIssuedTime = now;
         size_t sz = tsm->mMessage->raw_size();
@@ -270,8 +283,8 @@ TCPPeer::messageSender()
     getOverlayMetrics().mAsyncWrite.Mark();
     asio::async_write(
         *(mSocket.get()), mWriteBuffers,
-        [self, expected_length](asio::error_code const& ec,
-                                std::size_t length) {
+        [self, &writeQueue, expected_length](asio::error_code const& ec,
+                                             std::size_t length) {
             if (expected_length != length)
             {
                 self->drop("error during async_write",
@@ -286,7 +299,7 @@ TCPPeer::messageSender()
             // in metrics, but also advance iterator 'i' so we wind up with an
             // iterator range to erase from the front of the write queue.
             auto now = self->mApp.getClock().now();
-            auto i = self->mWriteQueue.begin();
+            auto i = writeQueue.begin();
             while (!self->mWriteBuffers.empty())
             {
                 (*i)->mCompletedTime = now;
@@ -297,7 +310,7 @@ TCPPeer::messageSender()
 
             // Erase the messages from the write queue that we just forgot
             // about the buffers for.
-            self->mWriteQueue.erase(self->mWriteQueue.begin(), i);
+            writeQueue.erase(writeQueue.begin(), i);
 
             // continue processing the queue
             if (!ec)

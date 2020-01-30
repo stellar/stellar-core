@@ -64,6 +64,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_DROPPED_REMOTE
     };
 
+    enum class MessagePriority
+    {
+        // At the moment we only have a two-priority-level queueing system; we
+        // might have more priorities later but this should be enough.
+        TOP_PRIORITY,
+        LOW_PRIORITY
+    };
+
     struct PeerMetrics
     {
         PeerMetrics(VirtualClock::time_point connectedTime);
@@ -153,7 +161,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // put in a reused/non-owned buffer without having to buffer/queue
     // messages somewhere else. The async write request will point _into_
     // this owned buffer. This is really the best we can do.
-    virtual void sendMessage(xdr::msg_ptr&& xdrBytes) = 0;
+    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+                             MessagePriority priority) = 0;
     virtual void
     connected()
     {

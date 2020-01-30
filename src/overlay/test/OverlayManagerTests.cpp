@@ -50,7 +50,7 @@ class PeerStub : public Peer
     {
     }
     virtual void
-    sendMessage(xdr::msg_ptr&& xdrBytes) override
+    sendMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority) override
     {
         sent++;
     }

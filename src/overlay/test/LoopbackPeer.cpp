@@ -45,7 +45,7 @@ LoopbackPeer::getAuthCert()
 }
 
 void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
+LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, MessagePriority priority)
 {
     if (mRemote.expired())
     {
@@ -62,9 +62,20 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     }
 
     // CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
-    mOutQueue.emplace_back(std::move(msg));
+    std::deque<xdr::msg_ptr>* outQueue = nullptr;
+    switch (priority)
+    {
+    case Peer::MessagePriority::TOP_PRIORITY:
+        mOutQueueTopPriority.emplace_back(std::move(msg));
+        outQueue = &mOutQueueTopPriority;
+        break;
+    case Peer::MessagePriority::LOW_PRIORITY:
+        mOutQueueLowPriority.emplace_back(std::move(msg));
+        outQueue = &mOutQueueLowPriority;
+        break;
+    }
     // Possibly flush some queued messages if queue's full.
-    while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
+    while (outQueue->size() > mMaxQueueDepth && !mCorked)
     {
         // If our recipient is straggling, we will break off sending 75% of the
         // time even when we have more things to send, causing the outbound
@@ -76,14 +87,14 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
             {
                 CLOG(INFO, "Overlay")
                     << "Loopback send-to-straggler pausing, "
-                    << "outbound queue at " << mOutQueue.size();
+                    << "outbound queue at " << outQueue->size();
                 break;
             }
             else
             {
                 CLOG(INFO, "Overlay")
                     << "Loopback send-to-straggler sending, "
-                    << "outbound queue at " << mOutQueue.size();
+                    << "outbound queue at " << outQueue->size();
             }
         }
         deliverOne();
@@ -177,10 +188,15 @@ LoopbackPeer::deliverOne()
         return;
     }
 
-    if (!mOutQueue.empty() && !mCorked)
+    if (!(mOutQueueTopPriority.empty() || mOutQueueLowPriority.empty()) &&
+        !mCorked)
     {
-        xdr::msg_ptr msg = std::move(mOutQueue.front());
-        mOutQueue.pop_front();
+        std::deque<xdr::msg_ptr>& outQueue =
+            (mOutQueueTopPriority.empty() ? mOutQueueLowPriority
+                                          : mOutQueueTopPriority);
+        assert(!outQueue.empty());
+        xdr::msg_ptr msg = std::move(outQueue.front());
+        outQueue.pop_front();
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
 
@@ -188,16 +204,16 @@ LoopbackPeer::deliverOne()
         if (mDuplicateProb(gRandomEngine))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer duplicated message";
-            mOutQueue.emplace_front(duplicateMessage(msg));
+            outQueue.emplace_front(duplicateMessage(msg));
             mStats.messagesDuplicated++;
         }
 
         // Possibly requeue it at the back and return, reordering.
-        if (mReorderProb(gRandomEngine) && mOutQueue.size() > 0)
+        if (mReorderProb(gRandomEngine) && outQueue.size() > 0)
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer reordered message";
             mStats.messagesReordered++;
-            mOutQueue.emplace_back(std::move(msg));
+            outQueue.emplace_back(std::move(msg));
             return;
         }
 
@@ -234,7 +250,7 @@ LoopbackPeer::deliverOne()
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
-        if (mOutQueue.empty())
+        if (outQueue.empty())
         {
             mLastEmpty = mApp.getClock().now();
         }
@@ -250,7 +266,8 @@ LoopbackPeer::deliverOne()
 void
 LoopbackPeer::deliverAll()
 {
-    while (!mOutQueue.empty() && !mCorked)
+    while (!(mOutQueueTopPriority.empty() || mOutQueueLowPriority.empty()) &&
+           !mCorked)
     {
         deliverOne();
     }
@@ -259,14 +276,19 @@ LoopbackPeer::deliverAll()
 void
 LoopbackPeer::dropAll()
 {
-    mOutQueue.clear();
+    mOutQueueTopPriority.clear();
+    mOutQueueLowPriority.clear();
 }
 
 size_t
 LoopbackPeer::getBytesQueued() const
 {
     size_t t = 0;
-    for (auto const& m : mOutQueue)
+    for (auto const& m : mOutQueueTopPriority)
+    {
+        t += m->raw_size();
+    }
+    for (auto const& m : mOutQueueLowPriority)
     {
         t += m->raw_size();
     }
@@ -276,7 +298,7 @@ LoopbackPeer::getBytesQueued() const
 size_t
 LoopbackPeer::getMessagesQueued() const
 {
-    return mOutQueue.size();
+    return (mOutQueueTopPriority.size() + mOutQueueLowPriority.size());
 }
 
 LoopbackPeer::Stats const&
@@ -300,7 +322,8 @@ LoopbackPeer::setCorked(bool c)
 void
 LoopbackPeer::clearInAndOutQueues()
 {
-    mOutQueue.clear();
+    mOutQueueTopPriority.clear();
+    mOutQueueLowPriority.clear();
     mInQueue = std::queue<xdr::msg_ptr>();
 }
 

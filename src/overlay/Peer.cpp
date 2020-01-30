@@ -374,6 +374,8 @@ Peer::sendMessage(StellarMessage const& msg)
             << " to : " << mApp.getConfig().toShortString(mPeerID) << " @"
             << mApp.getConfig().PEER_PORT;
 
+    auto priority = Peer::MessagePriority::TOP_PRIORITY;
+
     switch (msg.type())
     {
     case ERROR_MSG:
@@ -402,6 +404,7 @@ Peer::sendMessage(StellarMessage const& msg)
         break;
     case TRANSACTION:
         getOverlayMetrics().mSendTransactionMeter.Mark();
+        priority = Peer::MessagePriority::TOP_PRIORITY;
         break;
     case GET_SCP_QUORUMSET:
         getOverlayMetrics().mSendGetSCPQuorumSetMeter.Mark();
@@ -433,7 +436,7 @@ Peer::sendMessage(StellarMessage const& msg)
         ++mSendMacSeq;
     }
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
-    this->sendMessage(std::move(xdrBytes));
+    this->sendMessage(std::move(xdrBytes), priority);
 }
 
 void

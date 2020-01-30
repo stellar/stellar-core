@@ -41,13 +41,15 @@ class TCPPeer : public Peer
     std::vector<uint8_t> mIncomingBody;
 
     std::vector<asio::mutable_buffer> mWriteBuffers;
-    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueue;
+    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueTopPriority;
+    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueLowPriority;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};
 
     void recvMessage();
-    void sendMessage(xdr::msg_ptr&& xdrBytes) override;
+    void sendMessage(xdr::msg_ptr&& xdrBytes,
+                     MessagePriority priority) override;
 
     void messageSender();
 
