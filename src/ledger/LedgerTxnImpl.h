@@ -641,6 +641,23 @@ class LedgerTxnRoot::Impl
         LoadType type;
     };
 
+    struct UtilizationMetrics
+    {
+        int64_t mImmediateLoads{0};
+        int64_t mPrefetchLoadsBulk{0};
+        int64_t mBulkApplyMs{0};
+        int64_t mPrefetchTotalMs{0};
+
+        void
+        clear()
+        {
+            mImmediateLoads = 0;
+            mPrefetchLoadsBulk = 0;
+            mBulkApplyMs = 0;
+            mPrefetchTotalMs = 0;
+        }
+    };
+
     typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
     typedef AssetPair BestOffersCacheKey;
@@ -664,6 +681,8 @@ class LedgerTxnRoot::Impl
     mutable EntryCache mEntryCache;
     mutable BestOffersCache mBestOffersCache;
     mutable uint64_t mTotalPrefetchHits{0};
+    mutable uint32_t mTotalUnusedPrefetches{0};
+    UtilizationMetrics mutable mUtilizationStats;
 
     size_t mMaxCacheSize;
     size_t mBulkLoadBatchSize;
@@ -741,6 +760,9 @@ class LedgerTxnRoot::Impl
     bulkLoadOffers(std::unordered_set<LedgerKey> const& keys) const;
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadData(std::unordered_set<LedgerKey> const& keys) const;
+
+    // reportUtilization has strong exception safety guarantee
+    void reportUtilization() const;
 
   public:
     // Constructor has the strong exception safety guarantee

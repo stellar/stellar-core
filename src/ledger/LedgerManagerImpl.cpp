@@ -1164,6 +1164,10 @@ LedgerManagerImpl::applyTransactions(
     }
 
     prefetchTransactionData(txs);
+    auto applyTimer =
+        LogSlowExecution{"LedgerManagerImpl::applyTransactions",
+                         LogSlowExecution::Mode::AUTOMATIC_RAII, "took",
+                         std::chrono::milliseconds::zero()};
 
     for (auto tx : txs)
     {
@@ -1244,12 +1248,15 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto hitRate = mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100;
 
-    CLOG(DEBUG, "Ledger") << "Ledger: " << ledgerSeq << " txs: " << numTxs
-                          << ", ops: " << numOps
-                          << ", prefetch hit rate (%): " << hitRate;
-
     // We lose a bit of precision here, as medida only accepts int64_t
     mPrefetchHitRate.set_count(std::llround(hitRate));
+
+    if (Logging::logTrace("Perf"))
+    {
+        CLOG(TRACE, "Perf")
+            << "Ledger: " << ledgerSeq << " txs: " << numTxs
+            << ", ops: " << numOps << ", prefetch hit rate (%): " << hitRate;
+    }
 }
 
 void

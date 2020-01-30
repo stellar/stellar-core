@@ -13,6 +13,8 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
+#include "util/LogSlowExecution.h"
+#include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -2087,6 +2089,9 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     auto bleca = BulkLedgerEntryChangeAccumulator();
     try
     {
+        auto applyTimer = LogSlowExecution{
+            "LedgerTxn::bulkApply", LogSlowExecution::Mode::MANUAL, "took",
+            std::chrono::milliseconds::max()};
         while ((bool)iter)
         {
             bleca.accumulate(iter);
@@ -2095,6 +2100,9 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
                 (bool)iter ? LEDGER_ENTRY_BATCH_COMMIT_SIZE : 0;
             bulkApply(bleca, bufferThreshold, cons);
         }
+        mUtilizationStats.mBulkApplyMs = applyTimer.checkElapsedTime().count();
+        reportUtilization();
+
         // NB: we want to clear the prepared statement cache _before_
         // committing; on postgres this doesn't matter but on SQLite the passive
         // WAL-auto-checkpointing-at-commit behaviour will starve if there are
@@ -2123,6 +2131,9 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // std::unique_ptr<...>::swap does not throw
     mHeader.swap(childHeader);
     mChild = nullptr;
+
+    // UtilizationMetrics::clear does not throw
+    mUtilizationStats.clear();
 }
 
 std::string
@@ -2242,6 +2253,9 @@ uint32_t
 LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
 {
     uint32_t total = 0;
+    auto prefetchTimer =
+        LogSlowExecution{"LedgerTxn::prefetch", LogSlowExecution::Mode::MANUAL,
+                         "took", std::chrono::milliseconds::max()};
 
     std::unordered_set<LedgerKey> accounts;
     std::unordered_set<LedgerKey> offers;
@@ -2271,6 +2285,8 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
         if ((static_cast<double>(mEntryCache.size()) / mMaxCacheSize) >=
             ENTRY_CACHE_FILL_RATIO)
         {
+            mUtilizationStats.mPrefetchTotalMs +=
+                prefetchTimer.checkElapsedTime().count();
             return total;
         }
 
@@ -2317,6 +2333,8 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
     cacheResult(bulkLoadTrustLines(trustlines));
     cacheResult(bulkLoadData(data));
 
+    mUtilizationStats.mPrefetchTotalMs +=
+        prefetchTimer.checkElapsedTime().count();
     return total;
 }
 
@@ -2336,6 +2354,27 @@ LedgerTxnRoot::Impl::getPrefetchHitRate() const
     }
     return static_cast<double>(mTotalPrefetchHits) /
            (totalMisses + mTotalPrefetchHits);
+}
+
+void
+LedgerTxnRoot::Impl::reportUtilization() const
+{
+    if (!Logging::logTrace("Perf"))
+    {
+        return;
+    }
+
+    auto unused = mEntryCache.getCounters().mUnused;
+
+    CLOG(TRACE, "Perf")
+        << "LedgerTxn::bulkApply: " << mUtilizationStats.mBulkApplyMs << "ms"
+        << ", LedgerTxn::prefetch total: " << mUtilizationStats.mPrefetchTotalMs
+        << "ms"
+        << ", immediate loads: " << mUtilizationStats.mImmediateLoads
+        << ", prefetch loads: " << mUtilizationStats.mPrefetchLoadsBulk
+        << ", unused prefetches: " << unused - mTotalUnusedPrefetches;
+
+    mTotalUnusedPrefetches = unused;
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>
@@ -2672,7 +2711,24 @@ LedgerTxnRoot::Impl::putInEntryCache(
 {
     try
     {
-        mEntryCache.put(key, {entry, type});
+        mEntryCache.put(key, CacheEntry{entry, type});
+        // Invoke get to ensure entry is used; this is constant on average
+        if (type == LoadType::IMMEDIATE)
+        {
+            mEntryCache.get(key);
+        }
+
+        switch (type)
+        {
+        case LoadType::IMMEDIATE:
+            ++mUtilizationStats.mImmediateLoads;
+            break;
+        case LoadType::PREFETCH:
+            ++mUtilizationStats.mPrefetchLoadsBulk;
+            break;
+        default:
+            break;
+        }
     }
     catch (...)
     {

@@ -27,6 +27,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
         uint64_t mInserts{0};
         uint64_t mUpdates{0};
         uint64_t mEvicts{0};
+        uint64_t mUnused{0};
     };
 
   private:
@@ -40,6 +41,7 @@ class RandomEvictionCache : public NonMovableOrCopyable
     {
         uint64_t mLastAccess;
         V mValue;
+        bool mTouched;
     };
 
     // Cache itself is stored in a hashmap.
@@ -107,8 +109,9 @@ class RandomEvictionCache : public NonMovableOrCopyable
     put(K const& k, V const& v)
     {
         ++mGeneration;
-        CacheValue newValue{mGeneration, v};
+        CacheValue newValue{mGeneration, v, false};
         auto pair = mValueMap.insert(std::make_pair(k, newValue));
+        ++mCounters.mUnused; // anything new is marked unused
         if (pair.second)
         {
             // An insertion occurred: save a pointer to the pair inserted.
@@ -191,6 +194,11 @@ class RandomEvictionCache : public NonMovableOrCopyable
             auto& cacheVal = it->second;
             ++mCounters.mHits;
             cacheVal.mLastAccess = ++mGeneration;
+            if (!cacheVal.mTouched)
+            {
+                --mCounters.mUnused;
+            }
+            cacheVal.mTouched = true;
             return cacheVal.mValue;
         }
         else
