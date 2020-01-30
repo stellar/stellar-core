@@ -45,8 +45,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << address.toString();
     assertThreadIsMain();
-    auto socket =
-        make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ, BUFSZ);
+    auto socket = make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
     result->startIdleTimer();
@@ -155,7 +154,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-    self->mWriteQueue.emplace(tsm);
+    self->mWriteQueue.emplace_back(tsm);
 
     if (!self->mWriting)
     {
@@ -236,49 +235,71 @@ TCPPeer::messageSender()
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-    // if nothing to do, flush and return
+    // if nothing to do, mark progress and return.
     if (mWriteQueue.empty())
     {
         mLastEmpty = mApp.getClock().now();
-        mSocket->async_flush([self](asio::error_code const& ec, std::size_t) {
-            self->writeHandler(ec, 0);
-            if (!ec)
-            {
-                if (!self->mWriteQueue.empty())
-                {
-                    self->messageSender();
-                }
-                else
-                {
-                    self->mWriting = false;
-                    // there is nothing to send and delayed shutdown was
-                    // requested - time to perform it
-                    if (self->mDelayedShutdown)
-                    {
-                        self->shutdown();
-                    }
-                }
-            }
-        });
+        self->mWriting = false;
+        // there is nothing to send and delayed shutdown was
+        // requested - time to perform it
+        if (self->mDelayedShutdown)
+        {
+            self->shutdown();
+        }
         return;
     }
 
-    // peek the buffer from the queue
-    // do not remove it yet as we need the buffer for the duration of the
-    // write operation
-    auto tsm = mWriteQueue.front();
-    tsm->mIssuedTime = mApp.getClock().now();
+    // Take a snapshot of the contents of mWriteQueue into mWriteBuffers, in
+    // terms of asio::mutable_buffers pointing into the elements of mWriteQueue,
+    // and then issue a single multi-buffer ("scatter-gather") async_write that
+    // covers the whole snapshot. We'll get called back when the batch is
+    // completed, at which point we'll clear mWriteBuffers and remove the entire
+    // snapshot worth of corresponding messages from mWriteQueue (though it may
+    // have grown a bit in the meantime -- we remove only a prefix).
+    assert(mWriteBuffers.empty());
+    auto now = mApp.getClock().now();
+    size_t expected_length = 0;
+    for (auto& tsm : mWriteQueue)
+    {
+        tsm->mIssuedTime = now;
+        size_t sz = tsm->mMessage->raw_size();
+        mWriteBuffers.emplace_back(tsm->mMessage->raw_data(), sz);
+        expected_length += sz;
+    }
 
+    getOverlayMetrics().mAsyncWrite.Mark();
     asio::async_write(
-        *(mSocket.get()),
-        asio::buffer(tsm->mMessage->raw_data(), tsm->mMessage->raw_size()),
-        [self, tsm](asio::error_code const& ec, std::size_t length) {
-            self->writeHandler(ec, length);
-            tsm->mCompletedTime = self->mApp.getClock().now();
-            tsm->recordWriteTiming(self->getOverlayMetrics());
-            self->mWriteQueue.pop(); // done with front element
+        *(mSocket.get()), mWriteBuffers,
+        [self, expected_length](asio::error_code const& ec,
+                                std::size_t length) {
+            if (expected_length != length)
+            {
+                self->drop("error during async_write",
+                           Peer::DropDirection::WE_DROPPED_REMOTE,
+                           Peer::DropMode::IGNORE_WRITE_QUEUE);
+                return;
+            }
+            self->writeHandler(ec, length, self->mWriteBuffers.size());
 
-            // continue processing the queue/flush
+            // Walk through a _prefix_ of the write queue _corresponding_ to the
+            // write buffers we just sent. While walking, record the sent-time
+            // in metrics, but also advance iterator 'i' so we wind up with an
+            // iterator range to erase from the front of the write queue.
+            auto now = self->mApp.getClock().now();
+            auto i = self->mWriteQueue.begin();
+            while (!self->mWriteBuffers.empty())
+            {
+                (*i)->mCompletedTime = now;
+                (*i)->recordWriteTiming(self->getOverlayMetrics());
+                ++i;
+                self->mWriteBuffers.pop_back();
+            }
+
+            // Erase the messages from the write queue that we just forgot
+            // about the buffers for.
+            self->mWriteQueue.erase(self->mWriteQueue.begin(), i);
+
+            // continue processing the queue
             if (!ec)
             {
                 self->messageSender();
@@ -299,7 +320,8 @@ TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
 
 void
 TCPPeer::writeHandler(asio::error_code const& error,
-                      std::size_t bytes_transferred)
+                      std::size_t bytes_transferred,
+                      size_t messages_transferred)
 {
     assertThreadIsMain();
     mLastWrite = mApp.getClock().now();
@@ -329,10 +351,10 @@ TCPPeer::writeHandler(asio::error_code const& error,
     else if (bytes_transferred != 0)
     {
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        getOverlayMetrics().mMessageWrite.Mark();
+        getOverlayMetrics().mMessageWrite.Mark(messages_transferred);
         getOverlayMetrics().mByteWrite.Mark(bytes_transferred);
 
-        ++mPeerMetrics.mMessageWrite;
+        mPeerMetrics.mMessageWrite += messages_transferred;
         mPeerMetrics.mByteWrite += bytes_transferred;
     }
 }

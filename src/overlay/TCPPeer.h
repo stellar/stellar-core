@@ -6,7 +6,7 @@
 
 #include "overlay/Peer.h"
 #include "util/Timer.h"
-#include <queue>
+#include <deque>
 
 namespace medida
 {
@@ -23,7 +23,7 @@ static auto const MAX_MESSAGE_SIZE = 0x1000000;
 class TCPPeer : public Peer
 {
   public:
-    typedef asio::buffered_stream<asio::ip::tcp::socket> SocketType;
+    typedef asio::buffered_read_stream<asio::ip::tcp::socket> SocketType;
     static constexpr size_t BUFSZ = 0x100000; // 1MB
 
   private:
@@ -40,7 +40,8 @@ class TCPPeer : public Peer
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
-    std::queue<std::shared_ptr<TimestampedMessage>> mWriteQueue;
+    std::vector<asio::mutable_buffer> mWriteBuffers;
+    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueue;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};
@@ -55,7 +56,8 @@ class TCPPeer : public Peer
     void startRead();
 
     void writeHandler(asio::error_code const& error,
-                      std::size_t bytes_transferred) override;
+                      std::size_t bytes_transferred,
+                      std::size_t messages_transferred) override;
     void readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred) override;
     void readBodyHandler(asio::error_code const& error,

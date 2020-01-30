@@ -252,7 +252,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual void connectHandler(asio::error_code const& ec);
 
     virtual void
-    writeHandler(asio::error_code const& error, size_t bytes_transferred)
+    writeHandler(asio::error_code const& error, size_t bytes_transferred,
+                 size_t messages_transferred)
     {
     }
 
