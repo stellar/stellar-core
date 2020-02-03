@@ -80,6 +80,57 @@ Peer::sendHello()
     sendMessage(msg);
 }
 
+bool
+Peer::anyWriteQueueReady()
+{
+    return !(mWriteQueueTopPriority.empty() && mWriteQueueLowPriority.empty());
+}
+
+std::deque<std::shared_ptr<Peer::TimestampedMessage>>&
+Peer::getNextWriteQueue()
+{
+    if (!mWriteQueueTopPriority.empty() && !mWriteQueueLowPriority.empty())
+    {
+        // If both are ready, favour top over low by a 3:1 ratio.
+        if (mNextWriteQueue == 0)
+        {
+            return mWriteQueueLowPriority;
+        }
+        else
+        {
+            return mWriteQueueTopPriority;
+        }
+        mNextWriteQueue = (mNextWriteQueue + 1) & 3;
+    }
+    else if (!mWriteQueueTopPriority.empty())
+    {
+        return mWriteQueueTopPriority;
+    }
+    else
+    {
+        return mWriteQueueLowPriority;
+    }
+}
+
+void
+Peer::enqueueMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
+{
+    // places the buffer to write into the write queue
+    TimestampedMessage msg;
+    msg.mEnqueuedTime = mApp.getClock().now();
+    msg.mMessage = std::move(xdrBytes);
+    auto tsm = std::make_shared<TimestampedMessage>(std::move(msg));
+    switch (priority)
+    {
+    case Peer::MessagePriority::TOP_PRIORITY:
+        mWriteQueueTopPriority.emplace_back(tsm);
+        break;
+    case Peer::MessagePriority::LOW_PRIORITY:
+        mWriteQueueLowPriority.emplace_back(tsm);
+        break;
+    }
+}
+
 AuthCert
 Peer::getAuthCert()
 {

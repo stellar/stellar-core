@@ -27,22 +27,11 @@ class TCPPeer : public Peer
     static constexpr size_t BUFSZ = 0x100000; // 1MB
 
   private:
-    struct TimestampedMessage
-    {
-        VirtualClock::time_point mEnqueuedTime;
-        VirtualClock::time_point mIssuedTime;
-        VirtualClock::time_point mCompletedTime;
-        void recordWriteTiming(OverlayMetrics& metrics);
-        xdr::msg_ptr mMessage;
-    };
-
     std::shared_ptr<SocketType> mSocket;
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
     std::vector<asio::mutable_buffer> mWriteBuffers;
-    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueTopPriority;
-    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueLowPriority;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};

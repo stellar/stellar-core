@@ -146,29 +146,17 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
         CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
 
-    // places the buffer to write into the write queue
-    TimestampedMessage msg;
-    msg.mEnqueuedTime = mApp.getClock().now();
-    msg.mMessage = std::move(xdrBytes);
-    auto tsm = std::make_shared<TimestampedMessage>(std::move(msg));
+    enqueueMessage(std::move(xdrBytes), priority);
 
-    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-
-    switch (priority)
+    if (!mWriting)
     {
-    case Peer::MessagePriority::TOP_PRIORITY:
-        self->mWriteQueueTopPriority.emplace_back(tsm);
-        break;
-    case Peer::MessagePriority::LOW_PRIORITY:
-        self->mWriteQueueLowPriority.emplace_back(tsm);
-        break;
-    }
-
-    if (!self->mWriting)
-    {
-        self->mWriting = true;
-        // kick off the async write chain if we're the first one
-        self->messageSender();
+        mWriting = true;
+        // Post a write to the next crank. We do this asynchronously so
+        // we have a (brief but important) chance to enqueue a bunch of messages
+        // before we issue the write.
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        self->getApp().postOnMainThread([self]() { self->messageSender(); },
+                                        "TCPPeer: messageSender");
     }
 }
 
@@ -244,7 +232,7 @@ TCPPeer::messageSender()
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     // if nothing to do, mark progress and return.
-    if (mWriteQueueTopPriority.empty() && mWriteQueueLowPriority.empty())
+    if (!anyWriteQueueReady())
     {
         mLastEmpty = mApp.getClock().now();
         self->mWriting = false;
@@ -257,9 +245,8 @@ TCPPeer::messageSender()
         return;
     }
 
-    std::deque<std::shared_ptr<TimestampedMessage>>& writeQueue =
-        (mWriteQueueTopPriority.empty() ? mWriteQueueLowPriority
-                                        : mWriteQueueTopPriority);
+    std::deque<std::shared_ptr<Peer::TimestampedMessage>>& writeQueue =
+        getNextWriteQueue();
     assert(!writeQueue.empty());
 
     // Take a snapshot of the contents of writeQueue into mWriteBuffers, in

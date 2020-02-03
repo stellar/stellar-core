@@ -61,22 +61,15 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, MessagePriority priority)
         std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());
     }
 
-    // CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
-    std::deque<xdr::msg_ptr>* outQueue = nullptr;
-    switch (priority)
-    {
-    case Peer::MessagePriority::TOP_PRIORITY:
-        mOutQueueTopPriority.emplace_back(std::move(msg));
-        outQueue = &mOutQueueTopPriority;
-        break;
-    case Peer::MessagePriority::LOW_PRIORITY:
-        mOutQueueLowPriority.emplace_back(std::move(msg));
-        outQueue = &mOutQueueLowPriority;
-        break;
-    }
+    enqueueMessage(std::move(msg), priority);
+
     // Possibly flush some queued messages if queue's full.
-    while (outQueue->size() > mMaxQueueDepth && !mCorked)
+    while (!mCorked)
     {
+        auto& outQueue = getNextWriteQueue();
+        if (outQueue.size() <= mMaxQueueDepth)
+            break;
+
         // If our recipient is straggling, we will break off sending 75% of the
         // time even when we have more things to send, causing the outbound
         // queue to back up gradually.
@@ -87,14 +80,14 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, MessagePriority priority)
             {
                 CLOG(INFO, "Overlay")
                     << "Loopback send-to-straggler pausing, "
-                    << "outbound queue at " << outQueue->size();
+                    << "outbound queue at " << outQueue.size();
                 break;
             }
             else
             {
                 CLOG(INFO, "Overlay")
                     << "Loopback send-to-straggler sending, "
-                    << "outbound queue at " << outQueue->size();
+                    << "outbound queue at " << outQueue.size();
             }
         }
         deliverOne();
@@ -152,11 +145,14 @@ damageMessage(default_random_engine& gen, xdr::msg_ptr& msg)
     return bitsFlipped != 0;
 }
 
-static xdr::msg_ptr
-duplicateMessage(xdr::msg_ptr const& msg)
+static std::shared_ptr<Peer::TimestampedMessage>
+duplicateMessage(std::shared_ptr<Peer::TimestampedMessage> const& msg)
 {
-    xdr::msg_ptr msg2 = xdr::message_t::alloc(msg->size());
-    memcpy(msg2->raw_data(), msg->raw_data(), msg->raw_size());
+    auto msg2 = std::make_shared<Peer::TimestampedMessage>();
+    msg2->mEnqueuedTime = msg->mEnqueuedTime;
+    msg2->mMessage = xdr::message_t::alloc(msg->mMessage->size());
+    memcpy(msg2->mMessage->raw_data(), msg->mMessage->raw_data(),
+           msg->mMessage->raw_size());
     return msg2;
 }
 
@@ -188,14 +184,11 @@ LoopbackPeer::deliverOne()
         return;
     }
 
-    if (!(mOutQueueTopPriority.empty() || mOutQueueLowPriority.empty()) &&
-        !mCorked)
+    if (anyWriteQueueReady() && !mCorked)
     {
-        std::deque<xdr::msg_ptr>& outQueue =
-            (mOutQueueTopPriority.empty() ? mOutQueueLowPriority
-                                          : mOutQueueTopPriority);
+        auto& outQueue = getNextWriteQueue();
         assert(!outQueue.empty());
-        xdr::msg_ptr msg = std::move(outQueue.front());
+        std::shared_ptr<Peer::TimestampedMessage> msg = outQueue.front();
         outQueue.pop_front();
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
@@ -213,7 +206,8 @@ LoopbackPeer::deliverOne()
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer reordered message";
             mStats.messagesReordered++;
-            outQueue.emplace_back(std::move(msg));
+            msg->mEnqueuedTime = mApp.getClock().now();
+            outQueue.emplace_back(msg);
             return;
         }
 
@@ -221,7 +215,7 @@ LoopbackPeer::deliverOne()
         if (mDamageProb(gRandomEngine))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer damaged message";
-            if (damageMessage(gRandomEngine, msg))
+            if (damageMessage(gRandomEngine, msg->mMessage))
                 mStats.messagesDamaged++;
         }
 
@@ -233,7 +227,7 @@ LoopbackPeer::deliverOne()
             return;
         }
 
-        size_t nBytes = msg->raw_size();
+        size_t nBytes = msg->mMessage->raw_size();
         mStats.bytesDelivered += nBytes;
 
         // Pass ownership of a serialized XDR message buffer to a recvMesage
@@ -243,7 +237,7 @@ LoopbackPeer::deliverOne()
         if (remote)
         {
             // move msg to remote's in queue
-            remote->mInQueue.emplace(std::move(msg));
+            remote->mInQueue.emplace(std::move(msg->mMessage));
             remote->getApp().postOnMainThread(
                 [remote]() { remote->processInQueue(); },
                 "LoopbackPeer: processInQueue in deliverOne");
@@ -266,8 +260,7 @@ LoopbackPeer::deliverOne()
 void
 LoopbackPeer::deliverAll()
 {
-    while (!(mOutQueueTopPriority.empty() || mOutQueueLowPriority.empty()) &&
-           !mCorked)
+    while (anyWriteQueueReady() && !mCorked)
     {
         deliverOne();
     }
@@ -276,21 +269,21 @@ LoopbackPeer::deliverAll()
 void
 LoopbackPeer::dropAll()
 {
-    mOutQueueTopPriority.clear();
-    mOutQueueLowPriority.clear();
+    mWriteQueueTopPriority.clear();
+    mWriteQueueLowPriority.clear();
 }
 
 size_t
 LoopbackPeer::getBytesQueued() const
 {
     size_t t = 0;
-    for (auto const& m : mOutQueueTopPriority)
+    for (auto const& m : mWriteQueueTopPriority)
     {
-        t += m->raw_size();
+        t += m->mMessage->raw_size();
     }
-    for (auto const& m : mOutQueueLowPriority)
+    for (auto const& m : mWriteQueueLowPriority)
     {
-        t += m->raw_size();
+        t += m->mMessage->raw_size();
     }
     return t;
 }
@@ -298,7 +291,7 @@ LoopbackPeer::getBytesQueued() const
 size_t
 LoopbackPeer::getMessagesQueued() const
 {
-    return (mOutQueueTopPriority.size() + mOutQueueLowPriority.size());
+    return (mWriteQueueTopPriority.size() + mWriteQueueLowPriority.size());
 }
 
 LoopbackPeer::Stats const&
@@ -322,8 +315,8 @@ LoopbackPeer::setCorked(bool c)
 void
 LoopbackPeer::clearInAndOutQueues()
 {
-    mOutQueueTopPriority.clear();
-    mOutQueueLowPriority.clear();
+    mWriteQueueTopPriority.clear();
+    mWriteQueueLowPriority.clear();
     mInQueue = std::queue<xdr::msg_ptr>();
 }
 
