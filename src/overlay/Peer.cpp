@@ -53,7 +53,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mIdleTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
-    , mLastEmpty(app.getClock().now())
+    , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
 {
     auto bytes = randomBytes(mSendNonce.size());
@@ -210,7 +210,7 @@ Peer::idleTimerExpired(asio::error_code const& error)
             drop("idle timeout", Peer::DropDirection::WE_DROPPED_REMOTE,
                  Peer::DropMode::IGNORE_WRITE_QUEUE);
         }
-        else if (((now - mLastEmpty) >= stragglerTimeout))
+        else if (((now - mEnqueueTimeOfLastWrite) >= stragglerTimeout))
         {
             getOverlayMetrics().mTimeoutStraggler.Mark();
             drop("straggling (cannot keep up)",

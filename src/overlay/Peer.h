@@ -126,7 +126,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualTimer mIdleTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
-    VirtualClock::time_point mLastEmpty;
+    VirtualClock::time_point mEnqueueTimeOfLastWrite;
 
     PeerMetrics mPeerMetrics;
 

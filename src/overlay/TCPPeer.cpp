@@ -234,7 +234,6 @@ TCPPeer::messageSender()
     // if nothing to do, mark progress and return.
     if (!anyWriteQueueReady())
     {
-        mLastEmpty = mApp.getClock().now();
         self->mWriting = false;
         // there is nothing to send and delayed shutdown was
         // requested - time to perform it
@@ -259,6 +258,7 @@ TCPPeer::messageSender()
     assert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
     size_t expected_length = 0;
+    mEnqueueTimeOfLastWrite = writeQueue.back()->mEnqueuedTime;
     for (auto& tsm : writeQueue)
     {
         tsm->mIssuedTime = now;

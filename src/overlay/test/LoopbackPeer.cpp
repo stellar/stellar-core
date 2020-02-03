@@ -230,6 +230,8 @@ LoopbackPeer::deliverOne()
         size_t nBytes = msg->mMessage->raw_size();
         mStats.bytesDelivered += nBytes;
 
+        mEnqueueTimeOfLastWrite = msg->mEnqueuedTime;
+
         // Pass ownership of a serialized XDR message buffer to a recvMesage
         // callback event against the remote Peer, posted on the remote
         // Peer's io_context.
@@ -244,10 +246,6 @@ LoopbackPeer::deliverOne()
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
-        if (outQueue.empty())
-        {
-            mLastEmpty = mApp.getClock().now();
-        }
         getOverlayMetrics().mMessageWrite.Mark();
         getOverlayMetrics().mByteWrite.Mark(nBytes);
         ++mPeerMetrics.mMessageWrite;
