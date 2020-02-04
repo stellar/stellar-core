@@ -98,7 +98,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         VirtualClock::time_point mEnqueuedTime;
         VirtualClock::time_point mIssuedTime;
         VirtualClock::time_point mCompletedTime;
-        void recordWriteTiming(OverlayMetrics& metrics);
+        void recordWriteTiming(OverlayMetrics& metrics,
+                               MessagePriority priority);
         xdr::msg_ptr mMessage;
     };
 
@@ -184,6 +185,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void enqueueMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority);
     bool anyWriteQueueReady();
     std::deque<std::shared_ptr<TimestampedMessage>>& getNextWriteQueue();
+    MessagePriority
+    queuePriority(std::deque<std::shared_ptr<TimestampedMessage>> const&) const;
 
     virtual AuthCert getAuthCert();
 

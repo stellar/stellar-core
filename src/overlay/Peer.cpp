@@ -163,6 +163,40 @@ Peer::getIOTimeout() const
 }
 
 void
+Peer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics,
+                                            MessagePriority priority)
+{
+    auto qdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        mIssuedTime - mEnqueuedTime);
+    auto wdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        mCompletedTime - mIssuedTime);
+    if (priority == MessagePriority::FETCH_PRIORITY)
+    {
+        metrics.mMessageDelayInFetchWriteQueueTimer.Update(qdelay);
+        metrics.mMessageDelayInFetchAsyncWriteTimer.Update(wdelay);
+    }
+    else
+    {
+        metrics.mMessageDelayInFloodWriteQueueTimer.Update(qdelay);
+        metrics.mMessageDelayInFloodAsyncWriteTimer.Update(wdelay);
+    }
+}
+
+Peer::MessagePriority
+Peer::queuePriority(
+    std::deque<std::shared_ptr<TimestampedMessage>> const& q) const
+{
+    if (&q == &mWriteQueueFetchPriority)
+    {
+        return MessagePriority::FETCH_PRIORITY;
+    }
+    else
+    {
+        return MessagePriority::FLOOD_PRIORITY;
+    }
+}
+
+void
 Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
 {
     if (shouldAbort())

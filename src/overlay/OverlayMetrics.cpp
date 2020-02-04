@@ -65,10 +65,14 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mRecvSurveyResponseTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "survey-response"}))
 
-    , mMessageDelayInWriteQueueTimer(
-          app.getMetrics().NewTimer({"overlay", "delay", "write-queue"}))
-    , mMessageDelayInAsyncWriteTimer(
-          app.getMetrics().NewTimer({"overlay", "delay", "async-write"}))
+    , mMessageDelayInFetchWriteQueueTimer(
+          app.getMetrics().NewTimer({"overlay", "fetch", "delay-write-queue"}))
+    , mMessageDelayInFloodWriteQueueTimer(
+          app.getMetrics().NewTimer({"overlay", "flood", "delay-write-queue"}))
+    , mMessageDelayInFetchAsyncWriteTimer(
+          app.getMetrics().NewTimer({"overlay", "fetch", "delay-async-write"}))
+    , mMessageDelayInFloodAsyncWriteTimer(
+          app.getMetrics().NewTimer({"overlay", "flood", "delay-async-write"}))
 
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))

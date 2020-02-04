@@ -57,8 +57,10 @@ struct OverlayMetrics
     medida::Timer& mRecvSurveyRequestTimer;
     medida::Timer& mRecvSurveyResponseTimer;
 
-    medida::Timer& mMessageDelayInWriteQueueTimer;
-    medida::Timer& mMessageDelayInAsyncWriteTimer;
+    medida::Timer& mMessageDelayInFetchWriteQueueTimer;
+    medida::Timer& mMessageDelayInFloodWriteQueueTimer;
+    medida::Timer& mMessageDelayInFetchAsyncWriteTimer;
+    medida::Timer& mMessageDelayInFloodAsyncWriteTimer;
 
     medida::Meter& mSendErrorMeter;
     medida::Meter& mSendHelloMeter;

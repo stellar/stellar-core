@@ -290,7 +290,8 @@ TCPPeer::messageSender()
             while (!self->mWriteBuffers.empty())
             {
                 (*i)->mCompletedTime = now;
-                (*i)->recordWriteTiming(self->getOverlayMetrics());
+                (*i)->recordWriteTiming(self->getOverlayMetrics(),
+                                        self->queuePriority(writeQueue));
                 ++i;
                 self->mWriteBuffers.pop_back();
             }
@@ -305,17 +306,6 @@ TCPPeer::messageSender()
                 self->messageSender();
             }
         });
-}
-
-void
-TCPPeer::TimestampedMessage::recordWriteTiming(OverlayMetrics& metrics)
-{
-    auto qdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        mIssuedTime - mEnqueuedTime);
-    auto wdelay = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        mCompletedTime - mIssuedTime);
-    metrics.mMessageDelayInWriteQueueTimer.Update(qdelay);
-    metrics.mMessageDelayInAsyncWriteTimer.Update(wdelay);
 }
 
 void
