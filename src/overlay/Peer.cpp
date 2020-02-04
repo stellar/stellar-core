@@ -114,12 +114,12 @@ Peer::getNextWriteQueue()
 }
 
 void
-Peer::enqueueMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
+Peer::enqueueMessage(StellarMessage const& smsg, MessagePriority priority)
 {
     // places the buffer to write into the write queue
     TimestampedMessage msg;
+    msg.mMessage = smsg;
     msg.mEnqueuedTime = mApp.getClock().now();
-    msg.mMessage = std::move(xdrBytes);
     auto tsm = std::make_shared<TimestampedMessage>(std::move(msg));
     switch (priority)
     {
@@ -160,6 +160,23 @@ Peer::getIOTimeout() const
         return std::chrono::seconds(
             mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT);
     }
+}
+
+void
+Peer::TimestampedMessage::buildMessageBytes(uint64_t& sendMacSeq,
+                                            HmacSha256Key const& sendMacKey)
+{
+    assert(!mMessageBytes);
+    AuthenticatedMessage amsg;
+    amsg.v0().message = mMessage;
+    if (mMessage.type() != HELLO && mMessage.type() != ERROR_MSG)
+    {
+        amsg.v0().sequence = sendMacSeq;
+        amsg.v0().mac =
+            hmacSha256(sendMacKey, xdr::xdr_to_opaque(sendMacSeq, mMessage));
+        ++sendMacSeq;
+    }
+    mMessageBytes = xdr::xdr_to_msg(amsg);
 }
 
 void
@@ -511,18 +528,7 @@ Peer::sendMessage(StellarMessage const& msg)
         getOverlayMetrics().mSendSurveyResponseMeter.Mark();
         break;
     };
-
-    AuthenticatedMessage amsg;
-    amsg.v0().message = msg;
-    if (msg.type() != HELLO && msg.type() != ERROR_MSG)
-    {
-        amsg.v0().sequence = mSendMacSeq;
-        amsg.v0().mac =
-            hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
-        ++mSendMacSeq;
-    }
-    xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
-    this->sendMessage(std::move(xdrBytes), priority);
+    this->sendMessage(msg, priority);
 }
 
 void

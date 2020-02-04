@@ -98,9 +98,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
         VirtualClock::time_point mEnqueuedTime;
         VirtualClock::time_point mIssuedTime;
         VirtualClock::time_point mCompletedTime;
+        StellarMessage mMessage;
+        xdr::msg_ptr mMessageBytes;
         void recordWriteTiming(OverlayMetrics& metrics,
                                MessagePriority priority);
-        xdr::msg_ptr mMessage;
+        void buildMessageBytes(uint64_t& sendMacSeq,
+                               HmacSha256Key const& sendMacKey);
     };
 
   protected:
@@ -168,21 +171,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendPeers();
     void sendError(ErrorCode error, std::string const& message);
 
-    // NB: This is a move-argument because the write-buffer has to travel
-    // with the write-request through the async IO system, and we might have
-    // several queued at once. We have carefully arranged this to not copy
-    // data more than the once necessary into this buffer, but it can't be
-    // put in a reused/non-owned buffer without having to buffer/queue
-    // messages somewhere else. The async write request will point _into_
-    // this owned buffer. This is really the best we can do.
-    virtual void sendMessage(xdr::msg_ptr&& xdrBytes,
+    virtual void sendMessage(StellarMessage const& smsg,
                              MessagePriority priority) = 0;
     virtual void
     connected()
     {
     }
 
-    void enqueueMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority);
+    void enqueueMessage(StellarMessage const& msg, MessagePriority priority);
     bool anyWriteQueueReady();
     std::deque<std::shared_ptr<TimestampedMessage>>& getNextWriteQueue();
     MessagePriority

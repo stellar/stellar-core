@@ -132,7 +132,7 @@ TCPPeer::getIP() const
 }
 
 void
-TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
+TCPPeer::sendMessage(StellarMessage const& smsg, MessagePriority priority)
 {
     if (mState == CLOSING)
     {
@@ -146,7 +146,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
         CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
 
-    enqueueMessage(std::move(xdrBytes), priority);
+    enqueueMessage(smsg, priority);
 
     if (!mWriting)
     {
@@ -262,8 +262,9 @@ TCPPeer::messageSender()
     for (auto& tsm : writeQueue)
     {
         tsm->mIssuedTime = now;
-        size_t sz = tsm->mMessage->raw_size();
-        mWriteBuffers.emplace_back(tsm->mMessage->raw_data(), sz);
+        tsm->buildMessageBytes(mSendMacSeq, mSendMacKey);
+        size_t sz = tsm->mMessageBytes->raw_size();
+        mWriteBuffers.emplace_back(tsm->mMessageBytes->raw_data(), sz);
         expected_length += sz;
     }
 

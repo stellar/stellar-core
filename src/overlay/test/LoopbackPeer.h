@@ -51,7 +51,7 @@ class LoopbackPeer : public Peer
 
     Stats mStats;
 
-    void sendMessage(xdr::msg_ptr&& xdrBytes,
+    void sendMessage(StellarMessage const& smsg,
                      MessagePriority priority) override;
     AuthCert getAuthCert() override;
 
@@ -70,7 +70,6 @@ class LoopbackPeer : public Peer
     void deliverOne();
     void deliverAll();
     void dropAll();
-    size_t getBytesQueued() const;
     size_t getMessagesQueued() const;
 
     Stats const& getStats() const;

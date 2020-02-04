@@ -45,7 +45,7 @@ LoopbackPeer::getAuthCert()
 }
 
 void
-LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, MessagePriority priority)
+LoopbackPeer::sendMessage(StellarMessage const& smsg, MessagePriority priority)
 {
     if (mRemote.expired())
     {
@@ -61,7 +61,7 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg, MessagePriority priority)
         std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());
     }
 
-    enqueueMessage(std::move(msg), priority);
+    enqueueMessage(smsg, priority);
 
     // Possibly flush some queued messages if queue's full.
     while (!mCorked)
@@ -150,9 +150,7 @@ duplicateMessage(std::shared_ptr<Peer::TimestampedMessage> const& msg)
 {
     auto msg2 = std::make_shared<Peer::TimestampedMessage>();
     msg2->mEnqueuedTime = msg->mEnqueuedTime;
-    msg2->mMessage = xdr::message_t::alloc(msg->mMessage->size());
-    memcpy(msg2->mMessage->raw_data(), msg->mMessage->raw_data(),
-           msg->mMessage->raw_size());
+    msg2->mMessage = msg->mMessage;
     return msg2;
 }
 
@@ -215,7 +213,7 @@ LoopbackPeer::deliverOne()
         if (mDamageProb(gRandomEngine))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer damaged message";
-            if (damageMessage(gRandomEngine, msg->mMessage))
+            if (damageMessage(gRandomEngine, msg->mMessageBytes))
                 mStats.messagesDamaged++;
         }
 
@@ -227,7 +225,8 @@ LoopbackPeer::deliverOne()
             return;
         }
 
-        size_t nBytes = msg->mMessage->raw_size();
+        msg->buildMessageBytes(mSendMacSeq, mSendMacKey);
+        size_t nBytes = msg->mMessageBytes->raw_size();
         mStats.bytesDelivered += nBytes;
 
         mEnqueueTimeOfLastWrite = msg->mEnqueuedTime;
@@ -239,7 +238,7 @@ LoopbackPeer::deliverOne()
         if (remote)
         {
             // move msg to remote's in queue
-            remote->mInQueue.emplace(std::move(msg->mMessage));
+            remote->mInQueue.emplace(std::move(msg->mMessageBytes));
             remote->getApp().postOnMainThread(
                 [remote]() { remote->processInQueue(); },
                 "LoopbackPeer: processInQueue in deliverOne");
@@ -269,21 +268,6 @@ LoopbackPeer::dropAll()
 {
     mWriteQueueFetchPriority.clear();
     mWriteQueueFloodPriority.clear();
-}
-
-size_t
-LoopbackPeer::getBytesQueued() const
-{
-    size_t t = 0;
-    for (auto const& m : mWriteQueueFetchPriority)
-    {
-        t += m->mMessage->raw_size();
-    }
-    for (auto const& m : mWriteQueueFloodPriority)
-    {
-        t += m->mMessage->raw_size();
-    }
-    return t;
 }
 
 size_t

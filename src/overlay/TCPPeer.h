@@ -37,7 +37,7 @@ class TCPPeer : public Peer
     bool mShutdownScheduled{false};
 
     void recvMessage();
-    void sendMessage(xdr::msg_ptr&& xdrBytes,
+    void sendMessage(StellarMessage const& smsg,
                      MessagePriority priority) override;
 
     void messageSender();
