@@ -68,8 +68,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         // At the moment we only have a two-priority-level queueing system; we
         // might have more priorities later but this should be enough.
-        TOP_PRIORITY,
-        LOW_PRIORITY
+        FETCH_PRIORITY,
+        FLOOD_PRIORITY
     };
 
     struct PeerMetrics
@@ -130,8 +130,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     PeerMetrics mPeerMetrics;
 
-    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueTopPriority;
-    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueLowPriority;
+    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueFetchPriority;
+    std::deque<std::shared_ptr<TimestampedMessage>> mWriteQueueFloodPriority;
     size_t mNextWriteQueue{0};
 
     OverlayMetrics& getOverlayMetrics();

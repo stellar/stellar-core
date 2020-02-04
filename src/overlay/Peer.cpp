@@ -83,32 +83,33 @@ Peer::sendHello()
 bool
 Peer::anyWriteQueueReady()
 {
-    return !(mWriteQueueTopPriority.empty() && mWriteQueueLowPriority.empty());
+    return !(mWriteQueueFetchPriority.empty() &&
+             mWriteQueueFloodPriority.empty());
 }
 
 std::deque<std::shared_ptr<Peer::TimestampedMessage>>&
 Peer::getNextWriteQueue()
 {
-    if (!mWriteQueueTopPriority.empty() && !mWriteQueueLowPriority.empty())
+    if (!mWriteQueueFetchPriority.empty() && !mWriteQueueFloodPriority.empty())
     {
         // If both are ready, favour top over low by a 3:1 ratio.
         if (mNextWriteQueue == 0)
         {
-            return mWriteQueueLowPriority;
+            return mWriteQueueFloodPriority;
         }
         else
         {
-            return mWriteQueueTopPriority;
+            return mWriteQueueFetchPriority;
         }
         mNextWriteQueue = (mNextWriteQueue + 1) & 3;
     }
-    else if (!mWriteQueueTopPriority.empty())
+    else if (!mWriteQueueFetchPriority.empty())
     {
-        return mWriteQueueTopPriority;
+        return mWriteQueueFetchPriority;
     }
     else
     {
-        return mWriteQueueLowPriority;
+        return mWriteQueueFloodPriority;
     }
 }
 
@@ -122,11 +123,11 @@ Peer::enqueueMessage(xdr::msg_ptr&& xdrBytes, MessagePriority priority)
     auto tsm = std::make_shared<TimestampedMessage>(std::move(msg));
     switch (priority)
     {
-    case Peer::MessagePriority::TOP_PRIORITY:
-        mWriteQueueTopPriority.emplace_back(tsm);
+    case Peer::MessagePriority::FETCH_PRIORITY:
+        mWriteQueueFetchPriority.emplace_back(tsm);
         break;
-    case Peer::MessagePriority::LOW_PRIORITY:
-        mWriteQueueLowPriority.emplace_back(tsm);
+    case Peer::MessagePriority::FLOOD_PRIORITY:
+        mWriteQueueFloodPriority.emplace_back(tsm);
         break;
     }
 }
@@ -425,7 +426,7 @@ Peer::sendMessage(StellarMessage const& msg)
             << " to : " << mApp.getConfig().toShortString(mPeerID) << " @"
             << mApp.getConfig().PEER_PORT;
 
-    auto priority = Peer::MessagePriority::TOP_PRIORITY;
+    auto priority = Peer::MessagePriority::FETCH_PRIORITY;
 
     switch (msg.type())
     {
@@ -455,7 +456,7 @@ Peer::sendMessage(StellarMessage const& msg)
         break;
     case TRANSACTION:
         getOverlayMetrics().mSendTransactionMeter.Mark();
-        priority = Peer::MessagePriority::TOP_PRIORITY;
+        priority = Peer::MessagePriority::FETCH_PRIORITY;
         break;
     case GET_SCP_QUORUMSET:
         getOverlayMetrics().mSendGetSCPQuorumSetMeter.Mark();

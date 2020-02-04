@@ -267,19 +267,19 @@ LoopbackPeer::deliverAll()
 void
 LoopbackPeer::dropAll()
 {
-    mWriteQueueTopPriority.clear();
-    mWriteQueueLowPriority.clear();
+    mWriteQueueFetchPriority.clear();
+    mWriteQueueFloodPriority.clear();
 }
 
 size_t
 LoopbackPeer::getBytesQueued() const
 {
     size_t t = 0;
-    for (auto const& m : mWriteQueueTopPriority)
+    for (auto const& m : mWriteQueueFetchPriority)
     {
         t += m->mMessage->raw_size();
     }
-    for (auto const& m : mWriteQueueLowPriority)
+    for (auto const& m : mWriteQueueFloodPriority)
     {
         t += m->mMessage->raw_size();
     }
@@ -289,7 +289,7 @@ LoopbackPeer::getBytesQueued() const
 size_t
 LoopbackPeer::getMessagesQueued() const
 {
-    return (mWriteQueueTopPriority.size() + mWriteQueueLowPriority.size());
+    return (mWriteQueueFetchPriority.size() + mWriteQueueFloodPriority.size());
 }
 
 LoopbackPeer::Stats const&
@@ -313,8 +313,8 @@ LoopbackPeer::setCorked(bool c)
 void
 LoopbackPeer::clearInAndOutQueues()
 {
-    mWriteQueueTopPriority.clear();
-    mWriteQueueLowPriority.clear();
+    mWriteQueueFetchPriority.clear();
+    mWriteQueueFloodPriority.clear();
     mInQueue = std::queue<xdr::msg_ptr>();
 }
 
