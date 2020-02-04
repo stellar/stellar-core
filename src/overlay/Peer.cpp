@@ -490,7 +490,7 @@ Peer::sendMessage(StellarMessage const& msg)
         break;
     case TRANSACTION:
         getOverlayMetrics().mSendTransactionMeter.Mark();
-        priority = Peer::MessagePriority::FETCH_PRIORITY;
+        priority = Peer::MessagePriority::FLOOD_PRIORITY;
         break;
     case GET_SCP_QUORUMSET:
         getOverlayMetrics().mSendGetSCPQuorumSetMeter.Mark();
