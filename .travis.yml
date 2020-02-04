@@ -27,7 +27,6 @@ addons:
     - llvm-5.0
     - pkg-config
     - clang-format-5.0
-    - pandoc
     - perl
     - parallel
 

@@ -853,7 +853,6 @@ exit /b 0
     <None Include="..\..\docs\software\performance.md" />
     <None Include="..\..\docs\software\security-protocol-release-notes.md" />
     <None Include="..\..\docs\software\testnet.md" />
-    <None Include="..\..\docs\stellar-core.1.md" />
     <None Include="..\..\docs\stellar-core_example.cfg" />
     <None Include="..\..\docs\stellar-core_example_validators.cfg" />
     <None Include="..\..\docs\stellar-core_standalone.cfg" />
