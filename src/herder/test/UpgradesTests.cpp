@@ -441,9 +441,12 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
                     toUpgradeType(makeTxCountUpgrade(51)), ledgerUpgradeType,
                     nomination, cfg, baseLH));
             }
-            REQUIRE(!Upgrades{cfg}.isValid(toUpgradeType(makeTxCountUpgrade(0)),
-                                           ledgerUpgradeType, nomination, cfg,
-                                           baseLH));
+            auto cfg0TxSize = cfg;
+            cfg0TxSize.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
+            REQUIRE(canBeValid == Upgrades{cfg0TxSize}.isValid(
+                                      toUpgradeType(makeTxCountUpgrade(0)),
+                                      ledgerUpgradeType, nomination, cfg,
+                                      baseLH));
         }
 
         SECTION("reserve")
@@ -1931,9 +1934,8 @@ TEST_CASE("upgrade invalid during ledger close", "[upgrades]")
         executeUpgrade(*app, makeProtocolVersionUpgrade(
                                  Config::CURRENT_LEDGER_PROTOCOL_VERSION - 1)));
 
-    // Base Fee / TxSet size / Base Reserve to 0
+    // Base Fee / Base Reserve to 0
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseFeeUpgrade(0)));
-    REQUIRE_THROWS(executeUpgrade(*app, makeTxCountUpgrade(0)));
     REQUIRE_THROWS(executeUpgrade(*app, makeBaseReserveUpgrade(0)));
 }
 

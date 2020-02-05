@@ -786,6 +786,43 @@ TEST_CASE("surge pricing", "[herder][txset]")
         // (1+..+4) + (1+2) = 10+3 = 13
         surgeTest(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 5, 15, 13);
     }
+    SECTION("max 0 ops per ledger")
+    {
+        Config cfg(getTestConfig());
+        cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 0;
+
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        app->start();
+
+        auto root = TestAccount::createRoot(*app);
+
+        auto destAccount = root.create("destAccount", 500000000);
+        auto accountB = root.create("accountB", 5000000000);
+        auto accountC = root.create("accountC", 5000000000);
+
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+        auto tx = makeMultiPayment(destAccount, root, 1, 100, 0, 1);
+        txSet->add(tx);
+        txSet->sortForHash();
+
+        // txSet contains a valid transaction
+        auto inv = txSet->trimInvalid(*app);
+        REQUIRE(inv.empty());
+
+        REQUIRE(txSet->sizeOp() == 1);
+        // txSet is itself invalid as it's over the limit
+        REQUIRE(!txSet->checkValid(*app));
+        txSet->surgePricingFilter(*app);
+
+        REQUIRE(txSet->sizeOp() == 0);
+        txSet->surgePricingFilter(*app);
+        REQUIRE(txSet->sizeOp() == 0);
+        REQUIRE(txSet->checkValid(*app));
+    }
 }
 
 static void
