@@ -118,7 +118,7 @@ runWithConfig(Config cfg)
             auto& metric =
                 app->getMetrics().NewTimer({"database", "upsert", "account"});
             auto before = metric.count();
-            uint64_t batchSize = 0xffff;
+            uint64_t batchSize = 0xfff;
 
             preloadAccounts(testAccounts, *app, batchSize);
 
