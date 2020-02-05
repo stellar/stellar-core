@@ -11,19 +11,61 @@
 #include "history/HistoryArchiveManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerTxn.h"
 #include "main/ErrorMessages.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
+#include "simulation/LoadGenerator.h"
+#include "test/TxTests.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "work/WorkScheduler.h"
 
+#include "medida/metrics_registry.h"
 #include <lib/http/HttpClient.h>
 #include <locale>
 
 namespace stellar
 {
+
+using namespace txtest;
+
+void
+preloadAccounts(uint64_t numAccounts, Application& app, uint64_t batch)
+{
+    if (numAccounts == 0 || app.isStopping())
+    {
+        return;
+    }
+
+    app.postOnMainThread(
+        [numAccounts, batch, &app]() mutable {
+            LedgerTxn ltx(app.getLedgerTxnRoot());
+            auto sn = getStartingSequenceNumber(ltx.loadHeader());
+            uint64_t i = 0;
+            for (; numAccounts != 0 && i < batch; ++i)
+            {
+                auto name = LoadGenerator::TEST_ACCOUNT_STR +
+                            std::to_string(numAccounts);
+                LedgerEntry newAccountEntry;
+                newAccountEntry.data.type(ACCOUNT);
+                auto& acc = newAccountEntry.data.account();
+                acc.thresholds[0] = 1;
+                acc.accountID = txtest::getAccount(name).getPublicKey();
+                acc.seqNum = sn;
+                acc.balance = 1000000000;
+                ltx.createOrUpdateWithoutLoading(newAccountEntry);
+                --numAccounts;
+            }
+            ltx.commit();
+            LOG(INFO) << "Committed batch, remaining test accounts: "
+                      << numAccounts;
+            preloadAccounts(numAccounts, app, batch);
+        },
+        "preloadAccounts");
+}
 
 int
 runWithConfig(Config cfg)
@@ -63,6 +105,31 @@ runWithConfig(Config cfg)
         {
             LOG(WARNING) << "Artificial acceleration of time enabled "
                          << "(for testing only)";
+        }
+
+        auto testAccounts = cfg.ARTIFICIALLY_GENERATE_ACCOUNTS_FOR_TESTING;
+        if (testAccounts > 0)
+        {
+            if (cfg.MODE_ENABLES_BUCKETLIST)
+            {
+                throw std::runtime_error(
+                    "Cannot generate accounts: bucketlist enabled");
+            }
+            auto& metric =
+                app->getMetrics().NewTimer({"database", "upsert", "account"});
+            auto before = metric.count();
+            uint64_t batchSize = 0xffff;
+
+            preloadAccounts(testAccounts, *app, batchSize);
+
+            while ((metric.count() - before) * batchSize < testAccounts)
+            {
+                if (clock.getIOContext().stopped())
+                {
+                    return 0;
+                }
+                clock.crank();
+            }
         }
 
         app->start();

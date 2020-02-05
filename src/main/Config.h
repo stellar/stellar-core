@@ -188,6 +188,11 @@ class Config : public std::enable_shared_from_this<Config>
     // system.
     bool ARTIFICIALLY_REPLAY_WITH_NEWEST_BUCKET_LOGIC_FOR_TESTING;
 
+    // A config parameter that pre-loads accounts into the database,
+    // useful for simulation modes with disabled bucketlist. This setting allows
+    // tto bypass consensus and create accounts much faster
+    uint64_t ARTIFICIALLY_GENERATE_ACCOUNTS_FOR_TESTING;
+
     // A config parameter that forces transaction application during ledger
     // close to sleep for a given number of microseconds. This option is only
     // for consensus and overlay simulation testing.

@@ -43,6 +43,7 @@ class LoadGenerator
     // return any accounts that are inconsistent.
     std::vector<TestAccountPtr> checkAccountSynced(Application& app,
                                                    bool isCreate);
+    static constexpr auto TEST_ACCOUNT_STR = "TestAccount";
 
   private:
     struct TxMetrics

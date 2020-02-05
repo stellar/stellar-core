@@ -373,7 +373,7 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
     SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
     for (uint64_t i = start; i < start + count; i++)
     {
-        auto name = "TestAccount-" + to_string(i);
+        auto name = TEST_ACCOUNT_STR + to_string(i);
         auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
         ops.push_back(
             txtest::createAccount(account.getPublicKey(), mMinBalance * 100));
@@ -438,7 +438,7 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
     if (res == mAccounts.end())
     {
         SequenceNumber sn = static_cast<SequenceNumber>(ledgerNum) << 32;
-        auto name = "TestAccount-" + std::to_string(accountId);
+        auto name = TEST_ACCOUNT_STR + std::to_string(accountId);
         newAccountPtr =
             std::make_shared<TestAccount>(mApp, txtest::getAccount(name), sn);
 

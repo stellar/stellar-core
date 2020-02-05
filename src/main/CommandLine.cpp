@@ -781,6 +781,7 @@ run(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
     uint32_t simulateSleepPerOp = 0;
+    uint64_t testAccounts = 0;
 
     auto simulateParser = [](uint32_t& simulateSleepPerOp) {
         return clara::Opt{simulateSleepPerOp,
@@ -788,38 +789,48 @@ run(CommandLineArgs const& args)
             "simulate application time per operation");
     };
 
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        disableBucketGCParser(disableBucketGC),
-                        simulateParser(simulateSleepPerOp)},
-                       [&] {
-                           Config cfg;
-                           try
-                           {
-                               cfg = configOption.getConfig();
-                               cfg.DISABLE_BUCKET_GC = disableBucketGC;
-                               if (simulateSleepPerOp > 0)
-                               {
-                                   cfg.DATABASE =
-                                       SecretValue{"sqlite3://:memory:"};
-                                   cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING =
-                                       simulateSleepPerOp;
-                                   cfg.MODE_STORES_HISTORY = false;
-                                   cfg.MODE_USES_IN_MEMORY_LEDGER = false;
-                                   cfg.MODE_ENABLES_BUCKETLIST = false;
-                                   cfg.PREFETCH_BATCH_SIZE = 0;
-                               }
-                           }
-                           catch (std::exception& e)
-                           {
-                               LOG(FATAL) << "Got an exception: " << e.what();
-                               LOG(FATAL) << REPORT_INTERNAL_BUG;
-                               return 1;
-                           }
-                           // run outside of catch block so that we properly
-                           // capture crashes
-                           return runWithConfig(cfg);
-                       });
+    auto generatedAccounts = [](uint64_t& testAccounts) {
+        return clara::Opt{testAccounts, "ACCOUNTS"}["--generate-accounts"](
+            "pre-generate accounts before startup (simulation only)");
+    };
+
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         disableBucketGCParser(disableBucketGC),
+         simulateParser(simulateSleepPerOp), generatedAccounts(testAccounts)},
+        [&] {
+            Config cfg;
+            try
+            {
+                cfg = configOption.getConfig();
+                cfg.DISABLE_BUCKET_GC = disableBucketGC;
+                if (simulateSleepPerOp > 0)
+                {
+                    cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
+                    cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING = simulateSleepPerOp;
+                    cfg.MODE_STORES_HISTORY = false;
+                    cfg.MODE_USES_IN_MEMORY_LEDGER = false;
+                    cfg.MODE_ENABLES_BUCKETLIST = false;
+                    cfg.PREFETCH_BATCH_SIZE = 0;
+                    cfg.ARTIFICIALLY_GENERATE_ACCOUNTS_FOR_TESTING =
+                        testAccounts;
+                }
+                else if (testAccounts > 0)
+                {
+                    throw std::runtime_error("Illegal option");
+                }
+            }
+            catch (std::exception& e)
+            {
+                LOG(FATAL) << "Got an exception: " << e.what();
+                LOG(FATAL) << REPORT_INTERNAL_BUG;
+                return 1;
+            }
+            // run outside of catch block so that we properly
+            // capture crashes
+            return runWithConfig(cfg);
+        });
 }
 
 int
