@@ -184,6 +184,59 @@ class VirtualClockEvent : public NonMovableOrCopyable
 };
 
 /**
+ * A small helper for controlling loops that might otherwise run too long,
+ * starving the main thread: make a YieldTimer outside the loop and check its
+ * shouldYield() method in the loop header, along with whatever other condition
+ * you're checking. Once true, shouldYield() will remain true permanently.
+ *
+ * The class includes both a time_point based expiry time _and_ an iteration
+ * counter; the redundancy is because in virtual-time mode the loop being
+ * controlled might not cause virtual time to advance, so a pure time_point
+ * based timer would never time out. Counting down an iteration count as well
+ * ensures that shouldYield() will eventually return true.
+ */
+class YieldTimer : private NonMovableOrCopyable
+{
+    VirtualClock& mClock;
+    VirtualClock::time_point mYieldTime;
+    size_t mIterationsRemaining;
+
+  public:
+    YieldTimer(VirtualClock& clock,
+               std::chrono::milliseconds yieldAfterDuration =
+                   std::chrono::milliseconds(100),
+               size_t yieldAfterIteration = 1024)
+        : mClock(clock)
+        , mYieldTime(clock.now() + yieldAfterDuration)
+        , mIterationsRemaining(yieldAfterIteration)
+    {
+    }
+    bool
+    shouldKeepGoing()
+    {
+        // To make it easier to read meaning of loop headers.
+        return !shouldYield();
+    }
+    bool
+    shouldYield()
+    {
+        if (mIterationsRemaining == 0)
+        {
+            return true;
+        }
+        if (mClock.now() >= mYieldTime)
+        {
+            // Set counter to 0 so we will never return false again, even if the
+            // system clock subsequently travels backwards in time.
+            mIterationsRemaining = 0;
+            return true;
+        }
+        --mIterationsRemaining;
+        return false;
+    }
+};
+
+/**
  * This is the class you probably want to use: it is coupled with a
  * VirtualClock, so advances with per-VirtualClock simulated time, and therefore
  * runs at full speed during simulation/testing.
