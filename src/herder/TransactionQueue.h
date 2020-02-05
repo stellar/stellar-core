@@ -41,8 +41,8 @@ class Application;
  * * removeAndReset() should be called after transaction is successully
  *   included into some leger. It preserves the other pending transactions for
  *   accounts and resets the TTL for banning
- * * ban() should be called after transaction became invalid for some reason
- *   (i.e. its source account cannot afford it anymore)
+ * * ban() bans a transactions (which may or may not be in the queue) and its
+ *   descendants, if any, for the next few ledgers.
  * * shift() should be called after each ledger close, it bans transactions
  *   that have associated age greater or equal to pendingDepth and removes
  *   transactions that were banned for more than banDepth ledgers

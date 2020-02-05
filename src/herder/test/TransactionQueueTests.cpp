@@ -80,10 +80,21 @@ class TransactionQueueTest
     void
     ban(std::vector<TransactionFramePtr> const& toRemove)
     {
-        auto size = mTransactionQueue.toTxSet({})->sizeTx();
+        auto txSetBefore = mTransactionQueue.toTxSet({});
+        // count the number of transactions from `toRemove` already included
+        auto inPoolCount = std::count_if(
+            toRemove.begin(), toRemove.end(),
+            [&](TransactionFramePtr const& tx) {
+                auto const& txs = txSetBefore->mTransactions;
+                return std::any_of(txs.begin(), txs.end(),
+                                   [&](TransactionFramePtr const& tx2) {
+                                       return tx2->getFullHash() ==
+                                              tx->getFullHash();
+                                   });
+            });
         mTransactionQueue.ban(toRemove);
-        REQUIRE(size - toRemove.size() >=
-                mTransactionQueue.toTxSet({})->sizeTx());
+        auto txSetAfter = mTransactionQueue.toTxSet({});
+        REQUIRE(txSetBefore->sizeTx() - inPoolCount >= txSetAfter->sizeTx());
     }
 
     void
@@ -147,6 +158,7 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
     auto root = TestAccount::createRoot(*app);
     auto account1 = root.create("a1", minBalance2);
     auto account2 = root.create("a2", minBalance2);
+    auto account3 = root.create("a3", minBalance2);
 
     auto txSeqA1T0 = transaction(*app, account1, 0, 1, 100);
     auto txSeqA1T1 = transaction(*app, account1, 1, 1, 200);
@@ -157,6 +169,7 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
     auto txSeqA1T4 = transaction(*app, account1, 4, 1, 700);
     auto txSeqA2T1 = transaction(*app, account2, 1, 1, 800);
     auto txSeqA2T2 = transaction(*app, account2, 2, 1, 900);
+    auto txSeqA3T1 = transaction(*app, account3, 1, 1, 100);
 
     SECTION("small sequence number")
     {
@@ -552,12 +565,27 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.add(txSeqA2T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.shift();
-        test.ban({txSeqA1T1, txSeqA2T2});
+        test.ban({txSeqA1T1, txSeqA2T2, txSeqA3T1});
         test.check({{{account1}, {account2, 1, {txSeqA2T1}}},
-                    {{txSeqA1T1, txSeqA1T2, txSeqA2T2}}});
+                    {{txSeqA1T1, txSeqA1T2, txSeqA2T2, txSeqA3T1}}});
         test.add(txSeqA1T1,
                  TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
         test.check({{{account1}, {account2, 1, {txSeqA2T1}}},
-                    {{txSeqA1T1, txSeqA1T2, txSeqA2T2}}});
+                    {{txSeqA1T1, txSeqA1T2, txSeqA2T2, txSeqA3T1}}});
+
+        // still banned when we shift
+        test.shift();
+        test.check({{{account1}, {account2, 2, {txSeqA2T1}}},
+                    {{}, {txSeqA1T1, txSeqA1T2, txSeqA2T2, txSeqA3T1}}});
+        test.add(txSeqA1T1,
+                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+        test.add(txSeqA3T1,
+                 TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
+        // not banned anymore
+        test.shift();
+        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.add(txSeqA3T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.check({{{account1, 0, {txSeqA1T1}}, {account2, 3, {txSeqA2T1}},
+                     {account3, 0, {txSeqA3T1}}}});
     }
 }

@@ -85,9 +85,20 @@ TransactionQueue::ban(std::vector<TransactionFramePtr> const& dropTxs)
     auto& bannedFront = mBannedTransactions.front();
     for (auto const& tx : dropTxs)
     {
-        for (auto const& extracted : extract(tx, false).second)
+        auto extractResult = extract(tx, false);
+        if (extractResult.second.empty())
         {
-            bannedFront.insert(extracted->getFullHash());
+            // tx was not in the queue
+            bannedFront.insert(tx->getFullHash());
+        }
+        else
+        {
+            // tx was in the queue, and may have caused other transactions to
+            // get dropped as well
+            for (auto const& extracted : extractResult.second)
+            {
+                bannedFront.insert(extracted->getFullHash());
+            }
         }
     }
 }
