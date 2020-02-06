@@ -371,6 +371,14 @@ LedgerManagerImpl::getLastMaxTxSetSize() const
     return mLastClosedLedger.header.maxTxSetSize;
 }
 
+uint32_t
+LedgerManagerImpl::getLastMaxTxSetSizeOps() const
+{
+    auto n = mLastClosedLedger.header.maxTxSetSize;
+    return mLastClosedLedger.header.ledgerVersion >= 11 ? n
+                                                        : (n * MAX_OPS_PER_TX);
+}
+
 int64_t
 LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
 {

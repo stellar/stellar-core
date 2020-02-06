@@ -221,11 +221,7 @@ TxSetFrame::surgePricingFilter(Application& app)
 
     bool maxIsOps = header.current().ledgerVersion >= 11;
 
-    size_t opsLeft;
-    {
-        size_t maxTxSetSize = header.current().maxTxSetSize;
-        opsLeft = maxIsOps ? maxTxSetSize : (maxTxSetSize * MAX_OPS_PER_TX);
-    }
+    size_t opsLeft = app.getLedgerManager().getLastMaxTxSetSizeOps();
 
     auto curSizeOps = maxIsOps ? sizeOp() : (sizeTx() * MAX_OPS_PER_TX);
     if (curSizeOps > opsLeft)
