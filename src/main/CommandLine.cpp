@@ -937,6 +937,8 @@ runSimulate(CommandLineArgs const& args)
         [&] {
             auto config = configOption.getConfig();
             config.setNoListen();
+            LOG(INFO) << "Publishing is disabled in `simulate` mode";
+            config.setNoPublish();
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             auto app = Application::create(clock, config, false);
