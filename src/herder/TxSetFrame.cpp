@@ -255,7 +255,7 @@ TxSetFrame::surgePricingFilter(Application& app)
             // inspect the top candidate queue
             auto& curTopTx = cur->front();
             size_t opsCount =
-                maxIsOps ? curTopTx->getOperations().size() : MAX_OPS_PER_TX;
+                maxIsOps ? curTopTx->getNumOperations() : MAX_OPS_PER_TX;
             if (opsCount <= opsLeft)
             {
                 // pop from this one

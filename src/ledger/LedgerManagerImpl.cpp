@@ -1155,7 +1155,7 @@ LedgerManagerImpl::applyTransactions(
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
         numOps = std::accumulate(txs.begin(), txs.end(), size_t(0),
                                  [](size_t s, TransactionFramePtr const& v) {
-                                     return s + v->getOperations().size();
+                                     return s + v->getNumOperations();
                                  });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
@@ -1173,7 +1173,7 @@ LedgerManagerImpl::applyTransactions(
         {
             CLOG(DEBUG, "Tx")
                 << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
-                << " ops=" << tx->getOperations().size()
+                << " ops=" << tx->getNumOperations()
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
             tx->apply(mApp, ltx, tm);
