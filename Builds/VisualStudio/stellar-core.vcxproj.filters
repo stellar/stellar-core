@@ -1901,6 +1901,9 @@
     <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md">
       <Filter>github</Filter>
     </None>
+    <None Include="..\..\docs\quick-reference.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
