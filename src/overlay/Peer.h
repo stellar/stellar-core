@@ -85,6 +85,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
         VirtualClock::time_point mConnectedTime;
     };
 
+    struct TimestampedMessage
+    {
+        VirtualClock::time_point mEnqueuedTime;
+        VirtualClock::time_point mIssuedTime;
+        VirtualClock::time_point mCompletedTime;
+        void recordWriteTiming(OverlayMetrics& metrics);
+        xdr::msg_ptr mMessage;
+    };
+
   protected:
     Application& mApp;
 
@@ -109,7 +118,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     VirtualTimer mIdleTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
-    VirtualClock::time_point mLastEmpty;
+    VirtualClock::time_point mEnqueueTimeOfLastWrite;
 
     PeerMetrics mPeerMetrics;
 

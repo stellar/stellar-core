@@ -255,6 +255,7 @@ TCPPeer::messageSender()
     assert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
     size_t expected_length = 0;
+    mEnqueueTimeOfLastWrite = mWriteQueue.back().mEnqueuedTime;
     for (auto& tsm : mWriteQueue)
     {
         tsm.mIssuedTime = now;
