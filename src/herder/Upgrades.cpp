@@ -300,7 +300,7 @@ Upgrades::isValidForApply(UpgradeType const& opaqueUpgrade,
         res = res && (upgrade.newBaseFee() != 0);
         break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-        res = res && (upgrade.newMaxTxSetSize() != 0);
+        // any size is allowed
         break;
     case LEDGER_UPGRADE_BASE_RESERVE:
         res = res && (upgrade.newBaseReserve() != 0);

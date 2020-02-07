@@ -4,6 +4,7 @@
 
 #include "herder/TransactionQueue.h"
 #include "crypto/SecretKey.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
@@ -20,8 +21,11 @@ namespace stellar
 {
 
 TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
-                                   int banDepth)
-    : mApp(app), mPendingDepth(pendingDepth), mBannedTransactions(banDepth)
+                                   int banDepth, int poolLedgerMultiplier)
+    : mApp(app)
+    , mPendingDepth(pendingDepth)
+    , mBannedTransactions(banDepth)
+    , mPoolLedgerMultiplier(poolLedgerMultiplier)
 {
     for (auto i = 0; i < pendingDepth; i++)
     {
@@ -43,6 +47,12 @@ TransactionQueue::tryAdd(TransactionFramePtr tx)
         return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
     }
 
+    if (tx->getNumOperations() + mQueueSizeOps > maxQueueSizeOps())
+    {
+        ban({tx});
+        return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+    }
+
     auto info = getAccountTransactionQueueInfo(tx->getSourceID());
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     if (!tx->checkValid(ltx, info.mMaxSeq))
@@ -62,6 +72,9 @@ TransactionQueue::tryAdd(TransactionFramePtr tx)
     mSizeByAge[pendingForAccount.mAge]->inc();
     pendingForAccount.mTotalFees += tx->getFeeBid();
     pendingForAccount.mTransactions.emplace_back(tx);
+    auto nbOps = tx->getNumOperations();
+    pendingForAccount.mQueueSizeOps += nbOps;
+    mQueueSizeOps += nbOps;
     return TransactionQueue::AddResult::ADD_STATUS_PENDING;
 }
 
@@ -85,9 +98,20 @@ TransactionQueue::ban(std::vector<TransactionFramePtr> const& dropTxs)
     auto& bannedFront = mBannedTransactions.front();
     for (auto const& tx : dropTxs)
     {
-        for (auto const& extracted : extract(tx, false).second)
+        auto extractResult = extract(tx, false);
+        if (extractResult.second.empty())
         {
-            bannedFront.insert(extracted->getFullHash());
+            // tx was not in the queue
+            bannedFront.insert(tx->getFullHash());
+        }
+        else
+        {
+            // tx was in the queue, and may have caused other transactions to
+            // get dropped as well
+            for (auto const& extracted : extractResult.second)
+            {
+                bannedFront.insert(extracted->getFullHash());
+            }
         }
     }
 }
@@ -145,15 +169,17 @@ TransactionQueue::extract(TransactionFramePtr const& tx, bool keepBacklog)
         // remove everything passed tx
         txRemoveEnd = std::end(txs);
     }
-    auto removedFeeBid =
-        std::accumulate(txIt, txRemoveEnd, int64_t{0},
-                        [](int64_t fee, TransactionFramePtr const& tx) {
-                            return fee + tx->getFeeBid();
-                        });
-    accIt->second.mTotalFees -= removedFeeBid;
 
-    auto movedTxs = std::vector<TransactionFramePtr>{};
-    std::move(txIt, txRemoveEnd, std::back_inserter(movedTxs));
+    auto removedTxs = std::vector<TransactionFramePtr>{};
+    for (auto delit = txIt; delit != txRemoveEnd; delit++)
+    {
+        auto& remTx = *delit;
+        accIt->second.mTotalFees -= remTx->getFeeBid();
+        auto nbOps = remTx->getNumOperations();
+        accIt->second.mQueueSizeOps -= nbOps;
+        mQueueSizeOps -= nbOps;
+        removedTxs.emplace_back(remTx);
+    }
     txs.erase(txIt, txRemoveEnd);
 
     if (accIt->second.mTransactions.empty())
@@ -162,7 +188,7 @@ TransactionQueue::extract(TransactionFramePtr const& tx, bool keepBacklog)
         accIt = std::end(mPendingTransactions);
     }
 
-    return {accIt, std::move(movedTxs)};
+    return {accIt, std::move(removedTxs)};
 }
 
 TransactionQueue::AccountTxQueueInfo
@@ -176,7 +202,7 @@ TransactionQueue::getAccountTransactionQueueInfo(
     }
 
     return {i->second.mTransactions.back()->getSeqNum(), i->second.mTotalFees,
-            i->second.mAge};
+            i->second.mQueueSizeOps, i->second.mAge};
 }
 
 void
@@ -199,6 +225,7 @@ TransactionQueue::shift()
             {
                 bannedFront.insert(toBan->getFullHash());
             }
+            mQueueSizeOps -= it->second.mQueueSizeOps;
 
             it = mPendingTransactions.erase(it);
         }
@@ -252,6 +279,15 @@ bool
 operator==(TransactionQueue::AccountTxQueueInfo const& x,
            TransactionQueue::AccountTxQueueInfo const& y)
 {
-    return x.mMaxSeq == y.mMaxSeq && x.mTotalFees == y.mTotalFees;
+    return x.mMaxSeq == y.mMaxSeq && x.mTotalFees == y.mTotalFees &&
+           x.mQueueSizeOps == y.mQueueSizeOps;
+}
+
+size_t
+TransactionQueue::maxQueueSizeOps() const
+{
+    size_t maxOpsLedger = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+    maxOpsLedger *= mPoolLedgerMultiplier;
+    return maxOpsLedger;
 }
 }

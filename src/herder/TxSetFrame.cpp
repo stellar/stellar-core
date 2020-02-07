@@ -221,11 +221,7 @@ TxSetFrame::surgePricingFilter(Application& app)
 
     bool maxIsOps = header.current().ledgerVersion >= 11;
 
-    size_t opsLeft;
-    {
-        size_t maxTxSetSize = header.current().maxTxSetSize;
-        opsLeft = maxIsOps ? maxTxSetSize : (maxTxSetSize * MAX_OPS_PER_TX);
-    }
+    size_t opsLeft = app.getLedgerManager().getLastMaxTxSetSizeOps();
 
     auto curSizeOps = maxIsOps ? sizeOp() : (sizeTx() * MAX_OPS_PER_TX);
     if (curSizeOps > opsLeft)
@@ -255,7 +251,7 @@ TxSetFrame::surgePricingFilter(Application& app)
             // inspect the top candidate queue
             auto& curTopTx = cur->front();
             size_t opsCount =
-                maxIsOps ? curTopTx->getOperations().size() : MAX_OPS_PER_TX;
+                maxIsOps ? curTopTx->getNumOperations() : MAX_OPS_PER_TX;
             if (opsCount <= opsLeft)
             {
                 // pop from this one

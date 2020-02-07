@@ -112,7 +112,7 @@ TransactionFrame::getFeeBid() const
 int64_t
 TransactionFrame::getMinFee(LedgerHeader const& header) const
 {
-    return ((int64_t)header.baseFee) * std::max<int64_t>(1, mOperations.size());
+    return ((int64_t)header.baseFee) * std::max<int64_t>(1, getNumOperations());
 }
 
 int64_t
@@ -125,7 +125,7 @@ TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
     else
     {
         int64_t adjustedFee =
-            baseFee * std::max<int64_t>(1, mOperations.size());
+            baseFee * std::max<int64_t>(1, getNumOperations());
 
         return std::min<int64_t>(getFeeBid(), adjustedFee);
     }
@@ -235,13 +235,12 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 {
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
-    getResult().result.results().resize(
-        (uint32_t)mEnvelope.tx.operations.size());
+    getResult().result.results().resize(getNumOperations());
 
     mOperations.clear();
 
     // bind operations to the results
-    for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
+    for (size_t i = 0; i < getNumOperations(); i++)
     {
         mOperations.push_back(makeOperation(
             mEnvelope.tx.operations[i], getResult().result.results()[i], i));
@@ -281,7 +280,7 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
 
-    if (mOperations.size() == 0)
+    if (getNumOperations() == 0)
     {
         getResult().result.code(txMISSING_OPERATION);
         return false;
@@ -577,8 +576,8 @@ TransactionFrame::markResultFailed()
     // sanity check in case some implementations decide
     // to not implement std::move properly
     auto const& allResults = getResult().result.results();
-    assert(allResults.size() == mOperations.size());
-    for (size_t i = 0; i < mOperations.size(); i++)
+    assert(allResults.size() == getNumOperations());
+    for (size_t i = 0; i < getNumOperations(); i++)
     {
         assert(&mOperations[i]->getResult() == &allResults[i]);
     }
@@ -600,7 +599,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
     TransactionMeta newMeta(2);
     auto& operationsMeta = newMeta.v2().operations;
-    operationsMeta.reserve(mOperations.size());
+    operationsMeta.reserve(getNumOperations());
 
     // shield outer scope of any side effects with LedgerTxn
     LedgerTxn ltxTx(ltx);

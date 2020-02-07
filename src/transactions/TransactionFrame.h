@@ -120,9 +120,17 @@ class TransactionFrame
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
 
+    uint32
+    getNumOperations() const
+    {
+        return (uint32)mEnvelope.tx.operations.size();
+    }
+
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {
+        // this can only be used on an initialized TransactionFrame
+        assert(!mOperations.empty());
         return mOperations;
     }
 
