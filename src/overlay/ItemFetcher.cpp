@@ -132,7 +132,6 @@ ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 void
 ItemFetcher::recv(Hash itemHash)
 {
-    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
     const auto& iter = mTrackers.find(itemHash);
 
     if (iter != mTrackers.end())
@@ -151,6 +150,10 @@ ItemFetcher::recv(Hash itemHash)
         // stop the timer, stop requesting the item as we have it
         tracker->resetLastSeenSlotIndex();
         tracker->cancel();
+    }
+    else
+    {
+        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
     }
 }
 }

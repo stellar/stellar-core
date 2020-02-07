@@ -87,7 +87,7 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
 
     gDefaultConf.setGlobally(el::ConfigurationType::Format, shortFmt);
     gDefaultConf.set(el::Level::Error, el::ConfigurationType::Format, longFmt);
-    gDefaultConf.set(el::Level::Trace, el::ConfigurationType::Format, longFmt);
+    gDefaultConf.set(el::Level::Trace, el::ConfigurationType::Format, shortFmt);
     gDefaultConf.set(el::Level::Fatal, el::ConfigurationType::Format, longFmt);
     el::Loggers::reconfigureAllLoggers(gDefaultConf);
 }
