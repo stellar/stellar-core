@@ -41,6 +41,8 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
           app.getMetrics().NewCounter({"scp", "pending", "fetching"}))
     , mReadyCount(app.getMetrics().NewCounter({"scp", "pending", "ready"}))
     , mFetchDuration(app.getMetrics().NewTimer({"scp", "fetch", "envelope"}))
+    , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mFetchQsetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "qset"}))
 {
 }
 
@@ -104,7 +106,7 @@ void
 PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     putQSet(hash, q);
-    mQuorumSetFetcher.recv(hash);
+    mQuorumSetFetcher.recv(hash, mFetchQsetTimer);
 }
 
 bool
@@ -215,7 +217,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
     putTxSet(hash, lastSeenSlotIndex, txset);
-    mTxSetFetcher.recv(hash);
+    mTxSetFetcher.recv(hash, mFetchTxSetTimer);
 }
 
 bool

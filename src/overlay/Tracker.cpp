@@ -28,6 +28,7 @@ Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
     , mItemHash(hash)
     , mTryNextPeer(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
+    , mFetchTime("fetch-" + hexAbbrev(hash), LogSlowExecution::Mode::MANUAL)
 {
     assert(mAskPeer);
 }
@@ -198,5 +199,11 @@ Tracker::cancel()
 {
     mTimer.cancel();
     mLastSeenSlotIndex = 0;
+}
+
+std::chrono::milliseconds
+Tracker::getDuration()
+{
+    return mFetchTime.checkElapsedTime();
 }
 }

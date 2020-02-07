@@ -74,7 +74,8 @@ overlay.delay.async-write                | timer     | time between each message
 overlay.delay.write-queue                | timer     | time between each message's entry and exit from peer write queue
 overlay.error.read                       | meter     | error while receiving a message
 overlay.error.write                      | meter     | error while sending a message
-overlay.fetch.item                       | timer     | time to complete fetching of an item (txset or qset)
+overlay.fetch.txset                      | timer     | time to complete fetching of a txset
+overlay.fetch.qset                       | timer     | time to complete fetching of a qset
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
 overlay.flood.duplicate_recv             | meter     | number of bytes of flooded messages that have already been received
 overlay.flood.unique_recv                | meter     | number of bytes of flooded messages that have not yet been received

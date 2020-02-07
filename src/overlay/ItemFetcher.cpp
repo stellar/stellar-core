@@ -130,7 +130,7 @@ ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 }
 
 void
-ItemFetcher::recv(Hash itemHash)
+ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
 {
     const auto& iter = mTrackers.find(itemHash);
 
@@ -143,6 +143,7 @@ ItemFetcher::recv(Hash itemHash)
         CLOG(TRACE, "Overlay")
             << "Recv " << hexAbbrev(itemHash) << " : " << tracker->size();
 
+        timer.Update(tracker->getDuration());
         while (!tracker->empty())
         {
             mApp.getHerder().recvSCPEnvelope(tracker->pop());
