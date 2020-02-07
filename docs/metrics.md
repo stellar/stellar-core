@@ -74,6 +74,8 @@ overlay.delay.async-write                | timer     | time between each message
 overlay.delay.write-queue                | timer     | time between each message's entry and exit from peer write queue
 overlay.error.read                       | meter     | error while receiving a message
 overlay.error.write                      | meter     | error while sending a message
+overlay.fetch.txset                      | timer     | time to complete fetching of a txset
+overlay.fetch.qset                       | timer     | time to complete fetching of a qset
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
 overlay.flood.duplicate_recv             | meter     | number of bytes of flooded messages that have already been received
 overlay.flood.unique_recv                | meter     | number of bytes of flooded messages that have not yet been received
@@ -102,7 +104,7 @@ scp.envelope.invalidsig                  | meter     | envelope failed signature
 scp.envelope.receive                     | meter     | SCP message received
 scp.envelope.sign                        | meter     | envelope signed
 scp.envelope.validsig                    | meter     | envelope signature verified
-scp.fetch.duration                       | timer     | time to complete fetching
+scp.fetch.envelope                       | timer     | time to complete fetching of an envelope
 scp.memory.cumulative-statements         | counter   | number of known SCP statements known
 scp.nomination.combinecandidates         | meter     | number of candidates per call
 scp.pending.discarded                    | counter   | number of discarded envelopes

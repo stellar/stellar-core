@@ -276,8 +276,6 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mShuttingDown(false)
     , mOverlayMetrics(app)
     , mMessageCache(0xffff)
-    , mCheckPerfLogLevelCounter(0)
-    , mPerfLogLevel(Logging::getLogLevel("Perf"))
     , mTimer(app)
     , mPeerIPTimer(app)
     , mFloodGate(app)
@@ -957,21 +955,23 @@ OverlayManagerImpl::isShuttingDown() const
     return mShuttingDown;
 }
 
-static void
-logDuplicateMessage(el::Level level, size_t size, std::string const& dupOrUniq,
-                    std::string const& fetchOrFlood)
-{
-    if (level == el::Level::Trace)
-    {
-        CLOG(TRACE, "Perf") << "Received " << size << " " << dupOrUniq
-                            << " bytes of " << fetchOrFlood << " message";
-    }
-}
-
 void
-OverlayManagerImpl::recordDuplicateMessageMetric(
-    StellarMessage const& stellarMsg, Peer::pointer peer)
+OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
+                                        Peer::pointer peer)
 {
+    auto logMessage = [&](bool unique, std::string const& msgType) {
+        if (Logging::logTrace("Overlay"))
+        {
+            CLOG(TRACE, "Overlay")
+                << "recv: " << (unique ? "unique" : "duplicate") << " "
+                << Peer::msgSummary(stellarMsg) << " (" << msgType << ")"
+                << " of size: " << xdr::xdr_argpack_size(stellarMsg)
+                << " from: "
+                << mApp.getConfig().toShortString(peer->getPeerID()) << " @"
+                << mApp.getConfig().PEER_PORT;
+        }
+    };
+
     bool flood = false;
     if (stellarMsg.type() == TRANSACTION || stellarMsg.type() == SCP_MESSAGE ||
         stellarMsg.type() == SURVEY_REQUEST ||
@@ -982,12 +982,6 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
     else if (stellarMsg.type() != TX_SET && stellarMsg.type() != SCP_QUORUMSET)
     {
         return;
-    }
-
-    if (++mCheckPerfLogLevelCounter >= 100)
-    {
-        mCheckPerfLogLevelCounter = 0;
-        mPerfLogLevel = Logging::getLogLevel("Perf");
     }
 
     auto& peerMetrics = peer->getPeerMetrics();
@@ -1003,7 +997,7 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
             peerMetrics.mDuplicateFloodBytesRecv += size;
             ++peerMetrics.mDuplicateFloodMessageRecv;
 
-            logDuplicateMessage(mPerfLogLevel, size, "duplicate", "flood");
+            logMessage(false, "flood");
         }
         else
         {
@@ -1012,7 +1006,7 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
             peerMetrics.mDuplicateFetchBytesRecv += size;
             ++peerMetrics.mDuplicateFetchMessageRecv;
 
-            logDuplicateMessage(mPerfLogLevel, size, "duplicate", "fetch");
+            logMessage(false, "fetch");
         }
     }
     else
@@ -1027,7 +1021,7 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
             peerMetrics.mUniqueFloodBytesRecv += size;
             ++peerMetrics.mUniqueFloodMessageRecv;
 
-            logDuplicateMessage(mPerfLogLevel, size, "unique", "flood");
+            logMessage(true, "flood");
         }
         else
         {
@@ -1036,7 +1030,7 @@ OverlayManagerImpl::recordDuplicateMessageMetric(
             peerMetrics.mUniqueFetchBytesRecv += size;
             ++peerMetrics.mUniqueFetchMessageRecv;
 
-            logDuplicateMessage(mPerfLogLevel, size, "unique", "fetch");
+            logMessage(true, "fetch");
         }
     }
 }

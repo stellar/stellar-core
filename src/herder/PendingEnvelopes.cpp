@@ -40,7 +40,9 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mFetchingCount(
           app.getMetrics().NewCounter({"scp", "pending", "fetching"}))
     , mReadyCount(app.getMetrics().NewCounter({"scp", "pending", "ready"}))
-    , mFetchDuration(app.getMetrics().NewTimer({"scp", "fetch", "duration"}))
+    , mFetchDuration(app.getMetrics().NewTimer({"scp", "fetch", "envelope"}))
+    , mFetchTxSetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "txset"}))
+    , mFetchQsetTimer(app.getMetrics().NewTimer({"overlay", "fetch", "qset"}))
 {
 }
 
@@ -104,7 +106,7 @@ void
 PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     putQSet(hash, q);
-    mQuorumSetFetcher.recv(hash);
+    mQuorumSetFetcher.recv(hash, mFetchQsetTimer);
 }
 
 bool
@@ -215,7 +217,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
     putTxSet(hash, lastSeenSlotIndex, txset);
-    mTxSetFetcher.recv(hash);
+    mTxSetFetcher.recv(hash, mFetchTxSetTimer);
 }
 
 bool
@@ -242,6 +244,20 @@ PendingEnvelopes::isNodeDefinitelyInQuorum(NodeID const& node)
         mRebuildQuorum = false;
     }
     return mQuorumTracker.isNodeDefinitelyInQuorum(node);
+}
+
+static std::string
+txSetsToStr(SCPEnvelope const& envelope)
+{
+    auto hashes = getTxSetHashes(envelope);
+    std::unordered_set<Hash> hashesSet(hashes.begin(), hashes.end());
+    std::string res = "[";
+    for (auto const& s : hashesSet)
+    {
+        res += hexAbbrev(s);
+        res += " ";
+    }
+    return res + "]";
 }
 
 // called from Peer and when an Item tracker completes
@@ -302,9 +318,13 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             std::chrono::nanoseconds durationNano =
                 std::chrono::steady_clock::now() - fetchIt->second;
             mFetchDuration.Update(durationNano);
+            Hash h = Slot::getCompanionQuorumSetHashFromStatement(
+                envelope.statement);
             CLOG(TRACE, "Perf")
-                << "Herder fetched for "
-                << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope))) << " in "
+                << "Herder fetched for envelope "
+                << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                << " with txsets " << txSetsToStr(envelope) << " and qset "
+                << hexAbbrev(h) << " in "
                 << std::chrono::duration<double>(durationNano).count()
                 << " seconds";
 
@@ -410,7 +430,9 @@ PendingEnvelopes::clearQSetCache()
 void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
-    CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
+    CLOG(TRACE, "Herder") << "Envelope ready "
+                          << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                          << " i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
 
     StellarMessage msg;
@@ -457,7 +479,9 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         }
     }
 
-    CLOG(TRACE, "Herder") << "StartFetch i:" << envelope.statement.slotIndex
+    CLOG(TRACE, "Herder") << "StartFetch env "
+                          << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                          << " i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
 }
 
@@ -472,7 +496,9 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
         mTxSetFetcher.stopFetch(h2, envelope);
     }
 
-    CLOG(TRACE, "Herder") << "StopFetch i:" << envelope.statement.slotIndex
+    CLOG(TRACE, "Herder") << "StopFetch env "
+                          << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                          << " i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
 }
 

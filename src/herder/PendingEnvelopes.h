@@ -67,6 +67,8 @@ class PendingEnvelopes
     medida::Counter& mFetchingCount;
     medida::Counter& mReadyCount;
     medida::Timer& mFetchDuration;
+    medida::Timer& mFetchTxSetTimer;
+    medida::Timer& mFetchQsetTimer;
 
     // discards all SCP envelopes thats use QSet with given hash,
     // as it is not sane QSet

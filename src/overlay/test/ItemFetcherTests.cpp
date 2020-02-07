@@ -8,6 +8,7 @@
 #include "herder/HerderImpl.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationImpl.h"
+#include "medida/metrics_registry.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/test/LoopbackPeer.h"
@@ -117,14 +118,16 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     checkFetchingFor(twelve, {twelveEnvelope1, twelveEnvelope2});
     checkFetchingFor(fourteen, {});
 
+    auto& timer = app->getMetrics().NewTimer({"overlay", "fetch", "test"});
+
     SECTION("stop one")
     {
         itemFetcher.stopFetch(twelve, twelveEnvelope1);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) != 0);
         checkFetchingFor(twelve, {twelveEnvelope2});
 
-        itemFetcher.recv(twelve);
-        itemFetcher.recv(ten);
+        itemFetcher.recv(twelve, timer);
+        itemFetcher.recv(ten, timer);
 
         auto expectedReceived = std::vector<int>{12, 10};
         REQUIRE(app->getHerder().received == expectedReceived);
@@ -147,8 +150,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
         checkFetchingFor(twelve, {});
 
-        itemFetcher.recv(twelve);
-        itemFetcher.recv(ten);
+        itemFetcher.recv(twelve, timer);
+        itemFetcher.recv(ten, timer);
 
         auto expectedReceived = std::vector<int>{10};
         REQUIRE(app->getHerder().received == expectedReceived);
@@ -166,8 +169,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
     SECTION("dont stop")
     {
-        itemFetcher.recv(twelve);
-        itemFetcher.recv(ten);
+        itemFetcher.recv(twelve, timer);
+        itemFetcher.recv(ten, timer);
 
         auto expectedReceived = std::vector<int>{12, 12, 10};
         REQUIRE(app->getHerder().received == expectedReceived);
@@ -186,7 +189,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         {
             auto zeroEnvelope1 = makeEnvelope(0);
             itemFetcher.fetch(zero, zeroEnvelope1);
-            itemFetcher.recv(zero);
+            itemFetcher.recv(zero, timer);
 
             auto zeroEnvelope2 = makeEnvelope(0);
             itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current
@@ -236,7 +239,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                 clock.crank(true);
             }
 
-            itemFetcher.recv(zero);
+            itemFetcher.recv(zero, timer);
 
             while (clock.crank(false) > 0)
             {
@@ -254,7 +257,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
         SECTION("ignore not asked items")
         {
-            itemFetcher.recv(zero);
+            itemFetcher.recv(zero, timer);
             REQUIRE(app->getHerder().received ==
                     expectedReceived); // no new data received
         }

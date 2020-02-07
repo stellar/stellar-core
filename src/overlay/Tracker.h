@@ -21,6 +21,7 @@
  */
 
 #include "overlay/Peer.h"
+#include "util/LogSlowExecution.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-types.h"
 
@@ -48,6 +49,7 @@ class Tracker
     Hash mItemHash;
     medida::Meter& mTryNextPeer;
     uint64 mLastSeenSlotIndex{0};
+    LogSlowExecution mFetchTime;
 
   public:
     /**
@@ -88,6 +90,11 @@ class Tracker
      * Pop envelope from stack.
      */
     SCPEnvelope pop();
+
+    /**
+     * Get duration since fetch start
+     */
+    std::chrono::milliseconds getDuration();
 
     /**
      * Called periodically to remove old envelopes from list (with ledger id

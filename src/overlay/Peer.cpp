@@ -313,8 +313,8 @@ Peer::sendErrorAndDrop(ErrorCode error, std::string const& message,
     drop(message, DropDirection::WE_DROPPED_REMOTE, dropMode);
 }
 
-static std::string
-msgSummary(StellarMessage const& msg)
+std::string
+Peer::msgSummary(StellarMessage const& msg)
 {
     switch (msg.type())
     {
@@ -369,10 +369,12 @@ void
 Peer::sendMessage(StellarMessage const& msg)
 {
     if (Logging::logTrace("Overlay"))
+    {
         CLOG(TRACE, "Overlay")
             << "send: " << msgSummary(msg)
             << " to : " << mApp.getConfig().toShortString(mPeerID) << " @"
             << mApp.getConfig().PEER_PORT;
+    }
 
     switch (msg.type())
     {
@@ -528,12 +530,6 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay")
-            << "recv: " << msgSummary(stellarMsg)
-            << " from:" << mApp.getConfig().toShortString(mPeerID) << " @"
-            << mApp.getConfig().PEER_PORT;
-
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
     {
@@ -546,8 +542,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     assert(isAuthenticated() || stellarMsg.type() == HELLO ||
            stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
-    mApp.getOverlayManager().recordDuplicateMessageMetric(stellarMsg,
-                                                          shared_from_this());
+    mApp.getOverlayManager().recordMessageMetric(stellarMsg,
+                                                 shared_from_this());
 
     switch (stellarMsg.type())
     {

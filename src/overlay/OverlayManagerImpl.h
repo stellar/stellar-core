@@ -85,8 +85,6 @@ class OverlayManagerImpl : public OverlayManager
 
     // NOTE: bool is used here as a placeholder, since no ValueType is needed.
     cache::lru_cache<uint64_t, bool> mMessageCache;
-    uint32_t mCheckPerfLogLevelCounter;
-    el::Level mPerfLogLevel;
 
     void tick();
     VirtualTimer mTimer;
@@ -149,8 +147,8 @@ class OverlayManagerImpl : public OverlayManager
 
     bool isShuttingDown() const override;
 
-    void recordDuplicateMessageMetric(StellarMessage const& stellarMsg,
-                                      Peer::pointer peer) override;
+    void recordMessageMetric(StellarMessage const& stellarMsg,
+                             Peer::pointer peer) override;
 
   private:
     struct ResolvedPeers

@@ -177,6 +177,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mApp;
     }
 
+    static std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
