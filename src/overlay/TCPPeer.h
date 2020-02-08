@@ -6,7 +6,7 @@
 
 #include "overlay/Peer.h"
 #include "util/Timer.h"
-#include <queue>
+#include <deque>
 
 namespace medida
 {
@@ -23,23 +23,16 @@ static auto const MAX_MESSAGE_SIZE = 0x1000000;
 class TCPPeer : public Peer
 {
   public:
-    typedef asio::buffered_stream<asio::ip::tcp::socket> SocketType;
+    typedef asio::buffered_read_stream<asio::ip::tcp::socket> SocketType;
+    static constexpr size_t BUFSZ = 0x40000; // 256KB
 
   private:
-    struct TimestampedMessage
-    {
-        VirtualClock::time_point mEnqueuedTime;
-        VirtualClock::time_point mIssuedTime;
-        VirtualClock::time_point mCompletedTime;
-        void recordWriteTiming(OverlayMetrics& metrics);
-        xdr::msg_ptr mMessage;
-    };
-
     std::shared_ptr<SocketType> mSocket;
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
 
-    std::queue<std::shared_ptr<TimestampedMessage>> mWriteQueue;
+    std::vector<asio::const_buffer> mWriteBuffers;
+    std::deque<TimestampedMessage> mWriteQueue;
     bool mWriting{false};
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};
@@ -49,16 +42,26 @@ class TCPPeer : public Peer
 
     void messageSender();
 
-    int getIncomingMsgLength();
+    size_t getIncomingMsgLength();
     virtual void connected() override;
     void startRead();
 
+    static constexpr size_t HDRSZ = 4;
+    void noteErrorReadHeader(size_t nbytes, asio::error_code const& ec);
+    void noteShortReadHeader(size_t nbytes);
+    void noteFullyReadHeader();
+    void noteErrorReadBody(size_t nbytes, asio::error_code const& ec);
+    void noteShortReadBody(size_t nbytes);
+    void noteFullyReadBody(size_t nbytes);
+
     void writeHandler(asio::error_code const& error,
-                      std::size_t bytes_transferred) override;
+                      std::size_t bytes_transferred,
+                      std::size_t messages_transferred) override;
     void readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred) override;
     void readBodyHandler(asio::error_code const& error,
-                         std::size_t bytes_transferred) override;
+                         std::size_t bytes_transferred,
+                         std::size_t expected_length) override;
     void shutdown();
 
   public:

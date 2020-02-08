@@ -68,6 +68,8 @@ loadgen.txn.bytes                        | meter     | loadgenerator: size of tr
 loadgen.txn.rejected                     | meter     | loadgenerator: transaction rejected
 overlay.byte.read                        | meter     | number of bytes received
 overlay.byte.write                       | meter     | number of bytes sent
+overlay.async.read                       | meter     | number of async read requests issued
+overlay.async.write                      | meter     | number of async write requests issued
 overlay.connection.authenticated         | counter   | number of authenticated peers
 overlay.connection.pending               | counter   | number of pending connections
 overlay.delay.async-write                | timer     | time between each message's async write issue and completion
