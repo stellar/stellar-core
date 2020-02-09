@@ -63,8 +63,13 @@ class Floodgate
     void broadcast(StellarMessage const& msg, bool force,
                    uint32_t minOverlayVersion);
 
-    // returns the list of peers that sent us the item with hash `h`
-    std::set<Peer::pointer> getPeersKnows(Hash const& h);
+    // returns the list of peers that sent us the item with hash `msgID`
+    // NB: `msgID` is the hash of a `StellarMessage`
+    std::set<Peer::pointer> getPeersKnows(Hash const& msgID);
+
+    // removes the record corresponding to `msgID`
+    // `msgID` corresponds to a `StellarMessage`
+    void forgetRecord(Hash const& msgID);
 
     void shutdown();
 };

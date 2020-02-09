@@ -880,6 +880,11 @@ OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
 {
     return mFloodGate.addRecord(msg, peer, msgID);
 }
+
+void
+OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
+{
+    mFloodGate.forgetRecord(msgID);
 }
 
 void

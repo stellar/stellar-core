@@ -86,6 +86,11 @@ class OverlayManager
         return recvFloodedMsgID(msg, peer, msgID);
     }
 
+    // removes msgID from the floodgate's internal state
+    // as it's not tracked anymore, calling "broadcast" with a (now forgotten)
+    // message with the ID msgID will cause it to be broadcast to all peers
+    virtual void forgetFloodedMsg(Hash const& msgID) = 0;
+
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
 

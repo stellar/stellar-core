@@ -143,4 +143,10 @@ Floodgate::shutdown()
     mShuttingDown = true;
     mFloodMap.clear();
 }
+
+void
+Floodgate::forgetRecord(Hash const& h)
+{
+    mFloodMap.erase(h);
+}
 }
