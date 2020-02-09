@@ -68,6 +68,10 @@ XDRShortHasher::XDRShortHasher() : state(gKey)
     state = SipHash24(gKey);
 }
 
+XDRShortHasher::XDRShortHasher(ByteSlice key) : state(key.data())
+{
+}
+
 void
 XDRShortHasher::hashBytes(unsigned char const* bytes, size_t len)
 {

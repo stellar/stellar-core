@@ -26,6 +26,7 @@ struct XDRShortHasher : XDRHasher<XDRShortHasher>
 {
     SipHash24 state;
     XDRShortHasher();
+    XDRShortHasher(ByteSlice key);
     void hashBytes(unsigned char const*, size_t);
 };
 
@@ -46,6 +47,16 @@ uint64_t
 xdrComputeHash(T const& t)
 {
     XDRShortHasher xsh;
+    xdr::archive(xsh, t);
+    xsh.flush();
+    return xsh.state.digest();
+}
+
+template <typename T>
+uint64_t
+xdrComputeKeyedHash(T const& t, ByteSlice key)
+{
+    XDRShortHasher xsh(key);
     xdr::archive(xsh, t);
     xsh.flush();
     return xsh.state.digest();
