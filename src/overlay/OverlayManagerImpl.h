@@ -105,6 +105,8 @@ class OverlayManagerImpl : public OverlayManager
     void forgetFloodedMsg(Hash const& msgID) override;
     bool broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
+    void demandMissing(FloodAdvert const& adv, Peer::pointer fromPeer) override;
+    void fulfillDemand(FloodDemand const& dmd, Peer::pointer fromPeer) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;

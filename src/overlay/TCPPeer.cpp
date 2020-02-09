@@ -510,6 +510,10 @@ TCPPeer::startRead()
 
     if (mSocket->in_avail() < HDRSZ)
     {
+        // We want to advertize floodable messages we just received
+        // _immediately_, in addition to any periodic flushes we do.
+        flushPendingAdvert();
+
         // If there wasn't enough readable in the buffered stream to even get a
         // header (message length), issue an async_read and hope that the
         // buffering pulls in much more than just the 4 bytes we ask for here.
