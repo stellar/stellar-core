@@ -149,17 +149,8 @@ mkdir(std::string const& name)
 void
 deltree(std::string const& d)
 {
-    SHFILEOPSTRUCT s = {0};
-    std::string from = d;
-    from.push_back('\0');
-    from.push_back('\0');
-    s.wFunc = FO_DELETE;
-    s.pFrom = from.data();
-    s.fFlags = FOF_NO_UI;
-    if (SHFileOperation(&s) != 0)
-    {
-        throw FileSystemException("SHFileOperation failed in deltree");
-    }
+    namespace fs = std::experimental::filesystem;
+    fs::remove_all(fs::path(d));
 }
 
 std::vector<std::string>

@@ -44,7 +44,7 @@ class Floodgate
                     Peer::pointer peer);
     };
 
-    std::map<uint256, FloodRecord::pointer> mFloodMap;
+    std::map<Hash, FloodRecord::pointer> mFloodMap;
     Application& mApp;
     medida::Counter& mFloodMapSize;
     medida::Meter& mSendFromBroadcast;
@@ -55,14 +55,21 @@ class Floodgate
     // Floodgate will be cleared after every ledger close
     void clearBelow(uint32_t currentLedger);
     // returns true if this is a new record
-    bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer);
+    // fills msgID with msg's hash
+    bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer,
+                   Hash& msgID);
 
     // only flood messages to peers that are at least minOverlayVersion
     void broadcast(StellarMessage const& msg, bool force,
                    uint32_t minOverlayVersion);
 
-    // returns the list of peers that sent us the item with hash `h`
-    std::set<Peer::pointer> getPeersKnows(Hash const& h);
+    // returns the list of peers that sent us the item with hash `msgID`
+    // NB: `msgID` is the hash of a `StellarMessage`
+    std::set<Peer::pointer> getPeersKnows(Hash const& msgID);
+
+    // removes the record corresponding to `msgID`
+    // `msgID` corresponds to a `StellarMessage`
+    void forgetRecord(Hash const& msgID);
 
     void shutdown();
 };

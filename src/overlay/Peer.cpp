@@ -758,10 +758,15 @@ Peer::recvSCPMessage(StellarMessage const& msg)
                                 : (getOverlayMetrics()
                                        .mRecvSCPNominateTimer.TimeScope()))));
 
+    // add it to the floodmap so that this peer gets credit for it
+    Hash msgID;
+    mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(), msgID);
+
     auto res = mApp.getHerder().recvSCPEnvelope(envelope);
     if (res != Herder::ENVELOPE_STATUS_DISCARDED)
     {
-        mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
+        // the message was discarded, remove it from the floodmap as well
+        mApp.getOverlayManager().forgetFloodedMsg(msgID);
     }
 }
 

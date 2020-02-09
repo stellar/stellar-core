@@ -320,13 +320,16 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             mFetchDuration.Update(durationNano);
             Hash h = Slot::getCompanionQuorumSetHashFromStatement(
                 envelope.statement);
-            CLOG(TRACE, "Perf")
-                << "Herder fetched for envelope "
-                << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                << " with txsets " << txSetsToStr(envelope) << " and qset "
-                << hexAbbrev(h) << " in "
-                << std::chrono::duration<double>(durationNano).count()
-                << " seconds";
+            if (Logging::logTrace("Perf"))
+            {
+                CLOG(TRACE, "Perf")
+                    << "Herder fetched for envelope "
+                    << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                    << " with txsets " << txSetsToStr(envelope) << " and qset "
+                    << hexAbbrev(h) << " in "
+                    << std::chrono::duration<double>(durationNano).count()
+                    << " seconds";
+            }
 
             // move the item from fetching to processed
             processed.emplace(envelope);

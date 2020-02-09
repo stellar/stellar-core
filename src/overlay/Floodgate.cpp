@@ -54,13 +54,13 @@ Floodgate::clearBelow(uint32_t currentLedger)
 }
 
 bool
-Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
+Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 {
+    index = sha256(xdr::xdr_to_opaque(msg));
     if (mShuttingDown)
     {
         return false;
     }
-    Hash index = sha256(xdr::xdr_to_opaque(msg));
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end())
     { // we have never seen this message
@@ -142,5 +142,11 @@ Floodgate::shutdown()
 {
     mShuttingDown = true;
     mFloodMap.clear();
+}
+
+void
+Floodgate::forgetRecord(Hash const& h)
+{
+    mFloodMap.erase(h);
 }
 }
