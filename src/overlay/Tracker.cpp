@@ -179,6 +179,8 @@ Tracker::listen(const SCPEnvelope& env)
     StellarMessage m;
     m.type(SCP_MESSAGE);
     m.envelope() = env;
+
+    // NB: hash here is of StellarMessage
     mWaitingEnvelopes.push_back(
         std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
 }
