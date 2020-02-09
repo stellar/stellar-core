@@ -35,6 +35,8 @@ struct OverlayMetrics
     medida::Meter& mTimeoutIdle;
     medida::Meter& mTimeoutStraggler;
 
+    medida::Meter& mItemFetcherNextPeer;
+
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
     medida::Timer& mRecvAuthTimer;

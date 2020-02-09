@@ -4,6 +4,7 @@
 
 #include "Tracker.h"
 
+#include "OverlayMetrics.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
@@ -26,8 +27,8 @@ Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
     , mNumListRebuild(0)
     , mTimer(app)
     , mItemHash(hash)
-    , mTryNextPeer(app.getMetrics().NewMeter(
-          {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
+    , mTryNextPeer(
+          app.getOverlayManager().getOverlayMetrics().mItemFetcherNextPeer)
     , mFetchTime("fetch-" + hexAbbrev(hash), LogSlowExecution::Mode::MANUAL)
 {
     assert(mAskPeer);

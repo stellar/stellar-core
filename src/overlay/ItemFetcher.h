@@ -52,25 +52,25 @@ class ItemFetcher : private NonMovableOrCopyable
      * Fetch data identified by @p hash and needed by @p envelope. Multiple
      * envelopes may require one set of data.
      */
-    void fetch(Hash itemHash, const SCPEnvelope& envelope);
+    void fetch(Hash const& itemHash, SCPEnvelope const& envelope);
 
     /**
      * Stops fetching data identified by @p hash for @p envelope. If other
      * envelopes requires this data, it is still being fetched, but
      * @p envelope will not be notified about it.
      */
-    void stopFetch(Hash itemHash, const SCPEnvelope& envelope);
+    void stopFetch(Hash const& itemHash, SCPEnvelope const& envelope);
 
     /**
      * Return biggest slot index seen for given hash. If 0, then given hash
      * is not being fetched.
      */
-    uint64 getLastSeenSlotIndex(Hash itemHash) const;
+    uint64 getLastSeenSlotIndex(Hash const& itemHash) const;
 
     /**
      * Return envelopes that require data identified by @p hash.
      */
-    std::vector<SCPEnvelope> fetchingFor(Hash itemHash) const;
+    std::vector<SCPEnvelope> fetchingFor(Hash const& itemHash) const;
 
     /**
      * Called periodically to remove old envelopes from list (with ledger id

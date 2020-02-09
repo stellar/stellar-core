@@ -29,6 +29,9 @@ OverlayMetrics::OverlayMetrics(Application& app)
     , mTimeoutStraggler(app.getMetrics().NewMeter(
           {"overlay", "timeout", "straggler"}, "timeout"))
 
+    , mItemFetcherNextPeer(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
+
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
     , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
     , mRecvAuthTimer(app.getMetrics().NewTimer({"overlay", "recv", "auth"}))
