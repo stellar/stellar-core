@@ -875,10 +875,11 @@ OverlayManagerImpl::shufflePeerList(std::vector<Peer::pointer>& peerList)
 }
 
 bool
-OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
-                                   Peer::pointer peer)
+OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
+                                     Peer::pointer peer, Hash& msgID)
 {
-    return mFloodGate.addRecord(msg, peer);
+    return mFloodGate.addRecord(msg, peer, msgID);
+}
 }
 
 void

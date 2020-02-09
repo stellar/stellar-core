@@ -248,8 +248,12 @@ class OverlayManagerTests
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
         for (auto p : pm.mOutboundPeers.mAuthenticated)
+        {
             if (i++ == 2)
+            {
                 pm.recvFloodedMsg(AtoC, p.second);
+            }
+        }
         pm.broadcastMessage(AtoC);
         std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
