@@ -955,6 +955,20 @@ OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 }
 
 void
+OverlayManagerImpl::demandMissing(FloodAdvert const& adv,
+                                  Peer::pointer fromPeer)
+{
+    mFloodGate.demandMissing(adv, fromPeer);
+}
+
+void
+OverlayManagerImpl::fulfillDemand(FloodDemand const& dmd,
+                                  Peer::pointer fromPeer)
+{
+    mFloodGate.fulfillDemand(dmd, fromPeer);
+}
+
+void
 OverlayManager::dropAll(Database& db)
 {
     PeerManager::dropAll(db);
@@ -1029,7 +1043,8 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
 
     bool flood = false;
     if (isFloodMessage(stellarMsg) || stellarMsg.type() == SURVEY_REQUEST ||
-        stellarMsg.type() == SURVEY_RESPONSE)
+        stellarMsg.type() == SURVEY_RESPONSE ||
+        stellarMsg.type() == FLOOD_ADVERT || stellarMsg.type() == FLOOD_DEMAND)
     {
         flood = true;
     }

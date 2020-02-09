@@ -77,6 +77,9 @@ overlay.error.write                      | meter     | error while sending a mes
 overlay.fetch.txset                      | timer     | time to complete fetching of a txset
 overlay.fetch.qset                       | timer     | time to complete fetching of a qset
 overlay.flood.broadcast                  | meter     | message sent as broadcast per peer
+overlay.flood.advertized                 | meter     | message advertized to other peers
+overlay.flood.demanded                   | meter     | message demanded in response to advert from other peer
+overlay.flood.fulfilled                  | meter     | message message sent in response to demand from other peer
 overlay.flood.duplicate_recv             | meter     | number of bytes of flooded messages that have already been received
 overlay.flood.unique_recv                | meter     | number of bytes of flooded messages that have not yet been received
 overlay.inbound.attempt                  | meter     | inbound connection attempted (accepted on socket)
@@ -87,6 +90,7 @@ overlay.outbound-queue.scp               | timer     | time SCP traffic sits in 
 overlay.outbound-queue.tx                | timer     | time tx traffic sits in flow-controlled queues
 overlay.item-fetcher.next-peer           | meter     | ask for item past the first one
 overlay.memory.flood-known               | counter   | number of known flooded entries
+overlay.memory.pending-demands           | counter   | number of flood demands in-flight
 overlay.message.broadcast                | meter     | message broadcasted
 overlay.message.read                     | meter     | message received
 overlay.message.write                    | meter     | message sent

@@ -29,6 +29,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "xdr/Stellar-overlay.h"
 #include "xdrpp/marshal.h"
 #include <fmt/format.h>
 
@@ -52,6 +53,7 @@ Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
+    , mFlowControlState(Peer::FlowControlState::DONT_KNOW)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(0)
     , mCreationTime(app.getClock().now())
@@ -60,14 +62,15 @@ Peer::Peer(Application& app, PeerRole role)
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
-    , mFlowControlState(Peer::FlowControlState::DONT_KNOW)
     , mCapacity{app.getConfig().PEER_FLOOD_READING_CAPACITY,
                 app.getConfig().PEER_READING_CAPACITY}
+    , mAdvertTimer(app)
 {
     mPingSentTime = PING_NOT_SENT;
     mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
+    mPendingAdvertMsg.type(FLOOD_ADVERT);
 }
 
 void
@@ -467,6 +470,10 @@ Peer::msgSummary(StellarMessage const& msg)
         return SurveyManager::getMsgSummary(msg);
     case SEND_MORE:
         return "SENDMORE";
+    case FLOOD_ADVERT:
+        return "FLOOD_ADVERT";
+    case FLOOD_DEMAND:
+        return "FLOOD_DEMAND";
     }
     return "UNKNOWN";
 }
@@ -543,6 +550,12 @@ Peer::sendMessage(std::shared_ptr<StellarMessage const> msg, bool log)
     case SEND_MORE:
         getOverlayMetrics().mSendSendMoreMeter.Mark();
         break;
+    case FLOOD_ADVERT:
+        getOverlayMetrics().mSendFloodAdvertMeter.Mark();
+        break;
+    case FLOOD_DEMAND:
+        getOverlayMetrics().mSendFloodDemandMeter.Mark();
+        break;
     };
 
     if (mApp.getOverlayManager().isFloodMessage(*msg))
@@ -583,6 +596,74 @@ Peer::sendAuthenticatedMessage(StellarMessage const& msg)
         xdrBytes = xdr::xdr_to_msg(amsg);
     }
     this->sendMessage(std::move(xdrBytes));
+}
+
+uint32_t const Peer::FIRST_OVERLAY_PROTOCOL_VERSION_SUPPORTING_ADVERTS = 21;
+
+size_t const Peer::ADVERT_FLUSH_THRESHOLD = 1024;
+
+std::chrono::milliseconds const Peer::ADVERT_TIMER{100};
+
+bool
+Peer::supportsAdverts() const
+{
+    return ((mApp.getConfig().OVERLAY_PROTOCOL_VERSION >=
+             FIRST_OVERLAY_PROTOCOL_VERSION_SUPPORTING_ADVERTS) &&
+            (mRemoteOverlayVersion >=
+             FIRST_OVERLAY_PROTOCOL_VERSION_SUPPORTING_ADVERTS));
+}
+
+void
+Peer::advertizeMessage(uint64_t shortHash)
+{
+    auto& hashes = mPendingAdvertMsg.floodAdvert().hashes;
+    hashes.emplace_back(shortHash);
+    if (hashes.size() >= ADVERT_FLUSH_THRESHOLD)
+    {
+        flushPendingAdvert();
+    }
+
+    // Typically we're going to flush adverts more often than this timeout -- we
+    // do so after every sync-read loop that is likely to introduce new
+    // broadcast traffic we want to forward -- but the timer here serves as a
+    // fallback for self-initiated broadcasts.
+    if (!mAdvertTimerActive)
+    {
+        mAdvertTimerActive = true;
+        auto self = shared_from_this();
+        mAdvertTimer.expires_from_now(ADVERT_TIMER);
+        mAdvertTimer.async_wait([self](asio::error_code const& error) {
+            self->flushPendingAdvert();
+            self->mAdvertTimerActive = false;
+        });
+    }
+}
+
+void
+Peer::flushPendingAdvert()
+{
+    auto& hashes = mPendingAdvertMsg.floodAdvert().hashes;
+
+    if (hashes.size() > 0)
+    {
+        std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
+        auto msg = std::make_shared<StellarMessage>(mPendingAdvertMsg);
+        CLOG_TRACE(Overlay, "Peer::flushPendingAdvert -- flushing {}",
+                   hashes.size());
+        mApp.postOnMainThread(
+            [weak, msg = std::move(msg)]() {
+                auto strong = weak.lock();
+                if (strong)
+                {
+                    strong->sendMessage(msg);
+                }
+            },
+            "flushPendingAdvert");
+
+        // Reset the advert.
+        mPendingAdvertMsg = StellarMessage();
+        mPendingAdvertMsg.type(FLOOD_ADVERT);
+    }
 }
 
 void
@@ -1140,10 +1221,25 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
         recvGetSCPState(stellarMsg);
     }
     break;
+
     case SEND_MORE:
     {
         auto t = getOverlayMetrics().mRecvSendMoreTimer.TimeScope();
         recvSendMore(stellarMsg);
+    }
+    break;
+
+    case FLOOD_ADVERT:
+    {
+        auto t = getOverlayMetrics().mRecvFloodAdvertTimer.TimeScope();
+        recvFloodAdvert(stellarMsg);
+    }
+    break;
+
+    case FLOOD_DEMAND:
+    {
+        auto t = getOverlayMetrics().mRecvFloodDemandTimer.TimeScope();
+        recvFloodDemand(stellarMsg);
     }
     break;
     }
@@ -1682,6 +1778,20 @@ Peer::recvSurveyResponseMessage(StellarMessage const& msg)
     ZoneScoped;
     mApp.getOverlayManager().getSurveyManager().relayOrProcessResponse(
         msg, shared_from_this());
+}
+
+void
+Peer::recvFloodAdvert(StellarMessage const& msg)
+{
+    mApp.getOverlayManager().demandMissing(msg.floodAdvert(),
+                                           shared_from_this());
+}
+
+void
+Peer::recvFloodDemand(StellarMessage const& msg)
+{
+    mApp.getOverlayManager().fulfillDemand(msg.floodDemand(),
+                                           shared_from_this());
 }
 
 Peer::PeerMetrics::PeerMetrics(VirtualClock::time_point connectedTime)

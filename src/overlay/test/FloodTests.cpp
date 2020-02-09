@@ -78,7 +78,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             // Wait until all nodes externalize
             simulation->crankUntil(
                 [&]() { return simulation->haveAllExternalized(2, 1); },
-                std::chrono::seconds(1), false);
+                std::chrono::seconds(2), false);
             for (auto const& n : nodes)
             {
                 REQUIRE(n->getLedgerManager().isSynced());
@@ -87,7 +87,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         else
         {
             // enough for connections to be made
-            simulation->crankForAtLeast(std::chrono::seconds(1), false);
+            simulation->crankForAtLeast(std::chrono::seconds(2), false);
         }
 
         expectedSeq = root.getLastSequenceNumber() + 1;

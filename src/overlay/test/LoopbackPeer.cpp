@@ -190,6 +190,7 @@ LoopbackPeer::processInQueue()
                                   "LoopbackPeer: processInQueue");
         }
     }
+    flushPendingAdvert();
 }
 
 void

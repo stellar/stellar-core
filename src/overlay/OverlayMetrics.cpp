@@ -73,6 +73,12 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewTimer({"overlay", "recv", "survey-request"}))
     , mRecvSurveyResponseTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "survey-response"}))
+
+    , mRecvFloodAdvertTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "flood-advert"}))
+    , mRecvFloodDemandTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "flood-demand"}))
+
     , mMessageDelayInWriteQueueTimer(
           app.getMetrics().NewTimer({"overlay", "delay", "write-queue"}))
     , mMessageDelayInAsyncWriteTimer(
@@ -114,6 +120,10 @@ OverlayMetrics::OverlayMetrics(Application& app)
           {"overlay", "send", "survey-request"}, "message"))
     , mSendSurveyResponseMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "survey-response"}, "message"))
+    , mSendFloodAdvertMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "flood-advert"}, "message"))
+    , mSendFloodDemandMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "flood-demand"}, "message"))
     , mMessagesBroadcast(app.getMetrics().NewMeter(
           {"overlay", "message", "broadcast"}, "message"))
     , mPendingPeersSize(

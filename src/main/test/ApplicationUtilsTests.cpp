@@ -199,6 +199,8 @@ TEST_CASE("application setup", "[applicationutils]")
         // Setup validator to publish
         cfg1 = histCfg.configure(cfg1, /* writable */ true);
         cfg1.MAX_SLOTS_TO_REMEMBER = 50;
+        cfg1.FLOOD_SCP_LAZY_PROBABILITY = 0.0;
+        cfg1.FLOOD_TX_LAZY_PROBABILITY = 0.0;
 
         Config cfg2 = getTestConfig(2);
         cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
@@ -209,6 +211,8 @@ TEST_CASE("application setup", "[applicationutils]")
         cfg2.MODE_AUTO_STARTS_OVERLAY = false;
         cfg2.DATABASE = SecretValue{minimalDBForInMemoryMode(cfg2)};
         cfg2.MODE_STORES_HISTORY_LEDGERHEADERS = true;
+        cfg2.FLOOD_SCP_LAZY_PROBABILITY = 0.0;
+        cfg2.FLOOD_TX_LAZY_PROBABILITY = 0.0;
         // Captive core points to a read-only archive maintained by the
         // validator
         cfg2 = histCfg.configure(cfg2, /* writable */ false);

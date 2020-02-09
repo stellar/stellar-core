@@ -357,6 +357,8 @@ TEST_CASE("outbound queue filtering", "[overlay][connections]")
         Simulation::OVER_LOOPBACK, networkID, [](int i) {
             auto cfg = getTestConfig(i, Config::TESTDB_ON_DISK_SQLITE);
             cfg.ENABLE_OVERLAY_FLOW_CONTROL = true;
+            cfg.FLOOD_SCP_LAZY_PROBABILITY = 0.0;
+            cfg.FLOOD_TX_LAZY_PROBABILITY = 0.0;
             cfg.MAX_SLOTS_TO_REMEMBER = 3;
             return cfg;
         });

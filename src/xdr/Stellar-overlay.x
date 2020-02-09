@@ -100,7 +100,9 @@ enum MessageType
     SURVEY_REQUEST = 14,
     SURVEY_RESPONSE = 15,
 
-    SEND_MORE = 16
+    SEND_MORE = 16,
+    FLOOD_ADVERT = 17,
+    FLOOD_DEMAND = 18
 };
 
 struct DontHave
@@ -183,6 +185,16 @@ case SURVEY_TOPOLOGY:
     TopologyResponseBody topologyResponseBody;
 };
 
+struct FloodAdvert
+{
+    uint64 hashes<>;
+};
+
+struct FloodDemand
+{
+    uint64 hashes<>;
+};
+
 union StellarMessage switch (MessageType type)
 {
 case ERROR_MSG:
@@ -211,6 +223,11 @@ case SURVEY_REQUEST:
 
 case SURVEY_RESPONSE:
     SignedSurveyResponseMessage signedSurveyResponseMessage;
+
+case FLOOD_ADVERT:
+     FloodAdvert floodAdvert;
+case FLOOD_DEMAND:
+     FloodDemand floodDemand;
 
 // SCP
 case GET_SCP_QUORUMSET:

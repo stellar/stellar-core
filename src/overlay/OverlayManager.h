@@ -90,6 +90,11 @@ class OverlayManager
     // message with the ID msgID will cause it to be broadcast to all peers
     virtual void forgetFloodedMsg(Hash const& msgID) = 0;
 
+    virtual void demandMissing(FloodAdvert const& adv,
+                               Peer::pointer fromPeer) = 0;
+    virtual void fulfillDemand(FloodDemand const& dmd,
+                               Peer::pointer fromPeer) = 0;
+
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
 

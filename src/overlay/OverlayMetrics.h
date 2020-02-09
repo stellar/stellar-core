@@ -60,6 +60,9 @@ struct OverlayMetrics
     medida::Timer& mRecvSurveyRequestTimer;
     medida::Timer& mRecvSurveyResponseTimer;
 
+    medida::Timer& mRecvFloodAdvertTimer;
+    medida::Timer& mRecvFloodDemandTimer;
+
     medida::Timer& mMessageDelayInWriteQueueTimer;
     medida::Timer& mMessageDelayInAsyncWriteTimer;
 
@@ -83,6 +86,9 @@ struct OverlayMetrics
 
     medida::Meter& mSendSurveyRequestMeter;
     medida::Meter& mSendSurveyResponseMeter;
+
+    medida::Meter& mSendFloodAdvertMeter;
+    medida::Meter& mSendFloodDemandMeter;
 
     medida::Meter& mMessagesBroadcast;
     medida::Counter& mPendingPeersSize;
