@@ -462,7 +462,6 @@ exit /b 0
     <ClCompile Include="..\..\src\main\Maintainer.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp" />
-    <ClCompile Include="..\..\src\main\test\ApplicationTests.cpp" />
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp" />
     <ClCompile Include="..\..\src\main\test\ExternalQueueTests.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />

@@ -1936,6 +1936,10 @@ BallotProtocol::getStatementValues(SCPStatement const& st)
         {
             values.insert(prep.prepared->value);
         }
+        if (prep.preparedPrime)
+        {
+            values.insert(prep.preparedPrime->value);
+        }
     }
     break;
     case SCPStatementType::SCP_ST_CONFIRM:

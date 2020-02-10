@@ -687,9 +687,6 @@
     <ClCompile Include="..\..\src\ledger\test\SyncingLedgerChainTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\test\ApplicationTests.cpp">
-      <Filter>main\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
