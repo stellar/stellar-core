@@ -118,7 +118,10 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
         mQSet = mHerder.getQSet(qSetH);
         if (!mQSet)
         {
-            throw std::runtime_error("Wrapping an unknown qset from envelope");
+            throw std::runtime_error(
+                fmt::format("SCPHerderEnvelopeWrapper: Wrapping an unknown "
+                            "qset {} from envelope",
+                            hexAbbrev(qSetH)));
         }
         auto txSets = getTxSetHashes(e);
         for (auto const& txSetH : txSets)
@@ -131,7 +134,9 @@ class SCPHerderEnvelopeWrapper : public SCPEnvelopeWrapper
             else
             {
                 throw std::runtime_error(
-                    "Wrapping an unknown tx set from envelope");
+                    fmt::format("SCPHerderEnvelopeWrapper: Wrapping an unknown "
+                                "tx set {} from envelope",
+                                hexAbbrev(txSetH)));
             }
         }
     }
@@ -1026,8 +1031,9 @@ class SCPHerderValueWrapper : public ValueWrapper
         mTxSet = mHerder.getTxSet(sv.txSetHash);
         if (!mTxSet)
         {
-            throw std::runtime_error(
-                "SCPHerderValueWrapper tried to bind an unknown tx set");
+            throw std::runtime_error(fmt::format(
+                "SCPHerderValueWrapper tried to bind an unknown tx set {}",
+                hexAbbrev(sv.txSetHash)));
         }
     }
 };
@@ -1039,7 +1045,8 @@ HerderSCPDriver::wrapValue(Value const& val)
     auto b = mHerder.getHerderSCPDriver().toStellarValue(val, sv);
     if (!b)
     {
-        throw std::runtime_error("Invalid value in SCPHerderValueWrapper");
+        throw std::runtime_error(fmt::format(
+            "Invalid value in SCPHerderValueWrapper {}", binToHex(val)));
     }
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;

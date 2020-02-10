@@ -144,7 +144,10 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
     }
     catch (...)
     {
-        CLOG(FATAL, "SCP") << "SCP context:";
+        CLOG(FATAL, "SCP") << "SCP context ("
+                           << mSCP.getDriver().toShortString(
+                                  mSCP.getLocalNodeID())
+                           << "): ";
         CLOG(FATAL, "SCP") << getJsonInfo().toStyledString();
         CLOG(FATAL, "SCP") << "Exception processing SCP messages at "
                            << mSlotIndex << ", envelope: "
