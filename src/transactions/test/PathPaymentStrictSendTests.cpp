@@ -47,25 +47,6 @@ rotateRight(std::deque<T>& d)
 }
 
 std::string
-assetToString(const Asset& asset)
-{
-    auto r = std::string{};
-    switch (asset.type())
-    {
-    case stellar::ASSET_TYPE_NATIVE:
-        r = std::string{"XLM"};
-        break;
-    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
-        assetCodeToStr(asset.alphaNum4().assetCode, r);
-        break;
-    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
-        assetCodeToStr(asset.alphaNum12().assetCode, r);
-        break;
-    }
-    return r;
-};
-
-std::string
 assetPathToString(const std::deque<Asset>& assets)
 {
     auto r = assetToString(assets[0]);
