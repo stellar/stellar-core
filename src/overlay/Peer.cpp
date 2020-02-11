@@ -763,7 +763,7 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(), msgID);
 
     auto res = mApp.getHerder().recvSCPEnvelope(envelope);
-    if (res != Herder::ENVELOPE_STATUS_DISCARDED)
+    if (res == Herder::ENVELOPE_STATUS_DISCARDED)
     {
         // the message was discarded, remove it from the floodmap as well
         mApp.getOverlayManager().forgetFloodedMsg(msgID);
