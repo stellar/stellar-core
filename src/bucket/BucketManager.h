@@ -24,7 +24,7 @@ struct MergeKey;
 struct HistoryArchiveState;
 
 // A fine-grained merge-operation-counter structure for tracking various
-// events during merges. These are not medida counters becasue we do not
+// events during merges. These are not medida counters because we do not
 // want or need to publish this level of granularity outside of testing, and
 // we do want merges to run as quickly as possible.
 struct MergeCounters

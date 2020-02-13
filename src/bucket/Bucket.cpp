@@ -238,7 +238,7 @@ maybePut(BucketOutputIterator& out, BucketEntry const& entry,
     //
     // Note that this decision only controls whether to elide dead entries due
     // to _shadows_. There is a secondary elision of dead entries at the _oldest
-    // level_ of the bucketlist that is accompished through filtering at the
+    // level_ of the bucketlist that is accomplished through filtering at the
     // BucketOutputIterator level, and happens independent of ledger protocol
     // version.
 
@@ -327,7 +327,7 @@ countNewEntryType(MergeCounters& mc, BucketEntry const& e)
 // preserves lifecycle-events.
 //
 //     IOW we want to prevent the following scenario
-//     (assumign lev1 and lev2 are on the new protocol, but 3 and 4
+//     (assuming lev1 and lev2 are on the new protocol, but 3 and 4
 //      are on the old protocol):
 //
 //       lev1:DEAD, lev2:INIT, lev3:DEAD, lev4:LIVE

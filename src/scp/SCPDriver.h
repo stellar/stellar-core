@@ -104,7 +104,7 @@ class SCPDriver
 
     // `validateValue` is called on each message received before any processing
     // is done. It should be used to filter out values that are not compatible
-    // with the current state of that node. Unvalidated values can never
+    // with the current state of that node. Invalid values can never
     // externalize.
     // If the value cannot be validated (node is missing some context) but
     // passes

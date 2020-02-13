@@ -79,7 +79,7 @@ void validateNetworkPassphrase(std::shared_ptr<Application> app);
  * configuration variables, including cryptographic keys, network ports, log
  * files, directories and the like. A local copy of the Config object is made on
  * construction of each Application, after which the local copy cannot be
- * further altered; the Application should be destroyed and recreted if any
+ * further altered; the Application should be destroyed and recreated if any
  * change to configuration is desired.
  *
  *

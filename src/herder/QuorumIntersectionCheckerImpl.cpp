@@ -860,7 +860,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
     // validators it has to choose from has two innerSets: one that's the group
     // itself, and one that contains everyone that depends on any member of the
     // group. In other words the group will "go along with anyone". This is an
-    // overapproximation of "bad configutation": the group's still online and
+    // overapproximation of "bad configuration": the group's still online and
     // behaving correctly, but someone really messed up its configuration.
     //
     // This is a less-dramatic (and more likely) behaviour than true Byzantine
@@ -884,7 +884,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
     }
 
-    CLOG(INFO, "SCP") << "Examininng " << candidates.size()
+    CLOG(INFO, "SCP") << "Examining " << candidates.size()
                       << " node groups for intersection-criticality";
 
     for (auto const& group : candidates)
