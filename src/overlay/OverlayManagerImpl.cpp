@@ -1000,7 +1000,8 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
     bool flood = false;
     if (stellarMsg.type() == TRANSACTION || stellarMsg.type() == SCP_MESSAGE ||
         stellarMsg.type() == SURVEY_REQUEST ||
-        stellarMsg.type() == SURVEY_RESPONSE)
+        stellarMsg.type() == SURVEY_RESPONSE ||
+        stellarMsg.type() == FLOOD_ADVERT || stellarMsg.type() == FLOOD_DEMAND)
     {
         flood = true;
     }
