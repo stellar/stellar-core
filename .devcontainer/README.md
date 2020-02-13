@@ -52,7 +52,12 @@ For git when running from Windows, the following configuration helps (it tells g
         autocrlf = input
 ```
 NB: if you change this setting in an existing working folder, you need to reset it to have the proper line ending.
-
+This can be done with the following sequence:
+```
+git checkout-index --force --all
+git rm --cached -r .
+git reset --hard
+```
 
 ### Build in a different folder
 
