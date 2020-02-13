@@ -28,7 +28,7 @@ namespace stellar
 class Application;
 
 /**
- * This class keeps recevied transaction that were not yet added into ledger
+ * This class keeps received transaction that were not yet added into ledger
  * and that are valid.
  *
  * Each account has an associated queue of transactions (with increasing
@@ -36,9 +36,9 @@ class Application;
  * an age used to determine how long transaction should be kept before banning.
  *
  * After receiving transaction from network it should be added to this queue
- * by tryAdd operation. If that succeds, it can be later removed from it in one
+ * by tryAdd operation. If that succeeds, it can be later removed from it in one
  * of three ways:
- * * removeAndReset() should be called after transaction is successully
+ * * removeAndReset() should be called after transaction is successfully
  *   included into some leger. It preserves the other pending transactions for
  *   accounts and resets the TTL for banning
  * * ban() bans a transactions (which may or may not be in the queue) and its
@@ -127,7 +127,7 @@ class TransactionQueue
         std::unordered_map<AccountID, AccountTransactions>;
     /**
      * Banned transactions are stored in deque of depth banDepth, so it is easy
-     * to unban all transactions that were banned for long enoug.
+     * to unban all transactions that were banned for long enough.
      */
     using BannedTransactions = std::deque<std::unordered_set<Hash>>;
 
@@ -144,7 +144,7 @@ class TransactionQueue
     FindResult find(TransactionFramePtr const& tx);
     using ExtractResult = std::pair<PendingTransactions::iterator,
                                     std::vector<TransactionFramePtr>>;
-    // keepBacklog: keeps transactions succeding tx in the account's backlog
+    // keepBacklog: keeps transactions succeeding tx in the account's backlog
     ExtractResult extract(TransactionFramePtr const& tx, bool keepBacklog);
 
     // size of the transaction queue, in operations

@@ -1075,7 +1075,7 @@ handleCommandLine(int argc, char* const* argv)
          {"sign-transaction",
           "add signature to transaction envelope, then quit",
           runSignTransaction},
-         {"upgrade-db", "upgade database schema to current version",
+         {"upgrade-db", "upgrade database schema to current version",
           runUpgradeDB},
 #ifdef BUILD_TESTS
          {"load-xdr", "load an XDR bucket file, for testing", runLoadXDR},

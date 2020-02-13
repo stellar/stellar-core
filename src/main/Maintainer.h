@@ -18,7 +18,7 @@ class Maintainer
   public:
     explicit Maintainer(Application& app);
 
-    // start automatic mainanining according to app.getConfig()
+    // start automatic maintenance according to app.getConfig()
     void start();
 
     // removes maximum count entries from tables like txhistory or scphistory
