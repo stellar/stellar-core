@@ -36,13 +36,13 @@ ApplyBufferedLedgersWork::onRun()
         }
     }
 
-    auto& lm = mApp.getLedgerManager();
-    if (!lm.hasBufferedLedger())
+    auto& cm = mApp.getCatchupManager();
+    if (!cm.hasBufferedLedger())
     {
         return State::WORK_SUCCESS;
     }
 
-    LedgerCloseData lcd = lm.popBufferedLedger();
+    LedgerCloseData lcd = cm.popBufferedLedger();
 
     CLOG(INFO, "History") << "Scheduling buffered ledger-close: "
                           << "[seq=" << lcd.getLedgerSeq() << ", prev="
@@ -58,8 +58,8 @@ ApplyBufferedLedgersWork::onRun()
     auto predicate = [&]() {
         auto& bl = mApp.getBucketManager().getBucketList();
         bl.resolveAnyReadyFutures();
-        return bl.futuresAllResolved(
-            bl.getMaxMergeLevel(lm.getLastClosedLedgerNum() + 1));
+        return bl.futuresAllResolved(bl.getMaxMergeLevel(
+            mApp.getLedgerManager().getLastClosedLedgerNum() + 1));
     };
 
     mConditionalWork = std::make_shared<ConditionalWork>(
