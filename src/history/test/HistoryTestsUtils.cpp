@@ -673,14 +673,13 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
     lm.startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
-    auto finished = [&]() {
-        return lm.isSynced() ||
-               lm.getState() == LedgerManager::LM_BOOTING_STATE;
-    };
+    auto& cm = app->getCatchupManager();
+    auto finished = [&]() { return cm.catchupWorkIsDone(); };
     crankUntil(app, finished, std::chrono::seconds{30});
 
     // Finished successfully
-    auto success = lm.isSynced();
+    auto success = cm.isCatchupInitialized() &&
+                   cm.getCatchupWorkState() == BasicWork::State::WORK_SUCCESS;
     if (success)
     {
         CLOG(INFO, "History") << "Caught up";
@@ -713,10 +712,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto catchupConfiguration =
         CatchupConfiguration{initLedger - 1, app->getConfig().CATCHUP_RECENT,
                              CatchupConfiguration::Mode::ONLINE};
-    auto waitingForClosingLedger = [&]() {
-        return lm.getCatchupState() ==
-               LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER;
-    };
+
     auto caughtUp = [&]() { return lm.isSynced(); };
 
     auto externalize = [&](uint32 n) {
@@ -760,10 +756,13 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         return false;
     }
 
+    auto waitingForClosingLedger = [&]() {
+        return lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers;
+    };
+
     auto lastLedger = lm.getLastClosedLedgerNum();
     crankUntil(app, waitingForClosingLedger, std::chrono::seconds{30});
-    if (waitingForClosingLedger() &&
-        (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers))
+    if (waitingForClosingLedger())
     {
         // Externalize closing ledger
         externalize(triggerLedger + bufferLedgers + 1);

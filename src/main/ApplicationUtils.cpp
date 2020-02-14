@@ -389,29 +389,26 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     auto done = false;
     while (!done && clock.crank(true))
     {
-        switch (app->getLedgerManager().getState())
+        switch (app->getCatchupManager().getCatchupWorkState())
         {
-        case LedgerManager::LM_BOOTING_STATE:
+        case BasicWork::State::WORK_ABORTED:
+        case BasicWork::State::WORK_FAILURE:
         {
             done = true;
             break;
         }
-        case LedgerManager::LM_SYNCED_STATE:
+        case BasicWork::State::WORK_SUCCESS:
         {
             done = true;
             synced = true;
             break;
         }
-        case LedgerManager::LM_CATCHING_UP_STATE:
+        case BasicWork::State::WORK_RUNNING:
+        case BasicWork::State::WORK_WAITING:
         {
-            if (app->getLedgerManager().getCatchupState() ==
-                LedgerManager::CatchupState::NONE)
-            {
-                abort();
-            }
             break;
         }
-        case LedgerManager::LM_NUM_STATE:
+        default:
             abort();
         }
     }
