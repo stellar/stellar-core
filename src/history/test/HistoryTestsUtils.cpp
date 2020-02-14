@@ -705,14 +705,15 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
 bool
 CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
-                                 uint32_t bufferLedgers, uint32_t gapLedger)
+                                 uint32_t bufferLedgers, uint32_t gapLedger,
+                                 int32_t numGapLedgers)
 {
     auto& lm = app->getLedgerManager();
     auto startCatchupMetrics = getCatchupMetrics(app);
 
     auto& hm = app->getHistoryManager();
 
-    // catchup will run run to the final ledger in the checkpoint
+    // catchup will run to the final ledger in the checkpoint
     auto toLedger = hm.checkpointContainingLedger(initLedger - 1);
 
     auto catchupConfiguration =
@@ -727,8 +728,14 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         {
             return;
         }
-        if (n == gapLedger)
+        if (numGapLedgers > 0 && n == gapLedger)
         {
+            if (--numGapLedgers > 0)
+            {
+                // skip next ledger as well
+                ++gapLedger;
+            }
+
             CLOG(INFO, "History")
                 << "simulating LedgerClose transmit gap at ledger " << n;
         }

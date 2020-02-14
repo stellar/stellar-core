@@ -28,6 +28,8 @@ class CatchupManagerImpl : public CatchupManager
     medida::Counter& mSyncingLedgersSize;
 
     void resetSyncingLedgers();
+    void addToSyncingLedgers(LedgerCloseData const& ledgerData);
+    void startOnlineCatchup();
 
   public:
     CatchupManagerImpl(Application& app);

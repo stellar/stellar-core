@@ -52,18 +52,55 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 {
     uint32_t lastReceivedLedgerSeq = ledgerData.getLedgerSeq();
 
+    auto addLedgerData = [&]() { addToSyncingLedgers(ledgerData); };
+
     // mSyncingLedgers can be non-empty after mCatchupWork finishes if there was
     // a failure during catchup
     if (mCatchupWork && mCatchupWork->isDone())
     {
         if (!mSyncingLedgers.empty())
         {
-            resetSyncingLedgers();
+            addLedgerData();
+            // look for the latest checkpoint
+            auto rit = mSyncingLedgers.rbegin();
+            auto rend = mSyncingLedgers.rend();
+            while (rit != rend)
+            {
+                auto ledger = rit->getLedgerSeq();
+                auto nextCheckpoint =
+                    mApp.getHistoryManager().nextCheckpointLedger(ledger);
+                if (ledger == nextCheckpoint)
+                {
+                    break;
+                }
+
+                ++rit;
+            }
+
+            // only keep everything past the latest checkpoint (if it exists),
+            // and then start catchup
+            if (rit != rend)
+            {
+                mSyncingLedgers.erase(mSyncingLedgers.begin(),
+                                      (++(rit)).base());
+                mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+
+                auto message =
+                    fmt::format("Starting catchup from buffered checkpoint {} "
+                                "after previous catchup round failed ",
+                                mSyncingLedgers.front().getLedgerSeq());
+                logAndUpdateCatchupStatus(true, message);
+
+                startOnlineCatchup();
+                return;
+            }
+            else
+            {
+                resetSyncingLedgers();
+            }
         }
         mCatchupWork.reset();
     }
-
-    auto addLedgerData = [&]() { mSyncingLedgers.push_back(ledgerData); };
 
     if (!mCatchupWork)
     {
@@ -91,17 +128,7 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
                             catchupTriggerLedger);
             logAndUpdateCatchupStatus(true, message);
 
-            // catchup just before first buffered ledger that way we will have a
-            // way to verify history consistency - compare previousLedgerHash of
-            // buffered ledger with last one downloaded from history
-            auto firstBufferedLedgerSeq =
-                mSyncingLedgers.front().getLedgerSeq();
-            auto hash = make_optional<Hash>(
-                mSyncingLedgers.front().getTxSet()->previousLedgerHash());
-            startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
-                          getCatchupCount(mApp),
-                          CatchupConfiguration::Mode::ONLINE},
-                         nullptr);
+            startOnlineCatchup();
         }
         else
         {
@@ -246,5 +273,30 @@ CatchupManagerImpl::resetSyncingLedgers()
 {
     mSyncingLedgers.clear();
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+}
+
+void
+CatchupManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
+{
+    mSyncingLedgers.push_back(ledgerData);
+
+    CLOG(INFO, "Ledger") << "Close of ledger " << ledgerData.getLedgerSeq()
+                         << " buffered";
+}
+
+void
+CatchupManagerImpl::startOnlineCatchup()
+{
+    assert(!mSyncingLedgers.empty());
+
+    // catchup just before first buffered ledger that way we will have a
+    // way to verify history consistency - compare previousLedgerHash of
+    // buffered ledger with last one downloaded from history
+    auto firstBufferedLedgerSeq = mSyncingLedgers.front().getLedgerSeq();
+    auto hash = make_optional<Hash>(
+        mSyncingLedgers.front().getTxSet()->previousLedgerHash());
+    startCatchup({LedgerNumHashPair(firstBufferedLedgerSeq - 1, hash),
+                  getCatchupCount(mApp), CatchupConfiguration::Mode::ONLINE},
+                 nullptr);
 }
 }

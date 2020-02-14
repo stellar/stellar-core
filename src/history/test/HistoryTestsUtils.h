@@ -278,7 +278,8 @@ class CatchupSimulation
     bool catchupOffline(Application::pointer app, uint32_t toLedger,
                         bool extraValidation = false);
     bool catchupOnline(Application::pointer app, uint32_t initLedger,
-                       uint32_t bufferLedgers = 0, uint32_t gapLedger = 0);
+                       uint32_t bufferLedgers = 0, uint32_t gapLedger = 0,
+                       int32_t numGapLedgers = 1);
 
     void crankUntil(Application::pointer app,
                     std::function<bool()> const& predicate,
