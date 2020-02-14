@@ -573,9 +573,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -679,9 +676,6 @@
       <Filter>ledger\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\ledger\test\SyncingLedgerChainTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp">
@@ -1503,9 +1497,6 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerTxnImpl.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h">
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h">

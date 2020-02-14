@@ -64,7 +64,8 @@ class CatchupManager
 
     // popBufferedLedger will throw if there are no buffered ledgers
     virtual bool hasBufferedLedger() const = 0;
-    virtual LedgerCloseData popBufferedLedger() = 0;
+    virtual LedgerCloseData const& getBufferedLedger() const = 0;
+    virtual void popBufferedLedger() = 0;
 
     // Ensure any metrics that are "current state" gauge-like counters reflect
     // the current reality as best as possible.

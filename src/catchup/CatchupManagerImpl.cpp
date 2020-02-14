@@ -63,8 +63,7 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
         mCatchupWork.reset();
     }
 
-    addToSyncingLedgers(ledgerData);
-    assert(!mSyncingLedgers.empty());
+    mSyncingLedgers.push_back(ledgerData);
 
     auto contiguous =
         lastReceivedLedgerSeq == mSyncingLedgers.back().getLedgerSeq();
@@ -189,44 +188,25 @@ CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
     logAndUpdateCatchupStatus(contiguous, getStatus());
 }
 
-void
-CatchupManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
-{
-    switch (mSyncingLedgers.push(ledgerData))
-    {
-    case SyncingLedgerChainAddResult::CONTIGUOUS:
-        // Normal close while catching up
-        CLOG(INFO, "Ledger")
-            << "Close of ledger " << ledgerData.getLedgerSeq() << " buffered";
-        return;
-    case SyncingLedgerChainAddResult::TOO_OLD:
-        CLOG(INFO, "Ledger")
-            << "Skipping close ledger: latest known is "
-            << mSyncingLedgers.back().getLedgerSeq() << ", more recent than "
-            << ledgerData.getLedgerSeq();
-        return;
-    case SyncingLedgerChainAddResult::TOO_NEW:
-        // Out-of-order close while catching up; timeout / network failure?
-        CLOG(WARNING, "Ledger")
-            << "Out-of-order close during catchup, buffered to "
-            << mSyncingLedgers.back().getLedgerSeq() << " but network closed "
-            << ledgerData.getLedgerSeq();
-
-        CLOG(WARNING, "Ledger")
-            << "this round of catchup will fail and restart.";
-        return;
-    default:
-        assert(false);
-    }
-}
-
 bool
 CatchupManagerImpl::hasBufferedLedger() const
 {
     return !mSyncingLedgers.empty();
 }
 
-LedgerCloseData
+LedgerCloseData const&
+CatchupManagerImpl::getBufferedLedger() const
+{
+    if (!hasBufferedLedger())
+    {
+        throw std::runtime_error(
+            "getBufferedLedger called when mSyncingLedgers is empty!");
+    }
+
+    return mSyncingLedgers.front();
+}
+
+void
 CatchupManagerImpl::popBufferedLedger()
 {
     if (!hasBufferedLedger())
@@ -235,11 +215,8 @@ CatchupManagerImpl::popBufferedLedger()
             "popBufferedLedger called when mSyncingLedgers is empty!");
     }
 
-    auto lcd = mSyncingLedgers.front();
-    mSyncingLedgers.pop();
+    mSyncingLedgers.pop_front();
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-
-    return lcd;
 }
 
 void
@@ -258,7 +235,7 @@ CatchupManagerImpl::reset()
 void
 CatchupManagerImpl::resetSyncingLedgers()
 {
-    mSyncingLedgers = {};
+    mSyncingLedgers.clear();
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 }
 }
