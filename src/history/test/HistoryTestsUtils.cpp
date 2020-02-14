@@ -709,8 +709,14 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
 {
     auto& lm = app->getLedgerManager();
     auto startCatchupMetrics = getCatchupMetrics(app);
+
+    auto& hm = app->getHistoryManager();
+
+    // catchup will run run to the final ledger in the checkpoint
+    auto toLedger = hm.checkpointContainingLedger(initLedger - 1);
+
     auto catchupConfiguration =
-        CatchupConfiguration{initLedger - 1, app->getConfig().CATCHUP_RECENT,
+        CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT,
                              CatchupConfiguration::Mode::ONLINE};
 
     auto caughtUp = [&]() { return lm.isSynced(); };
@@ -949,8 +955,6 @@ CatchupSimulation::computeCatchupPerformedWork(
         CatchupRange{lastClosedLedger, catchupConfiguration, hm};
     auto verifyCheckpointRange = CheckpointRange{
         {catchupRange.mLedgers.mFirst - 1, catchupRange.getLast()}, hm};
-    auto applyCheckpointRange = CheckpointRange{
-        {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, hm};
 
     uint32_t historyArchiveStatesDownloaded = 1;
     if (catchupRange.mApplyBuckets &&
@@ -960,7 +964,18 @@ CatchupSimulation::computeCatchupPerformedWork(
     }
 
     auto ledgersDownloaded = verifyCheckpointRange.count();
-    auto transactionsDownloaded = applyCheckpointRange.count();
+    uint32_t transactionsDownloaded;
+    if (catchupRange.applyLedgers())
+    {
+        auto applyCheckpointRange = CheckpointRange{
+            {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, hm};
+        transactionsDownloaded = applyCheckpointRange.count();
+    }
+    else
+    {
+        transactionsDownloaded = 0;
+    }
+
     auto firstVerifiedLedger = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
                                         verifyCheckpointRange.mFirst + 1 -
                                             hm.getCheckpointFrequency());

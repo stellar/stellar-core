@@ -63,24 +63,33 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
         mCatchupWork.reset();
     }
 
-    mSyncingLedgers.push_back(ledgerData);
+    auto addLedgerData = [&]() { mSyncingLedgers.push_back(ledgerData); };
 
-    auto contiguous =
-        lastReceivedLedgerSeq == mSyncingLedgers.back().getLedgerSeq();
     if (!mCatchupWork)
     {
-        uint32_t catchupTriggerLedger =
+        uint32_t checkpointLedger =
             mApp.getHistoryManager().nextCheckpointLedger(
-                lastReceivedLedgerSeq - 1) +
-            1;
+                lastReceivedLedgerSeq - 1);
 
+        // We wait until checkpoint + 1 ledger is closed before we start
+        // catchup, but we want to catchup to checkpoint - 1 so we don't have to
+        // wait for the next checkpoint snapshot. We need to buffer the
+        // checkpoint ledger because of this.
+        if (lastReceivedLedgerSeq == checkpointLedger)
+        {
+            addLedgerData();
+        }
+
+        uint32_t catchupTriggerLedger = checkpointLedger + 1;
         if (lastReceivedLedgerSeq >= catchupTriggerLedger)
         {
+            addLedgerData();
+
             auto message =
                 fmt::format("Starting catchup after ensuring checkpoint "
                             "ledger {} was closed on network",
                             catchupTriggerLedger);
-            logAndUpdateCatchupStatus(contiguous, message);
+            logAndUpdateCatchupStatus(true, message);
 
             // catchup just before first buffered ledger that way we will have a
             // way to verify history consistency - compare previousLedgerHash of
@@ -101,12 +110,13 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
             auto message = fmt::format(
                 "Waiting for trigger ledger: {}/{}, ETA: {}s",
                 lastReceivedLedgerSeq, catchupTriggerLedger, eta.count());
-            logAndUpdateCatchupStatus(contiguous, message);
+            logAndUpdateCatchupStatus(true, message);
         }
     }
     else
     {
-        logAndUpdateCatchupStatus(contiguous);
+        addLedgerData();
+        logAndUpdateCatchupStatus(true);
     }
 }
 
@@ -121,7 +131,6 @@ CatchupManagerImpl::startCatchup(CatchupConfiguration configuration,
         throw std::invalid_argument("Target ledger is not newer than LCL");
     }
 
-    // mCatchupState = CatchupState::APPLYING_HISTORY;
     auto offlineCatchup = configuration.offline();
     assert(offlineCatchup == mSyncingLedgers.empty());
 

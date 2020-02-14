@@ -1097,10 +1097,14 @@ TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
     REQUIRE(init == 73);
 
-    // Now start a catchup on that catchups as far as it can due to gap
+    // Now start a catchup on that catchups as far as it can due to gap. Make
+    // sure gap is past the checkpoint to ensure we buffer the ledger
     LOG(INFO) << "Starting catchup (with gap) from " << init;
-    REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 10));
-    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 82);
+    REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 59));
+
+    // 73+59=132 is the missing ledger, so the previous ledger was the last one
+    // to be closed
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 131);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
