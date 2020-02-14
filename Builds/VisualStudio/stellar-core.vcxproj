@@ -443,7 +443,6 @@ exit /b 0
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\test\LedgerHeaderTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\test\LedgerManagerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTestUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTxnTests.cpp" />
