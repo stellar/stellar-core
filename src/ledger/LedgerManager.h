@@ -164,6 +164,8 @@ class LedgerManager
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                   uint32_t count) = 0;
 
+    virtual void
+    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
     // popBufferedLedger will throw if there are no buffered ledgers
     virtual bool hasBufferedLedger() const = 0;
     virtual LedgerCloseData popBufferedLedger() = 0;

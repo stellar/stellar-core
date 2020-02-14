@@ -1020,6 +1020,21 @@ LedgerManagerImpl::popBufferedLedger()
 }
 
 void
+LedgerManagerImpl::setLastClosedLedger(
+    LedgerHeaderHistoryEntry const& lastClosed)
+{
+    assert(mState == LM_CATCHING_UP_STATE);
+
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto header = ltx.loadHeader();
+    header.current() = lastClosed.header;
+    storeCurrentLedger(header.current());
+    ltx.commit();
+
+    advanceLedgerPointers(lastClosed.header);
+}
+
+void
 LedgerManagerImpl::setupLedgerCloseMetaStream()
 {
     if (mMetaStream)
