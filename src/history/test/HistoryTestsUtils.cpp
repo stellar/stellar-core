@@ -769,13 +769,14 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         return false;
     }
 
-    auto waitingForClosingLedger = [&]() {
-        return lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers;
+    auto catchupIsDone = [&]() {
+        return app->getCatchupManager().catchupWorkIsDone();
     };
 
     auto lastLedger = lm.getLastClosedLedgerNum();
-    crankUntil(app, waitingForClosingLedger, std::chrono::seconds{30});
-    if (waitingForClosingLedger())
+    crankUntil(app, catchupIsDone, std::chrono::seconds{30});
+
+    if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
     {
         // Externalize closing ledger
         externalize(triggerLedger + bufferLedgers + 1);
