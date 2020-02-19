@@ -432,7 +432,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
     case CloseLedgerIfResult::CLOSED:
     {
         setState(LM_SYNCED_STATE);
-        mApp.getCatchupManager().reset();
+        mApp.getCatchupManager().processLedger(ledgerData);
     }
     break;
     case CloseLedgerIfResult::TOO_OLD:

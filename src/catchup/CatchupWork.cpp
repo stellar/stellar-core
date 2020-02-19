@@ -387,7 +387,14 @@ BasicWork::State
 CatchupWork::doWork()
 {
     auto nextState = runCatchupStep();
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+    auto& cm = mApp.getCatchupManager();
+
+    if (nextState == BasicWork::State::WORK_SUCCESS)
+    {
+        assert(!cm.hasBufferedLedger());
+    }
+
+    cm.logAndUpdateCatchupStatus(true);
     return nextState;
 }
 

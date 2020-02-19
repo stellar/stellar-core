@@ -27,9 +27,11 @@ class CatchupManagerImpl : public CatchupManager
     std::deque<LedgerCloseData> mSyncingLedgers;
     medida::Counter& mSyncingLedgersSize;
 
-    void resetSyncingLedgers();
     void addToSyncingLedgers(LedgerCloseData const& ledgerData);
     void startOnlineCatchup();
+    void trimSyncingLedgers();
+    void trimAndReset();
+    uint32_t getCatchupCount();
 
   public:
     CatchupManagerImpl(Application& app);
@@ -54,7 +56,5 @@ class CatchupManagerImpl : public CatchupManager
     void popBufferedLedger() override;
 
     void syncMetrics() override;
-
-    void reset() override;
 };
 }

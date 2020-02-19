@@ -71,9 +71,6 @@ class CatchupManager
     // the current reality as best as possible.
     virtual void syncMetrics() = 0;
 
-    // reset internal state
-    virtual void reset() = 0;
-
     virtual ~CatchupManager(){};
 };
 }
