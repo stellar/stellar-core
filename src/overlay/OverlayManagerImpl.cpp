@@ -115,7 +115,7 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
                      [&](Peer::pointer const& p) { return p.get() == peer; });
     if (pendingIt != std::end(mPending))
     {
-        CLOG(DEBUG, "Overlay") << "Dropping pending " << mDirectionString
+        CLOG(TRACE, "Overlay") << "Dropping pending " << mDirectionString
                                << " peer: " << peer->toString();
         mPending.erase(pendingIt);
         mConnectionsDropped.Mark();
@@ -823,7 +823,7 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
         }
     }
 
-    CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is not preferred @"
+    CLOG(TRACE, "Overlay") << "Peer " << pstr << " is not preferred @"
                            << mApp.getConfig().PEER_PORT;
     return false;
 }
@@ -970,7 +970,7 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
         {
             CLOG(TRACE, "Overlay")
                 << "recv: " << (unique ? "unique" : "duplicate") << " "
-                << Peer::msgSummary(stellarMsg) << " (" << msgType << ")"
+                << peer->msgSummary(stellarMsg) << " (" << msgType << ")"
                 << " of size: " << xdr::xdr_argpack_size(stellarMsg)
                 << " from: "
                 << mApp.getConfig().toShortString(peer->getPeerID()) << " @"

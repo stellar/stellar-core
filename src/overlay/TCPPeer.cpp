@@ -16,6 +16,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/format.h"
 #include "xdrpp/marshal.h"
 
 using namespace soci;
@@ -142,8 +143,6 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         return;
     }
 
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
 
     TimestampedMessage msg;
@@ -264,6 +263,12 @@ TCPPeer::messageSender()
         expected_length += sz;
     }
 
+    if (Logging::logDebug("Overlay"))
+    {
+        CLOG(DEBUG, "Overlay") << fmt::format(
+            "messageSender {} - b:{} n:{}/{}", toString(), expected_length,
+            mWriteBuffers.size(), mWriteQueue.size());
+    }
     getOverlayMetrics().mAsyncWrite.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     asio::async_write(*(mSocket.get()), mWriteBuffers,
@@ -422,8 +427,8 @@ TCPPeer::startRead()
 
     mIncomingHeader.clear();
 
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << toString();
+    CLOG(DEBUG, "Overlay") << "TCPPeer::startRead " << mSocket->in_avail()
+                           << " from " << toString();
 
     mIncomingHeader.resize(HDRSZ);
 
@@ -490,10 +495,6 @@ TCPPeer::startRead()
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
         asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
                          [self](asio::error_code ec, std::size_t length) {
-                             if (Logging::logTrace("Overlay"))
-                                 CLOG(TRACE, "Overlay")
-                                     << "TCPPeer::startRead calledback " << ec
-                                     << " length:" << length;
                              self->readHeaderHandler(ec, length);
                          });
     }
@@ -544,10 +545,6 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
     assertThreadIsMain();
-    // LOG(DEBUG) << "TCPPeer::readHeaderHandler "
-    //     << "@" << mApp.getConfig().PEER_PORT
-    //     << " to " << mRemoteListeningPort
-    //     << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (error)
     {
@@ -581,10 +578,6 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
                          std::size_t expected_length)
 {
     assertThreadIsMain();
-    // LOG(DEBUG) << "TCPPeer::readBodyHandler "
-    //     << "@" << mApp.getConfig().PEER_PORT
-    //     << " to " << mRemoteListeningPort
-    //     << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (error)
     {

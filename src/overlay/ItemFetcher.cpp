@@ -46,7 +46,6 @@ ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
 void
 ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
 {
-    CLOG(TRACE, "Overlay") << "stopFetch " << hexAbbrev(itemHash);
     const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
@@ -61,6 +60,10 @@ ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
             // it
             tracker->cancel();
         }
+    }
+    else
+    {
+        CLOG(TRACE, "Overlay") << "stopFetch untracked " << hexAbbrev(itemHash);
     }
 }
 
@@ -154,7 +157,7 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
     }
     else
     {
-        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
+        CLOG(TRACE, "Overlay") << "Recv untracked " << hexAbbrev(itemHash);
     }
 }
 }
