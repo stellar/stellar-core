@@ -144,6 +144,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
+    MAX_BATCH_READ_PERIOD_MS = std::chrono::milliseconds(100);
+    MAX_BATCH_READ_COUNT = 1024;
     PREFERRED_PEERS_ONLY = false;
 
     MINIMUM_IDLE_PERCENT = 0;
@@ -824,6 +826,15 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 PEER_STRAGGLER_TIMEOUT = readInt<unsigned short>(
                     item, 1, std::numeric_limits<unsigned short>::max());
+            }
+            else if (item.first == "MAX_BATCH_READ_PERIOD_MS")
+            {
+                MAX_BATCH_READ_PERIOD_MS =
+                    std::chrono::milliseconds(readInt<int>(item, 1));
+            }
+            else if (item.first == "MAX_BATCH_READ_COUNT")
+            {
+                MAX_BATCH_READ_COUNT = readInt<int>(item, 1);
             }
             else if (item.first == "PREFERRED_PEERS")
             {
