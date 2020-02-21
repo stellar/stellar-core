@@ -139,9 +139,22 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
         }
 
         mSession << "PRAGMA journal_mode = WAL";
+        // FULL is needed as to ensure durability
+        // NORMAL is enough for non validating nodes
+        // mSession << "PRAGMA synchronous = NORMAL";
+
+        // number of pages in WAL file
+        mSession << "PRAGMA wal_autocheckpoint=10000";
+
         // busy_timeout gives room for external processes
         // that may lock the database for some time
         mSession << "PRAGMA busy_timeout = 10000";
+
+        // adjust caches
+        // 20000 pages
+        mSession << "PRAGMA cache_size=-20000";
+        // 100 MB map
+        mSession << "PRAGMA mmap_size=104857600";
 
         // Register the sqlite carray() extension we use for bulk operations.
         sqlite3_carray_init(sq->conn_, nullptr, nullptr);
