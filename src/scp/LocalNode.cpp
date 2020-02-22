@@ -158,9 +158,6 @@ bool
 LocalNode::isQuorumSlice(SCPQuorumSet const& qSet,
                          std::vector<NodeID> const& nodeSet)
 {
-    CLOG(TRACE, "SCP") << "LocalNode::isQuorumSlice"
-                       << " nodeSet.size: " << nodeSet.size();
-
     return isQuorumSliceInternal(qSet, nodeSet);
 }
 
@@ -210,9 +207,6 @@ bool
 LocalNode::isVBlocking(SCPQuorumSet const& qSet,
                        std::vector<NodeID> const& nodeSet)
 {
-    CLOG(TRACE, "SCP") << "LocalNode::isVBlocking"
-                       << " nodeSet.size: " << nodeSet.size();
-
     return isVBlockingInternal(qSet, nodeSet);
 }
 
