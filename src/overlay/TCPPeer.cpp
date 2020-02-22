@@ -46,7 +46,8 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << address.toString();
     assertThreadIsMain();
-    auto socket = make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ);
+    auto socket =
+        make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ, BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
     result->startIdleTimer();
@@ -241,13 +242,29 @@ TCPPeer::messageSender()
     // if nothing to do, mark progress and return.
     if (mWriteQueue.empty())
     {
-        mWriting = false;
-        // there is nothing to send and delayed shutdown was
-        // requested - time to perform it
-        if (mDelayedShutdown)
-        {
-            shutdown();
-        }
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        mSocket->async_flush(
+            [self](asio::error_code const& ec, size_t written) {
+                CLOG(DEBUG, "Overlay")
+                    << fmt::format("Flushed ({}) {} bytes for {}", ec.message(),
+                                   written, self->toString());
+                self->writeHandler(ec, 0, 0);
+                if (!ec && !self->mWriteQueue.empty())
+                {
+                    // still got something to do
+                    self->messageSenderScheduler();
+                }
+                else
+                {
+                    self->mWriting = false;
+                    // there is nothing to send and delayed shutdown was
+                    // requested - time to perform it
+                    if (self->mDelayedShutdown)
+                    {
+                        self->shutdown();
+                    }
+                }
+            });
         return;
     }
 
@@ -285,9 +302,11 @@ TCPPeer::messageSender()
     }
     getOverlayMetrics().mAsyncWrite.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    asio::async_write(*(mSocket.get()), mWriteBuffers,
-                      [self, expected_length](asio::error_code const& ec,
-                                              std::size_t length) {
+    asio::error_code ec;
+
+    auto length = asio::write(*(mSocket.get()), mWriteBuffers, ec);
+
+{
                           if (expected_length != length)
                           {
                               self->drop("error during async_write",
@@ -323,7 +342,7 @@ TCPPeer::messageSender()
                           {
                               self->messageSenderScheduler();
                           }
-                      });
+                      }
 }
 
 void
