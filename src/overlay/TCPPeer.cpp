@@ -34,7 +34,7 @@ const size_t TCPPeer::BUFSZ;
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket)
-    : Peer(app, role), mSocket(socket)
+    : Peer(app, role), mSendTimer(app), mSocket(socket)
 {
 }
 
@@ -156,9 +156,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         // Post a write to the next crank. We do this asynchronously so
         // we have a (brief but important) chance to enqueue a bunch of messages
         // before we issue the write.
-        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        self->getApp().postOnMainThread([self]() { self->messageSender(); },
-                                        "TCPPeer: messageSender");
+        messageSenderScheduler();
     }
 }
 
@@ -224,6 +222,15 @@ TCPPeer::shutdown()
                 "TCPPeer: close");
         },
         "TCPPeer: shutdown");
+}
+
+void
+TCPPeer::messageSenderScheduler()
+{
+    mSendTimer.expires_from_now(std::chrono::milliseconds(100));
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+    mSendTimer.async_wait([self]() { self->messageSender(); },
+                          VirtualTimer::onFailureNoop);
 }
 
 void
@@ -314,7 +321,7 @@ TCPPeer::messageSender()
                           // continue processing the queue
                           if (!ec)
                           {
-                              self->messageSender();
+                              self->messageSenderScheduler();
                           }
                       });
 }

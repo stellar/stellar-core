@@ -27,6 +27,7 @@ class TCPPeer : public Peer
     static constexpr size_t BUFSZ = 0x40000; // 256KB
 
   private:
+    stellar::VirtualTimer mSendTimer;
     std::shared_ptr<SocketType> mSocket;
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
@@ -40,6 +41,7 @@ class TCPPeer : public Peer
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
 
+    void messageSenderScheduler();
     void messageSender();
 
     size_t getIncomingMsgLength();
