@@ -254,13 +254,21 @@ TCPPeer::messageSender()
     assert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
     size_t expected_length = 0;
-    mEnqueueTimeOfLastWrite = mWriteQueue.back().mEnqueuedTime;
+    size_t maxQueueSize = mApp.getConfig().MAX_BATCH_WRITE_COUNT;
+    assert(maxQueueSize > 0);
+    size_t const maxTotalBytes = mApp.getConfig().MAX_BATCH_WRITE_BYTES;
     for (auto& tsm : mWriteQueue)
     {
         tsm.mIssuedTime = now;
         size_t sz = tsm.mMessage->raw_size();
         mWriteBuffers.emplace_back(tsm.mMessage->raw_data(), sz);
         expected_length += sz;
+        mEnqueueTimeOfLastWrite = tsm.mEnqueuedTime;
+        // check if we reached any limit
+        if (expected_length >= maxTotalBytes)
+            break;
+        if (--maxQueueSize == 0)
+            break;
     }
 
     if (Logging::logDebug("Overlay"))
