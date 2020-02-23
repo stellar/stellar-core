@@ -428,9 +428,14 @@ TCPPeer::startRead()
     mIncomingHeader.resize(HDRSZ);
 
     // We read large-ish (256KB) buffers of data from TCP which might have quite
-    // a few messages in them. We want to digest as many of these
-    // _synchronously_ as we can before we issue an async_read against ASIO.
-    YieldTimer yt(mApp.getClock());
+    // a few messages in them. We can digest those buffers by issuing one
+    // async_read per message (or even two: one for header and one for body) and
+    // the buffered stream will actually just bounce off ASIO's scheduler so
+    // long as there's buffered data, not issue another OS-level read; but we
+    // can do a _little_ better than that by digesting a few messages at a time
+    // here _synchronously_ before yielding. We just have to be careful not to
+    // hold on too long, as this can hurt latency elsewhere (eg. delay writes).
+    YieldTimer yt(mApp.getClock(), std::chrono::milliseconds(1), 10);
     while (mSocket->in_avail() >= HDRSZ && yt.shouldKeepGoing())
     {
         asio::error_code ec_hdr, ec_body;
@@ -482,8 +487,9 @@ TCPPeer::startRead()
     }
 
     // If there wasn't enough readable in the buffered stream to even get a
-    // header (message length), issue an async_read and hope that the buffering
-    // pulls in much more than just the 4 bytes we ask for here.
+    // header (message length), or we ran out of iterations/time above, issue an
+    // async_read and hope that the buffering pulls in much more than just the 4
+    // bytes we ask for here.
     getOverlayMetrics().mAsyncRead.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
