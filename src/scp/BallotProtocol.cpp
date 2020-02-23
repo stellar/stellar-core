@@ -447,11 +447,6 @@ BallotProtocol::updateCurrentValue(SCPBallot const& ballot)
         }
     }
 
-    if (updated)
-    {
-        CLOG(TRACE, "SCP") << "BallotProtocol::updateCurrentValue updated";
-    }
-
     checkInvariants();
 
     return updated;
