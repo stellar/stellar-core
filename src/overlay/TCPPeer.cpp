@@ -481,19 +481,30 @@ TCPPeer::startRead()
         }
     }
 
-    // If there wasn't enough readable in the buffered stream to even get a
-    // header (message length), issue an async_read and hope that the buffering
-    // pulls in much more than just the 4 bytes we ask for here.
-    getOverlayMetrics().mAsyncRead.Mark();
-    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                     [self](asio::error_code ec, std::size_t length) {
-                         if (Logging::logTrace("Overlay"))
-                             CLOG(TRACE, "Overlay")
-                                 << "TCPPeer::startRead calledback " << ec
-                                 << " length:" << length;
-                         self->readHeaderHandler(ec, length);
-                     });
+    if (mSocket->in_avail() < HDRSZ)
+    {
+        // If there wasn't enough readable in the buffered stream to even get a
+        // header (message length), issue an async_read and hope that the
+        // buffering pulls in much more than just the 4 bytes we ask for here.
+        getOverlayMetrics().mAsyncRead.Mark();
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
+                         [self](asio::error_code ec, std::size_t length) {
+                             if (Logging::logTrace("Overlay"))
+                                 CLOG(TRACE, "Overlay")
+                                     << "TCPPeer::startRead calledback " << ec
+                                     << " length:" << length;
+                             self->readHeaderHandler(ec, length);
+                         });
+    }
+    else
+    {
+        // we have enough data but need to bounce on the main thread as we've
+        // done too much work already
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        self->getApp().postOnMainThread([self]() { self->startRead(); },
+                                        "TCPPeer: startRead");
+    }
 }
 
 size_t
