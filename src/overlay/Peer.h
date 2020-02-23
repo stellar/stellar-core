@@ -186,7 +186,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mApp;
     }
 
-    static std::string msgSummary(StellarMessage const& stellarMsg);
+    std::string msgSummary(StellarMessage const& stellarMsg);
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
@@ -194,7 +194,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendErrorAndDrop(ErrorCode error, std::string const& message,
                           DropMode dropMode);
 
-    void sendMessage(StellarMessage const& msg);
+    void sendMessage(StellarMessage const& msg, bool log = true);
 
     PeerRole
     getRole() const

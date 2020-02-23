@@ -86,7 +86,6 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
         return;
     }
     Hash index = sha256(xdr::xdr_to_opaque(msg));
-    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index);
 
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end() || force)
@@ -102,6 +101,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
     // make a copy, in case peers gets modified
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
+    bool log = true;
     for (auto peer : peers)
     {
         assert(peer.second->isAuthenticated());
@@ -109,8 +109,9 @@ Floodgate::broadcast(StellarMessage const& msg, bool force,
             peer.second->getRemoteOverlayVersion() >= minOverlayVersion)
         {
             mSendFromBroadcast.Mark();
-            peer.second->sendMessage(msg);
+            peer.second->sendMessage(msg, log);
             peersTold.insert(peer.second->toString());
+            log = false;
         }
     }
     CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told "
