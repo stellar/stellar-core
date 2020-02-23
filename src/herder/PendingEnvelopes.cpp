@@ -267,7 +267,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     auto const& nodeID = envelope.statement.nodeID;
     if (!isNodeDefinitelyInQuorum(nodeID))
     {
-        CLOG(DEBUG, "Herder")
+        CLOG(TRACE, "Herder")
             << "Dropping envelope from "
             << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
         return Herder::ENVELOPE_STATUS_DISCARDED;
@@ -433,10 +433,13 @@ PendingEnvelopes::clearQSetCache()
 void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
-    CLOG(TRACE, "Herder") << "Envelope ready "
-                          << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                          << " i:" << envelope.statement.slotIndex
-                          << " t:" << envelope.statement.pledges.type();
+    if (Logging::logTrace("Herder"))
+    {
+        CLOG(TRACE, "Herder") << "Envelope ready "
+                              << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                              << " i:" << envelope.statement.slotIndex
+                              << " t:" << envelope.statement.pledges.type();
+    }
 
     StellarMessage msg;
     msg.type(SCP_MESSAGE);
@@ -469,9 +472,11 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
 
+    bool needSomething = false;
     if (!getKnownQSet(h, false))
     {
         mQuorumSetFetcher.fetch(h, envelope);
+        needSomething = true;
     }
 
     for (auto const& h2 : getTxSetHashes(envelope))
@@ -479,13 +484,17 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         if (!getKnownTxSet(h2, 0, false))
         {
             mTxSetFetcher.fetch(h2, envelope);
+            needSomething = true;
         }
     }
 
-    CLOG(TRACE, "Herder") << "StartFetch env "
-                          << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                          << " i:" << envelope.statement.slotIndex
-                          << " t:" << envelope.statement.pledges.type();
+    if (needSomething && Logging::logTrace("Herder"))
+    {
+        CLOG(TRACE, "Herder") << "StartFetch env "
+                              << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                              << " i:" << envelope.statement.slotIndex
+                              << " t:" << envelope.statement.pledges.type();
+    }
 }
 
 void
@@ -499,10 +508,13 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
         mTxSetFetcher.stopFetch(h2, envelope);
     }
 
-    CLOG(TRACE, "Herder") << "StopFetch env "
-                          << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                          << " i:" << envelope.statement.slotIndex
-                          << " t:" << envelope.statement.pledges.type();
+    if (Logging::logTrace("Herder"))
+    {
+        CLOG(TRACE, "Herder") << "StopFetch env "
+                              << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
+                              << " i:" << envelope.statement.slotIndex
+                              << " t:" << envelope.statement.pledges.type();
+    }
 }
 
 void

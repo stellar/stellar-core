@@ -66,18 +66,19 @@ class Herder
 
     enum EnvelopeStatus
     {
-        // for some reason this envelope was discarded - either is was invalid,
+        // for some reason this envelope was discarded - either it was invalid,
         // used unsane qset or was coming from node that is not in quorum
-        ENVELOPE_STATUS_DISCARDED,
+        ENVELOPE_STATUS_DISCARDED = -100,
         // envelope was skipped as it's from this validator
-        ENVELOPE_STATUS_SKIPPED_SELF,
+        ENVELOPE_STATUS_SKIPPED_SELF = -10,
+        // envelope was already processed
+        ENVELOPE_STATUS_PROCESSED = -1,
+
         // envelope data is currently being fetched
-        ENVELOPE_STATUS_FETCHING,
+        ENVELOPE_STATUS_FETCHING = 0,
         // current call to recvSCPEnvelope() was the first when the envelope
         // was fully fetched so it is ready for processing
-        ENVELOPE_STATUS_READY,
-        // envelope was already processed
-        ENVELOPE_STATUS_PROCESSED,
+        ENVELOPE_STATUS_READY = 1
     };
 
     virtual State getState() const = 0;
