@@ -195,12 +195,6 @@ LoadManager::PeerContext::~PeerContext()
             mBytesRecvStart;
         auto query =
             (mApp.getDatabase().getQueryMeter().count() - mSQLQueriesStart);
-        if (Logging::logTrace("Overlay"))
-            CLOG(TRACE, "Overlay")
-                << "Debiting peer " << mApp.getConfig().toShortString(mNode)
-                << " time:" << timeMag(time.count())
-                << " send:" << byteMag(send) << " recv:" << byteMag(recv)
-                << " query:" << query;
         pc->mTimeSpent.Mark(time.count());
         pc->mBytesSend.Mark(send);
         pc->mBytesRecv.Mark(recv);

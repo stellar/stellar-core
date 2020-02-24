@@ -16,6 +16,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/format.h"
 #include "xdrpp/marshal.h"
 
 using namespace soci;
@@ -142,8 +143,6 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         return;
     }
 
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
 
     TimestampedMessage msg;
@@ -255,15 +254,29 @@ TCPPeer::messageSender()
     assert(mWriteBuffers.empty());
     auto now = mApp.getClock().now();
     size_t expected_length = 0;
-    mEnqueueTimeOfLastWrite = mWriteQueue.back().mEnqueuedTime;
+    size_t maxQueueSize = mApp.getConfig().MAX_BATCH_WRITE_COUNT;
+    assert(maxQueueSize > 0);
+    size_t const maxTotalBytes = mApp.getConfig().MAX_BATCH_WRITE_BYTES;
     for (auto& tsm : mWriteQueue)
     {
         tsm.mIssuedTime = now;
         size_t sz = tsm.mMessage->raw_size();
         mWriteBuffers.emplace_back(tsm.mMessage->raw_data(), sz);
         expected_length += sz;
+        mEnqueueTimeOfLastWrite = tsm.mEnqueuedTime;
+        // check if we reached any limit
+        if (expected_length >= maxTotalBytes)
+            break;
+        if (--maxQueueSize == 0)
+            break;
     }
 
+    if (Logging::logDebug("Overlay"))
+    {
+        CLOG(DEBUG, "Overlay") << fmt::format(
+            "messageSender {} - b:{} n:{}/{}", toString(), expected_length,
+            mWriteBuffers.size(), mWriteQueue.size());
+    }
     getOverlayMetrics().mAsyncWrite.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     asio::async_write(*(mSocket.get()), mWriteBuffers,
@@ -422,15 +435,16 @@ TCPPeer::startRead()
 
     mIncomingHeader.clear();
 
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << toString();
+    CLOG(DEBUG, "Overlay") << "TCPPeer::startRead " << mSocket->in_avail()
+                           << " from " << toString();
 
     mIncomingHeader.resize(HDRSZ);
 
     // We read large-ish (256KB) buffers of data from TCP which might have quite
     // a few messages in them. We want to digest as many of these
     // _synchronously_ as we can before we issue an async_read against ASIO.
-    YieldTimer yt(mApp.getClock());
+    YieldTimer yt(mApp.getClock(), mApp.getConfig().MAX_BATCH_READ_PERIOD_MS,
+                  mApp.getConfig().MAX_BATCH_READ_COUNT);
     while (mSocket->in_avail() >= HDRSZ && yt.shouldKeepGoing())
     {
         asio::error_code ec_hdr, ec_body;
@@ -481,19 +495,26 @@ TCPPeer::startRead()
         }
     }
 
-    // If there wasn't enough readable in the buffered stream to even get a
-    // header (message length), issue an async_read and hope that the buffering
-    // pulls in much more than just the 4 bytes we ask for here.
-    getOverlayMetrics().mAsyncRead.Mark();
-    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
-                     [self](asio::error_code ec, std::size_t length) {
-                         if (Logging::logTrace("Overlay"))
-                             CLOG(TRACE, "Overlay")
-                                 << "TCPPeer::startRead calledback " << ec
-                                 << " length:" << length;
-                         self->readHeaderHandler(ec, length);
-                     });
+    if (mSocket->in_avail() < HDRSZ)
+    {
+        // If there wasn't enough readable in the buffered stream to even get a
+        // header (message length), issue an async_read and hope that the
+        // buffering pulls in much more than just the 4 bytes we ask for here.
+        getOverlayMetrics().mAsyncRead.Mark();
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        asio::async_read(*(mSocket.get()), asio::buffer(mIncomingHeader),
+                         [self](asio::error_code ec, std::size_t length) {
+                             self->readHeaderHandler(ec, length);
+                         });
+    }
+    else
+    {
+        // we have enough data but need to bounce on the main thread as we've
+        // done too much work already
+        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+        self->getApp().postOnMainThread([self]() { self->startRead(); },
+                                        "TCPPeer: startRead");
+    }
 }
 
 size_t
@@ -533,10 +554,6 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
     assertThreadIsMain();
-    // LOG(DEBUG) << "TCPPeer::readHeaderHandler "
-    //     << "@" << mApp.getConfig().PEER_PORT
-    //     << " to " << mRemoteListeningPort
-    //     << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (error)
     {
@@ -570,10 +587,6 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
                          std::size_t expected_length)
 {
     assertThreadIsMain();
-    // LOG(DEBUG) << "TCPPeer::readBodyHandler "
-    //     << "@" << mApp.getConfig().PEER_PORT
-    //     << " to " << mRemoteListeningPort
-    //     << (error ? "error " : "") << " bytes:" << bytes_transferred;
 
     if (error)
     {

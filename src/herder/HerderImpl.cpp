@@ -422,18 +422,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     if (!verifyEnvelope(envelope))
     {
-        CLOG(DEBUG, "Herder") << "Received bad envelope, discarding";
+        CLOG(TRACE, "Herder") << "Received bad envelope, discarding";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
-
-    if (Logging::logDebug("Herder"))
-        CLOG(DEBUG, "Herder")
-            << "recvSCPEnvelope"
-            << " from: "
-            << mApp.getConfig().toShortString(envelope.statement.nodeID)
-            << " s:" << envelope.statement.pledges.type()
-            << " i:" << envelope.statement.slotIndex
-            << " a:" << mApp.getStateHuman();
 
     mSCPMetrics.mEnvelopeReceive.Mark();
 
@@ -451,7 +442,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // if the envelope contains an invalid close time, don't bother
         // processing it as we're not going to forward it anyways and it's
         // going to just sit in our SCP state not contributing anything useful.
-        CLOG(DEBUG, "Herder")
+        CLOG(TRACE, "Herder")
             << "skipping invalid close time (incompatible with current state)";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
@@ -474,7 +465,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // if we've never been in sync, we can be more aggressive in how we
         // filter messages: we can ignore messages that are unlikely to be
         // the latest messages from the network
-        CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping invalid close time "
+        CLOG(TRACE, "Herder") << "recvSCPEnvelope: skipping invalid close time "
                                  "(check MAXIMUM_LEDGER_CLOSETIME_DRIFT)";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
@@ -483,7 +474,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     if (envelope.statement.slotIndex > maxLedgerSeq ||
         envelope.statement.slotIndex < minLedgerSeq)
     {
-        CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
+        CLOG(TRACE, "Herder") << "Ignoring SCPEnvelope outside of range: "
                               << envelope.statement.slotIndex << "( "
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
         return Herder::ENVELOPE_STATUS_DISCARDED;
@@ -491,14 +482,36 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     if (envelope.statement.nodeID == getSCP().getLocalNode()->getNodeID())
     {
-        CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
+        CLOG(TRACE, "Herder") << "recvSCPEnvelope: skipping own message";
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
 
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
+        if (Logging::logDebug("Herder"))
+        {
+            CLOG(DEBUG, "Herder")
+                << "recvSCPEnvelope (ready) from: "
+                << mApp.getConfig().toShortString(envelope.statement.nodeID)
+                << " s:" << envelope.statement.pledges.type()
+                << " i:" << envelope.statement.slotIndex
+                << " a:" << mApp.getStateHuman();
+        }
+
         processSCPQueue();
+    }
+    else
+    {
+        if (Logging::logTrace("Herder"))
+        {
+            CLOG(TRACE, "Herder")
+                << "recvSCPEnvelope (" << status << ") from: "
+                << mApp.getConfig().toShortString(envelope.statement.nodeID)
+                << " s:" << envelope.statement.pledges.type()
+                << " i:" << envelope.statement.slotIndex
+                << " a:" << mApp.getStateHuman();
+        }
     }
     return status;
 }
@@ -517,13 +530,15 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
+    bool log = true;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
         getSCP().processCurrentState(seq,
                                      [&](SCPEnvelope const& e) {
                                          StellarMessage m;
                                          m.type(SCP_MESSAGE);
                                          m.envelope() = e;
-                                         peer->sendMessage(m);
+                                         peer->sendMessage(m, log);
+                                         log = false;
                                          return true;
                                      },
                                      false);

@@ -240,10 +240,6 @@ Peer::sendGetTxSet(uint256 const& setID)
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay") << "Get quorum set: " << hexAbbrev(setID) << " @"
-                               << mApp.getConfig().PEER_PORT;
-
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
     newMsg.qSetHash() = setID;
@@ -254,8 +250,6 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendGetPeers()
 {
-    CLOG(TRACE, "Overlay") << "Get peers @" << mApp.getConfig().PEER_PORT;
-
     StellarMessage newMsg;
     newMsg.type(GET_PEERS);
 
@@ -265,9 +259,6 @@ Peer::sendGetPeers()
 void
 Peer::sendGetScpState(uint32 ledgerSeq)
 {
-    CLOG(TRACE, "Overlay") << "Get SCP State for " << ledgerSeq << " @"
-                           << mApp.getConfig().PEER_PORT;
-
     StellarMessage newMsg;
     newMsg.type(GET_SCP_STATE);
     newMsg.getSCPLedgerSeq() = ledgerSeq;
@@ -325,14 +316,15 @@ Peer::msgSummary(StellarMessage const& msg)
     case AUTH:
         return "AUTH";
     case DONT_HAVE:
-        return "DONTHAVE";
+        return fmt::format("DONTHAVE {}:{}", msg.dontHave().type,
+                           hexAbbrev(msg.dontHave().reqHash));
     case GET_PEERS:
         return "GETPEERS";
     case PEERS:
-        return "PEERS";
+        return fmt::format("PEERS {}", msg.peers().size());
 
     case GET_TX_SET:
-        return "GETTXSET";
+        return fmt::format("GETTXSET {}", hexAbbrev(msg.txSetHash()));
     case TX_SET:
         return "TXSET";
 
@@ -340,23 +332,35 @@ Peer::msgSummary(StellarMessage const& msg)
         return "TRANSACTION";
 
     case GET_SCP_QUORUMSET:
-        return "GET_SCP_QSET";
+        return fmt::format("GET_SCP_QSET {}", hexAbbrev(msg.qSetHash()));
     case SCP_QUORUMSET:
         return "SCP_QSET";
     case SCP_MESSAGE:
+    {
+        std::string t;
         switch (msg.envelope().statement.pledges.type())
         {
         case SCP_ST_PREPARE:
-            return "SCP::PREPARE";
+            t = "SCP::PREPARE";
+            break;
         case SCP_ST_CONFIRM:
-            return "SCP::CONFIRM";
+            t = "SCP::CONFIRM";
+            break;
         case SCP_ST_EXTERNALIZE:
-            return "SCP::EXTERNALIZE";
+            t = "SCP::EXTERNALIZE";
+            break;
         case SCP_ST_NOMINATE:
-            return "SCP::NOMINATE";
+            t = "SCP::NOMINATE";
+            break;
+        default:
+            t = "unknown";
         }
+        return fmt::format(
+            "{} ({})", t,
+            mApp.getConfig().toShortString(msg.envelope().statement.nodeID));
+    }
     case GET_SCP_STATE:
-        return "GET_SCP_STATE";
+        return fmt::format("GET_SCP_STATE {}", msg.getSCPLedgerSeq());
 
     case SURVEY_REQUEST:
     case SURVEY_RESPONSE:
@@ -366,9 +370,9 @@ Peer::msgSummary(StellarMessage const& msg)
 }
 
 void
-Peer::sendMessage(StellarMessage const& msg)
+Peer::sendMessage(StellarMessage const& msg, bool log)
 {
-    if (Logging::logTrace("Overlay"))
+    if (log && Logging::logTrace("Overlay"))
     {
         CLOG(TRACE, "Overlay")
             << "send: " << msgSummary(msg)
@@ -448,7 +452,6 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
 
-    CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     try
     {
         AuthenticatedMessage am;
@@ -741,11 +744,6 @@ void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
     SCPEnvelope const& envelope = msg.envelope();
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay")
-            << "recvSCPMessage node: "
-            << mApp.getConfig().toShortString(msg.envelope().statement.nodeID)
-            << " @" << mApp.getConfig().PEER_PORT;
 
     auto type = msg.envelope().statement.pledges.type();
     auto t = (type == SCP_ST_PREPARE
@@ -774,8 +772,6 @@ void
 Peer::recvGetSCPState(StellarMessage const& msg)
 {
     uint32 seq = msg.getSCPLedgerSeq();
-    CLOG(TRACE, "Overlay") << "get SCP State " << seq << " @"
-                           << mApp.getConfig().PEER_PORT;
     mApp.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
 

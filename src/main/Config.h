@@ -298,6 +298,10 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
     unsigned short PEER_STRAGGLER_TIMEOUT;
+    std::chrono::milliseconds MAX_BATCH_READ_PERIOD_MS;
+    int MAX_BATCH_READ_COUNT;
+    int MAX_BATCH_WRITE_COUNT;
+    int MAX_BATCH_WRITE_BYTES;
     static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
     static constexpr auto const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;
 
