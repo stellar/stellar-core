@@ -153,12 +153,7 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
     if (!mWriting)
     {
         mWriting = true;
-        // Post a write to the next crank. We do this asynchronously so
-        // we have a (brief but important) chance to enqueue a bunch of messages
-        // before we issue the write.
-        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        self->getApp().postOnMainThread([self]() { self->messageSender(); },
-                                        "TCPPeer: messageSender");
+        messageSender();
     }
 }
 
