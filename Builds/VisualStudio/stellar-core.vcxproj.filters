@@ -1026,6 +1026,9 @@
     <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\test\MetricTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
