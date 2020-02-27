@@ -26,6 +26,7 @@ class SimulationTransactionFrame : public TransactionFrame
     int64_t getFee(LedgerHeader const& header, int64_t baseFee) const override;
 
     void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) override;
+    void processSeqNum(AbstractLedgerTxn& ltx) override;
 
   public:
     SimulationTransactionFrame(Hash const& networkID,

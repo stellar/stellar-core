@@ -100,4 +100,16 @@ SimulationTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
         acc.seqNum = mEnvelope.v0().tx.seqNum;
     }
 }
+
+void
+SimulationTransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
+{
+    auto header = ltx.loadHeader();
+    if (header.current().ledgerVersion >= 10)
+    {
+        auto sourceAccount = loadSourceAccount(ltx, header);
+        sourceAccount.current().data.account().seqNum =
+            mEnvelope.v0().tx.seqNum;
+    }
+}
 }
