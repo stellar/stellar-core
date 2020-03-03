@@ -222,6 +222,7 @@
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\util.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ewma.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\sliding_window_sample.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\snapshot.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\uniform_sample.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\timer.cc" />
@@ -245,6 +246,7 @@
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ewma.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\sliding_window_sample.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\snapshot.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\uniform_sample.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\summarizable_interface.h" />
