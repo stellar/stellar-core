@@ -89,6 +89,7 @@ class Herder
     virtual void syncMetrics() = 0;
 
     virtual void bootstrap() = 0;
+    virtual void shutdown() = 0;
 
     // restores Herder's state from disk
     virtual void restoreState() = 0;

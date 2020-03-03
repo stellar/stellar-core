@@ -132,6 +132,19 @@ HerderImpl::bootstrap()
 }
 
 void
+HerderImpl::shutdown()
+{
+    if (mLastQuorumMapIntersectionState.mRecalculating)
+    {
+        // We want to interrupt any calculation-in-progress at shutdown to
+        // avoid a long pause joining worker threads.
+        CLOG(DEBUG, "Herder")
+            << "Shutdown interrupting quorum transitive closure analysis.";
+        mLastQuorumMapIntersectionState.mInterruptFlag = true;
+    }
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;

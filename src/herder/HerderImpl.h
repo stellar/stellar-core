@@ -45,6 +45,7 @@ class HerderImpl : public Herder
 
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
+    void shutdown() override;
 
     void restoreState() override;
 
