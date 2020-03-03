@@ -41,7 +41,8 @@ checkQuorumIntersection(Config const& cfg, uint32_t ledgerNum)
     LOG(INFO) << "Checking last-heard quorum from herder";
     app->start();
     auto qmap = getQuorumMapForLedger(app, ledgerNum);
-    auto qic = QuorumIntersectionChecker::create(qmap, cfg);
+    std::atomic<bool> interruptFlag{false};
+    auto qic = QuorumIntersectionChecker::create(qmap, cfg, interruptFlag);
     qic->networkEnjoysQuorumIntersection();
 }
 

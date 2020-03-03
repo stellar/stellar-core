@@ -37,7 +37,8 @@ TEST_CASE("quorum intersection basic 4-node", "[herder][quorumintersection]")
     qm[pkD] = make_shared<QS>(2, VK({pkA, pkB, pkC}), VQ{});
 
     Config cfg(getTestConfig());
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -77,7 +78,8 @@ TEST_CASE("quorum intersection 6-node with subquorums",
     qm[pkF] = make_shared<QS>(2, VK{}, VQ({qsABC, qsABD, qsABE}));
 
     Config cfg(getTestConfig());
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -101,7 +103,8 @@ TEST_CASE("quorum non intersection basic 6-node",
     qm[pkF] = make_shared<QS>(2, VK({pkA, pkB, pkC, pkD, pkE}), VQ{});
 
     Config cfg(getTestConfig());
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -144,7 +147,8 @@ TEST_CASE("quorum non intersection 6-node with subquorums",
     qm[pkF] = make_shared<QS>(2, VK{}, VQ({qsABF, qsADF, qsBDF}));
 
     Config cfg(getTestConfig());
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -219,7 +223,8 @@ TEST_CASE("quorum plausible non intersection", "[herder][quorumintersection]")
     qm[pkCOINQVEST1] = qsCOINQVEST;
     qm[pkCOINQVEST2] = qsCOINQVEST;
 
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -353,7 +358,8 @@ TEST_CASE("quorum intersection 4-org fully-connected, elide all minquorums",
     auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -370,7 +376,8 @@ TEST_CASE("quorum intersection 3-org 3-node open line",
     auto qm = interconnectOrgsBidir(orgs, {{0, 1}, {1, 2}});
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -386,7 +393,8 @@ TEST_CASE("quorum intersection 3-org 2-node open line",
     auto qm = interconnectOrgsBidir(orgs, {{0, 1}, {1, 2}});
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -405,7 +413,8 @@ TEST_CASE("quorum intersection 3-org 3-node closed ring",
     auto qm = interconnectOrgsBidir(orgs, {{0, 1}, {1, 2}, {0, 2}});
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -429,7 +438,8 @@ TEST_CASE("quorum intersection 3-org 3-node closed one-way ring",
                                            });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -453,7 +463,8 @@ TEST_CASE("quorum intersection 3-org 2-node closed one-way ring",
                                            });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -482,7 +493,8 @@ TEST_CASE("quorum intersection 3-org 2-node 2-of-3 asymmetric",
                                            });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -528,7 +540,8 @@ TEST_CASE("quorum intersection 8-org core-and-periphery dangling",
          {3, 7}});
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -580,7 +593,8 @@ TEST_CASE("quorum intersection 8-org core-and-periphery balanced",
          {2, 7}});
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -627,7 +641,8 @@ TEST_CASE("quorum intersection 8-org core-and-periphery unbalanced",
          {3, 7}});
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(!qic->networkEnjoysQuorumIntersection());
 }
 
@@ -679,7 +694,8 @@ TEST_CASE("quorum intersection 6-org 1-node 4-null qsets",
 
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
     REQUIRE(qic->getMaxQuorumsFound() == 0);
 }
@@ -724,7 +740,8 @@ TEST_CASE("quorum intersection 4-org 1-node 4-null qsets",
 
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
     REQUIRE(qic->getMaxQuorumsFound() == 0);
 }
@@ -736,7 +753,8 @@ TEST_CASE("quorum intersection 6-org 3-node fully-connected",
     auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
@@ -749,8 +767,36 @@ TEST_CASE("quorum intersection scaling test",
     auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
+}
+
+TEST_CASE("quorum intersection interruption", "[herder][quorumintersection]")
+{
+    auto orgs = generateOrgs(16);
+    auto qm = interconnectOrgs(orgs, [](size_t i, size_t j) { return true; });
+    Config cfg(getTestConfig());
+    cfg = configureShortNames(cfg, orgs);
+    std::atomic<bool> interruptFlag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, interruptFlag);
+    std::thread canceller([&interruptFlag]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        interruptFlag = true;
+    });
+    REQUIRE_THROWS_AS(qic->networkEnjoysQuorumIntersection(),
+                      QuorumIntersectionChecker::InterruptedException);
+    canceller.join();
+    interruptFlag = false;
+
+    std::thread canceller2([&interruptFlag]() {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        interruptFlag = true;
+    });
+    REQUIRE_THROWS_AS(
+        qic->getIntersectionCriticalGroups(qm, cfg, interruptFlag),
+        QuorumIntersectionChecker::InterruptedException);
+    canceller2.join();
 }
 
 static void
@@ -832,11 +878,12 @@ TEST_CASE("quorum intersection criticality",
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
     debugQmap(cfg, qm);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 
     auto groups =
-        QuorumIntersectionChecker::getIntersectionCriticalGroups(qm, cfg);
+        QuorumIntersectionChecker::getIntersectionCriticalGroups(qm, cfg, flag);
     REQUIRE(groups.size() == 1);
     REQUIRE(groups == std::set<std::set<PublicKey>>{{orgs[3][0]}});
 }
@@ -894,7 +941,8 @@ TEST_CASE("quorum intersection finds smaller SCC with quorums",
     Config cfg(getTestConfig());
     cfg = configureShortNames(cfg, orgs);
     debugQmap(cfg, qm);
-    auto qic = QuorumIntersectionChecker::create(qm, cfg);
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
     REQUIRE(qic->networkEnjoysQuorumIntersection());
     REQUIRE(qic->getMaxQuorumsFound() != 0);
 }
