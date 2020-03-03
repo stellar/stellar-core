@@ -293,7 +293,7 @@ class SlidingWindowTester
         data.reserve(mSamples.size());
         for (auto const& s : mSamples)
         {
-            data.emplace_back(s.mData);
+            data.emplace_back(static_cast<double>(s.mData));
         }
         std::sort(data.begin(), data.end());
         medida::stats::Snapshot snp(data);
