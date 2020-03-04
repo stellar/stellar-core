@@ -45,6 +45,7 @@ class HerderImpl : public Herder
 
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
+    void shutdown() override;
 
     void restoreState() override;
 
@@ -201,7 +202,9 @@ class HerderImpl : public Herder
         uint32_t mLastGoodLedger{0};
         size_t mNumNodes{0};
         Hash mLastCheckQuorumMapHash{};
+        Hash mCheckingQuorumMapHash{};
         bool mRecalculating{false};
+        std::atomic<bool> mInterruptFlag{false};
         std::pair<std::vector<PublicKey>, std::vector<PublicKey>>
             mPotentialSplit{};
         std::set<std::set<PublicKey>> mIntersectionCriticalNodes{};

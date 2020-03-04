@@ -199,6 +199,11 @@ MinQuorumEnumerator::MinQuorumEnumerator(
 bool
 MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 {
+    if (mQic.mInterruptFlag)
+    {
+        throw QuorumIntersectionChecker::InterruptedException();
+    }
+
     mQic.mStats.mCallsStarted++;
 
     // Emit a progress meter every million calls.
@@ -334,11 +339,13 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
 ////////////////////////////////////////////////////////////////////////////////
 
 QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
-    QuorumTracker::QuorumMap const& qmap, Config const& cfg, bool quiet)
+    QuorumTracker::QuorumMap const& qmap, Config const& cfg,
+    std::atomic<bool>& interruptFlag, bool quiet)
     : mCfg(cfg)
     , mLogTrace(Logging::logTrace("SCP"))
     , mQuiet(quiet)
     , mTSC(mGraph)
+    , mInterruptFlag(interruptFlag)
 {
     buildGraph(qmap);
     buildSCCs();
@@ -838,14 +845,17 @@ namespace stellar
 {
 std::shared_ptr<QuorumIntersectionChecker>
 QuorumIntersectionChecker::create(QuorumTracker::QuorumMap const& qmap,
-                                  Config const& cfg, bool quiet)
+                                  Config const& cfg,
+                                  std::atomic<bool>& interruptFlag, bool quiet)
 {
-    return std::make_shared<QuorumIntersectionCheckerImpl>(qmap, cfg, quiet);
+    return std::make_shared<QuorumIntersectionCheckerImpl>(
+        qmap, cfg, interruptFlag, quiet);
 }
 
 std::set<std::set<PublicKey>>
 QuorumIntersectionChecker::getIntersectionCriticalGroups(
-    stellar::QuorumTracker::QuorumMap const& qmap, stellar::Config const& cfg)
+    stellar::QuorumTracker::QuorumMap const& qmap, stellar::Config const& cfg,
+    std::atomic<bool>& interruptFlag)
 {
     // We're going to search for "intersection-critical" groups, by considering
     // each SCPQuorumSet S that (a) has no innerSets of its own and (b) occurs
@@ -931,8 +941,9 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
 
         // Check to see if this modified config is vulnerable to splitting.
-        auto checker = QuorumIntersectionChecker::create(test_qmap, cfg,
-                                                         /*quiet=*/true);
+        auto checker =
+            QuorumIntersectionChecker::create(test_qmap, cfg, interruptFlag,
+                                              /*quiet=*/true);
         if (checker->networkEnjoysQuorumIntersection())
         {
             CLOG(DEBUG, "SCP") << "group is not intersection-critical: "

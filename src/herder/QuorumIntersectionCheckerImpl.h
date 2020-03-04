@@ -519,6 +519,10 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     // remainder of the search.
     TarjanSCCCalculator mTSC;
 
+    // Interruption flag: setting this causes the QIC / MQEs to throw
+    // InterruptedException at the nearest convenient moment.
+    std::atomic<bool>& mInterruptFlag;
+
     QBitSet convertSCPQuorumSet(stellar::SCPQuorumSet const& sqs);
     void buildGraph(stellar::QuorumTracker::QuorumMap const& qmap);
     void buildSCCs();
@@ -537,6 +541,7 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
   public:
     QuorumIntersectionCheckerImpl(stellar::QuorumTracker::QuorumMap const& qmap,
                                   stellar::Config const& cfg,
+                                  std::atomic<bool>& interruptFlag,
                                   bool quiet = false);
     bool networkEnjoysQuorumIntersection() const override;
 

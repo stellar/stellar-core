@@ -266,7 +266,14 @@ runTest(CommandLineArgs const& args)
     }
 
     auto r = session.run();
-    gTestRoots.clear();
+    while (!gTestRoots.empty())
+    {
+        // Don't call gTestRoots.clear() here -- order of deletion is
+        // not actually specified by vector::clear, and varies between
+        // different C++ stdlibs, and we're (ulp) relying on destructor
+        // order to clean up tmpdirs sensibly. Instead: pop repeatedly.
+        gTestRoots.pop_back();
+    }
     gTestCfg->clear();
     if (r != 0)
     {

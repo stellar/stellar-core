@@ -51,8 +51,11 @@ TmpDir::~TmpDir()
 
     try
     {
-        fs::deltree(*mPath);
-        LOG(DEBUG) << "TmpDir deleted: " << *mPath;
+        if (fs::exists(*mPath))
+        {
+            fs::deltree(*mPath);
+            LOG(DEBUG) << "TmpDir deleted: " << *mPath;
+        }
     }
     catch (std::runtime_error& e)
     {
