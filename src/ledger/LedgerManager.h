@@ -61,17 +61,8 @@ class LedgerManager
         LM_NUM_STATE
     };
 
-    enum class CatchupState
-    {
-        NONE,
-        WAITING_FOR_TRIGGER_LEDGER,
-        APPLYING_HISTORY,
-        WAITING_FOR_CLOSING_LEDGER
-    };
-
     virtual void bootstrap() = 0;
     virtual State getState() const = 0;
-    virtual CatchupState getCatchupState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
     bool
@@ -164,9 +155,8 @@ class LedgerManager
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                   uint32_t count) = 0;
 
-    // popBufferedLedger will throw if there are no buffered ledgers
-    virtual bool hasBufferedLedger() const = 0;
-    virtual LedgerCloseData popBufferedLedger() = 0;
+    virtual void
+    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
 
     virtual ~LedgerManager()
     {

@@ -36,13 +36,27 @@ ApplyBufferedLedgersWork::onRun()
         }
     }
 
-    auto& lm = mApp.getLedgerManager();
-    if (!lm.hasBufferedLedger())
+    auto& cm = mApp.getCatchupManager();
+    if (!cm.hasBufferedLedger())
     {
         return State::WORK_SUCCESS;
     }
 
-    LedgerCloseData lcd = lm.popBufferedLedger();
+    LedgerCloseData lcd = cm.getBufferedLedger();
+
+    auto& lm = mApp.getLedgerManager();
+    uint32_t expectedLedger = lm.getLastClosedLedgerNum() + 1;
+    // check for a gap
+    if (lcd.getLedgerSeq() != expectedLedger)
+    {
+        cm.logAndUpdateCatchupStatus(false);
+        CLOG(WARNING, "History")
+            << "Expected buffered ledger=" << expectedLedger
+            << ", actual=" << lcd.getLedgerSeq();
+        return State::WORK_FAILURE;
+    }
+
+    cm.popBufferedLedger();
 
     CLOG(INFO, "History") << "Scheduling buffered ledger-close: "
                           << "[seq=" << lcd.getLedgerSeq() << ", prev="

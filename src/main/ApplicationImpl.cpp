@@ -687,6 +687,7 @@ ApplicationImpl::syncAllMetrics()
 {
     mHerder->syncMetrics();
     mLedgerManager->syncMetrics();
+    mCatchupManager->syncMetrics();
     syncOwnMetrics();
 }
 

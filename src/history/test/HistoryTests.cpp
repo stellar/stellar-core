@@ -1097,10 +1097,14 @@ TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
     auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
     REQUIRE(init == 73);
 
-    // Now start a catchup on that catchups as far as it can due to gap
+    // Now start a catchup on that catchups as far as it can due to gap. Make
+    // sure gap is past the checkpoint to ensure we buffer the ledger
     LOG(INFO) << "Starting catchup (with gap) from " << init;
-    REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 10));
-    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 82);
+    REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 59));
+
+    // 73+59=132 is the missing ledger, so the previous ledger was the last one
+    // to be closed
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 131);
 
     // Now generate a little more history
     checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
@@ -1208,4 +1212,40 @@ TEST_CASE("initialize existing history store fails", "[history]")
         REQUIRE(!app->getHistoryArchiveManager().initializeHistoryArchive(
             tcfg.getArchiveDirName()));
     }
+}
+
+TEST_CASE("Catchup failure recovery with buffered checkpoint",
+          "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+
+    // Catch up successfully the first time
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        "app2");
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
+
+    auto init = app->getLedgerManager().getLastClosedLedgerNum() + 2;
+    REQUIRE(init == 73);
+
+    // Now generate a little more history
+    checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 63);
+
+    // Now start a catchup on that catchups as far as it can due to gap
+    LOG(INFO) << "Starting catchup (with gap) from " << init;
+    REQUIRE(!catchupSimulation.catchupOnline(app, init, 115, init + 60));
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 132);
+
+    // Now generate a little more history
+    checkpointLedger = catchupSimulation.getLastCheckpointLedger(3);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+
+    // 1. LCL is 132
+    // 2. CatchupManager should still have 192 and 193 buffered after previous
+    //    catchup failed so we don't have to wait for the next checkpoint
+    // 3. Catchup to 191, and then externalize 194 to start catchup
+    CHECK(catchupSimulation.catchupOnline(app, checkpointLedger, 1, 191, 3));
 }

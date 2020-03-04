@@ -7,7 +7,6 @@
 
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDRStream.h"
@@ -56,18 +55,6 @@ class LedgerManagerImpl : public LedgerManager
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
     medida::Timer& mCatchupDuration;
 
-    medida::Counter& mSyncingLedgersSize;
-    uint32_t mCatchupTriggerLedger{0};
-
-    CatchupState mCatchupState{CatchupState::NONE};
-
-    void addToSyncingLedgers(LedgerCloseData const& ledgerData);
-    void startCatchupIf(uint32_t lastReceivedLedgerSeq);
-
-    void historyCaughtup(CatchupWork::ProgressState progressState,
-                         LedgerHeaderHistoryEntry const& lastClosed,
-                         CatchupConfiguration::Mode catchupMode);
-
     void
     processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
                        AbstractLedgerTxn& ltxOuter, int64_t baseFee,
@@ -100,14 +87,7 @@ class LedgerManagerImpl : public LedgerManager
                                                    uint32_t ledgerSeq,
                                                    uint32_t ledgerVers);
 
-    SyncingLedgerChain mSyncingLedgers;
-
-    void setCatchupState(CatchupState s);
     void advanceLedgerPointers(LedgerHeader const& header);
-
-    void initializeCatchup(LedgerCloseData const& ledgerData);
-    void continueCatchup(LedgerCloseData const& ledgerData);
-    void finalizeCatchup(LedgerCloseData const& ledgerData);
     void logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                            size_t numOps);
 
@@ -116,7 +96,6 @@ class LedgerManagerImpl : public LedgerManager
 
     void bootstrap() override;
     State getState() const override;
-    CatchupState getCatchupState() const override;
     std::string getStateHuman() const override;
 
     void valueExternalized(LedgerCloseData const& ledgerData) override;
@@ -149,8 +128,8 @@ class LedgerManagerImpl : public LedgerManager
     void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                           uint32_t count) override;
 
-    bool hasBufferedLedger() const override;
-    LedgerCloseData popBufferedLedger() override;
+    void
+    setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) override;
 
     void setupLedgerCloseMetaStream();
 };

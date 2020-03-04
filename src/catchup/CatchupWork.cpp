@@ -31,14 +31,12 @@ uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 32;
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
-                         ProgressHandler progressHandler,
                          std::shared_ptr<HistoryArchive> archive)
     : Work(app, "catchup", BasicWork::RETRY_NEVER)
     , mLocalState{app.getLedgerManager().getLastClosedLedgerHAS()}
     , mDownloadDir{std::make_unique<TmpDir>(
           mApp.getTmpDirManager().tmpDir(getName()))}
     , mCatchupConfiguration{catchupConfiguration}
-    , mProgressHandler{progressHandler}
     , mArchive{archive}
 {
     if (mArchive)
@@ -296,7 +294,7 @@ CatchupWork::runCatchupStep()
                 }
             }
             // see if we need to apply buffered ledgers
-            if (mApp.getLedgerManager().hasBufferedLedger())
+            if (mApp.getCatchupManager().hasBufferedLedger())
             {
                 mApplyBufferedLedgersWork = addWork<ApplyBufferedLedgersWork>();
                 return State::WORK_RUNNING;
@@ -309,9 +307,8 @@ CatchupWork::runCatchupStep()
             if (mBucketVerifyApplySeq->getState() == State::WORK_SUCCESS &&
                 !mBucketsAppliedEmitted)
             {
-                mProgressHandler(ProgressState::APPLIED_BUCKETS,
-                                 mVerifiedLedgerRangeStart,
-                                 mCatchupConfiguration.mode());
+                mApp.getLedgerManager().setLastClosedLedger(
+                    mVerifiedLedgerRangeStart);
                 mBucketsAppliedEmitted = true;
                 mBuckets.clear();
                 mLastApplied =
@@ -325,8 +322,14 @@ CatchupWork::runCatchupStep()
                 !mTransactionsVerifyEmitted)
             {
                 mTransactionsVerifyEmitted = true;
-                mProgressHandler(ProgressState::APPLIED_TRANSACTIONS,
-                                 mLastApplied, mCatchupConfiguration.mode());
+
+                // In this case we should actually have been caught-up during
+                // the replay process and, if judged successful, our LCL should
+                // be the one provided as well.
+                auto& lastClosed =
+                    mApp.getLedgerManager().getLastClosedLedgerHeader();
+                assert(mLastApplied.hash == lastClosed.hash);
+                assert(mLastApplied.header == lastClosed.header);
             }
         }
         return mCatchupSeq->getState();
@@ -384,7 +387,14 @@ BasicWork::State
 CatchupWork::doWork()
 {
     auto nextState = runCatchupStep();
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+    auto& cm = mApp.getCatchupManager();
+
+    if (nextState == BasicWork::State::WORK_SUCCESS)
+    {
+        assert(!cm.hasBufferedLedger());
+    }
+
+    cm.logAndUpdateCatchupStatus(true);
     return nextState;
 }
 
@@ -392,10 +402,6 @@ void
 CatchupWork::onFailureRaise()
 {
     CLOG(WARNING, "History") << "Catchup failed";
-
-    mApp.getCatchupManager().historyCaughtup();
-    mProgressHandler(ProgressState::FAILED, LedgerHeaderHistoryEntry{},
-                     mCatchupConfiguration.mode());
     Work::onFailureRaise();
 }
 
@@ -403,10 +409,6 @@ void
 CatchupWork::onSuccess()
 {
     CLOG(INFO, "History") << "Catchup finished";
-
-    mProgressHandler(ProgressState::FINISHED, mLastApplied,
-                     mCatchupConfiguration.mode());
-    mApp.getCatchupManager().historyCaughtup();
     Work::onSuccess();
 }
 

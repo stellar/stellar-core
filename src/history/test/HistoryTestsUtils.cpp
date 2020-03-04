@@ -673,14 +673,13 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
     lm.startCatchup(catchupConfiguration, nullptr);
     REQUIRE(!app->getClock().getIOContext().stopped());
 
-    auto finished = [&]() {
-        return lm.isSynced() ||
-               lm.getState() == LedgerManager::LM_BOOTING_STATE;
-    };
+    auto& cm = app->getCatchupManager();
+    auto finished = [&]() { return cm.catchupWorkIsDone(); };
     crankUntil(app, finished, std::chrono::seconds{30});
 
     // Finished successfully
-    auto success = lm.isSynced();
+    auto success = cm.isCatchupInitialized() &&
+                   cm.getCatchupWorkState() == BasicWork::State::WORK_SUCCESS;
     if (success)
     {
         CLOG(INFO, "History") << "Caught up";
@@ -706,17 +705,21 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
 bool
 CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
-                                 uint32_t bufferLedgers, uint32_t gapLedger)
+                                 uint32_t bufferLedgers, uint32_t gapLedger,
+                                 int32_t numGapLedgers)
 {
     auto& lm = app->getLedgerManager();
     auto startCatchupMetrics = getCatchupMetrics(app);
+
+    auto& hm = app->getHistoryManager();
+
+    // catchup will run to the final ledger in the checkpoint
+    auto toLedger = hm.checkpointContainingLedger(initLedger - 1);
+
     auto catchupConfiguration =
-        CatchupConfiguration{initLedger - 1, app->getConfig().CATCHUP_RECENT,
+        CatchupConfiguration{toLedger, app->getConfig().CATCHUP_RECENT,
                              CatchupConfiguration::Mode::ONLINE};
-    auto waitingForClosingLedger = [&]() {
-        return lm.getCatchupState() ==
-               LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER;
-    };
+
     auto caughtUp = [&]() { return lm.isSynced(); };
 
     auto externalize = [&](uint32 n) {
@@ -725,8 +728,14 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         {
             return;
         }
-        if (n == gapLedger)
+        if (numGapLedgers > 0 && n == gapLedger)
         {
+            if (--numGapLedgers > 0)
+            {
+                // skip next ledger as well
+                ++gapLedger;
+            }
+
             CLOG(INFO, "History")
                 << "simulating LedgerClose transmit gap at ledger " << n;
         }
@@ -760,10 +769,14 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         return false;
     }
 
+    auto catchupIsDone = [&]() {
+        return app->getCatchupManager().catchupWorkIsDone();
+    };
+
     auto lastLedger = lm.getLastClosedLedgerNum();
-    crankUntil(app, waitingForClosingLedger, std::chrono::seconds{30});
-    if (waitingForClosingLedger() &&
-        (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers))
+    crankUntil(app, catchupIsDone, std::chrono::seconds{30});
+
+    if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
     {
         // Externalize closing ledger
         externalize(triggerLedger + bufferLedgers + 1);
@@ -950,8 +963,6 @@ CatchupSimulation::computeCatchupPerformedWork(
         CatchupRange{lastClosedLedger, catchupConfiguration, hm};
     auto verifyCheckpointRange = CheckpointRange{
         {catchupRange.mLedgers.mFirst - 1, catchupRange.getLast()}, hm};
-    auto applyCheckpointRange = CheckpointRange{
-        {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, hm};
 
     uint32_t historyArchiveStatesDownloaded = 1;
     if (catchupRange.mApplyBuckets &&
@@ -961,7 +972,18 @@ CatchupSimulation::computeCatchupPerformedWork(
     }
 
     auto ledgersDownloaded = verifyCheckpointRange.count();
-    auto transactionsDownloaded = applyCheckpointRange.count();
+    uint32_t transactionsDownloaded;
+    if (catchupRange.applyLedgers())
+    {
+        auto applyCheckpointRange = CheckpointRange{
+            {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, hm};
+        transactionsDownloaded = applyCheckpointRange.count();
+    }
+    else
+    {
+        transactionsDownloaded = 0;
+    }
+
     auto firstVerifiedLedger = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
                                         verifyCheckpointRange.mFirst + 1 -
                                             hm.getCheckpointFrequency());

@@ -10,6 +10,7 @@
 namespace medida
 {
 class Meter;
+class Counter;
 }
 
 namespace stellar
@@ -23,20 +24,37 @@ class CatchupManagerImpl : public CatchupManager
     Application& mApp;
     std::shared_ptr<BasicWork> mCatchupWork;
 
+    std::deque<LedgerCloseData> mSyncingLedgers;
+    medida::Counter& mSyncingLedgersSize;
+
+    void addToSyncingLedgers(LedgerCloseData const& ledgerData);
+    void startOnlineCatchup();
+    void trimSyncingLedgers();
+    void trimAndReset();
+    uint32_t getCatchupCount();
+
   public:
     CatchupManagerImpl(Application& app);
     ~CatchupManagerImpl() override;
 
-    void historyCaughtup() override;
-
-    void catchupHistory(CatchupConfiguration catchupConfiguration,
-                        std::shared_ptr<HistoryArchive> archive,
-                        CatchupWork::ProgressHandler handler) override;
+    void processLedger(LedgerCloseData const& ledgerData) override;
+    void startCatchup(CatchupConfiguration configuration,
+                      std::shared_ptr<HistoryArchive> archive) override;
 
     std::string getStatus() const override;
+
+    BasicWork::State getCatchupWorkState() const override;
+    bool catchupWorkIsDone() const override;
+    bool isCatchupInitialized() const override;
 
     void logAndUpdateCatchupStatus(bool contiguous,
                                    std::string const& message) override;
     void logAndUpdateCatchupStatus(bool contiguous) override;
+
+    bool hasBufferedLedger() const override;
+    LedgerCloseData const& getBufferedLedger() const override;
+    void popBufferedLedger() override;
+
+    void syncMetrics() override;
 };
 }

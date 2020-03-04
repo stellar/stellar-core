@@ -384,7 +384,6 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerTxnHeader.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnOfferSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnTrustLineSQL.cpp" />
-    <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp" />
     <ClCompile Include="..\..\src\ledger\InMemoryLedgerTxnRoot.cpp" />
     <ClCompile Include="..\..\lib\asio.cpp" />
     <ClCompile Include="..\..\lib\http\connection.cpp" />
@@ -444,12 +443,10 @@ exit /b 0
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\test\LedgerHeaderTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\test\LedgerManagerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTestUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerTxnTests.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\test\SyncingLedgerChainTests.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
@@ -699,7 +696,6 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\LedgerTxnEntry.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxnHeader.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTxnImpl.h" />
-    <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h" />
     <ClInclude Include="..\..\src\ledger\InMemoryLedgerTxnRoot.h" />
     <ClInclude Include="..\..\src\ledger\test\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />

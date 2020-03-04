@@ -102,14 +102,6 @@ class CatchupWork : public Work
     void onSuccess() override;
 
   public:
-    enum class ProgressState
-    {
-        APPLIED_BUCKETS,
-        APPLIED_TRANSACTIONS,
-        FINISHED,
-        FAILED
-    };
-
     // Resume application when publish queue shrinks down to this many
     // checkpoints
     static uint32_t const PUBLISH_QUEUE_UNBLOCK_APPLICATION;
@@ -119,29 +111,7 @@ class CatchupWork : public Work
     // enough snapshots were published, and unblock itself.
     static uint32_t const PUBLISH_QUEUE_MAX_SIZE;
 
-    // ProgressHandler is called in different phases of catchup with following
-    // values of ProgressState argument:
-    // - APPLIED_BUCKETS - called after buckets had been applied at lastClosed
-    // ledger
-    // - APPLIED_TRANSACTIONS - called after transactions had been applied,
-    // last one at lastClosed ledger
-    // - FINISHED - called after buckets and transaction had been applied,
-    // lastClosed is the same as value from previous call
-    //
-    // Different types of catchup causes different sequence of calls:
-    // - CATCHUP_MINIMAL calls APPLIED_BUCKETS then FINISHED
-    // - CATCHUP_COMPLETE calls APPLIED_TRANSACTIONS then FINISHED
-    // - CATCHUP_RECENT calls APPLIED_BUCKETS, APPLIED_TRANSACTIONS then
-    // FINISHED
-    //
-    // In case of error this callback is called with non-zero ec parameter and
-    // the rest of them does not matter.
-    using ProgressHandler = std::function<void(
-        ProgressState progressState, LedgerHeaderHistoryEntry const& lastClosed,
-        CatchupConfiguration::Mode catchupMode)>;
-
     CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
-                ProgressHandler progressHandler,
                 std::shared_ptr<HistoryArchive> archive = nullptr);
     virtual ~CatchupWork();
     std::string getStatus() const override;
@@ -151,7 +121,6 @@ class CatchupWork : public Work
     CatchupConfiguration const mCatchupConfiguration;
     LedgerHeaderHistoryEntry mVerifiedLedgerRangeStart;
     LedgerHeaderHistoryEntry mLastApplied;
-    ProgressHandler mProgressHandler;
     std::shared_ptr<HistoryArchive> mArchive;
     bool mBucketsAppliedEmitted{false};
     bool mTransactionsVerifyEmitted{false};

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupWork.h"
+#include "herder/LedgerCloseData.h"
 #include <functional>
 #include <memory>
 #include <system_error>
@@ -25,16 +26,26 @@ class CatchupManager
   public:
     static std::unique_ptr<CatchupManager> create(Application& app);
 
-    // Callback from catchup, indicates that any catchup work is done.
-    virtual void historyCaughtup() = 0;
+    // Process ledgers that could not be applied, and determine if catchup
+    // should run
+    virtual void processLedger(LedgerCloseData const& ledgerData) = 0;
 
-    // Run catchup with given configuration and verify mode.
-    virtual void catchupHistory(CatchupConfiguration catchupConfiguration,
-                                std::shared_ptr<HistoryArchive> archive,
-                                CatchupWork::ProgressHandler handler) = 0;
+    // Forcibly switch the application into catchup mode, treating `toLedger`
+    // as the destination ledger number and count as the number of past ledgers
+    // that should be replayed. Normally this happens automatically when
+    // LedgerManager detects it is desynchronized from SCP's consensus ledger.
+    // This method is present in the public interface to permit testing and
+    // offline catchups.
+    virtual void startCatchup(CatchupConfiguration configuration,
+                              std::shared_ptr<HistoryArchive> archive) = 0;
 
     // Return status of catchup for or empty string, if no catchup in progress
     virtual std::string getStatus() const = 0;
+
+    // Return state of the CatchupWork object
+    virtual BasicWork::State getCatchupWorkState() const = 0;
+    virtual bool catchupWorkIsDone() const = 0;
+    virtual bool isCatchupInitialized() const = 0;
 
     // Emit a log message and set StatusManager HISTORY_CATCHUP status to
     // describe current catchup state. The `contiguous` argument is passed in
@@ -50,6 +61,15 @@ class CatchupManager
     // is currently contiguous or discontiguous. Message is taken from current
     // work item.
     virtual void logAndUpdateCatchupStatus(bool contiguous) = 0;
+
+    // popBufferedLedger will throw if there are no buffered ledgers
+    virtual bool hasBufferedLedger() const = 0;
+    virtual LedgerCloseData const& getBufferedLedger() const = 0;
+    virtual void popBufferedLedger() = 0;
+
+    // Ensure any metrics that are "current state" gauge-like counters reflect
+    // the current reality as best as possible.
+    virtual void syncMetrics() = 0;
 
     virtual ~CatchupManager(){};
 };
