@@ -3,6 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/LedgerTxnEntry.h"
+#include "ledger/LedgerTxnHeader.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -13,6 +16,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
@@ -73,6 +77,51 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
     {
         for_versions_to(9, *app, [&]() {
             REQUIRE_THROWS_AS(a.bumpSequence(1), ex_opNOT_SUPPORTED);
+        });
+    }
+
+    SECTION("bump, merge, create")
+    {
+        for_versions_from(15, *app, [&]() {
+            closeLedgerOn(*app, 2, 1, 1, 2020);
+            closeLedgerOn(*app, 3, 1, 1, 2020);
+
+            auto test = [&](bool doBump) {
+                if (doBump)
+                {
+                    uint64_t startingSeq = static_cast<uint64_t>(4) << 32;
+                    REQUIRE(a.loadSequenceNumber() < startingSeq);
+                    a.bumpSequence(startingSeq - 2);
+                    REQUIRE(a.loadSequenceNumber() == startingSeq - 2);
+                }
+
+                auto tx1 = a.tx({accountMerge(root)}); // startingSeq - 1
+                auto tx2 = a.tx({payment(a, 1)});      // startingSeq
+                auto tx3 = a.tx({payment(a, 1)});      // startingSeq + 1
+                auto tx4 = root.tx({payment(root, 3)});
+                auto tx5 = root.tx({payment(root, 3)});
+                auto tx6 =
+                    root.tx({createAccount(a, lm.getLastMinBalance(0) + 1000)});
+
+                auto txSet = std::make_shared<TxSetFrame>(
+                    app->getLedgerManager().getLastClosedLedgerHeader().hash);
+                for (auto const& tx : {tx1, tx2, tx3, tx4, tx5, tx6})
+                {
+                    txSet->add(tx);
+                }
+                txSet->sortForHash();
+                REQUIRE(txSet->checkValid(*app, 0, 0) == !doBump);
+            };
+
+            SECTION("with bump")
+            {
+                test(true);
+            }
+
+            SECTION("without bump")
+            {
+                test(false);
+            }
         });
     }
 }
