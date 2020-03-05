@@ -48,8 +48,7 @@ DownloadApplyTxsWork::yieldMoreWork()
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
     auto const& hm = mApp.getHistoryManager();
-    auto low = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
-                        hm.prevCheckpointLedger(mCheckpointToQueue));
+    auto low = hm.firstLedgerInCheckpointContaining(mCheckpointToQueue);
     auto high = std::min(mCheckpointToQueue, mRange.mLast);
     auto apply = std::make_shared<ApplyCheckpointWork>(mApp, mDownloadDir,
                                                        LedgerRange{low, high});

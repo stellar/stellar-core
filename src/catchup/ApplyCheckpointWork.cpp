@@ -42,8 +42,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
 {
     // Ledger range check to enforce application of a single checkpoint
     auto const& hm = mApp.getHistoryManager();
-    auto low = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
-                        hm.prevCheckpointLedger(mCheckpoint));
+    auto low = hm.firstLedgerInCheckpointContaining(mCheckpoint);
     if (mLedgerRange.mFirst != low)
     {
         throw std::runtime_error(
