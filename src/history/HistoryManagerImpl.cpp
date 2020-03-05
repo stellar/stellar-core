@@ -94,6 +94,7 @@ HistoryManagerImpl::getCheckpointFrequency() const
     }
 }
 
+// Returns the maximum multiple-of-freq that is <= ledger.
 uint32_t
 HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger) const
 {
@@ -101,6 +102,7 @@ HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger) const
     return (ledger / freq) * freq;
 }
 
+// Returns the minimum multiple-of-freq that is >= ledger.
 uint32_t
 HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger) const
 {
