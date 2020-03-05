@@ -277,23 +277,29 @@ CatchupManagerImpl::trimSyncingLedgers()
     // look for the latest checkpoint
     auto rit = mSyncingLedgers.rbegin();
     auto rend = mSyncingLedgers.rend();
+    auto& hm = mApp.getHistoryManager();
     while (rit != rend)
     {
-        auto ledger = rit->getLedgerSeq();
-        auto nextCheckpoint =
-            mApp.getHistoryManager().nextCheckpointLedger(ledger);
-        if (ledger == nextCheckpoint)
+        if (hm.isFirstLedgerInCheckpoint(rit->getLedgerSeq()))
         {
             break;
         }
-
         ++rit;
     }
 
-    // only keep everything past the latest checkpoint (if it exists)
+    // only keep ledgers after start of the latest checkpoint (if it exists)
     if (rit != rend)
     {
-        mSyncingLedgers.erase(mSyncingLedgers.begin(), (++(rit)).base());
+        // rit points to a ledger that's the first in a checkpoint, like 64 or
+        // 128; rit.base() is the underlying forward iterator one _past_ (in
+        // forward-order) the value pointed-to by rit. In other words
+        // (++rit).base() is the forward iterator pointing to the same ledger 64
+        // or 128 or such.
+        //
+        // We then erase the half-open range [begin, (++rit).base()) which is
+        // like [..., 64) or [..., 128), which leaves us with the checkpoint
+        // range [64, ...) or [128, ...) in mSyncingLedgers.
+        mSyncingLedgers.erase(mSyncingLedgers.begin(), (++rit).base());
     }
     else
     {
