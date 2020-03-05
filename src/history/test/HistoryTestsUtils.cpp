@@ -558,8 +558,8 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
     auto& hm = mApp.getHistoryManager();
     while (lm.getLastClosedLedgerNum() < targetLedger)
     {
-        if (lm.getLastClosedLedgerNum() + 1 ==
-            mTestProtocolShadowsRemovedLedgerSeq)
+        auto lcl = lm.getLastClosedLedgerNum();
+        if (lcl + 1 == mTestProtocolShadowsRemovedLedgerSeq)
         {
             // Force proto 12 upgrade
             generateRandomLedger(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
@@ -569,8 +569,7 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
             generateRandomLedger();
         }
 
-        auto seq = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-        if (seq == hm.nextCheckpointLedger(seq))
+        if (hm.publishCheckpointOnLedgerClose(lcl))
         {
             mBucketListAtLastPublish =
                 getApp().getBucketManager().getBucketList();
