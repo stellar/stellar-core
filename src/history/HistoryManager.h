@@ -236,6 +236,18 @@ class HistoryManager
         return checkpointContainingLedger(ledger) == ledger;
     }
 
+    bool
+    isFirstLedgerInCheckpoint(uint32_t ledger) const
+    {
+        return firstLedgerInCheckpointContaining(ledger) == ledger;
+    }
+
+    bool
+    isLastLedgerInCheckpoint(uint32_t ledger) const
+    {
+        return checkpointContainingLedger(ledger) == ledger;
+    }
+
     // Return the number of ledgers in the checkpoint containing a given ledger.
     uint32_t
     sizeOfCheckpointContaining(uint32_t ledger) const
