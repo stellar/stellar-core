@@ -227,8 +227,8 @@ HistoryManagerImpl::getMaxLedgerQueuedToPublish()
 bool
 HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 {
-    uint32_t seq = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-    if (seq != nextCheckpointLedger(seq))
+    uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    if (!publishCheckpointOnLedgerClose(lcl))
     {
         return false;
     }
