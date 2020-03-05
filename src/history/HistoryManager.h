@@ -217,7 +217,15 @@ class HistoryManager
     // Return checkpoint that contains given ledger. Checkpoint is identified
     // by last ledger in range. This does not consult the network nor take
     // account of manual checkpoints.
-    virtual uint32_t checkpointContainingLedger(uint32_t ledger) const = 0;
+    uint32_t
+    checkpointContainingLedger(uint32_t ledger) const
+    {
+        uint32_t freq = getCheckpointFrequency();
+        // Round-up to next multiple of freq, then subtract 1 since checkpoints
+        // are numbered for (and cover ledgers up to) the last ledger in them,
+        // which is one-before the next multiple of freq.
+        return (((ledger / freq) + 1) * freq) - 1;
+    }
 
     // Return true iff closing `ledger` should cause publishing a checkpoint.
     // Equivalent to `ledger == checkpointContainingLedger(ledger)` but a little
@@ -226,6 +234,37 @@ class HistoryManager
     publishCheckpointOnLedgerClose(uint32_t ledger) const
     {
         return checkpointContainingLedger(ledger) == ledger;
+    }
+
+    // Return the number of ledgers in the checkpoint containing a given ledger.
+    uint32_t
+    sizeOfCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t freq = getCheckpointFrequency();
+        if (ledger < freq)
+        {
+            return freq - 1;
+        }
+        return freq;
+    }
+
+    // Return the first ledger in the checkpoint containing a given ledger.
+    uint32_t
+    firstLedgerInCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t last = checkpointContainingLedger(ledger); // == 63, 127, 191
+        uint32_t size = sizeOfCheckpointContaining(ledger); // == 63, 64, 64
+        return last - (size - 1);                           // == 1, 64, 128
+    }
+
+    // Return the first ledger after the checkpoint containing a given ledger.
+    uint32_t
+    firstLedgerAfterCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t first =
+            firstLedgerInCheckpointContaining(ledger);      // == 1, 64, 128
+        uint32_t size = sizeOfCheckpointContaining(ledger); // == 63, 64, 64
+        return first + size;                                // == 64, 128, 192
     }
 
     // Given a "current ledger" (not LCL) for a node, return the "current

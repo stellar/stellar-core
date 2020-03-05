@@ -95,16 +95,6 @@ HistoryManagerImpl::getCheckpointFrequency() const
 }
 
 uint32_t
-HistoryManagerImpl::checkpointContainingLedger(uint32_t ledger) const
-{
-    uint32_t freq = getCheckpointFrequency();
-    // Round-up to next multiple of freq, then subtract 1 since checkpoints are
-    // numbered for (and cover ledgers up to) the last ledger in them, which is
-    // one-before the next multiple of freq.
-    return (((ledger / freq) + 1) * freq) - 1;
-}
-
-uint32_t
 HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger) const
 {
     uint32_t freq = getCheckpointFrequency();
