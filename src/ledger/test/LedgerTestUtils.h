@@ -46,7 +46,7 @@ DataEntry generateValidDataEntry(size_t b = 3);
 std::vector<DataEntry> generateValidDataEntries(size_t n);
 
 std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
-    LedgerHeaderHistoryEntry firstLedger, uint32_t freq,
+    LedgerHeaderHistoryEntry firstLedger, uint32_t size,
     HistoryManager::LedgerVerificationStatus state =
         HistoryManager::VERIFY_STATUS_OK);
 }

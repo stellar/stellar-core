@@ -251,22 +251,16 @@ TestLedgerChainGenerator::makeOneLedgerFile(
     uint32_t currCheckpoint, Hash prevHash,
     HistoryManager::LedgerVerificationStatus state)
 {
-    auto initLedger =
-        mApp.getHistoryManager().prevCheckpointLedger(currCheckpoint);
-    auto frequency = mApp.getHistoryManager().getCheckpointFrequency();
-    if (initLedger == 0)
-    {
-        initLedger = LedgerManager::GENESIS_LEDGER_SEQ;
-        frequency -= 1;
-    }
+    auto& hm = mApp.getHistoryManager();
+    auto initLedger = hm.firstLedgerInCheckpointContaining(currCheckpoint);
+    auto size = hm.sizeOfCheckpointContaining(currCheckpoint);
 
     LedgerHeaderHistoryEntry first, last, lcl;
     lcl.header.ledgerSeq = initLedger;
     lcl.header.previousLedgerHash = prevHash;
 
     std::vector<LedgerHeaderHistoryEntry> ledgerChain =
-        LedgerTestUtils::generateLedgerHeadersForCheckpoint(lcl, frequency,
-                                                            state);
+        LedgerTestUtils::generateLedgerHeadersForCheckpoint(lcl, size, state);
 
     createHistoryFiles(ledgerChain, first, last, currCheckpoint);
     return CheckpointEnds(first, last);
@@ -281,7 +275,7 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
 
     LedgerHeaderHistoryEntry first, last;
     for (auto i = mCheckpointRange.mFirst; i <= mCheckpointRange.mLast;
-         i += mApp.getHistoryManager().getCheckpointFrequency())
+         i += mApp.getHistoryManager().sizeOfCheckpointContaining(i))
     {
         // Only corrupt first checkpoint (last to be verified)
         if (i != mCheckpointRange.mFirst)
