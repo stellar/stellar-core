@@ -199,9 +199,8 @@ CatchupWork::runCatchupStep()
         auto toCheckpoint =
             mCatchupConfiguration.toLedger() == CatchupConfiguration::CURRENT
                 ? CatchupConfiguration::CURRENT
-                : mApp.getHistoryManager().nextCheckpointLedger(
-                      mCatchupConfiguration.toLedger() + 1) -
-                      1;
+                : mApp.getHistoryManager().checkpointContainingLedger(
+                      mCatchupConfiguration.toLedger());
         mGetHistoryArchiveStateWork =
             addWork<GetHistoryArchiveStateWork>(toCheckpoint, mArchive);
         mCurrentWork = mGetHistoryArchiveStateWork;
