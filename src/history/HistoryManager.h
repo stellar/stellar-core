@@ -48,17 +48,23 @@
  * number and most recent bucket hashes). As per RFC 5785, this checkpoint is
  * stored at .well-known/stellar-history.json as a JSON file.
  *
- * Checkpoints are made every 64 ledgers, which (at 5s ledger close time) is
- * 320s or about 5m20s. There will be 11 checkpoints per hour, 270 per day, and
- * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
- * of service for the system.
+ * Checkpoints are made "every 64 ledgers", when LCL is one-less-than a multiple
+ * of 64. In other words, at LCL=63, 127, 191, 255, etc. or in other other words
+ * checkpoint K covers the inclusive ledger range [K*64, ((K+1)*64)-1], and each
+ * of those ranges should contain exactly 64 ledgers, with the exception of the
+ * first checkpoint, which has only 63 ledgers: there is no ledger 0.
+ *
+ * Checkpointing every 64 ledgers means (at 5s ledger close time) each
+ * checkpoint happens every 320s, or about 5m20s. There will be 11 checkpoints
+ * per hour, 270 per day, and 98,550 per year. Counting checkpoints within a
+ * 32bit value gives 43,581 years of service for the system.
  *
  * While the _most recent_ checkpoint is in .well-known/stellar-history.json,
  * each checkpoint is also stored permanently at a path whose name includes the
  * last ledger number in the checkpoint (as a 32-bit hex string) and stored in a
- * 3-level deep directory tree of hex digit prefixes. For example, checkpoint at
- * current ledger-number 0x12345678 will write ledgers up to and including
- * ledger 0x12345677 and be described by file
+ * 3-level deep directory tree of hex digit prefixes.
+ *
+ * For example, checkpoint made with LCL=0x12345677 will be described by file
  * history/12/34/56/history-0x12345677.json and the associated history block
  * will be written to the two files ledger/12/34/56/ledger-0x12345677.xdr.gz and
  * transaction/12/34/56/transaction-0x12345677.xdr.gz
@@ -70,10 +76,9 @@
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
  * The first ledger and transaction files (containing the genesis ledger #1, and
- * the subsequent 62 ledgers) are checkpointed when LedgerManager's
- * currentLedger is 64 = 0x40, so the last ledger published into that snapshot
- * is 0x3f, and it's stored in files ledger/00/00/00/ledger-0x0000003f.xdr.gz
- * and transaction/00/00/00/transaction-0x0000003f.xdr.gz, and described by
+ * the subsequent 62 ledgers) are checkpointed at LCL 63 (a.k.a. 0x3f), and it's
+ * stored in files ledger/00/00/00/ledger-0x0000003f.xdr.gz and
+ * transaction/00/00/00/transaction-0x0000003f.xdr.gz, and described by
  * history/00/00/00/history-0x0000003f.json.
  *
  * A pseudo-checkpoint describing the system-state before any transactions are
