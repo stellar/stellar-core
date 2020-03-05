@@ -219,6 +219,15 @@ class HistoryManager
     // account of manual checkpoints.
     virtual uint32_t checkpointContainingLedger(uint32_t ledger) const = 0;
 
+    // Return true iff closing `ledger` should cause publishing a checkpoint.
+    // Equivalent to `ledger == checkpointContainingLedger(ledger)` but a little
+    // more obviously named.
+    bool
+    publishCheckpointOnLedgerClose(uint32_t ledger) const
+    {
+        return checkpointContainingLedger(ledger) == ledger;
+    }
+
     // Given a "current ledger" (not LCL) for a node, return the "current
     // ledger" value at which the previous scheduled checkpoint should have
     // occurred, by rounding-down to the next multiple of checkpoint
