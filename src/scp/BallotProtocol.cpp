@@ -185,51 +185,10 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
     }
 
     auto validationRes = validateValues(statement);
-    if (validationRes != SCPDriver::kInvalidValue)
+
+    // If the value is not valid, we just ignore it.
+    if (validationRes == SCPDriver::kInvalidValue)
     {
-        bool processed = false;
-
-        if (mPhase != SCP_PHASE_EXTERNALIZE)
-        {
-            if (validationRes == SCPDriver::kMaybeValidValue)
-            {
-                mSlot.setFullyValidated(false);
-            }
-
-            recordEnvelope(envelope);
-            processed = true;
-            advanceSlot(statement);
-            res = SCP::EnvelopeState::VALID;
-        }
-
-        if (!processed)
-        {
-            // note: this handles also our own messages
-            // in particular our final EXTERNALIZE message
-            if (mPhase == SCP_PHASE_EXTERNALIZE &&
-                mCommit->getBallot().value == getWorkingBallot(statement).value)
-            {
-                recordEnvelope(envelope);
-                res = SCP::EnvelopeState::VALID;
-            }
-            else
-            {
-                if (self)
-                {
-                    CLOG(ERROR, "SCP")
-                        << "externalize statement with invalid value from "
-                           "self, skipping "
-                        << "  e: "
-                        << mSlot.getSCP().envToStr(envelope->getEnvelope());
-                }
-
-                res = SCP::EnvelopeState::INVALID;
-            }
-        }
-    }
-    else
-    {
-        // If the value is not valid, we just ignore it.
         if (self)
         {
             CLOG(ERROR, "SCP")
@@ -242,9 +201,38 @@ BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
                                << " i: " << mSlot.getSlotIndex();
         }
 
-        res = SCP::EnvelopeState::INVALID;
+        return SCP::EnvelopeState::INVALID;
     }
-    return res;
+
+    if (mPhase != SCP_PHASE_EXTERNALIZE)
+    {
+        if (validationRes == SCPDriver::kMaybeValidValue)
+        {
+            mSlot.setFullyValidated(false);
+        }
+
+        recordEnvelope(envelope);
+        advanceSlot(statement);
+        return SCP::EnvelopeState::VALID;
+    }
+
+    // note: this handles also our own messages
+    // in particular our final EXTERNALIZE message
+    dbgAssert(mPhase == SCP_PHASE_EXTERNALIZE);
+    if (mCommit->getBallot().value == getWorkingBallot(statement).value)
+    {
+        recordEnvelope(envelope);
+        return SCP::EnvelopeState::VALID;
+    }
+
+    if (self)
+    {
+        CLOG(ERROR, "SCP") << "externalize statement with invalid value from "
+                              "self, skipping e: "
+                           << mSlot.getSCP().envToStr(envelope->getEnvelope());
+    }
+
+    return SCP::EnvelopeState::INVALID;
 }
 
 bool
