@@ -279,6 +279,15 @@ class HistoryManager
         return first + size;                                // == 64, 128, 192
     }
 
+    // Return the ledger to trigger the catchup machinery on, given a ledger
+    // that is the start of a checkpoint buffered in the catchup manager.
+    uint32_t
+    ledgerToTriggerCatchup(uint32_t firstLedgerOfBufferedCheckpoint)
+    {
+        assert(isFirstLedgerInCheckpoint(firstLedgerOfBufferedCheckpoint));
+        return firstLedgerOfBufferedCheckpoint + 1;
+    }
+
     // Given a "current ledger" (not LCL) for a node, return the "current
     // ledger" value at which the previous scheduled checkpoint should have
     // occurred, by rounding-down to the next multiple of checkpoint
