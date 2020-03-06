@@ -94,24 +94,6 @@ HistoryManagerImpl::getCheckpointFrequency() const
     }
 }
 
-// Returns the maximum multiple-of-freq that is <= ledger.
-uint32_t
-HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger) const
-{
-    uint32_t freq = getCheckpointFrequency();
-    return (ledger / freq) * freq;
-}
-
-// Returns the minimum multiple-of-freq that is >= ledger.
-uint32_t
-HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger) const
-{
-    uint32_t freq = getCheckpointFrequency();
-    if (ledger == 0)
-        return freq;
-    return (((ledger + freq - 1) / freq) * freq);
-}
-
 void
 HistoryManagerImpl::logAndUpdatePublishStatus()
 {

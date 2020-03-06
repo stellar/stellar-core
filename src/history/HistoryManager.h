@@ -288,22 +288,6 @@ class HistoryManager
         return firstLedgerOfBufferedCheckpoint + 1;
     }
 
-    // Given a "current ledger" (not LCL) for a node, return the "current
-    // ledger" value at which the previous scheduled checkpoint should have
-    // occurred, by rounding-down to the next multiple of checkpoint
-    // frequency. This does not consult the network nor take account of manual
-    // checkpoints.
-    virtual uint32_t prevCheckpointLedger(uint32_t ledger) const = 0;
-
-    // Given a "current ledger" (not LCL) for a node, return the "current
-    // ledger" value at which the next checkpoint should occur; usually this
-    // returns the next scheduled checkpoint by rounding-up to the next
-    // multiple of checkpoint frequency, but when catching up to a manual
-    // checkpoint it will return the ledger passed in, indicating that the
-    // "next" checkpoint-ledger to look forward to is the same as the "init"
-    // ledger of the catchup operation.
-    virtual uint32_t nextCheckpointLedger(uint32_t ledger) const = 0;
-
     // Emit a log message and set StatusManager HISTORY_PUBLISH status to
     // describe current publish state.
     virtual void logAndUpdatePublishStatus() = 0;
