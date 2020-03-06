@@ -748,8 +748,18 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    uint32_t triggerLedger =
-        mApp.getHistoryManager().nextCheckpointLedger(initLedger) + 1;
+    uint32_t firstLedgerInCheckpoint;
+    if (hm.isFirstLedgerInCheckpoint(initLedger))
+    {
+        firstLedgerInCheckpoint = initLedger;
+    }
+    else
+    {
+        firstLedgerInCheckpoint =
+            hm.firstLedgerAfterCheckpointContaining(initLedger);
+    }
+
+    uint32_t triggerLedger = hm.ledgerToTriggerCatchup(firstLedgerInCheckpoint);
     for (uint32_t n = initLedger; n <= triggerLedger + bufferLedgers; ++n)
     {
         externalize(n);

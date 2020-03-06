@@ -116,7 +116,8 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
     // for the sake of simplicity at the moment it's set to one ledger
     // after the first buffered one.
     std::string message;
-    uint32_t catchupTriggerLedger = firstLedgerInBuffer + 1;
+    uint32_t catchupTriggerLedger =
+        hm.ledgerToTriggerCatchup(firstLedgerInBuffer);
     if (lastReceivedLedgerSeq >= catchupTriggerLedger)
     {
         message = fmt::format("Starting catchup after ensuring checkpoint "
