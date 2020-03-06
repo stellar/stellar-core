@@ -1,5 +1,5 @@
 <div align="center">
-<a href="https://stellar.org"><img alt="Stellar" src="https://www.stellar.org/old-content/2019/03/stellar-logo-solo-1.png" width="558" /></a>
+<a href="https://stellar.org"><img alt="Stellar" src="https://github.com/stellar/.github/raw/master/stellar-logo.png" width="558" /></a>
 <br/>
 <strong>Creating equitable access to the global financial system</strong>
 <h1>Stellar Core</h1>
