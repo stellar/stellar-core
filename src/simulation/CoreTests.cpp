@@ -8,7 +8,7 @@
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/SHA.h"
-#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
@@ -172,6 +172,8 @@ resilienceTest(Simulation::pointer sim)
             crankForward(nbLedgerStep, 1);
 
             auto victimConfig = sim->getNode(victimID)->getConfig();
+            // don't force SCP, it's just a restart
+            victimConfig.FORCE_SCP = false;
             // kill instance
             sim->removeNode(victimID);
             // let the rest of the network move on
@@ -185,6 +187,17 @@ resilienceTest(Simulation::pointer sim)
             sim->addConnection(victimID, otherID);
             // this crank should allow the node to rejoin the network
             crankForward(1, INT32_MAX);
+
+            // check that all slots were validated
+            auto herderImpl =
+                static_cast<HerderImpl*>(&refreshedApp->getHerder());
+            auto& scp = herderImpl->getSCP();
+            scp.processSlotsAscendingFrom(0, [&](uint64 slot) {
+                bool validated = scp.isSlotFullyValidated(slot);
+                REQUIRE(validated);
+                return true;
+            });
+
             // network should be fully in sync now
             crankForward(nbLedgerStep, 1);
         }
