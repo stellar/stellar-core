@@ -241,9 +241,9 @@ void
 CatchupManagerImpl::trimAndReset()
 {
     assert(mCatchupWork);
+    mCatchupWork.reset();
 
     logAndUpdateCatchupStatus(true);
-    mCatchupWork.reset();
     trimSyncingLedgers();
 }
 
