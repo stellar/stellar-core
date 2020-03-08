@@ -279,6 +279,17 @@ class HistoryManager
         return first + size;                                // == 64, 128, 192
     }
 
+    // Return the last ledger before the checkpoint containing a given ledger,
+    // or zero if `ledger` is contained inside the first checkpoint.
+    uint32_t
+    lastLedgerBeforeCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t last = checkpointContainingLedger(ledger); // == 63, 127, 191
+        uint32_t size = sizeOfCheckpointContaining(ledger); // == 63, 64, 64
+        assert(last >= size);
+        return last - size; // == 0, 63, 127
+    }
+
     // Return the ledger to trigger the catchup machinery on, given a ledger
     // that is the start of a checkpoint buffered in the catchup manager.
     uint32_t
