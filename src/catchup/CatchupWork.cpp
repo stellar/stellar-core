@@ -423,6 +423,11 @@ computeCatchupledgers(uint32_t lastClosedLedger,
                       CatchupConfiguration const& configuration,
                       HistoryManager const& historyManager)
 {
+    CLOG(DEBUG, "History") << "CatchupRange::Ledgers: "
+                           << "LCL=" << lastClosedLedger
+                           << ", cfg.toLedger=" << configuration.toLedger()
+                           << ", cfg.count=" << configuration.count();
+
     if (lastClosedLedger == 0)
     {
         throw std::invalid_argument{"lastClosedLedger == 0"};
@@ -440,51 +445,63 @@ computeCatchupledgers(uint32_t lastClosedLedger,
             "configuration.toLedger() == CatchupConfiguration::CURRENT"};
     }
 
-    // do a complete catchup if not starting from new-db
+    auto startAfter = [&](uint32_t previousLedger) -> CatchupRange::Ledgers {
+        CatchupRange::Ledgers ledgers{
+            previousLedger + 1, configuration.toLedger() - previousLedger};
+        CLOG(DEBUG, "History") << "CatchupRange::Ledgers: chose range"
+                               << "{first=" << ledgers.mFirst
+                               << ", count=" << ledgers.mCount << "}";
+        return ledgers;
+    };
+
+    // Do a complete catchup if not starting from new-db
     if (lastClosedLedger > LedgerManager::GENESIS_LEDGER_SEQ)
     {
-        return {lastClosedLedger + 1,
-                configuration.toLedger() - lastClosedLedger};
+        CLOG(DEBUG, "History")
+            << "CatchupRange::Ledgers: non-initial DB: do complete catchup";
+        return startAfter(lastClosedLedger);
     }
 
-    // do a complete catchup if count is big enough
+    // Do a complete catchup if count is big enough
     if (configuration.count() >=
         configuration.toLedger() - LedgerManager::GENESIS_LEDGER_SEQ)
     {
-        return {LedgerManager::GENESIS_LEDGER_SEQ + 1,
-                configuration.toLedger() - LedgerManager::GENESIS_LEDGER_SEQ};
+        CLOG(DEBUG, "History")
+            << "CatchupRange::Ledgers: oversized range: do complete catchup";
+        return startAfter(LedgerManager::GENESIS_LEDGER_SEQ);
     }
 
     auto smallestLedgerToApply =
         configuration.toLedger() - std::max(1u, configuration.count()) + 1;
 
-    // checkpoint that contains smallestLedgerToApply - it is first one than
-    // can be applied, it is always greater than LCL
-    auto firstCheckpoint = historyManager.checkpointContainingLedger(1);
-    auto smallestCheckpointToApply =
-        historyManager.checkpointContainingLedger(smallestLedgerToApply);
+    CLOG(DEBUG, "History") << "CatchupRange::Ledgers: smallestLedgerToApply="
+                           << smallestLedgerToApply;
 
-    // if first ledger that should be applied is on checkpoint boundary then
-    // we do an bucket-apply, and apply ledgers from next one
-    if (smallestCheckpointToApply == smallestLedgerToApply)
+    if (historyManager.firstLedgerInCheckpointContaining(
+            smallestLedgerToApply) == LedgerManager::GENESIS_LEDGER_SEQ)
     {
-        return {smallestLedgerToApply + 1,
-                configuration.toLedger() - smallestLedgerToApply};
+        // User wants to start from some point inside the first checkpoint, so
+        // just play forwards from genesis.
+        CLOG(DEBUG, "History")
+            << "CatchupRange::Ledgers: at or before first checkpoint";
+        return startAfter(LedgerManager::GENESIS_LEDGER_SEQ);
     }
-
-    // we are before first checkpoint - full catchup is required
-    if (smallestCheckpointToApply == firstCheckpoint)
+    else
     {
-        return {LedgerManager::GENESIS_LEDGER_SEQ + 1,
-                configuration.toLedger() - LedgerManager::GENESIS_LEDGER_SEQ};
+        // User wants to start from some point K, and it's not in the first
+        // checkpoint, so we want to apply buckets at the first checkpoint
+        // that's _strictly less_ than K, and play forwards from there, even if
+        // K is itself a checkpoint boundary: the user wants to see K itself
+        // replayed, not just restored from bucket-apply, so we have to begin
+        // _before_ K.
+        auto lastLedgerOfPreviousCheckpoint =
+            historyManager.lastLedgerBeforeCheckpointContaining(
+                smallestLedgerToApply);
+        CLOG(DEBUG, "History")
+            << "CatchupRange::Ledgers: starting at checkpoint "
+            << lastLedgerOfPreviousCheckpoint;
+        return startAfter(lastLedgerOfPreviousCheckpoint);
     }
-
-    // need one more checkpoint to ensure that smallestLedgerToApply has history
-    // entry
-    return {smallestCheckpointToApply -
-                historyManager.getCheckpointFrequency() + 1,
-            configuration.toLedger() - smallestCheckpointToApply +
-                historyManager.getCheckpointFrequency()};
 }
 }
 

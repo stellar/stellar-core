@@ -23,20 +23,34 @@ struct CheckpointRange;
 
 // Range required to do a catchup.
 //
-// For initial catchup (after new-db) we have lastClosedLedger ==
-// LedgerManager.GENESIS_LEDGER_SEQ. In that case CatchupConfiguration::count()
-// and CatchupConfiguration::toLedger() are taken into consideration. Depending
-// on all of those values only one of "apply buckets" and "apply transactions"
-// can be executed, or both of them. The values are calculated in such a way
-// that transactions from at least count() ledgers are available in txhistory
-// table.
+// Ranges originate in CatchupConfigurations which have "last" ledger L to catch
+// up to, and a count C of ledgers "before" L to replay. The devil is in the
+// details:
 //
-// If mApplyBuckets is true, this catchup requires downloading and applying
-// buckets for the getBucketApplyLedger() (which is equal to
-// mApplyLedgers.mFirst - 1).
+//  - When the database already has LCL != LedgerManager.GENESIS_LEDGER_SEQ we
+//    ignore C and just replay from LCL-to-L to avoid the possibility of
+//    introducing gaps into our replay.
 //
-// Then all ledgers in range mApplyLedgers are downloaded and applied.
+//  - This leaves two sub-cases, both with LCL == GENESIS_LEDGER_SEQ:
 //
+//    - When LCL + C > L, the user asked for something nonsensical but again we
+//      just interpret this as meaning "replay from LCL-to-L".
+//
+//    - Otherwise the user is implicitly asking for the range of size C given by
+//      the interval [K, L] to be replayed, where K=(L-C)+1. We then round down
+//      to the last ledger B of the checkpoint _strictly before_ K, apply
+//      buckets at B (eg. 63, 127, etc.), and do replay from the ledger _after_
+//      B (eg. 64, 128, etc.) The "strictly before" part here ensures that if
+//      the user asks for C ledgers to be replayed, we will always emit
+//      transaction metadata for >= C ledgers -- and thereby always replay
+//      ledger K -- even if K happens to be on a checkpoint boundary (and
+//      therefore could have been restored from buckets).
+//
+// All this is calculated when CatchupRange is constructed and stored in its
+// member structure CatchupRange::Ledgers, where mFirst is the first ledger
+// that _will be replayed_ and, if there's bucket-applying to do, it'll happen
+// at ledger mFirst-1.
+
 struct CatchupRange final
 {
     struct Ledgers
