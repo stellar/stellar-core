@@ -114,7 +114,8 @@ class TransactionQueue
     int countBanned(int index) const;
     bool isBanned(Hash const& hash) const;
 
-    std::shared_ptr<TxSetFrame> toTxSet(Hash const& lclHash) const;
+    std::shared_ptr<TxSetFrame>
+    toTxSet(LedgerHeaderHistoryEntry const& lcl) const;
 
   private:
     /**

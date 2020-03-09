@@ -260,15 +260,27 @@ TransactionQueue::isBanned(Hash const& hash) const
 }
 
 std::shared_ptr<TxSetFrame>
-TransactionQueue::toTxSet(Hash const& lclHash) const
+TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
 {
-    auto result = std::make_shared<TxSetFrame>(lclHash);
+    auto result = std::make_shared<TxSetFrame>(lcl.hash);
 
+    uint32_t const nextLedgerSeq = lcl.header.ledgerSeq + 1;
+    int64_t const startingSeq = getStartingSequenceNumber(nextLedgerSeq);
     for (auto const& m : mPendingTransactions)
     {
         for (auto const& tx : m.second.mTransactions)
         {
             result->add(tx);
+            // This condition implements the following constraint: there may be
+            // any number of transactions for a given source account, but all
+            // transactions must satisfy one of the following mutually exclusive
+            // conditions
+            // - sequence number <= startingSeq - 1
+            // - sequence number >= startingSeq
+            if (tx->getSeqNum() == startingSeq - 1)
+            {
+                break;
+            }
         }
     }
 
