@@ -624,3 +624,45 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         }
     }
 }
+
+TEST_CASE("transaction queue starting sequence boundary",
+          "[herder][transactionqueue]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+
+    auto root = TestAccount::createRoot(*app);
+    auto acc1 = root.create("a1", minBalance2);
+
+    closeLedgerOn(*app, 2, 1, 1, 2020);
+    closeLedgerOn(*app, 3, 1, 1, 2020);
+
+    uint64_t startingSeq = static_cast<uint64_t>(4) << 32;
+    REQUIRE(acc1.loadSequenceNumber() < startingSeq);
+    acc1.bumpSequence(startingSeq - 3);
+    REQUIRE(acc1.loadSequenceNumber() == startingSeq - 3);
+
+    TransactionQueue tq(*app, 4, 10, 4);
+    for (size_t i = 1; i <= 4; ++i)
+    {
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100)) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    }
+
+    auto checkTxSet = [&](uint32_t ledgerSeq, size_t size) {
+        auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        lcl.header.ledgerSeq = ledgerSeq;
+        auto txSet = tq.toTxSet(lcl);
+        REQUIRE(txSet->mTransactions.size() == size);
+        for (size_t i = 1; i <= size; ++i)
+        {
+            REQUIRE(txSet->mTransactions[i - 1]->getSeqNum() ==
+                    startingSeq - 3 + i);
+        }
+    };
+
+    checkTxSet(2, 4);
+    checkTxSet(3, 2);
+    checkTxSet(4, 4);
+}
