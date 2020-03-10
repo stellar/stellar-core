@@ -1574,12 +1574,12 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                         STELLAR_VALUE_BASIC);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
-        auto mc = bm.readMergeCounters();
         auto& bl = bm.getBucketList();
         while (!bl.futuresAllResolved())
         {
             bl.resolveAnyReadyFutures();
         }
+        auto mc = bm.readMergeCounters();
 
         if (ledgerSeq < 5)
         {
