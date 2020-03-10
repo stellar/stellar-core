@@ -137,10 +137,15 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
         auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
                                 lastClosedLedger, configuration.toLedger(),
                                 configuration.count());
-        LOG(DEBUG) << "Catchup configuration: " << name;
+        CLOG(DEBUG, "History") << "Catchup configuration: " << name;
         {
             auto range =
                 CatchupRange{lastClosedLedger, configuration, historyManager};
+
+            CLOG(DEBUG, "History")
+                << "computed range: first=" << range.mLedgers.mFirst
+                << ", count=" << range.mLedgers.mCount
+                << ", last=" << range.getLast();
 
             // we need to finish where we wanted to finish
             REQUIRE(configuration.toLedger() == range.getLast());
@@ -159,9 +164,66 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
                 REQUIRE(range.mLedgers.mFirst ==
                         range.getBucketApplyLedger() + 1);
 
-                // we are applying at least configuration.count(), mCount comes
-                // from applying ledgers, 1 from applying buckets
-                REQUIRE(range.mLedgers.mCount + 1 >= configuration.count());
+                // we are applying at least configuration.count() ledgers
+                REQUIRE(range.mLedgers.mCount >= configuration.count());
+
+                // Check that we're covering the first ledger implied by the
+                // user-provided last-ledger/count. The meaning of a given
+                // last/count pair is a little subtle because ledger replay is
+                // implicitly a closed range like [lo,hi] and a count of 0 means
+                // "try to replay nothing" which can't be represented as such,
+                // means the user doesn't really want replay if we can avoid it.
+                //
+                // We therefore define an "intended first" value like so:
+                //
+                // first = count == 0 ? last : (last+1)-count.
+                //
+                // i.e. 63/0 => first=63
+                //      64/0 => first=64
+                //      64/1 => first=64
+                //      64/2 => first=63
+                //
+                if (configuration.count() <= (configuration.toLedger() + 1))
+                {
+                    uint32_t intendedFirst =
+                        (configuration.count() == 0
+                             ? configuration.toLedger()
+                             : (configuration.toLedger() + 1) -
+                                   configuration.count());
+                    if (historyManager.isLastLedgerInCheckpoint(
+                            configuration.toLedger()) &&
+                        configuration.count() == 0)
+                    {
+                        // The weird special case:
+                        //
+                        // user requested something like 63/0, so
+                        // intendedFirst=63, and we can actually achieve "no
+                        // replay" because they want a ledger for which there
+                        // are buckets available. This is represented as a range
+                        // with first _after_ last.
+                        //
+                        // range.first=64, range.last=63, range.count=0
+                        REQUIRE(historyManager.isFirstLedgerInCheckpoint(
+                            range.mLedgers.mFirst));
+                        REQUIRE(historyManager.isLastLedgerInCheckpoint(
+                            range.getLast()));
+                        REQUIRE(intendedFirst == range.getBucketApplyLedger());
+                        REQUIRE(intendedFirst == range.getLast());
+                        REQUIRE(range.mLedgers.mFirst == range.getLast() + 1);
+                        REQUIRE(range.mLedgers.mCount == 0);
+                    }
+                    else
+                    {
+                        // Otherwise regardless of whether they asked for "no
+                        // replay", they will get _some_ replay because whatever
+                        // ledger they implied starting on happens _after_ a
+                        // bucket-apply ledger.
+                        REQUIRE(range.getBucketApplyLedger() < intendedFirst);
+                        REQUIRE(range.mLedgers.mFirst <= intendedFirst);
+                        REQUIRE(intendedFirst <= range.getLast());
+                        REQUIRE(range.mLedgers.mCount > 0);
+                    }
+                }
 
                 if (std::numeric_limits<uint32_t>::max() -
                         historyManager.getCheckpointFrequency() >=

@@ -31,10 +31,17 @@ struct CheckpointRange;
 //    ignore C and just replay from LCL-to-L to avoid the possibility of
 //    introducing gaps into our replay.
 //
-//  - This leaves two sub-cases, both with LCL == GENESIS_LEDGER_SEQ:
+//  - This leaves three cases, both with LCL == GENESIS_LEDGER_SEQ:
 //
-//    - When LCL + C > L, the user asked for something nonsensical but again we
-//      just interpret this as meaning "replay from LCL-to-L".
+//    - When LCL + C > L, the user asked for more ledgers to be replayed than
+//      exist in the range [LCL+1, L] but again we just interpret this as
+//      meaning "replay from LCL-to-L".
+//
+//    - If C=0 and L is the last ledger in a checkpoint, we can land _on_ that
+//      checkpoint just by doing bucket apply. This produces a somewhat
+//      weird-looking catchup range where first=L+1 and last=L -- i.e.  first is
+//      _after_ last! -- but it's consistent with the normal rule that
+//      first=(last-count)+1 that holds the rest of the time.
 //
 //    - Otherwise the user is implicitly asking for the range of size C given by
 //      the interval [K, L] to be replayed, where K=(L-C)+1. We then round down

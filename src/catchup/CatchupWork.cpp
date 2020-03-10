@@ -471,6 +471,31 @@ computeCatchupledgers(uint32_t lastClosedLedger,
         return startAfter(LedgerManager::GENESIS_LEDGER_SEQ);
     }
 
+    // Special case: count=0 meaning the user does not want to see any metadata
+    // replay (eg. for the target ledger) _and_ the target ledger happens to be
+    // one that's the last of a checkpoint, i.e. can be caught-up-to directly
+    // by applying buckets.
+    //
+    // Aside from unusual user requests, this case is also what gets created by
+    // the online catchup config with CATCHUP_RECENT=0 (the default), as the
+    // online-catchup buffer always begins buffering at the first ledger of a
+    // checkpoint, and we're called to catch up to the ledger before that.
+    //
+    // This case produces the somewhat awkward-looking state of last=L and
+    // first=L+1 -- i.e. first is _after_ last -- but it's consistent with the
+    // invariants that first=(last+1)-count, that the bucket-apply ledger (if it
+    // exists) is first-1, and that we apply ledgers when count > 0. It just has
+    // a weird-looking "first" value. Consider it like a C++ iterator range
+    // where first is "one past the end", and the size of the range is zero.
+    if (configuration.count() == 0 &&
+        historyManager.isLastLedgerInCheckpoint(configuration.toLedger()))
+    {
+        return startAfter(configuration.toLedger());
+    }
+
+    // All other cases will require at least 1 ledger to replay -- possibly
+    // identical to the last ledger in the range -- so we calculate it here, and
+    // then round-down further to the previous checkpoint boundary.
     auto smallestLedgerToApply =
         configuration.toLedger() - std::max(1u, configuration.count()) + 1;
 
@@ -512,6 +537,28 @@ CatchupRange::CatchupRange(uint32_t lastClosedLedger,
                                      historyManager)}
     , mApplyBuckets{mLedgers.mFirst > lastClosedLedger + 1}
 {
+    if (getLast() < mLedgers.mFirst)
+    {
+        // Special case of last < first should only happen when count == 0,
+        // we're going to apply buckets at a ledger strictly after the genesis
+        // ledger, we're not going to do replay, and first == last+1.
+        assert(mLedgers.mCount == 0);
+        assert(getBucketApplyLedger() > LedgerManager::GENESIS_LEDGER_SEQ);
+        // Equivalent to count check above, but worth confirming.
+        assert(!applyLedgers());
+        assert(getLast() + 1 == mLedgers.mFirst);
+    }
+    else
+    {
+        // Count should otherwise never be 0: precondition (checked above in
+        // computeCatchupledgers) is that LCL < configuration.toLedger() so
+        // implicit range is nonzero, and if we're not in the on-a-boundary zero
+        // case we always round count up to 1 to ensure replay of
+        // configuration.toLedger().
+        assert(mLedgers.mCount > 0);
+        // Equivalent to count check above, but worth confirming.
+        assert(applyLedgers());
+    }
 }
 
 uint32_t
