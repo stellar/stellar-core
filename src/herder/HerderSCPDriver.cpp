@@ -165,19 +165,6 @@ HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
 // value validation
 
 bool
-HerderSCPDriver::isSlotCompatibleWithCurrentState(uint64_t slotIndex) const
-{
-    bool res = false;
-    if (mLedgerManager.isSynced())
-    {
-        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-        res = (slotIndex == (lcl.header.ledgerSeq + 1));
-    }
-
-    return res;
-}
-
-bool
 HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
                                 StellarValue const& b) const
 {
@@ -224,21 +211,13 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         }
     }
 
-    bool compat = isSlotCompatibleWithCurrentState(slotIndex);
-
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
-
     // when checking close time, start with what we have locally
     lastCloseTime = lcl.scpValue.closeTime;
 
-    if (compat)
-    {
-        if (!checkCloseTime(slotIndex, lastCloseTime, b))
-        {
-            return SCPDriver::kInvalidValue;
-        }
-    }
-    else
+    // if this value is not for our local state,
+    // perform as many checks as we can
+    if (slotIndex != (lcl.ledgerSeq + 1))
     {
         if (slotIndex == lcl.ledgerSeq)
         {
@@ -324,9 +303,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         return SCPDriver::kMaybeValidValue;
     }
 
-    Hash const& txSetHash = b.txSetHash;
+    // the value is against the local state, we can perform all checks
 
-    // we are fully synced up
+    if (!checkCloseTime(slotIndex, lastCloseTime, b))
+    {
+        return SCPDriver::kInvalidValue;
+    }
 
     if ((!nomination || lcl.ledgerVersion < 11) &&
         b.ext.v() != STELLAR_VALUE_BASIC)
@@ -348,32 +330,32 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         return SCPDriver::kInvalidValue;
     }
 
+    Hash const& txSetHash = b.txSetHash;
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
     if (!txSet)
     {
-        CLOG(ERROR, "Herder") << "HerderSCPDriver::validateValue"
-                              << " i: " << slotIndex << " txSet not found?";
+        CLOG(ERROR, "Herder") << "validateValue i:" << slotIndex
+                              << " unknown txSet " << hexAbbrev(txSetHash);
 
         res = SCPDriver::kInvalidValue;
     }
     else if (!txSet->checkValid(mApp))
     {
         if (Logging::logDebug("Herder"))
-            CLOG(DEBUG, "Herder") << "HerderSCPDriver::validateValue"
-                                  << " i: " << slotIndex << " Invalid txSet:"
-                                  << " " << hexAbbrev(txSet->getContentsHash());
+            CLOG(DEBUG, "Herder")
+                << "HerderSCPDriver::validateValue i: " << slotIndex
+                << " invalid txSet " << hexAbbrev(txSetHash);
         res = SCPDriver::kInvalidValue;
     }
     else
     {
         if (Logging::logDebug("Herder"))
             CLOG(DEBUG, "Herder")
-                << "HerderSCPDriver::validateValue"
-                << " i: " << slotIndex
-                << " txSet: " << hexAbbrev(txSet->getContentsHash()) << " OK";
+                << "HerderSCPDriver::validateValue i: " << slotIndex
+                << " valid txSet " << hexAbbrev(txSetHash);
         res = SCPDriver::kFullyValidatedValue;
     }
     return res;

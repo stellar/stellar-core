@@ -224,10 +224,6 @@ class HerderSCPDriver : public SCPDriver
                                                    StellarValue const& sv,
                                                    bool nomination) const;
 
-    // returns true if the local instance is in a state compatible with
-    // this slot
-    bool isSlotCompatibleWithCurrentState(uint64_t slotIndex) const;
-
     void logQuorumInformation(uint64_t index);
 
     void clearSCPExecutionEvents();

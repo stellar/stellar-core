@@ -149,7 +149,6 @@ BallotProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
 SCP::EnvelopeState
 BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 {
-    SCP::EnvelopeState res = SCP::EnvelopeState::INVALID;
     dbgAssert(envelope->getStatement().slotIndex == mSlot.getSlotIndex());
 
     SCPStatement const& statement = envelope->getStatement();

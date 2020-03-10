@@ -132,13 +132,13 @@ Simulation::removeNode(NodeID const& id)
     {
         auto node = it->second;
         mNodes.erase(it);
+        node.mApp->gracefulStop();
+        while (node.mClock->crank(false) > 0)
+            ;
         if (mMode == OVER_LOOPBACK)
         {
             dropAllConnections(id);
         }
-        node.mApp->gracefulStop();
-        while (node.mClock->crank(false) > 0)
-            ;
     }
 }
 
@@ -147,12 +147,21 @@ Simulation::dropAllConnections(NodeID const& id)
 {
     if (mMode == OVER_LOOPBACK)
     {
+        assert(mPendingConnections.empty());
         mLoopbackConnections.erase(
             std::remove_if(mLoopbackConnections.begin(),
                            mLoopbackConnections.end(),
                            [&](std::shared_ptr<LoopbackPeerConnection> c) {
-                               return c->getAcceptor()->getPeerID() == id ||
-                                      c->getInitiator()->getPeerID() == id;
+                               // use app's IDs here as connections may be
+                               // incomplete
+                               return c->getAcceptor()
+                                              ->getApp()
+                                              .getConfig()
+                                              .NODE_SEED.getPublicKey() == id ||
+                                      c->getInitiator()
+                                              ->getApp()
+                                              .getConfig()
+                                              .NODE_SEED.getPublicKey() == id;
                            }),
             mLoopbackConnections.end());
     }

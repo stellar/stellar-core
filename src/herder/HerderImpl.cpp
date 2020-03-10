@@ -1196,7 +1196,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                     },
                     "QuorumIntersectionChecker");
             }
-            catch (QuorumIntersectionChecker::InterruptedException& ie)
+            catch (QuorumIntersectionChecker::InterruptedException&)
             {
                 CLOG(DEBUG, "Herder")
                     << "Quorum transitive closure analysis interrupted.";
