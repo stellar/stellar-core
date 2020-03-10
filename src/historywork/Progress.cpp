@@ -4,6 +4,7 @@
 
 #include "historywork/Progress.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerRange.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 
@@ -11,10 +12,18 @@ namespace stellar
 {
 
 std::string
-fmtProgress(Application& app, std::string const& task, uint32_t first,
-            uint32_t last, uint32_t curr)
+fmtProgress(Application& app, std::string const& task, LedgerRange const& range,
+            uint32_t curr)
 {
     auto step = app.getHistoryManager().getCheckpointFrequency();
+    // Step is only ever 8 or 64.
+    assert(step != 0);
+    if (range.mCount == 0)
+    {
+        return fmt::format("{:s} 0/0 (100%)", task);
+    }
+    auto first = range.mFirst;
+    auto last = range.last();
     if (curr > last)
     {
         curr = last;
@@ -22,10 +31,6 @@ fmtProgress(Application& app, std::string const& task, uint32_t first,
     if (curr < first)
     {
         curr = first;
-    }
-    if (step == 0)
-    {
-        step = 1;
     }
     if (last < first)
     {

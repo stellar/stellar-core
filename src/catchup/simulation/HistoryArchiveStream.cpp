@@ -202,7 +202,7 @@ HistoryArchiveStream::getNextLedger(LedgerHeaderHistoryEntry& header,
                                     TransactionHistoryEntry& transaction,
                                     TransactionHistoryResultEntry& result)
 {
-    if (mHeaderHistory.header.ledgerSeq < mRange.mLast)
+    if (mHeaderHistory.header.ledgerSeq < mRange.limit())
     {
         if (mHeaderHistory.header.ledgerSeq == 0)
         {

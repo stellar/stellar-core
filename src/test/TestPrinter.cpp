@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestPrinter.h"
+#include "catchup/CatchupRange.h"
 #include "lib/util/format.h"
 #include "test/TestMarket.h"
 
@@ -21,8 +22,9 @@ StringMaker<stellar::OfferState>::convert(stellar::OfferState const& os)
 std::string
 StringMaker<stellar::CatchupRange>::convert(stellar::CatchupRange const& cr)
 {
-    return fmt::format("[{}..{}], applyBuckets: {}", cr.mLedgers.mFirst,
-                       cr.getLast(), cr.getBucketApplyLedger());
+    return fmt::format("[{},{}), applyBuckets: {}", cr.getReplayFirst(),
+                       cr.getReplayLimit(),
+                       cr.applyBuckets() ? cr.getBucketApplyLedger() : 0);
 }
 
 std::string

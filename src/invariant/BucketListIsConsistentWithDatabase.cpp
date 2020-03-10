@@ -154,7 +154,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
         }
     }
 
-    LedgerRange range{oldestLedger, newestLedger};
+    auto range = LedgerRange::inclusive(oldestLedger, newestLedger);
     std::string countFormat = "Incorrect {} count: Bucket = {} Database = {}";
     auto& ltxRoot = mApp.getLedgerTxnRoot();
     uint64_t nAccountsInDb = ltxRoot.countObjects(ACCOUNT, range);

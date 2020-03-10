@@ -48,10 +48,14 @@ DownloadApplyTxsWork::yieldMoreWork()
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
     auto const& hm = mApp.getHistoryManager();
-    auto low = hm.firstLedgerInCheckpointContaining(mCheckpointToQueue);
-    auto high = std::min(mCheckpointToQueue, mRange.mLast);
-    auto apply = std::make_shared<ApplyCheckpointWork>(mApp, mDownloadDir,
-                                                       LedgerRange{low, high});
+    auto start = hm.firstLedgerInCheckpointContaining(mCheckpointToQueue);
+    auto limit =
+        std::min(mRange.limit(),
+                 hm.firstLedgerAfterCheckpointContaining(mCheckpointToQueue));
+    assert(limit >= start);
+    auto count = limit - start;
+    auto apply = std::make_shared<ApplyCheckpointWork>(
+        mApp, mDownloadDir, LedgerRange{start, count});
 
     std::vector<std::shared_ptr<BasicWork>> seq{getAndUnzip};
 
@@ -121,7 +125,7 @@ bool
 DownloadApplyTxsWork::hasNext() const
 {
     auto last =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.mLast);
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.last());
     return mCheckpointToQueue <= last;
 }
 

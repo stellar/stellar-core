@@ -4,6 +4,7 @@
 
 #include "history/test/HistoryTestsUtils.h"
 #include "bucket/BucketManager.h"
+#include "catchup/CatchupRange.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "herder/TxSetFrame.h"
@@ -274,7 +275,7 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
     LedgerHeaderHistoryEntry beginRange;
 
     LedgerHeaderHistoryEntry first, last;
-    for (auto i = mCheckpointRange.mFirst; i <= mCheckpointRange.mLast;
+    for (auto i = mCheckpointRange.mFirst; i < mCheckpointRange.limit();
          i += mApp.getHistoryManager().sizeOfCheckpointContaining(i))
     {
         // Only corrupt first checkpoint (last to be verified)
@@ -964,23 +965,22 @@ CatchupSimulation::computeCatchupPerformedWork(
 
     auto catchupRange =
         CatchupRange{lastClosedLedger, catchupConfiguration, hm};
-    auto verifyCheckpointRange = CheckpointRange{
-        {catchupRange.mLedgers.mFirst - 1, catchupRange.getLast()}, hm};
+    auto verifyCheckpointRange =
+        CheckpointRange{catchupRange.getFullRangeIncludingBucketApply(), hm};
 
     uint32_t historyArchiveStatesDownloaded = 1;
-    if (catchupRange.mApplyBuckets &&
-        verifyCheckpointRange.mFirst != verifyCheckpointRange.mLast)
+    if (catchupRange.applyBuckets() && verifyCheckpointRange.mCount > 1)
     {
         historyArchiveStatesDownloaded++;
     }
 
-    auto ledgersDownloaded = verifyCheckpointRange.count();
+    auto ledgersDownloaded = verifyCheckpointRange.mCount;
     uint32_t transactionsDownloaded;
-    if (catchupRange.applyLedgers())
+    if (catchupRange.replayLedgers())
     {
-        auto applyCheckpointRange = CheckpointRange{
-            {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, hm};
-        transactionsDownloaded = applyCheckpointRange.count();
+        auto applyCheckpointRange =
+            CheckpointRange{catchupRange.getReplayRange(), hm};
+        transactionsDownloaded = applyCheckpointRange.mCount;
     }
     else
     {
@@ -992,13 +992,13 @@ CatchupSimulation::computeCatchupPerformedWork(
                                             hm.getCheckpointFrequency());
     auto ledgersVerified =
         catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
-    auto transactionsApplied = catchupRange.mLedgers.mCount;
+    auto transactionsApplied = catchupRange.getReplayCount();
     return {historyArchiveStatesDownloaded,
             ledgersDownloaded,
             ledgersVerified,
             0,
-            catchupRange.mApplyBuckets,
-            catchupRange.mApplyBuckets,
+            catchupRange.applyBuckets(),
+            catchupRange.applyBuckets(),
             transactionsDownloaded,
             transactionsApplied};
 }

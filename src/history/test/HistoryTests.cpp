@@ -210,9 +210,9 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     LedgerHeaderHistoryEntry verifiedAhead{};
 
     uint32_t initLedger = 127;
-    LedgerRange ledgerRange{
+    auto ledgerRange = LedgerRange::inclusive(
         initLedger,
-        initLedger + app->getHistoryManager().getCheckpointFrequency() * 10};
+        initLedger + (app->getHistoryManager().getCheckpointFrequency() * 10));
     CheckpointRange checkpointRange{ledgerRange, app->getHistoryManager()};
     auto ledgerChainGenerator = TestLedgerChainGenerator{
         *app,
@@ -323,7 +323,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     auto tmpDir =
         catchupSimulation.getApp().getTmpDirManager().tmpDir("tx-results-test");
     auto& wm = catchupSimulation.getApp().getWorkScheduler();
-    CheckpointRange range{{1, checkpointLedger},
+    CheckpointRange range{LedgerRange::inclusive(1, checkpointLedger),
                           catchupSimulation.getApp().getHistoryManager()};
 
     auto verifyHeadersWork = wm.executeWork<BatchDownloadWork>(
@@ -337,7 +337,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     }
     SECTION("header file missing")
     {
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.mLast);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.last());
         std::remove(ft.localPath_nogz().c_str());
         auto verify =
             wm.executeWork<DownloadVerifyTxResultsWork>(range, tmpDir);
@@ -345,7 +345,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     }
     SECTION("hash mismatch")
     {
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.mLast);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.last());
         XDRInputFileStream res;
         res.open(ft.localPath_nogz());
         std::vector<LedgerHeaderHistoryEntry> entries;
@@ -378,7 +378,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
             range, HISTORY_FILE_TYPE_RESULTS, tmpDir);
         REQUIRE(getResults->getState() == BasicWork::State::WORK_SUCCESS);
 
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.mLast);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.last());
         XDRInputFileStream res;
         res.open(ft.localPath_nogz());
         std::vector<TransactionHistoryResultEntry> entries;
@@ -400,7 +400,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
         }
         out.close();
 
-        auto verify = wm.executeWork<VerifyTxResultsWork>(tmpDir, range.mLast);
+        auto verify = wm.executeWork<VerifyTxResultsWork>(tmpDir, range.last());
         REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
     }
 }

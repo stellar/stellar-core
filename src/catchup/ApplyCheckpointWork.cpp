@@ -29,7 +29,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
                                          LedgerRange const& range)
     : BasicWork(app,
                 "apply-ledgers-" +
-                    fmt::format("{}-{}", range.mFirst, range.mLast),
+                    fmt::format("{}-{}", range.mFirst, range.limit()),
                 BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mLedgerRange(range)
@@ -48,7 +48,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
         throw std::runtime_error(
             "Ledger range start must be aligned with checkpoint start");
     }
-    if (mLedgerRange.mLast > mCheckpoint)
+    if (mLedgerRange.mCount > 0 && mLedgerRange.last() > mCheckpoint)
     {
         throw std::runtime_error(
             "Ledger range must span at most 1 checkpoint worth of ledgers");
@@ -285,7 +285,8 @@ ApplyCheckpointWork::onRun()
         }
 
         auto const& lm = mApp.getLedgerManager();
-        auto done = lm.getLastClosedLedgerNum() == mLedgerRange.mLast;
+        auto done = (mLedgerRange.mCount == 0 ||
+                     lm.getLastClosedLedgerNum() == mLedgerRange.last());
 
         if (done)
         {

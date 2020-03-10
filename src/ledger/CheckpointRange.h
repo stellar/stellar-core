@@ -4,31 +4,65 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerRange.h"
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 
 namespace stellar
 {
 
 class HistoryManager;
-struct LedgerRange;
 
+// Represents a half-open range of checkpoints [first, first+count)
+// where count is a count of checkpoints, not ledgers.
 struct CheckpointRange final
 {
     uint32_t const mFirst;
-    uint32_t const mLast;
+    uint32_t const mCount;
     uint32_t const mFrequency;
 
-    CheckpointRange(uint32_t first, uint32_t last, uint32_t frequency);
+    CheckpointRange(uint32_t first, uint32_t count, uint32_t frequency);
+    static CheckpointRange
+    inclusive(uint32_t first, uint32_t last, uint32_t frequency)
+    {
+        // CheckpointRange is half-open: in exchange for being able to represent
+        // empty ranges, it can't represent ranges that include UINT32_MAX.
+        assert(last < std::numeric_limits<int32_t>::max());
+        return CheckpointRange(first, last - first + 1, frequency);
+    }
     CheckpointRange(LedgerRange const& ledgerRange,
                     HistoryManager const& historyManager);
     friend bool operator==(CheckpointRange const& x, CheckpointRange const& y);
     friend bool operator!=(CheckpointRange const& x, CheckpointRange const& y);
 
-    uint32_t
-    count() const
+    LedgerRange
+    getLedgerRange() const
     {
-        return (mLast - mFirst) / mFrequency + 1;
+        return LedgerRange{mFirst, getLedgerCount()};
+    }
+
+    uint32_t
+    getLedgerCount() const
+    {
+        return mCount * mFrequency;
+    }
+
+    uint32_t
+    limit() const
+    {
+        return mFirst + getLedgerCount();
+    }
+
+    uint32_t
+    last() const
+    {
+        if (mCount == 0)
+        {
+            throw std::logic_error("last() cannot be called on "
+                                   "CheckpointRange when mCount == 0");
+        }
+        return mFirst + ((mCount - 1) * mFrequency);
     }
 
     std::string toString() const;

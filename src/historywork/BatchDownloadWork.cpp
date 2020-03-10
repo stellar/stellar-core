@@ -18,7 +18,7 @@ BatchDownloadWork::BatchDownloadWork(Application& app, CheckpointRange range,
                                      TmpDir const& downloadDir,
                                      std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app, fmt::format("batch-download-{:s}-{:08x}-{:08x}", type,
-                                 range.mFirst, range.mLast))
+                                 range.mFirst, range.limit()))
     , mRange(range)
     , mNext(range.mFirst)
     , mFileType(type)
@@ -33,7 +33,7 @@ BatchDownloadWork::getStatus() const
     if (!isDone() && !isAborting())
     {
         auto task = fmt::format("downloading {:s} files", mFileType);
-        return fmtProgress(mApp, task, mRange.mFirst, mRange.mLast, mNext);
+        return fmtProgress(mApp, task, mRange.getLedgerRange(), mNext);
     }
     return BatchWork::getStatus();
 }
@@ -61,7 +61,7 @@ BatchDownloadWork::yieldMoreWork()
 bool
 BatchDownloadWork::hasNext() const
 {
-    return mNext <= mRange.mLast;
+    return mNext < mRange.limit();
 }
 
 void

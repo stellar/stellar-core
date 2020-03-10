@@ -292,13 +292,17 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         if (!mAdded)
         {
             uint32_t minLedger = mEntry.lastModifiedLedgerSeq;
-            uint32_t maxLedger = std::numeric_limits<int32_t>::max();
+            uint32_t maxLedger = std::numeric_limits<int32_t>::max() - 1;
             auto& ltxRoot = mApp.getLedgerTxnRoot();
             size_t count =
-                ltxRoot.countObjects(ACCOUNT, {minLedger, maxLedger}) +
-                ltxRoot.countObjects(DATA, {minLedger, maxLedger}) +
-                ltxRoot.countObjects(OFFER, {minLedger, maxLedger}) +
-                ltxRoot.countObjects(TRUSTLINE, {minLedger, maxLedger});
+                ltxRoot.countObjects(
+                    ACCOUNT, LedgerRange::inclusive(minLedger, maxLedger)) +
+                ltxRoot.countObjects(
+                    DATA, LedgerRange::inclusive(minLedger, maxLedger)) +
+                ltxRoot.countObjects(
+                    OFFER, LedgerRange::inclusive(minLedger, maxLedger)) +
+                ltxRoot.countObjects(
+                    TRUSTLINE, LedgerRange::inclusive(minLedger, maxLedger));
 
             if (count > 0)
             {

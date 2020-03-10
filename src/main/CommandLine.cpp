@@ -946,7 +946,8 @@ runSimulate(CommandLineArgs const& args)
             auto app = Application::create(clock, config, false);
             app->start();
 
-            LedgerRange lr{firstLedgerInclusive, lastLedgerInclusive};
+            auto lr = LedgerRange::inclusive(firstLedgerInclusive,
+                                             lastLedgerInclusive);
             CheckpointRange cr(lr, app->getHistoryManager());
             TmpDir dir(app->getTmpDirManager().tmpDir("simulate"));
 

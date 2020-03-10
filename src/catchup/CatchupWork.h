@@ -8,7 +8,6 @@
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
-#include "ledger/LedgerRange.h"
 #include "work/Work.h"
 #include "work/WorkSequence.h"
 
@@ -18,76 +17,8 @@ namespace stellar
 class HistoryManager;
 class Bucket;
 class TmpDir;
-struct LedgerRange;
-struct CheckpointRange;
+class CatchupRange;
 
-// Range required to do a catchup.
-//
-// Ranges originate in CatchupConfigurations which have "last" ledger L to catch
-// up to, and a count C of ledgers "before" L to replay. The devil is in the
-// details:
-//
-//  - When the database already has LCL != LedgerManager.GENESIS_LEDGER_SEQ we
-//    ignore C and just replay from LCL-to-L to avoid the possibility of
-//    introducing gaps into our replay.
-//
-//  - This leaves three cases, both with LCL == GENESIS_LEDGER_SEQ:
-//
-//    - When LCL + C > L, the user asked for more ledgers to be replayed than
-//      exist in the range [LCL+1, L] but again we just interpret this as
-//      meaning "replay from LCL-to-L".
-//
-//    - If C=0 and L is the last ledger in a checkpoint, we can land _on_ that
-//      checkpoint just by doing bucket apply. This produces a somewhat
-//      weird-looking catchup range where first=L+1 and last=L -- i.e.  first is
-//      _after_ last! -- but it's consistent with the normal rule that
-//      first=(last-count)+1 that holds the rest of the time.
-//
-//    - Otherwise the user is implicitly asking for the range of size C given by
-//      the interval [K, L] to be replayed, where K=(L-C)+1. We then round down
-//      to the last ledger B of the checkpoint _strictly before_ K, apply
-//      buckets at B (eg. 63, 127, etc.), and do replay from the ledger _after_
-//      B (eg. 64, 128, etc.) The "strictly before" part here ensures that if
-//      the user asks for C ledgers to be replayed, we will always emit
-//      transaction metadata for >= C ledgers -- and thereby always replay
-//      ledger K -- even if K happens to be on a checkpoint boundary (and
-//      therefore could have been restored from buckets).
-//
-// All this is calculated when CatchupRange is constructed and stored in its
-// member structure CatchupRange::Ledgers, where mFirst is the first ledger
-// that _will be replayed_ and, if there's bucket-applying to do, it'll happen
-// at ledger mFirst-1.
-
-struct CatchupRange final
-{
-    struct Ledgers
-    {
-        uint32_t const mFirst;
-        uint32_t const mCount;
-    };
-
-    Ledgers mLedgers;
-    bool const mApplyBuckets;
-
-    /**
-     * Preconditions:
-     * * lastClosedLedger > 0
-     * * configuration.toLedger() > lastClosedLedger
-     * * configuration.toLedger() != CatchupConfiguration::CURRENT
-     */
-    explicit CatchupRange(uint32_t lastClosedLedger,
-                          CatchupConfiguration const& configuration,
-                          HistoryManager const& historyManager);
-
-    bool
-    applyLedgers() const
-    {
-        return mLedgers.mCount > 0;
-    }
-
-    uint32_t getLast() const;
-    uint32_t getBucketApplyLedger() const;
-};
 using WorkSeqPtr = std::shared_ptr<WorkSequence>;
 
 // CatchupWork does all the neccessary work to perform any type of catchup.
