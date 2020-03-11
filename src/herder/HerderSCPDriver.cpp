@@ -37,6 +37,11 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
     , mPrepareToExternalize(
           app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
+    , mExternalizeLag(
+          app.getMetrics().NewTimer({"scp", "timing", "externalize-lag"}))
+    , mExternalizeDelay(
+          app.getMetrics().NewTimer({"scp", "timing", "externalize-delay"}))
+
 {
 }
 
@@ -816,7 +821,14 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         mLastTrackingSCP = std::make_unique<ConsensusData>(*mTrackingSCP);
     }
 
+    // record lag
+    recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), false);
+
     mHerder.valueExternalized(slotIndex, b);
+
+    // update externalize time so that we don't include the time spent in
+    // `mHerder.valueExternalized`
+    recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), true);
 }
 
 void
@@ -930,6 +942,42 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
     else
     {
         timing.mPrepareStart = make_optional<VirtualClock::time_point>(start);
+    }
+}
+
+void
+HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
+                                           bool forceUpdateSelf)
+{
+    auto& timing = mSCPExecutionTimes[slotIndex];
+    auto now = mApp.getClock().now();
+
+    if (!timing.mFirstExternalize)
+    {
+        timing.mFirstExternalize = make_optional<VirtualClock::time_point>(now);
+    }
+
+    if (id == mSCP.getLocalNodeID())
+    {
+        if (!timing.mSelfExternalize)
+        {
+            recordLogTiming(*timing.mFirstExternalize, now,
+                            mSCPMetrics.mExternalizeLag, "externalize lag",
+                            std::chrono::nanoseconds::zero(), slotIndex);
+        }
+        if (!timing.mSelfExternalize || forceUpdateSelf)
+        {
+            timing.mSelfExternalize =
+                make_optional<VirtualClock::time_point>(now);
+        }
+    }
+    else if (timing.mSelfExternalize)
+    {
+        recordLogTiming(*timing.mSelfExternalize, now,
+                        mSCPMetrics.mExternalizeDelay,
+                        fmt::format("externalize delay ({})",
+                                    mApp.getConfig().toShortString(id)),
+                        std::chrono::nanoseconds::zero(), slotIndex);
     }
 }
 

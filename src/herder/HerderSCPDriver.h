@@ -88,6 +88,8 @@ class HerderSCPDriver : public SCPDriver
 
     void recordSCPExecutionMetrics(uint64_t slotIndex);
     void recordSCPEvent(uint64_t slotIndex, bool isNomination);
+    void recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
+                                   bool forceUpdateSelf);
 
     // envelope handling
     SCPEnvelopeWrapperPtr wrapEnvelope(SCPEnvelope const& envelope) override;
@@ -176,6 +178,10 @@ class HerderSCPDriver : public SCPDriver
         medida::Timer& mNominateToPrepare;
         medida::Timer& mPrepareToExternalize;
 
+        // Timers tracking externalize messages
+        medida::Timer& mExternalizeLag;
+        medida::Timer& mExternalizeDelay;
+
         SCPMetrics(Application& app);
     };
 
@@ -195,6 +201,10 @@ class HerderSCPDriver : public SCPDriver
         int64_t mNominationTimeoutCount{0};
         // Prepare timeouts before externalize
         int64_t mPrepareTimeoutCount{0};
+
+        // externalize timing information
+        optional<VirtualClock::time_point> mFirstExternalize;
+        optional<VirtualClock::time_point> mSelfExternalize;
     };
 
     // Map of time points for each slot to measure key protocol metrics:
