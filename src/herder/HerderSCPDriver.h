@@ -233,5 +233,11 @@ class HerderSCPDriver : public SCPDriver
 
     void timerCallbackWrapper(uint64_t slotIndex, int timerID,
                               std::function<void()> cb);
+
+    void recordLogTiming(VirtualClock::time_point start,
+                         VirtualClock::time_point end, medida::Timer& timer,
+                         std::string const& logStr,
+                         std::chrono::nanoseconds threshold,
+                         uint64_t slotIndex);
 };
 }

@@ -934,6 +934,24 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 }
 
 void
+HerderSCPDriver::recordLogTiming(VirtualClock::time_point start,
+                                 VirtualClock::time_point end,
+                                 medida::Timer& timer,
+                                 std::string const& logStr,
+                                 std::chrono::nanoseconds threshold,
+                                 uint64_t slotIndex)
+{
+    auto delta =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    CLOG(DEBUG, "Herder") << fmt::format("{} delta for slot {} is {} ns.",
+                                         logStr, slotIndex, delta.count());
+    if (delta >= threshold)
+    {
+        timer.Update(delta);
+    }
+};
+
+void
 HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
 {
     auto externalizeStart = mApp.getClock().now();
@@ -957,31 +975,20 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     mNominateTimeout.Update(SCPTiming.mNominationTimeoutCount);
     mPrepareTimeout.Update(SCPTiming.mPrepareTimeoutCount);
 
-    auto recordTiming = [&](VirtualClock::time_point start,
-                            VirtualClock::time_point end, medida::Timer& timer,
-                            std::string const& logStr) {
-        auto delta =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        CLOG(DEBUG, "Herder") << fmt::format("{} delta for slot {} is {} ns.",
-                                             logStr, slotIndex, delta.count());
-        if (delta >= threshold)
-        {
-            timer.Update(delta);
-        }
-    };
-
     // Compute nomination time
     if (SCPTiming.mNominationStart && SCPTiming.mPrepareStart)
     {
-        recordTiming(*SCPTiming.mNominationStart, *SCPTiming.mPrepareStart,
-                     mSCPMetrics.mNominateToPrepare, "Nominate");
+        recordLogTiming(*SCPTiming.mNominationStart, *SCPTiming.mPrepareStart,
+                        mSCPMetrics.mNominateToPrepare, "Nominate", threshold,
+                        slotIndex);
     }
 
     // Compute prepare time
     if (SCPTiming.mPrepareStart)
     {
-        recordTiming(*SCPTiming.mPrepareStart, externalizeStart,
-                     mSCPMetrics.mPrepareToExternalize, "Prepare");
+        recordLogTiming(*SCPTiming.mPrepareStart, externalizeStart,
+                        mSCPMetrics.mPrepareToExternalize, "Prepare", threshold,
+                        slotIndex);
     }
 }
 
