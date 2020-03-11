@@ -230,7 +230,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     if (slotIndex > maxSlotsToRemember)
     {
         auto maxSlot = slotIndex - maxSlotsToRemember;
-        getSCP().purgeSlots(maxSlot);
+        getHerderSCPDriver().purgeSlots(maxSlot);
         mPendingEnvelopes.eraseBelow(maxSlot);
     }
 

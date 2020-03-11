@@ -983,13 +983,19 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
         recordTiming(*SCPTiming.mPrepareStart, externalizeStart,
                      mSCPMetrics.mPrepareToExternalize, "Prepare");
     }
+}
 
+void
+HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex)
+{
     // Clean up timings map
     auto it = mSCPExecutionTimes.begin();
-    while (it != mSCPExecutionTimes.end() && it->first < slotIndex)
+    while (it != mSCPExecutionTimes.end() && it->first < maxSlotIndex)
     {
         it = mSCPExecutionTimes.erase(it);
     }
+
+    getSCP().purgeSlots(maxSlotIndex);
 }
 
 void
