@@ -230,7 +230,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     if (slotIndex > maxSlotsToRemember)
     {
         auto maxSlot = slotIndex - maxSlotsToRemember;
-        getSCP().purgeSlots(maxSlot);
+        getHerderSCPDriver().purgeSlots(maxSlot);
         mPendingEnvelopes.eraseBelow(maxSlot);
     }
 
@@ -589,13 +589,20 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     while (true)
     {
-        SCPEnvelopeWrapperPtr env = mPendingEnvelopes.pop(slotIndex);
-        if (env)
+        SCPEnvelopeWrapperPtr envW = mPendingEnvelopes.pop(slotIndex);
+        if (envW)
         {
-            auto r = getSCP().receiveEnvelope(env);
+            auto r = getSCP().receiveEnvelope(envW);
             if (r == SCP::EnvelopeState::VALID)
             {
-                mPendingEnvelopes.envelopeProcessed(env->getEnvelope());
+                auto const& env = envW->getEnvelope();
+                auto const& st = env.statement;
+                if (st.pledges.type() == SCP_ST_EXTERNALIZE)
+                {
+                    mHerderSCPDriver.recordSCPExternalizeEvent(
+                        st.slotIndex, st.nodeID, false);
+                }
+                mPendingEnvelopes.envelopeProcessed(env);
             }
         }
         else

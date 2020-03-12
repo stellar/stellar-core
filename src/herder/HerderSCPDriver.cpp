@@ -37,6 +37,11 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
     , mPrepareToExternalize(
           app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
+    , mExternalizeLag(
+          app.getMetrics().NewTimer({"scp", "timing", "externalize-lag"}))
+    , mExternalizeDelay(
+          app.getMetrics().NewTimer({"scp", "timing", "externalize-delay"}))
+
 {
 }
 
@@ -816,7 +821,14 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         mLastTrackingSCP = std::make_unique<ConsensusData>(*mTrackingSCP);
     }
 
+    // record lag
+    recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), false);
+
     mHerder.valueExternalized(slotIndex, b);
+
+    // update externalize time so that we don't include the time spent in
+    // `mHerder.valueExternalized`
+    recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), true);
 }
 
 void
@@ -934,6 +946,60 @@ HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 }
 
 void
+HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
+                                           bool forceUpdateSelf)
+{
+    auto& timing = mSCPExecutionTimes[slotIndex];
+    auto now = mApp.getClock().now();
+
+    if (!timing.mFirstExternalize)
+    {
+        timing.mFirstExternalize = make_optional<VirtualClock::time_point>(now);
+    }
+
+    if (id == mSCP.getLocalNodeID())
+    {
+        if (!timing.mSelfExternalize)
+        {
+            recordLogTiming(*timing.mFirstExternalize, now,
+                            mSCPMetrics.mExternalizeLag, "externalize lag",
+                            std::chrono::nanoseconds::zero(), slotIndex);
+        }
+        if (!timing.mSelfExternalize || forceUpdateSelf)
+        {
+            timing.mSelfExternalize =
+                make_optional<VirtualClock::time_point>(now);
+        }
+    }
+    else if (timing.mSelfExternalize)
+    {
+        recordLogTiming(*timing.mSelfExternalize, now,
+                        mSCPMetrics.mExternalizeDelay,
+                        fmt::format("externalize delay ({})",
+                                    mApp.getConfig().toShortString(id)),
+                        std::chrono::nanoseconds::zero(), slotIndex);
+    }
+}
+
+void
+HerderSCPDriver::recordLogTiming(VirtualClock::time_point start,
+                                 VirtualClock::time_point end,
+                                 medida::Timer& timer,
+                                 std::string const& logStr,
+                                 std::chrono::nanoseconds threshold,
+                                 uint64_t slotIndex)
+{
+    auto delta =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+    CLOG(DEBUG, "Herder") << fmt::format("{} delta for slot {} is {} ns.",
+                                         logStr, slotIndex, delta.count());
+    if (delta >= threshold)
+    {
+        timer.Update(delta);
+    }
+};
+
+void
 HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
 {
     auto externalizeStart = mApp.getClock().now();
@@ -957,39 +1023,34 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
     mNominateTimeout.Update(SCPTiming.mNominationTimeoutCount);
     mPrepareTimeout.Update(SCPTiming.mPrepareTimeoutCount);
 
-    auto recordTiming = [&](VirtualClock::time_point start,
-                            VirtualClock::time_point end, medida::Timer& timer,
-                            std::string const& logStr) {
-        auto delta =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
-        CLOG(DEBUG, "Herder") << fmt::format("{} delta for slot {} is {} ns.",
-                                             logStr, slotIndex, delta.count());
-        if (delta >= threshold)
-        {
-            timer.Update(delta);
-        }
-    };
-
     // Compute nomination time
     if (SCPTiming.mNominationStart && SCPTiming.mPrepareStart)
     {
-        recordTiming(*SCPTiming.mNominationStart, *SCPTiming.mPrepareStart,
-                     mSCPMetrics.mNominateToPrepare, "Nominate");
+        recordLogTiming(*SCPTiming.mNominationStart, *SCPTiming.mPrepareStart,
+                        mSCPMetrics.mNominateToPrepare, "Nominate", threshold,
+                        slotIndex);
     }
 
     // Compute prepare time
     if (SCPTiming.mPrepareStart)
     {
-        recordTiming(*SCPTiming.mPrepareStart, externalizeStart,
-                     mSCPMetrics.mPrepareToExternalize, "Prepare");
+        recordLogTiming(*SCPTiming.mPrepareStart, externalizeStart,
+                        mSCPMetrics.mPrepareToExternalize, "Prepare", threshold,
+                        slotIndex);
     }
+}
 
+void
+HerderSCPDriver::purgeSlots(uint64_t maxSlotIndex)
+{
     // Clean up timings map
     auto it = mSCPExecutionTimes.begin();
-    while (it != mSCPExecutionTimes.end() && it->first < slotIndex)
+    while (it != mSCPExecutionTimes.end() && it->first < maxSlotIndex)
     {
         it = mSCPExecutionTimes.erase(it);
     }
+
+    getSCP().purgeSlots(maxSlotIndex);
 }
 
 void

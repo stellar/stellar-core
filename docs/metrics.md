@@ -116,8 +116,10 @@ scp.pending.ready                        | counter   | number of envelopes ready
 scp.sync.lost                            | meter     | validator lost sync
 scp.timeout.nominate                     | meter     | timeouts in nomination
 scp.timeout.prepare                      | meter     | timeouts in ballot protocol
-scp.timing.externalized                  | timer     | time spent in ballot protocol
 scp.timing.nominated                     | timer     | time spent in nomination
+scp.timing.externalized                  | timer     | time spent in ballot protocol
+scp.timing.externalize-lag               | timer     | delay between first externalize message and local node externalizing
+scp.timing.externalize-delay             | timer     | delay between local node externalizing and later externalize messages
 scp.value.invalid                        | meter     | SCP value is invalid
 scp.value.valid                          | meter     | SCP value is valid
 
