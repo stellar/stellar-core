@@ -637,9 +637,15 @@ getSellingLiabilities(LedgerTxnHeader const& header,
 }
 
 uint64_t
+getStartingSequenceNumber(uint32_t ledgerSeq)
+{
+    return static_cast<uint64_t>(ledgerSeq) << 32;
+}
+
+uint64_t
 getStartingSequenceNumber(LedgerTxnHeader const& header)
 {
-    return static_cast<uint64_t>(header.current().ledgerSeq) << 32;
+    return getStartingSequenceNumber(header.current().ledgerSeq);
 }
 
 bool
