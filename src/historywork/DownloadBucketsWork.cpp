@@ -33,7 +33,8 @@ DownloadBucketsWork::getStatus() const
     {
         if (!mHashes.empty())
         {
-            auto numDone = std::distance(mHashes.begin(), mNextBucketIter);
+            auto numStarted = std::distance(mHashes.begin(), mNextBucketIter);
+            auto numDone = numStarted - getNumWorksInBatch();
             auto total = static_cast<uint32_t>(mHashes.size());
             auto pct = (100 * numDone) / total;
             return fmt::format(
