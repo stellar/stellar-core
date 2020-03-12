@@ -204,3 +204,36 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
         }
     }
 }
+
+TEST_CASE("CatchupRange starting on checkpoint boundary still replays it",
+          "[catchup]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& historyManager = app->getHistoryManager();
+
+    uint32_t lcl = 1;
+
+    // 66/4 means user wants replay of 63,64,65,66 which means
+    // we must start from a state from _before_ 63, namely LCL.
+    CatchupConfiguration conf1{66, 4,
+                               CatchupConfiguration::Mode::OFFLINE_BASIC};
+    CatchupRange crange1{lcl, conf1, historyManager};
+
+    REQUIRE(!crange1.applyBuckets());
+    REQUIRE(crange1.replayLedgers());
+    REQUIRE(crange1.getReplayFirst() == 2);
+    REQUIRE(crange1.getReplayCount() == 65);
+
+    // 66/3 means user wants replay of 64,65,66 which means
+    // we must start from a state _before_ 64, namely 63.
+    CatchupConfiguration conf2{66, 3,
+                               CatchupConfiguration::Mode::OFFLINE_BASIC};
+    CatchupRange crange2{lcl, conf2, historyManager};
+
+    REQUIRE(crange2.applyBuckets());
+    REQUIRE(crange2.replayLedgers());
+    REQUIRE(crange2.getBucketApplyLedger() == 63);
+    REQUIRE(crange2.getReplayFirst() == 64);
+    REQUIRE(crange2.getReplayCount() == 3);
+}

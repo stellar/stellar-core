@@ -78,7 +78,7 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
         return CatchupRange(applyBucketsOnlyAt);
     }
 
-    uint32_t targetStart = cfg.toLedger() - cfg.count();
+    uint32_t targetStart = cfg.toLedger() - cfg.count() + 1;
     uint32_t firstInCheckpoint =
         hm.firstLedgerInCheckpointContaining(targetStart);
 
