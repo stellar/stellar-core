@@ -41,14 +41,6 @@ ConditionalWork::onRun()
         return mConditionedWork->getState();
     }
 
-    if (!mStartTimer)
-    {
-        // we're only using this to check elapsed time
-        mStartTimer = std::make_unique<LogSlowExecution>(
-            "", LogSlowExecution::Mode::MANUAL, "",
-            std::chrono::milliseconds::max());
-    }
-
     // Work is not started, so check the condition
     if (!mCondition())
     {
@@ -105,24 +97,12 @@ void
 ConditionalWork::onReset()
 {
     mWorkStarted = false;
-    mStartTimer.reset();
 }
 
 std::string
 ConditionalWork::getStatus() const
 {
-    if (mWorkStarted)
-    {
-        return fmt::format("Conditioned work status = {}",
-                           mConditionedWork->getStatus());
-    }
-
-    std::chrono::milliseconds elapsed{0};
-    if (mStartTimer)
-    {
-        elapsed = mStartTimer->checkElapsedTime();
-    }
-    return fmt::format("ConditionalWork - Waiting on {} for {} milliseconds.",
-                       getName(), elapsed.count());
+    return fmt::format("{}{}", mWorkStarted ? "" : "Waiting before starting ",
+                       mConditionedWork->getStatus());
 }
 }
