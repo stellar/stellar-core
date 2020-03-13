@@ -41,7 +41,9 @@ PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset)
 {
     if (asset.type() != ASSET_TYPE_NATIVE)
     {
-        if (!stellar::loadAccountWithoutRecord(ltx, getIssuer(asset)))
+        uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+        if (ledgerVersion < 13 &&
+            !stellar::loadAccountWithoutRecord(ltx, getIssuer(asset)))
         {
             setResultNoIssuer(asset);
             return false;

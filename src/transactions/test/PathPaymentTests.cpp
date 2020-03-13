@@ -539,61 +539,60 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         });
     }
 
-    SECTION("path payment send issuer missing")
+    SECTION("issuer missing")
     {
-        auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
-        source.changeTrust(idr, 20);
-        destination.changeTrust(usd, 20);
-        gateway.pay(source, idr, 10);
-        for_all_versions(*app, [&] {
-            gateway.merge(root);
-            REQUIRE_THROWS_AS(
-                source.pay(destination, idr, 11, usd, 11, {}, &idr),
-                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance1 - txfee}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
-        });
-    }
+        // look at the SECTION "path payment uses all offers in a loop" for a
+        // successful path payment test with no issuers
 
-    SECTION("path payment middle issuer missing")
-    {
         auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(usd, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(*app, [&] {
-            auto btc = makeAsset(getAccount("missing"), "BTC");
-            REQUIRE_THROWS_AS(
-                source.pay(destination, idr, 11, usd, 11, {btc}, &btc),
-                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
-                 {destination, {{xlm, minBalance1 - txfee}, {idr, 0}, {usd, 0}}}});
-            // clang-format on
-        });
-    }
 
-    SECTION("path payment last issuer missing")
-    {
-        auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance1);
-        auto destination = root.create("destination", minBalance1);
-        source.changeTrust(idr, 20);
-        destination.changeTrust(usd, 20);
-        gateway.pay(source, idr, 10);
         for_all_versions(*app, [&] {
-            gateway2.merge(root);
-            REQUIRE_THROWS_AS(
-                source.pay(destination, idr, 11, usd, 11, {}, &usd),
-                ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
+            uint32_t ledgerVersion;
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+            }
+
+            auto pathPayment = [&](std::vector<Asset> const& path,
+                                   Asset& noIssuer) {
+                if (ledgerVersion < 13)
+                {
+                    REQUIRE_THROWS_AS(source.pay(destination, idr, 11, usd, 11,
+                                                 path, &noIssuer),
+                                      ex_PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER);
+                }
+                else
+                {
+                    REQUIRE_THROWS_AS(
+                        source.pay(destination, idr, 11, usd, 11, path,
+                                   &noIssuer),
+                        ex_PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS);
+                }
+            };
+
+            SECTION("path payment send issuer missing")
+            {
+                gateway.merge(root);
+                pathPayment({}, idr);
+            }
+
+            SECTION("path payment middle issuer missing")
+            {
+                auto btc = makeAsset(getAccount("missing"), "BTC");
+                pathPayment({btc}, btc);
+            }
+
+            SECTION("path payment last issuer missing")
+            {
+                gateway2.merge(root);
+                pathPayment({}, usd);
+            }
+
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance1 - 2 * txfee}, {idr, 10}, {usd, 0}}},
@@ -3800,75 +3799,105 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment uses all offers in a loop")
     {
-        auto market = TestMarket{*app};
-        auto source = root.create("source", minBalance4);
-        auto destination = root.create("destination", minBalance1);
-        auto mm12 = root.create("mm12", minBalance3);
-        auto mm23 = root.create("mm23", minBalance3);
-        auto mm34 = root.create("mm34", minBalance3);
-        auto mm41 = root.create("mm41", minBalance3);
+        auto useAllOffersInLoop = [&](TestAccount* issuerToDelete) {
+            auto market = TestMarket{*app};
+            auto source = root.create("source", minBalance4);
+            auto destination = root.create("destination", minBalance1);
+            auto mm12 = root.create("mm12", minBalance3);
+            auto mm23 = root.create("mm23", minBalance3);
+            auto mm34 = root.create("mm34", minBalance3);
+            auto mm41 = root.create("mm41", minBalance3);
 
-        source.changeTrust(cur1, 16000);
-        mm12.changeTrust(cur1, 16000);
-        mm12.changeTrust(cur2, 16000);
-        mm23.changeTrust(cur2, 16000);
-        mm23.changeTrust(cur3, 16000);
-        mm34.changeTrust(cur3, 16000);
-        mm34.changeTrust(cur4, 16000);
-        mm41.changeTrust(cur4, 16000);
-        mm41.changeTrust(cur1, 16000);
-        destination.changeTrust(cur4, 16000);
+            source.changeTrust(cur1, 16000);
+            mm12.changeTrust(cur1, 16000);
+            mm12.changeTrust(cur2, 16000);
+            mm23.changeTrust(cur2, 16000);
+            mm23.changeTrust(cur3, 16000);
+            mm34.changeTrust(cur3, 16000);
+            mm34.changeTrust(cur4, 16000);
+            mm41.changeTrust(cur4, 16000);
+            mm41.changeTrust(cur1, 16000);
+            destination.changeTrust(cur4, 16000);
 
-        gateway.pay(source, cur1, 8000);
-        gateway.pay(mm12, cur2, 8000);
-        gateway2.pay(mm23, cur3, 8000);
-        gateway2.pay(mm34, cur4, 8000);
-        gateway.pay(mm41, cur1, 8000);
+            gateway.pay(source, cur1, 8000);
+            gateway.pay(mm12, cur2, 8000);
+            gateway2.pay(mm23, cur3, 8000);
+            gateway2.pay(mm34, cur4, 8000);
+            gateway.pay(mm41, cur1, 8000);
 
-        auto o1 = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 1000});
-        });
-        auto o2 = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 1000});
-        });
-        auto o3 = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1000});
-        });
-        auto o4 = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
-        });
+            auto o1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 1000});
+            });
+            auto o2 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 1000});
+            });
+            auto o3 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1000});
+            });
+            auto o4 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
+            });
 
-        for_all_versions(*app, [&] {
-            auto actual = std::vector<ClaimOfferAtom>{};
-            market.requireChanges(
-                {{o1.key, {cur2, cur1, Price{2, 1}, 320}},
-                 {o2.key, {cur3, cur2, Price{2, 1}, 660}},
-                 {o3.key, {cur4, cur3, Price{2, 1}, 830}},
-                 {o4.key, {cur1, cur4, Price{2, 1}, 920}}},
-                [&] {
-                    actual = source
-                                 .pay(destination, cur1, 2000, cur4, 10,
-                                      {cur1, cur2, cur3, cur4, cur1, cur2, cur3,
-                                       cur4})
-                                 .success()
-                                 .offers;
-                });
-            auto expected = std::vector<ClaimOfferAtom>{
-                o1.exchanged(640, 1280), o2.exchanged(320, 640),
-                o3.exchanged(160, 320),  o4.exchanged(80, 160),
-                o1.exchanged(40, 80),    o2.exchanged(20, 40),
-                o3.exchanged(10, 20)};
-            REQUIRE(actual == expected);
-            // clang-format off
-            market.requireBalances(
-                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 6720}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
-                 {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 1360}, {cur2, 7320}, {cur3, 0}, {cur4, 0}}},
-                 {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 680}, {cur3, 7660}, {cur4, 0}}},
-                 {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 340}, {cur4, 7830}}},
-                 {mm41, {{xlm, minBalance3 - 3 * txfee}, {cur1, 7920}, {cur2, 0}, {cur3, 0}, {cur4, 160}}},
-                 {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
-            // clang-format on
-        });
+            for_all_versions(*app, [&] {
+                uint32_t ledgerVersion;
+                {
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+                }
+                if (issuerToDelete && ledgerVersion >= 13)
+                {
+                    closeLedgerOn(*app, 3, 1, 1, 2016);
+                    // remove issuer
+                    issuerToDelete->merge(root);
+                }
+
+                auto actual = std::vector<ClaimOfferAtom>{};
+                market.requireChanges(
+                    {{o1.key, {cur2, cur1, Price{2, 1}, 320}},
+                     {o2.key, {cur3, cur2, Price{2, 1}, 660}},
+                     {o3.key, {cur4, cur3, Price{2, 1}, 830}},
+                     {o4.key, {cur1, cur4, Price{2, 1}, 920}}},
+                    [&] {
+                        actual = source
+                                     .pay(destination, cur1, 2000, cur4, 10,
+                                          {cur1, cur2, cur3, cur4, cur1, cur2,
+                                           cur3, cur4})
+                                     .success()
+                                     .offers;
+                    });
+                auto expected = std::vector<ClaimOfferAtom>{
+                    o1.exchanged(640, 1280), o2.exchanged(320, 640),
+                    o3.exchanged(160, 320),  o4.exchanged(80, 160),
+                    o1.exchanged(40, 80),    o2.exchanged(20, 40),
+                    o3.exchanged(10, 20)};
+                REQUIRE(actual == expected);
+                // clang-format off
+                market.requireBalances(
+                    {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 6720}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                    {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 1360}, {cur2, 7320}, {cur3, 0}, {cur4, 0}}},
+                    {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 680}, {cur3, 7660}, {cur4, 0}}},
+                    {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 340}, {cur4, 7830}}},
+                    {mm41, {{xlm, minBalance3 - 3 * txfee}, {cur1, 7920}, {cur2, 0}, {cur3, 0}, {cur4, 160}}},
+                    {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
+                // clang-format on
+            });
+
+        };
+
+        SECTION("no issuers missing")
+        {
+            useAllOffersInLoop(nullptr);
+        }
+
+        SECTION("outside issuers missing")
+        {
+            useAllOffersInLoop(&gateway);
+        }
+
+        SECTION("inside issuers missing")
+        {
+            useAllOffersInLoop(&gateway2);
+        }
     }
 
     SECTION("path payment with rounding errors")

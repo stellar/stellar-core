@@ -37,14 +37,19 @@ ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter)
         return true;
     }
 
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+
     if (mSheep.type() != ASSET_TYPE_NATIVE)
     {
         auto sheepLineA = loadTrustLine(ltx, getSourceID(), mSheep);
-        auto issuer = stellar::loadAccount(ltx, getIssuer(mSheep));
-        if (!issuer)
+        if (ledgerVersion < 13)
         {
-            setResultSellNoIssuer();
-            return false;
+            auto issuer = stellar::loadAccount(ltx, getIssuer(mSheep));
+            if (!issuer)
+            {
+                setResultSellNoIssuer();
+                return false;
+            }
         }
         if (!sheepLineA)
         { // we don't have what we are trying to sell
@@ -67,11 +72,15 @@ ManageOfferOpFrameBase::checkOfferValid(AbstractLedgerTxn& ltxOuter)
     if (mWheat.type() != ASSET_TYPE_NATIVE)
     {
         auto wheatLineA = loadTrustLine(ltx, getSourceID(), mWheat);
-        auto issuer = stellar::loadAccount(ltx, getIssuer(mWheat));
-        if (!issuer)
+
+        if (ledgerVersion < 13)
         {
-            setResultBuyNoIssuer();
-            return false;
+            auto issuer = stellar::loadAccount(ltx, getIssuer(mWheat));
+            if (!issuer)
+            {
+                setResultBuyNoIssuer();
+                return false;
+            }
         }
         if (!wheatLineA)
         { // we can't hold what we are trying to buy

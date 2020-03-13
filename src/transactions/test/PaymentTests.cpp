@@ -1544,11 +1544,30 @@ TEST_CASE("payment", "[tx][payment]")
             {
                 for_all_versions(*app, [&] {
                     gateway.merge(root);
-                    // cannot send to an account that is not the issuer
-                    REQUIRE_THROWS_AS(a1.pay(b1, idr, 40),
-                                      ex_PAYMENT_NO_ISSUER);
-                    // should be able to send back credits to issuer
-                    a1.pay(gateway, idr, 75);
+
+                    uint32_t ledgerVersion;
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        ledgerVersion =
+                            ltx.loadHeader().current().ledgerVersion;
+                    }
+                    if (ledgerVersion < 13)
+                    {
+                        // cannot send to an account that is not the issuer
+                        REQUIRE_THROWS_AS(a1.pay(b1, idr, 40),
+                                          ex_PAYMENT_NO_ISSUER);
+                        // should be able to send back credits to issuer
+                        a1.pay(gateway, idr, 75);
+                    }
+                    else
+                    {
+                        // sending to an account that is not the issuer
+                        a1.pay(b1, idr, 40);
+
+                        // should be able to send back credits to issuer
+                        a1.pay(gateway, idr, 35);
+                    }
+
                     // cannot change the limit
                     REQUIRE_THROWS_AS(a1.changeTrust(idr, 25),
                                       ex_CHANGE_TRUST_NO_ISSUER);
@@ -1605,7 +1624,11 @@ TEST_CASE("payment", "[tx][payment]")
     for_all_versions(*app, [&] {
         SECTION("send to self")
         {
-            auto sendToSelf = root.create("send to self", minBalance2);
+            // minimum balance necessary to hold 3 trust lines
+            const int64_t minBalance3 =
+                app->getLedgerManager().getLastMinBalance(3) + 10 * txfee;
+
+            auto sendToSelf = root.create("send to self", minBalance3);
 
             SECTION("native")
             {
@@ -1615,13 +1638,13 @@ TEST_CASE("payment", "[tx][payment]")
                 }
                 SECTION("all")
                 {
-                    sendToSelf.pay(sendToSelf, minBalance2);
+                    sendToSelf.pay(sendToSelf, minBalance3);
                 }
                 SECTION("more than have")
                 {
                     sendToSelf.pay(sendToSelf, INT64_MAX);
                 }
-                REQUIRE(sendToSelf.getBalance() == minBalance2 - txfee);
+                REQUIRE(sendToSelf.getBalance() == minBalance3 - txfee);
             }
 
             auto fakeCur = makeAsset(gateway, "fake");
@@ -1656,24 +1679,40 @@ TEST_CASE("payment", "[tx][payment]")
                                   ex_PAYMENT_NO_ISSUER);
             };
 
-            // in ledger versions 1 and 2 each of these payment succeeds
+            uint32_t ledgerVersion;
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                if (ltx.loadHeader().current().ledgerVersion < 3)
-                {
-                    payNoTrust = payOk;
-                    payLineFull = payOk;
-                    payNoIssuer = payOk;
-                }
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+            }
+            // in ledger versions 1 and 2 each of these payment succeeds
+
+            if (ledgerVersion < 3)
+            {
+                payNoTrust = payOk;
+                payLineFull = payOk;
+                payNoIssuer = payOk;
             }
 
             auto withoutTrustLine = std::vector<Data>{
                 Data{"existing asset", idr, payNoTrust, payOk, payLineFull},
                 Data{"non existing asset with existing issuer", fakeCur,
                      payNoTrust, payOk, payLineFull},
-                Data{"non existing asset with non existing issuer",
-                     fakeWithFakeAccountCur, payNoIssuer, payNoIssuer,
-                     payNoIssuer}};
+            };
+
+            // issuer checks were removed starting from v13
+            if (ledgerVersion < 13)
+            {
+                withoutTrustLine.push_back(
+                    Data{"non existing asset with non existing issuer",
+                         fakeWithFakeAccountCur, payNoIssuer, payNoIssuer,
+                         payNoIssuer});
+            }
+            else
+            {
+                withoutTrustLine.push_back(
+                    Data{"non existing asset with non existing issuer",
+                         fakeWithFakeAccountCur, payNoTrust, payOk, payOk});
+            }
 
             for (auto const& data : withoutTrustLine)
             {
@@ -1686,7 +1725,7 @@ TEST_CASE("payment", "[tx][payment]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
-                        REQUIRE(ae.balance == minBalance2 - txfee);
+                        REQUIRE(ae.balance == minBalance3 - txfee);
                         REQUIRE(!stellar::loadTrustLine(ltx, sendToSelf,
                                                         data.asset));
                     }
@@ -1698,6 +1737,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             sendToSelf.changeTrust(idr, 1000);
             sendToSelf.changeTrust(fakeCur, 1000);
+
             REQUIRE_THROWS_AS(
                 sendToSelf.changeTrust(fakeWithFakeAccountCur, 1000),
                 ex_CHANGE_TRUST_NO_ISSUER);
@@ -1724,7 +1764,7 @@ TEST_CASE("payment", "[tx][payment]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
-                        REQUIRE(ae.balance == minBalance2 - 4 * txfee);
+                        REQUIRE(ae.balance == minBalance3 - 4 * txfee);
                         auto trust =
                             stellar::loadTrustLine(ltx, sendToSelf, data.asset);
                         REQUIRE(trust);
@@ -1751,7 +1791,7 @@ TEST_CASE("payment", "[tx][payment]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
-                        REQUIRE(ae.balance == minBalance2 - 4 * txfee);
+                        REQUIRE(ae.balance == minBalance3 - 4 * txfee);
                         auto trust =
                             stellar::loadTrustLine(ltx, sendToSelf, data.asset);
                         REQUIRE(trust);
@@ -1778,7 +1818,7 @@ TEST_CASE("payment", "[tx][payment]")
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         auto account = txtest::loadAccount(ltx, sendToSelf);
                         auto const& ae = account.current().data.account();
-                        REQUIRE(ae.balance == minBalance2 - 4 * txfee);
+                        REQUIRE(ae.balance == minBalance3 - 4 * txfee);
                         auto trust =
                             stellar::loadTrustLine(ltx, sendToSelf, data.asset);
                         REQUIRE(trust);

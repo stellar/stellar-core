@@ -159,16 +159,25 @@ TEST_CASE("create offer", "[tx][offers]")
         SECTION("create offer without issuer for selling")
         {
             auto a1 = root.create("A", minBalance2);
-            auto fakeIssuer = getAccount("fakeIssuer");
-            for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
-                                      {},
-                                      [&] {
-                                          return market.addOffer(
-                                              a1, {makeAsset(fakeIssuer, "IDR"),
-                                                   usd, oneone, 100});
-                                      }),
-                                  ex_MANAGE_SELL_OFFER_SELL_NO_ISSUER);
+            a1.changeTrust(idr, trustLineLimit);
+            issuer.pay(a1, idr, trustLineLimit);
+            closeLedgerOn(*app, 2, 1, 1, 2016);
+            // remove issuer
+            issuer.merge(root);
+            for_versions_to(12, *app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, xlm, oneone, 100});
+                        }),
+                    ex_MANAGE_SELL_OFFER_SELL_NO_ISSUER);
+            });
+
+            for_versions_from(13, *app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(a1, {idr, xlm, oneone, 100});
+                });
             });
         }
 
@@ -207,18 +216,25 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             auto a1 = root.create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
-            issuer.pay(a1, idr, trustLineLimit);
-            auto fakeIssuer = getAccount("fakeIssuer");
-            for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
-                                      {},
-                                      [&] {
-                                          return market.addOffer(
-                                              a1, {idr,
-                                                   makeAsset(fakeIssuer, "USD"),
-                                                   oneone, 100});
-                                      }),
-                                  ex_MANAGE_SELL_OFFER_BUY_NO_ISSUER);
+            issuer.pay(a1, idr, 100);
+            closeLedgerOn(*app, 2, 1, 1, 2016);
+            // remove issuer
+            issuer.merge(root);
+
+            for_versions_to(12, *app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {xlm, idr, oneone, 100});
+                        }),
+                    ex_MANAGE_SELL_OFFER_BUY_NO_ISSUER);
+            });
+
+            for_versions_from(13, *app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(a1, {xlm, idr, oneone, 100});
+                });
             });
         }
 

@@ -144,13 +144,49 @@ TEST_CASE("manage buy offer failure modes", "[tx][offers]")
 
         SECTION("check offer valid")
         {
-            SECTION("sell no issuer")
+            uint32_t ledgerVersion;
             {
-                auto a1 = root.create("a1", minBalance1PlusFees);
-                REQUIRE_THROWS_AS(
-                    a1.manageBuyOffer(0, makeAsset(getAccount("fake"), "CUR3"),
-                                      native, Price{1, 1}, 1),
-                    ex_MANAGE_BUY_OFFER_SELL_NO_ISSUER);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+            }
+
+            SECTION("no issuer")
+            {
+                auto a1 = root.create("a1", minBalance3PlusFees);
+                a1.changeTrust(cur1, INT64_MAX);
+                issuer1.pay(a1, cur1, 1);
+                closeLedgerOn(*app, 2, 1, 1, 2016);
+
+                // remove issuer
+                issuer1.merge(root);
+
+                SECTION("sell no issuer")
+                {
+                    if (ledgerVersion < 13)
+                    {
+                        REQUIRE_THROWS_AS(
+                            a1.manageBuyOffer(0, cur1, native, Price{1, 1}, 1),
+                            ex_MANAGE_BUY_OFFER_SELL_NO_ISSUER);
+                    }
+                    else
+                    {
+                        a1.manageBuyOffer(0, cur1, native, Price{1, 1}, 1);
+                    }
+                }
+
+                SECTION("buy no issuer")
+                {
+                    if (ledgerVersion < 13)
+                    {
+                        REQUIRE_THROWS_AS(
+                            a1.manageBuyOffer(0, native, cur1, Price{1, 1}, 1),
+                            ex_MANAGE_BUY_OFFER_BUY_NO_ISSUER);
+                    }
+                    else
+                    {
+                        a1.manageBuyOffer(0, native, cur1, Price{1, 1}, 1);
+                    }
+                }
             }
 
             SECTION("sell no trust")
@@ -183,16 +219,6 @@ TEST_CASE("manage buy offer failure modes", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     a1.manageBuyOffer(0, cur1, native, Price{1, 1}, 1),
                     ex_MANAGE_BUY_OFFER_SELL_NOT_AUTHORIZED);
-            }
-
-            SECTION("buy no issuer")
-            {
-                auto a1 = root.create("a1", minBalance1PlusFees);
-                REQUIRE_THROWS_AS(
-                    a1.manageBuyOffer(0, native,
-                                      makeAsset(getAccount("fake"), "CUR3"),
-                                      Price{1, 1}, 1),
-                    ex_MANAGE_BUY_OFFER_BUY_NO_ISSUER);
             }
 
             SECTION("buy no trust")
