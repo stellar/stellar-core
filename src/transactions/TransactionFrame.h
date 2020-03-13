@@ -92,7 +92,8 @@ class TransactionFrame : public TransactionFrameBase
 
     void processSeqNum(AbstractLedgerTxn& ltx);
 
-    bool processSignatures(SignatureChecker& signatureChecker,
+    bool processSignatures(ValidationType cv,
+                           SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
 
   public:

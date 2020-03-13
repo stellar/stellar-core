@@ -381,17 +381,33 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 }
 
 bool
-TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
+TransactionFrame::processSignatures(ValidationType cv,
+                                    SignatureChecker& signatureChecker,
                                     AbstractLedgerTxn& ltxOuter)
 {
-    auto allOpsValid = true;
+    bool maybeValid = (cv == ValidationType::kMaybeValid);
+    uint32_t ledgerVersion = ltxOuter.loadHeader().current().ledgerVersion;
+    if (ledgerVersion < 10)
     {
-        LedgerTxn ltx(ltxOuter);
-        if (ltx.loadHeader().current().ledgerVersion < 10)
-        {
-            return true;
-        }
+        return maybeValid;
+    }
 
+    // check if we need to fast fail and use the original error code
+    if (ledgerVersion >= 13 && !maybeValid)
+    {
+        removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
+        return false;
+    }
+    // older versions of the protocol only fast fail in a subset of cases
+    if (ledgerVersion < 13 && cv < ValidationType::kInvalidPostAuth)
+    {
+        return false;
+    }
+
+    bool allOpsValid = true;
+    {
+        // scope here to avoid potential side effects of loading source accounts
+        LedgerTxn ltx(ltxOuter);
         for (auto& op : mOperations)
         {
             if (!op->checkSignature(signatureChecker, ltx, false))
@@ -415,7 +431,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
         return false;
     }
 
-    return true;
+    return maybeValid;
 }
 
 bool
@@ -791,8 +807,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         {
             processSeqNum(ltxTx);
         }
-        auto signaturesValid = cv >= (ValidationType::kInvalidPostAuth) &&
-                               processSignatures(signatureChecker, ltxTx);
+
+        bool signaturesValid = processSignatures(cv, signatureChecker, ltxTx);
 
         auto& txChanges =
             meta.v() == 1 ? meta.v1().txChanges : meta.v2().txChangesBefore;

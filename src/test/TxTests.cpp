@@ -224,8 +224,8 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
                 auto header = ltxTx.loadHeader();
-                if (checkSeqNum && header.current().ledgerVersion >= 10 &&
-                    !earlyFailure)
+                auto ledgerVersion = header.current().ledgerVersion;
+                if (checkSeqNum && ledgerVersion >= 10 && !earlyFailure)
                 {
                     REQUIRE(srcAccountAfter.current().data.account().seqNum ==
                             (srcAccountBefore.seqNum + 1));
@@ -233,7 +233,9 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 // on failure, no other changes should have been made
                 if (!res)
                 {
-                    if (earlyFailure || header.current().ledgerVersion <= 9)
+                    bool noChangeOnEarlyFailure =
+                        earlyFailure && ledgerVersion < 13;
+                    if (noChangeOnEarlyFailure || ledgerVersion <= 9)
                     {
                         // no changes during an early failure
                         REQUIRE(ltxTx.getDelta().entry.empty());
@@ -247,6 +249,21 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                             REQUIRE(current);
                             auto previous = kvp.second.previous;
                             REQUIRE(previous);
+
+                            // From V13, it's possible to remove one-time
+                            // signers on early failures
+                            if (ledgerVersion >= 13 && earlyFailure)
+                            {
+                                auto currAcc = current->data.account();
+                                auto prevAcc = previous->data.account();
+                                REQUIRE(currAcc.signers.size() + 1 ==
+                                        prevAcc.signers.size());
+                                // signers should be the only change so this
+                                // should make the accounts equivalent
+                                currAcc.signers = prevAcc.signers;
+                                currAcc.numSubEntries = prevAcc.numSubEntries;
+                                REQUIRE(currAcc == prevAcc);
+                            }
                         }
                         // could check more here if needed
                     }
