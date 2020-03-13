@@ -26,18 +26,6 @@ PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
 {
     keys.emplace(accountKey(getDestID()));
 
-    auto processAsset = [&](Asset const& asset) {
-        if (asset.type() != ASSET_TYPE_NATIVE)
-        {
-            auto issuer = getIssuer(asset);
-            keys.emplace(accountKey(issuer));
-        }
-    };
-
-    processAsset(getSourceAsset());
-    processAsset(getDestAsset());
-    std::for_each(getPath().begin(), getPath().end(), processAsset);
-
     if (getDestAsset().type() != ASSET_TYPE_NATIVE)
     {
         keys.emplace(trustlineKey(getDestID(), getDestAsset()));

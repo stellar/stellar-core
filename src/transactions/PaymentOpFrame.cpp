@@ -133,9 +133,6 @@ PaymentOpFrame::insertLedgerKeysToPrefetch(
     // Prefetch issuer for non-native assets
     if (mPayment.asset.type() != ASSET_TYPE_NATIVE)
     {
-        auto issuer = getIssuer(mPayment.asset);
-        keys.emplace(accountKey(issuer));
-
         // These are *maybe* needed; For now, we load everything
         keys.emplace(trustlineKey(mPayment.destination, mPayment.asset));
         keys.emplace(trustlineKey(getSourceID(), mPayment.asset));
