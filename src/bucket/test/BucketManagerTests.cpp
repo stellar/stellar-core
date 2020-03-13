@@ -510,7 +510,7 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
     });
 }
 
-TEST_CASE("bucketmanager don't leak empty-merge futures",
+TEST_CASE("bucketmanager do not leak empty-merge futures",
           "[bucket][bucketmanager]")
 {
     // The point of this test is to confirm that
