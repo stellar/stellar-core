@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
+#include "crypto/SignerKeyUtils.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "herder/TxSetFrame.h"
@@ -400,7 +401,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
         }
     }
 
-    removeUsedOneTimeSignerKeys(signatureChecker, ltxOuter);
+    removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
 
     if (!allOpsValid)
     {
@@ -523,57 +524,54 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(
-    SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx)
+TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
+    AbstractLedgerTxn& ltx) const
 {
-    for (auto const& usedAccount : signatureChecker.usedOneTimeSignerKeys())
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    if (ledgerVersion == 7)
     {
-        removeUsedOneTimeSignerKeys(ltx, usedAccount.first, usedAccount.second);
+        return;
+    }
+
+    std::unordered_set<AccountID> accounts{getSourceID()};
+    for (auto& op : mOperations)
+    {
+        accounts.emplace(op->getSourceID());
+    }
+
+    auto signerKey = SignerKeyUtils::preAuthTxKey(*this);
+    for (auto const& accountID : accounts)
+    {
+        removeAccountSigner(ltx, accountID, signerKey);
     }
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(
-    AbstractLedgerTxn& ltx, AccountID const& accountID,
-    std::set<SignerKey> const& keys) const
+TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
+                                      AccountID const& accountID,
+                                      SignerKey const& signerKey) const
 {
+    LedgerTxn ltx(ltxOuter);
+
     auto account = stellar::loadAccount(ltx, accountID);
     if (!account)
     {
         return; // probably account was removed due to merge operation
     }
 
-    auto header = ltx.loadHeader();
-    auto changed = std::accumulate(
-        std::begin(keys), std::end(keys), false,
-        [&](bool r, const SignerKey& signerKey) {
-            return r || removeAccountSigner(header, account, signerKey);
-        });
-
-    if (changed)
-    {
-        normalizeSigners(account);
-    }
-}
-
-bool
-TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
-                                      LedgerTxnEntry& account,
-                                      SignerKey const& signerKey) const
-{
-    auto& acc = account.current().data.account();
+    auto& signers = account.current().data.account().signers;
     auto it = std::find_if(
-        std::begin(acc.signers), std::end(acc.signers),
+        std::begin(signers), std::end(signers),
         [&signerKey](Signer const& signer) { return signer.key == signerKey; });
-    if (it != std::end(acc.signers))
+
+    if (it != std::end(signers))
     {
+        auto header = ltx.loadHeader();
         auto removed = stellar::addNumEntries(header, account, -1);
         assert(removed == AddSubentryResult::SUCCESS);
-        acc.signers.erase(it);
-        return true;
+        signers.erase(it);
+        ltx.commit();
     }
-
-    return false;
 }
 
 bool
@@ -710,7 +708,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // if an error occurred, it is responsibility of account's owner
                 // to remove that signer
                 LedgerTxn ltxAfter(ltxTx);
-                removeUsedOneTimeSignerKeys(signatureChecker, ltxAfter);
+                removeOneTimeSignerFromAllSourceAccounts(ltxAfter);
                 newMeta.v2().txChangesAfter = ltxAfter.getChanges();
                 ltxAfter.commit();
             }
