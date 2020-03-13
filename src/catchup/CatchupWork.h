@@ -136,6 +136,8 @@ class CatchupWork : public Work
     std::shared_ptr<BasicWork> mApplyBufferedLedgersWork;
     WorkSeqPtr mCatchupSeq;
 
+    std::shared_ptr<BasicWork> mCurrentWork;
+
     bool hasAnyLedgersToCatchupTo() const;
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     void assertBucketState();

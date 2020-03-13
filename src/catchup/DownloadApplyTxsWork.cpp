@@ -11,6 +11,8 @@
 #include "work/ConditionalWork.h"
 #include "work/WorkSequence.h"
 
+#include <lib/util/format.h>
+
 namespace stellar
 {
 
@@ -128,5 +130,23 @@ void
 DownloadApplyTxsWork::onSuccess()
 {
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
+}
+
+std::string
+DownloadApplyTxsWork::getStatus() const
+{
+    auto& hm = mApp.getHistoryManager();
+    auto first = hm.checkpointContainingLedger(mRange.mFirst);
+    auto last = hm.checkpointContainingLedger(mRange.mLast);
+
+    auto checkpointsStarted =
+        (mCheckpointToQueue - first) / hm.getCheckpointFrequency();
+    auto checkpointsApplied = checkpointsStarted - getNumWorksInBatch();
+
+    auto totalCheckpoints = (last - first) / hm.getCheckpointFrequency() + 1;
+    return fmt::format("Download & apply checkpoints: num checkpoints left to "
+                       "apply:{} ({}% done)",
+                       totalCheckpoints - checkpointsApplied,
+                       100 * checkpointsApplied / totalCheckpoints);
 }
 }

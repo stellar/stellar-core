@@ -60,6 +60,8 @@ class ApplyBucketsWork : public BasicWork
         HistoryArchiveState const& applyState, uint32_t maxProtocolVersion);
     ~ApplyBucketsWork() = default;
 
+    std::string getStatus() const override;
+
   protected:
     void onReset() override;
     BasicWork::State onRun() override;

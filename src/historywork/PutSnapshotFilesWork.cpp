@@ -124,4 +124,25 @@ PutSnapshotFilesWork::getFilesToZip()
 
     return filesToZip;
 }
+
+std::string
+PutSnapshotFilesWork::getStatus() const
+{
+    if (!mUploadSeqs.empty())
+    {
+        return fmt::format("{}:uploading files", getName());
+    }
+
+    if (!mGzipFilesWorks.empty())
+    {
+        return fmt::format("{}:zipping files", getName());
+    }
+
+    if (!mGetStateWorks.empty())
+    {
+        return fmt::format("{}:getting archives", getName());
+    }
+
+    return BasicWork::getStatus();
+}
 }

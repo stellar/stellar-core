@@ -17,6 +17,8 @@ class ApplyLedgerWork : public BasicWork
   public:
     ApplyLedgerWork(Application& app, LedgerCloseData const& ledgerCloseData);
 
+    std::string getStatus() const override;
+
   protected:
     State onRun() override;
     bool onAbort() override;

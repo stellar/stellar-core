@@ -18,6 +18,8 @@ class ApplyBufferedLedgersWork : public BasicWork
   public:
     ApplyBufferedLedgersWork(Application& app);
 
+    std::string getStatus() const override;
+
   protected:
     void onReset() override;
     State onRun() override;

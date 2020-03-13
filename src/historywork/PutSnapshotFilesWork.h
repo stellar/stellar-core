@@ -30,6 +30,8 @@ class PutSnapshotFilesWork : public Work
                          std::shared_ptr<StateSnapshot> snapshot);
     ~PutSnapshotFilesWork() = default;
 
+    std::string getStatus() const override;
+
   protected:
     State doWork() override;
     void doReset() override;
