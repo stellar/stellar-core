@@ -12,22 +12,55 @@
 #include "util/asio.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/BucketTests.h"
+#include "bucket/FutureBucket.h"
+#include "crypto/Hex.h"
+#include "crypto/SecretKey.h"
+#include "herder/LedgerCloseData.h"
+#include "herder/TxSetFrame.h"
+#include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/HistoryManager.h"
+#include "history/test/HistoryTestsUtils.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/LedgerManagerImpl.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "main/ApplicationImpl.h"
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
+#include "overlay/StellarXDR.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Fs.h"
+#include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
+#include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-types.h"
 
+#include <array>
+#include <chrono>
+#include <condition_variable>
 #include <cstdio>
+#include <iostream>
+#include <iterator>
+#include <map>
+#include <memory>
+#include <mutex>
+#include <set>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 using namespace stellar;
 using namespace BucketTests;

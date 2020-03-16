@@ -1,5 +1,7 @@
 #include "HashOfHash.h"
+#include "crypto/ByteSlice.h"
 #include "crypto/ShortHash.h"
+#include "xdr/Stellar-types.h"
 
 namespace std
 {

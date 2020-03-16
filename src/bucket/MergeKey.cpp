@@ -3,8 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/MergeKey.h"
+#include "bucket/Bucket.h"
 #include "crypto/Hex.h"
+#include <array>
+#include <memory>
 #include <sstream>
+#include <string>
 
 namespace stellar
 {

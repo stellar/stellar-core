@@ -5,12 +5,13 @@
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
+#include "bucket/FutureBucket.h"
 #include "crypto/Hex.h"
+#include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -18,10 +19,22 @@
 #include "util/TmpDir.h"
 #include "util/format.h"
 #include "util/types.h"
-#include <fstream>
+#include "xdr/Stellar-ledger.h"
+
+#include <array>
+#include <cassert>
+#include <cerrno>
+#include <chrono>
+#include <cstdio>
+#include <exception>
+#include <iterator>
 #include <map>
 #include <regex>
 #include <set>
+#include <stdexcept>
+#include <string>
+#include <thread>
+#include <utility>
 
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -30,6 +43,8 @@
 
 namespace stellar
 {
+
+struct LedgerEntry;
 
 std::unique_ptr<BucketManager>
 BucketManager::create(Application& app)

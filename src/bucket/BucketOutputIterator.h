@@ -4,11 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
+#include "crypto/SHA.h"
 #include "util/XDRStream.h"
 #include "xdr/Stellar-ledger.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -17,6 +18,8 @@ namespace stellar
 
 class Bucket;
 class BucketManager;
+struct MergeCounters;
+struct MergeKey;
 
 // Helper class that writes new elements to a file and returns a bucket
 // when finished.

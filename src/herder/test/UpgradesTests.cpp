@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketManager.h"
 #include "bucket/BucketTests.h"
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"

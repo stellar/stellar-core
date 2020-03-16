@@ -2,22 +2,24 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "BucketList.h"
+#include "bucket/BucketList.h"
 #include "bucket/Bucket.h"
-#include "bucket/BucketManager.h"
-#include "bucket/LedgerCmp.h"
-#include "crypto/Hex.h"
-#include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "util/Logging.h"
-#include "util/XDRStream.h"
 #include "util/format.h"
-#include "util/types.h"
+#include <array>
 #include <cassert>
+#include <limits>
+#include <memory>
+#include <stdexcept>
 
 namespace stellar
 {
+
+struct LedgerEntry;
+struct LedgerKey;
 
 BucketLevel::BucketLevel(uint32_t i)
     : mLevel(i)

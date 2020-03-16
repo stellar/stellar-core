@@ -3,8 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketMergeMap.h"
+#include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
+#include "util/HashOfHash.h"
 #include "util/Logging.h"
+#include <array>
+#include <cassert>
+#include <utility>
+#include <xdrpp/types.h>
 
 namespace
 {

@@ -2,13 +2,28 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/Bucket.h"
 #include "bucket/BucketMergeMap.h"
 #include "bucket/BucketTests.h"
+#include "bucket/MergeKey.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Timer.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
+#include "xdr/Stellar-types.h"
+
+#include <algorithm>
+#include <array>
+#include <memory>
+#include <set>
+#include <unordered_set>
+#include <vector>
+#include <xdrpp/types.h>
 
 using namespace stellar;
 

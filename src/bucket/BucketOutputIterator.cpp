@@ -5,7 +5,14 @@
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
+#include "crypto/Hex.h"
 #include "crypto/Random.h"
+#include "util/Logging.h"
+#include <algorithm>
+#include <cassert>
+#include <cstdio>
+#include <ios>
+#include <stdexcept>
 
 namespace stellar
 {

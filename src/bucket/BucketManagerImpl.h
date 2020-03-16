@@ -1,15 +1,21 @@
 #pragma once
 
-#include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketMergeMap.h"
-#include "overlay/StellarXDR.h"
+#include "bucket/MergeKey.h"
+#include "xdr/Stellar-types.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <future>
 #include <map>
+#include <medida/timer.h>
 #include <memory>
 #include <mutex>
 #include <set>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
@@ -17,7 +23,6 @@
 
 namespace medida
 {
-class Timer;
 class Meter;
 class Counter;
 }
@@ -26,10 +31,14 @@ namespace stellar
 {
 
 class TmpDir;
+class TmpDirManager;
 class Application;
 class Bucket;
 class BucketList;
 struct HistoryArchiveState;
+struct LedgerEntry;
+struct LedgerHeader;
+struct LedgerKey;
 
 class BucketManagerImpl : public BucketManager
 {
