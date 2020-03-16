@@ -347,7 +347,7 @@ interconnectOrgsBidir(xdr::xvector<xdr::xvector<PublicKey>> const& orgs,
                             ownThreshPct, innerThreshPct);
 }
 
-TEST_CASE("quorum intersection 4-org fully-connected, elide all minquorums",
+TEST_CASE("quorum intersection 4-org fully-connected - elide all minquorums",
           "[herder][quorumintersection]")
 {
     // Generate a typical all-to-all multi-org graph that checks quickly: every

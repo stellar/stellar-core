@@ -277,7 +277,7 @@ runTest(CommandLineArgs const& args)
     gTestCfg->clear();
     if (r != 0)
     {
-        LOG(FATAL) << "Nonzero test result with --rng-seed " << seed;
+        LOG(ERROR) << "Nonzero test result with --rng-seed " << seed;
     }
     return r;
 }
