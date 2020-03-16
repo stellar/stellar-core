@@ -498,7 +498,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return res;
     }
 
-    return ValidationType::kFullyValid;
+    return ValidationType::kMaybeValid;
 }
 
 void
@@ -604,7 +604,7 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
     bool res = commonValid(signatureChecker, ltx, current, false, chargeFee) ==
-               ValidationType::kFullyValid;
+               ValidationType::kMaybeValid;
     if (res)
     {
         for (auto& op : mOperations)
@@ -817,7 +817,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                   std::back_inserter(txChanges));
         ltxTx.commit();
 
-        bool valid = signaturesValid && cv == ValidationType::kFullyValid;
+        bool valid = signaturesValid && cv == ValidationType::kMaybeValid;
         try
         {
             // This should only throw if the logging during exception handling

@@ -61,7 +61,7 @@ class TransactionFrame : public TransactionFrameBase
                               // should be updated
         kInvalidPostAuth,     // transaction is invalid but its sequence number
                               // should be updated and one-time signers removed
-        kFullyValid
+        kMaybeValid
     };
 
     virtual bool isTooEarly(LedgerTxnHeader const& header) const;
