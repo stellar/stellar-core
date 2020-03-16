@@ -38,6 +38,8 @@ class DownloadApplyTxsWork : public BatchWork
                          bool waitForPublish,
                          std::shared_ptr<HistoryArchive> archive = nullptr);
 
+    std::string getStatus() const override;
+
   protected:
     bool hasNext() const override;
     std::shared_ptr<BasicWork> yieldMoreWork() override;

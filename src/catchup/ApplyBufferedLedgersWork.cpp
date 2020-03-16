@@ -86,4 +86,12 @@ ApplyBufferedLedgersWork::onRun()
 
     return State::WORK_RUNNING;
 }
+
+std::string
+ApplyBufferedLedgersWork::getStatus() const
+{
+    return fmt::format("Applying buffered ledgers: {}",
+                       mConditionalWork ? mConditionalWork->getStatus()
+                                        : BasicWork::getStatus());
+}
 }

@@ -29,6 +29,8 @@ class GetHistoryArchiveStateWork : public Work
 
     medida::Meter& mGetHistoryArchiveStateSuccess;
 
+    std::string getRemoteName() const;
+
   public:
     GetHistoryArchiveStateWork(
         Application& app, uint32_t seq = 0,
@@ -52,6 +54,8 @@ class GetHistoryArchiveStateWork : public Work
     {
         return mArchive;
     }
+
+    std::string getStatus() const override;
 
   protected:
     BasicWork::State doWork() override;

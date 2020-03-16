@@ -271,4 +271,11 @@ ApplyBucketsWork::onFailureRetry()
 {
     mBucketApplyFailure.Mark();
 }
+
+std::string
+ApplyBucketsWork::getStatus() const
+{
+    return fmt::format("Applying buckets {}%. Currently on level {}",
+                       (100 * mAppliedSize / mTotalSize), mLevel);
+}
 }

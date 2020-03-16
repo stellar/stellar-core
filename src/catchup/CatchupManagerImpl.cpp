@@ -176,9 +176,8 @@ CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
     if (!message.empty())
     {
         auto contiguousString =
-            contiguous ? "" : " (discontiguous; will fail and restart)";
-        auto state =
-            fmt::format("Catching up{}: {}", contiguousString, message);
+            contiguous ? "" : " (discontiguous; will fail and restart): ";
+        auto state = fmt::format("{}{}", contiguousString, message);
         auto existing = mApp.getStatusManager().getStatusMessage(
             StatusCategory::HISTORY_CATCHUP);
         if (existing != state)

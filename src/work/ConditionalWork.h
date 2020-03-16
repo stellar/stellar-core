@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #pragma once
 
-#include "util/LogSlowExecution.h"
 #include "work/BasicWork.h"
 
 namespace stellar
@@ -62,8 +61,6 @@ class ConditionalWork : public BasicWork
     std::chrono::milliseconds const mSleepDelay;
     std::unique_ptr<VirtualTimer> mSleepTimer;
     bool mWorkStarted{false};
-
-    std::unique_ptr<LogSlowExecution> mStartTimer;
 
   public:
     ConditionalWork(

@@ -5,6 +5,7 @@
 #include "catchup/ApplyLedgerWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "util/format.h"
 
 namespace stellar
 {
@@ -28,5 +29,11 @@ bool
 ApplyLedgerWork::onAbort()
 {
     return true;
+}
+
+std::string
+ApplyLedgerWork::getStatus() const
+{
+    return fmt::format("apply ledger {}", mLedgerCloseData.getLedgerSeq());
 }
 }

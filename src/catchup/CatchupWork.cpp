@@ -53,11 +53,9 @@ CatchupWork::~CatchupWork()
 std::string
 CatchupWork::getStatus() const
 {
-    if (mCatchupSeq)
-    {
-        return mCatchupSeq->getStatus();
-    }
-    return Work::getStatus();
+    return fmt::format(
+        "Catching up to ledger {}: {}", mCatchupConfiguration.toLedger(),
+        mCurrentWork ? mCurrentWork->getStatus() : Work::getStatus());
 }
 
 void
@@ -79,6 +77,7 @@ CatchupWork::doReset()
     mVerifyTxResults.reset();
     mVerifyLedgers.reset();
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    mCurrentWork.reset();
 }
 
 bool
@@ -110,6 +109,7 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, mVerifyLedgers};
     mDownloadVerifyLedgersSeq =
         addWork<WorkSequence>("download-verify-ledgers-seq", seq);
+    mCurrentWork = mDownloadVerifyLedgersSeq;
 }
 
 void
@@ -204,6 +204,7 @@ CatchupWork::runCatchupStep()
                       1;
         mGetHistoryArchiveStateWork =
             addWork<GetHistoryArchiveStateWork>(toCheckpoint, mArchive);
+        mCurrentWork = mGetHistoryArchiveStateWork;
         return State::WORK_RUNNING;
     }
     else if (mGetHistoryArchiveStateWork->getState() != State::WORK_SUCCESS)
@@ -256,6 +257,7 @@ CatchupWork::runCatchupStep()
             {
                 mGetBucketStateWork = addWork<GetHistoryArchiveStateWork>(
                     applyBucketsAt, mArchive);
+                mCurrentWork = mGetBucketStateWork;
             }
             if (mGetBucketStateWork->getState() != State::WORK_SUCCESS)
             {
@@ -297,6 +299,7 @@ CatchupWork::runCatchupStep()
             if (mApp.getCatchupManager().hasBufferedLedger())
             {
                 mApplyBufferedLedgersWork = addWork<ApplyBufferedLedgersWork>();
+                mCurrentWork = mApplyBufferedLedgersWork;
                 return State::WORK_RUNNING;
             }
 
@@ -370,6 +373,7 @@ CatchupWork::runCatchupStep()
 
             mCatchupSeq =
                 addWork<WorkSequence>("catchup-seq", seq, RETRY_NEVER);
+            mCurrentWork = mCatchupSeq;
             return State::WORK_RUNNING;
         }
         return mDownloadVerifyLedgersSeq->getState();
