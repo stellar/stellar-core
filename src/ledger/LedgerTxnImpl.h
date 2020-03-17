@@ -663,7 +663,8 @@ class LedgerTxnRoot::Impl
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
     mutable BestOffersCache mBestOffersCache;
-    mutable uint64_t mTotalPrefetchHits{0};
+    mutable uint64_t mPrefetchHits{0};
+    mutable uint64_t mPrefetchMisses{0};
 
     size_t mMaxCacheSize;
     size_t mBulkLoadBatchSize;
