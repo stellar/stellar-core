@@ -116,14 +116,15 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewHistogram({"ledger", "transaction", "count"}))
     , mOperationCount(
           app.getMetrics().NewHistogram({"ledger", "operation", "count"}))
+    , mPrefetchHitRate(
+          app.getMetrics().NewHistogram({"ledger", "prefetch", "hit-rate"},
+                                        medida::SamplingInterface::kSliding))
     , mInternalErrorCount(app.getMetrics().NewCounter(
           {"ledger", "transaction", "internal-error"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
-    , mPrefetchHitRate(
-          app.getMetrics().NewCounter({"ledger", "prefetch", "hit-rate"}))
     , mLastClose(mApp.getClock().now())
     , mCatchupDuration(
           app.getMetrics().NewTimer({"ledger", "catchup", "duration"}))
@@ -511,8 +512,6 @@ void
 LedgerManagerImpl::syncMetrics()
 {
     mLedgerAge.set_count(secondsSinceLastLedgerClose());
-    mPrefetchHitRate.set_count(
-        std::llround(mApp.getLedgerTxnRoot().getPrefetchHitRate() * 100));
     mApp.syncOwnMetrics();
 }
 
@@ -1000,7 +999,7 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
                           << ", prefetch hit rate (%): " << hitRate;
 
     // We lose a bit of precision here, as medida only accepts int64_t
-    mPrefetchHitRate.set_count(std::llround(hitRate));
+    mPrefetchHitRate.Update(std::llround(hitRate));
 }
 
 void
