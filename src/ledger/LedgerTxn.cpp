@@ -2123,6 +2123,9 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     // std::unique_ptr<...>::swap does not throw
     mHeader.swap(childHeader);
     mChild = nullptr;
+
+    mPrefetchHits = 0;
+    mPrefetchMisses = 0;
 }
 
 std::string
@@ -2329,13 +2332,12 @@ LedgerTxnRoot::getPrefetchHitRate() const
 double
 LedgerTxnRoot::Impl::getPrefetchHitRate() const
 {
-    auto totalMisses = mEntryCache.getCounters().mMisses;
-    if (totalMisses == 0 && mTotalPrefetchHits == 0)
+    if (mPrefetchMisses == 0 && mPrefetchHits == 0)
     {
         return 0;
     }
-    return static_cast<double>(mTotalPrefetchHits) /
-           (totalMisses + mTotalPrefetchHits);
+    return static_cast<double>(mPrefetchHits) /
+           (mPrefetchMisses + mPrefetchHits);
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>
@@ -2580,6 +2582,10 @@ LedgerTxnRoot::Impl::getNewestVersion(LedgerKey const& key) const
     {
         return getFromEntryCache(key);
     }
+    else
+    {
+        ++mPrefetchMisses;
+    }
 
     std::shared_ptr<LedgerEntry const> entry;
     try
@@ -2644,6 +2650,8 @@ LedgerTxnRoot::Impl::rollbackChild()
     }
 
     mChild = nullptr;
+    mPrefetchHits = 0;
+    mPrefetchMisses = 0;
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -2654,7 +2662,7 @@ LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
         auto cached = mEntryCache.get(key);
         if (cached.type == LoadType::PREFETCH)
         {
-            ++mTotalPrefetchHits;
+            ++mPrefetchHits;
         }
         return cached.entry;
     }

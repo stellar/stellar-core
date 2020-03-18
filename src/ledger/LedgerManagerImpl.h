@@ -45,11 +45,11 @@ class LedgerManagerImpl : public LedgerManager
     medida::Timer& mTransactionApply;
     medida::Histogram& mTransactionCount;
     medida::Histogram& mOperationCount;
+    medida::Histogram& mPrefetchHitRate;
     medida::Counter& mInternalErrorCount;
     medida::Timer& mLedgerClose;
     medida::Timer& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
-    medida::Counter& mPrefetchHitRate;
     VirtualClock::time_point mLastClose;
 
     std::unique_ptr<VirtualClock::time_point> mStartCatchup;
