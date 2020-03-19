@@ -40,6 +40,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
     }
 
+    bool authNotRevocable;
     {
         LedgerTxn ltxSource(ltx); // ltxSource will be rolled back
         auto header = ltxSource.loadHeader();
@@ -52,8 +53,8 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             return false;
         }
 
-        if (!(sourceAccount.flags & AUTH_REVOCABLE_FLAG) &&
-            mAllowTrust.authorize == 0)
+        authNotRevocable = !(sourceAccount.flags & AUTH_REVOCABLE_FLAG);
+        if (authNotRevocable && mAllowTrust.authorize == 0)
         {
             innerResult().code(ALLOW_TRUST_CANT_REVOKE);
             return false;
@@ -84,7 +85,7 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
     key.trustLine().accountID = mAllowTrust.trustor;
     key.trustLine().asset = ci;
 
-    bool didRevokeAuth = false;
+    bool shouldRemoveOffers = false;
     {
         auto trust = ltx.load(key);
         if (!trust)
@@ -92,11 +93,28 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
             return false;
         }
-        didRevokeAuth = isAuthorized(trust) && mAllowTrust.authorize == 0;
+
+        // There are two cases where we set the result to
+        // ALLOW_TRUST_CANT_REVOKE -
+        // 1. We try to revoke authorization when AUTH_REVOCABLE_FLAG is not set
+        // (This is done above when we call loadSourceAccount)
+        // 2. We try to go from AUTHORIZED_FLAG to
+        // AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG when AUTH_REVOCABLE_FLAG is
+        // not set
+        if (authNotRevocable &&
+            (isAuthorized(trust) &&
+             (mAllowTrust.authorize & AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)))
+        {
+            innerResult().code(ALLOW_TRUST_CANT_REVOKE);
+            return false;
+        }
+
+        shouldRemoveOffers = isAuthorizedToMaintainLiabilities(trust) &&
+                             mAllowTrust.authorize == 0;
     }
 
     auto header = ltx.loadHeader();
-    if (header.current().ledgerVersion >= 10 && didRevokeAuth)
+    if (header.current().ledgerVersion >= 10 && shouldRemoveOffers)
     {
         // Delete all offers owned by the trustor that are either buying or
         // selling the asset which had authorization revoked.

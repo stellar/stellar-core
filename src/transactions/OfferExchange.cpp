@@ -50,7 +50,7 @@ canSellAtMost(LedgerTxnHeader const& header, LedgerTxnEntry const& account,
         return std::max({getAvailableBalance(header, account), int64_t(0)});
     }
 
-    if (trustLine && trustLine.isAuthorized())
+    if (trustLine && trustLine.isAuthorizedToMaintainLiabilities())
     {
         return std::max({trustLine.getAvailableBalance(header), int64_t(0)});
     }
@@ -68,7 +68,7 @@ canSellAtMost(LedgerTxnHeader const& header, ConstLedgerTxnEntry const& account,
         return std::max({getAvailableBalance(header, account), int64_t(0)});
     }
 
-    if (trustLine && trustLine.isAuthorized())
+    if (trustLine && trustLine.isAuthorizedToMaintainLiabilities())
     {
         return std::max({trustLine.getAvailableBalance(header), int64_t(0)});
     }
@@ -1096,7 +1096,8 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
             "invalid database state: offer must have matching account");
     }
 
-    // Remove liabilities associated with the offer being crossed.
+    // Remove liabilities associated with the offer being crossed. Will throw if
+    // either asset is unauthorized
     releaseLiabilities(ltx, header, sellingWheatOffer);
 
     // Load necessary accounts and trustlines. Note that any LedgerEntry loaded

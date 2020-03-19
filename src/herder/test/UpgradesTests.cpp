@@ -1836,7 +1836,8 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             market.requireChanges(offers,
                                   std::bind(executeUpgrade, 2 * baseReserve));
         });
-        for_versions_from(10, *app, [&] {
+
+        auto increaseReserveFromV10 = [&](bool allowMaintainLiablities) {
             auto a1 = root.create("A", 2 * lm.getLastMinBalance(14) + 3999 +
                                            14 * txFee);
             a1.changeTrust(cur1, 12000);
@@ -1867,6 +1868,14 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
 
             createOffers(a2, offers);
 
+            if (allowMaintainLiablities)
+            {
+                issuer.setOptions(txtest::setFlags(
+                    static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
+                    static_cast<uint32_t>(AUTH_REVOCABLE_FLAG)));
+                issuer.allowMaintainLiabilities(cur1, a1);
+            }
+
             uint32_t baseReserve = lm.getLastReserve();
             market.requireChanges(offers,
                                   std::bind(executeUpgrade, 2 * baseReserve));
@@ -1876,7 +1885,11 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             REQUIRE(getLiabilities(a2) == Liabilities{8000, 4000});
             REQUIRE(getAssetLiabilities(a2, cur1) == Liabilities{8000, 4000});
             REQUIRE(getAssetLiabilities(a2, cur2) == Liabilities{8000, 4000});
-        });
+        };
+
+        for_versions_from(10, *app, [&] { increaseReserveFromV10(false); });
+
+        for_versions_from(13, *app, [&] { increaseReserveFromV10(true); });
     }
 }
 

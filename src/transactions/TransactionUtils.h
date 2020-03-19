@@ -122,6 +122,9 @@ bool isAuthorized(LedgerEntry const& le);
 bool isAuthorized(LedgerTxnEntry const& entry);
 bool isAuthorized(ConstLedgerTxnEntry const& entry);
 
+bool isAuthorizedToMaintainLiabilities(LedgerEntry const& le);
+bool isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry);
+bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 

@@ -170,6 +170,15 @@ TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
     applyTx(tx({txtest::allowTrust(trustor, asset, 0)}), mApp);
 }
 
+void
+TestAccount::allowMaintainLiabilities(Asset const& asset,
+                                      PublicKey const& trustor)
+{
+    applyTx(tx({txtest::allowTrust(trustor, asset,
+                                   AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)}),
+            mApp);
+}
+
 TrustLineEntry
 TestAccount::loadTrustLine(Asset const& asset) const
 {

@@ -15,6 +15,24 @@
 namespace stellar
 {
 
+bool
+checkAuthorization(LedgerTxnHeader const& header, LedgerEntry const& entry)
+{
+    if (header.current().ledgerVersion < 10)
+    {
+        if (!isAuthorized(entry))
+        {
+            return false;
+        }
+    }
+    else if (!isAuthorizedToMaintainLiabilities(entry))
+    {
+        throw std::runtime_error("Invalid authorization");
+    }
+
+    return true;
+}
+
 LedgerKey
 accountKey(AccountID const& accountID)
 {
@@ -231,7 +249,7 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
             return true;
         }
 
-        if (header.current().ledgerVersion < 10 && !isAuthorized(entry))
+        if (!checkAuthorization(header, entry.current()))
         {
             return false;
         }
@@ -294,7 +312,7 @@ addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
     else if (entry.current().data.type() == TRUSTLINE)
     {
-        if (header.current().ledgerVersion < 10 && !isAuthorized(entry))
+        if (!checkAuthorization(header, entry.current()))
         {
             return false;
         }
@@ -387,7 +405,7 @@ addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     }
     else if (entry.current().data.type() == TRUSTLINE)
     {
-        if (header.current().ledgerVersion < 10 && !isAuthorized(entry))
+        if (!checkAuthorization(header, entry.current()))
         {
             return false;
         }
@@ -429,6 +447,10 @@ getAvailableBalance(LedgerTxnHeader const& header, LedgerEntry const& le)
     }
     else if (le.data.type() == TRUSTLINE)
     {
+        // We only want to check auth starting from V10, so no need to look at
+        // the return value. This will throw if unauthorized
+        checkAuthorization(header, le);
+
         avail = le.data.trustLine().balance;
     }
     else
@@ -498,15 +520,16 @@ getMaxAmountReceive(LedgerTxnHeader const& header, LedgerEntry const& le)
     }
     if (le.data.type() == TRUSTLINE)
     {
+        if (!checkAuthorization(header, le))
+        {
+            return 0;
+        }
+
         auto const& tl = le.data.trustLine();
         int64_t amount = tl.limit - tl.balance;
         if (header.current().ledgerVersion >= 10)
         {
             amount -= getBuyingLiabilities(header, le);
-        }
-        else if (!isAuthorized(le))
-        {
-            return 0;
         }
         return amount;
     }
@@ -668,6 +691,25 @@ isAuthorized(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isAuthorizedToMaintainLiabilities(LedgerEntry const& le)
+{
+    return isAuthorized(le) || (le.data.trustLine().flags &
+                                AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG) != 0;
+}
+
+bool
+isAuthorizedToMaintainLiabilities(LedgerTxnEntry const& entry)
+{
+    return isAuthorizedToMaintainLiabilities(entry.current());
+}
+
+bool
+isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry)
+{
+    return isAuthorizedToMaintainLiabilities(entry.current());
+}
+
+bool
 isAuthRequired(ConstLedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_REQUIRED_FLAG) != 0;
@@ -710,7 +752,17 @@ setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 bool
 trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
-    return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
+    if (ledgerVersion < 13)
+    {
+        return (flag & ~MASK_TRUSTLINE_FLAGS) == 0;
+    }
+    else
+    {
+        uint32_t invalidAuthCombo =
+            AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
+        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0 &&
+               (flag & invalidAuthCombo) != invalidAuthCombo;
+    }
 }
 
 bool

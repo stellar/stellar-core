@@ -487,4 +487,31 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
             REQUIRE(!store(*app, makeUpdateList({buying2}, {buying})));
         }
     }
+
+    SECTION("increase liabilities with AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG")
+    {
+        auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
+        auto selling = generateSellingLiabilities(*app, offer, false, true);
+        auto buying = generateBuyingLiabilities(offer, false, true);
+        std::vector<LedgerEntry> entries{offer, selling, buying};
+        auto updates = makeUpdateList(entries, nullptr);
+        REQUIRE(store(*app, updates));
+
+        auto offer2 = generateOffer(cur1, cur2, 200, Price{1, 1});
+        offer2.data.offer().sellerID = offer.data.offer().sellerID;
+        offer2.data.offer().offerID = offer.data.offer().offerID;
+
+        SECTION("selling auth")
+        {
+            auto selling2 = generateSellingLiabilities(
+                *app, offer2, false, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
+            REQUIRE(!store(*app, makeUpdateList({selling2}, {selling})));
+        }
+        SECTION("buying auth")
+        {
+            auto buying2 = generateBuyingLiabilities(
+                offer2, false, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
+            REQUIRE(!store(*app, makeUpdateList({buying2}, {buying})));
+        }
+    }
 }
