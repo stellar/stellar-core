@@ -645,23 +645,10 @@ TransactionFrame::insertKeysForTxApply(
 void
 TransactionFrame::markResultFailed()
 {
-    // changing "code" causes the xdr struct to be deleted/re-created
-    // As we want to preserve the results, we save them inside a temp object
-    // Also, note that because we're using move operators
-    // mOperations are still valid (they have pointers to the individual
-    // results elements)
-    xdr::xvector<OperationResult> t(std::move(getResult().result.results()));
+    // Changing "code" normally causes the XDR structure to be destructed, then
+    // a different XDR structure is constructed. However, txFAILED and txSUCCESS
+    // have the same underlying field number so this does not occur.
     getResult().result.code(txFAILED);
-    getResult().result.results() = std::move(t);
-
-    // sanity check in case some implementations decide
-    // to not implement std::move properly
-    auto const& allResults = getResult().result.results();
-    assert(allResults.size() == getNumOperations());
-    for (size_t i = 0; i < getNumOperations(); i++)
-    {
-        assert(&mOperations[i]->getResult() == &allResults[i]);
-    }
 }
 
 bool
