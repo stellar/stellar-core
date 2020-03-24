@@ -7,6 +7,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/HashOfHash.h"
 #include "util/XDROperators.h"
@@ -19,6 +20,7 @@
 
 namespace stellar
 {
+const int64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
 TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
                                    int banDepth, int poolLedgerMultiplier)
@@ -34,48 +36,214 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     }
 }
 
+static bool
+canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
+{
+    int64_t newFee = tx->getFeeBid();
+    uint32_t newNumOps = std::max<uint32_t>(1, tx->getNumOperations());
+    int64_t oldFee = oldTx->getFeeBid();
+    uint32_t oldNumOps = std::max<uint32_t>(1, oldTx->getNumOperations());
+
+    // newFee / newNumOps >= FEE_MULTIPLIER * oldFee / oldNumOps
+    // is equivalent to
+    // newFee * oldNumOps >= FEE_MULTIPLIER * oldFee * newNumOps
+    //
+    // FEE_MULTIPLIER * v2 does not overflow uint128_t because fees are bounded
+    // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
+    auto v1 = bigMultiply(newFee, oldNumOps);
+    auto v2 = bigMultiply(oldFee, newNumOps);
+    return v1 >= TransactionQueue::FEE_MULTIPLIER * v2;
+}
+
+static bool
+findBySeq(TransactionFrameBasePtr tx,
+          TransactionQueue::AccountTransactions::Transactions& transactions,
+          TransactionQueue::AccountTransactions::Transactions::iterator& iter)
+{
+    int64_t seq = tx->getSeqNum();
+    int64_t firstSeq = transactions.front()->getSeqNum();
+    int64_t lastSeq = transactions.back()->getSeqNum();
+    if (seq < firstSeq || seq > lastSeq + 1)
+    {
+        return false;
+    }
+
+    assert(seq - firstSeq <= static_cast<int64_t>(transactions.size()));
+    iter = transactions.begin() + (seq - firstSeq);
+    assert(iter == transactions.end() || (*iter)->getSeqNum() == seq);
+    return true;
+}
+
+static bool
+isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
+{
+    auto const& oldEnv = oldTx->getEnvelope();
+    auto const& newEnv = newTx->getEnvelope();
+
+    if (oldEnv.type() == newEnv.type())
+    {
+        return oldTx->getFullHash() == newTx->getFullHash();
+    }
+    else if (oldEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
+    {
+        auto oldFeeBump =
+            std::static_pointer_cast<FeeBumpTransactionFrame>(oldTx);
+        return oldFeeBump->getInnerFullHash() == newTx->getFullHash();
+    }
+    return false;
+}
+
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
+TransactionQueue::canAdd(TransactionFrameBasePtr tx,
+                         PendingTransactions::iterator& pendingIter,
+                         AccountTransactions::Transactions::iterator& oldTxIter)
 {
     if (isBanned(tx->getFullHash()))
     {
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
     }
 
-    if (contains(tx))
+    int64_t netFee = tx->getFeeBid();
+    int64_t netOps = tx->getNumOperations();
+    int64_t seqNum = 0;
+
+    pendingIter = mPendingTransactions.find(tx->getSourceID());
+    if (pendingIter != mPendingTransactions.end())
     {
-        return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+        auto& transactions = pendingIter->second.mTransactions;
+        oldTxIter = transactions.end();
+
+        if (!transactions.empty())
+        {
+            if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP)
+            {
+                AccountTransactions::Transactions::iterator iter;
+                if (findBySeq(tx, transactions, iter) &&
+                    iter != transactions.end() && isDuplicateTx(*iter, tx))
+                {
+                    return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+                }
+
+                seqNum = transactions.back()->getSeqNum();
+            }
+            else
+            {
+                if (!findBySeq(tx, transactions, oldTxIter))
+                {
+                    tx->getResult().result.code(txBAD_SEQ);
+                    return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                }
+
+                if (oldTxIter != transactions.end())
+                {
+                    // Replace-by-fee logic
+                    if (isDuplicateTx(*oldTxIter, tx))
+                    {
+                        return TransactionQueue::AddResult::
+                            ADD_STATUS_DUPLICATE;
+                    }
+
+                    if (!canReplaceByFee(tx, *oldTxIter))
+                    {
+                        tx->getResult().result.code(txINSUFFICIENT_FEE);
+                        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                    }
+
+                    netOps -= (*oldTxIter)->getNumOperations();
+
+                    int64_t oldFee = (*oldTxIter)->getFeeBid();
+                    if ((*oldTxIter)->getFeeSourceID() == tx->getFeeSourceID())
+                    {
+                        netFee -= oldFee;
+                    }
+                }
+
+                seqNum = tx->getSeqNum() - 1;
+            }
+        }
     }
 
-    if (tx->getNumOperations() + mQueueSizeOps > maxQueueSizeOps())
+    if (netOps + mQueueSizeOps > maxQueueSizeOps())
     {
         ban({tx});
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
     }
 
-    auto info = getAccountTransactionQueueInfo(tx->getSourceID());
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    if (!tx->checkValid(ltx, info.mMaxSeq))
+    if (!tx->checkValid(ltx, seqNum))
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
-    auto sourceAccount = stellar::loadAccount(ltx, tx->getSourceID());
-    if (getAvailableBalance(ltx.loadHeader(), sourceAccount) - tx->getFeeBid() <
-        info.mTotalFees)
+    // Note: pendingIter corresponds to getSourceID() which is not necessarily
+    // the same as getFeeSourceID()
+    auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
+    auto feePendingIter = mPendingTransactions.find(tx->getFeeSourceID());
+    int64_t totalFees = feePendingIter == mPendingTransactions.end()
+                            ? 0
+                            : feePendingIter->second.mTotalFees;
+    if (getAvailableBalance(ltx.loadHeader(), feeSource) - netFee < totalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
-    auto& pendingForAccount = mPendingTransactions[tx->getSourceID()];
-    mSizeByAge[pendingForAccount.mAge]->inc();
-    pendingForAccount.mTotalFees += tx->getFeeBid();
-    pendingForAccount.mTransactions.emplace_back(tx);
-    auto nbOps = tx->getNumOperations();
-    pendingForAccount.mQueueSizeOps += nbOps;
-    mQueueSizeOps += nbOps;
     return TransactionQueue::AddResult::ADD_STATUS_PENDING;
+}
+
+void
+TransactionQueue::releaseFee(TransactionFrameBasePtr tx)
+{
+    auto iter = mPendingTransactions.find(tx->getFeeSourceID());
+    assert(iter != mPendingTransactions.end() &&
+           iter->second.mTotalFees >= tx->getFeeBid());
+
+    iter->second.mTotalFees -= tx->getFeeBid();
+    if (iter->second.mTransactions.empty())
+    {
+        if (iter->second.mTotalFees == 0)
+        {
+            mPendingTransactions.erase(iter);
+        }
+    }
+}
+
+TransactionQueue::AddResult
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
+{
+    PendingTransactions::iterator pendingIter;
+    AccountTransactions::Transactions::iterator oldTxIter;
+    auto const res = canAdd(tx, pendingIter, oldTxIter);
+    if (res != TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    {
+        return res;
+    }
+
+    if (pendingIter == mPendingTransactions.end())
+    {
+        pendingIter = mPendingTransactions
+                          .emplace(tx->getSourceID(), AccountTransactions{})
+                          .first;
+        oldTxIter = pendingIter->second.mTransactions.end();
+    }
+
+    if (oldTxIter != pendingIter->second.mTransactions.end())
+    {
+        releaseFee(*oldTxIter);
+        pendingIter->second.mQueueSizeOps -= (*oldTxIter)->getNumOperations();
+        mQueueSizeOps -= (*oldTxIter)->getNumOperations();
+        *oldTxIter = tx;
+    }
+    else
+    {
+        pendingIter->second.mTransactions.emplace_back(tx);
+        mSizeByAge[pendingIter->second.mAge]->inc();
+    }
+    pendingIter->second.mQueueSizeOps += tx->getNumOperations();
+    mQueueSizeOps += tx->getNumOperations();
+    mPendingTransactions[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
+
+    return res;
 }
 
 void
@@ -116,12 +284,6 @@ TransactionQueue::ban(std::vector<TransactionFrameBasePtr> const& dropTxs)
     }
 }
 
-bool
-TransactionQueue::contains(TransactionFrameBasePtr tx)
-{
-    return find(tx).first != std::end(mPendingTransactions);
-}
-
 TransactionQueue::FindResult
 TransactionQueue::find(TransactionFrameBasePtr const& tx)
 {
@@ -153,39 +315,54 @@ TransactionQueue::find(TransactionFrameBasePtr const& tx)
 TransactionQueue::ExtractResult
 TransactionQueue::extract(TransactionFrameBasePtr const& tx, bool keepBacklog)
 {
-    auto it = find(tx);
-    auto accIt = it.first;
-    if (accIt == std::end(mPendingTransactions))
+    std::vector<TransactionFrameBasePtr> removedTxs;
+
+    // Use a scope here to prevent iterator use after invalidation
     {
-        return {std::end(mPendingTransactions), {}};
+        auto it = find(tx);
+        if (it.first == mPendingTransactions.end())
+        {
+            return {std::end(mPendingTransactions), {}};
+        }
+
+        auto txIt = it.second;
+        auto txRemoveEnd = txIt + 1;
+        if (!keepBacklog)
+        {
+            // remove everything passed tx
+            txRemoveEnd = it.first->second.mTransactions.end();
+        }
+
+        std::move(txIt, txRemoveEnd, std::back_inserter(removedTxs));
+        it.first->second.mTransactions.erase(txIt, txRemoveEnd);
+
+        mSizeByAge[it.first->second.mAge]->dec(removedTxs.size());
     }
 
-    auto& txs = accIt->second.mTransactions;
-    auto txIt = it.second;
-
-    auto txRemoveEnd = txIt + 1;
-    if (!keepBacklog)
+    for (auto const& removedTx : removedTxs)
     {
-        // remove everything passed tx
-        txRemoveEnd = std::end(txs);
+        mPendingTransactions[removedTx->getSourceID()].mQueueSizeOps -=
+            removedTx->getNumOperations();
+        mQueueSizeOps -= removedTx->getNumOperations();
+        releaseFee(removedTx);
     }
 
-    auto removedTxs = std::vector<TransactionFramePtr>{};
-    for (auto delit = txIt; delit != txRemoveEnd; delit++)
+    // tx->getSourceID() will only be in mPendingTransactions if it has pending
+    // transactions or if it is the fee source for a transaction for which it is
+    // not the sequence number source
+    auto accIt = mPendingTransactions.find(tx->getSourceID());
+    if (accIt != mPendingTransactions.end() &&
+        accIt->second.mTransactions.empty())
     {
-        auto& remTx = *delit;
-        accIt->second.mTotalFees -= remTx->getFeeBid();
-        auto nbOps = remTx->getNumOperations();
-        accIt->second.mQueueSizeOps -= nbOps;
-        mQueueSizeOps -= nbOps;
-        removedTxs.emplace_back(remTx);
-    }
-    txs.erase(txIt, txRemoveEnd);
-
-    if (accIt->second.mTransactions.empty())
-    {
-        mPendingTransactions.erase(accIt);
-        accIt = std::end(mPendingTransactions);
+        if (accIt->second.mTotalFees == 0)
+        {
+            mPendingTransactions.erase(accIt);
+            accIt = mPendingTransactions.end();
+        }
+        else
+        {
+            accIt->second.mAge = 0;
+        }
     }
 
     return {accIt, std::move(removedTxs)};
@@ -198,11 +375,13 @@ TransactionQueue::getAccountTransactionQueueInfo(
     auto i = mPendingTransactions.find(accountID);
     if (i == std::end(mPendingTransactions))
     {
-        return {0, 0, 0};
+        return {0, 0, 0, 0};
     }
 
-    return {i->second.mTransactions.back()->getSeqNum(), i->second.mTotalFees,
-            i->second.mQueueSizeOps, i->second.mAge};
+    auto const& txs = i->second.mTransactions;
+    auto seqNum = txs.empty() ? 0 : txs.back()->getSeqNum();
+    return {seqNum, i->second.mTotalFees, i->second.mQueueSizeOps,
+            i->second.mAge};
 }
 
 void
@@ -219,15 +398,33 @@ TransactionQueue::shift()
     auto it = std::begin(mPendingTransactions);
     while (it != end)
     {
-        if (mPendingDepth == ++(it->second.mAge))
+        if (!it->second.mTransactions.empty())
+        {
+            ++it->second.mAge;
+        }
+
+        if (mPendingDepth == it->second.mAge)
         {
             for (auto const& toBan : it->second.mTransactions)
             {
+                // This never invalidates it because
+                //     !it->second.mTransactions.empty()
+                // otherwise we couldn't have reached this line.
+                releaseFee(toBan);
                 bannedFront.insert(toBan->getFullHash());
             }
             mQueueSizeOps -= it->second.mQueueSizeOps;
+            it->second.mQueueSizeOps = 0;
 
-            it = mPendingTransactions.erase(it);
+            it->second.mTransactions.clear();
+            if (it->second.mTotalFees == 0)
+            {
+                it = mPendingTransactions.erase(it);
+            }
+            else
+            {
+                it->second.mAge = 0;
+            }
         }
         else
         {

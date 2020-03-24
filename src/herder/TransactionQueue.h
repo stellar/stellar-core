@@ -53,6 +53,8 @@ class Application;
 class TransactionQueue
 {
   public:
+    static int64_t const FEE_MULTIPLIER;
+
     enum class AddResult
     {
         ADD_STATUS_PENDING = 0,
@@ -64,7 +66,7 @@ class TransactionQueue
 
     /*
      * Information about queue of transaction for given account. mAge and
-     * mTotlaFees are stored in queue, byt mMaxSeq must be computed each
+     * mTotalFees are stored in queue, but mMaxSeq must be computed each
      * time (its O(1) anyway).
      */
     struct AccountTxQueueInfo
@@ -138,8 +140,6 @@ class TransactionQueue
     PendingTransactions mPendingTransactions;
     BannedTransactions mBannedTransactions;
 
-    bool contains(TransactionFrameBasePtr tx);
-
     using FindResult = std::pair<PendingTransactions::iterator,
                                  AccountTransactions::Transactions::iterator>;
     FindResult find(TransactionFrameBasePtr const& tx);
@@ -147,6 +147,12 @@ class TransactionQueue
                                     std::vector<TransactionFrameBasePtr>>;
     // keepBacklog: keeps transactions succeeding tx in the account's backlog
     ExtractResult extract(TransactionFrameBasePtr const& tx, bool keepBacklog);
+
+    AddResult canAdd(TransactionFrameBasePtr tx,
+                     PendingTransactions::iterator& pendingIter,
+                     AccountTransactions::Transactions::iterator& oldTxIter);
+
+    void releaseFee(TransactionFrameBasePtr tx);
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};
