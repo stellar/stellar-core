@@ -950,7 +950,10 @@ LedgerManagerImpl::applyTransactions(
             mInternalErrorCount.inc();
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
-        TransactionResultPair results = tx->getResultPair();
+
+        TransactionResultPair results;
+        results.transactionHash = tx->getContentsHash();
+        results.result = tx->getResult();
 
         // First gather the TransactionResultPair into the TxResultSet for
         // hashing into the ledger header.

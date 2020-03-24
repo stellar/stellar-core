@@ -92,15 +92,6 @@ TransactionFrame::clearCached()
     mFullHash = zero;
 }
 
-TransactionResultPair
-TransactionFrame::getResultPair() const
-{
-    TransactionResultPair trp;
-    trp.transactionHash = getContentsHash();
-    trp.result = mResult;
-    return trp;
-}
-
 TransactionEnvelope const&
 TransactionFrame::getEnvelope() const
 {

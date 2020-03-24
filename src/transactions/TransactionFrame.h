@@ -146,7 +146,6 @@ class TransactionFrame
         return getResult().result.code();
     }
 
-    TransactionResultPair getResultPair() const;
     TransactionEnvelope const& getEnvelope() const;
     TransactionEnvelope& getEnvelope();
 
