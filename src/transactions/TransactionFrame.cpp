@@ -798,7 +798,9 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
         auto& txChanges =
             meta.v() == 1 ? meta.v1().txChanges : meta.v2().txChangesBefore;
-        txChanges = ltxTx.getChanges();
+        auto changes = ltxTx.getChanges();
+        std::move(changes.begin(), changes.end(),
+                  std::back_inserter(txChanges));
         ltxTx.commit();
 
         bool valid = signaturesValid && cv == ValidationType::kFullyValid;
