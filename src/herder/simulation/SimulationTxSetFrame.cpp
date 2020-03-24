@@ -64,7 +64,7 @@ SimulationTxSetFrame::sizeOp() const
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            size_t(0),
                            [](size_t a, TransactionEnvelope const& txEnv) {
-                               return a + txEnv.tx.operations.size();
+                               return a + txEnv.v0().tx.operations.size();
                            });
 }
 

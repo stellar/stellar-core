@@ -194,7 +194,7 @@ TxSetFrame::buildAccountTxQueues()
     std::unordered_map<AccountID, AccountTransactionQueue> actTxQueueMap;
     for (auto& tx : mTransactions)
     {
-        auto& id = tx->getSourceID();
+        auto id = tx->getSourceID();
         auto it = actTxQueueMap.find(id);
         if (it == actTxQueueMap.end())
         {
@@ -459,7 +459,7 @@ TxSetFrame::sizeOp() const
     return std::accumulate(
         mTransactions.begin(), mTransactions.end(), size_t(0),
         [](size_t a, TransactionFramePtr const& tx) {
-            return a + tx->getEnvelope().tx.operations.size();
+            return a + tx->getEnvelope().v0().tx.operations.size();
         });
 }
 
@@ -473,7 +473,7 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
         for (auto& txPtr : mTransactions)
         {
-            auto txOps = txPtr->getEnvelope().tx.operations.size();
+            auto txOps = txPtr->getEnvelope().v0().tx.operations.size();
             ops += txOps;
             int64_t txBaseFee =
                 bigDivide(txPtr->getFeeBid(), 1, static_cast<int64_t>(txOps),
