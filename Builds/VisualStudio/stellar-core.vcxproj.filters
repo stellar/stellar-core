@@ -678,6 +678,9 @@
     <ClCompile Include="..\..\src\ledger\test\LiabilitiesTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\test\ConfigTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
@@ -1019,6 +1022,21 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp">
       <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\FeeBumpTransactionFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionBridge.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp">
+      <Filter>transactions</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1765,6 +1783,18 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\FeeBumpTransactionFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionBridge.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\TransactionSQL.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
