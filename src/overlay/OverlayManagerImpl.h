@@ -152,6 +152,9 @@ class OverlayManagerImpl : public OverlayManager
     void recordMessageMetric(StellarMessage const& stellarMsg,
                              Peer::pointer peer) override;
 
+    void updateFloodRecord(StellarMessage const& oldMsg,
+                           StellarMessage const& newMsg) override;
+
   private:
     struct ResolvedPeers
     {

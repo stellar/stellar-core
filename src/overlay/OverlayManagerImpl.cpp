@@ -1040,4 +1040,11 @@ OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
         }
     }
 }
+
+void
+OverlayManagerImpl::updateFloodRecord(StellarMessage const& oldMsg,
+                                      StellarMessage const& newMsg)
+{
+    mFloodGate.updateRecord(oldMsg, newMsg);
+}
 }
