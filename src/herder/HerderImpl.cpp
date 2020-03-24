@@ -1403,6 +1403,10 @@ HerderImpl::updateTransactionQueue(
     mTransactionQueue.removeAndReset(applied);
     mTransactionQueue.shift();
 
+    // Transactions in the queue need to be updated after the protocol 13
+    // upgrade
+    mTransactionQueue.maybeVersionUpgraded();
+
     // rebroadcast entries, sorted in apply-order to maximize chances of
     // propagation
     {

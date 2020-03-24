@@ -119,6 +119,13 @@ class TransactionQueue
     std::shared_ptr<TxSetFrame>
     toTxSet(LedgerHeaderHistoryEntry const& lcl) const;
 
+    struct ReplacedTransaction
+    {
+        TransactionFrameBasePtr mOld;
+        TransactionFrameBasePtr mNew;
+    };
+    std::vector<ReplacedTransaction> maybeVersionUpgraded();
+
   private:
     /**
      * Per account queue. Each queue has its own age, so it is easy to reset it
@@ -139,6 +146,7 @@ class TransactionQueue
     std::vector<medida::Counter*> mSizeByAge;
     PendingTransactions mPendingTransactions;
     BannedTransactions mBannedTransactions;
+    uint32_t mLedgerVersion;
 
     using FindResult = std::pair<PendingTransactions::iterator,
                                  AccountTransactions::Transactions::iterator>;
