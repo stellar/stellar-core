@@ -18,6 +18,7 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/SurveyManager.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
@@ -550,8 +551,16 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         std::string blob = params.substr(prefix.size());
         std::vector<uint8_t> binBlob;
         decoder::decode_b64(blob, binBlob);
-
         xdr::xdr_from_opaque(binBlob, envelope);
+
+        {
+            auto lhhe = mApp.getLedgerManager().getLastClosedLedgerHeader();
+            if (lhhe.header.ledgerVersion >= 13)
+            {
+                envelope = txbridge::convertForV13(envelope);
+            }
+        }
+
         auto transaction = TransactionFrameBase::makeTransactionFromWire(
             mApp.getNetworkID(), envelope);
         if (transaction)
