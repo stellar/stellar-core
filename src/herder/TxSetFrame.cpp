@@ -277,58 +277,82 @@ TxSetFrame::surgePricingFilter(Application& app)
 }
 
 bool
-TxSetFrame::checkOrTrim(
-    Application& app,
-    std::function<bool(TransactionFrameBasePtr, SequenceNumber)>
-        processInvalidTxLambda,
-    std::function<bool(std::deque<TransactionFrameBasePtr> const&)>
-        processInsufficientBalance)
+TxSetFrame::checkOrTrim(Application& app,
+                        std::vector<TransactionFrameBasePtr>& trimmed,
+                        bool justCheck)
 {
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
+    std::unordered_map<AccountID, int64_t> accountFeeMap;
     auto accountTxMap = buildAccountTxQueues();
-
-    Hash lastHash;
-    for (auto& tx : mTransactions)
+    for (auto& kv : accountTxMap)
     {
-        if (tx->getFullHash() < lastHash)
+        int64_t lastSeq = 0;
+        auto iter = kv.second.begin();
+        while (iter != kv.second.end())
         {
-            CLOG(DEBUG, "Herder")
-                << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                << " not sorted correctly";
-            return false;
-        }
-        lastHash = tx->getFullHash();
-    }
-
-    for (auto& item : accountTxMap)
-    {
-        TransactionFrameBasePtr lastTx;
-        SequenceNumber lastSeq = 0;
-        int64_t totFee = 0;
-        for (auto& tx : item.second)
-        {
+            auto tx = *iter;
             if (!tx->checkValid(ltx, lastSeq))
             {
-                if (processInvalidTxLambda(tx, lastSeq))
-                    continue;
-
-                return false;
-            }
-            totFee += tx->getFeeBid();
-
-            lastTx = tx;
-            lastSeq = tx->getSeqNum();
-        }
-        if (lastTx)
-        {
-            // make sure account can pay the fee for all these tx
-            auto const& source =
-                stellar::loadAccount(ltx, lastTx->getSourceID());
-            if (getAvailableBalance(ltx.loadHeader(), source) < totFee)
-            {
-                if (!processInsufficientBalance(item.second))
+                if (justCheck)
+                {
+                    CLOG(DEBUG, "Herder")
+                        << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                        << " tx invalid lastSeq:" << lastSeq
+                        << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
+                        << " result: " << tx->getResultCode();
                     return false;
+                }
+                trimmed.emplace_back(tx);
+                removeTx(tx);
+                iter = kv.second.erase(iter);
+            }
+            else
+            {
+                lastSeq = tx->getSeqNum();
+                int64_t& accFee = accountFeeMap[tx->getFeeSourceID()];
+                if (INT64_MAX - accFee < tx->getFeeBid())
+                {
+                    accFee = INT64_MAX;
+                }
+                else
+                {
+                    accFee += tx->getFeeBid();
+                }
+                ++iter;
+            }
+        }
+    }
+
+    auto header = ltx.loadHeader();
+    for (auto& kv : accountTxMap)
+    {
+        auto iter = kv.second.begin();
+        while (iter != kv.second.end())
+        {
+            auto tx = *iter;
+            auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
+            auto totFee = accountFeeMap[tx->getFeeSourceID()];
+            if (getAvailableBalance(header, feeSource) < totFee)
+            {
+                if (justCheck)
+                {
+                    CLOG(DEBUG, "Herder")
+                        << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                        << " account can't pay fee tx: "
+                        << xdr::xdr_to_string(tx->getEnvelope());
+                    return false;
+                }
+                while (iter != kv.second.end())
+                {
+                    trimmed.emplace_back(*iter);
+                    removeTx(*iter);
+                    ++iter;
+                }
+            }
+            else
+            {
+                ++iter;
             }
         }
     }
@@ -341,24 +365,7 @@ TxSetFrame::trimInvalid(Application& app)
 {
     std::vector<TransactionFrameBasePtr> trimmed;
     sortForHash();
-
-    auto processInvalidTxLambda = [&](TransactionFrameBasePtr tx,
-                                      SequenceNumber lastSeq) {
-        trimmed.push_back(tx);
-        removeTx(tx);
-        return true;
-    };
-    auto processInsufficientBalance =
-        [&](deque<TransactionFrameBasePtr> const& item) {
-            for (auto& tx : item)
-            {
-                trimmed.push_back(tx);
-                removeTx(tx);
-            }
-            return true;
-        };
-
-    checkOrTrim(app, processInvalidTxLambda, processInsufficientBalance);
+    checkOrTrim(app, trimmed, false);
     return trimmed;
 }
 
@@ -386,26 +393,19 @@ TxSetFrame::checkValid(Application& app)
         return false;
     }
 
-    auto processInvalidTxLambda = [&](TransactionFrameBasePtr tx,
-                                      SequenceNumber const& lastSeq) {
+    if (!std::is_sorted(mTransactions.begin(), mTransactions.end(),
+                        [](auto const& lhs, auto const& rhs) {
+                            return lhs->getFullHash() < rhs->getFullHash();
+                        }))
+    {
         CLOG(DEBUG, "Herder")
-            << "bad txSet: " << hexAbbrev(mPreviousLedgerHash) << " tx invalid"
-            << " lastSeq:" << lastSeq
-            << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
-            << " result: " << tx->getResultCode();
-
+            << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+            << " not sorted correctly";
         return false;
-    };
-    auto processInsufficientBalance =
-        [&](deque<TransactionFrameBasePtr> const& item) {
-            CLOG(DEBUG, "Herder")
-                << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                << " account can't pay fee"
-                << " tx:" << xdr::xdr_to_string(item.back()->getEnvelope());
+    }
 
-            return false;
-        };
-    return checkOrTrim(app, processInvalidTxLambda, processInsufficientBalance);
+    std::vector<TransactionFrameBasePtr> trimmed;
+    return checkOrTrim(app, trimmed, true);
 }
 
 void
