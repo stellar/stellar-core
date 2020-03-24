@@ -280,6 +280,14 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
 {
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
+    auto header = ltx.loadHeader();
+    uint32_t ledgerVersion = header.current().ledgerVersion;
+    if ((ledgerVersion < 13 && mEnvelope.type() == ENVELOPE_TYPE_TX) ||
+        (ledgerVersion >= 13 && mEnvelope.type() == ENVELOPE_TYPE_TX_V0))
+    {
+        getResult().result.code(txNOT_SUPPORTED);
+        return false;
+    }
 
     if (getNumOperations() == 0)
     {
@@ -287,7 +295,6 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply)
         return false;
     }
 
-    auto header = ltx.loadHeader();
     if (isTooEarly(header))
     {
         getResult().result.code(txTOO_EARLY);
