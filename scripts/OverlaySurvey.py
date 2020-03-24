@@ -86,8 +86,6 @@ def check_results(graph, merged_results, resultUrl):
         update_results(graph, curr, key, merged, True)
         update_results(graph, curr, key, merged, False)
 
-        merged["responseSeen"] = True
-
     return get_next_peers(topology)
 
 
@@ -113,8 +111,7 @@ def run_survey(args):
                     "totalInbound": 0,
                     "totalOutbound": 0,
                     "inboundPeers": {},
-                    "outboundPeers": {},
-                    "responseSeen": False
+                    "outboundPeers": {}
                     })
 
     URL = args.node
@@ -151,9 +148,15 @@ def run_survey(args):
         for peer in peers["outbound"]:
             peer_list.append(peer["id"])
 
+    sent_requests = set()
+
     t_end = time.time() + duration
     while time.time() < t_end:
         send_requests(peer_list, PARAMS, SURVEY_REQUEST)
+
+        for peer in peer_list:
+            sent_requests.add(peer)
+            
         peer_list = []
 
         # allow time for results
@@ -162,7 +165,7 @@ def run_survey(args):
 
         # try new nodes
         for key in result_node_list:
-            if key not in merged_results:
+            if key not in sent_requests:
                 peer_list.append(key)
 
         # retry for incomplete nodes
