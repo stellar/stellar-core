@@ -859,10 +859,9 @@ LedgerManagerImpl::prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs)
         std::unordered_set<LedgerKey> keys;
         for (auto const& tx : txs)
         {
-            keys.emplace(accountKey(tx->getSourceID()));
+            tx->insertKeysForFeeProcessing(keys);
         }
-        auto& root = mApp.getLedgerTxnRoot();
-        root.prefetch(keys);
+        mApp.getLedgerTxnRoot().prefetch(keys);
     }
 }
 
@@ -872,20 +871,12 @@ LedgerManagerImpl::prefetchTransactionData(
 {
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
-        auto& root = mApp.getLedgerTxnRoot();
-        std::unordered_set<LedgerKey> keysToPrefetch;
+        std::unordered_set<LedgerKey> keys;
         for (auto const& tx : txs)
         {
-            for (auto const& op : tx->getOperations())
-            {
-                if (!(tx->getSourceID() == op->getSourceID()))
-                {
-                    keysToPrefetch.emplace(accountKey(op->getSourceID()));
-                }
-                op->insertLedgerKeysToPrefetch(keysToPrefetch);
-            }
+            tx->insertKeysForTxApply(keys);
         }
-        root.prefetch(keysToPrefetch);
+        mApp.getLedgerTxnRoot().prefetch(keys);
     }
 }
 
