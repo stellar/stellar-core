@@ -287,9 +287,11 @@ struct LedgerEntry
 // the respective envelopes
 enum EnvelopeType
 {
+    ENVELOPE_TYPE_TX_V0 = 0,
     ENVELOPE_TYPE_SCP = 1,
     ENVELOPE_TYPE_TX = 2,
     ENVELOPE_TYPE_AUTH = 3,
-    ENVELOPE_TYPE_SCPVALUE = 4
+    ENVELOPE_TYPE_SCPVALUE = 4,
+    ENVELOPE_TYPE_TX_FEE_BUMP = 5
 };
 }
