@@ -61,8 +61,8 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
 
 static bool
 findBySeq(TransactionFrameBasePtr tx,
-          TransactionQueue::AccountTransactions::Transactions& transactions,
-          TransactionQueue::AccountTransactions::Transactions::iterator& iter)
+          TransactionQueue::Transactions& transactions,
+          TransactionQueue::Transactions::iterator& iter)
 {
     int64_t seq = tx->getSeqNum();
     int64_t firstSeq = transactions.front()->getSeqNum();
@@ -99,8 +99,8 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
 
 TransactionQueue::AddResult
 TransactionQueue::canAdd(TransactionFrameBasePtr tx,
-                         PendingTransactions::iterator& pendingIter,
-                         AccountTransactions::Transactions::iterator& oldTxIter)
+                         AccountStates::iterator& stateIter,
+                         Transactions::iterator& oldTxIter)
 {
     if (isBanned(tx->getFullHash()))
     {
@@ -111,17 +111,17 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     int64_t netOps = tx->getNumOperations();
     int64_t seqNum = 0;
 
-    pendingIter = mPendingTransactions.find(tx->getSourceID());
-    if (pendingIter != mPendingTransactions.end())
+    stateIter = mAccountStates.find(tx->getSourceID());
+    if (stateIter != mAccountStates.end())
     {
-        auto& transactions = pendingIter->second.mTransactions;
+        auto& transactions = stateIter->second.mTransactions;
         oldTxIter = transactions.end();
 
         if (!transactions.empty())
         {
             if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP)
             {
-                AccountTransactions::Transactions::iterator iter;
+                Transactions::iterator iter;
                 if (findBySeq(tx, transactions, iter) &&
                     iter != transactions.end() && isDuplicateTx(*iter, tx))
                 {
@@ -179,13 +179,13 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
 
-    // Note: pendingIter corresponds to getSourceID() which is not necessarily
+    // Note: stateIter corresponds to getSourceID() which is not necessarily
     // the same as getFeeSourceID()
     auto feeSource = stellar::loadAccount(ltx, tx->getFeeSourceID());
-    auto feePendingIter = mPendingTransactions.find(tx->getFeeSourceID());
-    int64_t totalFees = feePendingIter == mPendingTransactions.end()
+    auto feeStateIter = mAccountStates.find(tx->getFeeSourceID());
+    int64_t totalFees = feeStateIter == mAccountStates.end()
                             ? 0
-                            : feePendingIter->second.mTotalFees;
+                            : feeStateIter->second.mTotalFees;
     if (getAvailableBalance(ltx.loadHeader(), feeSource) - netFee < totalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
@@ -196,10 +196,10 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
 }
 
 void
-TransactionQueue::releaseFee(TransactionFrameBasePtr tx)
+TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
 {
-    auto iter = mPendingTransactions.find(tx->getFeeSourceID());
-    assert(iter != mPendingTransactions.end() &&
+    auto iter = mAccountStates.find(tx->getFeeSourceID());
+    assert(iter != mAccountStates.end() &&
            iter->second.mTotalFees >= tx->getFeeBid());
 
     iter->second.mTotalFees -= tx->getFeeBid();
@@ -207,7 +207,7 @@ TransactionQueue::releaseFee(TransactionFrameBasePtr tx)
     {
         if (iter->second.mTotalFees == 0)
         {
-            mPendingTransactions.erase(iter);
+            mAccountStates.erase(iter);
         }
     }
 }
@@ -215,49 +215,47 @@ TransactionQueue::releaseFee(TransactionFrameBasePtr tx)
 TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 {
-    PendingTransactions::iterator pendingIter;
-    AccountTransactions::Transactions::iterator oldTxIter;
-    auto const res = canAdd(tx, pendingIter, oldTxIter);
+    AccountStates::iterator stateIter;
+    Transactions::iterator oldTxIter;
+    auto const res = canAdd(tx, stateIter, oldTxIter);
     if (res != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         return res;
     }
 
-    if (pendingIter == mPendingTransactions.end())
+    if (stateIter == mAccountStates.end())
     {
-        pendingIter = mPendingTransactions
-                          .emplace(tx->getSourceID(), AccountTransactions{})
-                          .first;
-        oldTxIter = pendingIter->second.mTransactions.end();
+        stateIter =
+            mAccountStates.emplace(tx->getSourceID(), AccountState{}).first;
+        oldTxIter = stateIter->second.mTransactions.end();
     }
 
-    if (oldTxIter != pendingIter->second.mTransactions.end())
+    if (oldTxIter != stateIter->second.mTransactions.end())
     {
-        releaseFee(*oldTxIter);
-        pendingIter->second.mQueueSizeOps -= (*oldTxIter)->getNumOperations();
+        releaseFeeMaybeEraseAccountState(*oldTxIter);
+        stateIter->second.mQueueSizeOps -= (*oldTxIter)->getNumOperations();
         mQueueSizeOps -= (*oldTxIter)->getNumOperations();
         *oldTxIter = tx;
     }
     else
     {
-        pendingIter->second.mTransactions.emplace_back(tx);
-        mSizeByAge[pendingIter->second.mAge]->inc();
+        stateIter->second.mTransactions.emplace_back(tx);
+        mSizeByAge[stateIter->second.mAge]->inc();
     }
-    pendingIter->second.mQueueSizeOps += tx->getNumOperations();
+    stateIter->second.mQueueSizeOps += tx->getNumOperations();
     mQueueSizeOps += tx->getNumOperations();
-    mPendingTransactions[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
+    mAccountStates[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
 
     return res;
 }
 
 void
-TransactionQueue::removeAndReset(
-    std::vector<TransactionFrameBasePtr> const& dropTxs)
+TransactionQueue::removeAndReset(TransactionQueue::Transactions const& dropTxs)
 {
     for (auto const& tx : dropTxs)
     {
         auto extracted = extract(tx, true);
-        if (extracted.first != std::end(mPendingTransactions))
+        if (extracted.first != std::end(mAccountStates))
         {
             extracted.first->second.mAge = 0;
         }
@@ -265,7 +263,7 @@ TransactionQueue::removeAndReset(
 }
 
 void
-TransactionQueue::ban(std::vector<TransactionFrameBasePtr> const& dropTxs)
+TransactionQueue::ban(TransactionQueue::Transactions const& dropTxs)
 {
     auto& bannedFront = mBannedTransactions.front();
     for (auto const& tx : dropTxs)
@@ -292,10 +290,10 @@ TransactionQueue::FindResult
 TransactionQueue::find(TransactionFrameBasePtr const& tx)
 {
     auto const& acc = tx->getSourceID();
-    auto accIt = mPendingTransactions.find(acc);
-    if (accIt == std::end(mPendingTransactions))
+    auto accIt = mAccountStates.find(acc);
+    if (accIt == std::end(mAccountStates))
     {
-        return {std::end(mPendingTransactions), {}};
+        return {std::end(mAccountStates), {}};
     }
 
     auto& txs = accIt->second.mTransactions;
@@ -305,12 +303,12 @@ TransactionQueue::find(TransactionFrameBasePtr const& tx)
         });
     if (txIt == std::end(txs))
     {
-        return {std::end(mPendingTransactions), {}};
+        return {std::end(mAccountStates), {}};
     }
 
     if ((*txIt)->getFullHash() != tx->getFullHash())
     {
-        return {std::end(mPendingTransactions), {}};
+        return {std::end(mAccountStates), {}};
     }
 
     return {accIt, txIt};
@@ -324,9 +322,9 @@ TransactionQueue::extract(TransactionFrameBasePtr const& tx, bool keepBacklog)
     // Use a scope here to prevent iterator use after invalidation
     {
         auto it = find(tx);
-        if (it.first == mPendingTransactions.end())
+        if (it.first == mAccountStates.end())
         {
-            return {std::end(mPendingTransactions), {}};
+            return {std::end(mAccountStates), {}};
         }
 
         auto txIt = it.second;
@@ -345,23 +343,22 @@ TransactionQueue::extract(TransactionFrameBasePtr const& tx, bool keepBacklog)
 
     for (auto const& removedTx : removedTxs)
     {
-        mPendingTransactions[removedTx->getSourceID()].mQueueSizeOps -=
+        mAccountStates[removedTx->getSourceID()].mQueueSizeOps -=
             removedTx->getNumOperations();
         mQueueSizeOps -= removedTx->getNumOperations();
-        releaseFee(removedTx);
+        releaseFeeMaybeEraseAccountState(removedTx);
     }
 
-    // tx->getSourceID() will only be in mPendingTransactions if it has pending
+    // tx->getSourceID() will only be in mAccountStates if it has pending
     // transactions or if it is the fee source for a transaction for which it is
     // not the sequence number source
-    auto accIt = mPendingTransactions.find(tx->getSourceID());
-    if (accIt != mPendingTransactions.end() &&
-        accIt->second.mTransactions.empty())
+    auto accIt = mAccountStates.find(tx->getSourceID());
+    if (accIt != mAccountStates.end() && accIt->second.mTransactions.empty())
     {
         if (accIt->second.mTotalFees == 0)
         {
-            mPendingTransactions.erase(accIt);
-            accIt = mPendingTransactions.end();
+            mAccountStates.erase(accIt);
+            accIt = mAccountStates.end();
         }
         else
         {
@@ -376,8 +373,8 @@ TransactionQueue::AccountTxQueueInfo
 TransactionQueue::getAccountTransactionQueueInfo(
     AccountID const& accountID) const
 {
-    auto i = mPendingTransactions.find(accountID);
-    if (i == std::end(mPendingTransactions))
+    auto i = mAccountStates.find(accountID);
+    if (i == std::end(mAccountStates))
     {
         return {0, 0, 0, 0};
     }
@@ -398,10 +395,13 @@ TransactionQueue::shift()
     sizes.resize(mPendingDepth);
 
     auto& bannedFront = mBannedTransactions.front();
-    auto end = std::end(mPendingTransactions);
-    auto it = std::begin(mPendingTransactions);
+    auto end = std::end(mAccountStates);
+    auto it = std::begin(mAccountStates);
     while (it != end)
     {
+        // If mTransactions is empty then mAge is always 0. This can occur if an
+        // account is the fee-source for at least one transaction but not the
+        // sequence-number-source for any transaction in the TransactionQueue.
         if (!it->second.mTransactions.empty())
         {
             ++it->second.mAge;
@@ -414,7 +414,7 @@ TransactionQueue::shift()
                 // This never invalidates it because
                 //     !it->second.mTransactions.empty()
                 // otherwise we couldn't have reached this line.
-                releaseFee(toBan);
+                releaseFeeMaybeEraseAccountState(toBan);
                 bannedFront.insert(toBan->getFullHash());
             }
             mQueueSizeOps -= it->second.mQueueSizeOps;
@@ -423,7 +423,7 @@ TransactionQueue::shift()
             it->second.mTransactions.clear();
             if (it->second.mTotalFees == 0)
             {
-                it = mPendingTransactions.erase(it);
+                it = mAccountStates.erase(it);
             }
             else
             {
@@ -467,7 +467,7 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
 
     uint32_t const nextLedgerSeq = lcl.header.ledgerSeq + 1;
     int64_t const startingSeq = getStartingSequenceNumber(nextLedgerSeq);
-    for (auto const& m : mPendingTransactions)
+    for (auto const& m : mAccountStates)
     {
         for (auto const& tx : m.second.mTransactions)
         {
@@ -501,7 +501,7 @@ TransactionQueue::maybeVersionUpgraded()
             banned.clear();
         }
 
-        for (auto& kv : mPendingTransactions)
+        for (auto& kv : mAccountStates)
         {
             for (auto& txFrame : kv.second.mTransactions)
             {
