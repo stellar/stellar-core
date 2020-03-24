@@ -35,7 +35,7 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
 }
 
 TransactionQueue::AddResult
-TransactionQueue::tryAdd(TransactionFramePtr tx)
+TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 {
     if (isBanned(tx->getFullHash()))
     {
@@ -80,7 +80,7 @@ TransactionQueue::tryAdd(TransactionFramePtr tx)
 
 void
 TransactionQueue::removeAndReset(
-    std::vector<TransactionFramePtr> const& dropTxs)
+    std::vector<TransactionFrameBasePtr> const& dropTxs)
 {
     for (auto const& tx : dropTxs)
     {
@@ -93,7 +93,7 @@ TransactionQueue::removeAndReset(
 }
 
 void
-TransactionQueue::ban(std::vector<TransactionFramePtr> const& dropTxs)
+TransactionQueue::ban(std::vector<TransactionFrameBasePtr> const& dropTxs)
 {
     auto& bannedFront = mBannedTransactions.front();
     for (auto const& tx : dropTxs)
@@ -117,13 +117,13 @@ TransactionQueue::ban(std::vector<TransactionFramePtr> const& dropTxs)
 }
 
 bool
-TransactionQueue::contains(TransactionFramePtr tx)
+TransactionQueue::contains(TransactionFrameBasePtr tx)
 {
     return find(tx).first != std::end(mPendingTransactions);
 }
 
 TransactionQueue::FindResult
-TransactionQueue::find(TransactionFramePtr const& tx)
+TransactionQueue::find(TransactionFrameBasePtr const& tx)
 {
     auto const& acc = tx->getSourceID();
     auto accIt = mPendingTransactions.find(acc);
@@ -151,7 +151,7 @@ TransactionQueue::find(TransactionFramePtr const& tx)
 }
 
 TransactionQueue::ExtractResult
-TransactionQueue::extract(TransactionFramePtr const& tx, bool keepBacklog)
+TransactionQueue::extract(TransactionFrameBasePtr const& tx, bool keepBacklog)
 {
     auto it = find(tx);
     auto accIt = it.first;

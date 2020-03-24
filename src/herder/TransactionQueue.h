@@ -85,7 +85,7 @@ class TransactionQueue
      */
     struct AccountTransactions
     {
-        using Transactions = std::vector<TransactionFramePtr>;
+        using Transactions = std::vector<TransactionFrameBasePtr>;
 
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
@@ -96,9 +96,9 @@ class TransactionQueue
     explicit TransactionQueue(Application& app, int pendingDepth, int banDepth,
                               int poolLedgerMultiplier);
 
-    AddResult tryAdd(TransactionFramePtr tx);
-    void removeAndReset(std::vector<TransactionFramePtr> const& txs);
-    void ban(std::vector<TransactionFramePtr> const& txs);
+    AddResult tryAdd(TransactionFrameBasePtr tx);
+    void removeAndReset(std::vector<TransactionFrameBasePtr> const& txs);
+    void ban(std::vector<TransactionFrameBasePtr> const& txs);
 
     /**
      * Increse age of each transaction queue. If that age now is equal to
@@ -138,15 +138,15 @@ class TransactionQueue
     PendingTransactions mPendingTransactions;
     BannedTransactions mBannedTransactions;
 
-    bool contains(TransactionFramePtr tx);
+    bool contains(TransactionFrameBasePtr tx);
 
     using FindResult = std::pair<PendingTransactions::iterator,
                                  AccountTransactions::Transactions::iterator>;
-    FindResult find(TransactionFramePtr const& tx);
+    FindResult find(TransactionFrameBasePtr const& tx);
     using ExtractResult = std::pair<PendingTransactions::iterator,
-                                    std::vector<TransactionFramePtr>>;
+                                    std::vector<TransactionFrameBasePtr>>;
     // keepBacklog: keeps transactions succeeding tx in the account's backlog
-    ExtractResult extract(TransactionFramePtr const& tx, bool keepBacklog);
+    ExtractResult extract(TransactionFrameBasePtr const& tx, bool keepBacklog);
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};

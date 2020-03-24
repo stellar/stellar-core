@@ -308,7 +308,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFramePtr tx)
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 {
     auto result = mTransactionQueue.tryAdd(tx);
     if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
@@ -1397,7 +1397,7 @@ HerderImpl::trackingHeartBeat()
 
 void
 HerderImpl::updateTransactionQueue(
-    std::vector<TransactionFramePtr> const& applied)
+    std::vector<TransactionFrameBasePtr> const& applied)
 {
     // remove all these tx from mTransactionQueue
     mTransactionQueue.removeAndReset(applied);
