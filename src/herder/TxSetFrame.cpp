@@ -456,11 +456,11 @@ TxSetFrame::size(LedgerHeader const& lh) const
 size_t
 TxSetFrame::sizeOp() const
 {
-    return std::accumulate(
-        mTransactions.begin(), mTransactions.end(), size_t(0),
-        [](size_t a, TransactionFramePtr const& tx) {
-            return a + tx->getEnvelope().v0().tx.operations.size();
-        });
+    return std::accumulate(mTransactions.begin(), mTransactions.end(),
+                           size_t(0),
+                           [](size_t a, TransactionFramePtr const& tx) {
+                               return a + tx->getNumOperations();
+                           });
 }
 
 int64_t
@@ -473,7 +473,7 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
         int64_t lowBaseFee = std::numeric_limits<int64_t>::max();
         for (auto& txPtr : mTransactions)
         {
-            auto txOps = txPtr->getEnvelope().v0().tx.operations.size();
+            auto txOps = txPtr->getNumOperations();
             ops += txOps;
             int64_t txBaseFee =
                 bigDivide(txPtr->getFeeBid(), 1, static_cast<int64_t>(txOps),
