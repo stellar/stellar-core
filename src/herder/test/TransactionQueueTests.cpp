@@ -696,7 +696,7 @@ TEST_CASE("transaction queue starting sequence boundary",
     closeLedgerOn(*app, 2, 1, 1, 2020);
     closeLedgerOn(*app, 3, 1, 1, 2020);
 
-    uint64_t startingSeq = static_cast<uint64_t>(4) << 32;
+    int64_t startingSeq = static_cast<int64_t>(4) << 32;
     REQUIRE(acc1.loadSequenceNumber() < startingSeq);
     acc1.bumpSequence(startingSeq - 3);
     REQUIRE(acc1.loadSequenceNumber() == startingSeq - 3);
@@ -716,7 +716,7 @@ TEST_CASE("transaction queue starting sequence boundary",
         for (size_t i = 1; i <= size; ++i)
         {
             REQUIRE(txSet->mTransactions[i - 1]->getSeqNum() ==
-                    startingSeq - 3 + i);
+                    static_cast<int64_t>(startingSeq - 3 + i));
         }
     };
 
