@@ -234,9 +234,9 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
     auto tx = src.tx(ops);
-    tx->getEnvelope().tx.fee *= feeMult;
-    tx->getEnvelope().tx.fee += extraFee;
-    tx->getEnvelope().signatures.clear();
+    tx->getEnvelope().v0().tx.fee *= feeMult;
+    tx->getEnvelope().v0().tx.fee += extraFee;
+    tx->getEnvelope().v0().signatures.clear();
     tx->addSignature(src);
     return tx;
 }
@@ -338,7 +338,7 @@ testTxSet(uint32 protocolVersion)
             SECTION("gap after")
             {
                 auto tx = accounts[0].tx({payment(accounts[0], 1)});
-                tx->getEnvelope().tx.seqNum += 5;
+                tx->getEnvelope().v0().tx.seqNum += 5;
                 txSet->add(tx);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
@@ -391,7 +391,8 @@ testTxSet(uint32 protocolVersion)
         SECTION("bad signature")
         {
             auto tx = txSet->mTransactions[0];
-            tx->getEnvelope().tx.timeBounds.activate().maxTime = UINT64_MAX;
+            tx->getEnvelope().v0().tx.timeBounds.activate().maxTime =
+                UINT64_MAX;
             tx->clearCached();
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
@@ -668,8 +669,8 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
-            tx->getEnvelope().tx.fee -= 1;
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().tx.fee -= 1;
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
@@ -694,11 +695,11 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
             // find corresponding root tx (should have 1 less op)
             auto rTx = txSet->mTransactions[n];
-            REQUIRE(rTx->getEnvelope().tx.operations.size() == n + 1);
-            REQUIRE(tx->getEnvelope().tx.operations.size() == n + 2);
+            REQUIRE(rTx->getEnvelope().v0().tx.operations.size() == n + 1);
+            REQUIRE(tx->getEnvelope().v0().tx.operations.size() == n + 2);
             // use the same fee
-            tx->getEnvelope().tx.fee = rTx->getEnvelope().tx.fee;
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().tx.fee = rTx->getEnvelope().v0().tx.fee;
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
@@ -725,13 +726,13 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
             {
-                tx->getEnvelope().tx.fee -= 1;
+                tx->getEnvelope().v0().tx.fee -= 1;
             }
             else
             {
-                tx->getEnvelope().tx.fee += 1;
+                tx->getEnvelope().v0().tx.fee += 1;
             }
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
