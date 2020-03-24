@@ -120,12 +120,6 @@ class TransactionFrame
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
 
-    uint32
-    getNumOperations() const
-    {
-        return (uint32)mEnvelope.v0().tx.operations.size();
-    }
-
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {
@@ -156,19 +150,11 @@ class TransactionFrame
     TransactionEnvelope const& getEnvelope() const;
     TransactionEnvelope& getEnvelope();
 
-    SequenceNumber
-    getSeqNum() const
-    {
-        return mEnvelope.v0().tx.seqNum;
-    }
+    SequenceNumber getSeqNum() const;
 
-    AccountID
-    getSourceID() const
-    {
-        AccountID res;
-        res.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
-        return res;
-    }
+    AccountID getSourceID() const;
+
+    uint32_t getNumOperations() const;
 
     uint32_t getFeeBid() const;
 
