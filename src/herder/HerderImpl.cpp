@@ -1405,7 +1405,13 @@ HerderImpl::updateTransactionQueue(
 
     // Transactions in the queue need to be updated after the protocol 13
     // upgrade
-    mTransactionQueue.maybeVersionUpgraded();
+    auto replacedTxs = mTransactionQueue.maybeVersionUpgraded();
+    for (auto const& replacedTx : replacedTxs)
+    {
+        mApp.getOverlayManager().updateFloodRecord(
+            replacedTx.mOld->toStellarMessage(),
+            replacedTx.mNew->toStellarMessage());
+    }
 
     // rebroadcast entries, sorted in apply-order to maximize chances of
     // propagation
