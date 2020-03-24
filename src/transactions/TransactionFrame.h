@@ -67,18 +67,17 @@ class TransactionFrame : public TransactionFrameBase
     virtual bool isTooEarly(LedgerTxnHeader const& header) const;
     virtual bool isTooLate(LedgerTxnHeader const& header) const;
 
-    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool forApply);
+    bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee);
 
     virtual bool isBadSeq(int64_t seqNum) const;
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
                                AbstractLedgerTxn& ltxOuter,
-                               SequenceNumber current, bool applying);
+                               SequenceNumber current, bool applying,
+                               bool chargeFee);
 
     virtual std::shared_ptr<OperationFrame>
     makeOperation(Operation const& op, OperationResult& res, size_t index);
-
-    void resetResults(LedgerHeader const& header, int64_t baseFee);
 
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
                                      AbstractLedgerTxn& ltx);
@@ -143,6 +142,8 @@ class TransactionFrame : public TransactionFrameBase
         return getResult().result.code();
     }
 
+    void resetResults(LedgerHeader const& header, int64_t baseFee);
+
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
 
@@ -169,6 +170,8 @@ class TransactionFrame : public TransactionFrameBase
     bool checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                  AccountID const& accountID);
 
+    bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+                    bool chargeFee);
     bool checkValid(AbstractLedgerTxn& ltxOuter,
                     SequenceNumber current) override;
 
@@ -182,6 +185,8 @@ class TransactionFrame : public TransactionFrameBase
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
+    bool apply(Application& app, AbstractLedgerTxn& ltx, TransactionMeta& meta,
+               bool chargeFee);
     bool apply(Application& app, AbstractLedgerTxn& ltx,
                TransactionMeta& meta) override;
 
