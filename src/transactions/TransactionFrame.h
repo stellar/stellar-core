@@ -111,10 +111,6 @@ class TransactionFrame : public TransactionFrameBase
     {
     }
 
-    static TransactionFramePtr
-    makeTransactionFromWire(Hash const& networkID,
-                            TransactionEnvelope const& msg);
-
     // clear pre-computed hashes
     void clearCached();
 

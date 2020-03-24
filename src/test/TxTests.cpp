@@ -417,7 +417,8 @@ transactionFromOperationsV0(Application& app, SecretKey const& from,
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v0().tx.operations));
 
-    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
+    auto res = std::static_pointer_cast<TransactionFrame>(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
     return res;
 }
@@ -438,7 +439,8 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.v1().tx.operations));
 
-    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
+    auto res = std::static_pointer_cast<TransactionFrame>(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
     res->addSignature(from);
     return res;
 }

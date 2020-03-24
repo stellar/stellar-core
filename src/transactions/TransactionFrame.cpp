@@ -41,14 +41,6 @@ namespace stellar
 using namespace std;
 using namespace stellar::txbridge;
 
-TransactionFramePtr
-TransactionFrame::makeTransactionFromWire(Hash const& networkID,
-                                          TransactionEnvelope const& msg)
-{
-    TransactionFramePtr res = make_shared<TransactionFrame>(networkID, msg);
-    return res;
-}
-
 TransactionFrame::TransactionFrame(Hash const& networkID,
                                    TransactionEnvelope const& envelope)
     : mEnvelope(envelope), mNetworkID(networkID)
