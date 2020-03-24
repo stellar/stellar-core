@@ -62,7 +62,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             auto txFrame =
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
-            txFrame->getEnvelope().signatures.clear();
+            txFrame->getEnvelope().v0().signatures.clear();
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
                 applyCheck(txFrame, *app);
@@ -78,7 +78,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             auto txFrame =
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
-            txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
+            txFrame->getEnvelope().v0().signatures[0].signature =
+                Signature(32, 123);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
                 applyCheck(txFrame, *app);
@@ -94,7 +95,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             auto txFrame =
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
-            txFrame->getEnvelope().signatures[0].hint.fill(1);
+            txFrame->getEnvelope().v0().signatures[0].hint.fill(1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
                 applyCheck(txFrame, *app);
@@ -160,7 +161,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             auto tx = a1.tx({payment(root, 1000)});
 
             // only sign with s1
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s1);
 
             for_all_versions_except({7}, *app, [&] {
@@ -179,7 +180,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             auto tx = a1.tx({setOptions(th | setSigner(sk1))});
 
             // only sign with s2 (med)
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s2);
 
             for_all_versions_except({7}, *app, [&] {
@@ -199,7 +200,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             auto tx = a1.tx({setOptions(th), setOptions(setSigner(sk1))});
 
             // only sign with s2 (med)
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s2);
 
             for_all_versions_except({7}, *app, [&] {
@@ -219,7 +220,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             auto tx = a1.tx({setOptions(setSigner(sk1)), setOptions(th)});
 
             // only sign with s2 (med)
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s2);
 
             for_all_versions_except({7}, *app, [&] {
@@ -238,7 +239,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             // updating thresholds requires high
             auto tx = a1.tx({setOptions(th | setSigner(sk1))});
 
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s1);
             tx->addSignature(s2);
 
@@ -255,7 +256,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             // updating thresholds requires high
             auto tx = a1.tx({setOptions(th), setOptions(setSigner(sk1))});
 
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s1);
             tx->addSignature(s2);
 
@@ -272,7 +273,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             // updating thresholds requires high
             auto tx = a1.tx({setOptions(setSigner(sk1)), setOptions(th)});
 
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s1);
             tx->addSignature(s2);
 
@@ -295,7 +296,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 // only sign with s2 (med)
                 if (!withMaster)
                 {
-                    tx->getEnvelope().signatures.clear();
+                    tx->getEnvelope().v0().signatures.clear();
                 }
                 tx->addSignature(s2);
 
@@ -328,7 +329,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             auto tx = a1.tx({payment(root, 1000)});
 
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             for (auto i = 0; i < 10; i++)
                 tx->addSignature(s1);
 
@@ -380,8 +381,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             {
                 for_versions_to(2, *app, [&] {
                     auto tx = a1.tx({payment(root, 1000)});
-                    tx->getEnvelope().signatures.clear();
-                    tx->getEnvelope().tx.seqNum++;
+                    tx->getEnvelope().v0().signatures.clear();
+                    tx->getEnvelope().v0().tx.seqNum++;
                     a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                     SignerKey sk = alternative.createSigner(*tx);
@@ -395,7 +396,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("invalid seq nr")
                     {
                         auto tx = a1.tx({payment(root, 1000)});
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -424,8 +425,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("invalid signature")
                     {
                         auto tx = a1.tx({payment(root, 1000)});
-                        tx->getEnvelope().signatures.clear();
-                        tx->getEnvelope().tx.seqNum++;
+                        tx->getEnvelope().v0().signatures.clear();
+                        tx->getEnvelope().v0().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -452,7 +453,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("too many signatures (signed by owner)")
                     {
                         auto tx = a1.tx({payment(root, 1000)});
-                        tx->getEnvelope().tx.seqNum++;
+                        tx->getEnvelope().v0().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -485,8 +486,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("success")
                     {
                         auto tx = a1.tx({payment(root, 1000)});
-                        tx->getEnvelope().signatures.clear();
-                        tx->getEnvelope().tx.seqNum++;
+                        tx->getEnvelope().v0().signatures.clear();
+                        tx->getEnvelope().v0().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -523,7 +524,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         auto tx = b1.tx({accountMerge(a1)},
                                         b1.getLastSequenceNumber() + 2);
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
 
                         for_versions_from(3, *app, [&] {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -550,8 +551,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("failing transaction")
                     {
                         auto tx = a1.tx({payment(root, -1)});
-                        tx->getEnvelope().signatures.clear();
-                        tx->getEnvelope().tx.seqNum++;
+                        tx->getEnvelope().v0().signatures.clear();
+                        tx->getEnvelope().v0().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -592,8 +593,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("not enough rights (envelope)")
                     {
                         auto tx = a1.tx({payment(root, 1000)});
-                        tx->getEnvelope().signatures.clear();
-                        tx->getEnvelope().tx.seqNum++;
+                        tx->getEnvelope().v0().signatures.clear();
+                        tx->getEnvelope().v0().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -621,7 +622,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         // updating thresholds requires high
                         auto tx = a1.tx({setOptions(th)},
                                         a1.getLastSequenceNumber() + 2);
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
                             Signer sk1(sk, 95); // med rights account
@@ -752,9 +753,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("success signature + " + alternative.name)
                     {
                         auto tx = a1.tx({payment(root, 1000)});
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(s1);
-                        tx->getEnvelope().tx.seqNum++;
+                        tx->getEnvelope().v0().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
                         auto setup = [&]() {
                             SignerKey sk = alternative.createSigner(*tx);
@@ -788,7 +789,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     auto op = a1.op(payment(root, 100));
                     auto tx = transactionFromOperations(
                         *app, root, root.getLastSequenceNumber() + 2, {op});
-                    tx->getEnvelope().signatures.clear();
+                    tx->getEnvelope().v0().signatures.clear();
                     auto setup = [&]() {
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
@@ -826,7 +827,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     auto op = a1.op(payment(root, 100));
                     TransactionFramePtr tx = transactionFromOperations(
                         *app, root, root.getLastSequenceNumber() + 2, {op, op});
-                    tx->getEnvelope().signatures.clear();
+                    tx->getEnvelope().v0().signatures.clear();
                     auto setup = [&]() {
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
@@ -870,9 +871,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             a1.setOptions(th | setSigner(sk1));
 
             auto tx = a1.tx({payment(root, 1000)});
-            tx->getEnvelope().signatures.clear();
+            tx->getEnvelope().v0().signatures.clear();
             tx->addSignature(s1);
-            tx->getEnvelope().tx.seqNum++;
+            tx->getEnvelope().v0().tx.seqNum++;
             a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
             for_versions_from(3, *app, [&] {
@@ -898,9 +899,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             for_all_versions(*app, [&] {
                 TransactionEnvelope te;
-                te.tx.sourceAccount = root.getPublicKey();
-                te.tx.fee = 1000;
-                te.tx.seqNum = root.nextSequenceNumber();
+                te.v0().tx.sourceAccountEd25519 = root.getPublicKey().ed25519();
+                te.v0().tx.fee = 1000;
+                te.v0().tx.seqNum = root.nextSequenceNumber();
                 TransactionFramePtr tx =
                     std::make_shared<TransactionFrame>(app->getNetworkID(), te);
                 tx->addSignature(root);
@@ -925,10 +926,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 auto tx = a1.tx({payment(root, 1000)});
 
                 // change inner payment to be b->root
-                tx->getEnvelope().tx.operations[0].sourceAccount.activate() =
-                    b1.getPublicKey();
+                tx->getEnvelope()
+                    .v0()
+                    .tx.operations[0]
+                    .sourceAccount.activate() = b1.getPublicKey();
 
-                tx->getEnvelope().signatures.clear();
+                tx->getEnvelope().v0().signatures.clear();
                 tx->addSignature(a1);
 
                 SECTION("missing signature")
@@ -982,16 +985,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         // build a new tx based off tx_a and tx_b
                         tx_b->getEnvelope()
+                            .v0()
                             .tx.operations[0]
                             .sourceAccount.activate() = b1.getPublicKey();
-                        tx_a->getEnvelope().tx.operations.push_back(
-                            tx_b->getEnvelope().tx.operations[0]);
-                        tx_a->getEnvelope().tx.fee *= 2;
+                        tx_a->getEnvelope().v0().tx.operations.push_back(
+                            tx_b->getEnvelope().v0().tx.operations[0]);
+                        tx_a->getEnvelope().v0().tx.fee *= 2;
                         TransactionFramePtr tx =
                             TransactionFrame::makeTransactionFromWire(
                                 app->getNetworkID(), tx_a->getEnvelope());
 
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
@@ -1019,16 +1023,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         auto tx_b = b1.tx({payment(root, paymentAmount)});
 
                         tx_b->getEnvelope()
+                            .v0()
                             .tx.operations[0]
                             .sourceAccount.activate() = b1.getPublicKey();
-                        tx_a->getEnvelope().tx.operations.push_back(
-                            tx_b->getEnvelope().tx.operations[0]);
-                        tx_a->getEnvelope().tx.fee *= 2;
+                        tx_a->getEnvelope().v0().tx.operations.push_back(
+                            tx_b->getEnvelope().v0().tx.operations[0]);
+                        tx_a->getEnvelope().v0().tx.fee *= 2;
                         TransactionFramePtr tx =
                             TransactionFrame::makeTransactionFromWire(
                                 app->getNetworkID(), tx_a->getEnvelope());
 
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
@@ -1055,16 +1060,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         auto tx_b = b1.tx({payment(root, 1000)});
 
                         tx_b->getEnvelope()
+                            .v0()
                             .tx.operations[0]
                             .sourceAccount.activate() = b1.getPublicKey();
-                        tx_a->getEnvelope().tx.operations.push_back(
-                            tx_b->getEnvelope().tx.operations[0]);
-                        tx_a->getEnvelope().tx.fee *= 2;
+                        tx_a->getEnvelope().v0().tx.operations.push_back(
+                            tx_b->getEnvelope().v0().tx.operations[0]);
+                        tx_a->getEnvelope().v0().tx.fee *= 2;
                         TransactionFramePtr tx =
                             TransactionFrame::makeTransactionFromWire(
                                 app->getNetworkID(), tx_a->getEnvelope());
 
-                        tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().v0().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
@@ -1144,7 +1150,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_all_versions(*app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
+                    txFrame->getEnvelope().v0().tx.fee = static_cast<uint32_t>(
                         app->getLedgerManager().getLastTxFee() - 1);
 
                     applyCheck(txFrame, *app);
@@ -1185,7 +1191,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     {
                         txFrame = root.tx(
                             {payment(a1.getPublicKey(), paymentAmount)});
-                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                        txFrame->getEnvelope().v0().tx.timeBounds.activate() =
                             TimeBounds(start + 1000, start + 10000);
 
                         closeLedgerOn(*app, 3, 1, 7, 2014);
@@ -1198,7 +1204,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     {
                         txFrame = root.tx(
                             {payment(a1.getPublicKey(), paymentAmount)});
-                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                        txFrame->getEnvelope().v0().tx.timeBounds.activate() =
                             TimeBounds(1000, start + 300000);
 
                         closeLedgerOn(*app, 3, 2, 7, 2014);
@@ -1210,7 +1216,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     {
                         txFrame = root.tx(
                             {payment(a1.getPublicKey(), paymentAmount)});
-                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                        txFrame->getEnvelope().v0().tx.timeBounds.activate() =
                             TimeBounds(1000, start);
 
                         closeLedgerOn(*app, 3, 3, 7, 2014);
@@ -1225,7 +1231,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_versions_to(9, *app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.seqNum--;
+                    txFrame->getEnvelope().v0().tx.seqNum--;
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
                         REQUIRE(!txFrame->checkValid(ltx, 0));
@@ -1236,7 +1242,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_versions_from(10, *app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.seqNum--;
+                    txFrame->getEnvelope().v0().tx.seqNum--;
                     applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
@@ -1324,7 +1330,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 auto tx = a.tx({setOptions(setMasterWeight(1) |
                                            setSigner(makeSigner(b, 0))),
                                 accountMerge(b)});
-                tx->getEnvelope().signatures.clear();
+                tx->getEnvelope().v0().signatures.clear();
                 tx->addSignature(b);
 
                 for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
