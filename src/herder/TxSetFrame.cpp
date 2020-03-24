@@ -150,9 +150,7 @@ TxSetFrame::sortForApply()
 struct SurgeCompare
 {
     Hash mSeed;
-    LedgerHeader const& mHeader;
-    SurgeCompare(LedgerHeader const& header)
-        : mSeed(HashUtils::random()), mHeader(header)
+    SurgeCompare() : mSeed(HashUtils::random())
     {
     }
 
@@ -173,9 +171,11 @@ struct SurgeCompare
         auto& top1 = tx1->front();
         auto& top2 = tx2->front();
 
-        // compare fee/minFee between top1 and top2
-        auto v1 = bigMultiply(top1->getFeeBid(), top2->getMinFee(mHeader));
-        auto v2 = bigMultiply(top2->getFeeBid(), top1->getMinFee(mHeader));
+        // compare fee/numOps between top1 and top2
+        // getNumOperations >= 1 because SurgeCompare can only be used on
+        // valid transactions
+        auto v1 = bigMultiply(top1->getFeeBid(), top2->getNumOperations());
+        auto v2 = bigMultiply(top2->getFeeBid(), top1->getNumOperations());
         if (v1 < v2)
         {
             return true;
@@ -232,11 +232,9 @@ TxSetFrame::surgePricingFilter(Application& app)
 
         auto actTxQueueMap = buildAccountTxQueues();
 
-        auto headerCopy = header.current();
-        SurgeCompare const surge(headerCopy);
         std::priority_queue<AccountTransactionQueue*,
                             std::vector<AccountTransactionQueue*>, SurgeCompare>
-            surgeQueue(surge);
+            surgeQueue;
 
         for (auto& am : actTxQueueMap)
         {
