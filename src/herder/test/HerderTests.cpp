@@ -23,12 +23,14 @@
 #include "overlay/OverlayManager.h"
 #include "test/TxTests.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 
 #include "xdrpp/marshal.h"
 #include <algorithm>
 
 using namespace stellar;
+using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
 TEST_CASE("standalone", "[herder][acceptance]")
@@ -234,9 +236,8 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
     auto tx = src.tx(ops);
-    tx->getEnvelope().v0().tx.fee *= feeMult;
-    tx->getEnvelope().v0().tx.fee += extraFee;
-    tx->getEnvelope().v0().signatures.clear();
+    setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) * feeMult + extraFee);
+    getSignatures(tx).clear();
     tx->addSignature(src);
     return tx;
 }
@@ -338,7 +339,7 @@ testTxSet(uint32 protocolVersion)
             SECTION("gap after")
             {
                 auto tx = accounts[0].tx({payment(accounts[0], 1)});
-                tx->getEnvelope().v0().tx.seqNum += 5;
+                setSeqNum(tx, tx->getSeqNum() + 5);
                 txSet->add(tx);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
@@ -348,8 +349,7 @@ testTxSet(uint32 protocolVersion)
             }
             SECTION("gap begin")
             {
-                txSet->sortForApply();
-                txSet->mTransactions.erase(txSet->mTransactions.begin());
+                txSet->removeTx(txSet->sortForApply()[0]);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
@@ -391,8 +391,10 @@ testTxSet(uint32 protocolVersion)
         SECTION("bad signature")
         {
             auto tx = txSet->mTransactions[0];
-            tx->getEnvelope().v0().tx.timeBounds.activate().maxTime =
-                UINT64_MAX;
+            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
+                           : tx->getEnvelope().v1().tx.timeBounds.activate();
+            tb.maxTime = UINT64_MAX;
             tx->clearCached();
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
@@ -669,8 +671,8 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
-            tx->getEnvelope().v0().tx.fee -= 1;
-            tx->getEnvelope().v0().signatures.clear();
+            setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
+            getSignatures(tx).clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
@@ -695,11 +697,11 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
             // find corresponding root tx (should have 1 less op)
             auto rTx = txSet->mTransactions[n];
-            REQUIRE(rTx->getEnvelope().v0().tx.operations.size() == n + 1);
-            REQUIRE(tx->getEnvelope().v0().tx.operations.size() == n + 2);
+            REQUIRE(rTx->getNumOperations() == n + 1);
+            REQUIRE(tx->getNumOperations() == n + 2);
             // use the same fee
-            tx->getEnvelope().v0().tx.fee = rTx->getEnvelope().v0().tx.fee;
-            tx->getEnvelope().v0().signatures.clear();
+            setFee(tx, static_cast<uint32_t>(rTx->getFeeBid()));
+            getSignatures(tx).clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
@@ -726,13 +728,13 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
             {
-                tx->getEnvelope().v0().tx.fee -= 1;
+                setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
             }
             else
             {
-                tx->getEnvelope().v0().tx.fee += 1;
+                setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) + 1);
             }
-            tx->getEnvelope().v0().signatures.clear();
+            getSignatures(tx).clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
