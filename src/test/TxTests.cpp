@@ -317,7 +317,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-              std::vector<TransactionFramePtr> const& txs)
+              std::vector<TransactionFrameBasePtr> const& txs)
 {
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);

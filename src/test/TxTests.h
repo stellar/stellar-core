@@ -71,9 +71,9 @@ void validateTxResults(TransactionFramePtr const& tx, Application& app,
                        ValidationResult validationResult,
                        TransactionResult const& applyResult = {});
 
-TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year,
-                              std::vector<TransactionFramePtr> const& txs = {});
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
+              std::vector<TransactionFrameBasePtr> const& txs = {});
 
 SecretKey getRoot(Hash const& networkID);
 
