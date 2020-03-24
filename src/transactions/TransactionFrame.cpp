@@ -11,6 +11,7 @@
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "herder/TxSetFrame.h"
+#include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerTxn.h"
@@ -23,10 +24,12 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Algoritm.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
+#include "xdrpp/printer.h"
 #include <string>
 
 #include "medida/meter.h"
@@ -673,84 +676,127 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Application& app, AbstractLedgerTxn& ltx,
                                   TransactionMeta& outerMeta)
 {
-    bool success = true;
-
-    TransactionMeta newMeta(2);
-    auto& operationsMeta = newMeta.v2().operations;
-    operationsMeta.reserve(getNumOperations());
-
-    // shield outer scope of any side effects with LedgerTxn
-    LedgerTxn ltxTx(ltx);
-    auto& opTimer = app.getMetrics().NewTimer({"ledger", "operation", "apply"});
-    for (auto& op : mOperations)
+    try
     {
-        auto time = opTimer.TimeScope();
-        LedgerTxn ltxOp(ltxTx);
-        bool txRes = op->apply(signatureChecker, ltxOp);
+        bool success = true;
 
-        if (!txRes)
-        {
-            success = false;
-        }
-        if (success)
-        {
-            app.getInvariantManager().checkOnOperationApply(
-                op->getOperation(), op->getResult(), ltxOp.getDelta());
-        }
+        TransactionMeta newMeta(2);
+        auto& operationsMeta = newMeta.v2().operations;
+        operationsMeta.reserve(getNumOperations());
 
-        operationsMeta.emplace_back(ltxOp.getChanges());
-        ltxOp.commit();
-    }
-
-    if (success)
-    {
-        if (ltxTx.loadHeader().current().ledgerVersion < 10)
+        // shield outer scope of any side effects with LedgerTxn
+        LedgerTxn ltxTx(ltx);
+        auto& opTimer =
+            app.getMetrics().NewTimer({"ledger", "operation", "apply"});
+        for (auto& op : mOperations)
         {
-            if (!signatureChecker.checkAllSignaturesUsed())
+            auto time = opTimer.TimeScope();
+            LedgerTxn ltxOp(ltxTx);
+            bool txRes = op->apply(signatureChecker, ltxOp);
+
+            if (!txRes)
             {
-                getResult().result.code(txBAD_AUTH_EXTRA);
-                // this should never happen: malformed transaction should
-                // not be accepted by nodes
-                return false;
+                success = false;
+            }
+            if (success)
+            {
+                app.getInvariantManager().checkOnOperationApply(
+                    op->getOperation(), op->getResult(), ltxOp.getDelta());
             }
 
-            // if an error occurred, it is responsibility of account's owner
-            // to remove that signer
-            LedgerTxn ltxAfter(ltxTx);
-            removeUsedOneTimeSignerKeys(signatureChecker, ltxAfter);
-            newMeta.v2().txChangesAfter = ltxAfter.getChanges();
-            ltxAfter.commit();
+            operationsMeta.emplace_back(ltxOp.getChanges());
+            ltxOp.commit();
         }
 
-        ltxTx.commit();
-        // commit -> propagate the meta to the outer scope
-        auto& omOperations = outerMeta.v() == 1 ? outerMeta.v1().operations
-                                                : outerMeta.v2().operations;
-        std::swap(omOperations, operationsMeta);
-        if (outerMeta.v() == 2)
+        if (success)
         {
-            std::swap(outerMeta.v2().txChangesAfter,
-                      newMeta.v2().txChangesAfter);
+            if (ltxTx.loadHeader().current().ledgerVersion < 10)
+            {
+                if (!signatureChecker.checkAllSignaturesUsed())
+                {
+                    getResult().result.code(txBAD_AUTH_EXTRA);
+                    // this should never happen: malformed transaction should
+                    // not be accepted by nodes
+                    return false;
+                }
+
+                // if an error occurred, it is responsibility of account's owner
+                // to remove that signer
+                LedgerTxn ltxAfter(ltxTx);
+                removeUsedOneTimeSignerKeys(signatureChecker, ltxAfter);
+                newMeta.v2().txChangesAfter = ltxAfter.getChanges();
+                ltxAfter.commit();
+            }
+
+            ltxTx.commit();
+            // commit -> propagate the meta to the outer scope
+            auto& omOperations = outerMeta.v() == 1 ? outerMeta.v1().operations
+                                                    : outerMeta.v2().operations;
+            std::swap(omOperations, operationsMeta);
+            if (outerMeta.v() == 2)
+            {
+                std::swap(outerMeta.v2().txChangesAfter,
+                          newMeta.v2().txChangesAfter);
+            }
         }
+        else
+        {
+            markResultFailed();
+        }
+        return success;
+    }
+    catch (InvariantDoesNotHold&)
+    {
+        printErrorAndAbort("Invariant failure while applying operations");
+    }
+    catch (std::bad_alloc& e)
+    {
+        printErrorAndAbort("Exception while applying operations: ", e.what());
+    }
+    catch (std::exception& e)
+    {
+        CLOG(ERROR, "Tx") << "Exception while applying operations (txHash= "
+                          << xdr::xdr_to_string(getFullHash())
+                          << "): " << e.what();
+    }
+    catch (...)
+    {
+        CLOG(ERROR, "Tx")
+            << "Unknown exception while applying operations (txHash= "
+            << xdr::xdr_to_string(getFullHash()) << ")";
+    }
+
+    // This is only reachable if an exception is thrown
+    getResult().result.code(txINTERNAL_ERROR);
+
+    auto& internalErrorCounter = app.getMetrics().NewCounter(
+        {"ledger", "transaction", "internal-error"});
+    internalErrorCounter.inc();
+
+    // operations and txChangesAfter should already be empty at this point
+    if (outerMeta.v() == 1)
+    {
+        outerMeta.v1().operations.clear();
     }
     else
     {
-        markResultFailed();
+        outerMeta.v2().operations.clear();
+        outerMeta.v2().txChangesAfter.clear();
     }
-    return success;
+    return false;
 }
 
 bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                         TransactionMeta& meta, bool chargeFee)
 {
-    mCachedAccount.reset();
-    SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
-                                      getContentsHash(),
-                                      getSignatures(mEnvelope)};
-
-    bool valid = false;
+    try
     {
+        mCachedAccount.reset();
+        SignatureChecker signatureChecker{
+            ltx.loadHeader().current().ledgerVersion, getContentsHash(),
+            getSignatures(mEnvelope)};
+
         LedgerTxn ltxTx(ltx);
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
@@ -767,9 +813,36 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
             meta.v() == 1 ? meta.v1().txChanges : meta.v2().txChangesBefore;
         txChanges = ltxTx.getChanges();
         ltxTx.commit();
-        valid = signaturesValid && (cv == ValidationType::kFullyValid);
+
+        bool valid = signaturesValid && cv == ValidationType::kFullyValid;
+        try
+        {
+            // This should only throw if the logging during exception handling
+            // for applyOperations throws. In that case, we may not have the
+            // correct TransactionResult so we must crash.
+            return valid && applyOperations(signatureChecker, app, ltx, meta);
+        }
+        catch (std::exception& e)
+        {
+            printErrorAndAbort("Exception while applying operations: ",
+                               e.what());
+        }
+        catch (...)
+        {
+            printErrorAndAbort("Unknown exception while applying operations");
+        }
     }
-    return valid && applyOperations(signatureChecker, app, ltx, meta);
+    catch (std::exception& e)
+    {
+        printErrorAndAbort("Exception after processing fees but before "
+                           "processing sequence number: ",
+                           e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("Unknown exception after processing fees but before "
+                           "processing sequence number");
+    }
 }
 
 bool
