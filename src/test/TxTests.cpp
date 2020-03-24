@@ -16,6 +16,7 @@
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -335,10 +336,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
-    auto z1 = TransactionFrame::getTransactionHistoryResults(app.getDatabase(),
-                                                             ledgerSeq);
-    auto z2 =
-        TransactionFrame::getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
+    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
 
