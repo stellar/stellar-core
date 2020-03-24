@@ -101,6 +101,8 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
+
+    TransactionQueue& getTransactionQueue();
 #endif
 
     // helper function to verify envelopes are signed

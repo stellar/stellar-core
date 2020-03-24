@@ -618,6 +618,12 @@ HerderImpl::getPendingEnvelopes()
 {
     return mPendingEnvelopes;
 }
+
+TransactionQueue&
+HerderImpl::getTransactionQueue()
+{
+    return mTransactionQueue;
+}
 #endif
 
 void
