@@ -161,11 +161,11 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
     return true;
 }
 
-AccountID const&
+AccountID
 OperationFrame::getSourceID() const
 {
     return mOperation.sourceAccount ? *mOperation.sourceAccount
-                                    : mParentTx.getEnvelope().tx.sourceAccount;
+                                    : mParentTx.getSourceID();
 }
 
 OperationResultCode

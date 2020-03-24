@@ -64,7 +64,7 @@ class OperationFrame
     bool checkSignature(SignatureChecker& signatureChecker,
                         AbstractLedgerTxn& ltx, bool forApply);
 
-    AccountID const& getSourceID() const;
+    AccountID getSourceID() const;
 
     OperationResult&
     getResult() const
