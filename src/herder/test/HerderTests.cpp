@@ -390,7 +390,8 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = txSet->mTransactions[0];
+            auto tx = std::static_pointer_cast<TransactionFrame>(
+                txSet->mTransactions[0]);
             auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
                            ? tx->getEnvelope().v0().tx.timeBounds.activate()
                            : tx->getEnvelope().v1().tx.timeBounds.activate();

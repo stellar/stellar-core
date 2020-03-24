@@ -69,7 +69,7 @@ class TransactionQueueTest
     }
 
     void
-    removeAndReset(std::vector<TransactionFramePtr> const& toRemove)
+    removeAndReset(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
         mTransactionQueue.removeAndReset(toRemove);
@@ -78,16 +78,16 @@ class TransactionQueueTest
     }
 
     void
-    ban(std::vector<TransactionFramePtr> const& toRemove)
+    ban(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
         auto txSetBefore = mTransactionQueue.toTxSet({});
         // count the number of transactions from `toRemove` already included
         auto inPoolCount = std::count_if(
             toRemove.begin(), toRemove.end(),
-            [&](TransactionFramePtr const& tx) {
+            [&](TransactionFrameBasePtr const& tx) {
                 auto const& txs = txSetBefore->mTransactions;
                 return std::any_of(txs.begin(), txs.end(),
-                                   [&](TransactionFramePtr const& tx2) {
+                                   [&](TransactionFrameBasePtr const& tx2) {
                                        return tx2->getFullHash() ==
                                               tx->getFullHash();
                                    });
