@@ -2,6 +2,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include "util/Decoder.h"
 #include "util/Fs.h"
 #include "util/XDROperators.h"
@@ -380,7 +381,8 @@ signtxn(std::string const& filename, std::string netId, bool base64)
 
         TransactionEnvelope txenv;
         xdr::xdr_from_opaque(readFile(filename, base64), txenv);
-        if (txenv.signatures.size() == txenv.signatures.max_size())
+        auto& signatures = txbridge::getSignatures(txenv);
+        if (signatures.size() == signatures.max_size())
             throw std::runtime_error(
                 "Evelope already contains maximum number of signatures");
 
@@ -388,9 +390,29 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             readSecret("Secret key seed: ", txn_stdin)));
         TransactionSignaturePayload payload;
         payload.networkId = sha256(netId);
-        payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
-        payload.taggedTransaction.tx() = txenv.tx;
-        txenv.signatures.emplace_back(
+        switch (txenv.type())
+        {
+        case ENVELOPE_TYPE_TX_V0:
+            payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+            // TransactionV0 and Transaction always have the same signatures so
+            // there is no reason to check versions here, just always convert to
+            // Transaction
+            payload.taggedTransaction.tx() =
+                txbridge::convertForV13(txenv).v1().tx;
+            break;
+        case ENVELOPE_TYPE_TX:
+            payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+            payload.taggedTransaction.tx() = txenv.v1().tx;
+            break;
+        case ENVELOPE_TYPE_TX_FEE_BUMP:
+            payload.taggedTransaction.type(ENVELOPE_TYPE_TX_FEE_BUMP);
+            payload.taggedTransaction.feeBump() = txenv.feeBump().tx;
+            break;
+        default:
+            abort();
+        }
+
+        signatures.emplace_back(
             SignatureUtils::getHint(sk.getPublicKey().ed25519()),
             sk.sign(sha256(xdr::xdr_to_opaque(payload))));
 

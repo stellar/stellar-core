@@ -150,4 +150,22 @@ Floodgate::forgetRecord(Hash const& h)
 {
     mFloodMap.erase(h);
 }
+
+void
+Floodgate::updateRecord(StellarMessage const& oldMsg,
+                        StellarMessage const& newMsg)
+{
+    Hash oldHash = sha256(xdr::xdr_to_opaque(oldMsg));
+    Hash newHash = sha256(xdr::xdr_to_opaque(newMsg));
+
+    auto oldIter = mFloodMap.find(oldHash);
+    if (oldIter != mFloodMap.end())
+    {
+        auto record = oldIter->second;
+        record->mMessage = newMsg;
+
+        mFloodMap.erase(oldIter);
+        mFloodMap.emplace(newHash, record);
+    }
+}
 }

@@ -245,23 +245,29 @@ class OverlayManagerTests
         auto c = TestAccount{*app, getAccount("c")};
         auto d = TestAccount{*app, getAccount("d")};
 
-        StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
+        StellarMessage AtoB = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
         for (auto p : pm.mOutboundPeers.mAuthenticated)
         {
             if (i++ == 2)
             {
-                pm.recvFloodedMsg(AtoC, p.second);
+                pm.recvFloodedMsg(AtoB, p.second);
             }
         }
-        pm.broadcastMessage(AtoC);
+        pm.broadcastMessage(AtoB);
         std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
-        pm.broadcastMessage(AtoC);
+        pm.broadcastMessage(AtoB);
         REQUIRE(sentCounts(pm) == expected);
         StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
         pm.broadcastMessage(CtoD);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};
+        REQUIRE(sentCounts(pm) == expectedFinal);
+
+        // Test that we updating a flood record actually prevents re-broadcast
+        StellarMessage AtoC = a.tx({payment(c, 10)})->toStellarMessage();
+        pm.updateFloodRecord(AtoB, AtoC);
+        pm.broadcastMessage(AtoC);
         REQUIRE(sentCounts(pm) == expectedFinal);
     }
 };

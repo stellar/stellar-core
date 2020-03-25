@@ -25,7 +25,7 @@
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerManager.h"
-#include "transactions/TransactionFrame.h"
+#include "transactions/TransactionSQL.h"
 
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
@@ -463,7 +463,7 @@ Database::initialize()
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
     LedgerHeaderUtils::dropAll(*this);
-    TransactionFrame::dropAll(*this);
+    dropTransactionHistory(*this);
     HistoryManager::dropAll(*this);
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);

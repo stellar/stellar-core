@@ -16,8 +16,6 @@
 #include "herder/TxSetFrame.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
-#include "invariant/InvariantDoesNotHold.h"
-#include "invariant/InvariantManager.h"
 #include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerRange.h"
 #include "ledger/LedgerTxn.h"
@@ -28,6 +26,7 @@
 #include "main/ErrorMessages.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
@@ -119,8 +118,6 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     , mPrefetchHitRate(
           app.getMetrics().NewHistogram({"ledger", "prefetch", "hit-rate"},
                                         medida::SamplingInterface::kSliding))
-    , mInternalErrorCount(app.getMetrics().NewCounter(
-          {"ledger", "transaction", "internal-error"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
     , mLedgerAge(
@@ -600,7 +597,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
-    vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
+    vector<TransactionFrameBasePtr> txs = ledgerData.getTxSet()->sortForApply();
 
     // first, prefetch source accounts fot txset, then charge fees
     prefetchTxSourceIds(txs);
@@ -737,7 +734,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
     soci::transaction txscope(db.getSession());
     db.clearPreparedStatementCache();
     LedgerHeaderUtils::deleteOldEntries(db, ledgerSeq, count);
-    TransactionFrame::deleteOldEntries(db, ledgerSeq, count);
+    deleteOldTransactionHistoryEntries(db, ledgerSeq, count);
     HerderPersistence::deleteOldEntries(db, ledgerSeq, count);
     Upgrades::deleteOldEntries(db, ledgerSeq, count);
     db.clearPreparedStatementCache();
@@ -805,7 +802,7 @@ LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
 
 void
 LedgerManagerImpl::processFeesSeqNums(
-    std::vector<TransactionFramePtr>& txs, AbstractLedgerTxn& ltxOuter,
+    std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
     int64_t baseFee, std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
 {
     CLOG(DEBUG, "Ledger")
@@ -835,8 +832,8 @@ LedgerManagerImpl::processFeesSeqNums(
             ++index;
             if (mApp.getConfig().MODE_STORES_HISTORY)
             {
-                tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq, changes,
-                                        index);
+                storeTransactionFee(mApp.getDatabase(), ledgerSeq, tx, changes,
+                                    index);
             }
             ltxTx.commit();
         }
@@ -852,46 +849,38 @@ LedgerManagerImpl::processFeesSeqNums(
 }
 
 void
-LedgerManagerImpl::prefetchTxSourceIds(std::vector<TransactionFramePtr>& txs)
+LedgerManagerImpl::prefetchTxSourceIds(
+    std::vector<TransactionFrameBasePtr>& txs)
 {
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
         std::unordered_set<LedgerKey> keys;
         for (auto const& tx : txs)
         {
-            keys.emplace(accountKey(tx->getSourceID()));
+            tx->insertKeysForFeeProcessing(keys);
         }
-        auto& root = mApp.getLedgerTxnRoot();
-        root.prefetch(keys);
+        mApp.getLedgerTxnRoot().prefetch(keys);
     }
 }
 
 void
 LedgerManagerImpl::prefetchTransactionData(
-    std::vector<TransactionFramePtr>& txs)
+    std::vector<TransactionFrameBasePtr>& txs)
 {
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
-        auto& root = mApp.getLedgerTxnRoot();
-        std::unordered_set<LedgerKey> keysToPrefetch;
+        std::unordered_set<LedgerKey> keys;
         for (auto const& tx : txs)
         {
-            for (auto const& op : tx->getOperations())
-            {
-                if (!(tx->getSourceID() == op->getSourceID()))
-                {
-                    keysToPrefetch.emplace(accountKey(op->getSourceID()));
-                }
-                op->insertLedgerKeysToPrefetch(keysToPrefetch);
-            }
+            tx->insertKeysForTxApply(keys);
         }
-        root.prefetch(keysToPrefetch);
+        mApp.getLedgerTxnRoot().prefetch(keys);
     }
 }
 
 void
 LedgerManagerImpl::applyTransactions(
-    std::vector<TransactionFramePtr>& txs, AbstractLedgerTxn& ltx,
+    std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltx,
     TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
 {
@@ -903,10 +892,11 @@ LedgerManagerImpl::applyTransactions(
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
-        numOps = std::accumulate(txs.begin(), txs.end(), size_t(0),
-                                 [](size_t s, TransactionFramePtr const& v) {
-                                     return s + v->getNumOperations();
-                                 });
+        numOps =
+            std::accumulate(txs.begin(), txs.end(), size_t(0),
+                            [](size_t s, TransactionFrameBasePtr const& v) {
+                                return s + v->getNumOperations();
+                            });
         mOperationCount.Update(static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
                                         ltx.loadHeader().current().ledgerSeq,
@@ -919,38 +909,17 @@ LedgerManagerImpl::applyTransactions(
     {
         auto txTime = mTransactionApply.TimeScope();
         TransactionMeta tm(mApp.getConfig().SUPPORTED_META_VERSION);
-        try
-        {
-            CLOG(DEBUG, "Tx")
-                << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
-                << " ops=" << tx->getNumOperations()
-                << " txseq=" << tx->getSeqNum() << " (@ "
-                << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
-            tx->apply(mApp, ltx, tm);
-        }
-        catch (InvariantDoesNotHold&)
-        {
-            CLOG(ERROR, "Ledger")
-                << "Invariant failure during tx->apply for tx "
-                << tx->getFullHash();
-            throw;
-        }
-        catch (std::runtime_error& e)
-        {
-            CLOG(ERROR, "Ledger") << "Exception during tx->apply for tx "
-                                  << tx->getFullHash() << " : " << e.what();
-            mInternalErrorCount.inc();
-            tx->getResult().result.code(txINTERNAL_ERROR);
-        }
-        catch (...)
-        {
-            CLOG(ERROR, "Ledger")
-                << "Unknown exception during tx->apply for tx "
-                << tx->getFullHash();
-            mInternalErrorCount.inc();
-            tx->getResult().result.code(txINTERNAL_ERROR);
-        }
-        TransactionResultPair results = tx->getResultPair();
+        CLOG(DEBUG, "Tx") << " tx#" << index << " = "
+                          << hexAbbrev(tx->getFullHash())
+                          << " ops=" << tx->getNumOperations()
+                          << " txseq=" << tx->getSeqNum() << " (@ "
+                          << mApp.getConfig().toShortString(tx->getSourceID())
+                          << ")";
+        tx->apply(mApp, ltx, tm);
+
+        TransactionResultPair results;
+        results.transactionHash = tx->getContentsHash();
+        results.result = tx->getResult();
 
         // First gather the TransactionResultPair into the TxResultSet for
         // hashing into the ledger header.
@@ -979,8 +948,8 @@ LedgerManagerImpl::applyTransactions(
         if (mApp.getConfig().MODE_STORES_HISTORY)
         {
             auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
-            tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, index,
-                                 txResultSet);
+            storeTransaction(mApp.getDatabase(), ledgerSeq, tx, tm,
+                             txResultSet);
         }
     }
 

@@ -5,6 +5,7 @@
 #include "bucket/BucketInputIterator.h"
 #include "bucket/BucketTests.h"
 #include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryArchiveManager.h"
@@ -25,6 +26,7 @@
 #include <xdrpp/marshal.h>
 
 using namespace stellar;
+using namespace stellar::txtest;
 
 struct LedgerUpgradeableData
 {
@@ -1629,6 +1631,56 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
                 break;
             }
         }
+    }
+}
+
+TEST_CASE("upgrade to version 13", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.USE_CONFIG_FOR_GENESIS = false;
+
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+    executeUpgrade(*app, makeProtocolVersionUpgrade(12));
+
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    auto root = TestAccount::createRoot(*app);
+    auto acc = root.create("A", lm.getLastMinBalance(2));
+
+    herder.recvTransaction(root.tx({payment(root, 1)}));
+    herder.recvTransaction(root.tx({payment(root, 2)}));
+    herder.recvTransaction(acc.tx({payment(acc, 1)}));
+    herder.recvTransaction(acc.tx({payment(acc, 2)}));
+
+    auto txSet = herder.getTransactionQueue().toTxSet({});
+    for (auto const& tx : txSet->mTransactions)
+    {
+        REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0);
+    }
+
+    {
+        auto const& lcl = lm.getLastClosedLedgerHeader();
+        auto ledgerSeq = lcl.header.ledgerSeq + 1;
+
+        auto emptyTxSet = std::make_shared<TxSetFrame>(lcl.hash);
+        herder.getPendingEnvelopes().putTxSet(emptyTxSet->getContentsHash(),
+                                              ledgerSeq, emptyTxSet);
+
+        auto upgrade = toUpgradeType(makeProtocolVersionUpgrade(13));
+        StellarValue sv{emptyTxSet->getContentsHash(), 2,
+                        xdr::xvector<UpgradeType, 6>({upgrade}),
+                        STELLAR_VALUE_BASIC};
+        herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
+                                                      xdr::xdr_to_opaque(sv));
+    }
+
+    txSet = herder.getTransactionQueue().toTxSet({});
+    for (auto const& tx : txSet->mTransactions)
+    {
+        REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     }
 }
 

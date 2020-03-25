@@ -28,31 +28,35 @@ namespace stellar
 class Application;
 
 /**
- * This class keeps received transaction that were not yet added into ledger
- * and that are valid.
+ * TransactionQueue keeps received transactions that are valid and have not yet
+ * been included in a transaction set.
  *
- * Each account has an associated queue of transactions (with increasing
- * sequence numbers), a cached value of total fees for those transactions and
- * an age used to determine how long transaction should be kept before banning.
+ * An accountID is in mAccountStates if and only if it is the fee-source or
+ * sequence-number-source for at least one transaction in the TransactionQueue.
+ * This invariant is maintained by releaseFeeMaybeEraseAccountState.
  *
- * After receiving transaction from network it should be added to this queue
- * by tryAdd operation. If that succeeds, it can be later removed from it in one
- * of three ways:
- * * removeAndReset() should be called after transaction is successfully
- *   included into some leger. It preserves the other pending transactions for
- *   accounts and resets the TTL for banning
- * * ban() bans a transactions (which may or may not be in the queue) and its
- *   descendants, if any, for the next few ledgers.
- * * shift() should be called after each ledger close, it bans transactions
- *   that have associated age greater or equal to pendingDepth and removes
- *   transactions that were banned for more than banDepth ledgers
- *
- * Current value of total fees, age and last sequence number of transaction in
- * queue for given account can be returned by getAccountTransactionQueueInfo.
+ * Transactions received from the HTTP "tx" endpoint and the overlay network
+ * should be added by calling tryAdd. If that succeeds, the transaction may be
+ * removed later in three ways:
+ * - removeAndReset() should be called after transactions are applied. It
+ *   removes the specified transactions, but leaves transactions with subsequent
+ *   sequence numbers in the TransactionQueue. It also resets the age for the
+ *   sequence-number-source of each specified transaction.
+ * - ban() should be called after transactions become invalid for any reason.
+ *   Banned transactions cannot be added to the TransactionQueue again for a
+ *   banDepth ledgers.
+ * - shift() should be called after each ledger close, after removeAndReset. It
+ *   increases the age for every account that is the sequence-number-source for
+ *   at least one transaction. If the age becomes greater than or equal to
+ *   pendingDepth, all transactions for that source account are banned. It also
+ *   unbans any transactions that have been banned for more than banDepth
+ *   ledgers.
  */
 class TransactionQueue
 {
   public:
+    static int64_t const FEE_MULTIPLIER;
+
     enum class AddResult
     {
         ADD_STATUS_PENDING = 0,
@@ -64,7 +68,7 @@ class TransactionQueue
 
     /*
      * Information about queue of transaction for given account. mAge and
-     * mTotlaFees are stored in queue, byt mMaxSeq must be computed each
+     * mTotalFees are stored in queue, but mMaxSeq must be computed each
      * time (its O(1) anyway).
      */
     struct AccountTxQueueInfo
@@ -72,39 +76,43 @@ class TransactionQueue
         SequenceNumber mMaxSeq{0};
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
-        int mAge{0};
+        int32_t mAge{0};
 
         friend bool operator==(AccountTxQueueInfo const& x,
                                AccountTxQueueInfo const& y);
     };
 
     /**
-     * Queue of transaction for given account. mTotalFees is a sum of all
-     * feeBid() values from mTransactions. mAge is incremented each time
-     * shift() is called and allows for banning transactions.
+     * AccountState stores the following information:
+     * - mTotalFees: the sum of feeBid() over every transaction for which this
+     *   account is the fee-source (this may include transactions that are not
+     *   in mTransactions)
+     * - mAge: the number of ledgers that have closed since the last ledger in
+     *   which a transaction in mTransactions was included. This is always 0 if
+     *   mTransactions is empty
+     * - mTransactions: the list of transactions for which this account is the
+     *   sequence-number-source, ordered by sequence number
      */
-    struct AccountTransactions
+    using Transactions = std::vector<TransactionFrameBasePtr>;
+    struct AccountState
     {
-        using Transactions = std::vector<TransactionFramePtr>;
-
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
-        int mAge{0};
+        int32_t mAge{0};
         Transactions mTransactions;
     };
 
     explicit TransactionQueue(Application& app, int pendingDepth, int banDepth,
                               int poolLedgerMultiplier);
 
-    AddResult tryAdd(TransactionFramePtr tx);
-    void removeAndReset(std::vector<TransactionFramePtr> const& txs);
-    void ban(std::vector<TransactionFramePtr> const& txs);
+    AddResult tryAdd(TransactionFrameBasePtr tx);
+    void removeAndReset(Transactions const& txs);
+    void ban(Transactions const& txs);
 
     /**
-     * Increse age of each transaction queue. If that age now is equal to
-     * pendingDepth, all ot transaction on that queue are banned. Also
-     * increments age for each banned transaction and if that age became equal
-     * to banDepth, transaction get unbanned.
+     * Increase age of each AccountState that has at least one transaction in
+     * mTransactions. Also increments the age for each banned transaction, and
+     * unbans transactions for which age equals banDepth.
      */
     void shift();
 
@@ -117,15 +125,23 @@ class TransactionQueue
     std::shared_ptr<TxSetFrame>
     toTxSet(LedgerHeaderHistoryEntry const& lcl) const;
 
+    struct ReplacedTransaction
+    {
+        TransactionFrameBasePtr mOld;
+        TransactionFrameBasePtr mNew;
+    };
+    std::vector<ReplacedTransaction> maybeVersionUpgraded();
+
   private:
     /**
-     * Per account queue. Each queue has its own age, so it is easy to reset it
-     * when transaction for given account was included in ledger. It also
-     * allows for fast banning of all transaction that depend (have bigger
-     * sequence number) of just-removed invalid one in ban().
+     * The AccountState for every account. As noted above, an AccountID is in
+     * AccountStates iff at least one of the following is true for the
+     * corresponding AccountState
+     * - AccountState.mTotalFees > 0
+     * - !AccountState.mTransactions.empty()
      */
-    using PendingTransactions =
-        std::unordered_map<AccountID, AccountTransactions>;
+    using AccountStates = std::unordered_map<AccountID, AccountState>;
+
     /**
      * Banned transactions are stored in deque of depth banDepth, so it is easy
      * to unban all transactions that were banned for long enough.
@@ -135,18 +151,23 @@ class TransactionQueue
     Application& mApp;
     int const mPendingDepth;
     std::vector<medida::Counter*> mSizeByAge;
-    PendingTransactions mPendingTransactions;
+    AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
+    uint32_t mLedgerVersion;
 
-    bool contains(TransactionFramePtr tx);
+    using FindResult =
+        std::pair<AccountStates::iterator, Transactions::iterator>;
+    FindResult find(TransactionFrameBasePtr const& tx);
 
-    using FindResult = std::pair<PendingTransactions::iterator,
-                                 AccountTransactions::Transactions::iterator>;
-    FindResult find(TransactionFramePtr const& tx);
-    using ExtractResult = std::pair<PendingTransactions::iterator,
-                                    std::vector<TransactionFramePtr>>;
+    using ExtractResult = std::pair<AccountStates::iterator, Transactions>;
     // keepBacklog: keeps transactions succeeding tx in the account's backlog
-    ExtractResult extract(TransactionFramePtr const& tx, bool keepBacklog);
+    ExtractResult extract(TransactionFrameBasePtr const& tx, bool keepBacklog);
+
+    AddResult canAdd(TransactionFrameBasePtr tx,
+                     AccountStates::iterator& stateIter,
+                     Transactions::iterator& oldTxIter);
+
+    void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};

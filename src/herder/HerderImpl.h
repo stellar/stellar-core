@@ -60,7 +60,7 @@ class HerderImpl : public Herder
     void emitEnvelope(SCPEnvelope const& envelope);
 
     TransactionQueue::AddResult
-    recvTransaction(TransactionFramePtr tx) override;
+    recvTransaction(TransactionFrameBasePtr tx) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
@@ -101,6 +101,8 @@ class HerderImpl : public Herder
 #ifdef BUILD_TESTS
     // used for testing
     PendingEnvelopes& getPendingEnvelopes();
+
+    TransactionQueue& getTransactionQueue();
 #endif
 
     // helper function to verify envelopes are signed
@@ -130,7 +132,7 @@ class HerderImpl : public Herder
     TransactionQueue mTransactionQueue;
 
     void
-    updateTransactionQueue(std::vector<TransactionFramePtr> const& applied);
+    updateTransactionQueue(std::vector<TransactionFrameBasePtr> const& applied);
 
     PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;

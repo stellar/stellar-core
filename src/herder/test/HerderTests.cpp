@@ -23,12 +23,15 @@
 #include "overlay/OverlayManager.h"
 #include "test/TxTests.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/SignatureUtils.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 
 #include "xdrpp/marshal.h"
 #include <algorithm>
 
 using namespace stellar;
+using namespace stellar::txbridge;
 using namespace stellar::txtest;
 
 TEST_CASE("standalone", "[herder][acceptance]")
@@ -234,9 +237,8 @@ makeMultiPayment(stellar::TestAccount& destAccount, stellar::TestAccount& src,
         ops.emplace_back(payment(destAccount, i + paymentBase));
     }
     auto tx = src.tx(ops);
-    tx->getEnvelope().tx.fee *= feeMult;
-    tx->getEnvelope().tx.fee += extraFee;
-    tx->getEnvelope().signatures.clear();
+    setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) * feeMult + extraFee);
+    getSignatures(tx).clear();
     tx->addSignature(src);
     return tx;
 }
@@ -251,12 +253,6 @@ testTxSet(uint32 protocolVersion)
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
-
-    LedgerHeader lhCopy;
-    {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        lhCopy = ltx.loadHeader().current();
-    }
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -338,7 +334,7 @@ testTxSet(uint32 protocolVersion)
             SECTION("gap after")
             {
                 auto tx = accounts[0].tx({payment(accounts[0], 1)});
-                tx->getEnvelope().tx.seqNum += 5;
+                setSeqNum(tx, tx->getSeqNum() + 5);
                 txSet->add(tx);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
@@ -348,8 +344,7 @@ testTxSet(uint32 protocolVersion)
             }
             SECTION("gap begin")
             {
-                txSet->sortForApply();
-                txSet->mTransactions.erase(txSet->mTransactions.begin());
+                txSet->removeTx(txSet->sortForApply()[0]);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
@@ -390,11 +385,249 @@ testTxSet(uint32 protocolVersion)
         }
         SECTION("bad signature")
         {
-            auto tx = txSet->mTransactions[0];
-            tx->getEnvelope().tx.timeBounds.activate().maxTime = UINT64_MAX;
+            auto tx = std::static_pointer_cast<TransactionFrame>(
+                txSet->mTransactions[0]);
+            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
+                           : tx->getEnvelope().v1().tx.timeBounds.activate();
+            tb.maxTime = UINT64_MAX;
             tx->clearCached();
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
+        }
+    }
+}
+
+static TransactionFrameBasePtr
+transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
+            int64_t amount, uint32_t fee)
+{
+    return transactionFromOperations(
+        app, account, account.getLastSequenceNumber() + sequenceDelta,
+        {payment(account.getPublicKey(), amount)}, fee);
+}
+
+static TransactionFrameBasePtr
+feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
+        int64_t fee)
+{
+    REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
+    TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
+    fb.feeBump().tx.feeSource = feeSource;
+    fb.feeBump().tx.fee = fee;
+    fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
+    fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();
+
+    auto hash = sha256(xdr::xdr_to_opaque(
+        app.getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP, fb.feeBump().tx));
+    fb.feeBump().signatures.emplace_back(SignatureUtils::sign(feeSource, hash));
+    return TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(),
+                                                         fb);
+}
+
+static void
+testTxSetWithFeeBumps(uint32 protocolVersion)
+{
+    Config cfg(getTestConfig());
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 14;
+    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+
+    auto txSet = std::make_shared<TxSetFrame>(
+        app->getLedgerManager().getLastClosedLedgerHeader().hash);
+
+    auto root = TestAccount::createRoot(*app);
+    auto account1 = root.create("a1", minBalance2);
+    auto account2 = root.create("a2", minBalance2);
+    auto account3 = root.create("a3", minBalance2);
+
+    auto checkTrimCheck = [&](std::vector<TransactionFrameBasePtr> const& txs) {
+        txSet->sortForHash();
+        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(txSet->trimInvalid(*app) == txs);
+        REQUIRE(txSet->checkValid(*app));
+    };
+
+    SECTION("insufficient balance")
+    {
+        SECTION("two fee bumps with same sources, second insufficient")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto fb2 =
+                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb1, fb2});
+        }
+
+        SECTION("three fee bumps, one with different fee source, "
+                "different first")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account3, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, 200);
+            txSet->add(fb2);
+            auto tx3 = transaction(*app, account1, 3, 1, 100);
+            auto fb3 =
+                feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
+            txSet->add(fb3);
+
+            checkTrimCheck({fb2, fb3});
+        }
+
+        SECTION("three fee bumps, one with different fee source, "
+                "different second")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto fb2 = feeBump(*app, account3, tx2, 200);
+            txSet->add(fb2);
+            auto tx3 = transaction(*app, account1, 3, 1, 100);
+            auto fb3 =
+                feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
+            txSet->add(fb3);
+
+            checkTrimCheck({fb1, fb2, fb3});
+        }
+
+        SECTION("three fee bumps, one with different fee source, "
+                "different third")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto fb2 =
+                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
+            txSet->add(fb2);
+            auto tx3 = transaction(*app, account1, 3, 1, 100);
+            auto fb3 = feeBump(*app, account3, tx3, 200);
+            txSet->add(fb3);
+
+            checkTrimCheck({fb1, fb2, fb3});
+        }
+
+        SECTION("two fee bumps with same fee source but different source")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account2, 1, 1, 100);
+            auto fb2 =
+                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb1, fb2});
+        }
+    }
+
+    SECTION("invalid transaction")
+    {
+        SECTION("one fee bump")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, minBalance2);
+            txSet->add(fb1);
+
+            checkTrimCheck({fb1});
+        }
+
+        SECTION("two fee bumps with same sources, first has high fee")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, minBalance2);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, 200);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb1, fb2});
+        }
+
+        // Compare against
+        // "two fee bumps with same sources, second insufficient"
+        SECTION("two fee bumps with same sources, second has high fee")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, 1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, minBalance2);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb2});
+        }
+
+        // Compare against
+        // "two fee bumps with same sources, second insufficient"
+        SECTION("two fee bumps with same sources, second insufficient, "
+                "second invalid by malformed operation")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, -1, 100);
+            auto fb2 =
+                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb2});
+        }
+
+        SECTION("two fee bumps with same fee source but different source, "
+                "second has high fee")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account2, 1, 1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, minBalance2);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb2});
+        }
+
+        SECTION("two fee bumps with same fee source but different source, "
+                "second insufficient, second invalid by malformed operation")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account2, 1, -1, 100);
+            auto fb2 =
+                feeBump(*app, account2, tx2, minBalance2 - minBalance0 - 199);
+            txSet->add(fb2);
+
+            checkTrimCheck({fb2});
+        }
+
+        SECTION("three fee bumps with same fee source, third insufficient, "
+                "second invalid by malformed operation")
+        {
+            auto tx1 = transaction(*app, account1, 1, 1, 100);
+            auto fb1 = feeBump(*app, account2, tx1, 200);
+            txSet->add(fb1);
+            auto tx2 = transaction(*app, account1, 2, -1, 100);
+            auto fb2 = feeBump(*app, account2, tx2, 200);
+            txSet->add(fb2);
+            auto tx3 = transaction(*app, account1, 3, 1, 100);
+            auto fb3 =
+                feeBump(*app, account2, tx3, minBalance2 - minBalance0 - 199);
+            txSet->add(fb3);
+
+            checkTrimCheck({fb2, fb3});
         }
     }
 }
@@ -408,6 +641,7 @@ TEST_CASE("txset", "[herder][txset]")
     SECTION("protocol current")
     {
         testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+        testTxSetWithFeeBumps(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
     }
 }
 
@@ -668,8 +902,8 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         for (uint32_t n = 0; n < nbTxs; n++)
         {
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
-            tx->getEnvelope().tx.fee -= 1;
-            tx->getEnvelope().signatures.clear();
+            setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
+            getSignatures(tx).clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
@@ -694,11 +928,11 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 2, 10000 + 1000 * n);
             // find corresponding root tx (should have 1 less op)
             auto rTx = txSet->mTransactions[n];
-            REQUIRE(rTx->getEnvelope().tx.operations.size() == n + 1);
-            REQUIRE(tx->getEnvelope().tx.operations.size() == n + 2);
+            REQUIRE(rTx->getNumOperations() == n + 1);
+            REQUIRE(tx->getNumOperations() == n + 2);
             // use the same fee
-            tx->getEnvelope().tx.fee = rTx->getEnvelope().tx.fee;
-            tx->getEnvelope().signatures.clear();
+            setFee(tx, static_cast<uint32_t>(rTx->getFeeBid()));
+            getSignatures(tx).clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }
@@ -725,13 +959,13 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             auto tx = multiPaymentTx(accountB, n + 1, 10000 + 1000 * n);
             if (n == 2)
             {
-                tx->getEnvelope().tx.fee -= 1;
+                setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) - 1);
             }
             else
             {
-                tx->getEnvelope().tx.fee += 1;
+                setFee(tx, static_cast<uint32_t>(tx->getFeeBid()) + 1);
             }
-            tx->getEnvelope().signatures.clear();
+            getSignatures(tx).clear();
             tx->addSignature(accountB);
             txSet->add(tx);
         }

@@ -9,12 +9,14 @@ namespace stellar
 
 class ByteSlice;
 class TransactionFrame;
+class FeeBumpTransactionFrame;
 struct SignerKey;
 
 namespace SignerKeyUtils
 {
 
 SignerKey preAuthTxKey(TransactionFrame const& tx);
+SignerKey preAuthTxKey(FeeBumpTransactionFrame const& tx);
 SignerKey hashXKey(ByteSlice const& bs);
 }
 }

@@ -692,7 +692,7 @@ Peer::recvTxSet(StellarMessage const& msg)
 void
 Peer::recvTransaction(StellarMessage const& msg)
 {
-    TransactionFramePtr transaction = TransactionFrame::makeTransactionFromWire(
+    auto transaction = TransactionFrameBase::makeTransactionFromWire(
         mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {

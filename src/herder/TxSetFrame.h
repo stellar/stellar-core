@@ -33,7 +33,7 @@ class AbstractTxSetFrameForApply
 
     virtual size_t sizeOp() const = 0;
 
-    virtual std::vector<TransactionFramePtr> sortForApply() = 0;
+    virtual std::vector<TransactionFrameBasePtr> sortForApply() = 0;
     virtual void toXDR(TransactionSet& set) = 0;
 };
 
@@ -44,20 +44,18 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     Hash mPreviousLedgerHash;
 
-    using AccountTransactionQueue = std::deque<TransactionFramePtr>;
+    using AccountTransactionQueue = std::deque<TransactionFrameBasePtr>;
 
     bool checkOrTrim(Application& app,
-                     std::function<bool(TransactionFramePtr, SequenceNumber)>
-                         processInvalidTxLambda,
-                     std::function<bool(std::deque<TransactionFramePtr> const&)>
-                         processLastInvalidTxLambda);
+                     std::vector<TransactionFrameBasePtr>& trimmed,
+                     bool justCheck);
 
     std::unordered_map<AccountID, AccountTransactionQueue>
     buildAccountTxQueues();
     friend struct SurgeCompare;
 
   public:
-    std::vector<TransactionFramePtr> mTransactions;
+    std::vector<TransactionFrameBasePtr> mTransactions;
 
     TxSetFrame(Hash const& previousLedgerHash);
 
@@ -76,19 +74,19 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     void sortForHash();
 
-    std::vector<TransactionFramePtr> sortForApply() override;
+    std::vector<TransactionFrameBasePtr> sortForApply() override;
 
     bool checkValid(Application& app);
 
     // remove invalid transaction from this set and return those removed
     // transactions
-    std::vector<TransactionFramePtr> trimInvalid(Application& app);
+    std::vector<TransactionFrameBasePtr> trimInvalid(Application& app);
     void surgePricingFilter(Application& app);
 
-    void removeTx(TransactionFramePtr tx);
+    void removeTx(TransactionFrameBasePtr tx);
 
     void
-    add(TransactionFramePtr tx)
+    add(TransactionFrameBasePtr tx)
     {
         mTransactions.push_back(tx);
         mHashIsValid = false;

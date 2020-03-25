@@ -308,7 +308,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 }
 
 TransactionQueue::AddResult
-HerderImpl::recvTransaction(TransactionFramePtr tx)
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 {
     auto result = mTransactionQueue.tryAdd(tx);
     if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
@@ -617,6 +617,12 @@ PendingEnvelopes&
 HerderImpl::getPendingEnvelopes()
 {
     return mPendingEnvelopes;
+}
+
+TransactionQueue&
+HerderImpl::getTransactionQueue()
+{
+    return mTransactionQueue;
 }
 #endif
 
@@ -1397,11 +1403,21 @@ HerderImpl::trackingHeartBeat()
 
 void
 HerderImpl::updateTransactionQueue(
-    std::vector<TransactionFramePtr> const& applied)
+    std::vector<TransactionFrameBasePtr> const& applied)
 {
     // remove all these tx from mTransactionQueue
     mTransactionQueue.removeAndReset(applied);
     mTransactionQueue.shift();
+
+    // Transactions in the queue need to be updated after the protocol 13
+    // upgrade
+    auto replacedTxs = mTransactionQueue.maybeVersionUpgraded();
+    for (auto const& replacedTx : replacedTxs)
+    {
+        mApp.getOverlayManager().updateFloodRecord(
+            replacedTx.mOld->toStellarMessage(),
+            replacedTx.mNew->toStellarMessage());
+    }
 
     // rebroadcast entries, sorted in apply-order to maximize chances of
     // propagation

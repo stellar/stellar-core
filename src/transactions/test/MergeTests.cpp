@@ -81,13 +81,14 @@ TEST_CASE("merge", "[tx][merge]")
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
         auto createBalance = app->getLedgerManager().getLastMinBalance(1);
-        auto txFrame =
-            a1.tx({a1.op(accountMerge(b1)),
-                   b1.op(createAccount(a1.getPublicKey(), createBalance)),
-                   a1.op(accountMerge(b1))});
-        txFrame->addSignature(b1.getSecretKey());
 
         for_versions_to(5, *app, [&] {
+            auto txFrame =
+                a1.tx({a1.op(accountMerge(b1)),
+                       b1.op(createAccount(a1.getPublicKey(), createBalance)),
+                       a1.op(accountMerge(b1))});
+            txFrame->addSignature(b1.getSecretKey());
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txSUCCESS,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFeeBid()},
@@ -103,6 +104,12 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(6, 9, *app, [&] {
+            auto txFrame =
+                a1.tx({a1.op(accountMerge(b1)),
+                       b1.op(createAccount(a1.getPublicKey(), createBalance)),
+                       a1.op(accountMerge(b1))});
+            txFrame->addSignature(b1.getSecretKey());
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txSUCCESS,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFeeBid()},
@@ -117,6 +124,12 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(10, *app, [&]() {
+            auto txFrame =
+                a1.tx({a1.op(accountMerge(b1)),
+                       b1.op(createAccount(a1.getPublicKey(), createBalance)),
+                       a1.op(accountMerge(b1))});
+            txFrame->addSignature(b1.getSecretKey());
+
             // can't merge an account that just got created
             auto applyResult = expectedResult(
                 txfee * 3, 3, txFAILED,
@@ -133,13 +146,14 @@ TEST_CASE("merge", "[tx][merge]")
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
         auto createBalance = app->getLedgerManager().getLastMinBalance(1);
-        auto txFrame =
-            a1.tx({a1.op(accountMerge(b1)),
-                   b1.op(createAccount(a1.getPublicKey(), createBalance)),
-                   b1.op(accountMerge(a1))});
-        txFrame->addSignature(b1.getSecretKey());
 
         for_all_versions(*app, [&] {
+            auto txFrame =
+                a1.tx({a1.op(accountMerge(b1)),
+                       b1.op(createAccount(a1.getPublicKey(), createBalance)),
+                       b1.op(accountMerge(a1))});
+            txFrame->addSignature(b1.getSecretKey());
+
             // a1 gets re-created so we disable sequence number checks
             applyCheck(txFrame, *app, false);
 
@@ -167,10 +181,11 @@ TEST_CASE("merge", "[tx][merge]")
         auto a1SeqNum = a1.loadSequenceNumber();
         auto b1SeqNum = b1.loadSequenceNumber();
         auto createBalance = app->getLedgerManager().getLastMinBalance(1);
-        auto tx = a1.tx({accountMerge(b1), createAccount(b1, createBalance),
-                         accountMerge(b1)});
 
         for_versions_to(4, *app, [&] {
+            auto tx = a1.tx({accountMerge(b1), createAccount(b1, createBalance),
+                             accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txFAILED,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFeeBid()},
@@ -187,6 +202,9 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(5, 7, *app, [&] {
+            auto tx = a1.tx({accountMerge(b1), createAccount(b1, createBalance),
+                             accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txFAILED,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFeeBid()},
@@ -203,6 +221,9 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, *app, [&] {
+            auto tx = a1.tx({accountMerge(b1), createAccount(b1, createBalance),
+                             accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txFAILED,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFeeBid()},
@@ -227,11 +248,12 @@ TEST_CASE("merge", "[tx][merge]")
         auto a1SeqNum = a1.loadSequenceNumber();
         auto b1SeqNum = b1.loadSequenceNumber();
         auto createBalance = app->getLedgerManager().getLastMinBalance(1);
-        auto tx = a1.tx({accountMerge(b1),
-                         createAccount(c1.getPublicKey(), createBalance),
-                         accountMerge(b1)});
 
         for_versions_to(7, *app, [&] {
+            auto tx = a1.tx({accountMerge(b1),
+                             createAccount(c1.getPublicKey(), createBalance),
+                             accountMerge(b1)});
+
             auto applyResult = expectedResult(txfee * 3, 3, txINTERNAL_ERROR);
             validateTxResults(tx, *app, {txfee * 3, txSUCCESS}, applyResult);
 
@@ -245,6 +267,10 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, *app, [&] {
+            auto tx = a1.tx({accountMerge(b1),
+                             createAccount(c1.getPublicKey(), createBalance),
+                             accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txFAILED,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - tx->getFeeBid()},
@@ -267,9 +293,9 @@ TEST_CASE("merge", "[tx][merge]")
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
 
-        auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
-
         for_versions_to(4, *app, [&] {
+            auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 2, 2, txSUCCESS,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFeeBid()},
@@ -284,6 +310,8 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(5, 7, *app, [&] {
+            auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 2, 2, txFAILED,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFeeBid()},
@@ -296,6 +324,8 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, *app, [&] {
+            auto txFrame = a1.tx({accountMerge(b1), accountMerge(b1)});
+
             auto applyResult = expectedResult(
                 txfee * 2, 2, txFAILED,
                 {{ACCOUNT_MERGE_SUCCESS, a1Balance - txFrame->getFeeBid()},
@@ -312,11 +342,11 @@ TEST_CASE("merge", "[tx][merge]")
     {
         auto a1Balance = a1.getBalance();
 
-        auto txFrame =
-            a1.tx({accountMerge(getAccount("non-existing").getPublicKey()),
-                   accountMerge(getAccount("non-existing").getPublicKey())});
-
         for_all_versions(*app, [&] {
+            auto txFrame = a1.tx(
+                {accountMerge(getAccount("non-existing").getPublicKey()),
+                 accountMerge(getAccount("non-existing").getPublicKey())});
+
             applyCheck(txFrame, *app);
 
             auto result = MergeOpFrame::getInnerCode(
@@ -340,11 +370,12 @@ TEST_CASE("merge", "[tx][merge]")
         auto a1Balance = a1.getBalance();
         auto createBalance = app->getLedgerManager().getLastMinBalance(0);
 
-        auto txFrame = a1.tx({createAccount(c.getPublicKey(), createBalance),
-                              accountMerge(c.getPublicKey()),
-                              createAccount(d.getPublicKey(), createBalance)});
-
         for_versions_to(7, *app, [&] {
+            auto txFrame =
+                a1.tx({createAccount(c.getPublicKey(), createBalance),
+                       accountMerge(c.getPublicKey()),
+                       createAccount(d.getPublicKey(), createBalance)});
+
             auto applyResult = expectedResult(txfee * 3, 3, txINTERNAL_ERROR);
             validateTxResults(txFrame, *app, {txfee * 3, txSUCCESS},
                               applyResult);
@@ -356,6 +387,11 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, *app, [&] {
+            auto txFrame =
+                a1.tx({createAccount(c.getPublicKey(), createBalance),
+                       accountMerge(c.getPublicKey()),
+                       createAccount(d.getPublicKey(), createBalance)});
+
             auto applyResult = expectedResult(
                 txfee * 3, 3, txFAILED,
                 {CREATE_ACCOUNT_SUCCESS,

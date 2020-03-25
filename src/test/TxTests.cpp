@@ -16,6 +16,7 @@
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -317,7 +318,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-              std::vector<TransactionFramePtr> const& txs)
+              std::vector<TransactionFrameBasePtr> const& txs)
 {
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
@@ -335,10 +336,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
-    auto z1 = TransactionFrame::getTransactionHistoryResults(app.getDatabase(),
-                                                             ledgerSeq);
-    auto z2 =
-        TransactionFrame::getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
+    auto z1 = getTransactionHistoryResults(app.getDatabase(), ledgerSeq);
+    auto z2 = getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 
     REQUIRE(app.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
 
@@ -402,24 +401,64 @@ getAccountSigners(PublicKey const& k, Application& app)
 }
 
 TransactionFramePtr
+transactionFromOperationsV0(Application& app, SecretKey const& from,
+                            SequenceNumber seq,
+                            const std::vector<Operation>& ops, int fee)
+{
+    TransactionEnvelope e(ENVELOPE_TYPE_TX_V0);
+    e.v0().tx.sourceAccountEd25519 = from.getPublicKey().ed25519();
+    e.v0().tx.fee =
+        fee != 0 ? fee
+                 : static_cast<uint32_t>(
+                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
+                       UINT32_MAX);
+    e.v0().tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(e.v0().tx.operations));
+
+    auto res = std::static_pointer_cast<TransactionFrame>(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+    res->addSignature(from);
+    return res;
+}
+
+TransactionFramePtr
+transactionFromOperationsV1(Application& app, SecretKey const& from,
+                            SequenceNumber seq,
+                            const std::vector<Operation>& ops, int fee)
+{
+    TransactionEnvelope e(ENVELOPE_TYPE_TX);
+    e.v1().tx.sourceAccount = from.getPublicKey();
+    e.v1().tx.fee =
+        fee != 0 ? fee
+                 : static_cast<uint32_t>(
+                       (ops.size() * app.getLedgerManager().getLastTxFee()) &
+                       UINT32_MAX);
+    e.v1().tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops),
+              std::back_inserter(e.v1().tx.operations));
+
+    auto res = std::static_pointer_cast<TransactionFrame>(
+        TransactionFrameBase::makeTransactionFromWire(app.getNetworkID(), e));
+    res->addSignature(from);
+    return res;
+}
+
+TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops,
                           int fee)
 {
-    auto e = TransactionEnvelope{};
-    e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = fee != 0
-                   ? fee
-                   : static_cast<uint32_t>(
-                         (ops.size() * app.getLedgerManager().getLastTxFee()) &
-                         UINT32_MAX);
-    e.tx.seqNum = seq;
-    std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(e.tx.operations));
-
-    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-    res->addSignature(from);
-    return res;
+    uint32_t ledgerVersion;
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    }
+    if (ledgerVersion < 13)
+    {
+        return transactionFromOperationsV0(app, from, seq, ops, fee);
+    }
+    return transactionFromOperationsV1(app, from, seq, ops, fee);
 }
 
 Operation
