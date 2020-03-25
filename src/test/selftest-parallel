@@ -40,13 +40,11 @@ perl -e '
          my @all_tests = shuffle `./stellar-core test --ll FATAL --list-test-names-only $test_spec`;
          for (my $p = 0; $p < $num_partitions; $p++) {
              open(my $out, ">", "$test_partitions_dir/test-partition-$p.txt");
-             my $pre="";
              for (my $i = $p; $i < @all_tests; $i+=$num_partitions) {
                 my $tn = $all_tests[$i];
                 chomp $tn;
                 die "Invalid test name \"$tn\"" if $tn =~ m{[^-A-Za-z0-9 _():/]};
-                print $out "$pre$tn";
-                $pre="\n";
+                print $out "$tn\n";
              }
              close $out;
          }' -- "$NUM_PARTITIONS" "$TEST_SPEC" "$TEST_PARTITIONS_DIR" "$RND_SEED"
