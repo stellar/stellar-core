@@ -38,14 +38,14 @@ class Application;
  * Transactions received from the HTTP "tx" endpoint and the overlay network
  * should be added by calling tryAdd. If that succeeds, the transaction may be
  * removed later in three ways:
- * - removeAndReset() should be called after transactions are applied. It
- *   removes the specified transactions, but leaves transactions with subsequent
+ * - removeApplied() should be called after transactions are applied. It removes
+ *   the specified transactions, but leaves transactions with subsequent
  *   sequence numbers in the TransactionQueue. It also resets the age for the
  *   sequence-number-source of each specified transaction.
  * - ban() should be called after transactions become invalid for any reason.
  *   Banned transactions cannot be added to the TransactionQueue again for a
  *   banDepth ledgers.
- * - shift() should be called after each ledger close, after removeAndReset. It
+ * - shift() should be called after each ledger close, after removeApplied. It
  *   increases the age for every account that is the sequence-number-source for
  *   at least one transaction. If the age becomes greater than or equal to
  *   pendingDepth, all transactions for that source account are banned. It also
@@ -106,7 +106,7 @@ class TransactionQueue
                               int poolLedgerMultiplier);
 
     AddResult tryAdd(TransactionFrameBasePtr tx);
-    void removeAndReset(Transactions const& txs);
+    void removeApplied(Transactions const& txs);
     void ban(Transactions const& txs);
 
     /**
@@ -155,19 +155,15 @@ class TransactionQueue
     BannedTransactions mBannedTransactions;
     uint32_t mLedgerVersion;
 
-    using FindResult =
-        std::pair<AccountStates::iterator, Transactions::iterator>;
-    FindResult find(TransactionFrameBasePtr const& tx);
-
-    using ExtractResult = std::pair<AccountStates::iterator, Transactions>;
-    // keepBacklog: keeps transactions succeeding tx in the account's backlog
-    ExtractResult extract(TransactionFrameBasePtr const& tx, bool keepBacklog);
-
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
                      Transactions::iterator& oldTxIter);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
+
+    void dropTransactions(AccountStates::iterator stateIter,
+                          Transactions::iterator begin,
+                          Transactions::iterator end);
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};
