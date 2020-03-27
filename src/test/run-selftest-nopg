@@ -8,7 +8,7 @@ BASE_INSTANCE="$1"
 TESTS="$2"
 
 if [[ "$ALL_VERSIONS" != "" ]]; then
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -a -r simple "$TESTS" 2> /dev/null
+    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -w NoTests -a -r simple "$TESTS" 2> /dev/null
 else
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE -a -r simple "$TESTS" 2> /dev/null
+    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE -w NoTests -a -r simple "$TESTS" 2> /dev/null
 fi
