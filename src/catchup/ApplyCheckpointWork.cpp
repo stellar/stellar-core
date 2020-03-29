@@ -279,11 +279,6 @@ ApplyCheckpointWork::onRun()
             }
         }
 
-        if (!mFilesOpen)
-        {
-            openInputFiles();
-        }
-
         auto const& lm = mApp.getLedgerManager();
         auto done = (mLedgerRange.mCount == 0 ||
                      lm.getLastClosedLedgerNum() == mLedgerRange.last());
@@ -291,6 +286,11 @@ ApplyCheckpointWork::onRun()
         if (done)
         {
             return State::WORK_SUCCESS;
+        }
+
+        if (!mFilesOpen)
+        {
+            openInputFiles();
         }
 
         auto lcd = getNextLedgerCloseData();

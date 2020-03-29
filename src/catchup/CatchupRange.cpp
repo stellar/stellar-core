@@ -47,24 +47,21 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     checkCatchupPreconditions(lcl, cfg);
     const uint32_t init = LedgerManager::GENESIS_LEDGER_SEQ;
 
+    const uint32_t fullReplayCount = cfg.toLedger() - lcl;
     // Case 1: replay from LCL as we're already past genesis.
     if (lcl > init)
     {
-        LedgerRange replay(lcl + 1, cfg.toLedger() - lcl);
-        // CLOG(TRACE, "History") << "CatchupRange: case 1 (lcl is past
-        // genesis)";
+        LedgerRange replay(lcl + 1, fullReplayCount);
         return CatchupRange(replay);
     }
 
     // All remaining cases have LCL == genesis.
     assert(lcl == init);
-    LedgerRange fullReplay(init + 1, cfg.toLedger() - init);
+    LedgerRange fullReplay(init + 1, fullReplayCount);
 
     // Case 2: full replay because count >= target - init.
-    if (cfg.count() >= cfg.toLedger() - init)
+    if (cfg.count() >= fullReplayCount)
     {
-        // CLOG(TRACE, "History") << "CatchupRange: case 2 (count passes
-        // target)";
         return CatchupRange(fullReplay);
     }
 
@@ -72,10 +69,7 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     // possible when targeting the exact end of a checkpoint.
     if (cfg.count() == 0 && hm.isLastLedgerInCheckpoint(cfg.toLedger()))
     {
-        uint32_t applyBucketsOnlyAt = cfg.toLedger();
-        // CLOG(TRACE, "History") << "CatchupRange: case 3 (checkpoint
-        // boundary)";
-        return CatchupRange(applyBucketsOnlyAt);
+        return CatchupRange(cfg.toLedger());
     }
 
     uint32_t targetStart = cfg.toLedger() - cfg.count() + 1;
@@ -85,8 +79,6 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     // Case 4: target is inside first checkpoint, just replay.
     if (firstInCheckpoint == init)
     {
-        // CLOG(TRACE, "History") << "CatchupRange: case 4 (in first
-        // checkpoint)";
         return CatchupRange(fullReplay);
     }
 
@@ -94,8 +86,6 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     uint32_t applyBucketsAt =
         hm.lastLedgerBeforeCheckpointContaining(targetStart);
     LedgerRange replay(firstInCheckpoint, cfg.toLedger() - applyBucketsAt);
-    // CLOG(TRACE, "History") << "CatchupRange: case 5 (apply buckets and
-    // replay)";
     return CatchupRange(applyBucketsAt, replay);
 }
 }
@@ -108,17 +98,12 @@ CatchupRange::CatchupRange(uint32_t applyBucketsAtLedger)
     , mApplyBucketsAtLedger(applyBucketsAtLedger)
     , mReplayRange(0, 0)
 {
-    // CLOG(TRACE, "History") << "CatchupRange: apply buckets only at "
-    //                        << mApplyBucketsAtLedger;
     checkInvariants();
 }
 
 CatchupRange::CatchupRange(LedgerRange const& replayRange)
     : mApplyBuckets(false), mApplyBucketsAtLedger(0), mReplayRange(replayRange)
 {
-    // CLOG(TRACE, "History") << "CatchupRange: no buckets"
-    //                        << ", replayFirst=" << getReplayFirst()
-    //                        << ", replayCount=" << getReplayCount();
     checkInvariants();
 }
 
@@ -128,10 +113,6 @@ CatchupRange::CatchupRange(uint32_t applyBucketsAtLedger,
     , mApplyBucketsAtLedger(applyBucketsAtLedger)
     , mReplayRange(replayRange)
 {
-    // CLOG(TRACE, "History") << "CatchupRange: apply buckets at "
-    //                        << mApplyBucketsAtLedger
-    //                        << ", replayFirst=" << getReplayFirst()
-    //                        << ", replayCount=" << getReplayCount();
     checkInvariants();
 }
 

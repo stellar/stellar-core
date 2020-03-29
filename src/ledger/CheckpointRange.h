@@ -29,7 +29,16 @@ struct CheckpointRange final
         // CheckpointRange is half-open: in exchange for being able to represent
         // empty ranges, it can't represent ranges that include UINT32_MAX.
         assert(last < std::numeric_limits<int32_t>::max());
-        return CheckpointRange(first, last - first + 1, frequency);
+
+        // First and last must both be ledgers identifying checkpoints (i.e. one
+        // less than multiples of frequency), and last must be >= first. The
+        // resulting count will always be 1 or more since this is an inclusive
+        // range.
+        assert(last >= first);
+        assert((first + 1) % frequency == 0);
+        assert((last + 1) % frequency == 0);
+        uint32_t count = 1 + ((last - first) / frequency);
+        return CheckpointRange(first, count, frequency);
     }
     CheckpointRange(LedgerRange const& ledgerRange,
                     HistoryManager const& historyManager);

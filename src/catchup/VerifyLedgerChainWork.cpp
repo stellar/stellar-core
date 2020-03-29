@@ -105,14 +105,11 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
 std::string
 VerifyLedgerChainWork::getStatus() const
 {
-    if (!isDone() && !isAborting())
+    if (!isDone() && !isAborting() && mRange.mCount != 0)
     {
-        if (mRange.mCount != 0)
-        {
-            std::string task = "verifying checkpoint";
-            return fmtProgress(mApp, task, mRange,
-                               (mRange.last() - mCurrCheckpoint));
-        }
+        std::string task = "verifying checkpoint";
+        return fmtProgress(mApp, task, mRange,
+                           (mRange.last() - mCurrCheckpoint));
     }
     return BasicWork::getStatus();
 }

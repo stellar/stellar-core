@@ -54,8 +54,6 @@ class CatchupRange
     {
         if (mApplyBuckets)
         {
-            assert(mReplayRange.mCount == 0 ||
-                   mReplayRange.mFirst == mApplyBucketsAtLedger + 1);
             return LedgerRange(mApplyBucketsAtLedger, mReplayRange.mCount + 1);
         }
         else
