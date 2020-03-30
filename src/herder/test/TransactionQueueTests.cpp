@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "herder/TransactionQueue.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -89,10 +91,10 @@ class TransactionQueueTest
     }
 
     void
-    removeAndReset(std::vector<TransactionFrameBasePtr> const& toRemove)
+    removeApplied(std::vector<TransactionFrameBasePtr> const& toRemove)
     {
         auto size = mTransactionQueue.toTxSet({})->sizeTx();
-        mTransactionQueue.removeAndReset(toRemove);
+        mTransactionQueue.removeApplied(toRemove);
         REQUIRE(size - toRemove.size() >=
                 mTransactionQueue.toTxSet({})->sizeTx());
     }
@@ -254,8 +256,12 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         TransactionQueueTest test{*app};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
+        test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
+        test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
     }
 
     SECTION("good then small sequence number")
@@ -606,20 +612,22 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         test.shift();
         test.check({{{account1, 1, {txSeqA1T1, txSeqA1T2}},
                      {account2, 1, {txSeqA2T1, txSeqA2T2}}}});
-        test.removeAndReset({txSeqA1T1, txSeqA2T2});
-        test.check({{{account1, 0, {txSeqA1T2}}, {account2, 0, {txSeqA2T1}}}});
-        test.removeAndReset({txSeqA1T2});
-        test.check({{{account1}, {account2, 0, {txSeqA2T1}}}});
+        test.removeApplied({txSeqA1T1, txSeqA2T2});
+        test.check({{{account1, 0, {txSeqA1T2}}, {account2}}});
+        test.removeApplied({txSeqA1T2});
+        test.check({{{account1}, {account2}}});
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
+        test.add(txSeqA2T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T1}}}});
         test.add(txSeqA2T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}},
                      {account2, 0, {txSeqA2T1, txSeqA2T2}}}});
-        test.removeAndReset({txSeqA2T1});
+        test.removeApplied({txSeqA2T1});
         test.check({{{account1, 0, {txSeqA1T1}}, {account2, 0, {txSeqA2T2}}}});
-        test.removeAndReset({txSeqA2T2});
+        test.removeApplied({txSeqA2T2});
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}});
-        test.removeAndReset({txSeqA1T1});
+        test.removeApplied({txSeqA1T1});
         test.check({{{account1}, {account2}}});
     }
 
@@ -885,12 +893,12 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 
         SECTION("remove first")
         {
-            test.removeAndReset({fb1});
+            test.removeApplied({fb1});
             test.check({{{account1, 0, {fb2}}, {account2}, {account3}}, {}});
         }
         SECTION("remove second")
         {
-            test.removeAndReset({fb1, fb2});
+            test.removeApplied({fb1, fb2});
             test.check({{{account1}, {account2}, {account3}}, {}});
         }
     }
@@ -927,12 +935,12 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 
         SECTION("remove first")
         {
-            test.removeAndReset({fb1});
+            test.removeApplied({fb1});
             test.check({{{account1, 0, {fb2}}, {account2}, {account3}}, {}});
         }
         SECTION("remove second")
         {
-            test.removeAndReset({fb1, fb2});
+            test.removeApplied({fb1, fb2});
             test.check({{{account1}, {account2}, {account3}}, {}});
         }
     }
@@ -1164,4 +1172,52 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
         auto txs = setupFeeBumps(test, account2);
         submitFeeBumps(test, txs);
     }
+}
+
+TEST_CASE("remove applied", "[herder][transactionqueue]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& tq = herder.getTransactionQueue();
+
+    auto root = TestAccount::createRoot(*app);
+    auto acc = root.create("A", lm.getLastMinBalance(2));
+
+    auto tx1a = root.tx({payment(root, 1)});
+    root.loadSequenceNumber();
+    auto tx1b = root.tx({payment(root, 2)});
+    auto tx2 = root.tx({payment(root, 3)});
+    auto tx3 = root.tx({payment(root, 4)});
+    auto tx4 = root.tx({payment(root, 5)});
+
+    herder.recvTransaction(tx1a);
+    herder.recvTransaction(tx2);
+    herder.recvTransaction(tx3);
+
+    {
+        auto const& lcl = lm.getLastClosedLedgerHeader();
+        auto ledgerSeq = lcl.header.ledgerSeq + 1;
+
+        auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+        root.loadSequenceNumber();
+        txSet->add(tx1b);
+        txSet->add(tx2);
+        herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(),
+                                              ledgerSeq, txSet);
+
+        StellarValue sv{txSet->getContentsHash(), 2,
+                        xdr::xvector<UpgradeType, 6>{}, STELLAR_VALUE_BASIC};
+        herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
+                                                      xdr::xdr_to_opaque(sv));
+    }
+
+    REQUIRE(tq.toTxSet({})->mTransactions.size() == 1);
+    REQUIRE(herder.recvTransaction(tx4) ==
+            TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    REQUIRE(tq.toTxSet({})->mTransactions.size() == 2);
 }

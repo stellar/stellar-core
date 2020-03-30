@@ -60,11 +60,9 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
 }
 
 static bool
-findBySeq(TransactionFrameBasePtr tx,
-          TransactionQueue::Transactions& transactions,
+findBySeq(int64_t seq, TransactionQueue::Transactions& transactions,
           TransactionQueue::Transactions::iterator& iter)
 {
-    int64_t seq = tx->getSeqNum();
     int64_t firstSeq = transactions.front()->getSeqNum();
     int64_t lastSeq = transactions.back()->getSeqNum();
     if (seq < firstSeq || seq > lastSeq + 1)
@@ -76,6 +74,14 @@ findBySeq(TransactionFrameBasePtr tx,
     iter = transactions.begin() + (seq - firstSeq);
     assert(iter == transactions.end() || (*iter)->getSeqNum() == seq);
     return true;
+}
+
+static bool
+findBySeq(TransactionFrameBasePtr tx,
+          TransactionQueue::Transactions& transactions,
+          TransactionQueue::Transactions::iterator& iter)
+{
+    return findBySeq(tx->getSeqNum(), transactions, iter);
 }
 
 static bool
@@ -250,123 +256,180 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 }
 
 void
-TransactionQueue::removeAndReset(TransactionQueue::Transactions const& dropTxs)
+TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
+                                   Transactions::iterator begin,
+                                   Transactions::iterator end)
 {
-    for (auto const& tx : dropTxs)
+    // Remove fees and update queue size for each transaction to be dropped.
+    // Note releaseFeeMaybeEraseSourceAccount may erase other iterators from
+    // mAccountStates, but it will not erase stateIter because it has at least
+    // one transaction (otherwise we couldn't reach that line).
+    for (auto iter = begin; iter != end; ++iter)
     {
-        auto extracted = extract(tx, true);
-        if (extracted.first != std::end(mAccountStates))
+        stateIter->second.mQueueSizeOps -= (*iter)->getNumOperations();
+        mQueueSizeOps -= (*iter)->getNumOperations();
+        releaseFeeMaybeEraseAccountState(*iter);
+    }
+
+    // Actually erase the transactions to be dropped.
+    stateIter->second.mTransactions.erase(begin, end);
+
+    // If the queue for stateIter is now empty, then (1) erase it if it is not
+    // the fee-source for some other transaction or (2) reset the age otherwise.
+    if (stateIter->second.mTransactions.empty())
+    {
+        if (stateIter->second.mTotalFees == 0)
         {
-            extracted.first->second.mAge = 0;
+            mAccountStates.erase(stateIter);
+        }
+        else
+        {
+            stateIter->second.mAge = 0;
         }
     }
 }
 
 void
-TransactionQueue::ban(TransactionQueue::Transactions const& dropTxs)
+TransactionQueue::removeApplied(Transactions const& appliedTxs)
 {
-    auto& bannedFront = mBannedTransactions.front();
-    for (auto const& tx : dropTxs)
+    // Find the highest sequence number that was applied for each source account
+    std::map<AccountID, int64_t> seqByAccount;
+    for (auto const& tx : appliedTxs)
     {
-        auto extractResult = extract(tx, false);
-        if (extractResult.second.empty())
+        auto& seq = seqByAccount[tx->getSourceID()];
+        seq = std::max(seq, tx->getSeqNum());
+    }
+
+    for (auto const& kv : seqByAccount)
+    {
+        // If the source account is not in mAccountStates, then it has no
+        // transactions in the queue so there is nothing to do
+        auto stateIter = mAccountStates.find(kv.first);
+        if (stateIter != mAccountStates.end())
         {
-            // tx was not in the queue
-            bannedFront.insert(tx->getFullHash());
-        }
-        else
-        {
-            // tx was in the queue, and may have caused other transactions to
-            // get dropped as well
-            for (auto const& extracted : extractResult.second)
+            // If there are no transactions in the queue for this source
+            // account, then there is nothing to do
+            auto& transactions = stateIter->second.mTransactions;
+            if (!transactions.empty())
             {
-                bannedFront.insert(extracted->getFullHash());
+                // If the sequence number of the first transaction is greater
+                // than the highest applied sequence number for this source
+                // account, then there is nothing to do because sequence numbers
+                // are monotonic (this shouldn't happen)
+                if (transactions.front()->getSeqNum() <= kv.second)
+                {
+                    // We care about matching the sequence number rather than
+                    // the hash, because any transaction with a sequence number
+                    // less-than-or-equal to the highest applied sequence number
+                    // for this source account has either (1) been applied, or
+                    // (2) become invalid.
+                    auto txIter = transactions.end();
+                    findBySeq(kv.second, transactions, txIter);
+
+                    // Iterators define half-open ranges, but we need to include
+                    // the transaction with the highest applied sequence number
+                    if (txIter != transactions.end())
+                    {
+                        ++txIter;
+                    }
+
+                    // The age is going to be reset because at least one
+                    // transaction was applied for this account. This means that
+                    // the size for the current age will decrease by the total
+                    // number of transactions in the queue, while the size for
+                    // the new age (0) will only include the transactions that
+                    // were not removed
+                    auto& age = stateIter->second.mAge;
+                    mSizeByAge[age]->dec(transactions.size());
+                    age = 0;
+                    mSizeByAge[0]->inc(transactions.end() - txIter);
+
+                    // WARNING: stateIter and everything that references it may
+                    // be invalid from this point onward and should not be used.
+                    dropTransactions(stateIter, transactions.begin(), txIter);
+                }
             }
         }
     }
 }
 
-TransactionQueue::FindResult
-TransactionQueue::find(TransactionFrameBasePtr const& tx)
+static void
+findTx(TransactionFrameBasePtr tx, TransactionQueue::Transactions& transactions,
+       TransactionQueue::Transactions::iterator& txIter)
 {
-    auto const& acc = tx->getSourceID();
-    auto accIt = mAccountStates.find(acc);
-    if (accIt == std::end(mAccountStates))
+    auto iter = transactions.end();
+    findBySeq(tx, transactions, iter);
+    if (iter != transactions.end() &&
+        (*iter)->getFullHash() == tx->getFullHash())
     {
-        return {std::end(mAccountStates), {}};
+        txIter = iter;
     }
-
-    auto& txs = accIt->second.mTransactions;
-    auto txIt =
-        std::find_if(std::begin(txs), std::end(txs), [&](auto const& t) {
-            return tx->getSeqNum() == t->getSeqNum();
-        });
-    if (txIt == std::end(txs))
-    {
-        return {std::end(mAccountStates), {}};
-    }
-
-    if ((*txIt)->getFullHash() != tx->getFullHash())
-    {
-        return {std::end(mAccountStates), {}};
-    }
-
-    return {accIt, txIt};
 }
 
-TransactionQueue::ExtractResult
-TransactionQueue::extract(TransactionFrameBasePtr const& tx, bool keepBacklog)
+void
+TransactionQueue::ban(Transactions const& banTxs)
 {
-    std::vector<TransactionFrameBasePtr> removedTxs;
+    auto& bannedFront = mBannedTransactions.front();
 
-    // Use a scope here to prevent iterator use after invalidation
+    // Group the transactions by source account and ban all the transactions
+    // that are explicitly listed
+    std::map<AccountID, Transactions> transactionsByAccount;
+    for (auto const& tx : banTxs)
     {
-        auto it = find(tx);
-        if (it.first == mAccountStates.end())
-        {
-            return {std::end(mAccountStates), {}};
-        }
-
-        auto txIt = it.second;
-        auto txRemoveEnd = txIt + 1;
-        if (!keepBacklog)
-        {
-            // remove everything passed tx
-            txRemoveEnd = it.first->second.mTransactions.end();
-        }
-
-        std::move(txIt, txRemoveEnd, std::back_inserter(removedTxs));
-        it.first->second.mTransactions.erase(txIt, txRemoveEnd);
-
-        mSizeByAge[it.first->second.mAge]->dec(removedTxs.size());
+        auto& transactions = transactionsByAccount[tx->getSourceID()];
+        transactions.emplace_back(tx);
+        bannedFront.emplace(tx->getFullHash());
     }
 
-    for (auto const& removedTx : removedTxs)
+    for (auto const& kv : transactionsByAccount)
     {
-        mAccountStates[removedTx->getSourceID()].mQueueSizeOps -=
-            removedTx->getNumOperations();
-        mQueueSizeOps -= removedTx->getNumOperations();
-        releaseFeeMaybeEraseAccountState(removedTx);
-    }
-
-    // tx->getSourceID() will only be in mAccountStates if it has pending
-    // transactions or if it is the fee source for a transaction for which it is
-    // not the sequence number source
-    auto accIt = mAccountStates.find(tx->getSourceID());
-    if (accIt != mAccountStates.end() && accIt->second.mTransactions.empty())
-    {
-        if (accIt->second.mTotalFees == 0)
+        // If the source account is not in mAccountStates, then it has no
+        // transactions in the queue so there is nothing to do
+        auto stateIter = mAccountStates.find(kv.first);
+        if (stateIter != mAccountStates.end())
         {
-            mAccountStates.erase(accIt);
-            accIt = mAccountStates.end();
-        }
-        else
-        {
-            accIt->second.mAge = 0;
+            // If there are no transactions in the queue for this source
+            // account, then there is nothing to do
+            auto& transactions = stateIter->second.mTransactions;
+            if (!transactions.empty())
+            {
+                // We need to find the banned transaction by hash with the
+                // lowest sequence number; this will be represented by txIter.
+                // If txIter is past-the-end then we will not remove any
+                // transactions. Note that the explicitly banned transactions
+                // for this source account are not sorted.
+                auto txIter = transactions.end();
+                for (auto const& tx : kv.second)
+                {
+                    if (txIter == transactions.end() ||
+                        tx->getSeqNum() < (*txIter)->getSeqNum())
+                    {
+                        // findTx does nothing unless tx matches-by-hash with
+                        // a transaction in transactions.
+                        findTx(tx, transactions, txIter);
+                    }
+                }
+
+                // Ban all the transactions that follow the first matching
+                // banned transaction, because they no longer have the right
+                // sequence number to be in the queue. Also adjust the size
+                // for this age.
+                for (auto iter = txIter; iter != transactions.end(); ++iter)
+                {
+                    bannedFront.emplace((*iter)->getFullHash());
+                }
+                mSizeByAge[stateIter->second.mAge]->dec(transactions.end() -
+                                                        txIter);
+
+                // Drop all of the transactions, release fees (which can
+                // cause other accounts to be removed from mAccountStates),
+                // and potentially remove this account from mAccountStates.
+                // WARNING: stateIter and everything that references it may
+                // be invalid from this point onward and should not be used.
+                dropTransactions(stateIter, txIter, transactions.end());
+            }
         }
     }
-
-    return {accIt, std::move(removedTxs)};
 }
 
 TransactionQueue::AccountTxQueueInfo

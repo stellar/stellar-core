@@ -1406,7 +1406,7 @@ HerderImpl::updateTransactionQueue(
     std::vector<TransactionFrameBasePtr> const& applied)
 {
     // remove all these tx from mTransactionQueue
-    mTransactionQueue.removeAndReset(applied);
+    mTransactionQueue.removeApplied(applied);
     mTransactionQueue.shift();
 
     // Transactions in the queue need to be updated after the protocol 13
