@@ -256,8 +256,12 @@ TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
         TransactionQueueTest test{*app};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
+        test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
+        test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
     }
 
     SECTION("good then small sequence number")
