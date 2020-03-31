@@ -150,10 +150,14 @@ class TransactionQueue
 
     Application& mApp;
     int const mPendingDepth;
-    std::vector<medida::Counter*> mSizeByAge;
+
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
     uint32_t mLedgerVersion;
+
+    // counters
+    std::vector<medida::Counter*> mSizeByAge;
+    medida::Counter& mBannedTransactionsCounter;
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,

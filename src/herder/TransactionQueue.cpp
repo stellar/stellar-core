@@ -31,6 +31,8 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     , mLedgerVersion(app.getLedgerManager()
                          .getLastClosedLedgerHeader()
                          .header.ledgerVersion)
+    , mBannedTransactionsCounter(
+          app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}))
     , mPoolLedgerMultiplier(poolLedgerMultiplier)
 {
     for (auto i = 0; i < pendingDepth; i++)
@@ -378,7 +380,10 @@ TransactionQueue::ban(Transactions const& banTxs)
     {
         auto& transactions = transactionsByAccount[tx->getSourceID()];
         transactions.emplace_back(tx);
-        bannedFront.emplace(tx->getFullHash());
+        if (bannedFront.emplace(tx->getFullHash()).second)
+        {
+            mBannedTransactionsCounter.inc();
+        }
     }
 
     for (auto const& kv : transactionsByAccount)
@@ -416,7 +421,10 @@ TransactionQueue::ban(Transactions const& banTxs)
                 // for this age.
                 for (auto iter = txIter; iter != transactions.end(); ++iter)
                 {
-                    bannedFront.emplace((*iter)->getFullHash());
+                    if (bannedFront.emplace((*iter)->getFullHash()).second)
+                    {
+                        mBannedTransactionsCounter.inc();
+                    }
                 }
                 mSizeByAge[stateIter->second.mAge]->dec(transactions.end() -
                                                         txIter);
@@ -480,6 +488,8 @@ TransactionQueue::shift()
                 releaseFeeMaybeEraseAccountState(toBan);
                 bannedFront.insert(toBan->getFullHash());
             }
+            mBannedTransactionsCounter.inc(
+                static_cast<int64_t>(it->second.mTransactions.size()));
             mQueueSizeOps -= it->second.mQueueSizeOps;
             it->second.mQueueSizeOps = 0;
 
