@@ -26,18 +26,6 @@ PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
 {
     keys.emplace(accountKey(getDestID()));
 
-    auto processAsset = [&](Asset const& asset) {
-        if (asset.type() != ASSET_TYPE_NATIVE)
-        {
-            auto issuer = getIssuer(asset);
-            keys.emplace(accountKey(issuer));
-        }
-    };
-
-    processAsset(getSourceAsset());
-    processAsset(getDestAsset());
-    std::for_each(getPath().begin(), getPath().end(), processAsset);
-
     if (getDestAsset().type() != ASSET_TYPE_NATIVE)
     {
         keys.emplace(trustlineKey(getDestID(), getDestAsset()));
@@ -53,7 +41,9 @@ PathPaymentOpFrameBase::checkIssuer(AbstractLedgerTxn& ltx, Asset const& asset)
 {
     if (asset.type() != ASSET_TYPE_NATIVE)
     {
-        if (!stellar::loadAccountWithoutRecord(ltx, getIssuer(asset)))
+        uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+        if (ledgerVersion < 13 &&
+            !stellar::loadAccountWithoutRecord(ltx, getIssuer(asset)))
         {
             setResultNoIssuer(asset);
             return false;
