@@ -53,9 +53,25 @@ CatchupWork::~CatchupWork()
 std::string
 CatchupWork::getStatus() const
 {
-    return fmt::format(
-        "Catching up to ledger {}: {}", mCatchupConfiguration.toLedger(),
-        mCurrentWork ? mCurrentWork->getStatus() : Work::getStatus());
+    std::string toLedger;
+    if (mCatchupConfiguration.toLedger() == CatchupConfiguration::CURRENT)
+    {
+        toLedger = mGetHistoryArchiveStateWork &&
+                           mGetHistoryArchiveStateWork->getState() ==
+                               State::WORK_SUCCESS
+                       ? std::to_string(mGetHistoryArchiveStateWork
+                                            ->getHistoryArchiveState()
+                                            .currentLedger)
+                       : "CURRENT";
+    }
+    else
+    {
+        toLedger = std::to_string(mCatchupConfiguration.toLedger());
+    }
+
+    return fmt::format("Catching up to ledger {}: {}", toLedger,
+                       mCurrentWork ? mCurrentWork->getStatus()
+                                    : Work::getStatus());
 }
 
 void
