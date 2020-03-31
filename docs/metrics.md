@@ -19,6 +19,8 @@ Tracks aggregates (count, min, max, mean, percentiles, etc) of samples expressed
 Tracks aggregates (count, min, max, mean, etc),  rate (1m, 5m, 15m) for samples
 expressed in base unit.
 
+### Buckets (`NewBuckets`)
+Tracks multiple timers organized into disjoint buckets.
 
 Metric name                              | Type      | Description
 ---------------------------------------  | --------  | --------------------
@@ -49,7 +51,7 @@ history.publish.success                  | meter     | published completed succe
 history.publish.time                     | timer     | time to successfuly publish history
 history.verify-<X>.failure               | meter     | verification of <X> failed
 history.verify-<X>.success               | meter     | verification of <X> succeeded
-ledger.age.closed                        | timer     | time between ledgers
+ledger.age.closed                        | bucket     | time between ledgers
 ledger.age.current-seconds               | counter   | gap between last close ledger time and current time
 ledger.catchup.duration                  | timer     | time between entering LM_CATCHING_UP_STATE and entering LM_SYNCED_STATE
 ledger.invariant.failure                 | counter   | number of times invariants failed
