@@ -11,6 +11,7 @@
 #include "util/XDROperators.h"
 #include "xdr/Stellar-transaction.h"
 
+#include <chrono>
 #include <deque>
 #include <memory>
 #include <unordered_map>
@@ -20,6 +21,7 @@
 namespace medida
 {
 class Counter;
+class Timer;
 }
 
 namespace stellar
@@ -93,13 +95,20 @@ class TransactionQueue
      * - mTransactions: the list of transactions for which this account is the
      *   sequence-number-source, ordered by sequence number
      */
+
+    struct TimestampedTx
+    {
+        TransactionFrameBasePtr mTx;
+        std::chrono::system_clock::time_point mInsertionTime;
+    };
+    using TimestampedTransactions = std::vector<TimestampedTx>;
     using Transactions = std::vector<TransactionFrameBasePtr>;
     struct AccountState
     {
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
         int32_t mAge{0};
-        Transactions mTransactions;
+        TimestampedTransactions mTransactions;
     };
 
     explicit TransactionQueue(Application& app, int pendingDepth, int banDepth,
@@ -158,16 +167,17 @@ class TransactionQueue
     // counters
     std::vector<medida::Counter*> mSizeByAge;
     medida::Counter& mBannedTransactionsCounter;
+    medida::Timer& mTransactionsDelay;
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
-                     Transactions::iterator& oldTxIter);
+                     TimestampedTransactions::iterator& oldTxIter);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
     void dropTransactions(AccountStates::iterator stateIter,
-                          Transactions::iterator begin,
-                          Transactions::iterator end);
+                          TimestampedTransactions::iterator begin,
+                          TimestampedTransactions::iterator end);
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};
