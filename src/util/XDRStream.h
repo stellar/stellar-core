@@ -119,22 +119,24 @@ class XDRInputFileStream
     }
 };
 
-// XDROutputStream needs access to a file descriptor to do
-// fsync, so we use cstdio here rather than fstreams.
+// XDROutputStream needs access to a file descriptor to do fsync, so we use
+// asio's synchronous stream types here rather than fstreams.
 class XDROutputFileStream
 {
-    FILE* mOut{nullptr};
     std::vector<char> mBuf;
     const bool mFsyncOnClose;
+    asio::buffered_write_stream<stellar::fs::stream_t> mBufferedWriteStream;
 
   public:
-    XDROutputFileStream(bool fsyncOnClose) : mFsyncOnClose(fsyncOnClose)
+    XDROutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
+        : mFsyncOnClose(fsyncOnClose)
+        , mBufferedWriteStream(ctx, stellar::fs::bufsz())
     {
     }
 
     ~XDROutputFileStream()
     {
-        if (mOut)
+        if (mBufferedWriteStream.next_layer().is_open())
         {
             close();
         }
@@ -143,90 +145,87 @@ class XDROutputFileStream
     void
     close()
     {
-        if (!mOut)
+        if (!mBufferedWriteStream.next_layer().is_open())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::close() on non-open FILE*");
         }
-        if (fflush(mOut) != 0)
-        {
-            FileSystemException::failWithErrno(
-                "XDROutputFileStream::close() failed on fflush(): ");
-        }
+        flush();
         if (mFsyncOnClose)
         {
-            fs::flushFileChanges(mOut);
+            fs::flushFileChanges(
+                mBufferedWriteStream.next_layer().native_handle());
         }
-        if (fclose(mOut) != 0)
-        {
-            FileSystemException::failWithErrno(
-                "XDROutputFileStream::close() failed on fclose(): ");
-        }
-        mOut = nullptr;
+        mBufferedWriteStream.close();
     }
 
     void
     fdopen(int fd)
     {
-        if (mOut)
+#ifdef _WIN32
+        FileSystemException::failWith(
+            "XDROutputFileStream::fdopen() not supported on windows");
+#else
+        if (mBufferedWriteStream.next_layer().is_open())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::fdopen() on already-open stream");
         }
-        mOut = ::fdopen(fd, "wb");
-        if (!mOut)
+        mBufferedWriteStream.next_layer().assign(fd);
+        if (!mBufferedWriteStream.next_layer().is_open())
         {
-            FileSystemException::failWithErrno(
+            FileSystemException::failWith(
                 "XDROutputFileStream::fdopen() failed");
         }
+#endif
     }
 
     void
     flush()
     {
-        if (!mOut)
+        if (!mBufferedWriteStream.next_layer().is_open())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::flush() on non-open FILE*");
         }
-        if (fflush(mOut) != 0)
+        asio::error_code ec;
+        do
         {
-            FileSystemException::failWith(
-                "XDROutputFileStream::flush() failed");
-        }
+            mBufferedWriteStream.flush(ec);
+            if (ec && ec != asio::error::interrupted)
+            {
+                FileSystemException::failWith(
+                    std::string("XDROutputFileStream::flush() failed: ") +
+                    ec.message());
+            }
+        } while (ec);
     }
 
     void
     open(std::string const& filename)
     {
-        if (mOut)
+        if (mBufferedWriteStream.next_layer().is_open())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::open() on already-open stream");
         }
-        mOut = fopen(filename.c_str(), "wb");
-        if (!mOut)
-        {
-            FileSystemException::failWithErrno(
-                std::string("XDROutputFileStream::open(\"") + filename +
-                "\") failed: ");
-        }
+        fs::stream_t::native_handle_type handle = fs::openFileToWrite(filename);
+        mBufferedWriteStream.next_layer().assign(handle);
     }
 
-    operator bool() const
+    operator bool()
     {
-        return (mOut && !static_cast<bool>(ferror(mOut)) &&
-                !static_cast<bool>(feof(mOut)));
+        return mBufferedWriteStream.next_layer().is_open();
     }
 
     template <typename T>
     void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
-        if (!mOut)
+        if (!mBufferedWriteStream.next_layer().is_open())
         {
             FileSystemException::failWith(
-                "XDROutputFileStream::writeOne() on non-open FILE*");
+                "XDROutputFileStream::writeOne() on non-open stream");
         }
 
         uint32_t sz = (uint32_t)xdr::xdr_size(t);
@@ -243,16 +242,32 @@ class XDROutputFileStream
         mBuf[1] = static_cast<char>((sz >> 16) & 0xFF);
         mBuf[2] = static_cast<char>((sz >> 8) & 0xFF);
         mBuf[3] = static_cast<char>(sz & 0xFF);
-
         xdr::xdr_put p(mBuf.data() + 4, mBuf.data() + 4 + sz);
         xdr_argpack_archive(p, t);
 
-        if (fwrite(mBuf.data(), 1, sz + 4, mOut) != sz + 4)
+        size_t const to_write = sz + 4;
+        size_t written = 0;
+        while (written < to_write)
         {
-            FileSystemException::failWithErrno(
-                "XDROutputFileStream::writeOne() failed:");
+            asio::error_code ec;
+            written += asio::write(
+                mBufferedWriteStream,
+                asio::buffer(mBuf.data() + written, to_write - written), ec);
+            if (ec)
+            {
+                if (ec == asio::error::interrupted)
+                {
+                    continue;
+                }
+                else
+                {
+                    FileSystemException::failWith(
+                        std::string(
+                            "XDROutputFileStream::writeOne() failed: ") +
+                        ec.message());
+                }
+            }
         }
-
         if (hasher)
         {
             hasher->add(ByteSlice(mBuf.data(), sz + 4));

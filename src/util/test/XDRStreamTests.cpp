@@ -16,7 +16,8 @@ using namespace stellar;
 
 TEST_CASE("XDROutputFileStream fail modes", "[xdrstream]")
 {
-    XDROutputFileStream out(/*doFsync=*/true);
+    VirtualClock clock;
+    XDROutputFileStream out(clock.getIOContext(), /*doFsync=*/true);
     auto filename = "someFile";
 
     SECTION("open throws")
@@ -45,6 +46,7 @@ TEST_CASE("XDROutputFileStream fail modes", "[xdrstream]")
 
 TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
 {
+    VirtualClock clock;
     Config const& cfg = getTestConfig(0);
 
     auto hasher = SHA256::create();
@@ -56,8 +58,8 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
 
     for (int i = 0; i < 10; ++i)
     {
-        XDROutputFileStream outFsync(/*doFsync=*/true);
-        XDROutputFileStream outNoFsync(/*doFsync=*/false);
+        XDROutputFileStream outFsync(clock.getIOContext(), /*doFsync=*/true);
+        XDROutputFileStream outNoFsync(clock.getIOContext(), /*doFsync=*/false);
 
         outFsync.open(
             fmt::format("{}/outFsync-{}.xdr", cfg.BUCKET_DIR_PATH, i));

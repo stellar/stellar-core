@@ -768,8 +768,9 @@ LedgerManagerImpl::setupLedgerCloseMetaStream()
     {
         // We can't be sure we're writing to a stream that supports fsync;
         // pipes typically error when you try. So we don't do it.
-        mMetaStream =
-            std::make_unique<XDROutputFileStream>(/*fsyncOnClose=*/false);
+        mMetaStream = std::make_unique<XDROutputFileStream>(
+            mApp.getClock().getIOContext(),
+            /*fsyncOnClose=*/false);
         std::regex fdrx("^fd:([0-9]+)$");
         std::smatch sm;
         if (std::regex_match(cfg.METADATA_OUTPUT_STREAM, sm, fdrx))

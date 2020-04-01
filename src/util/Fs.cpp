@@ -83,25 +83,32 @@ unlockFile(std::string const& path)
 }
 
 void
-flushFileChanges(FILE* fp)
+flushFileChanges(stream_t::native_handle_type fh)
 {
-    int fd = _fileno(fp);
-    if (fd == -1)
-    {
-        FileSystemException::failWithErrno(
-            "fs::flushFileChanges() failed on _fileno(): ");
-    }
-    HANDLE fh = (HANDLE)_get_osfhandle(fd);
-    if (fh == INVALID_HANDLE_VALUE)
-    {
-        FileSystemException::failWithErrno(
-            "fs::flushFileChanges() failed on _get_osfhandle(): ");
-    }
     if (FlushFileBuffers(fh) == FALSE)
     {
         FileSystemException::failWithGetLastError(
             "fs::flushFileChanges() failed on _get_osfhandle(): ");
     }
+}
+
+stream_t::native_handle_type
+openFileToWrite(std::string const& path)
+{
+    HANDLE h = ::CreateFile(path.c_str(),
+                            GENERIC_WRITE,         // DesiredAccess
+                            FILE_SHARE_READ,       // ShareMode
+                            NULL,                  // SecurityAttributes
+                            CREATE_ALWAYS,         // CreationDisposition
+                            FILE_ATTRIBUTE_NORMAL, // FlagsAndAttributes
+                            NULL);                 // TemplateFile
+
+    if (h == INVALID_HANDLE_VALUE)
+    {
+        FileSystemException::failWithGetLastError(
+            "fs::openFileToWrite() failed on CreateFile(): ");
+    }
+    return h;
 }
 
 bool
@@ -234,19 +241,34 @@ unlockFile(std::string const& path)
 }
 
 void
-flushFileChanges(FILE* fp)
+flushFileChanges(stream_t::native_handle_type fd)
 {
-    int fd = fileno(fp);
-    if (fd == -1)
+    while (fsync(fd) == -1)
     {
-        FileSystemException::failWithErrno(
-            "fs::flushFileChanges() failed on fileno(): ");
-    }
-    if (fsync(fd) == -1)
-    {
+        if (errno == EINTR)
+        {
+            continue;
+        }
         FileSystemException::failWithErrno(
             "fs::flushFileChanges() failed on fsync(): ");
     }
+}
+
+stream_t::native_handle_type
+openFileToWrite(std::string const& path)
+{
+    int fd;
+    while ((fd = ::open(path.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644)) ==
+           -1)
+    {
+        if (errno == EINTR)
+        {
+            continue;
+        }
+        FileSystemException::failWithErrno(std::string("fs::openFile(\"") +
+                                           path + "\") failed: ");
+    }
+    return fd;
 }
 
 bool
@@ -257,19 +279,31 @@ durableRename(std::string const& src, std::string const& dst,
     {
         return false;
     }
-    auto dfd = open(dir.c_str(), O_RDONLY);
-    if (dfd == -1)
+    int dfd;
+    while ((dfd = open(dir.c_str(), O_RDONLY)) == -1)
     {
+        if (errno == EINTR)
+        {
+            continue;
+        }
         FileSystemException::failWithErrno(
             std::string("Failed to open directory ") + dir + " :");
     }
-    if (fsync(dfd) == -1)
+    while (fsync(dfd) == -1)
     {
+        if (errno == EINTR)
+        {
+            continue;
+        }
         FileSystemException::failWithErrno(
             std::string("Failed to fsync directory ") + dir + " :");
     }
-    if (close(dfd) == -1)
+    while (close(dfd) == -1)
     {
+        if (errno == EINTR)
+        {
+            continue;
+        }
         FileSystemException::failWithErrno(
             std::string("Failed to close directory ") + dir + " :");
     }

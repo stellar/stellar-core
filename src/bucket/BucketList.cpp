@@ -566,7 +566,8 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     mLevels[0].prepare(app, currLedger, currLedgerProtocol,
                        Bucket::fresh(app.getBucketManager(), currLedgerProtocol,
                                      initEntries, liveEntries, deadEntries,
-                                     countMergeEvents, doFsync),
+                                     countMergeEvents,
+                                     app.getClock().getIOContext(), doFsync),
                        shadows, countMergeEvents);
     mLevels[0].commit();
 

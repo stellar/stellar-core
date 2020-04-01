@@ -27,7 +27,8 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
         std::shared_ptr<Bucket> b1 =
             Bucket::fresh(app->getBucketManager(),
                           BucketTests::getAppLedgerVersion(app), {}, live, {},
-                          /*countMergeEvents=*/true, /*doFsync=*/true);
+                          /*countMergeEvents=*/true, clock.getIOContext(),
+                          /*doFsync=*/true);
         return b1;
     };
 

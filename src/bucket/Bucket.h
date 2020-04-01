@@ -85,7 +85,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
           std::vector<LedgerEntry> const& initEntries,
           std::vector<LedgerEntry> const& liveEntries,
           std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
-          bool doFsync);
+          asio::io_context& ctx, bool doFsync);
 
     // Merge two buckets together, producing a fresh one. Entries in `oldBucket`
     // are overridden in the fresh bucket by keywise-equal entries in
@@ -103,7 +103,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
           std::shared_ptr<Bucket> const& oldBucket,
           std::shared_ptr<Bucket> const& newBucket,
           std::vector<std::shared_ptr<Bucket>> const& shadows,
-          bool keepDeadEntries, bool countMergeEvents, bool doFsync);
+          bool keepDeadEntries, bool countMergeEvents, asio::io_context& ctx,
+          bool doFsync);
 
     static uint32_t getBucketVersion(std::shared_ptr<Bucket> const& bucket);
 };
