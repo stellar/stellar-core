@@ -47,6 +47,7 @@ namespace stellar
 constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
+constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -1429,10 +1430,20 @@ HerderImpl::updateTransactionQueue(
     auto removed = txSet->trimInvalid(mApp);
     mTransactionQueue.ban(removed);
 
-    // rebroadcast entries, sorted in apply-order to maximize chances of
-    // propagation
+    // Rebroadcast transactions, sorted in apply-order to maximize chances of
+    // propagation. Do not broadcast more operations than
+    // OPERATION_BROADCAST_MULTIPLIER times the maximum number of operations
+    // that can be included in the next ledger.
+    size_t maxOps = mLedgerManager.getLastMaxTxSetSizeOps();
+    size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
     for (auto tx : txSet->sortForApply())
     {
+        if (opsToFlood < tx->getNumOperations())
+        {
+            break;
+        }
+        opsToFlood -= tx->getNumOperations();
+
         auto msg = tx->toStellarMessage();
         mApp.getOverlayManager().broadcastMessage(msg);
     }
