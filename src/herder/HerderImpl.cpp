@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
@@ -1421,15 +1422,19 @@ HerderImpl::updateTransactionQueue(
             replacedTx.mNew->toStellarMessage());
     }
 
+    // Generate a transaction set from a random hash and drop invalid
+    auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
+    lhhe.hash = HashUtils::random();
+    auto txSet = mTransactionQueue.toTxSet(lhhe);
+    auto removed = txSet->trimInvalid(mApp);
+    mTransactionQueue.ban(removed);
+
     // rebroadcast entries, sorted in apply-order to maximize chances of
     // propagation
+    for (auto tx : txSet->sortForApply())
     {
-        auto toBroadcast = mTransactionQueue.toTxSet({});
-        for (auto tx : toBroadcast->sortForApply())
-        {
-            auto msg = tx->toStellarMessage();
-            mApp.getOverlayManager().broadcastMessage(msg);
-        }
+        auto msg = tx->toStellarMessage();
+        mApp.getOverlayManager().broadcastMessage(msg);
     }
 }
 
