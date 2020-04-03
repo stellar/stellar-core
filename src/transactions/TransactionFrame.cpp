@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
+#include "crypto/SignerKeyUtils.h"
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "herder/TxSetFrame.h"
@@ -380,17 +381,33 @@ TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 }
 
 bool
-TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
+TransactionFrame::processSignatures(ValidationType cv,
+                                    SignatureChecker& signatureChecker,
                                     AbstractLedgerTxn& ltxOuter)
 {
-    auto allOpsValid = true;
+    bool maybeValid = (cv == ValidationType::kMaybeValid);
+    uint32_t ledgerVersion = ltxOuter.loadHeader().current().ledgerVersion;
+    if (ledgerVersion < 10)
     {
-        LedgerTxn ltx(ltxOuter);
-        if (ltx.loadHeader().current().ledgerVersion < 10)
-        {
-            return true;
-        }
+        return maybeValid;
+    }
 
+    // check if we need to fast fail and use the original error code
+    if (ledgerVersion >= 13 && !maybeValid)
+    {
+        removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
+        return false;
+    }
+    // older versions of the protocol only fast fail in a subset of cases
+    if (ledgerVersion < 13 && cv < ValidationType::kInvalidPostAuth)
+    {
+        return false;
+    }
+
+    bool allOpsValid = true;
+    {
+        // scope here to avoid potential side effects of loading source accounts
+        LedgerTxn ltx(ltxOuter);
         for (auto& op : mOperations)
         {
             if (!op->checkSignature(signatureChecker, ltx, false))
@@ -400,7 +417,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
         }
     }
 
-    removeUsedOneTimeSignerKeys(signatureChecker, ltxOuter);
+    removeOneTimeSignerFromAllSourceAccounts(ltxOuter);
 
     if (!allOpsValid)
     {
@@ -414,7 +431,7 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
         return false;
     }
 
-    return true;
+    return maybeValid;
 }
 
 bool
@@ -481,7 +498,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return res;
     }
 
-    return ValidationType::kFullyValid;
+    return ValidationType::kMaybeValid;
 }
 
 void
@@ -523,57 +540,54 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(
-    SignatureChecker& signatureChecker, AbstractLedgerTxn& ltx)
+TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
+    AbstractLedgerTxn& ltx) const
 {
-    for (auto const& usedAccount : signatureChecker.usedOneTimeSignerKeys())
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+    if (ledgerVersion == 7)
     {
-        removeUsedOneTimeSignerKeys(ltx, usedAccount.first, usedAccount.second);
+        return;
+    }
+
+    std::unordered_set<AccountID> accounts{getSourceID()};
+    for (auto& op : mOperations)
+    {
+        accounts.emplace(op->getSourceID());
+    }
+
+    auto signerKey = SignerKeyUtils::preAuthTxKey(*this);
+    for (auto const& accountID : accounts)
+    {
+        removeAccountSigner(ltx, accountID, signerKey);
     }
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(
-    AbstractLedgerTxn& ltx, AccountID const& accountID,
-    std::set<SignerKey> const& keys) const
+TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
+                                      AccountID const& accountID,
+                                      SignerKey const& signerKey) const
 {
+    LedgerTxn ltx(ltxOuter);
+
     auto account = stellar::loadAccount(ltx, accountID);
     if (!account)
     {
         return; // probably account was removed due to merge operation
     }
 
-    auto header = ltx.loadHeader();
-    auto changed = std::accumulate(
-        std::begin(keys), std::end(keys), false,
-        [&](bool r, const SignerKey& signerKey) {
-            return r || removeAccountSigner(header, account, signerKey);
-        });
-
-    if (changed)
-    {
-        normalizeSigners(account);
-    }
-}
-
-bool
-TransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
-                                      LedgerTxnEntry& account,
-                                      SignerKey const& signerKey) const
-{
-    auto& acc = account.current().data.account();
+    auto& signers = account.current().data.account().signers;
     auto it = std::find_if(
-        std::begin(acc.signers), std::end(acc.signers),
+        std::begin(signers), std::end(signers),
         [&signerKey](Signer const& signer) { return signer.key == signerKey; });
-    if (it != std::end(acc.signers))
+
+    if (it != std::end(signers))
     {
+        auto header = ltx.loadHeader();
         auto removed = stellar::addNumEntries(header, account, -1);
         assert(removed == AddSubentryResult::SUCCESS);
-        acc.signers.erase(it);
-        return true;
+        signers.erase(it);
+        ltx.commit();
     }
-
-    return false;
 }
 
 bool
@@ -590,7 +604,7 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
     bool res = commonValid(signatureChecker, ltx, current, false, chargeFee) ==
-               ValidationType::kFullyValid;
+               ValidationType::kMaybeValid;
     if (res)
     {
         for (auto& op : mOperations)
@@ -710,7 +724,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 // if an error occurred, it is responsibility of account's owner
                 // to remove that signer
                 LedgerTxn ltxAfter(ltxTx);
-                removeUsedOneTimeSignerKeys(signatureChecker, ltxAfter);
+                removeOneTimeSignerFromAllSourceAccounts(ltxAfter);
                 newMeta.v2().txChangesAfter = ltxAfter.getChanges();
                 ltxAfter.commit();
             }
@@ -793,8 +807,8 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         {
             processSeqNum(ltxTx);
         }
-        auto signaturesValid = cv >= (ValidationType::kInvalidPostAuth) &&
-                               processSignatures(signatureChecker, ltxTx);
+
+        bool signaturesValid = processSignatures(cv, signatureChecker, ltxTx);
 
         auto& txChanges =
             meta.v() == 1 ? meta.v1().txChanges : meta.v2().txChangesBefore;
@@ -803,7 +817,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                   std::back_inserter(txChanges));
         ltxTx.commit();
 
-        bool valid = signaturesValid && cv == ValidationType::kFullyValid;
+        bool valid = signaturesValid && cv == ValidationType::kMaybeValid;
         try
         {
             // This should only throw if the logging during exception handling

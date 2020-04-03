@@ -472,11 +472,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
-                        for_versions_from(10, *app, [&] {
+                        for_versions(10, 12, *app, [&] {
                             setup();
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                        });
+                        for_versions_from(13, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
                         });
                     }
 
@@ -582,6 +589,104 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         });
                     }
 
+                    SECTION("merge source account before payment")
+                    {
+                        auto b1 = root.create("b1", paymentAmount);
+                        a1.pay(b1, 1000);
+
+                        closeLedgerOn(*app, 2, 1, 1, 2016);
+
+                        auto runTest = [&](bool txAccountMissing) {
+
+                            // Create merge tx
+                            auto txMerge = b1.tx({accountMerge(a1)});
+
+                            // Create payment tx. Depending on txAccountMissing,
+                            // either the transaction source account or the
+                            // operation source account will go missing (because
+                            // b1 will be merged into a1)
+                            auto& txAccount = txAccountMissing ? b1 : a1;
+                            auto& opAccount = txAccountMissing ? a1 : b1;
+                            auto tx =
+                                txAccount.tx({opAccount.op(payment(root, 110)),
+                                              root.op(payment(a1, 101))});
+                            getSignatures(tx).clear();
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            alternative.sign(*tx);
+
+                            // Create signer tx
+                            auto setSignerTx =
+                                root.tx({setOptions(setSigner(sk1)),
+                                         a1.op(setOptions(setSigner(sk1))),
+                                         b1.op(setOptions(setSigner(sk1)))});
+                            setSignerTx->addSignature(a1.getSecretKey());
+                            setSignerTx->addSignature(b1.getSecretKey());
+
+                            // Apply signer tx
+                            applyCheck(setSignerTx, *app);
+                            REQUIRE(setSignerTx->getResultCode() == txSUCCESS);
+
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                            REQUIRE(getAccountSigners(b1, *app).size() == 1);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+
+                            // merge b1 into a1 and attempt the payment tx
+                            auto r = closeLedgerOn(*app, 3, 1, 2, 2016,
+                                                   {txMerge, tx});
+
+                            if (txAccountMissing)
+                            {
+                                checkTx(0, r, txSUCCESS);
+                                checkTx(1, r, txNO_ACCOUNT);
+                            }
+                            else
+                            {
+                                checkTx(0, r, txSUCCESS);
+                                checkTx(1, r, txFAILED);
+                            }
+
+                            uint32_t ledgerVersion;
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                ledgerVersion =
+                                    ltx.loadHeader().current().ledgerVersion;
+                            }
+
+                            // If the operation source account is missing, then
+                            // the signatures can be removed if V10 or greater.
+                            // However, if the transaction source account is
+                            // missing, then signatures can only be removed if
+                            // V13 or greater.
+                            if (ledgerVersion < 13 &&
+                                (txAccountMissing || ledgerVersion < 10))
+                            {
+                                REQUIRE(getAccountSigners(a1, *app).size() ==
+                                        1);
+                                REQUIRE(getAccountSigners(root, *app).size() ==
+                                        1);
+                            }
+                            else
+                            {
+                                REQUIRE(getAccountSigners(a1, *app).size() ==
+                                        (alternative.autoRemove ? 0 : 1));
+                                REQUIRE(getAccountSigners(root, *app).size() ==
+                                        (alternative.autoRemove ? 0 : 1));
+                            }
+                        };
+
+                        SECTION("merge op source account")
+                        {
+                            for_versions_from(3, *app, [&] { runTest(false); });
+                        }
+
+                        SECTION("merge tx source account")
+                        {
+                            for_versions_from(3, *app, [&] { runTest(true); });
+                        }
+                    }
+
                     SECTION("accountMerge signing account")
                     {
                         auto b1 = root.create("b1", paymentAmount);
@@ -676,17 +781,104 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
                             alternative.sign(*tx);
                         };
-                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                        for_versions({3, 4, 5, 6, 8, 9, 10, 11, 12}, *app, [&] {
                             setup();
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                        });
+                        for_versions_from(13, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
                         });
                         for_versions({7}, *app, [&] {
                             setup();
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                        });
+                    }
+
+                    SECTION("not enough rights (envelope). Same pre auth "
+                            "signer on both tx and op source account")
+                    {
+                        TransactionFramePtr tx;
+                        auto setup = [&]() {
+                            tx = a1.tx({root.op(payment(a1, 100))});
+                            getSignatures(tx).clear();
+                            setSeqNum(tx, tx->getSeqNum() + 1);
+                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
+                                                 1);
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 5); // below low rights
+                            a1.setOptions(setSigner(sk1));
+                            root.setOptions(setSigner(sk1));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                            alternative.sign(*tx);
+                        };
+                        for_versions({3, 4, 5, 6, 8, 9, 10, 11, 12}, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        });
+                        for_versions_from(13, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
+                            REQUIRE(getAccountSigners(root, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
+                        });
+                        for_versions({7}, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        });
+                    }
+
+                    SECTION("Bad seq num. Same pre auth "
+                            "signer on both tx and op source account")
+                    {
+                        TransactionFramePtr tx;
+                        auto setup = [&]() {
+                            tx = a1.tx({root.op(payment(a1, 100))});
+                            getSignatures(tx).clear();
+                            a1.setSequenceNumber(a1.getLastSequenceNumber() -
+                                                 1);
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 5); // below low rights
+                            a1.setOptions(setSigner(sk1));
+                            root.setOptions(setSigner(sk1));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                            alternative.sign(*tx);
+                        };
+                        for_versions(10, 12, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        });
+                        for_versions_from(13, *app, [&] {
+                            setup();
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
+                            REQUIRE(getAccountSigners(root, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
                         });
                     }
 

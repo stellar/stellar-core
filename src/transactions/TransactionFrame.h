@@ -61,7 +61,7 @@ class TransactionFrame : public TransactionFrameBase
                               // should be updated
         kInvalidPostAuth,     // transaction is invalid but its sequence number
                               // should be updated and one-time signers removed
-        kFullyValid
+        kMaybeValid
     };
 
     virtual bool isTooEarly(LedgerTxnHeader const& header) const;
@@ -79,15 +79,10 @@ class TransactionFrame : public TransactionFrameBase
     virtual std::shared_ptr<OperationFrame>
     makeOperation(Operation const& op, OperationResult& res, size_t index);
 
-    void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
-                                     AbstractLedgerTxn& ltx);
+    void removeOneTimeSignerFromAllSourceAccounts(AbstractLedgerTxn& ltx) const;
 
-    void removeUsedOneTimeSignerKeys(AbstractLedgerTxn& ltx,
-                                     AccountID const& accountID,
-                                     std::set<SignerKey> const& keys) const;
-
-    bool removeAccountSigner(LedgerTxnHeader const& header,
-                             LedgerTxnEntry& account,
+    void removeAccountSigner(AbstractLedgerTxn& ltxOuter,
+                             AccountID const& accountID,
                              SignerKey const& signerKey) const;
 
     void markResultFailed();
@@ -97,7 +92,8 @@ class TransactionFrame : public TransactionFrameBase
 
     void processSeqNum(AbstractLedgerTxn& ltx);
 
-    bool processSignatures(SignatureChecker& signatureChecker,
+    bool processSignatures(ValidationType cv,
+                           SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter);
 
   public:
