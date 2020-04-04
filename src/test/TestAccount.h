@@ -41,8 +41,11 @@ class TestAccount
 
     Asset asset(std::string const& name);
     void changeTrust(Asset const& asset, int64_t limit);
+    void allowTrust(Asset const& asset, PublicKey const& trustor,
+                    uint32_t flag);
     void allowTrust(Asset const& asset, PublicKey const& trustor);
     void denyTrust(Asset const& asset, PublicKey const& trustor);
+    void allowMaintainLiabilities(Asset const& asset, PublicKey const& trustor);
 
     TrustLineEntry loadTrustLine(Asset const& asset) const;
     bool hasTrustLine(Asset const& asset) const;

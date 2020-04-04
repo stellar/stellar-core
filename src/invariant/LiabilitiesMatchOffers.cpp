@@ -9,6 +9,7 @@
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/TransactionUtils.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
 
@@ -77,7 +78,8 @@ getSellingLiabilities(LedgerEntry const& le)
 }
 
 static std::string
-checkAuthorized(std::shared_ptr<LedgerEntry const> const& current)
+checkAuthorized(std::shared_ptr<LedgerEntry const> const& current,
+                std::shared_ptr<LedgerEntry const> const& previous)
 {
     if (!current)
     {
@@ -86,14 +88,39 @@ checkAuthorized(std::shared_ptr<LedgerEntry const> const& current)
 
     if (current->data.type() == TRUSTLINE)
     {
-        auto const& trust = current->data.trustLine();
-        if (!(trust.flags & AUTHORIZED_FLAG))
+        if (!isAuthorized(*current))
         {
-            if (getSellingLiabilities(*current) > 0 ||
-                getBuyingLiabilities(*current) > 0)
+            auto const& trust = current->data.trustLine();
+            if (isAuthorizedToMaintainLiabilities(*current))
             {
-                return fmt::format("Unauthorized trust line has liabilities {}",
-                                   xdr::xdr_to_string(trust));
+                auto curSellingLiabilities = getSellingLiabilities(*current);
+                auto curBuyingLiabilities = getBuyingLiabilities(*current);
+
+                bool sellingLiabilitiesInc =
+                    previous ? curSellingLiabilities >
+                                   getSellingLiabilities(*previous)
+                             : curSellingLiabilities > 0;
+                bool buyingLiabilitiesInc =
+                    previous
+                        ? curBuyingLiabilities > getBuyingLiabilities(*previous)
+                        : curBuyingLiabilities > 0;
+
+                if (sellingLiabilitiesInc || buyingLiabilitiesInc)
+                {
+                    return fmt::format(
+                        "Liabilities increased on unauthorized trust line {}",
+                        xdr::xdr_to_string(trust));
+                }
+            }
+            else
+            {
+                if (getSellingLiabilities(*current) > 0 ||
+                    getBuyingLiabilities(*current) > 0)
+                {
+                    return fmt::format(
+                        "Unauthorized trust line has liabilities {}",
+                        xdr::xdr_to_string(trust));
+                }
             }
         }
     }
@@ -267,8 +294,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
         std::map<AccountID, std::map<Asset, Liabilities>> deltaLiabilities;
         for (auto const& entryDelta : ltxDelta.entry)
         {
-            auto checkAuthStr =
-                stellar::checkAuthorized(entryDelta.second.current);
+            auto checkAuthStr = stellar::checkAuthorized(
+                entryDelta.second.current, entryDelta.second.previous);
             if (!checkAuthStr.empty())
             {
                 return checkAuthStr;

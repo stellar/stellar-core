@@ -37,6 +37,7 @@ class TrustLineWrapper::NonIssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t delta) override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -68,6 +69,7 @@ class TrustLineWrapper::IssuerImpl : public TrustLineWrapper::AbstractImpl
                                   int64_t delta) override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -174,6 +176,12 @@ TrustLineWrapper::isAuthorized() const
     return getImpl()->isAuthorized();
 }
 
+bool
+TrustLineWrapper::isAuthorizedToMaintainLiabilities() const
+{
+    return getImpl()->isAuthorizedToMaintainLiabilities();
+}
+
 int64_t
 TrustLineWrapper::getAvailableBalance(LedgerTxnHeader const& header) const
 {
@@ -272,6 +280,12 @@ TrustLineWrapper::NonIssuerImpl::isAuthorized() const
     return stellar::isAuthorized(mEntry);
 }
 
+bool
+TrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
+{
+    return stellar::isAuthorizedToMaintainLiabilities(mEntry);
+}
+
 int64_t
 TrustLineWrapper::NonIssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
@@ -357,6 +371,12 @@ TrustLineWrapper::IssuerImpl::isAuthorized() const
     return true;
 }
 
+bool
+TrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
+{
+    return true;
+}
+
 int64_t
 TrustLineWrapper::IssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
@@ -385,6 +405,7 @@ class ConstTrustLineWrapper::NonIssuerImpl
     int64_t getBalance() const override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -400,6 +421,7 @@ class ConstTrustLineWrapper::IssuerImpl
     int64_t getBalance() const override;
 
     bool isAuthorized() const override;
+    bool isAuthorizedToMaintainLiabilities() const override;
 
     int64_t getAvailableBalance(LedgerTxnHeader const& header) const override;
 
@@ -457,6 +479,12 @@ ConstTrustLineWrapper::isAuthorized() const
     return getImpl()->isAuthorized();
 }
 
+bool
+ConstTrustLineWrapper::isAuthorizedToMaintainLiabilities() const
+{
+    return getImpl()->isAuthorizedToMaintainLiabilities();
+}
+
 int64_t
 ConstTrustLineWrapper::getAvailableBalance(LedgerTxnHeader const& header) const
 {
@@ -502,6 +530,12 @@ ConstTrustLineWrapper::NonIssuerImpl::isAuthorized() const
     return stellar::isAuthorized(mEntry);
 }
 
+bool
+ConstTrustLineWrapper::NonIssuerImpl::isAuthorizedToMaintainLiabilities() const
+{
+    return stellar::isAuthorizedToMaintainLiabilities(mEntry);
+}
+
 int64_t
 ConstTrustLineWrapper::NonIssuerImpl::getAvailableBalance(
     LedgerTxnHeader const& header) const
@@ -530,6 +564,12 @@ ConstTrustLineWrapper::IssuerImpl::getBalance() const
 
 bool
 ConstTrustLineWrapper::IssuerImpl::isAuthorized() const
+{
+    return true;
+}
+
+bool
+ConstTrustLineWrapper::IssuerImpl::isAuthorizedToMaintainLiabilities() const
 {
     return true;
 }

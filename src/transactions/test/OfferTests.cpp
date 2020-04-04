@@ -690,350 +690,435 @@ TEST_CASE("create offer", "[tx][offers]")
                     {}, [&] { return market.addOffer(a1, offerState); }));
             }
 
-            SECTION("offer does not cross")
+            enum class AuthState
             {
-                for_all_versions(*app, [&] {
-                    issuer.pay(b1, usd, 20000);
-                    // offer is sell 40 USD for 80 IDR ; sell USD @ 2
-                    market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(b1, {usd, idr, Price{2, 1}, 40});
+                AUTHORIZED,
+                BUY_AUTHORIZED_TO_MAINTAIN_LIABILITIES,
+                SELL_AUTHORIZED_TO_MAINTAIN_LIABILITIES
+            };
+            auto multipleOffers = [&](AuthState authState) {
+                auto a1MaybeSetAuthToMaintainLiabilities = [&]() {
+                    if (authState == AuthState::AUTHORIZED)
+                    {
+                        return;
+                    }
+
+                    uint32_t ledgerVersion;
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        ledgerVersion =
+                            ltx.loadHeader().current().ledgerVersion;
+                    }
+
+                    if (ledgerVersion < 13)
+                    {
+                        return;
+                    }
+
+                    auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
+                                 static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+
+                    issuer.setOptions(setFlags(toSet));
+                    Asset const& asset =
+                        authState == AuthState::
+                                         BUY_AUTHORIZED_TO_MAINTAIN_LIABILITIES
+                            ? usd
+                            : idr;
+                    issuer.allowMaintainLiabilities(asset, a1);
+                };
+
+                SECTION("offer does not cross")
+                {
+                    for_all_versions(*app, [&] {
+                        a1MaybeSetAuthToMaintainLiabilities();
+                        issuer.pay(b1, usd, 20000);
+                        // offer is sell 40 USD for 80 IDR ; sell USD @ 2
+                        market.requireChangesWithOffer({}, [&] {
+                            return market.addOffer(b1,
+                                                   {usd, idr, Price{2, 1}, 40});
+                        });
                     });
-                });
-            }
+                }
 
-            SECTION("offer crosses own")
-            {
-                for_all_versions(*app, [&] {
-                    issuer.pay(a1, usd, 20000);
+                SECTION("offer crosses own")
+                {
+                    for_all_versions(*app, [&] {
+                        issuer.pay(a1, usd, 20000);
 
-                    // ensure we could receive proceeds from the offer
-                    a1.pay(issuer, idr, 50000);
+                        // ensure we could receive proceeds from the offer
+                        a1.pay(issuer, idr, 50000);
 
-                    // offer is sell 150 USD for 100 IDR; sell USD @ 1.5 /
-                    // buy IRD @ 0.66
-                    REQUIRE_THROWS_AS(
+                        // offer is sell 150 USD for 100 IDR; sell USD @ 1.5 /
+                        // buy IDR @ 0.66
+                        REQUIRE_THROWS_AS(
+                            market.requireChangesWithOffer(
+                                {},
+                                [&] {
+                                    return market.addOffer(
+                                        a1, {usd, idr, exactCrossPrice, 150});
+                                }),
+                            ex_MANAGE_SELL_OFFER_CROSS_SELF);
+                    });
+                }
+
+                SECTION("offer crosses and removes first")
+                {
+                    for_all_versions(*app, [&] {
+                        a1MaybeSetAuthToMaintainLiabilities();
+                        issuer.pay(b1, usd, 20000);
+
+                        // offer is sell 150 USD for 100 USD; sell USD @ 1.5 /
+                        // buy IDR @ 0.66
                         market.requireChangesWithOffer(
-                            {},
+                            {{offers[0].key, OfferState::DELETED},
+                             {offers[1].key, offers[1].state}},
                             [&] {
                                 return market.addOffer(
-                                    a1, {usd, idr, exactCrossPrice, 150});
-                            }),
-                        ex_MANAGE_SELL_OFFER_CROSS_SELF);
-                });
-            }
+                                    b1, {usd, idr, exactCrossPrice, 150},
+                                    OfferState::DELETED);
+                            });
+                    });
+                }
 
-            SECTION("offer crosses and removes first")
-            {
-                for_all_versions(*app, [&] {
-                    issuer.pay(b1, usd, 20000);
+                SECTION("offer crosses, removes first six and changes seventh")
+                {
+                    for_versions_to(9, *app, [&] {
+                        issuer.pay(b1, usd, 20000);
 
-                    // offer is sell 150 USD for 100 USD; sell USD @ 1.5 /
-                    // buy IRD @ 0.66
-                    market.requireChangesWithOffer(
-                        {{offers[0].key, OfferState::DELETED},
-                         {offers[1].key, offers[1].state}},
-                        [&] {
-                            return market.addOffer(
-                                b1, {usd, idr, exactCrossPrice, 150},
-                                OfferState::DELETED);
-                        });
-                });
-            }
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
 
-            SECTION("offer crosses, removes first six and changes seventh")
-            {
-                for_versions_to(9, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
+                        // Offers are: sell 100 IDR for 150 USD; sell IDR @ 0.66
+                        // -> buy USD @ 1.5
+                        // first 6 offers get taken for 6*150=900 USD, gets 600
+                        // IDR in return
 
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
+                        // For versions < 10:
+                        // offer #7 : has 110 USD available
+                        //    -> can claim partial offer 100*110/150 = 73.333 ;
+                        //    -> 26.66666 left
+                        // 8 .. untouched
+                        // the USDs were sold at the (better) rate found in the
+                        // original offers
 
-                    // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
-                    // -> buy USD @ 1.5
-                    // first 6 offers get taken for 6*150=900 USD, gets 600
-                    // IDR in return
+                        // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
+                        market.requireChangesWithOffer(
+                            {{offers[0].key, OfferState::DELETED},
+                             {offers[1].key, OfferState::DELETED},
+                             {offers[2].key, OfferState::DELETED},
+                             {offers[3].key, OfferState::DELETED},
+                             {offers[4].key, OfferState::DELETED},
+                             {offers[5].key, OfferState::DELETED},
+                             {offers[6].key, {idr, usd, price, 28}}},
+                            [&] {
+                                return market.addOffer(
+                                    b1, {usd, idr, Price{1, 2}, 1009},
+                                    OfferState::DELETED);
+                            });
 
-                    // For versions < 10:
-                    // offer #7 : has 110 USD available
-                    //    -> can claim partial offer 100*110/150 = 73.333 ;
-                    //    -> 26.66666 left
-                    // 8 .. untouched
-                    // the USDs were sold at the (better) rate found in the
-                    // original offers
+                        market.requireBalances(
+                            {{a1, {{usd, 1009}, {idr, 99328}}},
+                             {b1, {{usd, 18991}, {idr, 672}}}});
+                    });
 
-                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-                    market.requireChangesWithOffer(
-                        {{offers[0].key, OfferState::DELETED},
-                         {offers[1].key, OfferState::DELETED},
-                         {offers[2].key, OfferState::DELETED},
-                         {offers[3].key, OfferState::DELETED},
-                         {offers[4].key, OfferState::DELETED},
-                         {offers[5].key, OfferState::DELETED},
-                         {offers[6].key, {idr, usd, price, 28}}},
-                        [&] {
-                            return market.addOffer(
-                                b1, {usd, idr, Price{1, 2}, 1009},
-                                OfferState::DELETED);
-                        });
+                    for_versions_from(10, *app, [&] {
+                        a1MaybeSetAuthToMaintainLiabilities();
+                        issuer.pay(b1, usd, 20000);
 
-                    market.requireBalances({{a1, {{usd, 1009}, {idr, 99328}}},
-                                            {b1, {{usd, 18991}, {idr, 672}}}});
-                });
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
 
-                for_versions_from(10, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
+                        // Offers are: sell 100 IDR for 150 USD; sell IDR @ 0.66
+                        // -> buy USD @ 1.5
+                        // first 6 offers get taken for 6*150=900 USD, gets 600
+                        // IDR in return
 
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
+                        // For versions < 10:
+                        // offer #7 : has 110 USD available
+                        //    -> can claim partial offer 100*110/150 = 73.333 ;
+                        //    -> 26.66666 left
+                        // 8 .. untouched
+                        // the USDs were sold at the (better) rate found in the
+                        // original offers
 
-                    // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
-                    // -> buy USD @ 1.5
-                    // first 6 offers get taken for 6*150=900 USD, gets 600
-                    // IDR in return
+                        // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
+                        market.requireChangesWithOffer(
+                            {{offers[0].key, OfferState::DELETED},
+                             {offers[1].key, OfferState::DELETED},
+                             {offers[2].key, OfferState::DELETED},
+                             {offers[3].key, OfferState::DELETED},
+                             {offers[4].key, OfferState::DELETED},
+                             {offers[5].key, OfferState::DELETED},
+                             {offers[6].key, {idr, usd, price, 28}}},
+                            [&] {
+                                return market.addOffer(
+                                    b1, {usd, idr, Price{1, 2}, 1009},
+                                    OfferState::DELETED);
+                            });
 
-                    // For versions < 10:
-                    // offer #7 : has 110 USD available
-                    //    -> can claim partial offer 100*110/150 = 73.333 ;
-                    //    -> 26.66666 left
-                    // 8 .. untouched
-                    // the USDs were sold at the (better) rate found in the
-                    // original offers
+                        market.requireBalances(
+                            {{a1, {{usd, 1008}, {idr, 99328}}},
+                             {b1, {{usd, 18992}, {idr, 672}}}});
+                    });
+                }
 
-                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-                    market.requireChangesWithOffer(
-                        {{offers[0].key, OfferState::DELETED},
-                         {offers[1].key, OfferState::DELETED},
-                         {offers[2].key, OfferState::DELETED},
-                         {offers[3].key, OfferState::DELETED},
-                         {offers[4].key, OfferState::DELETED},
-                         {offers[5].key, OfferState::DELETED},
-                         {offers[6].key, {idr, usd, price, 28}}},
-                        [&] {
-                            return market.addOffer(
-                                b1, {usd, idr, Price{1, 2}, 1009},
-                                OfferState::DELETED);
-                        });
-
-                    market.requireBalances({{a1, {{usd, 1008}, {idr, 99328}}},
-                                            {b1, {{usd, 18992}, {idr, 672}}}});
-                });
-            }
-
-            SECTION("offer crosses, removes first six and removes seventh by "
+                SECTION(
+                    "offer crosses, removes first six and removes seventh by "
                     "adjustment")
+                {
+                    for_versions_to(9, *app, [&] {
+                        issuer.pay(b1, usd, 20000);
+
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
+
+                        // Offers are: sell 100 IDR for 150 USD; sell IDR @ 0.66
+                        // -> buy USD @ 1.5
+                        // first 6 offers get taken for 6*150=900 USD, gets 600
+                        // IDR in return
+
+                        // For versions < 10:
+                        // offer #7 : has 110 USD available
+                        //    -> can claim partial offer 100*110/150 = 73.333 ;
+                        //    -> 26.66666 left
+                        // 8 .. untouched
+                        // the USDs were sold at the (better) rate found in the
+                        // original offers
+
+                        // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
+                        market.requireChangesWithOffer(
+                            {{offers[0].key, OfferState::DELETED},
+                             {offers[1].key, OfferState::DELETED},
+                             {offers[2].key, OfferState::DELETED},
+                             {offers[3].key, OfferState::DELETED},
+                             {offers[4].key, OfferState::DELETED},
+                             {offers[5].key, OfferState::DELETED},
+                             {offers[6].key, {idr, usd, price, 27}}},
+                            [&] {
+                                return market.addOffer(
+                                    b1, {usd, idr, Price{1, 2}, 1010},
+                                    OfferState::DELETED);
+                            });
+
+                        market.requireBalances(
+                            {{a1, {{usd, 1010}, {idr, 99327}}},
+                             {b1, {{usd, 18990}, {idr, 673}}}});
+                    });
+
+                    for_versions_from(10, *app, [&] {
+                        a1MaybeSetAuthToMaintainLiabilities();
+                        issuer.pay(b1, usd, 20000);
+
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
+
+                        // Offers are: sell 100 IDR for 150 USD; sell IDR @ 0.66
+                        // -> buy USD @ 1.5
+                        // first 6 offers get taken for 6*150=900 USD, gets 600
+                        // IDR in return
+
+                        // For versions >= 10:
+                        // offer #7: has 110 USD available
+                        //    -> wheatValue = 100 * 3 = 300
+                        //       sheepValue = 110 * 2 = 220
+                        //       wheatStays
+                        //    -> price.n > price.d
+                        //    -> wheatReceive = floor(220 / 3) = 73
+                        //    -> sheepSend = ceil(73 * 3 / 2) = 110
+                        // added offer:
+                        //    -> wheatValue = 27 * 3 = 81
+                        //       !wheatStays
+                        //    -> price.n > price.d
+                        //    -> wheatReceive = floor(81 / 3) = 27
+                        //    -> sheepSend = floor(27 * 3 / 2) = 40
+                        //    abs(3/2 - 40/27) = 1 / 54 > (3/2) / 100 = 3/200
+                        //    -> wheatReceive = sheepSend = 0
+
+                        // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
+                        market.requireChangesWithOffer(
+                            {{offers[0].key, OfferState::DELETED},
+                             {offers[1].key, OfferState::DELETED},
+                             {offers[2].key, OfferState::DELETED},
+                             {offers[3].key, OfferState::DELETED},
+                             {offers[4].key, OfferState::DELETED},
+                             {offers[5].key, OfferState::DELETED},
+                             {offers[6].key, OfferState::DELETED}},
+                            [&] {
+                                return market.addOffer(
+                                    b1, {usd, idr, Price{1, 2}, 1010},
+                                    OfferState::DELETED);
+                            });
+
+                        market.requireBalances(
+                            {{a1, {{usd, 1010}, {idr, 99327}}},
+                             {b1, {{usd, 18990}, {idr, 673}}}});
+                    });
+                }
+
+                SECTION("offer crosses, removes all offers, and remains")
+                {
+                    for_versions_to(9, *app, [&] {
+                        issuer.pay(b1, usd, 20000);
+
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
+
+                        auto c1 = root.create("C", minBalance3 + 10000);
+
+                        // inject also an offer that should get cleaned up
+                        c1.changeTrust(idr, trustLineLimit);
+                        c1.changeTrust(usd, trustLineLimit);
+                        issuer.pay(c1, idr, 20000);
+
+                        // matches the offer from A
+                        auto cOffer = market.requireChangesWithOffer({}, [&] {
+                            return market.addOffer(c1, {idr, usd, price, 100});
+                        });
+                        // drain account
+                        c1.pay(issuer, idr, 20000);
+                        // offer should still be there
+                        market.checkCurrentOffers();
+
+                        // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
+                        auto usdBalanceForSale = 10000;
+                        auto usdBalanceRemaining = 6700;
+                        auto offerPosted = OfferState{usd, idr, Price{1, 2},
+                                                      usdBalanceForSale};
+                        auto offerRemaining = OfferState{usd, idr, Price{1, 2},
+                                                         usdBalanceRemaining};
+                        auto removed = std::vector<TestMarketOffer>{};
+                        for (auto o : offers)
+                        {
+                            removed.push_back({o.key, OfferState::DELETED});
+                        }
+                        // c1 has no idr to support that offer
+                        removed.push_back({cOffer.key, OfferState::DELETED});
+                        auto offer =
+                            market.requireChangesWithOffer(removed, [&] {
+                                return market.addOffer(b1, offerPosted,
+                                                       offerRemaining);
+                            });
+
+                        market.requireBalances(
+                            {{a1, {{usd, 3300}, {idr, 97800}}},
+                             {b1, {{usd, 16700}, {idr, 2200}}}});
+                    });
+
+                    for_versions_from(10, *app, [&] {
+                        a1MaybeSetAuthToMaintainLiabilities();
+                        issuer.pay(b1, usd, 20000);
+
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
+
+                        // Cannot add invalid offer as in versions less than 10
+
+                        // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
+                        auto usdBalanceForSale = 10000;
+                        auto usdBalanceRemaining = 6700;
+                        auto offerPosted = OfferState{usd, idr, Price{1, 2},
+                                                      usdBalanceForSale};
+                        auto offerRemaining = OfferState{usd, idr, Price{1, 2},
+                                                         usdBalanceRemaining};
+                        auto removed = std::vector<TestMarketOffer>{};
+                        for (auto o : offers)
+                        {
+                            removed.push_back({o.key, OfferState::DELETED});
+                        }
+                        auto offer =
+                            market.requireChangesWithOffer(removed, [&] {
+                                return market.addOffer(b1, offerPosted,
+                                                       offerRemaining);
+                            });
+
+                        market.requireBalances(
+                            {{a1, {{usd, 3300}, {idr, 97800}}},
+                             {b1, {{usd, 16700}, {idr, 2200}}}});
+                    });
+                }
+
+                SECTION("multiple offers with small amount crosses")
+                {
+                    for_versions_to(9, *app, [&] {
+                        issuer.pay(b1, usd, 20000);
+
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
+
+                        auto offerPosted =
+                            OfferState{usd, idr, Price{1, 2}, 10};
+                        auto offerChanged = OfferState{idr, usd, price, 100};
+                        for (auto i = 0; i < 10; i++)
+                        {
+                            offerChanged.amount -= 6;
+                            market.requireChangesWithOffer(
+                                {{offers[0].key, offerChanged}}, [&] {
+                                    return market.addOffer(b1, offerPosted,
+                                                           OfferState::DELETED);
+                                });
+                        }
+
+                        market.requireBalances(
+                            {{a1, {{usd, 100}, {idr, 99940}}},
+                             {b1, {{usd, 19900}, {idr, 60}}}});
+                    });
+                    for_versions_from(10, *app, [&] {
+                        a1MaybeSetAuthToMaintainLiabilities();
+                        issuer.pay(b1, usd, 20000);
+
+                        market.requireBalances(
+                            {{a1, {{usd, 0}, {idr, 100000}}},
+                             {b1, {{usd, 20000}, {idr, 0}}}});
+
+                        // wheatValue = 100 * 3 = 300
+                        // sheepValue = 10 * 2 = 20
+                        // wheatStays
+                        // price.n > price.d
+                        // wheatReceive = floor(20 / 3) = 6
+                        // sheepSend = ceil(6 * 3 / 2) = 9
+
+                        auto offerPosted =
+                            OfferState{usd, idr, Price{1, 2}, 10};
+                        auto offerChanged = OfferState{idr, usd, price, 100};
+                        for (auto i = 0; i < 10; i++)
+                        {
+                            offerChanged.amount -= 6;
+                            market.requireChangesWithOffer(
+                                {{offers[0].key, offerChanged}}, [&] {
+                                    return market.addOffer(b1, offerPosted,
+                                                           OfferState::DELETED);
+                                });
+                        }
+
+                        market.requireBalances(
+                            {{a1, {{usd, 90}, {idr, 99940}}},
+                             {b1, {{usd, 19910}, {idr, 60}}}});
+                    });
+                }
+            };
+
+            SECTION("authorized")
             {
-                for_versions_to(9, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
-
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
-
-                    // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
-                    // -> buy USD @ 1.5
-                    // first 6 offers get taken for 6*150=900 USD, gets 600
-                    // IDR in return
-
-                    // For versions < 10:
-                    // offer #7 : has 110 USD available
-                    //    -> can claim partial offer 100*110/150 = 73.333 ;
-                    //    -> 26.66666 left
-                    // 8 .. untouched
-                    // the USDs were sold at the (better) rate found in the
-                    // original offers
-
-                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-                    market.requireChangesWithOffer(
-                        {{offers[0].key, OfferState::DELETED},
-                         {offers[1].key, OfferState::DELETED},
-                         {offers[2].key, OfferState::DELETED},
-                         {offers[3].key, OfferState::DELETED},
-                         {offers[4].key, OfferState::DELETED},
-                         {offers[5].key, OfferState::DELETED},
-                         {offers[6].key, {idr, usd, price, 27}}},
-                        [&] {
-                            return market.addOffer(
-                                b1, {usd, idr, Price{1, 2}, 1010},
-                                OfferState::DELETED);
-                        });
-
-                    market.requireBalances({{a1, {{usd, 1010}, {idr, 99327}}},
-                                            {b1, {{usd, 18990}, {idr, 673}}}});
-                });
-
-                for_versions_from(10, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
-
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
-
-                    // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
-                    // -> buy USD @ 1.5
-                    // first 6 offers get taken for 6*150=900 USD, gets 600
-                    // IDR in return
-
-                    // For versions >= 10:
-                    // offer #7: has 110 USD available
-                    //    -> wheatValue = 100 * 3 = 300
-                    //       sheepValue = 110 * 2 = 220
-                    //       wheatStays
-                    //    -> price.n > price.d
-                    //    -> wheatReceive = floor(220 / 3) = 73
-                    //    -> sheepSend = ceil(73 * 3 / 2) = 110
-                    // added offer:
-                    //    -> wheatValue = 27 * 3 = 81
-                    //       !wheatStays
-                    //    -> price.n > price.d
-                    //    -> wheatReceive = floor(81 / 3) = 27
-                    //    -> sheepSend = floor(27 * 3 / 2) = 40
-                    //    abs(3/2 - 40/27) = 1 / 54 > (3/2) / 100 = 3/200
-                    //    -> wheatReceive = sheepSend = 0
-
-                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-                    market.requireChangesWithOffer(
-                        {{offers[0].key, OfferState::DELETED},
-                         {offers[1].key, OfferState::DELETED},
-                         {offers[2].key, OfferState::DELETED},
-                         {offers[3].key, OfferState::DELETED},
-                         {offers[4].key, OfferState::DELETED},
-                         {offers[5].key, OfferState::DELETED},
-                         {offers[6].key, OfferState::DELETED}},
-                        [&] {
-                            return market.addOffer(
-                                b1, {usd, idr, Price{1, 2}, 1010},
-                                OfferState::DELETED);
-                        });
-
-                    market.requireBalances({{a1, {{usd, 1010}, {idr, 99327}}},
-                                            {b1, {{usd, 18990}, {idr, 673}}}});
-                });
+                multipleOffers(AuthState::AUTHORIZED);
             }
 
-            SECTION("offer crosses, removes all offers, and remains")
+            SECTION("buy authorized to maintain liabilities")
             {
-                for_versions_to(9, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
-
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
-
-                    auto c1 = root.create("C", minBalance3 + 10000);
-
-                    // inject also an offer that should get cleaned up
-                    c1.changeTrust(idr, trustLineLimit);
-                    c1.changeTrust(usd, trustLineLimit);
-                    issuer.pay(c1, idr, 20000);
-
-                    // matches the offer from A
-                    auto cOffer = market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(c1, {idr, usd, price, 100});
-                    });
-                    // drain account
-                    c1.pay(issuer, idr, 20000);
-                    // offer should still be there
-                    market.checkCurrentOffers();
-
-                    // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
-                    auto usdBalanceForSale = 10000;
-                    auto usdBalanceRemaining = 6700;
-                    auto offerPosted =
-                        OfferState{usd, idr, Price{1, 2}, usdBalanceForSale};
-                    auto offerRemaining =
-                        OfferState{usd, idr, Price{1, 2}, usdBalanceRemaining};
-                    auto removed = std::vector<TestMarketOffer>{};
-                    for (auto o : offers)
-                    {
-                        removed.push_back({o.key, OfferState::DELETED});
-                    }
-                    // c1 has no idr to support that offer
-                    removed.push_back({cOffer.key, OfferState::DELETED});
-                    auto offer = market.requireChangesWithOffer(removed, [&] {
-                        return market.addOffer(b1, offerPosted, offerRemaining);
-                    });
-
-                    market.requireBalances({{a1, {{usd, 3300}, {idr, 97800}}},
-                                            {b1, {{usd, 16700}, {idr, 2200}}}});
-                });
-
-                for_versions_from(10, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
-
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
-
-                    // Cannot add invalid offer as in versions less than 10
-
-                    // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
-                    auto usdBalanceForSale = 10000;
-                    auto usdBalanceRemaining = 6700;
-                    auto offerPosted =
-                        OfferState{usd, idr, Price{1, 2}, usdBalanceForSale};
-                    auto offerRemaining =
-                        OfferState{usd, idr, Price{1, 2}, usdBalanceRemaining};
-                    auto removed = std::vector<TestMarketOffer>{};
-                    for (auto o : offers)
-                    {
-                        removed.push_back({o.key, OfferState::DELETED});
-                    }
-                    auto offer = market.requireChangesWithOffer(removed, [&] {
-                        return market.addOffer(b1, offerPosted, offerRemaining);
-                    });
-
-                    market.requireBalances({{a1, {{usd, 3300}, {idr, 97800}}},
-                                            {b1, {{usd, 16700}, {idr, 2200}}}});
-                });
+                multipleOffers(
+                    AuthState::BUY_AUTHORIZED_TO_MAINTAIN_LIABILITIES);
             }
 
-            SECTION("multiple offers with small amount crosses")
+            SECTION("sell authorized to maintain liabilities")
             {
-                for_versions_to(9, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
-
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
-
-                    auto offerPosted = OfferState{usd, idr, Price{1, 2}, 10};
-                    auto offerChanged = OfferState{idr, usd, price, 100};
-                    for (auto i = 0; i < 10; i++)
-                    {
-                        offerChanged.amount -= 6;
-                        market.requireChangesWithOffer(
-                            {{offers[0].key, offerChanged}}, [&] {
-                                return market.addOffer(b1, offerPosted,
-                                                       OfferState::DELETED);
-                            });
-                    }
-
-                    market.requireBalances({{a1, {{usd, 100}, {idr, 99940}}},
-                                            {b1, {{usd, 19900}, {idr, 60}}}});
-                });
-                for_versions_from(10, *app, [&] {
-                    issuer.pay(b1, usd, 20000);
-
-                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
-                                            {b1, {{usd, 20000}, {idr, 0}}}});
-
-                    // wheatValue = 100 * 3 = 300
-                    // sheepValue = 10 * 2 = 20
-                    // wheatStays
-                    // price.n > price.d
-                    // wheatReceive = floor(20 / 3) = 6
-                    // sheepSend = ceil(6 * 3 / 2) = 9
-
-                    auto offerPosted = OfferState{usd, idr, Price{1, 2}, 10};
-                    auto offerChanged = OfferState{idr, usd, price, 100};
-                    for (auto i = 0; i < 10; i++)
-                    {
-                        offerChanged.amount -= 6;
-                        market.requireChangesWithOffer(
-                            {{offers[0].key, offerChanged}}, [&] {
-                                return market.addOffer(b1, offerPosted,
-                                                       OfferState::DELETED);
-                            });
-                    }
-
-                    market.requireBalances({{a1, {{usd, 90}, {idr, 99940}}},
-                                            {b1, {{usd, 19910}, {idr, 60}}}});
-                });
+                multipleOffers(
+                    AuthState::SELL_AUTHORIZED_TO_MAINTAIN_LIABILITIES);
             }
         }
 
@@ -1045,7 +1130,7 @@ TEST_CASE("create offer", "[tx][offers]")
             b1.changeTrust(usd, trustLineLimit);
 
             // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell
-            // IRD @ 0.66
+            // IDR @ 0.66
             auto offerA1 = market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(a1, {idr, usd, Price{3, 2}, 100});
             });
@@ -1139,7 +1224,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     issuerAuth.pay(d1, idrAuth, trustLineBalance);
 
                     // offer is sell 100 IDR for 150 USD; buy USD @
-                    // 1.5 = sell IRD @ 0.66
+                    // 1.5 = sell IDR @ 0.66
                     auto offerD1 = market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(
                             d1, {idrAuth, usdAuth, Price{3, 2}, 100});
@@ -1290,7 +1375,7 @@ TEST_CASE("create offer", "[tx][offers]")
             c1.changeTrust(usd, INT64_MAX);
 
             // offer is sell 1000 IDR for 9000 USD; buy USD @ 9.0 = sell
-            // IRD @ 0.111
+            // IDR @ 0.111
             auto offerC1 = market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(
                     c1, {idr, usd, Price{9, 1}, 1000 * assetMultiplier});
