@@ -125,27 +125,58 @@ class XDROutputFileStream
 {
     std::vector<char> mBuf;
     const bool mFsyncOnClose;
+
+    bool mUsingRandomAccessHandle{false};
     asio::buffered_write_stream<stellar::fs::stream_t> mBufferedWriteStream;
+    stellar::fs::random_access_t mRandomAccessHandle;
+    size_t mRandomAccessNextWriteOffset{0};
 
   public:
     XDROutputFileStream(asio::io_context& ctx, bool fsyncOnClose)
         : mFsyncOnClose(fsyncOnClose)
         , mBufferedWriteStream(ctx, stellar::fs::bufsz())
+        , mRandomAccessHandle(ctx)
     {
     }
 
     ~XDROutputFileStream()
     {
-        if (mBufferedWriteStream.next_layer().is_open())
+        if (isOpen())
         {
             close();
+        }
+    }
+
+    bool
+    isOpen()
+    {
+        if (mUsingRandomAccessHandle)
+        {
+            return mRandomAccessHandle.is_open();
+        }
+        else
+        {
+            return mBufferedWriteStream.next_layer().is_open();
+        }
+    }
+
+    fs::native_handle_t
+    getHandle()
+    {
+        if (mUsingRandomAccessHandle)
+        {
+            return mRandomAccessHandle.native_handle();
+        }
+        else
+        {
+            return mBufferedWriteStream.next_layer().native_handle();
         }
     }
 
     void
     close()
     {
-        if (!mBufferedWriteStream.next_layer().is_open())
+        if (!isOpen())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::close() on non-open FILE*");
@@ -153,10 +184,16 @@ class XDROutputFileStream
         flush();
         if (mFsyncOnClose)
         {
-            fs::flushFileChanges(
-                mBufferedWriteStream.next_layer().native_handle());
+            fs::flushFileChanges(getHandle());
         }
-        mBufferedWriteStream.close();
+        if (mUsingRandomAccessHandle)
+        {
+            mRandomAccessHandle.close();
+        }
+        else
+        {
+            mBufferedWriteStream.close();
+        }
     }
 
     void
@@ -166,13 +203,13 @@ class XDROutputFileStream
         FileSystemException::failWith(
             "XDROutputFileStream::fdopen() not supported on windows");
 #else
-        if (mBufferedWriteStream.next_layer().is_open())
+        if (isOpen())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::fdopen() on already-open stream");
         }
         mBufferedWriteStream.next_layer().assign(fd);
-        if (!mBufferedWriteStream.next_layer().is_open())
+        if (!isOpen())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::fdopen() failed");
@@ -183,46 +220,62 @@ class XDROutputFileStream
     void
     flush()
     {
-        if (!mBufferedWriteStream.next_layer().is_open())
+        if (!isOpen())
         {
             FileSystemException::failWith(
-                "XDROutputFileStream::flush() on non-open FILE*");
+                "XDROutputFileStream::flush() on non-open stream");
         }
-        asio::error_code ec;
-        do
+        if (mUsingRandomAccessHandle)
         {
-            mBufferedWriteStream.flush(ec);
-            if (ec && ec != asio::error::interrupted)
+            // There is no flush on random access handles.
+        }
+        else
+        {
+            asio::error_code ec;
+            do
             {
-                FileSystemException::failWith(
-                    std::string("XDROutputFileStream::flush() failed: ") +
-                    ec.message());
-            }
-        } while (ec);
+                mBufferedWriteStream.flush(ec);
+                if (ec && ec != asio::error::interrupted)
+                {
+                    FileSystemException::failWith(
+                        std::string("XDROutputFileStream::flush() failed: ") +
+                        ec.message());
+                }
+            } while (ec);
+        }
     }
 
     void
     open(std::string const& filename)
     {
-        if (mBufferedWriteStream.next_layer().is_open())
+        mUsingRandomAccessHandle = fs::shouldUseRandomAccessHandle(filename);
+        if (isOpen())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::open() on already-open stream");
         }
-        fs::stream_t::native_handle_type handle = fs::openFileToWrite(filename);
-        mBufferedWriteStream.next_layer().assign(handle);
+        fs::native_handle_t handle = fs::openFileToWrite(filename);
+        if (mUsingRandomAccessHandle)
+        {
+            mRandomAccessHandle.assign(handle);
+            mRandomAccessNextWriteOffset = 0;
+        }
+        else
+        {
+            mBufferedWriteStream.next_layer().assign(handle);
+        }
     }
 
     operator bool()
     {
-        return mBufferedWriteStream.next_layer().is_open();
+        return isOpen();
     }
 
     template <typename T>
     void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
-        if (!mBufferedWriteStream.next_layer().is_open())
+        if (!isOpen())
         {
             FileSystemException::failWith(
                 "XDROutputFileStream::writeOne() on non-open stream");
@@ -250,9 +303,18 @@ class XDROutputFileStream
         while (written < to_write)
         {
             asio::error_code ec;
-            written += asio::write(
-                mBufferedWriteStream,
-                asio::buffer(mBuf.data() + written, to_write - written), ec);
+            auto buf = asio::buffer(mBuf.data() + written, to_write - written);
+            if (mUsingRandomAccessHandle)
+            {
+                size_t n = asio::write_at(
+                    mRandomAccessHandle, mRandomAccessNextWriteOffset, buf, ec);
+                written += n;
+                mRandomAccessNextWriteOffset += n;
+            }
+            else
+            {
+                written += asio::write(mBufferedWriteStream, buf, ec);
+            }
             if (ec)
             {
                 if (ec == asio::error::interrupted)

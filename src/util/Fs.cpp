@@ -83,7 +83,7 @@ unlockFile(std::string const& path)
 }
 
 void
-flushFileChanges(stream_t::native_handle_type fh)
+flushFileChanges(native_handle_t fh)
 {
     if (FlushFileBuffers(fh) == FALSE)
     {
@@ -92,21 +92,30 @@ flushFileChanges(stream_t::native_handle_type fh)
     }
 }
 
-stream_t::native_handle_type
+bool
+shouldUseRandomAccessHandle(std::string const& path)
+{
+    // Named pipes use stream mode, everything else uses random access.
+    return path.find("\\\\.\\pipe\\") != 0;
+}
+
+native_handle_t
 openFileToWrite(std::string const& path)
 {
-    HANDLE h = ::CreateFile(path.c_str(),
-                            GENERIC_WRITE,         // DesiredAccess
-                            FILE_SHARE_READ,       // ShareMode
-                            NULL,                  // SecurityAttributes
-                            CREATE_ALWAYS,         // CreationDisposition
-                            FILE_ATTRIBUTE_NORMAL, // FlagsAndAttributes
-                            NULL);                 // TemplateFile
+    HANDLE h = ::CreateFile(
+        path.c_str(),
+        GENERIC_READ | GENERIC_WRITE,                   // DesiredAccess
+        FILE_SHARE_READ | FILE_SHARE_WRITE,             // ShareMode
+        NULL,                                           // SecurityAttributes
+        CREATE_ALWAYS,                                  // CreationDisposition
+        (FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED), // FlagsAndAttributes
+        NULL);                                          // TemplateFile
 
     if (h == INVALID_HANDLE_VALUE)
     {
         FileSystemException::failWithGetLastError(
-            "fs::openFileToWrite() failed on CreateFile(): ");
+            std::string("fs::openFileToWrite() failed on CreateFile(\"") +
+            path + std::string("\"): "));
     }
     return h;
 }
@@ -241,7 +250,7 @@ unlockFile(std::string const& path)
 }
 
 void
-flushFileChanges(stream_t::native_handle_type fd)
+flushFileChanges(native_handle_t fd)
 {
     while (fsync(fd) == -1)
     {
@@ -254,7 +263,13 @@ flushFileChanges(stream_t::native_handle_type fd)
     }
 }
 
-stream_t::native_handle_type
+bool
+shouldUseRandomAccessHandle(std::string const& path)
+{
+    return false;
+}
+
+native_handle_t
 openFileToWrite(std::string const& path)
 {
     int fd;
