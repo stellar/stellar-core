@@ -371,11 +371,6 @@ class Config : public std::enable_shared_from_this<Config>
     // the entry cache
     size_t PREFETCH_BATCH_SIZE;
 
-    // The version of TransactionMeta that will be generated. Acceptable values
-    // are 1 (default) and 2. Set to 2 only if downstream systems have been
-    // updated to handle TransactionMetaV2.
-    int32_t SUPPORTED_META_VERSION;
-
 #ifdef BUILD_TESTS
     // If set to true, the application will be aware this run is for a test
     // case.  This is used right now in the signal handler to exit() instead of

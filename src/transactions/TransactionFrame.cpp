@@ -682,8 +682,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         bool success = true;
 
         TransactionMeta newMeta(2);
-        auto& operationsMeta = newMeta.v2().operations;
-        operationsMeta.reserve(getNumOperations());
+        newMeta.v2().operations.reserve(getNumOperations());
 
         // shield outer scope of any side effects with LedgerTxn
         LedgerTxn ltxTx(ltx);
@@ -705,7 +704,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     op->getOperation(), op->getResult(), ltxOp.getDelta());
             }
 
-            operationsMeta.emplace_back(ltxOp.getChanges());
+            newMeta.v2().operations.emplace_back(ltxOp.getChanges());
             ltxOp.commit();
         }
 
@@ -731,14 +730,9 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
             ltxTx.commit();
             // commit -> propagate the meta to the outer scope
-            auto& omOperations = outerMeta.v() == 1 ? outerMeta.v1().operations
-                                                    : outerMeta.v2().operations;
-            std::swap(omOperations, operationsMeta);
-            if (outerMeta.v() == 2)
-            {
-                std::swap(outerMeta.v2().txChangesAfter,
-                          newMeta.v2().txChangesAfter);
-            }
+            std::swap(outerMeta.v2().operations, newMeta.v2().operations);
+            std::swap(outerMeta.v2().txChangesAfter,
+                      newMeta.v2().txChangesAfter);
         }
         else
         {
@@ -775,15 +769,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     internalErrorCounter.inc();
 
     // operations and txChangesAfter should already be empty at this point
-    if (outerMeta.v() == 1)
-    {
-        outerMeta.v1().operations.clear();
-    }
-    else
-    {
-        outerMeta.v2().operations.clear();
-        outerMeta.v2().txChangesAfter.clear();
-    }
+    outerMeta.v2().operations.clear();
+    outerMeta.v2().txChangesAfter.clear();
     return false;
 }
 
@@ -810,11 +797,9 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 
         bool signaturesValid = processSignatures(cv, signatureChecker, ltxTx);
 
-        auto& txChanges =
-            meta.v() == 1 ? meta.v1().txChanges : meta.v2().txChangesBefore;
         auto changes = ltxTx.getChanges();
         std::move(changes.begin(), changes.end(),
-                  std::back_inserter(txChanges));
+                  std::back_inserter(meta.v2().txChangesBefore));
         ltxTx.commit();
 
         bool valid = signaturesValid && cv == ValidationType::kMaybeValid;

@@ -908,7 +908,7 @@ LedgerManagerImpl::applyTransactions(
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
-        TransactionMeta tm(mApp.getConfig().SUPPORTED_META_VERSION);
+        TransactionMeta tm(2);
         CLOG(DEBUG, "Tx") << " tx#" << index << " = "
                           << hexAbbrev(tx->getFullHash())
                           << " ops=" << tx->getNumOperations()
