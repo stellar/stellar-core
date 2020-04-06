@@ -90,7 +90,7 @@ class TransactionFrame : public TransactionFrameBase
     bool applyOperations(SignatureChecker& checker, Application& app,
                          AbstractLedgerTxn& ltx, TransactionMeta& meta);
 
-    void processSeqNum(AbstractLedgerTxn& ltx);
+    virtual void processSeqNum(AbstractLedgerTxn& ltx);
 
     bool processSignatures(ValidationType cv,
                            SignatureChecker& signatureChecker,
