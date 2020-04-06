@@ -66,10 +66,7 @@ def send_requests(peer_list, params, requestUrl):
         requests.get(url=requestUrl, params=params)
 
 
-def check_results(graph, merged_results, resultUrl):
-    r = requests.get(url=resultUrl)
-    data = r.json()
-
+def check_results(data, graph, merged_results):
     if "topology" not in data:
         raise ValueError("stellar-core is missing survey nodes. Are the public keys surveyed valid?")
 
@@ -85,8 +82,6 @@ def check_results(graph, merged_results, resultUrl):
 
         update_results(graph, curr, key, merged, True)
         update_results(graph, curr, key, merged, False)
-
-        merged["responseSeen"] = True
 
     return get_next_peers(topology)
 
@@ -113,8 +108,7 @@ def run_survey(args):
                     "totalInbound": 0,
                     "totalOutbound": 0,
                     "inboundPeers": {},
-                    "outboundPeers": {},
-                    "responseSeen": False
+                    "outboundPeers": {}
                     })
 
     URL = args.node
@@ -151,18 +145,30 @@ def run_survey(args):
         for peer in peers["outbound"]:
             peer_list.append(peer["id"])
 
-    t_end = time.time() + duration
-    while time.time() < t_end:
+    sent_requests = set()
+
+    while True:
         send_requests(peer_list, PARAMS, SURVEY_REQUEST)
+
+        for peer in peer_list:
+            sent_requests.add(peer)
+
         peer_list = []
 
         # allow time for results
         time.sleep(1)
-        result_node_list = check_results(G, merged_results, SURVEY_RESULT)
+
+        r = requests.get(url=SURVEY_RESULT)
+        data = r.json()
+
+        result_node_list = check_results(data, G, merged_results)
+
+        if "surveyInProgress" in data and data["surveyInProgress"] == False:
+            break
 
         # try new nodes
         for key in result_node_list:
-            if key not in merged_results:
+            if key not in sent_requests:
                 peer_list.append(key)
 
         # retry for incomplete nodes
