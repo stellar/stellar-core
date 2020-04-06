@@ -48,17 +48,23 @@
  * number and most recent bucket hashes). As per RFC 5785, this checkpoint is
  * stored at .well-known/stellar-history.json as a JSON file.
  *
- * Checkpoints are made every 64 ledgers, which (at 5s ledger close time) is
- * 320s or about 5m20s. There will be 11 checkpoints per hour, 270 per day, and
- * 98,550 per year. Counting checkpoints within a 32bit value gives 43,581 years
- * of service for the system.
+ * Checkpoints are made "every 64 ledgers", when LCL is one-less-than a multiple
+ * of 64. In other words, at LCL=63, 127, 191, 255, etc. or in other other words
+ * checkpoint K covers the inclusive ledger range [K*64, ((K+1)*64)-1], and each
+ * of those ranges should contain exactly 64 ledgers, with the exception of the
+ * first checkpoint, which has only 63 ledgers: there is no ledger 0.
+ *
+ * Checkpointing every 64 ledgers means (at 5s ledger close time) each
+ * checkpoint happens every 320s, or about 5m20s. There will be 11 checkpoints
+ * per hour, 270 per day, and 98,550 per year. Counting checkpoints within a
+ * 32bit value gives 43,581 years of service for the system.
  *
  * While the _most recent_ checkpoint is in .well-known/stellar-history.json,
  * each checkpoint is also stored permanently at a path whose name includes the
  * last ledger number in the checkpoint (as a 32-bit hex string) and stored in a
- * 3-level deep directory tree of hex digit prefixes. For example, checkpoint at
- * current ledger-number 0x12345678 will write ledgers up to and including
- * ledger 0x12345677 and be described by file
+ * 3-level deep directory tree of hex digit prefixes.
+ *
+ * For example, checkpoint made with LCL=0x12345677 will be described by file
  * history/12/34/56/history-0x12345677.json and the associated history block
  * will be written to the two files ledger/12/34/56/ledger-0x12345677.xdr.gz and
  * transaction/12/34/56/transaction-0x12345677.xdr.gz
@@ -70,10 +76,9 @@
  * bucket/AA/BB/CC/bucket-<AABBCCDEFG...>.xdr.gz
  *
  * The first ledger and transaction files (containing the genesis ledger #1, and
- * the subsequent 62 ledgers) are checkpointed when LedgerManager's
- * currentLedger is 64 = 0x40, so the last ledger published into that snapshot
- * is 0x3f, and it's stored in files ledger/00/00/00/ledger-0x0000003f.xdr.gz
- * and transaction/00/00/00/transaction-0x0000003f.xdr.gz, and described by
+ * the subsequent 62 ledgers) are checkpointed at LCL 63 (a.k.a. 0x3f), and it's
+ * stored in files ledger/00/00/00/ledger-0x0000003f.xdr.gz and
+ * transaction/00/00/00/transaction-0x0000003f.xdr.gz, and described by
  * history/00/00/00/history-0x0000003f.json.
  *
  * A pseudo-checkpoint describing the system-state before any transactions are
@@ -212,23 +217,87 @@ class HistoryManager
     // Return checkpoint that contains given ledger. Checkpoint is identified
     // by last ledger in range. This does not consult the network nor take
     // account of manual checkpoints.
-    virtual uint32_t checkpointContainingLedger(uint32_t ledger) const = 0;
+    uint32_t
+    checkpointContainingLedger(uint32_t ledger) const
+    {
+        uint32_t freq = getCheckpointFrequency();
+        // Round-up to next multiple of freq, then subtract 1 since checkpoints
+        // are numbered for (and cover ledgers up to) the last ledger in them,
+        // which is one-before the next multiple of freq.
+        return (((ledger / freq) + 1) * freq) - 1;
+    }
 
-    // Given a "current ledger" (not LCL) for a node, return the "current
-    // ledger" value at which the previous scheduled checkpoint should have
-    // occurred, by rounding-down to the next multiple of checkpoint
-    // frequency. This does not consult the network nor take account of manual
-    // checkpoints.
-    virtual uint32_t prevCheckpointLedger(uint32_t ledger) const = 0;
+    // Return true iff closing `ledger` should cause publishing a checkpoint.
+    // Equivalent to `ledger == checkpointContainingLedger(ledger)` but a little
+    // more obviously named.
+    bool
+    publishCheckpointOnLedgerClose(uint32_t ledger) const
+    {
+        return checkpointContainingLedger(ledger) == ledger;
+    }
 
-    // Given a "current ledger" (not LCL) for a node, return the "current
-    // ledger" value at which the next checkpoint should occur; usually this
-    // returns the next scheduled checkpoint by rounding-up to the next
-    // multiple of checkpoint frequency, but when catching up to a manual
-    // checkpoint it will return the ledger passed in, indicating that the
-    // "next" checkpoint-ledger to look forward to is the same as the "init"
-    // ledger of the catchup operation.
-    virtual uint32_t nextCheckpointLedger(uint32_t ledger) const = 0;
+    bool
+    isFirstLedgerInCheckpoint(uint32_t ledger) const
+    {
+        return firstLedgerInCheckpointContaining(ledger) == ledger;
+    }
+
+    bool
+    isLastLedgerInCheckpoint(uint32_t ledger) const
+    {
+        return checkpointContainingLedger(ledger) == ledger;
+    }
+
+    // Return the number of ledgers in the checkpoint containing a given ledger.
+    uint32_t
+    sizeOfCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t freq = getCheckpointFrequency();
+        if (ledger < freq)
+        {
+            return freq - 1;
+        }
+        return freq;
+    }
+
+    // Return the first ledger in the checkpoint containing a given ledger.
+    uint32_t
+    firstLedgerInCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t last = checkpointContainingLedger(ledger); // == 63, 127, 191
+        uint32_t size = sizeOfCheckpointContaining(ledger); // == 63, 64, 64
+        return last - (size - 1);                           // == 1, 64, 128
+    }
+
+    // Return the first ledger after the checkpoint containing a given ledger.
+    uint32_t
+    firstLedgerAfterCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t first =
+            firstLedgerInCheckpointContaining(ledger);      // == 1, 64, 128
+        uint32_t size = sizeOfCheckpointContaining(ledger); // == 63, 64, 64
+        return first + size;                                // == 64, 128, 192
+    }
+
+    // Return the last ledger before the checkpoint containing a given ledger,
+    // or zero if `ledger` is contained inside the first checkpoint.
+    uint32_t
+    lastLedgerBeforeCheckpointContaining(uint32_t ledger) const
+    {
+        uint32_t last = checkpointContainingLedger(ledger); // == 63, 127, 191
+        uint32_t size = sizeOfCheckpointContaining(ledger); // == 63, 64, 64
+        assert(last >= size);
+        return last - size; // == 0, 63, 127
+    }
+
+    // Return the ledger to trigger the catchup machinery on, given a ledger
+    // that is the start of a checkpoint buffered in the catchup manager.
+    uint32_t
+    ledgerToTriggerCatchup(uint32_t firstLedgerOfBufferedCheckpoint)
+    {
+        assert(isFirstLedgerInCheckpoint(firstLedgerOfBufferedCheckpoint));
+        return firstLedgerOfBufferedCheckpoint + 1;
+    }
 
     // Emit a log message and set StatusManager HISTORY_PUBLISH status to
     // describe current publish state.

@@ -2181,11 +2181,11 @@ LedgerTxnRoot::Impl::countObjects(LedgerEntryType let,
 
     std::string query = "SELECT COUNT(*) FROM " +
                         tableFromLedgerEntryType(let) +
-                        " WHERE lastmodified >= :v1 AND lastmodified <= :v2;";
+                        " WHERE lastmodified >= :v1 AND lastmodified < :v2;";
     uint64_t count = 0;
     int first = static_cast<int>(ledgers.mFirst);
-    int last = static_cast<int>(ledgers.mLast);
-    mDatabase.getSession() << query, into(count), use(first), use(last);
+    int limit = static_cast<int>(ledgers.limit());
+    mDatabase.getSession() << query, into(count), use(first), use(limit);
     return count;
 }
 

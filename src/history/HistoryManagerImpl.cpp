@@ -94,28 +94,6 @@ HistoryManagerImpl::getCheckpointFrequency() const
     }
 }
 
-uint32_t
-HistoryManagerImpl::checkpointContainingLedger(uint32_t ledger) const
-{
-    return nextCheckpointLedger(ledger + 1) - 1;
-}
-
-uint32_t
-HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger) const
-{
-    uint32_t freq = getCheckpointFrequency();
-    return (ledger / freq) * freq;
-}
-
-uint32_t
-HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger) const
-{
-    uint32_t freq = getCheckpointFrequency();
-    if (ledger == 0)
-        return freq;
-    return (((ledger + freq - 1) / freq) * freq);
-}
-
 void
 HistoryManagerImpl::logAndUpdatePublishStatus()
 {
@@ -223,8 +201,8 @@ HistoryManagerImpl::getMaxLedgerQueuedToPublish()
 bool
 HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 {
-    uint32_t seq = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-    if (seq != nextCheckpointLedger(seq))
+    uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    if (!publishCheckpointOnLedgerClose(lcl))
     {
         return false;
     }

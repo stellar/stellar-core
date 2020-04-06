@@ -4,6 +4,7 @@
 
 #include "history/test/HistoryTestsUtils.h"
 #include "bucket/BucketManager.h"
+#include "catchup/CatchupRange.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "herder/TxSetFrame.h"
@@ -251,22 +252,16 @@ TestLedgerChainGenerator::makeOneLedgerFile(
     uint32_t currCheckpoint, Hash prevHash,
     HistoryManager::LedgerVerificationStatus state)
 {
-    auto initLedger =
-        mApp.getHistoryManager().prevCheckpointLedger(currCheckpoint);
-    auto frequency = mApp.getHistoryManager().getCheckpointFrequency();
-    if (initLedger == 0)
-    {
-        initLedger = LedgerManager::GENESIS_LEDGER_SEQ;
-        frequency -= 1;
-    }
+    auto& hm = mApp.getHistoryManager();
+    auto initLedger = hm.firstLedgerInCheckpointContaining(currCheckpoint);
+    auto size = hm.sizeOfCheckpointContaining(currCheckpoint);
 
     LedgerHeaderHistoryEntry first, last, lcl;
     lcl.header.ledgerSeq = initLedger;
     lcl.header.previousLedgerHash = prevHash;
 
     std::vector<LedgerHeaderHistoryEntry> ledgerChain =
-        LedgerTestUtils::generateLedgerHeadersForCheckpoint(lcl, frequency,
-                                                            state);
+        LedgerTestUtils::generateLedgerHeadersForCheckpoint(lcl, size, state);
 
     createHistoryFiles(ledgerChain, first, last, currCheckpoint);
     return CheckpointEnds(first, last);
@@ -280,8 +275,8 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
     LedgerHeaderHistoryEntry beginRange;
 
     LedgerHeaderHistoryEntry first, last;
-    for (auto i = mCheckpointRange.mFirst; i <= mCheckpointRange.mLast;
-         i += mApp.getHistoryManager().getCheckpointFrequency())
+    for (auto i = mCheckpointRange.mFirst; i < mCheckpointRange.limit();
+         i += mApp.getHistoryManager().sizeOfCheckpointContaining(i))
     {
         // Only corrupt first checkpoint (last to be verified)
         if (i != mCheckpointRange.mFirst)
@@ -558,8 +553,8 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
     auto& hm = mApp.getHistoryManager();
     while (lm.getLastClosedLedgerNum() < targetLedger)
     {
-        if (lm.getLastClosedLedgerNum() + 1 ==
-            mTestProtocolShadowsRemovedLedgerSeq)
+        auto lcl = lm.getLastClosedLedgerNum();
+        if (lcl + 1 == mTestProtocolShadowsRemovedLedgerSeq)
         {
             // Force proto 12 upgrade
             generateRandomLedger(Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED);
@@ -569,8 +564,7 @@ CatchupSimulation::ensureLedgerAvailable(uint32_t targetLedger)
             generateRandomLedger();
         }
 
-        auto seq = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-        if (seq == hm.nextCheckpointLedger(seq))
+        if (hm.publishCheckpointOnLedgerClose(lcl))
         {
             mBucketListAtLastPublish =
                 getApp().getBucketManager().getBucketList();
@@ -755,8 +749,18 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    uint32_t triggerLedger =
-        mApp.getHistoryManager().nextCheckpointLedger(initLedger) + 1;
+    uint32_t firstLedgerInCheckpoint;
+    if (hm.isFirstLedgerInCheckpoint(initLedger))
+    {
+        firstLedgerInCheckpoint = initLedger;
+    }
+    else
+    {
+        firstLedgerInCheckpoint =
+            hm.firstLedgerAfterCheckpointContaining(initLedger);
+    }
+
+    uint32_t triggerLedger = hm.ledgerToTriggerCatchup(firstLedgerInCheckpoint);
     for (uint32_t n = initLedger; n <= triggerLedger + bufferLedgers; ++n)
     {
         externalize(n);
@@ -961,23 +965,22 @@ CatchupSimulation::computeCatchupPerformedWork(
 
     auto catchupRange =
         CatchupRange{lastClosedLedger, catchupConfiguration, hm};
-    auto verifyCheckpointRange = CheckpointRange{
-        {catchupRange.mLedgers.mFirst - 1, catchupRange.getLast()}, hm};
+    auto verifyCheckpointRange =
+        CheckpointRange{catchupRange.getFullRangeIncludingBucketApply(), hm};
 
     uint32_t historyArchiveStatesDownloaded = 1;
-    if (catchupRange.mApplyBuckets &&
-        verifyCheckpointRange.mFirst != verifyCheckpointRange.mLast)
+    if (catchupRange.applyBuckets() && verifyCheckpointRange.mCount > 1)
     {
         historyArchiveStatesDownloaded++;
     }
 
-    auto ledgersDownloaded = verifyCheckpointRange.count();
+    auto ledgersDownloaded = verifyCheckpointRange.mCount;
     uint32_t transactionsDownloaded;
-    if (catchupRange.applyLedgers())
+    if (catchupRange.replayLedgers())
     {
-        auto applyCheckpointRange = CheckpointRange{
-            {catchupRange.mLedgers.mFirst, catchupRange.getLast()}, hm};
-        transactionsDownloaded = applyCheckpointRange.count();
+        auto applyCheckpointRange =
+            CheckpointRange{catchupRange.getReplayRange(), hm};
+        transactionsDownloaded = applyCheckpointRange.mCount;
     }
     else
     {
@@ -989,13 +992,13 @@ CatchupSimulation::computeCatchupPerformedWork(
                                             hm.getCheckpointFrequency());
     auto ledgersVerified =
         catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
-    auto transactionsApplied = catchupRange.mLedgers.mCount;
+    auto transactionsApplied = catchupRange.getReplayCount();
     return {historyArchiveStatesDownloaded,
             ledgersDownloaded,
             ledgersVerified,
             0,
-            catchupRange.mApplyBuckets,
-            catchupRange.mApplyBuckets,
+            catchupRange.applyBuckets(),
+            catchupRange.applyBuckets(),
             transactionsDownloaded,
             transactionsApplied};
 }

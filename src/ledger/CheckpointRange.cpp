@@ -12,32 +12,51 @@
 namespace stellar
 {
 
-CheckpointRange::CheckpointRange(uint32_t first, uint32_t last,
+CheckpointRange::CheckpointRange(uint32_t first, uint32_t count,
                                  uint32_t frequency)
-    : mFirst{first}, mLast{last}, mFrequency{frequency}
+    : mFirst{first}, mCount{count}, mFrequency{frequency}
 {
     assert(mFirst > 0);
-    assert(mLast >= mFirst);
     assert((mFirst + 1) % mFrequency == 0);
-    assert((mLast + 1) % mFrequency == 0);
+}
+
+namespace
+{
+uint32_t
+checkpointCount(uint32_t firstCheckpoint, LedgerRange const& r,
+                HistoryManager const& hm)
+{
+    if (r.mCount == 0)
+    {
+        return 0;
+    }
+    uint32_t lastCheckpoint = hm.checkpointContainingLedger(r.last());
+    return 1 +
+           ((lastCheckpoint - firstCheckpoint) / hm.getCheckpointFrequency());
+}
 }
 
 CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
                                  HistoryManager const& historyManager)
     : mFirst{historyManager.checkpointContainingLedger(ledgerRange.mFirst)}
-    , mLast{historyManager.checkpointContainingLedger(ledgerRange.mLast)}
+    , mCount{checkpointCount(mFirst, ledgerRange, historyManager)}
     , mFrequency{historyManager.getCheckpointFrequency()}
 {
     assert(mFirst > 0);
-    assert(mLast >= mFirst);
     assert((mFirst + 1) % mFrequency == 0);
-    assert((mLast + 1) % mFrequency == 0);
+    assert(limit() >= mFirst);
+    assert((limit() + 1) % mFrequency == 0);
+    if (mCount != 0)
+    {
+        assert(last() >= mFirst);
+        assert((last() + 1) % mFrequency == 0);
+    }
 }
 
 std::string
 CheckpointRange::toString() const
 {
-    return fmt::format("{}..{}", mFirst + 1 - mFrequency, mLast);
+    return fmt::format("[{},{})", mFirst, limit());
 }
 
 bool
@@ -47,7 +66,7 @@ operator==(CheckpointRange const& x, CheckpointRange const& y)
     {
         return false;
     }
-    if (x.mLast != y.mLast)
+    if (x.mCount != y.mCount)
     {
         return false;
     }

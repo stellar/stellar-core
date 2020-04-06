@@ -29,7 +29,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
                                          LedgerRange const& range)
     : BasicWork(app,
                 "apply-ledgers-" +
-                    fmt::format("{}-{}", range.mFirst, range.mLast),
+                    fmt::format("{}-{}", range.mFirst, range.limit()),
                 BasicWork::RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mLedgerRange(range)
@@ -42,14 +42,13 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
 {
     // Ledger range check to enforce application of a single checkpoint
     auto const& hm = mApp.getHistoryManager();
-    auto low = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
-                        hm.prevCheckpointLedger(mCheckpoint));
+    auto low = hm.firstLedgerInCheckpointContaining(mCheckpoint);
     if (mLedgerRange.mFirst != low)
     {
         throw std::runtime_error(
             "Ledger range start must be aligned with checkpoint start");
     }
-    if (mLedgerRange.mLast > mCheckpoint)
+    if (mLedgerRange.mCount > 0 && mLedgerRange.last() > mCheckpoint)
     {
         throw std::runtime_error(
             "Ledger range must span at most 1 checkpoint worth of ledgers");
@@ -280,17 +279,18 @@ ApplyCheckpointWork::onRun()
             }
         }
 
-        if (!mFilesOpen)
-        {
-            openInputFiles();
-        }
-
         auto const& lm = mApp.getLedgerManager();
-        auto done = lm.getLastClosedLedgerNum() == mLedgerRange.mLast;
+        auto done = (mLedgerRange.mCount == 0 ||
+                     lm.getLastClosedLedgerNum() == mLedgerRange.last());
 
         if (done)
         {
             return State::WORK_SUCCESS;
+        }
+
+        if (!mFilesOpen)
+        {
+            openInputFiles();
         }
 
         auto lcd = getNextLedgerCloseData();

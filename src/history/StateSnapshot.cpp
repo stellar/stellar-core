@@ -72,15 +72,9 @@ StateSnapshot::writeHistoryBlocks() const
         txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
         scpHistory.open(mSCPHistorySnapFile->localPath_nogz());
 
-        // 'mLocalState' describes the LCL, so its currentLedger will usually be
-        // 63,
-        // 127, 191, etc. We want to start our snapshot at 64-before the _next_
-        // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed
-        // early, we still want to round-down to the previous checkpoint ledger.
-        begin = mApp.getHistoryManager().prevCheckpointLedger(
-            mLocalState.currentLedger);
-
-        count = (mLocalState.currentLedger - begin) + 1;
+        auto& hm = mApp.getHistoryManager();
+        begin = hm.firstLedgerInCheckpointContaining(mLocalState.currentLedger);
+        count = hm.sizeOfCheckpointContaining(mLocalState.currentLedger);
         CLOG(DEBUG, "History") << "Streaming " << count
                                << " ledgers worth of history, from " << begin;
 
@@ -120,7 +114,7 @@ StateSnapshot::writeHistoryBlocks() const
     // transaction-isolation level -- the highest offered! -- as txns only have
     // to be applied in isolation and in _some_ order, not the wall-clock order
     // we issued them. Anyway this is transient and should go away upon retry.
-    if (!((begin == 0 && nHeaders == count - 1) || nHeaders == count))
+    if (nHeaders != count)
     {
         CLOG(WARNING, "History")
             << "Only wrote " << nHeaders << " ledger headers for "

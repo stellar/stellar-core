@@ -48,11 +48,10 @@ DownloadApplyTxsWork::yieldMoreWork()
         std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft, mArchive);
 
     auto const& hm = mApp.getHistoryManager();
-    auto low = std::max(LedgerManager::GENESIS_LEDGER_SEQ,
-                        hm.prevCheckpointLedger(mCheckpointToQueue));
-    auto high = std::min(mCheckpointToQueue, mRange.mLast);
-    auto apply = std::make_shared<ApplyCheckpointWork>(mApp, mDownloadDir,
-                                                       LedgerRange{low, high});
+    auto low = hm.firstLedgerInCheckpointContaining(mCheckpointToQueue);
+    auto high = std::min(mCheckpointToQueue, mRange.last());
+    auto apply = std::make_shared<ApplyCheckpointWork>(
+        mApp, mDownloadDir, LedgerRange::inclusive(low, high));
 
     std::vector<std::shared_ptr<BasicWork>> seq{getAndUnzip};
 
@@ -121,8 +120,12 @@ DownloadApplyTxsWork::resetIter()
 bool
 DownloadApplyTxsWork::hasNext() const
 {
+    if (mRange.mCount == 0)
+    {
+        return false;
+    }
     auto last =
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.mLast);
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.last());
     return mCheckpointToQueue <= last;
 }
 
@@ -137,7 +140,9 @@ DownloadApplyTxsWork::getStatus() const
 {
     auto& hm = mApp.getHistoryManager();
     auto first = hm.checkpointContainingLedger(mRange.mFirst);
-    auto last = hm.checkpointContainingLedger(mRange.mLast);
+    auto last =
+        (mRange.mCount == 0 ? first
+                            : hm.checkpointContainingLedger(mRange.last()));
 
     auto checkpointsStarted =
         (mCheckpointToQueue - first) / hm.getCheckpointFrequency();

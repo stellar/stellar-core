@@ -35,23 +35,46 @@
 using namespace stellar;
 using namespace historytestutils;
 
-TEST_CASE("next checkpoint ledger", "[history]")
+TEST_CASE("checkpoint containing ledger", "[history]")
 {
-    CatchupSimulation catchupSimulation{};
-    HistoryManager& hm = catchupSimulation.getApp().getHistoryManager();
-    REQUIRE(hm.nextCheckpointLedger(0) == 64);
-    REQUIRE(hm.nextCheckpointLedger(1) == 64);
-    REQUIRE(hm.nextCheckpointLedger(32) == 64);
-    REQUIRE(hm.nextCheckpointLedger(62) == 64);
-    REQUIRE(hm.nextCheckpointLedger(63) == 64);
-    REQUIRE(hm.nextCheckpointLedger(64) == 64);
-    REQUIRE(hm.nextCheckpointLedger(65) == 128);
-    REQUIRE(hm.nextCheckpointLedger(66) == 128);
-    REQUIRE(hm.nextCheckpointLedger(126) == 128);
-    REQUIRE(hm.nextCheckpointLedger(127) == 128);
-    REQUIRE(hm.nextCheckpointLedger(128) == 128);
-    REQUIRE(hm.nextCheckpointLedger(129) == 192);
-    REQUIRE(hm.nextCheckpointLedger(130) == 192);
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& hm = app->getHistoryManager();
+    // Technically ledger 0 doesn't exist so it's not "in" any checkpoint; but
+    // the first checkpoint's ledger range covers ledger 0 so we consider it
+    // "contained" in that checkpoint for the sake of this function.
+    CHECK(hm.checkpointContainingLedger(0) == 0x3f);
+    CHECK(hm.checkpointContainingLedger(1) == 0x3f);
+    CHECK(hm.checkpointContainingLedger(2) == 0x3f);
+    CHECK(hm.checkpointContainingLedger(3) == 0x3f);
+    // ...
+    CHECK(hm.checkpointContainingLedger(61) == 0x3f);
+    CHECK(hm.checkpointContainingLedger(62) == 0x3f);
+    CHECK(hm.checkpointContainingLedger(63) == 0x3f);
+    CHECK(hm.checkpointContainingLedger(64) == 0x7f);
+    CHECK(hm.checkpointContainingLedger(65) == 0x7f);
+    CHECK(hm.checkpointContainingLedger(66) == 0x7f);
+    // ...
+    CHECK(hm.checkpointContainingLedger(125) == 0x7f);
+    CHECK(hm.checkpointContainingLedger(126) == 0x7f);
+    CHECK(hm.checkpointContainingLedger(127) == 0x7f);
+    CHECK(hm.checkpointContainingLedger(128) == 0xbf);
+    CHECK(hm.checkpointContainingLedger(129) == 0xbf);
+    CHECK(hm.checkpointContainingLedger(130) == 0xbf);
+    // ...
+    CHECK(hm.checkpointContainingLedger(189) == 0xbf);
+    CHECK(hm.checkpointContainingLedger(190) == 0xbf);
+    CHECK(hm.checkpointContainingLedger(191) == 0xbf);
+    CHECK(hm.checkpointContainingLedger(192) == 0xff);
+    CHECK(hm.checkpointContainingLedger(193) == 0xff);
+    CHECK(hm.checkpointContainingLedger(194) == 0xff);
+    // ...
+    CHECK(hm.checkpointContainingLedger(253) == 0xff);
+    CHECK(hm.checkpointContainingLedger(254) == 0xff);
+    CHECK(hm.checkpointContainingLedger(255) == 0xff);
+    CHECK(hm.checkpointContainingLedger(256) == 0x13f);
+    CHECK(hm.checkpointContainingLedger(257) == 0x13f);
+    CHECK(hm.checkpointContainingLedger(258) == 0x13f);
 }
 
 TEST_CASE("HistoryManager compress", "[history]")
@@ -187,9 +210,9 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     LedgerHeaderHistoryEntry verifiedAhead{};
 
     uint32_t initLedger = 127;
-    LedgerRange ledgerRange{
+    auto ledgerRange = LedgerRange::inclusive(
         initLedger,
-        initLedger + app->getHistoryManager().getCheckpointFrequency() * 10};
+        initLedger + (app->getHistoryManager().getCheckpointFrequency() * 10));
     CheckpointRange checkpointRange{ledgerRange, app->getHistoryManager()};
     auto ledgerChainGenerator = TestLedgerChainGenerator{
         *app,
@@ -300,7 +323,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     auto tmpDir =
         catchupSimulation.getApp().getTmpDirManager().tmpDir("tx-results-test");
     auto& wm = catchupSimulation.getApp().getWorkScheduler();
-    CheckpointRange range{{1, checkpointLedger},
+    CheckpointRange range{LedgerRange::inclusive(1, checkpointLedger),
                           catchupSimulation.getApp().getHistoryManager()};
 
     auto verifyHeadersWork = wm.executeWork<BatchDownloadWork>(
@@ -314,7 +337,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     }
     SECTION("header file missing")
     {
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.mLast);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.last());
         std::remove(ft.localPath_nogz().c_str());
         auto verify =
             wm.executeWork<DownloadVerifyTxResultsWork>(range, tmpDir);
@@ -322,7 +345,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
     }
     SECTION("hash mismatch")
     {
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.mLast);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_LEDGER, range.last());
         XDRInputFileStream res;
         res.open(ft.localPath_nogz());
         std::vector<LedgerHeaderHistoryEntry> entries;
@@ -355,7 +378,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
             range, HISTORY_FILE_TYPE_RESULTS, tmpDir);
         REQUIRE(getResults->getState() == BasicWork::State::WORK_SUCCESS);
 
-        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.mLast);
+        FileTransferInfo ft(tmpDir, HISTORY_FILE_TYPE_RESULTS, range.last());
         XDRInputFileStream res;
         res.open(ft.localPath_nogz());
         std::vector<TransactionHistoryResultEntry> entries;
@@ -377,7 +400,7 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
         }
         out.close();
 
-        auto verify = wm.executeWork<VerifyTxResultsWork>(tmpDir, range.mLast);
+        auto verify = wm.executeWork<VerifyTxResultsWork>(tmpDir, range.last());
         REQUIRE(verify->getState() == BasicWork::State::WORK_FAILURE);
     }
 }

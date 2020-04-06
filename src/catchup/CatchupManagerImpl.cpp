@@ -57,71 +57,83 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 
     uint32_t lastReceivedLedgerSeq = ledgerData.getLedgerSeq();
 
-    // Caught up
+    // If LCL is already at-or-ahead of the ledger we just received from the
+    // network, we're up to date. Return early, nothing to do.
     if (lastReceivedLedgerSeq <=
         mApp.getLedgerManager().getLastClosedLedgerNum())
     {
         return;
     }
 
-    auto addLedgerData = [&]() { addToSyncingLedgers(ledgerData); };
+    // For the rest of this method: we know LCL has fallen behind the network,
+    // we only need to decide whether to buffer the newly received ledger and/or
+    // start the CatchupWork state machine.
+    //
+    // Assuming we fell out of sync at ledger K, we wait for the first ledger L
+    // of the checkpoint following K, and begin buffering from there. When we
+    // reach L+1 we assume the checkpoint covering K has probably been published
+    // to history and commence catchup, running the (checkpoint-driven) catchup
+    // state machine to ledger L-1 (the end of the checkpoint covering K) and
+    // then replay buffered ledgers from L onwards.
 
-    if (!mCatchupWork)
+    // First: if CatchupWork has started, just buffer and return early.
+    if (mCatchupWork)
     {
-        uint32_t checkpointLedger;
-        if (!mSyncingLedgers.empty())
-        {
-            // front of mSyncingLedgers should always be a checkpoint ledger if
-            // catchup is not running
-            uint32_t firstBufferedLedgerSeq =
-                mSyncingLedgers.front().getLedgerSeq();
+        addToSyncingLedgers(ledgerData);
+        logAndUpdateCatchupStatus(true);
+        return;
+    }
 
-            checkpointLedger = mApp.getHistoryManager().nextCheckpointLedger(
-                firstBufferedLedgerSeq);
-            assert(checkpointLedger == firstBufferedLedgerSeq);
+    // Next switch between 3 cases: starting buffering, waiting to
+    // buffer, and already buffering.
+    auto& hm = mApp.getHistoryManager();
+    uint32_t firstLedgerInBuffer;
+    if (mSyncingLedgers.empty())
+    {
+        if (hm.isFirstLedgerInCheckpoint(lastReceivedLedgerSeq))
+        {
+            // Case 1: At the ledger where we should start buffering.
+            addToSyncingLedgers(ledgerData);
+            firstLedgerInBuffer = lastReceivedLedgerSeq;
         }
         else
         {
-            checkpointLedger = mApp.getHistoryManager().nextCheckpointLedger(
-                lastReceivedLedgerSeq);
-
-            // We wait until checkpoint + 1 ledger is closed before we start
-            // catchup, but we want to catchup to checkpoint - 1 so we don't
-            // have to wait for the next checkpoint snapshot. We need to
-            // buffer the checkpoint ledger because of this.
-            if (lastReceivedLedgerSeq == checkpointLedger)
-            {
-                addLedgerData();
-            }
+            // Case 2: Still waiting to start buffering.
+            firstLedgerInBuffer =
+                hm.firstLedgerAfterCheckpointContaining(lastReceivedLedgerSeq);
         }
-
-        std::string message;
-        uint32_t catchupTriggerLedger = checkpointLedger + 1;
-        if (lastReceivedLedgerSeq >= catchupTriggerLedger)
-        {
-            addLedgerData();
-
-            message = fmt::format("Starting catchup after ensuring checkpoint "
-                                  "ledger {} was closed on network",
-                                  catchupTriggerLedger);
-
-            startOnlineCatchup();
-        }
-        else
-        {
-            auto eta = (catchupTriggerLedger - lastReceivedLedgerSeq) *
-                       mApp.getConfig().getExpectedLedgerCloseTime();
-            message = fmt::format("Waiting for trigger ledger: {}/{}, ETA: {}s",
-                                  lastReceivedLedgerSeq, catchupTriggerLedger,
-                                  eta.count());
-        }
-        logAndUpdateCatchupStatus(true, message);
     }
     else
     {
-        addLedgerData();
-        logAndUpdateCatchupStatus(true);
+        // Case 3: Already buffering, keep buffering.
+        addToSyncingLedgers(ledgerData);
+        firstLedgerInBuffer = mSyncingLedgers.front().getLedgerSeq();
     }
+    assert(hm.isFirstLedgerInCheckpoint(firstLedgerInBuffer));
+
+    // Finally we wait some number of ledgers beyond the first buffered
+    // ledger before we trigger the CatchupWork. This could be any number,
+    // for the sake of simplicity at the moment it's set to one ledger
+    // after the first buffered one.
+    std::string message;
+    uint32_t catchupTriggerLedger =
+        hm.ledgerToTriggerCatchup(firstLedgerInBuffer);
+    if (lastReceivedLedgerSeq >= catchupTriggerLedger)
+    {
+        message = fmt::format("Starting catchup after ensuring checkpoint "
+                              "ledger {} was closed on network",
+                              catchupTriggerLedger);
+        startOnlineCatchup();
+    }
+    else
+    {
+        auto eta = (catchupTriggerLedger - lastReceivedLedgerSeq) *
+                   mApp.getConfig().getExpectedLedgerCloseTime();
+        message = fmt::format("Waiting for trigger ledger: {}/{}, ETA: {}s",
+                              lastReceivedLedgerSeq, catchupTriggerLedger,
+                              eta.count());
+    }
+    logAndUpdateCatchupStatus(true, message);
 }
 
 void
@@ -277,23 +289,29 @@ CatchupManagerImpl::trimSyncingLedgers()
     // look for the latest checkpoint
     auto rit = mSyncingLedgers.rbegin();
     auto rend = mSyncingLedgers.rend();
+    auto& hm = mApp.getHistoryManager();
     while (rit != rend)
     {
-        auto ledger = rit->getLedgerSeq();
-        auto nextCheckpoint =
-            mApp.getHistoryManager().nextCheckpointLedger(ledger);
-        if (ledger == nextCheckpoint)
+        if (hm.isFirstLedgerInCheckpoint(rit->getLedgerSeq()))
         {
             break;
         }
-
         ++rit;
     }
 
-    // only keep everything past the latest checkpoint (if it exists)
+    // only keep ledgers after start of the latest checkpoint (if it exists)
     if (rit != rend)
     {
-        mSyncingLedgers.erase(mSyncingLedgers.begin(), (++(rit)).base());
+        // rit points to a ledger that's the first in a checkpoint, like 64 or
+        // 128; rit.base() is the underlying forward iterator one _past_ (in
+        // forward-order) the value pointed-to by rit. In other words
+        // (++rit).base() is the forward iterator pointing to the same ledger 64
+        // or 128 or such.
+        //
+        // We then erase the half-open range [begin, (++rit).base()) which is
+        // like [..., 64) or [..., 128), which leaves us with the checkpoint
+        // range [64, ...) or [128, ...) in mSyncingLedgers.
+        mSyncingLedgers.erase(mSyncingLedgers.begin(), (++rit).base());
     }
     else
     {

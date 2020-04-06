@@ -366,12 +366,12 @@ generateValidDataEntries(size_t n)
 
 std::vector<LedgerHeaderHistoryEntry>
 generateLedgerHeadersForCheckpoint(
-    LedgerHeaderHistoryEntry firstLedger, uint32_t freq,
+    LedgerHeaderHistoryEntry firstLedger, uint32_t size,
     HistoryManager::LedgerVerificationStatus state)
 {
     static auto vecgen =
         autocheck::list_of(autocheck::generator<LedgerHeaderHistoryEntry>());
-    auto res = vecgen(freq);
+    auto res = vecgen(size);
     makeValid(res, firstLedger, state);
     return res;
 }

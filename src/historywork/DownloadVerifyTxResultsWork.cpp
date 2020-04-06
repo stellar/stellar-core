@@ -33,7 +33,7 @@ DownloadVerifyTxResultsWork::getStatus() const
     {
         auto task = fmt::format("Downloading and verifying {:s} files",
                                 HISTORY_FILE_TYPE_RESULTS);
-        return fmtProgress(mApp, task, mRange.mFirst, mRange.mLast,
+        return fmtProgress(mApp, task, mRange.getLedgerRange(),
                            mCurrCheckpoint);
     }
     return BatchWork::getStatus();
@@ -42,7 +42,7 @@ DownloadVerifyTxResultsWork::getStatus() const
 bool
 DownloadVerifyTxResultsWork::hasNext() const
 {
-    return mCurrCheckpoint <= mRange.mLast;
+    return mCurrCheckpoint < mRange.limit();
 }
 
 void

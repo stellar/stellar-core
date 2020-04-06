@@ -15,11 +15,14 @@ HistoryArchiveStream::HistoryArchiveStream(TmpDir const& downloadDir,
                                            HistoryManager const& hm)
     : mDownloadDir(downloadDir), mRange(range), mHistoryManager(hm)
 {
-    if (mRange.mFirst != 1 &&
-        mHistoryManager.nextCheckpointLedger(mRange.mFirst) != mRange.mFirst)
+    // If we're trying to start reading from some place that's not a checkpoint
+    // boundary, we need to scan the stream forward from the checkpoint boundary
+    // to just before the target ledger.
+    if (!mHistoryManager.isFirstLedgerInCheckpoint(mRange.mFirst))
     {
-        uint32_t prev = mHistoryManager.prevCheckpointLedger(mRange.mFirst);
-        readHeaderHistory(std::max<uint32_t>(1, prev));
+        uint32_t first =
+            mHistoryManager.firstLedgerInCheckpointContaining(mRange.mFirst);
+        readHeaderHistory(first);
         readTransactionHistory();
         readResultHistory();
         while (mHeaderHistory.header.ledgerSeq != mRange.mFirst - 1)
@@ -36,9 +39,10 @@ HistoryArchiveStream::readHeaderHistory(uint32_t ledgerSeq)
 {
     LedgerHeaderHistoryEntry lhhe;
 
-    if (ledgerSeq == 1 ||
-        mHistoryManager.nextCheckpointLedger(ledgerSeq) == ledgerSeq)
+    if (mHistoryManager.isFirstLedgerInCheckpoint(ledgerSeq))
     {
+        // If we're being asked to start reading a _new_ checkpoint but there's
+        // an existing stream open, it should be done reading its checkpoint.
         if (mHeaderStream && mHeaderStream.readOne(lhhe))
         {
             throw std::runtime_error(
@@ -84,15 +88,19 @@ HistoryArchiveStream::readTransactionHistory()
     TransactionHistoryEntry txhe;
 
     uint32_t ledgerSeq = mHeaderHistory.header.ledgerSeq;
-    if (ledgerSeq == 1 ||
-        mHistoryManager.nextCheckpointLedger(ledgerSeq) == ledgerSeq)
+    if (mHistoryManager.isFirstLedgerInCheckpoint(ledgerSeq))
     {
+        // If we're being asked to start reading a _new_ checkpoint but there's
+        // an existing buffered transaction it should be in the past.
         if (mTransactionHistory.ledgerSeq >= ledgerSeq)
         {
             throw std::runtime_error("Buffered transaction history should not "
                                      "be ahead at end of checkpoint");
         }
 
+        // If we're being asked to start reading a _new_ checkpoint but there's
+        // an existing transaction stream open, it should be done reading its
+        // checkpoint.
         if (mTransactionStream && mTransactionStream.readOne(txhe))
         {
             throw std::runtime_error(
@@ -144,15 +152,19 @@ HistoryArchiveStream::readResultHistory()
     TransactionHistoryResultEntry txre;
 
     uint32_t ledgerSeq = mHeaderHistory.header.ledgerSeq;
-    if (ledgerSeq == 1 ||
-        mHistoryManager.nextCheckpointLedger(ledgerSeq) == ledgerSeq)
+    if (mHistoryManager.isFirstLedgerInCheckpoint(ledgerSeq))
     {
+        // If we're being asked to start reading a _new_ checkpoint but there's
+        // an existing buffered result it should be in the past.
         if (mResultHistory.ledgerSeq >= ledgerSeq)
         {
             throw std::runtime_error("Buffered result history should not be "
                                      "ahead at end of checkpoint");
         }
 
+        // If we're being asked to start reading a _new_ checkpoint but there's
+        // an existing result stream open, it should be done reading its
+        // checkpoint.
         if (mResultStream && mResultStream.readOne(txre))
         {
             throw std::runtime_error(
@@ -190,7 +202,7 @@ HistoryArchiveStream::getNextLedger(LedgerHeaderHistoryEntry& header,
                                     TransactionHistoryEntry& transaction,
                                     TransactionHistoryResultEntry& result)
 {
-    if (mHeaderHistory.header.ledgerSeq < mRange.mLast)
+    if (mRange.mCount > 0 && mHeaderHistory.header.ledgerSeq < mRange.last())
     {
         if (mHeaderHistory.header.ledgerSeq == 0)
         {
