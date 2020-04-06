@@ -304,6 +304,10 @@ class XDROutputFileStream
         {
             asio::error_code ec;
             auto buf = asio::buffer(mBuf.data() + written, to_write - written);
+#ifdef _WIN32
+            // Calling asio::write_at on the asio::posix::stream_descriptor
+            // will not even compile; so this one bit has to also be platform
+            // guarded.
             if (mUsingRandomAccessHandle)
             {
                 size_t n = asio::write_at(
@@ -312,6 +316,7 @@ class XDROutputFileStream
                 mRandomAccessNextWriteOffset += n;
             }
             else
+#endif
             {
                 written += asio::write(mBufferedWriteStream, buf, ec);
             }

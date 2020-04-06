@@ -30,7 +30,7 @@ using native_handle_t = HANDLE;
 #else
 using stream_t = asio::posix::stream_descriptor;
 using random_access_t = asio::posix::stream_descriptor;
-using handle_t = int;
+using native_handle_t = int;
 #endif
 
 ////
