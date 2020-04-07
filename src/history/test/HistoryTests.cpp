@@ -360,7 +360,8 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
         lastEntry.header.txSetResultHash = HashUtils::random();
         std::remove(ft.localPath_nogz().c_str());
 
-        XDROutputFileStream out(true);
+        XDROutputFileStream out(
+            catchupSimulation.getApp().getClock().getIOContext(), true);
         out.open(ft.localPath_nogz());
         for (auto const& item : entries)
         {
@@ -391,7 +392,8 @@ TEST_CASE("Tx results verification", "[batching][resultsverification]")
         REQUIRE_FALSE(entries.empty());
         std::remove(ft.localPath_nogz().c_str());
 
-        XDROutputFileStream out(true);
+        XDROutputFileStream out(
+            catchupSimulation.getApp().getClock().getIOContext(), true);
         out.open(ft.localPath_nogz());
         // Duplicate entries
         for (int i = 0; i < entries.size(); ++i)

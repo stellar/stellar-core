@@ -273,6 +273,7 @@ exit /b 0
     <ClCompile Include="..\..\src\catchup\ApplyLedgerWork.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp" />
+    <ClCompile Include="..\..\src\catchup\CatchupRange.cpp" />
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\ApplyTransactionsWork.cpp" />
     <ClCompile Include="..\..\src\catchup\simulation\HistoryArchiveStream.cpp" />
@@ -604,6 +605,7 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManager.h" />
     <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h" />
+    <ClInclude Include="..\..\src\catchup\CatchupRange.h" />
     <ClInclude Include="..\..\src\catchup\CatchupWork.h" />
     <ClInclude Include="..\..\src\catchup\DownloadApplyTxsWork.h" />
     <ClInclude Include="..\..\src\catchup\simulation\ApplyTransactionsWork.h" />

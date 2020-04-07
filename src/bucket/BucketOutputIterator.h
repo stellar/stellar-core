@@ -45,7 +45,7 @@ class BucketOutputIterator
     // (or forget to do), it's handled automatically.
     BucketOutputIterator(std::string const& tmpDir, bool keepDeadEntries,
                          BucketMetadata const& meta, MergeCounters& mc,
-                         bool doFsync);
+                         asio::io_context& ctx, bool doFsync);
 
     void put(BucketEntry const& e);
 

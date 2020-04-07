@@ -354,6 +354,7 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                 auto res = Bucket::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
                     BucketList::keepDeadEntries(level), countMergeEvents,
+                    app.getClock().getIOContext(),
                     !app.getConfig().DISABLE_XDR_FSYNC);
 
                 CLOG(TRACE, "Bucket")

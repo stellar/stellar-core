@@ -126,10 +126,11 @@ RealGenesisTmpDirHistoryConfigurator::configure(Config& mCfg,
 }
 
 BucketOutputIteratorForTesting::BucketOutputIteratorForTesting(
-    std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc)
-    : BucketOutputIterator{tmpDir, true,
-                           testutil::testBucketMetadata(protocolVersion), mc,
-                           /*doFsync=*/true}
+    std::string const& tmpDir, uint32_t protocolVersion, MergeCounters& mc,
+    asio::io_context& ctx)
+    : BucketOutputIterator{
+          tmpDir, true, testutil::testBucketMetadata(protocolVersion),
+          mc,     ctx,  /*doFsync=*/true}
 {
 }
 
@@ -174,7 +175,8 @@ TestBucketGenerator::generateBucket(TestBucketState state)
     }
     MergeCounters mc;
     BucketOutputIteratorForTesting bucketOut{
-        mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc};
+        mTmpDir->getName(), mApp.getConfig().LEDGER_PROTOCOL_VERSION, mc,
+        mApp.getClock().getIOContext()};
     std::string filename;
     std::tie(filename, hash) = bucketOut.writeTmpTestBucket();
 
@@ -232,7 +234,8 @@ TestLedgerChainGenerator::createHistoryFiles(
     uint32_t checkpoint)
 {
     FileTransferInfo ft{mTmpDir, HISTORY_FILE_TYPE_LEDGER, checkpoint};
-    XDROutputFileStream ledgerOut(/*doFsync=*/true);
+    XDROutputFileStream ledgerOut(mApp.getClock().getIOContext(),
+                                  /*doFsync=*/true);
     ledgerOut.open(ft.localPath_nogz());
 
     for (auto& ledger : lhv)

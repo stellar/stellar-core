@@ -237,7 +237,8 @@ TransactionFuzzer::xdrSizeLimit()
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
-    XDROutputFileStream out(/*doFsync=*/false);
+    XDROutputFileStream out(mApp->getClock().getIOContext(),
+                            /*doFsync=*/false);
     out.open(filename);
     autocheck::generator<Operation> gen;
     xdr::xvector<Operation> ops;
@@ -352,7 +353,9 @@ OverlayFuzzer::xdrSizeLimit()
 void
 OverlayFuzzer::genFuzz(std::string const& filename)
 {
-    XDROutputFileStream out(/*doFsync=*/false);
+    VirtualClock clock;
+    XDROutputFileStream out(clock.getIOContext(),
+                            /*doFsync=*/false);
     out.open(filename);
     autocheck::generator<StellarMessage> gen;
     StellarMessage m(gen(FUZZER_INITIAL_CORPUS_MESSAGE_GEN_UPPERBOUND));
