@@ -36,6 +36,8 @@ herder.pending-txs.age0                  | counter   | number of gen0 pending tr
 herder.pending-txs.age1                  | counter   | number of gen1 pending transactions
 herder.pending-txs.age2                  | counter   | number of gen2 pending transactions
 herder.pending-txs.age3                  | counter   | number of gen3 pending transactions
+herder.pending-txs.banned                | counter   | number of transactions that got banned
+herder.pending-txs.delay                 | timer     | time for transactions to be included in a ledger
 history-archive.<X>.failure              | meter     | accessing history archive <X> failed
 history-archive.<X>.success              | meter     | accessing history archive <X> succeeded
 history.apply-ledger-chain.failure       | meter     | apply ledger chain failed

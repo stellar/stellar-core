@@ -17,6 +17,7 @@
 #include <lib/util/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
+#include <medida/timer.h>
 #include <numeric>
 
 namespace stellar
@@ -31,6 +32,10 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     , mLedgerVersion(app.getLedgerManager()
                          .getLastClosedLedgerHeader()
                          .header.ledgerVersion)
+    , mBannedTransactionsCounter(
+          app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}))
+    , mTransactionsDelay(
+          app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
     , mPoolLedgerMultiplier(poolLedgerMultiplier)
 {
     for (auto i = 0; i < pendingDepth; i++)
@@ -60,11 +65,11 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
 }
 
 static bool
-findBySeq(int64_t seq, TransactionQueue::Transactions& transactions,
-          TransactionQueue::Transactions::iterator& iter)
+findBySeq(int64_t seq, TransactionQueue::TimestampedTransactions& transactions,
+          TransactionQueue::TimestampedTransactions::iterator& iter)
 {
-    int64_t firstSeq = transactions.front()->getSeqNum();
-    int64_t lastSeq = transactions.back()->getSeqNum();
+    int64_t firstSeq = transactions.front().mTx->getSeqNum();
+    int64_t lastSeq = transactions.back().mTx->getSeqNum();
     if (seq < firstSeq || seq > lastSeq + 1)
     {
         return false;
@@ -72,14 +77,14 @@ findBySeq(int64_t seq, TransactionQueue::Transactions& transactions,
 
     assert(seq - firstSeq <= static_cast<int64_t>(transactions.size()));
     iter = transactions.begin() + (seq - firstSeq);
-    assert(iter == transactions.end() || (*iter)->getSeqNum() == seq);
+    assert(iter == transactions.end() || iter->mTx->getSeqNum() == seq);
     return true;
 }
 
 static bool
 findBySeq(TransactionFrameBasePtr tx,
-          TransactionQueue::Transactions& transactions,
-          TransactionQueue::Transactions::iterator& iter)
+          TransactionQueue::TimestampedTransactions& transactions,
+          TransactionQueue::TimestampedTransactions::iterator& iter)
 {
     return findBySeq(tx->getSeqNum(), transactions, iter);
 }
@@ -106,7 +111,7 @@ isDuplicateTx(TransactionFrameBasePtr oldTx, TransactionFrameBasePtr newTx)
 TransactionQueue::AddResult
 TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                          AccountStates::iterator& stateIter,
-                         Transactions::iterator& oldTxIter)
+                         TimestampedTransactions::iterator& oldTxIter)
 {
     if (isBanned(tx->getFullHash()))
     {
@@ -127,14 +132,14 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         {
             if (tx->getEnvelope().type() != ENVELOPE_TYPE_TX_FEE_BUMP)
             {
-                Transactions::iterator iter;
+                TimestampedTransactions::iterator iter;
                 if (findBySeq(tx, transactions, iter) &&
-                    iter != transactions.end() && isDuplicateTx(*iter, tx))
+                    iter != transactions.end() && isDuplicateTx(iter->mTx, tx))
                 {
                     return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
                 }
 
-                seqNum = transactions.back()->getSeqNum();
+                seqNum = transactions.back().mTx->getSeqNum();
             }
             else
             {
@@ -147,22 +152,23 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 if (oldTxIter != transactions.end())
                 {
                     // Replace-by-fee logic
-                    if (isDuplicateTx(*oldTxIter, tx))
+                    if (isDuplicateTx(oldTxIter->mTx, tx))
                     {
                         return TransactionQueue::AddResult::
                             ADD_STATUS_DUPLICATE;
                     }
 
-                    if (!canReplaceByFee(tx, *oldTxIter))
+                    if (!canReplaceByFee(tx, oldTxIter->mTx))
                     {
                         tx->getResult().result.code(txINSUFFICIENT_FEE);
                         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                     }
 
-                    netOps -= (*oldTxIter)->getNumOperations();
+                    netOps -= oldTxIter->mTx->getNumOperations();
 
-                    int64_t oldFee = (*oldTxIter)->getFeeBid();
-                    if ((*oldTxIter)->getFeeSourceID() == tx->getFeeSourceID())
+                    int64_t oldFee = oldTxIter->mTx->getFeeBid();
+                    if (oldTxIter->mTx->getFeeSourceID() ==
+                        tx->getFeeSourceID())
                     {
                         netFee -= oldFee;
                     }
@@ -222,7 +228,7 @@ TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 {
     AccountStates::iterator stateIter;
-    Transactions::iterator oldTxIter;
+    TimestampedTransactions::iterator oldTxIter;
     auto const res = canAdd(tx, stateIter, oldTxIter);
     if (res != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
@@ -238,14 +244,14 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 
     if (oldTxIter != stateIter->second.mTransactions.end())
     {
-        releaseFeeMaybeEraseAccountState(*oldTxIter);
-        stateIter->second.mQueueSizeOps -= (*oldTxIter)->getNumOperations();
-        mQueueSizeOps -= (*oldTxIter)->getNumOperations();
-        *oldTxIter = tx;
+        releaseFeeMaybeEraseAccountState(oldTxIter->mTx);
+        stateIter->second.mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
+        mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
+        *oldTxIter = {tx, mApp.getClock().now()};
     }
     else
     {
-        stateIter->second.mTransactions.emplace_back(tx);
+        stateIter->second.mTransactions.push_back({tx, mApp.getClock().now()});
         mSizeByAge[stateIter->second.mAge]->inc();
     }
     stateIter->second.mQueueSizeOps += tx->getNumOperations();
@@ -257,8 +263,8 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 
 void
 TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
-                                   Transactions::iterator begin,
-                                   Transactions::iterator end)
+                                   TimestampedTransactions::iterator begin,
+                                   TimestampedTransactions::iterator end)
 {
     // Remove fees and update queue size for each transaction to be dropped.
     // Note releaseFeeMaybeEraseSourceAccount may erase other iterators from
@@ -266,9 +272,10 @@ TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
     // one transaction (otherwise we couldn't reach that line).
     for (auto iter = begin; iter != end; ++iter)
     {
-        stateIter->second.mQueueSizeOps -= (*iter)->getNumOperations();
-        mQueueSizeOps -= (*iter)->getNumOperations();
-        releaseFeeMaybeEraseAccountState(*iter);
+        auto ops = iter->mTx->getNumOperations();
+        stateIter->second.mQueueSizeOps -= ops;
+        mQueueSizeOps -= ops;
+        releaseFeeMaybeEraseAccountState(iter->mTx);
     }
 
     // Actually erase the transactions to be dropped.
@@ -294,12 +301,16 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
 {
     // Find the highest sequence number that was applied for each source account
     std::map<AccountID, int64_t> seqByAccount;
+    std::unordered_set<Hash> appliedHashes;
+    appliedHashes.reserve(appliedTxs.size());
     for (auto const& tx : appliedTxs)
     {
         auto& seq = seqByAccount[tx->getSourceID()];
         seq = std::max(seq, tx->getSeqNum());
+        appliedHashes.emplace(tx->getFullHash());
     }
 
+    auto now = mApp.getClock().now();
     for (auto const& kv : seqByAccount)
     {
         // If the source account is not in mAccountStates, then it has no
@@ -316,7 +327,7 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                 // than the highest applied sequence number for this source
                 // account, then there is nothing to do because sequence numbers
                 // are monotonic (this shouldn't happen)
-                if (transactions.front()->getSeqNum() <= kv.second)
+                if (transactions.front().mTx->getSeqNum() <= kv.second)
                 {
                     // We care about matching the sequence number rather than
                     // the hash, because any transaction with a sequence number
@@ -344,6 +355,18 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
                     age = 0;
                     mSizeByAge[0]->inc(transactions.end() - txIter);
 
+                    // update the metric for the time spent for applied
+                    // transactions using exact match
+                    for (auto it = transactions.begin(); it != txIter; ++it)
+                    {
+                        if (appliedHashes.find(it->mTx->getFullHash()) !=
+                            appliedHashes.end())
+                        {
+                            auto elapsed = now - it->mInsertionTime;
+                            mTransactionsDelay.Update(elapsed);
+                        }
+                    }
+
                     // WARNING: stateIter and everything that references it may
                     // be invalid from this point onward and should not be used.
                     dropTransactions(stateIter, transactions.begin(), txIter);
@@ -354,13 +377,14 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
 }
 
 static void
-findTx(TransactionFrameBasePtr tx, TransactionQueue::Transactions& transactions,
-       TransactionQueue::Transactions::iterator& txIter)
+findTx(TransactionFrameBasePtr tx,
+       TransactionQueue::TimestampedTransactions& transactions,
+       TransactionQueue::TimestampedTransactions::iterator& txIter)
 {
     auto iter = transactions.end();
     findBySeq(tx, transactions, iter);
     if (iter != transactions.end() &&
-        (*iter)->getFullHash() == tx->getFullHash())
+        iter->mTx->getFullHash() == tx->getFullHash())
     {
         txIter = iter;
     }
@@ -378,7 +402,10 @@ TransactionQueue::ban(Transactions const& banTxs)
     {
         auto& transactions = transactionsByAccount[tx->getSourceID()];
         transactions.emplace_back(tx);
-        bannedFront.emplace(tx->getFullHash());
+        if (bannedFront.emplace(tx->getFullHash()).second)
+        {
+            mBannedTransactionsCounter.inc();
+        }
     }
 
     for (auto const& kv : transactionsByAccount)
@@ -402,7 +429,7 @@ TransactionQueue::ban(Transactions const& banTxs)
                 for (auto const& tx : kv.second)
                 {
                     if (txIter == transactions.end() ||
-                        tx->getSeqNum() < (*txIter)->getSeqNum())
+                        tx->getSeqNum() < txIter->mTx->getSeqNum())
                     {
                         // findTx does nothing unless tx matches-by-hash with
                         // a transaction in transactions.
@@ -416,7 +443,10 @@ TransactionQueue::ban(Transactions const& banTxs)
                 // for this age.
                 for (auto iter = txIter; iter != transactions.end(); ++iter)
                 {
-                    bannedFront.emplace((*iter)->getFullHash());
+                    if (bannedFront.emplace(iter->mTx->getFullHash()).second)
+                    {
+                        mBannedTransactionsCounter.inc();
+                    }
                 }
                 mSizeByAge[stateIter->second.mAge]->dec(transactions.end() -
                                                         txIter);
@@ -443,7 +473,7 @@ TransactionQueue::getAccountTransactionQueueInfo(
     }
 
     auto const& txs = i->second.mTransactions;
-    auto seqNum = txs.empty() ? 0 : txs.back()->getSeqNum();
+    auto seqNum = txs.empty() ? 0 : txs.back().mTx->getSeqNum();
     return {seqNum, i->second.mTotalFees, i->second.mQueueSizeOps,
             i->second.mAge};
 }
@@ -477,9 +507,11 @@ TransactionQueue::shift()
                 // This never invalidates it because
                 //     !it->second.mTransactions.empty()
                 // otherwise we couldn't have reached this line.
-                releaseFeeMaybeEraseAccountState(toBan);
-                bannedFront.insert(toBan->getFullHash());
+                releaseFeeMaybeEraseAccountState(toBan.mTx);
+                bannedFront.insert(toBan.mTx->getFullHash());
             }
+            mBannedTransactionsCounter.inc(
+                static_cast<int64_t>(it->second.mTransactions.size()));
             mQueueSizeOps -= it->second.mQueueSizeOps;
             it->second.mQueueSizeOps = 0;
 
@@ -534,14 +566,14 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
     {
         for (auto const& tx : m.second.mTransactions)
         {
-            result->add(tx);
+            result->add(tx.mTx);
             // This condition implements the following constraint: there may be
             // any number of transactions for a given source account, but all
             // transactions must satisfy one of the following mutually exclusive
             // conditions
             // - sequence number <= startingSeq - 1
             // - sequence number >= startingSeq
-            if (tx->getSeqNum() == startingSeq - 1)
+            if (tx.mTx->getSeqNum() == startingSeq - 1)
             {
                 break;
             }
@@ -569,10 +601,12 @@ TransactionQueue::maybeVersionUpgraded()
             for (auto& txFrame : kv.second.mTransactions)
             {
                 auto oldTxFrame = txFrame;
-                auto envV1 = txbridge::convertForV13(txFrame->getEnvelope());
-                txFrame = TransactionFrame::makeTransactionFromWire(
+                auto envV1 =
+                    txbridge::convertForV13(txFrame.mTx->getEnvelope());
+                txFrame.mTx = TransactionFrame::makeTransactionFromWire(
                     mApp.getNetworkID(), envV1);
-                res.emplace_back(ReplacedTransaction{oldTxFrame, txFrame});
+                res.emplace_back(
+                    ReplacedTransaction{oldTxFrame.mTx, txFrame.mTx});
             }
         }
     }
