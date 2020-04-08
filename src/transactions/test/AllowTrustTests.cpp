@@ -189,15 +189,15 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
 
         SECTION("can't add offer")
         {
-            OfferState offer(usd, idr, Price{1, 1}, 1000);
+            OfferState offerState(usd, idr, Price{1, 1}, 1000);
             if (buyIsOnlyAllowedToMaintainLiabilities)
             {
-                REQUIRE_THROWS_AS(market.addOffer(a1, offer),
+                REQUIRE_THROWS_AS(market.addOffer(a1, offerState),
                                   ex_MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED);
             }
             else
             {
-                REQUIRE_THROWS_AS(market.addOffer(a1, offer),
+                REQUIRE_THROWS_AS(market.addOffer(a1, offerState),
                                   ex_MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED);
             }
         }
