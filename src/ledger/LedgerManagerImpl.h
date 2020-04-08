@@ -24,6 +24,7 @@ namespace medida
 class Timer;
 class Counter;
 class Histogram;
+class Buckets;
 }
 
 namespace stellar
@@ -47,7 +48,7 @@ class LedgerManagerImpl : public LedgerManager
     medida::Histogram& mOperationCount;
     medida::Histogram& mPrefetchHitRate;
     medida::Timer& mLedgerClose;
-    medida::Timer& mLedgerAgeClosed;
+    medida::Buckets& mLedgerAgeClosed;
     medida::Counter& mLedgerAge;
     VirtualClock::time_point mLastClose;
 

@@ -34,6 +34,7 @@
 #include "util/XDROperators.h"
 #include "util/format.h"
 
+#include "medida/buckets.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -119,7 +120,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewHistogram({"ledger", "prefetch", "hit-rate"},
                                         medida::SamplingInterface::kSliding))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
-    , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
+    , mLedgerAgeClosed(app.getMetrics().NewBuckets(
+          {"ledger", "age", "closed"}, {5000.0, 7000.0, 10000.0, 20000.0}))
     , mLedgerAge(
           app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
     , mLastClose(mApp.getClock().now())

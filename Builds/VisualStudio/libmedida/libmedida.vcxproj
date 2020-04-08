@@ -207,6 +207,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\buckets.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\counter.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\histogram.cc" />
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\meter.cc" />
@@ -229,6 +230,7 @@
     <ClCompile Include="..\..\..\lib\libmedida\src\medida\timer_context.cc" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\buckets.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\counter.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\histogram.h" />
     <ClInclude Include="..\..\..\lib\libmedida\src\medida\medida.h" />

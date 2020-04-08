@@ -9,9 +9,6 @@
 namespace medida
 {
 class MetricsRegistry;
-class Meter;
-class Counter;
-class Timer;
 }
 
 namespace stellar
@@ -26,5 +23,6 @@ class MetricResetter : public medida::MetricProcessor
     void Process(medida::Meter& meter) override;
     void Process(medida::Histogram& histogram) override;
     void Process(medida::Timer& timer) override;
+    void Process(medida::Buckets& buckets) override;
 };
 }

@@ -30,4 +30,10 @@ MetricResetter::Process(medida::Timer& timer)
 {
     timer.Clear();
 }
+
+void
+MetricResetter::Process(medida::Buckets& buckets)
+{
+    buckets.Clear();
+}
 }
