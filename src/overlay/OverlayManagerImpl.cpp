@@ -888,11 +888,10 @@ OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 }
 
 void
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force,
-                                     uint32_t minOverlayVersion)
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 {
     mOverlayMetrics.mMessagesBroadcast.Mark();
-    mFloodGate.broadcast(msg, force, minOverlayVersion);
+    mFloodGate.broadcast(msg, force);
 }
 
 void

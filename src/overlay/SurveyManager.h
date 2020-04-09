@@ -19,7 +19,6 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
                       public NonMovableOrCopyable
 {
   public:
-    static uint32_t const MIN_OVERLAY_VERSION_FOR_SURVEY;
     static uint32_t const SURVEY_THROTTLE_TIMEOUT_MULT;
 
     SurveyManager(Application& app);

@@ -12,7 +12,6 @@
 namespace stellar
 {
 
-uint32_t const SurveyManager::MIN_OVERLAY_VERSION_FOR_SURVEY(11);
 uint32_t const SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT(3);
 
 SurveyManager::SurveyManager(Application& app)
@@ -305,8 +304,7 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
 void
 SurveyManager::broadcast(StellarMessage const& msg) const
 {
-    mApp.getOverlayManager().broadcastMessage(msg, false,
-                                              MIN_OVERLAY_VERSION_FOR_SURVEY);
+    mApp.getOverlayManager().broadcastMessage(msg, false);
 }
 
 void
