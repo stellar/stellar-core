@@ -104,8 +104,8 @@ class OverlayManagerImpl : public OverlayManager
     bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
                           Hash& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
-    void broadcastMessage(StellarMessage const& msg, bool force = false,
-                          uint32_t minOverlayVersion = 0) override;
+    void broadcastMessage(StellarMessage const& msg,
+                          bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;
 
     void addInboundConnection(Peer::pointer peer) override;

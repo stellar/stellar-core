@@ -43,9 +43,8 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         A,
         B,
         C,
-        D, // older overlay version
-        E, // not in transitive quorum
-        F
+        D, // not in transitive quorum
+        E
     };
 
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -55,7 +54,7 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
     std::vector<Config> configList;
     std::vector<PublicKey> keyList;
     std::vector<std::string> keyStrList;
-    for (int i = A; i <= F; ++i)
+    for (int i = A; i <= E; ++i)
     {
         auto cfg = simulation->newConfig();
         configList.emplace_back(cfg);
@@ -64,34 +63,28 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         keyStrList.emplace_back(cfg.NODE_SEED.getStrKeyPublic());
     }
 
-    // Peer D has an older overlay version so make sure we don't broadcast
-    // messages to peers that don't support the survey messages
-    configList[D].OVERLAY_PROTOCOL_VERSION =
-        SurveyManager::MIN_OVERLAY_VERSION_FOR_SURVEY - 1;
-
-    // B will only respond to/relay messages from A and E
+    // B will only respond to/relay messages from A and D
     configList[B].SURVEYOR_KEYS.emplace(keyList[A]);
     configList[B].SURVEYOR_KEYS.emplace(keyList[E]);
 
-    // Note that peer E is in SURVEYOR_KEYS of A and B, but is not in transitive
+    // Note that peer D is in SURVEYOR_KEYS of A and B, but is not in transitive
     // quorum, meaning that it's request messages will be dropped by relay nodes
     SCPQuorumSet qSet;
     qSet.threshold = 2;
     qSet.validators.push_back(keyList[A]);
     qSet.validators.push_back(keyList[C]);
 
-    for (int i = A; i <= F; ++i)
+    for (int i = A; i <= E; ++i)
     {
         auto const& cfg = configList[i];
         simulation->addNode(cfg.NODE_SEED, qSet, &cfg);
     }
 
-    // E->A->B->C->D B->F
-    simulation->addConnection(keyList[E], keyList[A]);
+    // D->A->B->C B->E
+    simulation->addConnection(keyList[D], keyList[A]);
     simulation->addConnection(keyList[A], keyList[B]);
     simulation->addConnection(keyList[B], keyList[C]);
-    simulation->addConnection(keyList[B], keyList[F]);
-    simulation->addConnection(keyList[C], keyList[D]);
+    simulation->addConnection(keyList[B], keyList[E]);
 
     simulation->startAllNodes();
 
@@ -131,7 +124,7 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
             false);
     };
 
-    SECTION("5 normal nodes (A->B->C->D B->F)")
+    SECTION("5 normal nodes (A->B->C B->E)")
     {
         sendRequest(keyList[A], keyList[B]);
         crankForSurvey();
@@ -141,11 +134,11 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
 
         REQUIRE(topology.size() == 1);
 
-        // B responds with 2 new nodes (C and F)
+        // B responds with 2 new nodes (C and E)
         REQUIRE(topology[keyStrList[B]]["inboundPeers"][0]["nodeId"] ==
                 keyStrList[A]);
 
-        std::set<std::string> expectedOutboundPeers = {keyStrList[F],
+        std::set<std::string> expectedOutboundPeers = {keyStrList[E],
                                                        keyStrList[C]};
         std::set<std::string> actualOutboundPeers = {
             topology[keyStrList[B]]["outboundPeers"][0]["nodeId"].asString(),
@@ -154,45 +147,35 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
         REQUIRE(expectedOutboundPeers == actualOutboundPeers);
 
         sendRequest(keyList[A], keyList[C]);
-        sendRequest(keyList[A], keyList[F]);
+        sendRequest(keyList[A], keyList[E]);
 
         crankForSurvey();
 
         result = getResults(keyList[A]);
         topology = result["topology"];
 
-        // In the next round, we sent requests to C and F
+        // In the next round, we sent requests to C and E
         REQUIRE(topology.size() == 3);
         REQUIRE(topology[keyStrList[C]]["inboundPeers"][0]["nodeId"] ==
                 keyStrList[B]);
-        REQUIRE(topology[keyStrList[C]]["outboundPeers"][0]["nodeId"] ==
-                keyStrList[D]);
+        REQUIRE(topology[keyStrList[C]]["outboundPeers"].isNull());
 
-        REQUIRE(topology[keyStrList[F]]["inboundPeers"][0]["nodeId"] ==
+        REQUIRE(topology[keyStrList[E]]["inboundPeers"][0]["nodeId"] ==
                 keyStrList[B]);
-        REQUIRE(topology[keyStrList[F]]["outboundPeers"].isNull());
-
-        sendRequest(keyList[A], keyList[D]);
-
-        // move time forward. Nothing should happen because D has an older
-        // overlay version
-        crankForSurvey();
-
-        // result stayed the same
-        REQUIRE(topology.size() == 3);
+        REQUIRE(topology[keyStrList[E]]["outboundPeers"].isNull());
     }
 
-    SECTION("E is not in transitive quorum, so A doesn't respond or relay to B"
-            "(E-/>A-/>B)")
+    SECTION("D is not in transitive quorum, so A doesn't respond or relay to B"
+            "(D-/>A-/>B)")
     {
-        sendRequest(keyList[E], keyList[A]);
-        sendRequest(keyList[E], keyList[B]);
+        sendRequest(keyList[D], keyList[A]);
+        sendRequest(keyList[D], keyList[B]);
 
         // move time forward so next round of queries can go. requests should be
         // sent, but nodes shouldn't respond
         crankForSurvey();
 
-        auto result = getResults(keyList[E]);
+        auto result = getResults(keyList[D]);
         Json::Value const& topology = result["topology"];
 
         REQUIRE(topology.size() == 2);
