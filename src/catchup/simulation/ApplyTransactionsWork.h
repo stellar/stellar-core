@@ -26,6 +26,8 @@ class ApplyTransactionsWork : public BasicWork
     std::vector<TransactionResultPair>::const_iterator mResultIter;
 
     uint32_t const mMaxOperations;
+    // Force next version upgrade
+    bool const mUpgradeProtocol;
 
     bool getNextLedgerFromHistoryArchive();
 
@@ -37,7 +39,7 @@ class ApplyTransactionsWork : public BasicWork
     ApplyTransactionsWork(Application& app, TmpDir const& downloadDir,
                           LedgerRange const& range,
                           std::string const& networkPassphrase,
-                          uint32_t desiredOperations);
+                          uint32_t desiredOperations, bool upgrade);
 
   protected:
     void onReset() override;

@@ -910,6 +910,7 @@ runSimulate(CommandLineArgs const& args)
     uint32_t firstLedgerInclusive = 0;
     uint32_t lastLedgerInclusive = 0;
     std::string historyArchiveGet;
+    bool upgrade = false;
 
     auto validateFirstLedger = [&] {
         if (firstLedgerInclusive == 0)
@@ -933,6 +934,8 @@ runSimulate(CommandLineArgs const& args)
          clara::Opt{opsPerLedger, "OPS-PER-LEDGER"}["--ops-per-ledger"](
              "desired number of operations per ledger, will never be less but "
              "could be up to 100 more"),
+         clara::Opt{upgrade}["--upgrade"](
+             "upgrade to latest known protocol version"),
          firstLedgerParser,
          clara::Opt{lastLedgerInclusive, "LEDGER"}["--last-ledger-inclusive"](
              "last ledger to read from history archive")},
@@ -959,7 +962,7 @@ runSimulate(CommandLineArgs const& args)
                 *app, cr, HISTORY_FILE_TYPE_RESULTS, dir);
             auto apply = std::make_shared<ApplyTransactionsWork>(
                 *app, dir, lr, app->getConfig().NETWORK_PASSPHRASE,
-                opsPerLedger);
+                opsPerLedger, upgrade);
             std::vector<std::shared_ptr<BasicWork>> seq{
                 downloadLedgers, downloadTransactions, downloadResults, apply};
 
