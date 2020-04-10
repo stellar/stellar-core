@@ -13,7 +13,8 @@ namespace stellar
 
 ApplyTransactionsWork::ApplyTransactionsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
-    std::string const& networkPassphrase, uint32_t desiredOperations)
+    std::string const& networkPassphrase, uint32_t desiredOperations,
+    bool upgrade)
     : BasicWork(app, "apply-transactions", RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mRange(range)
@@ -23,7 +24,15 @@ ApplyTransactionsWork::ApplyTransactionsWork(
     , mResultHistory{}
     , mResultIter(mResultHistory.txResultSet.results.cend())
     , mMaxOperations(desiredOperations)
+    , mUpgradeProtocol(upgrade)
 {
+    auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (mUpgradeProtocol &&
+        lcl.header.ledgerVersion + 1 != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+    {
+        throw std::runtime_error("Invalid ledger version: can only force "
+                                 "upgrade for consecutive versions");
+    }
 }
 
 bool
@@ -120,20 +129,33 @@ ApplyTransactionsWork::onReset()
     // operations.
     //
     // So we can do the same upgrade in both cases.
-    if (header.maxTxSetSize < mMaxOperations)
+    if (header.maxTxSetSize < mMaxOperations || mUpgradeProtocol)
     {
-        LedgerUpgrade upgrade(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
-        upgrade.newMaxTxSetSize() = mMaxOperations;
-        auto opaqueUpgrade = xdr::xdr_to_opaque(upgrade);
+        StellarValue sv;
+        if (header.maxTxSetSize < mMaxOperations)
+        {
+            LedgerUpgrade upgrade(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+            upgrade.newMaxTxSetSize() = mMaxOperations;
+            auto opaqueUpgrade = xdr::xdr_to_opaque(upgrade);
+            sv.upgrades.emplace_back(opaqueUpgrade.begin(),
+                                     opaqueUpgrade.end());
+        }
+        if (mUpgradeProtocol)
+        {
+            LedgerUpgrade upgrade(LEDGER_UPGRADE_VERSION);
+            upgrade.newLedgerVersion() =
+                Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+            auto opaqueUpgrade = xdr::xdr_to_opaque(upgrade);
+            sv.upgrades.emplace_back(opaqueUpgrade.begin(),
+                                     opaqueUpgrade.end());
+        }
 
         TransactionSet txSetXDR;
         txSetXDR.previousLedgerHash = lclHeader.hash;
         auto txSet = std::make_shared<TxSetFrame>(mNetworkID, txSetXDR);
 
-        StellarValue sv;
         sv.txSetHash = txSet->getContentsHash();
         sv.closeTime = header.scpValue.closeTime + 1;
-        sv.upgrades.emplace_back(opaqueUpgrade.begin(), opaqueUpgrade.end());
 
         LedgerCloseData closeData(header.ledgerSeq + 1, txSet, sv);
         lm.closeLedger(closeData);
