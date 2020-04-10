@@ -32,15 +32,14 @@ populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
     {
         auto key = LedgerEntryKey(le);
 
-        // Check that the key associated to this entry
-        // - appears in keys
-        // - does not appear in res (which implies it has not already appeared
-        //   in entries)
-        // These conditions imply that the keys associated with entries are
-        // unique and constitute a subset of keys
-        assert(keys.find(key) != keys.end());
+        // Abort if two entries for the same key appear.
         assert(res.find(key) == res.end());
-        res.emplace(key, std::make_shared<LedgerEntry const>(le));
+
+        // Only return entries for keys that were actually requested.
+        if (keys.find(key) != keys.end())
+        {
+            res.emplace(key, std::make_shared<LedgerEntry const>(le));
+        }
     }
 
     for (auto const& key : keys)

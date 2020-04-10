@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -638,8 +639,18 @@ class BulkLoadOffersOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
+    uint32_t mLedgerVersion;
     std::vector<int64_t> mOfferIDs;
+    std::unordered_set<LedgerKey> mKeys;
     std::unordered_map<int64_t, AccountID> mSellerIDsByOfferID;
+
+    bool
+    shouldIncludeOffer(int64_t offerID, AccountID sellerID)
+    {
+        // Before protocol version 13, exclude offers where sellerID in
+        // LedgerKey doesn't match sellerID in LedgerEntry
+        return mLedgerVersion >= 13 || mSellerIDsByOfferID[offerID] == sellerID;
+    }
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -670,9 +681,7 @@ class BulkLoadOffersOperation
         {
             auto pubKey = KeyUtils::fromStrKey<PublicKey>(sellerID);
 
-            // Exclude offers where sellerID in LedgerKey doesn't match sellerID
-            // in LedgerEntry
-            if (mSellerIDsByOfferID[offerID] == pubKey)
+            if (shouldIncludeOffer(offerID, pubKey))
             {
                 res.emplace_back();
                 auto& le = res.back();
@@ -698,8 +707,9 @@ class BulkLoadOffersOperation
 
   public:
     BulkLoadOffersOperation(Database& db,
-                            std::unordered_set<LedgerKey> const& keys)
-        : mDb(db)
+                            std::unordered_set<LedgerKey> const& keys,
+                            uint32_t ledgerVersion)
+        : mDb(db), mLedgerVersion(ledgerVersion)
     {
         mOfferIDs.reserve(keys.size());
         for (auto const& k : keys)
@@ -708,7 +718,10 @@ class BulkLoadOffersOperation
             if (k.offer().offerID >= 0)
             {
                 mOfferIDs.emplace_back(k.offer().offerID);
-                mSellerIDsByOfferID[mOfferIDs.back()] = k.offer().sellerID;
+                if (mLedgerVersion < 13)
+                {
+                    mSellerIDsByOfferID[mOfferIDs.back()] = k.offer().sellerID;
+                }
             }
         }
     }
@@ -763,7 +776,7 @@ LedgerTxnRoot::Impl::bulkLoadOffers(
 {
     if (!keys.empty())
     {
-        BulkLoadOffersOperation op(mDatabase, keys);
+        BulkLoadOffersOperation op(mDatabase, keys, mHeader->ledgerVersion);
         return populateLoadedEntries(
             keys, mDatabase.doDatabaseTypeSpecificOperation(op));
     }
