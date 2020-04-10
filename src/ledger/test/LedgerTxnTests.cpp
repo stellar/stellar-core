@@ -3124,3 +3124,35 @@ TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
         }
     }
 }
+
+TEST_CASE("LedgerTxn bulk-load offers", "[ledgertxn]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    LedgerEntry le1;
+    le1.data.type(OFFER);
+    le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+
+    LedgerKey lk1 = LedgerEntryKey(le1);
+    auto lk2 = lk1;
+    lk2.offer().sellerID = LedgerTestUtils::generateValidOfferEntry().sellerID;
+
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        ltx.create(le1);
+        ltx.commit();
+    }
+
+    for_versions({12}, *app, [&]() {
+        app->getLedgerTxnRoot().prefetch({lk1, lk2});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(!ltx.load(lk1));
+    });
+    for_versions_from(13, *app, [&]() {
+        app->getLedgerTxnRoot().prefetch({lk1, lk2});
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(ltx.load(lk1));
+    });
+}
