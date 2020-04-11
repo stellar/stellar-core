@@ -141,15 +141,14 @@ TEST_CASE("remove password from database connection string",
 
     SECTION("invalid connection string without backend name")
     {
-        REQUIRE(removePasswordFromConnectionString(
-                    R"(dbname=name password=abc)") ==
-                R"(dbname=name password=abc)");
+        REQUIRE(
+            removePasswordFromConnectionString(R"(dbname=name password=abc)") ==
+            R"(dbname=name password=abc)");
     }
 
     SECTION("ignore sqlite3://:memory:")
     {
-        REQUIRE(removePasswordFromConnectionString(
-                    R"(sqlite3://:memory:)") ==
+        REQUIRE(removePasswordFromConnectionString(R"(sqlite3://:memory:)") ==
                 R"(sqlite3://:memory:)");
     }
 

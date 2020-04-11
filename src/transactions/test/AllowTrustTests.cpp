@@ -233,7 +233,6 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
     }
 
     for_versions_from(13, *app, [&] {
-
         SECTION("offer tests")
         {
             SECTION("buying asset is only allowed to maintain liabilities")
@@ -294,7 +293,6 @@ TEST_CASE("authorized to maintain liabilities", "[tx][allowtrust]")
                                   ex_ALLOW_TRUST_CANT_REVOKE);
             }
         }
-
     });
 }
 

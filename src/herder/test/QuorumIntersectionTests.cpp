@@ -313,18 +313,19 @@ interconnectOrgsUnidir(xdr::xvector<xdr::xvector<PublicKey>> const& orgs,
                        std::vector<std::pair<size_t, size_t>> edges,
                        size_t ownThreshPct = 67, size_t innerThreshPct = 51)
 {
-    return interconnectOrgs(orgs,
-                            [&edges](size_t i, size_t j) {
-                                for (auto const& e : edges)
-                                {
-                                    if (e.first == i && e.second == j)
-                                    {
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            },
-                            ownThreshPct, innerThreshPct);
+    return interconnectOrgs(
+        orgs,
+        [&edges](size_t i, size_t j) {
+            for (auto const& e : edges)
+            {
+                if (e.first == i && e.second == j)
+                {
+                    return true;
+                }
+            }
+            return false;
+        },
+        ownThreshPct, innerThreshPct);
 }
 
 static QuorumTracker::QuorumMap
@@ -332,19 +333,20 @@ interconnectOrgsBidir(xdr::xvector<xdr::xvector<PublicKey>> const& orgs,
                       std::vector<std::pair<size_t, size_t>> edges,
                       size_t ownThreshPct = 67, size_t innerThreshPct = 51)
 {
-    return interconnectOrgs(orgs,
-                            [&edges](size_t i, size_t j) {
-                                for (auto const& e : edges)
-                                {
-                                    if ((e.first == i && e.second == j) ||
-                                        (e.first == j && e.second == i))
-                                    {
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            },
-                            ownThreshPct, innerThreshPct);
+    return interconnectOrgs(
+        orgs,
+        [&edges](size_t i, size_t j) {
+            for (auto const& e : edges)
+            {
+                if ((e.first == i && e.second == j) ||
+                    (e.first == j && e.second == i))
+                {
+                    return true;
+                }
+            }
+            return false;
+        },
+        ownThreshPct, innerThreshPct);
 }
 
 TEST_CASE("quorum intersection 4-org fully-connected - elide all minquorums",

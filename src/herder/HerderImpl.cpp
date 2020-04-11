@@ -545,16 +545,17 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
     bool log = true;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
-        getSCP().processCurrentState(seq,
-                                     [&](SCPEnvelope const& e) {
-                                         StellarMessage m;
-                                         m.type(SCP_MESSAGE);
-                                         m.envelope() = e;
-                                         peer->sendMessage(m, log);
-                                         log = false;
-                                         return true;
-                                     },
-                                     false);
+        getSCP().processCurrentState(
+            seq,
+            [&](SCPEnvelope const& e) {
+                StellarMessage m;
+                m.type(SCP_MESSAGE);
+                m.envelope() = e;
+                peer->sendMessage(m, log);
+                log = false;
+                return true;
+            },
+            false);
         return true;
     });
 }

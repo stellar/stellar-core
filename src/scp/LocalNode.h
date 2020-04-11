@@ -63,23 +63,23 @@ class LocalNode
 
     // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
     // this node.
-    static bool
-    isVBlocking(SCPQuorumSet const& qSet,
-                std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
-                std::function<bool(SCPStatement const&)> const& filter =
-                    [](SCPStatement const&) { return true; });
+    static bool isVBlocking(
+        SCPQuorumSet const& qSet,
+        std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
+        std::function<bool(SCPStatement const&)> const& filter =
+            [](SCPStatement const&) { return true; });
 
     // `isQuorum` tests if the filtered nodes V form a quorum
     // (meaning for each v \in V there is q \in Q(v)
     // included in V and we have quorum on V for qSetHash). `qfun` extracts the
     // SCPQuorumSetPtr from the SCPStatement for its associated node in map
     // (required for transitivity)
-    static bool
-    isQuorum(SCPQuorumSet const& qSet,
-             std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
-             std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
-             std::function<bool(SCPStatement const&)> const& filter =
-                 [](SCPStatement const&) { return true; });
+    static bool isQuorum(
+        SCPQuorumSet const& qSet,
+        std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
+        std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
+        std::function<bool(SCPStatement const&)> const& filter =
+            [](SCPStatement const&) { return true; });
 
     // computes the distance to the set of v-blocking sets given
     // a set of nodes that agree (but can fail)

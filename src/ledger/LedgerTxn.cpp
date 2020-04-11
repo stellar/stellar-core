@@ -110,7 +110,8 @@ EntryIterator::getImpl() const
     return mImpl;
 }
 
-EntryIterator& EntryIterator::operator++()
+EntryIterator&
+EntryIterator::operator++()
 {
     getImpl()->advance();
     return *this;
@@ -167,7 +168,8 @@ WorstBestOfferIterator::getImpl() const
     return mImpl;
 }
 
-WorstBestOfferIterator& WorstBestOfferIterator::operator++()
+WorstBestOfferIterator&
+WorstBestOfferIterator::operator++()
 {
     getImpl()->advance();
     return *this;

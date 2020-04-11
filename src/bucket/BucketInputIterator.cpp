@@ -108,7 +108,8 @@ BucketInputIterator::~BucketInputIterator()
     mIn.close();
 }
 
-BucketInputIterator& BucketInputIterator::operator++()
+BucketInputIterator&
+BucketInputIterator::operator++()
 {
     if (mIn)
     {

@@ -45,8 +45,7 @@ VerifyTxResultsWork::onRun()
 
     std::weak_ptr<VerifyTxResultsWork> weak(
         std::static_pointer_cast<VerifyTxResultsWork>(shared_from_this()));
-    auto verify = [ weak, checkpoint = mCheckpoint ]()
-    {
+    auto verify = [weak, checkpoint = mCheckpoint]() {
         auto self = weak.lock();
         if (self)
         {

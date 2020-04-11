@@ -104,8 +104,8 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx)
     {
         return false;
     }
-    innerResult().success().last =
-        SimplePaymentResult(getDestMuxedAccount(), getDestAsset(), maxAmountSend);
+    innerResult().success().last = SimplePaymentResult(
+        getDestMuxedAccount(), getDestAsset(), maxAmountSend);
     return true;
 }
 

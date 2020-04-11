@@ -28,10 +28,11 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
     // least to check trustlines
     // in ledger version 2 it would work for any asset type
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-    auto instantSuccess = ledgerVersion > 2
-        ? toAccountID(mPayment.destination) == getSourceID() &&
-        mPayment.asset.type() == ASSET_TYPE_NATIVE
-        : toAccountID(mPayment.destination) == getSourceID();
+    auto instantSuccess =
+        ledgerVersion > 2
+            ? toAccountID(mPayment.destination) == getSourceID() &&
+                  mPayment.asset.type() == ASSET_TYPE_NATIVE
+            : toAccountID(mPayment.destination) == getSourceID();
     if (instantSuccess)
     {
         innerResult().code(PAYMENT_SUCCESS);

@@ -1383,7 +1383,6 @@ TEST_CASE("bucket persistence over app restart",
 
     Config cfg0(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     for_versions_with_differing_bucket_logic(cfg0, [&](Config const& cfg0) {
-
         Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
         cfg1.LEDGER_PROTOCOL_VERSION = cfg0.LEDGER_PROTOCOL_VERSION;
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;

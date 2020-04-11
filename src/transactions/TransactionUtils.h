@@ -137,13 +137,14 @@ void normalizeSigners(LedgerTxnEntry& entry);
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
-inline const AccountID &toAccountID(const AccountID &a)
+inline const AccountID&
+toAccountID(const AccountID& a)
 {
     return a;
 }
 
-AccountID toAccountID(const MuxedAccount &m);
-MuxedAccount toMuxedAccount(const AccountID &a);
+AccountID toAccountID(const MuxedAccount& m);
+MuxedAccount toMuxedAccount(const AccountID& a);
 
 void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    uint32_t authorized);
@@ -151,5 +152,5 @@ void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
 
-bool hasMuxedAccount(const TransactionEnvelope &e);
+bool hasMuxedAccount(const TransactionEnvelope& e);
 }

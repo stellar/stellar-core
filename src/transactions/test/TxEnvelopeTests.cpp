@@ -597,7 +597,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         closeLedgerOn(*app, 2, 1, 1, 2016);
 
                         auto runTest = [&](bool txAccountMissing) {
-
                             // Create merge tx
                             auto txMerge = b1.tx({accountMerge(a1)});
 

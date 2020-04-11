@@ -3957,7 +3957,6 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
                 // clang-format on
             });
-
         };
 
         SECTION("no issuers missing")

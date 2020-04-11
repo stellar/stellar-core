@@ -825,7 +825,7 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f,
 {
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    mVirtualClock.postToCurrentCrank([ this, f = std::move(f), isSlow ]() {
+    mVirtualClock.postToCurrentCrank([this, f = std::move(f), isSlow]() {
         mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });
@@ -837,7 +837,7 @@ ApplicationImpl::postOnMainThreadWithDelay(std::function<void()>&& f,
 {
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    mVirtualClock.postToNextCrank([ this, f = std::move(f), isSlow ]() {
+    mVirtualClock.postToNextCrank([this, f = std::move(f), isSlow]() {
         mPostOnMainThreadWithDelayDelay.Update(isSlow.checkElapsedTime());
         f();
     });
@@ -849,7 +849,7 @@ ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f,
 {
     LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    asio::post(getWorkerIOContext(), [ this, f = std::move(f), isSlow ]() {
+    asio::post(getWorkerIOContext(), [this, f = std::move(f), isSlow]() {
         mPostOnBackgroundThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     });

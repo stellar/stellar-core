@@ -150,8 +150,8 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
             return false;
         }
 
-        if (!mParentTx.checkSignatureNoAccount(signatureChecker,
-                                               toAccountID(*mOperation.sourceAccount)))
+        if (!mParentTx.checkSignatureNoAccount(
+                signatureChecker, toAccountID(*mOperation.sourceAccount)))
         {
             mResult.code(opBAD_AUTH);
             return false;
