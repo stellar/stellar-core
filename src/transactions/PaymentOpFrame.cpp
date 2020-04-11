@@ -29,9 +29,9 @@ PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
     // in ledger version 2 it would work for any asset type
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
     auto instantSuccess = ledgerVersion > 2
-                              ? mPayment.destination == getSourceID() &&
-                                    mPayment.asset.type() == ASSET_TYPE_NATIVE
-                              : mPayment.destination == getSourceID();
+        ? toAccountID(mPayment.destination) == getSourceID() &&
+        mPayment.asset.type() == ASSET_TYPE_NATIVE
+        : toAccountID(mPayment.destination) == getSourceID();
     if (instantSuccess)
     {
         innerResult().code(PAYMENT_SUCCESS);
@@ -128,13 +128,14 @@ void
 PaymentOpFrame::insertLedgerKeysToPrefetch(
     std::unordered_set<LedgerKey>& keys) const
 {
-    keys.emplace(accountKey(mPayment.destination));
+    auto dest = toAccountID(mPayment.destination);
+    keys.emplace(accountKey(dest));
 
     // Prefetch issuer for non-native assets
     if (mPayment.asset.type() != ASSET_TYPE_NATIVE)
     {
         // These are *maybe* needed; For now, we load everything
-        keys.emplace(trustlineKey(mPayment.destination, mPayment.asset));
+        keys.emplace(trustlineKey(dest, mPayment.asset));
         keys.emplace(trustlineKey(getSourceID(), mPayment.asset));
     }
 }

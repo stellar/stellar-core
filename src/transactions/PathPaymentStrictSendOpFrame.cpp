@@ -105,7 +105,7 @@ PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
     innerResult().success().last =
-        SimplePaymentResult(getDestID(), getDestAsset(), maxAmountSend);
+        SimplePaymentResult(getDestMuxedAccount(), getDestAsset(), maxAmountSend);
     return true;
 }
 
@@ -152,8 +152,8 @@ PathPaymentStrictSendOpFrame::getDestAsset() const
     return mPathPayment.destAsset;
 }
 
-AccountID const&
-PathPaymentStrictSendOpFrame::getDestID() const
+MuxedAccount const&
+PathPaymentStrictSendOpFrame::getDestMuxedAccount() const
 {
     return mPathPayment.destination;
 }

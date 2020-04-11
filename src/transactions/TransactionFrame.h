@@ -7,6 +7,7 @@
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrameBase.h"
 #include "util/types.h"
+#include "TransactionUtils.h"
 
 #include <memory>
 #include <set>

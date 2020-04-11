@@ -765,9 +765,81 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
     }
 }
 
+AccountID
+toAccountID(const MuxedAccount &m)
+{
+    AccountID ret(static_cast<PublicKeyType>(m.type()&0xff));
+    switch (m.type()) {
+    case KEY_TYPE_ED25519:
+        ret.ed25519() = m.ed25519();
+        break;
+    case KEY_TYPE_MUXED_ED25519:
+        ret.ed25519() = m.med25519().ed25519;
+        break;
+    default:
+        // Just to suppress warning
+        break;
+    }
+    return ret;
+}
+
+MuxedAccount
+toMuxedAccount(const AccountID &a)
+{
+    MuxedAccount ret (static_cast<CryptoKeyType>(a.type()));
+    switch (a.type()) {
+    case PUBLIC_KEY_TYPE_ED25519:
+        ret.ed25519() = a.ed25519();
+        break;
+    }
+    return ret;
+}
+
 bool
 trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 {
     return trustLineFlagIsValid(flag, header.current().ledgerVersion);
 }
+
+namespace detail {
+struct muxChecker {
+    bool hasMuxedAccount = false;
+
+    void operator()(const stellar::MuxedAccount &t) {
+        if (t.type() != stellar::KEY_TYPE_ED25519)
+            hasMuxedAccount = true;
+    }
+
+#if 1
+    template<typename T> std::enable_if_t<
+        (xdr::xdr_traits<T>::is_container || xdr::xdr_traits<T>::is_struct)>
+    operator()(const T &t) {
+        if (!hasMuxedAccount)
+            xdr::xdr_traits<T>::save(*this, t);
+    }
+
+    template<typename T> std::enable_if_t<
+        !(xdr::xdr_traits<T>::is_container || xdr::xdr_traits<T>::is_struct)>
+    operator()(const T &t) {
+    }
+
+#else /* switch to this when C++17 is permissible */
+    template<typename T> void operator()(const T &t) {
+        if constexpr(xdr::xdr_traits<T>::is_container ||
+                     xdr::xdr_traits<T>::is_struct) {
+                if (!hasMuxedAccount)
+                    xdr::xdr_traits<T>::save(*this, t);
+        }
+    }
+#endif
+};
+} // namespace detail
+
+bool
+hasMuxedAccount(const TransactionEnvelope &e)
+{
+    detail::muxChecker c;
+    c(e);
+    return c.hasMuxedAccount;
 }
+} // namespace stellar

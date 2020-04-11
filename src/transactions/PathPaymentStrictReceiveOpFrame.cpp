@@ -47,7 +47,7 @@ PathPaymentStrictReceiveOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
     innerResult().success().last = SimplePaymentResult(
-        getDestID(), getDestAsset(), mPathPayment.destAmount);
+        getDestMuxedAccount(), getDestAsset(), mPathPayment.destAmount);
 
     // build the full path from the destination, ending with sendAsset
     std::vector<Asset> fullPath;
@@ -159,8 +159,8 @@ PathPaymentStrictReceiveOpFrame::getDestAsset() const
     return mPathPayment.destAsset;
 }
 
-AccountID const&
-PathPaymentStrictReceiveOpFrame::getDestID() const
+MuxedAccount const&
+PathPaymentStrictReceiveOpFrame::getDestMuxedAccount() const
 {
     return mPathPayment.destination;
 }

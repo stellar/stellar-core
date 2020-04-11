@@ -39,7 +39,7 @@ feeBumpUnsigned(TestAccount& feeSource, TestAccount& source, TestAccount& dest,
 
     auto& env = fb.feeBump().tx.innerTx;
     env.type(ENVELOPE_TYPE_TX);
-    env.v1().tx.sourceAccount = source;
+    env.v1().tx.sourceAccount = toMuxedAccount(source);
     env.v1().tx.fee = innerFee;
     env.v1().tx.seqNum = source.nextSequenceNumber();
     env.v1().tx.operations = {payment(dest, amount)};
@@ -364,7 +364,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 }
 
                 auto setOptionsOp = setOptions(setMasterWeight(0));
-                setOptionsOp.sourceAccount.activate() = root;
+                setOptionsOp.sourceAccount.activate() = toMuxedAccount(root);
                 auto setOptionsTx = acc.tx({setOptionsOp});
                 setOptionsTx->addSignature(root);
                 applyCheck(setOptionsTx, *app);

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 
 namespace stellar
 {
@@ -16,6 +17,7 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 struct LedgerKey;
+struct TransactionEnvelope;
 
 LedgerKey accountKey(AccountID const& accountID);
 LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
@@ -135,9 +137,19 @@ void normalizeSigners(LedgerTxnEntry& entry);
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
+inline const AccountID &toAccountID(const AccountID &a)
+{
+    return a;
+}
+
+AccountID toAccountID(const MuxedAccount &m);
+MuxedAccount toMuxedAccount(const AccountID &a);
+
 void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    uint32_t authorized);
 
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
+
+bool hasMuxedAccount(const TransactionEnvelope &e);
 }

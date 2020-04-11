@@ -151,7 +151,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
         }
 
         if (!mParentTx.checkSignatureNoAccount(signatureChecker,
-                                               *mOperation.sourceAccount))
+                                               toAccountID(*mOperation.sourceAccount)))
         {
             mResult.code(opBAD_AUTH);
             return false;
@@ -164,7 +164,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
 AccountID
 OperationFrame::getSourceID() const
 {
-    return mOperation.sourceAccount ? *mOperation.sourceAccount
+    return mOperation.sourceAccount ? toAccountID(*mOperation.sourceAccount)
                                     : mParentTx.getSourceID();
 }
 

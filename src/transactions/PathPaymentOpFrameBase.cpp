@@ -20,6 +20,12 @@ PathPaymentOpFrameBase::PathPaymentOpFrameBase(Operation const& op,
 {
 }
 
+AccountID
+PathPaymentOpFrameBase::getDestID() const
+{
+    return toAccountID(getDestMuxedAccount());
+}
+
 void
 PathPaymentOpFrameBase::insertLedgerKeysToPrefetch(
     std::unordered_set<LedgerKey>& keys) const
