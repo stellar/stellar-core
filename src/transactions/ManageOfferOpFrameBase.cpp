@@ -518,6 +518,11 @@ void
 ManageOfferOpFrameBase::insertLedgerKeysToPrefetch(
     std::unordered_set<LedgerKey>& keys) const
 {
+    if (isDeleteOffer())
+    {
+        return;
+    }
+
     // Prefetch existing offer
     if (mOfferID)
     {
