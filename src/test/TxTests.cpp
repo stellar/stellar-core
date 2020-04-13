@@ -417,6 +417,22 @@ getAccountSigners(PublicKey const& k, Application& app)
     return account.current().data.account().signers;
 }
 
+MuxedAccount
+toMuxedAccount(AccountID const& a)
+{
+    MuxedAccount ret(static_cast<CryptoKeyType>(a.type()));
+    switch (a.type())
+    {
+    case PUBLIC_KEY_TYPE_ED25519:
+        ret.ed25519() = a.ed25519();
+        break;
+    default:
+        // this would be a bug
+        abort();
+    }
+    return ret;
+}
+
 TransactionFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
@@ -445,7 +461,7 @@ transactionFromOperationsV1(Application& app, SecretKey const& from,
                             const std::vector<Operation>& ops, int fee)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
-    e.v1().tx.sourceAccount = from.getPublicKey();
+    e.v1().tx.sourceAccount = toMuxedAccount(from.getPublicKey());
     e.v1().tx.fee =
         fee != 0 ? fee
                  : static_cast<uint32_t>(
@@ -520,7 +536,7 @@ payment(PublicKey const& to, int64_t amount)
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
-    op.body.paymentOp().destination = to;
+    op.body.paymentOp().destination = toMuxedAccount(to);
     op.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
     return op;
 }
@@ -531,7 +547,7 @@ payment(PublicKey const& to, Asset const& asset, int64_t amount)
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
-    op.body.paymentOp().destination = to;
+    op.body.paymentOp().destination = toMuxedAccount(to);
     op.body.paymentOp().asset = asset;
     return op;
 }
@@ -590,7 +606,7 @@ pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
     ppop.sendMax = sendMax;
     ppop.destAsset = destCur;
     ppop.destAmount = destAmount;
-    ppop.destination = to;
+    ppop.destination = toMuxedAccount(to);
     std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
 
     return op;
@@ -608,7 +624,7 @@ pathPaymentStrictSend(PublicKey const& to, Asset const& sendCur,
     ppop.sendAmount = sendAmount;
     ppop.destAsset = destCur;
     ppop.destMin = destMin;
-    ppop.destination = to;
+    ppop.destination = toMuxedAccount(to);
     std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
 
     return op;
@@ -1036,7 +1052,7 @@ accountMerge(PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
-    op.body.destination() = dest;
+    op.body.destination() = toMuxedAccount(dest);
     return op;
 }
 

@@ -159,8 +159,8 @@ PathPaymentStrictReceiveOpFrame::getDestAsset() const
     return mPathPayment.destAsset;
 }
 
-AccountID const&
-PathPaymentStrictReceiveOpFrame::getDestID() const
+MuxedAccount const&
+PathPaymentStrictReceiveOpFrame::getDestMuxedAccount() const
 {
     return mPathPayment.destination;
 }

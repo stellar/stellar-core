@@ -52,7 +52,7 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
             auto root = TestAccount::createRoot(*app);
 
             Transaction tx;
-            tx.sourceAccount = root;
+            tx.sourceAccount = toMuxedAccount(root);
             tx.fee = baseFee;
             tx.seqNum = root.nextSequenceNumber();
             tx.operations.emplace_back(payment(root, 1));
@@ -87,7 +87,7 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
 
         TransactionEnvelope env(ENVELOPE_TYPE_TX);
         auto& tx = env.v1().tx;
-        tx.sourceAccount = root;
+        tx.sourceAccount = toMuxedAccount(root);
         tx.fee = baseFee;
         tx.seqNum = root.nextSequenceNumber();
         tx.operations.emplace_back(payment(root, 1));

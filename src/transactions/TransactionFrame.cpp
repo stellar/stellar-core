@@ -122,7 +122,7 @@ TransactionFrame::getSourceID() const
         res.ed25519() = mEnvelope.v0().tx.sourceAccountEd25519;
         return res;
     }
-    return mEnvelope.v1().tx.sourceAccount;
+    return toAccountID(mEnvelope.v1().tx.sourceAccount);
 }
 
 uint32_t
@@ -321,7 +321,8 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee)
     //    (stay true regardless of other side effects)
     auto header = ltx.loadHeader();
     uint32_t ledgerVersion = header.current().ledgerVersion;
-    if ((ledgerVersion < 13 && mEnvelope.type() == ENVELOPE_TYPE_TX) ||
+    if ((ledgerVersion < 13 && (mEnvelope.type() == ENVELOPE_TYPE_TX ||
+                                hasMuxedAccount(mEnvelope))) ||
         (ledgerVersion >= 13 && mEnvelope.type() == ENVELOPE_TYPE_TX_V0))
     {
         getResult().result.code(txNOT_SUPPORTED);

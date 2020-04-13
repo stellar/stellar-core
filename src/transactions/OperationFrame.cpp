@@ -18,6 +18,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 
 #include <xdrpp/printer.h>
@@ -150,8 +151,8 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
             return false;
         }
 
-        if (!mParentTx.checkSignatureNoAccount(signatureChecker,
-                                               *mOperation.sourceAccount))
+        if (!mParentTx.checkSignatureNoAccount(
+                signatureChecker, toAccountID(*mOperation.sourceAccount)))
         {
             mResult.code(opBAD_AUTH);
             return false;
@@ -164,7 +165,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
 AccountID
 OperationFrame::getSourceID() const
 {
-    return mOperation.sourceAccount ? *mOperation.sourceAccount
+    return mOperation.sourceAccount ? toAccountID(*mOperation.sourceAccount)
                                     : mParentTx.getSourceID();
 }
 

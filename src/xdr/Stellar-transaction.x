@@ -7,6 +7,19 @@
 namespace stellar
 {
 
+// Source or destination of a payment operation
+union MuxedAccount switch (CryptoKeyType type)
+{
+case KEY_TYPE_ED25519:
+    uint256 ed25519;
+case KEY_TYPE_MUXED_ED25519:
+    struct
+    {
+        uint64 id;
+        uint256 ed25519;
+    } med25519;
+};
+
 struct DecoratedSignature
 {
     SignatureHint hint;  // last 4 bytes of the public key, used as a hint
@@ -55,9 +68,9 @@ struct CreateAccountOp
 */
 struct PaymentOp
 {
-    AccountID destination; // recipient of the payment
-    Asset asset;           // what they end up with
-    int64 amount;          // amount they end up with
+    MuxedAccount destination; // recipient of the payment
+    Asset asset;              // what they end up with
+    int64 amount;             // amount they end up with
 };
 
 /* PathPaymentStrictReceive
@@ -78,9 +91,9 @@ struct PathPaymentStrictReceiveOp
                      // send (excluding fees).
                      // The operation will fail if can't be met
 
-    AccountID destination; // recipient of the payment
-    Asset destAsset;       // what they end up with
-    int64 destAmount;      // amount they end up with
+    MuxedAccount destination; // recipient of the payment
+    Asset destAsset;          // what they end up with
+    int64 destAmount;         // amount they end up with
 
     Asset path<5>; // additional hops it must go through to get there
 };
@@ -101,11 +114,11 @@ struct PathPaymentStrictSendOp
     Asset sendAsset;  // asset we pay with
     int64 sendAmount; // amount of sendAsset to send (excluding fees)
 
-    AccountID destination; // recipient of the payment
-    Asset destAsset;       // what they end up with
-    int64 destMin;         // the minimum amount of dest asset to
-                           // be received
-                           // The operation will fail if it can't be met
+    MuxedAccount destination; // recipient of the payment
+    Asset destAsset;          // what they end up with
+    int64 destMin;            // the minimum amount of dest asset to
+                              // be received
+                              // The operation will fail if it can't be met
 
     Asset path<5>; // additional hops it must go through to get there
 };
@@ -285,7 +298,7 @@ struct Operation
     // sourceAccount is the account used to run the operation
     // if not set, the runtime defaults to "sourceAccount" specified at
     // the transaction level
-    AccountID* sourceAccount;
+    MuxedAccount* sourceAccount;
 
     union switch (OperationType type)
     {
@@ -306,7 +319,7 @@ struct Operation
     case ALLOW_TRUST:
         AllowTrustOp allowTrustOp;
     case ACCOUNT_MERGE:
-        AccountID destination;
+        MuxedAccount destination;
     case INFLATION:
         void;
     case MANAGE_DATA:
@@ -393,7 +406,7 @@ struct TransactionV0Envelope
 struct Transaction
 {
     // account used to run the transaction
-    AccountID sourceAccount;
+    MuxedAccount sourceAccount;
 
     // the fee the sourceAccount will pay
     uint32 fee;
