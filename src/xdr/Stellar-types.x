@@ -18,7 +18,10 @@ enum CryptoKeyType
 {
     KEY_TYPE_ED25519 = 0,
     KEY_TYPE_PRE_AUTH_TX = 1,
-    KEY_TYPE_HASH_X = 2
+    KEY_TYPE_HASH_X = 2,
+    // MUXED enum values for supported type are derived from the enum values
+    // above by ORing them with 0x100
+    KEY_TYPE_MUXED_ED25519 = 0x100
 };
 
 enum PublicKeyType
@@ -60,22 +63,21 @@ typedef PublicKey NodeID;
 
 struct Curve25519Secret
 {
-        opaque key[32];
+    opaque key[32];
 };
 
 struct Curve25519Public
 {
-        opaque key[32];
+    opaque key[32];
 };
 
 struct HmacSha256Key
 {
-        opaque key[32];
+    opaque key[32];
 };
 
 struct HmacSha256Mac
 {
-        opaque mac[32];
+    opaque mac[32];
 };
-
 }

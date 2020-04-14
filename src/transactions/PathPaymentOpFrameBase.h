@@ -42,7 +42,8 @@ class PathPaymentOpFrameBase : public OperationFrame
 
     virtual Asset const& getSourceAsset() const = 0;
     virtual Asset const& getDestAsset() const = 0;
-    virtual AccountID const& getDestID() const = 0;
+    AccountID getDestID() const;
+    virtual MuxedAccount const& getDestMuxedAccount() const = 0;
     virtual xdr::xvector<Asset, 5> const& getPath() const = 0;
 
     virtual void setResultSuccess() = 0;

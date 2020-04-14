@@ -67,7 +67,7 @@ TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
 Operation
 TestAccount::op(Operation operation)
 {
-    operation.sourceAccount.activate() = getPublicKey();
+    operation.sourceAccount.activate() = toMuxedAccount(getPublicKey());
     return operation;
 }
 

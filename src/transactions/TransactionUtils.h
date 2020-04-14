@@ -16,6 +16,8 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 struct LedgerKey;
+struct TransactionEnvelope;
+struct MuxedAccount;
 
 LedgerKey accountKey(AccountID const& accountID);
 LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
@@ -135,9 +137,13 @@ void normalizeSigners(LedgerTxnEntry& entry);
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
+AccountID toAccountID(MuxedAccount const& m);
+
 void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    uint32_t authorized);
 
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
+
+bool hasMuxedAccount(TransactionEnvelope const& e);
 }

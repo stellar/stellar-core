@@ -7,6 +7,19 @@
 namespace stellar
 {
 
+// Source or destination of a payment operation
+union MuxedAccount switch (CryptoKeyType type)
+{
+case KEY_TYPE_ED25519:
+    uint256 ed25519;
+case KEY_TYPE_MUXED_ED25519:
+    struct
+    {
+        uint64 id;
+        uint256 ed25519;
+    } med25519;
+};
+
 struct DecoratedSignature
 {
     SignatureHint hint;  // last 4 bytes of the public key, used as a hint
@@ -55,9 +68,9 @@ struct CreateAccountOp
 */
 struct PaymentOp
 {
-    AccountID destination; // recipient of the payment
-    Asset asset;           // what they end up with
-    int64 amount;          // amount they end up with
+    MuxedAccount destination; // recipient of the payment
+    Asset asset;              // what they end up with
+    int64 amount;             // amount they end up with
 };
 
 /* PathPaymentStrictReceive
@@ -78,9 +91,9 @@ struct PathPaymentStrictReceiveOp
                      // send (excluding fees).
                      // The operation will fail if can't be met
 
-    AccountID destination; // recipient of the payment
-    Asset destAsset;       // what they end up with
-    int64 destAmount;      // amount they end up with
+    MuxedAccount destination; // recipient of the payment
+    Asset destAsset;          // what they end up with
+    int64 destAmount;         // amount they end up with
 
     Asset path<5>; // additional hops it must go through to get there
 };
@@ -101,15 +114,14 @@ struct PathPaymentStrictSendOp
     Asset sendAsset;  // asset we pay with
     int64 sendAmount; // amount of sendAsset to send (excluding fees)
 
-    AccountID destination; // recipient of the payment
-    Asset destAsset;       // what they end up with
-    int64 destMin;         // the minimum amount of dest asset to
-                           // be received
-                           // The operation will fail if it can't be met
+    MuxedAccount destination; // recipient of the payment
+    Asset destAsset;          // what they end up with
+    int64 destMin;            // the minimum amount of dest asset to
+                              // be received
+                              // The operation will fail if it can't be met
 
     Asset path<5>; // additional hops it must go through to get there
 };
-
 
 /* Creates, updates or deletes an offer
 
@@ -286,7 +298,7 @@ struct Operation
     // sourceAccount is the account used to run the operation
     // if not set, the runtime defaults to "sourceAccount" specified at
     // the transaction level
-    AccountID* sourceAccount;
+    MuxedAccount* sourceAccount;
 
     union switch (OperationType type)
     {
@@ -307,7 +319,7 @@ struct Operation
     case ALLOW_TRUST:
         AllowTrustOp allowTrustOp;
     case ACCOUNT_MERGE:
-        AccountID destination;
+        MuxedAccount destination;
     case INFLATION:
         void;
     case MANAGE_DATA:
@@ -368,10 +380,12 @@ struct TransactionV0
     TimeBounds* timeBounds;
     Memo memo;
     Operation operations<MAX_OPS_PER_TX>;
-    union switch (int v) {
+    union switch (int v)
+    {
     case 0:
         void;
-    } ext;
+    }
+    ext;
 };
 
 struct TransactionV0Envelope
@@ -392,7 +406,7 @@ struct TransactionV0Envelope
 struct Transaction
 {
     // account used to run the transaction
-    AccountID sourceAccount;
+    MuxedAccount sourceAccount;
 
     // the fee the sourceAccount will pay
     uint32 fee;
@@ -432,11 +446,14 @@ struct FeeBumpTransaction
     {
     case ENVELOPE_TYPE_TX:
         TransactionV1Envelope v1;
-    } innerTx;
-    union switch (int v) {
+    }
+    innerTx;
+    union switch (int v)
+    {
     case 0:
         void;
-    } ext;
+    }
+    ext;
 };
 
 struct FeeBumpTransactionEnvelope
@@ -448,7 +465,8 @@ struct FeeBumpTransactionEnvelope
 };
 
 /* A TransactionEnvelope wraps a transaction with signatures. */
-union TransactionEnvelope switch (EnvelopeType type) {
+union TransactionEnvelope switch (EnvelopeType type)
+{
 case ENVELOPE_TYPE_TX_V0:
     TransactionV0Envelope v0;
 case ENVELOPE_TYPE_TX:
@@ -547,18 +565,27 @@ enum PathPaymentStrictReceiveResultCode
     PATH_PAYMENT_STRICT_RECEIVE_SUCCESS = 0, // success
 
     // codes considered as "failure" for the operation
-    PATH_PAYMENT_STRICT_RECEIVE_MALFORMED = -1,          // bad input
-    PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED = -2,        // not enough funds in source account
-    PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST = -3,       // no trust line on source account
-    PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
-    PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION = -5,     // destination account does not exist
-    PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST = -6,           // dest missing a trust line for asset
-    PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
-    PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL = -8,          // dest would go above their limit
-    PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER = -9,          // missing issuer on one asset
-    PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS = -10,    // not enough offers to satisfy path
-    PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF = -11,  // would cross one of its own offers
-    PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX = -12       // could not satisfy sendmax
+    PATH_PAYMENT_STRICT_RECEIVE_MALFORMED = -1, // bad input
+    PATH_PAYMENT_STRICT_RECEIVE_UNDERFUNDED =
+        -2, // not enough funds in source account
+    PATH_PAYMENT_STRICT_RECEIVE_SRC_NO_TRUST =
+        -3, // no trust line on source account
+    PATH_PAYMENT_STRICT_RECEIVE_SRC_NOT_AUTHORIZED =
+        -4, // source not authorized to transfer
+    PATH_PAYMENT_STRICT_RECEIVE_NO_DESTINATION =
+        -5, // destination account does not exist
+    PATH_PAYMENT_STRICT_RECEIVE_NO_TRUST =
+        -6, // dest missing a trust line for asset
+    PATH_PAYMENT_STRICT_RECEIVE_NOT_AUTHORIZED =
+        -7, // dest not authorized to hold asset
+    PATH_PAYMENT_STRICT_RECEIVE_LINE_FULL =
+        -8, // dest would go above their limit
+    PATH_PAYMENT_STRICT_RECEIVE_NO_ISSUER = -9, // missing issuer on one asset
+    PATH_PAYMENT_STRICT_RECEIVE_TOO_FEW_OFFERS =
+        -10, // not enough offers to satisfy path
+    PATH_PAYMENT_STRICT_RECEIVE_OFFER_CROSS_SELF =
+        -11, // would cross one of its own offers
+    PATH_PAYMENT_STRICT_RECEIVE_OVER_SENDMAX = -12 // could not satisfy sendmax
 };
 
 struct SimplePaymentResult
@@ -590,18 +617,26 @@ enum PathPaymentStrictSendResultCode
     PATH_PAYMENT_STRICT_SEND_SUCCESS = 0, // success
 
     // codes considered as "failure" for the operation
-    PATH_PAYMENT_STRICT_SEND_MALFORMED = -1,          // bad input
-    PATH_PAYMENT_STRICT_SEND_UNDERFUNDED = -2,        // not enough funds in source account
-    PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST = -3,       // no trust line on source account
-    PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
-    PATH_PAYMENT_STRICT_SEND_NO_DESTINATION = -5,     // destination account does not exist
-    PATH_PAYMENT_STRICT_SEND_NO_TRUST = -6,           // dest missing a trust line for asset
-    PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
-    PATH_PAYMENT_STRICT_SEND_LINE_FULL = -8,          // dest would go above their limit
-    PATH_PAYMENT_STRICT_SEND_NO_ISSUER = -9,          // missing issuer on one asset
-    PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS = -10,    // not enough offers to satisfy path
-    PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF = -11,  // would cross one of its own offers
-    PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN = -12      // could not satisfy destMin
+    PATH_PAYMENT_STRICT_SEND_MALFORMED = -1, // bad input
+    PATH_PAYMENT_STRICT_SEND_UNDERFUNDED =
+        -2, // not enough funds in source account
+    PATH_PAYMENT_STRICT_SEND_SRC_NO_TRUST =
+        -3, // no trust line on source account
+    PATH_PAYMENT_STRICT_SEND_SRC_NOT_AUTHORIZED =
+        -4, // source not authorized to transfer
+    PATH_PAYMENT_STRICT_SEND_NO_DESTINATION =
+        -5, // destination account does not exist
+    PATH_PAYMENT_STRICT_SEND_NO_TRUST =
+        -6, // dest missing a trust line for asset
+    PATH_PAYMENT_STRICT_SEND_NOT_AUTHORIZED =
+        -7, // dest not authorized to hold asset
+    PATH_PAYMENT_STRICT_SEND_LINE_FULL = -8, // dest would go above their limit
+    PATH_PAYMENT_STRICT_SEND_NO_ISSUER = -9, // missing issuer on one asset
+    PATH_PAYMENT_STRICT_SEND_TOO_FEW_OFFERS =
+        -10, // not enough offers to satisfy path
+    PATH_PAYMENT_STRICT_SEND_OFFER_CROSS_SELF =
+        -11, // would cross one of its own offers
+    PATH_PAYMENT_STRICT_SEND_UNDER_DESTMIN = -12 // could not satisfy destMin
 };
 
 union PathPaymentStrictSendResult switch (PathPaymentStrictSendResultCode code)
@@ -626,21 +661,25 @@ enum ManageSellOfferResultCode
     MANAGE_SELL_OFFER_SUCCESS = 0,
 
     // codes considered as "failure" for the operation
-    MANAGE_SELL_OFFER_MALFORMED = -1,     // generated offer would be invalid
-    MANAGE_SELL_OFFER_SELL_NO_TRUST = -2, // no trust line for what we're selling
-    MANAGE_SELL_OFFER_BUY_NO_TRUST = -3,  // no trust line for what we're buying
+    MANAGE_SELL_OFFER_MALFORMED = -1, // generated offer would be invalid
+    MANAGE_SELL_OFFER_SELL_NO_TRUST =
+        -2,                              // no trust line for what we're selling
+    MANAGE_SELL_OFFER_BUY_NO_TRUST = -3, // no trust line for what we're buying
     MANAGE_SELL_OFFER_SELL_NOT_AUTHORIZED = -4, // not authorized to sell
     MANAGE_SELL_OFFER_BUY_NOT_AUTHORIZED = -5,  // not authorized to buy
-    MANAGE_SELL_OFFER_LINE_FULL = -6,      // can't receive more of what it's buying
-    MANAGE_SELL_OFFER_UNDERFUNDED = -7,    // doesn't hold what it's trying to sell
-    MANAGE_SELL_OFFER_CROSS_SELF = -8,     // would cross an offer from the same user
+    MANAGE_SELL_OFFER_LINE_FULL = -6, // can't receive more of what it's buying
+    MANAGE_SELL_OFFER_UNDERFUNDED = -7, // doesn't hold what it's trying to sell
+    MANAGE_SELL_OFFER_CROSS_SELF =
+        -8, // would cross an offer from the same user
     MANAGE_SELL_OFFER_SELL_NO_ISSUER = -9, // no issuer for what we're selling
     MANAGE_SELL_OFFER_BUY_NO_ISSUER = -10, // no issuer for what we're buying
 
     // update errors
-    MANAGE_SELL_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
+    MANAGE_SELL_OFFER_NOT_FOUND =
+        -11, // offerID does not match an existing offer
 
-    MANAGE_SELL_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
+    MANAGE_SELL_OFFER_LOW_RESERVE =
+        -12 // not enough funds to create a new Offer
 };
 
 enum ManageOfferEffect
@@ -687,14 +726,15 @@ enum ManageBuyOfferResultCode
     MANAGE_BUY_OFFER_BUY_NO_TRUST = -3,  // no trust line for what we're buying
     MANAGE_BUY_OFFER_SELL_NOT_AUTHORIZED = -4, // not authorized to sell
     MANAGE_BUY_OFFER_BUY_NOT_AUTHORIZED = -5,  // not authorized to buy
-    MANAGE_BUY_OFFER_LINE_FULL = -6,      // can't receive more of what it's buying
-    MANAGE_BUY_OFFER_UNDERFUNDED = -7,    // doesn't hold what it's trying to sell
-    MANAGE_BUY_OFFER_CROSS_SELF = -8,     // would cross an offer from the same user
+    MANAGE_BUY_OFFER_LINE_FULL = -6,   // can't receive more of what it's buying
+    MANAGE_BUY_OFFER_UNDERFUNDED = -7, // doesn't hold what it's trying to sell
+    MANAGE_BUY_OFFER_CROSS_SELF = -8, // would cross an offer from the same user
     MANAGE_BUY_OFFER_SELL_NO_ISSUER = -9, // no issuer for what we're selling
     MANAGE_BUY_OFFER_BUY_NO_ISSUER = -10, // no issuer for what we're buying
 
     // update errors
-    MANAGE_BUY_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
+    MANAGE_BUY_OFFER_NOT_FOUND =
+        -11, // offerID does not match an existing offer
 
     MANAGE_BUY_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
 };
@@ -746,7 +786,7 @@ enum ChangeTrustResultCode
                                      // cannot create with a limit of 0
     CHANGE_TRUST_LOW_RESERVE =
         -4, // not enough funds to create a new trust line,
-    CHANGE_TRUST_SELF_NOT_ALLOWED = -5  // trusting self is not allowed
+    CHANGE_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
@@ -874,9 +914,9 @@ enum OperationResultCode
 {
     opINNER = 0, // inner object result is valid
 
-    opBAD_AUTH = -1,     // too few valid signatures / wrong network
-    opNO_ACCOUNT = -2,   // source account was not found
-    opNOT_SUPPORTED = -3, // operation not supported at this time
+    opBAD_AUTH = -1,            // too few valid signatures / wrong network
+    opNO_ACCOUNT = -2,          // source account was not found
+    opNOT_SUPPORTED = -3,       // operation not supported at this time
     opTOO_MANY_SUBENTRIES = -4, // max number of subentries already reached
     opEXCEEDED_WORK_LIMIT = -5  // operation did too much work
 };
@@ -911,7 +951,7 @@ case opINNER:
     case BUMP_SEQUENCE:
         BumpSequenceResult bumpSeqResult;
     case MANAGE_BUY_OFFER:
-	ManageBuyOfferResult manageBuyOfferResult;
+        ManageBuyOfferResult manageBuyOfferResult;
     case PATH_PAYMENT_STRICT_SEND:
         PathPaymentStrictSendResult pathPaymentStrictSendResult;
     }
@@ -923,7 +963,7 @@ default:
 enum TransactionResultCode
 {
     txFEE_BUMP_INNER_SUCCESS = 1, // fee bump inner transaction succeeded
-    txSUCCESS = 0, // all operations succeeded
+    txSUCCESS = 0,                // all operations succeeded
 
     txFAILED = -1, // one of the operations failed (none were applied)
 
@@ -967,7 +1007,7 @@ struct InnerTransactionResult
     case txBAD_AUTH_EXTRA:
     case txINTERNAL_ERROR:
     case txNOT_SUPPORTED:
-    // txFEE_BUMP_INNER_FAILED is not included
+        // txFEE_BUMP_INNER_FAILED is not included
         void;
     }
     result;

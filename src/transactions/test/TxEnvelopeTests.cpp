@@ -1742,4 +1742,42 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             });
         }
     }
+
+    SECTION("mux accounts")
+    {
+        auto toMux = [](MuxedAccount& id, uint64 memoID) {
+            MuxedAccount muxedID(KEY_TYPE_MUXED_ED25519);
+            auto& mid = muxedID.med25519();
+            mid.ed25519 = id.ed25519();
+            mid.id = memoID;
+            id = muxedID;
+        };
+        auto a = root.create("A", paymentAmount);
+
+        auto doChecks = [&](TransactionResultCode res) {
+            Operation op = txtest::payment(a.getPublicKey(), paymentAmount);
+            auto& pay = op.body.paymentOp();
+
+            auto checkRes = [&]() {
+                auto txFrame = root.tx({op});
+                applyCheck(txFrame, *app, false);
+                REQUIRE(txFrame->getResultCode() == res);
+            };
+
+            SECTION("dest account")
+            {
+                toMux(pay.destination, 2);
+                checkRes();
+            }
+            SECTION("src account")
+            {
+                op = root.op(op);
+                toMux(*op.sourceAccount, 3);
+                checkRes();
+            }
+        };
+
+        for_versions({12}, *app, [&] { doChecks(txNOT_SUPPORTED); });
+        for_versions_from(13, *app, [&] { doChecks(txSUCCESS); });
+    }
 }

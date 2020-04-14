@@ -172,8 +172,8 @@ struct TopologyResponseBody
 
 union SurveyResponseBody switch (SurveyMessageCommandType type)
 {
-    case SURVEY_TOPOLOGY:
-        TopologyResponseBody topologyResponseBody;
+case SURVEY_TOPOLOGY:
+    TopologyResponseBody topologyResponseBody;
 };
 
 union StellarMessage switch (MessageType type)
@@ -220,10 +220,10 @@ union AuthenticatedMessage switch (uint32 v)
 {
 case 0:
     struct
-{
-   uint64 sequence;
-   StellarMessage message;
-   HmacSha256Mac mac;
+    {
+        uint64 sequence;
+        StellarMessage message;
+        HmacSha256Mac mac;
     } v0;
 };
 }

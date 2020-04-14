@@ -765,9 +765,73 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
     }
 }
 
+AccountID
+toAccountID(MuxedAccount const& m)
+{
+    AccountID ret(static_cast<PublicKeyType>(m.type() & 0xff));
+    switch (m.type())
+    {
+    case KEY_TYPE_ED25519:
+        ret.ed25519() = m.ed25519();
+        break;
+    case KEY_TYPE_MUXED_ED25519:
+        ret.ed25519() = m.med25519().ed25519;
+        break;
+    default:
+        // this would be a bug
+        abort();
+    }
+    return ret;
+}
+
 bool
 trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 {
     return trustLineFlagIsValid(flag, header.current().ledgerVersion);
 }
+
+namespace detail
+{
+struct MuxChecker
+{
+    bool mHasMuxedAccount{false};
+
+    void
+    operator()(stellar::MuxedAccount const& t)
+    {
+        // checks if this is a multiplexed account,
+        // such as KEY_TYPE_MUXED_ED25519
+        if ((t.type() & 0x100) != 0)
+        {
+            mHasMuxedAccount = true;
+        }
+    }
+
+    template <typename T>
+    std::enable_if_t<(xdr::xdr_traits<T>::is_container ||
+                      xdr::xdr_traits<T>::is_class)>
+    operator()(T const& t)
+    {
+        if (!mHasMuxedAccount)
+        {
+            xdr::xdr_traits<T>::save(*this, t);
+        }
+    }
+
+    template <typename T>
+    std::enable_if_t<!(xdr::xdr_traits<T>::is_container ||
+                       xdr::xdr_traits<T>::is_class)>
+    operator()(T const& t)
+    {
+    }
+};
+} // namespace detail
+
+bool
+hasMuxedAccount(TransactionEnvelope const& e)
+{
+    detail::MuxChecker c;
+    c(e);
+    return c.mHasMuxedAccount;
 }
+} // namespace stellar

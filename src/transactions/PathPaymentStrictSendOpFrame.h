@@ -33,7 +33,7 @@ class PathPaymentStrictSendOpFrame : public PathPaymentOpFrameBase
 
     Asset const& getSourceAsset() const override;
     Asset const& getDestAsset() const override;
-    AccountID const& getDestID() const override;
+    MuxedAccount const& getDestMuxedAccount() const override;
     xdr::xvector<Asset, 5> const& getPath() const override;
 
     void setResultSuccess() override;
