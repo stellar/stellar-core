@@ -533,6 +533,73 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
+    std::string cat;
+    switch (stellarMsg.type())
+    {
+    // group messages used during handshake, process those synchronously
+    case MessageType::HELLO:
+    case MessageType::AUTH:
+        Peer::recvRawMessage(stellarMsg);
+        return;
+
+    // control messages
+    case GET_PEERS:
+    case PEERS:
+    case ERROR_MSG:
+        cat = "CTRL";
+        break;
+
+    // high volume flooding
+    case TRANSACTION:
+        cat = "TX";
+        break;
+
+    // consensus, inbound
+    case GET_TX_SET:
+    case GET_SCP_QUORUMSET:
+    case GET_SCP_STATE:
+        cat = "SCPQ";
+        break;
+
+    // consensus, self
+    case DONT_HAVE:
+    case TX_SET:
+    case SCP_QUORUMSET:
+    case SCP_MESSAGE:
+        cat = "SCP";
+        break;
+
+    default:
+        cat = "MISC";
+    }
+
+    std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
+    std::string err =
+        fmt::format("Error RecvMessage T:{} cat:{} {} @{}", stellarMsg.type(),
+                    cat, toString(), mApp.getConfig().PEER_PORT);
+
+    mApp.postOnMainThread([ err, weak, sm = StellarMessage(stellarMsg) ]() {
+        auto self = weak.lock();
+        if (self)
+        {
+            self->recvRawMessage(sm);
+        }
+        else
+        {
+            CLOG(TRACE, "Overlay") << err;
+        }
+    },
+                          fmt::format("{}-{} recvMessage", cat, toString()));
+}
+
+void
+Peer::recvRawMessage(StellarMessage const& stellarMsg)
+{
+    if (shouldAbort())
+    {
+        return;
+    }
+
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
     {

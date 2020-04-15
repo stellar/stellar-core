@@ -115,7 +115,11 @@ class VirtualClock
 
     bool mDelayExecution{true};
     std::recursive_mutex mDelayExecutionMutex;
-    std::vector<std::function<void()>> mDelayedExecutionQueue;
+    size_t mExecutionQueueSize{0};
+    std::map<std::string, std::deque<std::function<void()>>> mExecutionQueue;
+    std::map<std::string, std::deque<std::function<void()>>>::iterator mExecutionIterator;
+    std::deque<std::pair<std::string, std::function<void()>>>
+        mDelayedExecutionQueue;
 
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
@@ -129,6 +133,9 @@ class VirtualClock
     void maybeSetRealtimer();
     size_t advanceToNext();
     size_t advanceToNow();
+
+    void advanceExecutionQueue();
+    void mergeExecutionQueue();
 
     // timer should be last to ensure it gets destroyed first
     asio::basic_waitable_timer<std::chrono::system_clock> mRealTimer;
@@ -163,8 +170,13 @@ class VirtualClock
     // returns the time of the next scheduled event
     time_point next();
 
-    void postToCurrentCrank(std::function<void()>&& f);
-    void postToNextCrank(std::function<void()>&& f);
+    void postToExecutionQueue(std::function<void()>&& f, std::string const& id);
+
+    size_t
+    getExecutionQueueSize() const
+    {
+        return mExecutionQueueSize;
+    }
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable
