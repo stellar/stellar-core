@@ -241,6 +241,19 @@ VirtualClock::setCurrentVirtualTime(time_point t)
 }
 
 void
+VirtualClock::sleep_for(std::chrono::microseconds us)
+{
+    if (mMode == VIRTUAL_TIME)
+    {
+        setCurrentVirtualTime(now() + us);
+    }
+    else
+    {
+        std::this_thread::sleep_for(us);
+    }
+}
+
+void
 VirtualClock::advanceExecutionQueue()
 {
     // limit in terms of number of items

@@ -189,6 +189,9 @@ class VirtualClock
     // only valid with VIRTUAL_TIME: sets the current value
     // of the clock
     void setCurrentVirtualTime(time_point t);
+    // calls "sleep_for" if REAL_TIME, otherwise, just adds time to the virtual
+    // clock
+    void sleep_for(std::chrono::microseconds us);
 
     // returns the time of the next scheduled event
     time_point next();
