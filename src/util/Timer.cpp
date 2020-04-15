@@ -551,7 +551,12 @@ VirtualClock::advanceToNext()
         return 0;
     }
 
-    mVirtualNow = next();
+    auto nextEvent = next();
+    // jump forward in time, if needed
+    if (mVirtualNow < nextEvent)
+    {
+        mVirtualNow = nextEvent;
+    }
     return advanceToNow();
 }
 
