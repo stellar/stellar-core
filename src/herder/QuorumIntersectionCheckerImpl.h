@@ -34,7 +34,7 @@
 //
 // - Every element of a qset QSᵢ is called a quorum slice.
 //
-// - A quorum Q ⊆ N is a set satisfying: Q ≠ ∅ and Ɐ v ∈ Q, ∃ S ∈ QSᵢ, S ⊆ Q
+// - A quorum Q ⊆ N is a set satisfying: Q ≠ ∅ and Ɐ Nᵢ ∈ Q, ∃ S ∈ QSᵢ, S ⊆ Q
 //
 // - Equivalently in english: a quorum is a subset of the network such that for
 //   each node Nᵢ in the quorum, there's some slice S in the node's quorum set
