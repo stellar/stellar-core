@@ -235,7 +235,8 @@ TEST_CASE("BasicWork test", "[work][basicwork]")
     {
         // Long-running work being shutdown midway
         auto w = wm.scheduleWork<TestBasicWork>("test-work", false, 100);
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
             w->shutdown();
@@ -315,7 +316,8 @@ TEST_CASE("work with children", "[work]")
 
     SECTION("success")
     {
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -328,7 +330,8 @@ TEST_CASE("work with children", "[work]")
     SECTION("child failed")
     {
         auto l3 = w2->addTestWork<TestBasicWork>("leaf-work3", true);
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -344,7 +347,8 @@ TEST_CASE("work with children", "[work]")
         auto l3 = w2->addTestWork<TestBasicWork>("leaf-work3", true, 3,
                                                  TestBasicWork::RETRY_NEVER);
         auto l4 = w2->addTestWork<TestBasicWork>("leaf-work4", false, 100);
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -375,7 +379,8 @@ TEST_CASE("work with children", "[work]")
         REQUIRE_THROWS_AS(w1->addTestWork<TestBasicWork>("leaf-work-3"),
                           std::runtime_error);
 
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -414,7 +419,8 @@ TEST_CASE("work scheduling and run count", "[work]")
         //     w1  w2
         //         /\
         //       c1 c2
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -443,7 +449,8 @@ TEST_CASE("work scheduling and run count", "[work]")
         auto c3 = w2->addTestWork<TestBasicWork>("2-child-3-step-work");
         auto c4 = w2->addTestWork<TestBasicWork>("2-other-child-3-step-work");
 
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -481,7 +488,8 @@ TEST_CASE("work scheduling compare trees", "[work]")
         auto w2 = w1->addTestWork<TestWork>("work-2");
         auto w3 = w2->addTestWork<TestBasicWork>("work-3");
 
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -508,7 +516,8 @@ TEST_CASE("work scheduling compare trees", "[work]")
         std::vector<std::shared_ptr<BasicWork>> seq{w3, w2, w1};
 
         auto sw = wm.scheduleWork<WorkSequence>("test-work-sequence", seq);
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -525,7 +534,7 @@ class TestRunCommandWork : public RunCommandWork
 
   public:
     TestRunCommandWork(Application& app, std::string name, std::string command)
-        : RunCommandWork(app, std::move(name)), mCommand(std::move(command))
+        : RunCommandWork(app, std::move(name), 2), mCommand(std::move(command))
     {
     }
     ~TestRunCommandWork() override = default;
@@ -545,7 +554,7 @@ class TestRunCommandWork : public RunCommandWork
 
 TEST_CASE("RunCommandWork test", "[work]")
 {
-    VirtualClock clock;
+    VirtualClock clock(VirtualClock::REAL_TIME);
     Config const& cfg = getTestConfig();
     Application::pointer appPtr = createTestApplication(clock, cfg);
     auto& wm = appPtr->getWorkScheduler();
@@ -553,7 +562,8 @@ TEST_CASE("RunCommandWork test", "[work]")
     SECTION("one run command work")
     {
         wm.scheduleWork<TestRunCommandWork>("test-run-command", "date");
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -562,7 +572,8 @@ TEST_CASE("RunCommandWork test", "[work]")
     {
         wm.scheduleWork<TestRunCommandWork>("test-run-command", "date");
         wm.scheduleWork<TestBasicWork>("test-work");
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -571,9 +582,11 @@ TEST_CASE("RunCommandWork test", "[work]")
     {
         auto w = wm.scheduleWork<TestRunCommandWork>("test-run-command",
                                                      "_invalid_");
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
-            clock.crank();
+            clock.crank(false);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         REQUIRE(w->getState() == TestBasicWork::State::WORK_FAILURE);
     }
@@ -587,11 +600,15 @@ TEST_CASE("RunCommandWork test", "[work]")
 #endif
         auto w =
             wm.scheduleWork<TestRunCommandWork>("test-run-command", command);
-        while (w->getState() != TestBasicWork::State::WORK_WAITING)
+        auto waitUntil = clock.now() + std::chrono::seconds(2);
+        while (wm.getState() == TestBasicWork::State::WORK_RUNNING ||
+               clock.now() <= waitUntil)
         {
-            clock.crank();
+            clock.crank(false);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
 
+        REQUIRE(w->getState() == TestBasicWork::State::WORK_WAITING);
         REQUIRE(appPtr->getProcessManager().getNumRunningProcesses());
         wm.shutdown();
 
@@ -621,7 +638,8 @@ TEST_CASE("WorkSequence test", "[work]")
         std::vector<std::shared_ptr<BasicWork>> seq{w1, w2, w3};
 
         auto work = wm.scheduleWork<WorkSequence>("test-work-sequence", seq);
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             if (!w1->mSuccessCount)
             {
@@ -645,7 +663,8 @@ TEST_CASE("WorkSequence test", "[work]")
     {
         std::vector<std::shared_ptr<BasicWork>> seq{};
         auto work2 = wm.scheduleWork<WorkSequence>("test-work-sequence-2", seq);
-        while (!wm.allChildrenSuccessful())
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -717,7 +736,8 @@ TEST_CASE("WorkSequence test", "[work]")
         CHECK(!wm.allChildrenDone());
         wm.shutdown();
 
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -907,7 +927,8 @@ TEST_CASE("ConditionalWork test", "[work]")
         }
         wm.shutdown();
 
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }
@@ -945,7 +966,8 @@ TEST_CASE("ConditionalWork test", "[work]")
         CHECK(dependentWork->getState() == BasicWork::State::WORK_RUNNING);
         wm.shutdown();
 
-        while (!wm.allChildrenDone())
+        while (!wm.allChildrenDone() ||
+               wm.getState() == TestBasicWork::State::WORK_RUNNING)
         {
             clock.crank();
         }

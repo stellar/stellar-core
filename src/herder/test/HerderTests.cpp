@@ -1627,6 +1627,11 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     qSet.threshold = 1;
     qSet.validators.push_back(validatorKey.getPublicKey());
 
+    auto cfg1 = getTestConfig(1);
+    auto cfg2 = getTestConfig(2);
+    cfg1.MAX_SLOTS_TO_REMEMBER = 5;
+    cfg2.MAX_SLOTS_TO_REMEMBER = cfg1.MAX_SLOTS_TO_REMEMBER;
+
     simulation->addNode(validatorKey, qSet);
     simulation->addNode(listenerKey, qSet);
     simulation->addPendingConnection(validatorKey.getPublicKey(),
@@ -1675,11 +1680,14 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     simulation->dropConnection(validatorKey.getPublicKey(),
                                listenerKey.getPublicKey());
 
-    // SMALL_GAP happens to be the maximum number of ledgers
-    // that are kept in memory
     auto app = simulation->getNode(listenerKey.getPublicKey());
-    auto static const SMALL_GAP = app->getConfig().MAX_SLOTS_TO_REMEMBER + 1;
-    auto static const BIG_GAP = SMALL_GAP + 1;
+    // we pick SMALL_GAP to be as close to the maximum number of ledgers that
+    // are kept in memory, with room for the watcher node to be behind by one
+    // ledger
+    auto static const SMALL_GAP = app->getConfig().MAX_SLOTS_TO_REMEMBER - 1;
+    // BIG_GAP, we just need to pick a number greater than what we keep in
+    // memory
+    auto static const BIG_GAP = app->getConfig().MAX_SLOTS_TO_REMEMBER + 1;
 
     auto beforeGap = currentLedger;
 

@@ -86,7 +86,10 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
         cfg->QUORUM_SET = qSet;
     }
 
-    cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
+    if (mMode == OVER_TCP)
+    {
+        cfg->RUN_STANDALONE = false;
+    }
 
     auto clock =
         make_shared<VirtualClock>(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME

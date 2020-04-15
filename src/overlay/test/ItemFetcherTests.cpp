@@ -241,8 +241,10 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
             itemFetcher.recv(zero, timer);
 
-            while (clock.crank(false) > 0)
+            auto waitTil = clock.now() + std::chrono::seconds(10);
+            while (clock.now() < waitTil)
             {
+                clock.crank(true);
             }
 
             REQUIRE(asked.size() == 4);
