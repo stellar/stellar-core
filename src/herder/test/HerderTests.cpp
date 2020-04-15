@@ -38,7 +38,7 @@ TEST_CASE("standalone", "[herder][acceptance]")
 {
     SIMULATION_CREATE_NODE(0);
 
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT, false));
 
     cfg.NODE_SEED = v0SecretKey;
 

@@ -78,7 +78,7 @@ static int gBaseInstance{0};
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
 Config const&
-getTestConfig(int instanceNumber, Config::TestDbMode mode)
+getTestConfig(int instanceNumber, Config::TestDbMode mode, bool manualClose)
 {
     instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
@@ -128,6 +128,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // attempted.
         thisConfig.RUN_STANDALONE = true;
         thisConfig.FORCE_SCP = true;
+
+        thisConfig.MANUAL_CLOSE = manualClose;
 
         thisConfig.TEST_CASES_ENABLED = true;
 

@@ -108,7 +108,7 @@ TEST_CASE("LedgerCloseMetaStream file descriptor - REPLAY_IN_MEMORY",
     using namespace stellar::historytestutils;
     TmpDirHistoryConfigurator tCfg;
     {
-        Config genCfg = getTestConfig(0);
+        Config genCfg = getTestConfig(0, Config::TESTDB_DEFAULT, false);
         VirtualClock genClock;
         genCfg = tCfg.configure(genCfg, true);
         auto genApp = createTestApplication(genClock, genCfg);

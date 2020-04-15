@@ -17,7 +17,8 @@ class Config;
 struct CommandLineArgs;
 
 Config const& getTestConfig(int instanceNumber = 0,
-                            Config::TestDbMode mode = Config::TESTDB_DEFAULT);
+                            Config::TestDbMode mode = Config::TESTDB_DEFAULT,
+                            bool manualClose = true);
 
 int runTest(CommandLineArgs const& args);
 
