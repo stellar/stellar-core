@@ -546,6 +546,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
 
     std::string cat;
+    bool droppable = false;
     switch (stellarMsg.type())
     {
     // group messages used during handshake, process those synchronously
@@ -564,6 +565,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     // high volume flooding
     case TRANSACTION:
         cat = "TX";
+        droppable = true;
         break;
 
     // consensus, inbound
@@ -571,6 +573,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_SCP_QUORUMSET:
     case GET_SCP_STATE:
         cat = "SCPQ";
+        droppable = true;
         break;
 
     // consensus, self
@@ -590,18 +593,19 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         fmt::format("Error RecvMessage T:{} cat:{} {} @{}", stellarMsg.type(),
                     cat, toString(), mApp.getConfig().PEER_PORT);
 
-    mApp.postOnMainThread([ err, weak, sm = StellarMessage(stellarMsg) ]() {
-        auto self = weak.lock();
-        if (self)
-        {
-            self->recvRawMessage(sm);
-        }
-        else
-        {
-            CLOG(TRACE, "Overlay") << err;
-        }
-    },
-                          fmt::format("{}-{} recvMessage", cat, toString()));
+    mApp.postOnMainThread(
+        [ err, weak, sm = StellarMessage(stellarMsg) ]() {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->recvRawMessage(sm);
+            }
+            else
+            {
+                CLOG(TRACE, "Overlay") << err;
+            }
+        },
+        {droppable, fmt::format("{}-{} recvMessage", cat, toString())});
 }
 
 void

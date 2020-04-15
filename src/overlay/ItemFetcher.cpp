@@ -103,7 +103,7 @@ ItemFetcher::stopFetchingBelow(uint64 slotIndex)
     // all sorts of evil side effects
     mApp.postOnMainThread(
         [this, slotIndex]() { stopFetchingBelowInternal(slotIndex); },
-        "ItemFetcher: stopFetchingBelow");
+        {false, "ItemFetcher: stopFetchingBelow"});
 }
 
 void

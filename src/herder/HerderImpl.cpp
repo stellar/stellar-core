@@ -1207,7 +1207,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                             hState.mLastGoodLedger = ledger;
                         }
                     },
-                    "QuorumIntersectionChecker");
+                    {false, "QuorumIntersectionChecker"});
             }
             catch (QuorumIntersectionChecker::InterruptedException&)
             {
@@ -1219,7 +1219,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                         hState.mInterruptFlag = false;
                         hState.mCheckingQuorumMapHash = Hash{};
                     },
-                    "QuorumIntersectionChecker interrupted");
+                    {false, "QuorumIntersectionChecker interrupted"});
             }
         };
         mApp.postOnBackgroundThread(worker, "QuorumIntersectionChecker");

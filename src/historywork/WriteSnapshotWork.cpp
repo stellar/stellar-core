@@ -60,7 +60,7 @@ WriteSnapshotWork::onRun()
                     self->wakeUp();
                 }
             },
-            "WriteSnapshotWork: finish");
+            {false, "WriteSnapshotWork: finish"});
     };
 
     // Throw the work over to a worker thread if we can use DB pools,

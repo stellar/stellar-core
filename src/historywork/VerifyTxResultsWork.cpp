@@ -74,7 +74,7 @@ VerifyTxResultsWork::onRun()
                         self->wakeUp();
                     }
                 },
-                "VerifyTxResults: finish");
+                {false, "VerifyTxResults: finish"});
         }
     };
 

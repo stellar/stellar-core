@@ -328,7 +328,8 @@ OverlayFuzzer::inject(XDRInputFileStream& in)
         auto acceptor = loopbackPeerConnection->getAcceptor();
 
         initiator->getApp().getClock().postToExecutionQueue(
-            [initiator, msg]() { initiator->Peer::sendMessage(msg); }, "");
+            [initiator, msg]() { initiator->Peer::sendMessage(msg); },
+            {false, ""});
 
         mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
 

@@ -420,7 +420,7 @@ HistoryManagerImpl::historyPublished(
     }
     mPublishWork.reset();
     mApp.postOnMainThread([this]() { this->publishQueuedHistory(); },
-                          "HistoryManagerImpl: publishQueuedHistory");
+                          {false, "HistoryManagerImpl: publishQueuedHistory"});
 }
 
 uint64_t

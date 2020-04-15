@@ -731,7 +731,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                 mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
                                             bestTxSet);
             },
-            "HerderSCPDriver: combineCandidates posts recvTxSet");
+            {false, "HerderSCPDriver combineCandidates"});
     }
 
     // Ballot Protocol uses BASIC values

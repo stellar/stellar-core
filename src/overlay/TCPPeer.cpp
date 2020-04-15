@@ -218,7 +218,7 @@ TCPPeer::shutdown()
                         << ec2.message();
                 }
             },
-            "TCPPeer: close");
+            {false, "TCPPeer: close"});
     });
 }
 
@@ -510,7 +510,7 @@ TCPPeer::startRead()
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
         self->getApp().postOnMainThread(
             [self]() { self->startRead(); },
-            fmt::format("{} TCPPeer: startRead", toString()));
+            {false, fmt::format("{} TCPPeer: startRead", toString())});
     }
 }
 

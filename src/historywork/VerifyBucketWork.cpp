@@ -124,7 +124,7 @@ VerifyBucketWork::spawnVerifier()
                         self->wakeUp();
                     }
                 },
-                "VerifyBucket: finish");
+                {false, "VerifyBucket: finish"});
         },
         "VerifyBucket: start in background");
 }
