@@ -103,7 +103,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 
     mDropReason = reason;
     mState = CLOSING;
-    mIdleTimer.cancel();
+    mRecurringTimer.cancel();
     getApp().getOverlayManager().removePeer(this);
 
     auto remote = mRemote.lock();
@@ -450,8 +450,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
         return;
     }
 
-    mInitiator->startIdleTimer();
-    mAcceptor->startIdleTimer();
+    mInitiator->startRecurrentTimer();
+    mAcceptor->startRecurrentTimer();
 
     std::weak_ptr<LoopbackPeer> init = mInitiator;
     mInitiator->getApp().postOnMainThread(
