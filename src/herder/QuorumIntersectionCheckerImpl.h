@@ -29,7 +29,7 @@
 //
 // - A network N is a set of nodes {N₀, N₁, ...}
 //
-// - Every node Nᵢ has an associated quorum qet (or "qset") QSᵢ that is a set of
+// - Every node Nᵢ has an associated quorum set (or "qset") QSᵢ that is a set of
 //   subsets of N.
 //
 // - Every element of a qset QSᵢ is called a quorum slice.
