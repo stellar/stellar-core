@@ -26,6 +26,7 @@
 #include "xdr/Stellar-types.h"
 
 #include <functional>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -43,7 +44,7 @@ class Tracker
     Application& mApp;
     Peer::pointer mLastAskedPeer;
     int mNumListRebuild;
-    std::deque<Peer::pointer> mPeersToAsk;
+    std::set<Peer::pointer> mPeersAsked;
     VirtualTimer mTimer;
     std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
     Hash mItemHash;

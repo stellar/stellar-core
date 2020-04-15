@@ -12,6 +12,7 @@
 #include "medida/medida.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 
@@ -19,7 +20,7 @@ namespace stellar
 {
 
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
-static int const MAX_REBUILD_FETCH_LIST = 1000;
+static int const MAX_REBUILD_FETCH_LIST = 10;
 
 Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
     : mAskPeer(askPeer)
@@ -89,61 +90,92 @@ Tracker::tryNextPeer()
 {
     // will be called by some timer or when we get a
     // response saying they don't have it
-    Peer::pointer peer;
-
     CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
                            << " last: "
                            << (mLastAskedPeer ? mLastAskedPeer->toString()
                                               : "<none>");
 
-    // if we don't have a list of peers to ask and we're not
-    // currently asking peers, build a new list
-    if (mPeersToAsk.empty() && !mLastAskedPeer)
+    if (mLastAskedPeer)
     {
-        std::set<std::shared_ptr<Peer>> peersWithEnvelope;
-        for (auto const& e : mWaitingEnvelopes)
-        {
-            auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
-            peersWithEnvelope.insert(s.begin(), s.end());
-        }
-
-        // move the peers that have the envelope to the back,
-        // to be processed first
-        for (auto const& p :
-             mApp.getOverlayManager().getRandomAuthenticatedPeers())
-        {
-            if (peersWithEnvelope.find(p) != peersWithEnvelope.end())
-            {
-                mPeersToAsk.emplace_back(p);
-            }
-            else
-            {
-                mPeersToAsk.emplace_front(p);
-            }
-        }
-
-        mNumListRebuild++;
-
-        CLOG(TRACE, "Overlay")
-            << "tryNextPeer " << hexAbbrev(mItemHash) << " attempt "
-            << mNumListRebuild << " reset to #" << mPeersToAsk.size();
+        mTryNextPeer.Mark();
+        mLastAskedPeer.reset();
     }
 
-    while (!peer && !mPeersToAsk.empty())
-    {
-        peer = mPeersToAsk.back();
-        if (!peer->isAuthenticated())
+    // helper function to populate "candidates" with the lowest latency group
+    std::vector<Peer::pointer> candidates;
+    int64 curBest = INT64_MAX;
+    auto procPeers = [&](std::map<NodeID, Peer::pointer> const& peerMap) {
+        for (auto& mp : peerMap)
         {
-            peer.reset();
+            auto& p = mp.second;
+            if (p->isAuthenticated() &&
+                mPeersAsked.find(p) == mPeersAsked.end())
+            {
+                constexpr int64 GROUPSIZE_MS = 500;
+                int64 plat = p->getPing().count() / GROUPSIZE_MS;
+                if (plat < curBest)
+                {
+                    candidates.clear();
+                    curBest = plat;
+                    candidates.emplace_back(p);
+                }
+                else if (curBest == plat)
+                {
+                    candidates.emplace_back(p);
+                }
+            }
         }
-        mPeersToAsk.pop_back();
+    };
+
+    // build the set of peers we didn't ask yet that have this envelope
+    std::map<NodeID, Peer::pointer> newPeersWithEnvelope;
+    for (auto const& e : mWaitingEnvelopes)
+    {
+        auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
+        for (auto pit = s.begin(); pit != s.end(); ++pit)
+        {
+            auto& p = *pit;
+            if (p->isAuthenticated() &&
+                mPeersAsked.find(p) == mPeersAsked.end())
+            {
+                newPeersWithEnvelope.emplace(p->getPeerID(), *pit);
+            }
+        }
+    }
+
+    if (!newPeersWithEnvelope.empty())
+    {
+        procPeers(newPeersWithEnvelope);
+    }
+    else
+    {
+        auto& inPeers = mApp.getOverlayManager().getInboundAuthenticatedPeers();
+        auto& outPeers =
+            mApp.getOverlayManager().getOutboundAuthenticatedPeers();
+        procPeers(inPeers);
+        procPeers(outPeers);
+    }
+
+    // pick a random element from the candidate list
+    if (!candidates.empty())
+    {
+        auto dist =
+            std::uniform_int_distribution<size_t>(0, candidates.size() - 1);
+        size_t offset = dist(gRandomEngine);
+        mLastAskedPeer = candidates.at(offset);
     }
 
     std::chrono::milliseconds nextTry;
-    if (!peer)
-    { // we have asked all our peers
-        // clear mLastAskedPeer so that we rebuild a new list
-        mLastAskedPeer.reset();
+    if (!mLastAskedPeer)
+    {
+        // we have asked all our peers, reset the list and try again after a
+        // pause
+        mNumListRebuild++;
+        mPeersAsked.clear();
+
+        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
+                               << " restarting fetch #" << mNumListRebuild;
+
         if (mNumListRebuild > MAX_REBUILD_FETCH_LIST)
         {
             nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * MAX_REBUILD_FETCH_LIST;
@@ -155,14 +187,10 @@ Tracker::tryNextPeer()
     }
     else
     {
-        if (mLastAskedPeer)
-        {
-            mTryNextPeer.Mark();
-        }
-        mLastAskedPeer = peer;
+        mPeersAsked.emplace(mLastAskedPeer);
         CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash)
-                               << " to " << peer->toString();
-        mAskPeer(peer, mItemHash);
+                               << " to " << mLastAskedPeer->toString();
+        mAskPeer(mLastAskedPeer, mItemHash);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
 
