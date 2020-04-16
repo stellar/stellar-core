@@ -15,7 +15,7 @@ using namespace stellar;
 
 TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE, false));
 
     std::vector<SecretKey> otherKeys;
     int const kKeysCount = 7;
