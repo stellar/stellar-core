@@ -49,6 +49,27 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
         return;
     }
 
+    // Note: at the moment we're using a timer to throttle _down_ the amount of
+    // "work" we do statically: we set a yield timer to 1ms so that in case
+    // we're a long-running step, we don't hog the CPU and incur IO debt.
+    //
+    // Long-running work steps are a problem in practice: specifically the
+    // bucket-apply work tends to have a long pause when it commits -- longer
+    // than the presumed quantum in the central IO-vs-RR-queues time-slicing
+    // scheme -- and this can cause a node that is catching up to starve IO and
+    // desync.
+    //
+    // In other words, while we _could_ avoid trying to explicitly time-slice
+    // ourselves here, and instead post ourselves to the RR queues, the problem
+    // with this is that the RR queues do not currently account for IO debt very
+    // well and we may well go "over budget" every time we get scheduled. The RR
+    // queues really need to track how much a callback exceeds its yield-timer
+    // loop and treat that as over-budget debt to pay off in subsequent
+    // iterations, to maintain a static schedule. This is TBD.
+    //
+    // See
+    // https://github.com/stellar/stellar-core/issues/2304#issuecomment-614953677
+
     self->mScheduled = true;
     self->mTriggerTimer.expires_from_now(TRIGGER_PERIOD);
     self->mTriggerTimer.async_wait([weak](asio::error_code) {

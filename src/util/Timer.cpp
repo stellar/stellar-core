@@ -434,6 +434,25 @@ VirtualClock::postToExecutionQueue(std::function<void()>&& f,
         mDelayExecution = true;
         asio::post(mIOContext, []() {});
     }
+
+    // We currently post all callbacks to a temporary "pre-queue" that's
+    // disjoint from anything that will be digested in the current invocation of
+    // `advanceExecutionQueue`.
+    //
+    // This might be surprising and isn't necessarily .. necessary; notably we
+    // batch-transfer all those callbacks to the the RR queues at the beginning
+    // of the _next_ call to `advanceExecutionQueue` anyway!
+    //
+    // But this disjoint "pre-queue" behaviour mandates an interleaving of IO
+    // with batches of CPU-bound callbacks, which can help avoid the phenomenon
+    // of a callback near the end of its timeslice posting back another
+    // long-running callback that will then _exceed_ the timeslice. In this
+    // scheme, batches of callbacks are more likely to run out of things to do
+    // and switch to IO than they are to overshoot their timeslices and yield
+    // (possibly somewhat yielding too late and incurring IO debt).
+    //
+    // This is all somewhat heuristic, but it seems not to do any harm and maybe
+    // does good. We may experiment more in the future.
     mDelayedExecutionQueue.emplace_back(
         std::make_pair(std::move(id), std::move(f)));
 }

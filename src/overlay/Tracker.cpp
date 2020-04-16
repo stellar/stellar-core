@@ -101,7 +101,14 @@ Tracker::tryNextPeer()
         mLastAskedPeer.reset();
     }
 
-    // helper function to populate "candidates" with the lowest latency group
+    // Helper function to populate "candidates" with a set of peers, which we're
+    // going to randomly select a candidate from to ask for the item.
+    //
+    // We want to bias the candidates set towards peers that are close to us in
+    // terms of network latency, so we repeatedly lower a "nearness threshold"
+    // in units of 500ms (1/3 of the MS_TO_WAIT_FOR_FETCH_REPLY) until we have a
+    // "closest peers" bucket that we have at least one peer for, and keep all
+    // the peers in that bucket, and then (later) randomly select from it.
     std::vector<Peer::pointer> candidates;
     int64 curBest = INT64_MAX;
     auto procPeers = [&](std::map<NodeID, Peer::pointer> const& peerMap) {
@@ -111,7 +118,7 @@ Tracker::tryNextPeer()
             if (p->isAuthenticated() &&
                 mPeersAsked.find(p) == mPeersAsked.end())
             {
-                constexpr int64 GROUPSIZE_MS = 500;
+                int64 GROUPSIZE_MS = (MS_TO_WAIT_FOR_FETCH_REPLY.count()/3);
                 int64 plat = p->getPing().count() / GROUPSIZE_MS;
                 if (plat < curBest)
                 {
