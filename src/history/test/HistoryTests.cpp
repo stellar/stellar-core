@@ -1034,7 +1034,7 @@ TEST_CASE("HAS in publishqueue remains in pristine state until publish",
 
 TEST_CASE("persist publish queue", "[history][publish][acceptance]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE, false));
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
     cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     TmpDirHistoryConfigurator tcfg;
