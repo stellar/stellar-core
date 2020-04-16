@@ -315,7 +315,7 @@ FeeBumpTransactionFrame::getSeqNum() const
 AccountID
 FeeBumpTransactionFrame::getFeeSourceID() const
 {
-    return mEnvelope.feeBump().tx.feeSource;
+    return toAccountID(mEnvelope.feeBump().tx.feeSource);
 }
 
 AccountID

@@ -116,7 +116,7 @@ TEST_CASE("transaction envelope bridge", "[commandhandler]")
 
             TransactionEnvelope env(ENVELOPE_TYPE_TX_FEE_BUMP);
             auto& fb = env.feeBump().tx;
-            fb.feeSource = root.getPublicKey();
+            fb.feeSource = toMuxedAccount(root.getPublicKey());
             fb.fee = 2 * baseFee;
             fb.innerTx.type(ENVELOPE_TYPE_TX);
             fb.innerTx.v1() = createV1().v1();

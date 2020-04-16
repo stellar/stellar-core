@@ -440,7 +440,7 @@ struct TransactionV1Envelope
 
 struct FeeBumpTransaction
 {
-    AccountID feeSource;
+    MuxedAccount feeSource;
     int64 fee;
     union switch (EnvelopeType type)
     {
