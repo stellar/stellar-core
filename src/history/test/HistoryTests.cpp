@@ -1034,7 +1034,9 @@ TEST_CASE("HAS in publishqueue remains in pristine state until publish",
 
 TEST_CASE("persist publish queue", "[history][publish][acceptance]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE, false));
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+
+    cfg.MANUAL_CLOSE = false;
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
     cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     TmpDirHistoryConfigurator tcfg;
@@ -1053,12 +1055,6 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         // checkpoint still queued.
         REQUIRE(hm0.getPublishSuccessCount() == 0);
         REQUIRE(hm0.getMinLedgerQueuedToPublish() == 7);
-        while (clock.cancelAllEvents() ||
-               app0->getProcessManager().getNumRunningProcesses() > 0)
-        {
-            clock.crank(true);
-        }
-        LOG(INFO) << app0->isStopping();
 
         // Trim history after publishing.
         ExternalQueue ps(*app0);
@@ -1090,13 +1086,6 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         LOG(INFO) << "minLedger " << minLedger;
         bool okQueue = minLedger == 0 || minLedger >= 35;
         REQUIRE(okQueue);
-        clock.cancelAllEvents();
-        while (clock.cancelAllEvents() ||
-               app1->getProcessManager().getNumRunningProcesses() > 0)
-        {
-            clock.crank(true);
-        }
-        LOG(INFO) << app1->isStopping();
     }
 }
 

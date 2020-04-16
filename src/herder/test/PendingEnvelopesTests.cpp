@@ -18,7 +18,9 @@ using namespace stellar::txtest;
 
 TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
-    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT, false));
+    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
+    cfg.MANUAL_CLOSE = false;
+
     VirtualClock clock;
 
     auto s = SecretKey::pseudoRandomForTesting();
