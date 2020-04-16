@@ -105,15 +105,15 @@ class VirtualClock
 
     struct ExecutionCategory
     {
-        bool mDropable;
+        bool mDroppable;
         std::string mName;
 
         bool
         operator<(ExecutionCategory const& other) const
         {
-            if (mDropable != other.mDropable)
+            if (mDroppable != other.mDroppable)
             {
-                return mDropable;
+                return mDroppable;
             }
             else
             {

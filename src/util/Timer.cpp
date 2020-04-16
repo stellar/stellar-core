@@ -274,7 +274,7 @@ VirtualClock::advanceExecutionQueue()
         // 1. drain elements that can be dropped
         for (auto it = mExecutionQueue.begin(); it != mExecutionQueue.end();)
         {
-            if (it->first.mDropable)
+            if (it->first.mDroppable)
             {
                 mExecutionQueueSize -= it->second.size();
                 it = mExecutionQueue.erase(it);
