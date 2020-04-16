@@ -159,10 +159,7 @@ Tracker::tryNextPeer()
     // pick a random element from the candidate list
     if (!candidates.empty())
     {
-        auto dist =
-            std::uniform_int_distribution<size_t>(0, candidates.size() - 1);
-        size_t offset = dist(gRandomEngine);
-        mLastAskedPeer = candidates.at(offset);
+        mLastAskedPeer = rand_element(candidates);
     }
 
     std::chrono::milliseconds nextTry;
@@ -176,14 +173,8 @@ Tracker::tryNextPeer()
         CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
                                << " restarting fetch #" << mNumListRebuild;
 
-        if (mNumListRebuild > MAX_REBUILD_FETCH_LIST)
-        {
-            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * MAX_REBUILD_FETCH_LIST;
-        }
-        else
-        {
-            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * mNumListRebuild;
-        }
+        nextTry = MS_TO_WAIT_FOR_FETCH_REPLY *
+                  std::min(MAX_REBUILD_FETCH_LIST, mNumListRebuild);
     }
     else
     {
