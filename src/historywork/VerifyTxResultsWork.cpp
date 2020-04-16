@@ -74,7 +74,8 @@ VerifyTxResultsWork::onRun()
                         self->wakeUp();
                     }
                 },
-                {false, "VerifyTxResults: finish"});
+                {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                 "VerifyTxResults: finish"});
         }
     };
 

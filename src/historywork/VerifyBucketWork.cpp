@@ -124,7 +124,8 @@ VerifyBucketWork::spawnVerifier()
                         self->wakeUp();
                     }
                 },
-                {false, "VerifyBucket: finish"});
+                {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                 "VerifyBucket: finish"});
         },
         "VerifyBucket: start in background");
 }

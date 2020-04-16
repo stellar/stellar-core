@@ -105,15 +105,20 @@ class VirtualClock
 
     struct ExecutionCategory
     {
-        bool mDroppable;
+        enum class Type : int
+        {
+            NORMAL_EVENT,
+            DROPPABLE_EVENT
+        };
+        Type mExecutionType;
         std::string mName;
 
         bool
         operator<(ExecutionCategory const& other) const
         {
-            if (mDroppable != other.mDroppable)
+            if (mExecutionType != other.mExecutionType)
             {
-                return mDroppable;
+                return mExecutionType < other.mExecutionType;
             }
             else
             {

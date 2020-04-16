@@ -329,7 +329,7 @@ OverlayFuzzer::inject(XDRInputFileStream& in)
 
         initiator->getApp().getClock().postToExecutionQueue(
             [initiator, msg]() { initiator->Peer::sendMessage(msg); },
-            {false, ""});
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT, ""});
 
         mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
 

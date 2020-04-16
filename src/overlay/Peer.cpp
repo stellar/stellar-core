@@ -546,7 +546,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
 
     std::string cat;
-    bool droppable = false;
+    VirtualClock::ExecutionCategory::Type catType =
+        VirtualClock::ExecutionCategory::Type::NORMAL_EVENT;
     switch (stellarMsg.type())
     {
     // group messages used during handshake, process those synchronously
@@ -565,7 +566,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     // high volume flooding
     case TRANSACTION:
         cat = "TX";
-        droppable = true;
+        catType = VirtualClock::ExecutionCategory::Type::DROPPABLE_EVENT;
         break;
 
     // consensus, inbound
@@ -573,7 +574,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_SCP_QUORUMSET:
     case GET_SCP_STATE:
         cat = "SCPQ";
-        droppable = true;
+        catType = VirtualClock::ExecutionCategory::Type::DROPPABLE_EVENT;
         break;
 
     // consensus, self
@@ -605,7 +606,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                 CLOG(TRACE, "Overlay") << err;
             }
         },
-        {droppable, fmt::format("{}-{} recvMessage", cat, toString())});
+        {catType, fmt::format("{}-{} recvMessage", cat, toString())});
 }
 
 void
