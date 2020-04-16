@@ -807,6 +807,7 @@ Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
     auto sh = shortHash::xdrComputeHash(
         xdr::xdr_to_opaque(tp.time_since_epoch().count()));
     Hash res;
+    assert(res.size() >= sizeof(sh));
     std::memcpy(res.data(), &sh, sizeof(sh));
     return res;
 }
