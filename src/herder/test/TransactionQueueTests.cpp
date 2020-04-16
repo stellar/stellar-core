@@ -36,7 +36,7 @@ feeBump(Application& app, TestAccount& feeSource, TransactionFrameBasePtr tx,
 {
     REQUIRE(tx->getEnvelope().type() == ENVELOPE_TYPE_TX);
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
-    fb.feeBump().tx.feeSource = feeSource;
+    fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
     fb.feeBump().tx.fee = fee;
     fb.feeBump().tx.innerTx.type(ENVELOPE_TYPE_TX);
     fb.feeBump().tx.innerTx.v1() = tx->getEnvelope().v1();

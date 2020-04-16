@@ -34,7 +34,7 @@ feeBumpUnsigned(TestAccount& feeSource, TestAccount& source, TestAccount& dest,
                 int64_t outerFee, uint32_t innerFee, int64_t amount)
 {
     TransactionEnvelope fb(ENVELOPE_TYPE_TX_FEE_BUMP);
-    fb.feeBump().tx.feeSource = feeSource;
+    fb.feeBump().tx.feeSource = toMuxedAccount(feeSource);
     fb.feeBump().tx.fee = outerFee;
 
     auto& env = fb.feeBump().tx.innerTx;
