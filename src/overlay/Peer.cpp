@@ -813,7 +813,8 @@ Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
 void
 Peer::pingPeer()
 {
-    if (isAuthenticated() && mPingSentTime == PING_NOT_SENT)
+    if (!mApp.getConfig().RUN_STANDALONE && isAuthenticated() &&
+        mPingSentTime == PING_NOT_SENT)
     {
         mPingSentTime = mApp.getClock().now();
         auto h = pingIDfromTimePoint(mPingSentTime);
