@@ -4,10 +4,10 @@
 
 #include "overlay/OverlayManager.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Timer.h"
-#include "simulation/Simulation.h"
 #include <lib/catch.hpp>
 #include <medida/metrics_registry.h>
 
@@ -57,17 +57,17 @@ TEST_CASE("disconnect peer when overloaded", "[overlay][LoadManager]")
 
     VirtualTimer timer(app1->getClock());
 
-    auto end = app1->getClock().now() +
-               std::chrono::seconds(12);
+    auto end = app1->getClock().now() + std::chrono::seconds(12);
 
     testutil::injectSendPeersAndReschedule(end, app1->getClock(), timer, *conn);
 
     sim->crankUntil(
         [&]() {
             auto connDisconnected = !conn->getInitiator()->isConnected() &&
-                   !conn->getAcceptor()->isConnected();
+                                    !conn->getAcceptor()->isConnected();
             return connDisconnected;
-        }, std::chrono::seconds(15), false);
+        },
+        std::chrono::seconds(15), false);
 
     REQUIRE(conn2->getInitiator()->isConnected());
     REQUIRE(conn2->getAcceptor()->isConnected());

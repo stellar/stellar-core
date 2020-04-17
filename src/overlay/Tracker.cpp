@@ -118,7 +118,7 @@ Tracker::tryNextPeer()
             if (p->isAuthenticated() &&
                 mPeersAsked.find(p) == mPeersAsked.end())
             {
-                int64 GROUPSIZE_MS = (MS_TO_WAIT_FOR_FETCH_REPLY.count()/3);
+                int64 GROUPSIZE_MS = (MS_TO_WAIT_FOR_FETCH_REPLY.count() / 3);
                 int64 plat = p->getPing().count() / GROUPSIZE_MS;
                 if (plat < curBest)
                 {
