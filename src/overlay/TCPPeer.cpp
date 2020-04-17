@@ -440,7 +440,12 @@ TCPPeer::startRead()
     // We read large-ish (256KB) buffers of data from TCP which might have quite
     // a few messages in them. We want to digest as many of these
     // _synchronously_ as we can before we issue an async_read against ASIO.
-    YieldTimer yt(mApp.getClock(), mApp.getConfig().MAX_BATCH_READ_PERIOD_MS,
+    //
+    // This loop is charged to the IO debt-tracker as it effectively represents
+    // time spent "draining events" from the asio::io_context, though they're
+    // just input-buffer-consumption steps happening in userspace.
+    YieldTimer yt(mApp.getClock(), mApp.getClock().getIODebtTracker(),
+                  mApp.getConfig().MAX_BATCH_READ_PERIOD_MS,
                   mApp.getConfig().MAX_BATCH_READ_COUNT);
     while (mSocket->in_avail() >= HDRSZ && yt.shouldKeepGoing())
     {

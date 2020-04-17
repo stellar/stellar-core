@@ -17,7 +17,11 @@ using namespace std;
 
 static const uint32_t RECENT_CRANK_WINDOW = 1024;
 
-VirtualClock::VirtualClock(Mode mode) : mMode(mode), mRealTimer(mIOContext)
+VirtualClock::VirtualClock(Mode mode)
+    : mMode(mode)
+    , mIODebtTracker(std::make_unique<TimeDebtTracker>("IO"))
+    , mExecutionDebtTracker(std::make_unique<TimeDebtTracker>("exec"))
+    , mRealTimer(mIOContext)
 {
     mExecutionIterator = mExecutionQueue.begin();
     resetIdleCrankPercent();
@@ -294,7 +298,8 @@ VirtualClock::advanceExecutionQueue()
         mExecutionIterator = mExecutionQueue.begin();
     }
 
-    YieldTimer queueYt(*this, MAX_EXECUTION_QUEUE_DURATION,
+    YieldTimer queueYt(*this, *mExecutionDebtTracker,
+                       MAX_EXECUTION_QUEUE_DURATION,
                        EXECUTION_QUEUE_BATCH_SIZE);
 
     // moves any future work into the main execution queue
@@ -376,7 +381,8 @@ VirtualClock::crank(bool block)
         size_t const WORK_BATCH_SIZE = 100;
         std::chrono::milliseconds const MAX_CRANK_WORK_DURATION{200};
 
-        YieldTimer ioYt(*this, MAX_CRANK_WORK_DURATION, WORK_BATCH_SIZE);
+        YieldTimer ioYt(*this, *mIODebtTracker, MAX_CRANK_WORK_DURATION,
+                        WORK_BATCH_SIZE);
         do
         {
             // May add work to mDelayedExecutionQueue.
@@ -717,5 +723,98 @@ VirtualTimer::async_wait(std::function<void()> const& onSuccess,
         mClock.enqueue(ve);
         mEvents.push_back(ve);
     }
+}
+
+TimeDebtTracker::TimeDebtTracker(std::string const& name, size_t jubileeLimit)
+    : mName(name), mJubileeLimit(jubileeLimit)
+{
+}
+
+VirtualClock::time_point
+TimeDebtTracker::computeYieldTime(VirtualClock& clock,
+                                  std::chrono::milliseconds intendedDuration)
+{
+    ++mRequestCount;
+    if (mRequestCount >= mJubileeLimit)
+    {
+        mRequestCount = 0;
+        if (mCurrentDebt.count() != 0)
+        {
+            LOG(TRACE) << "TimeDebtTracker " << mName
+                       << " declaring jubilee on " << mCurrentDebt.count()
+                       << "ms of time-debt";
+        }
+        mCurrentDebt = std::chrono::milliseconds(0);
+    }
+
+    VirtualClock::time_point now = clock.now();
+    if (mCurrentDebt.count() > 0)
+    {
+        // Caller is in debt, we'll reduce their request and the corresponding
+        // debt by some amount.
+        std::chrono::milliseconds repayment =
+            std::min(mCurrentDebt, intendedDuration);
+        mCurrentDebt -= repayment;
+        intendedDuration -= repayment;
+    }
+    return now + intendedDuration;
+}
+
+void
+TimeDebtTracker::recordDifferenceFromIntendedYieldTime(
+    VirtualClock& clock, VirtualClock::time_point intendedYieldTime)
+{
+    // Caller was _supposed_ to yield at intendedYieldTime but it actually
+    // yielded right now. Check to see if they ran a time deficit.
+    std::chrono::milliseconds deficit =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            clock.now() - intendedYieldTime);
+
+    // We only record "positive" deficits: if work wound up finishing early we
+    // do not record "negative" surpluses to boost future budgets.
+    if (deficit.count() > 0)
+    {
+        mCurrentDebt += deficit;
+        LOG(TRACE) << "TimeDebtTracker " << mName << " noting "
+                   << deficit.count() << "ms of new time-debt, totalling "
+                   << mCurrentDebt.count() << "ms";
+    }
+}
+
+YieldTimer::YieldTimer(VirtualClock& clock, TimeDebtTracker& tbt,
+                       std::chrono::milliseconds yieldAfterDuration,
+                       size_t yieldAfterIteration)
+    : mClock(clock)
+    , mDebtTracker(tbt)
+    , mYieldTime(tbt.computeYieldTime(clock, yieldAfterDuration))
+    , mIterationsRemaining(yieldAfterIteration)
+{
+}
+
+bool
+YieldTimer::shouldKeepGoing()
+{
+    // To make it easier to read meaning of loop headers.
+    return !shouldYield();
+}
+
+bool
+YieldTimer::shouldYield()
+{
+    if (mIterationsRemaining == 0)
+    {
+        mDebtTracker.recordDifferenceFromIntendedYieldTime(mClock, mYieldTime);
+        return true;
+    }
+    if (mClock.now() >= mYieldTime)
+    {
+        // Set counter to 0 so we will never return false again, even if the
+        // system clock subsequently travels backwards in time.
+        mIterationsRemaining = 0;
+        mDebtTracker.recordDifferenceFromIntendedYieldTime(mClock, mYieldTime);
+        return true;
+    }
+    --mIterationsRemaining;
+    return false;
 }
 }

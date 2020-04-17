@@ -47,6 +47,7 @@ namespace stellar
  */
 
 class VirtualTimer;
+class TimeDebtTracker;
 class Application;
 class VirtualClockEvent;
 class VirtualClockEventCompare
@@ -144,6 +145,8 @@ class VirtualClock
     using ExecutionQueue =
         std::map<ExecutionCategory, std::deque<std::function<void()>>>;
 
+    std::unique_ptr<TimeDebtTracker> mIODebtTracker;
+    std::unique_ptr<TimeDebtTracker> mExecutionDebtTracker;
     ExecutionQueue mExecutionQueue;
     ExecutionQueue::iterator mExecutionIterator;
     std::deque<std::pair<ExecutionCategory, std::function<void()>>>
@@ -201,6 +204,18 @@ class VirtualClock
     // returns the time of the next scheduled event
     time_point next();
 
+    TimeDebtTracker&
+    getIODebtTracker()
+    {
+        return *mIODebtTracker;
+    }
+
+    TimeDebtTracker&
+    getExecutionDebtTracker()
+    {
+        return *mExecutionDebtTracker;
+    }
+
     void postToExecutionQueue(std::function<void()>&& f,
                               ExecutionCategory&& id);
 
@@ -228,6 +243,34 @@ class VirtualClockEvent : public NonMovableOrCopyable
 };
 
 /**
+ * A helper class that you can provide to a YieldTimer's ctor that
+ * will track a _persistent_ time-debt over multiple invocations of
+ * the YieldTimer. This compensates for any instance of a YieldTimer
+ * going "over budget" (running for longer than its yield-time).
+ */
+class TimeDebtTracker
+{
+    std::string mName;
+
+    // Amount of time-debt accumulated in this account.
+    std::chrono::milliseconds mCurrentDebt;
+
+    // As with most systems of accounting, we only hold callers to account
+    // for so long before releasing the debt and and letting them go again
+    // anyways. This avoids _totally_ starving consistently-slow callers.
+    size_t mRequestCount;
+    const size_t mJubileeLimit;
+
+  public:
+    TimeDebtTracker(std::string const& name, size_t jubileeLimit = 49);
+    VirtualClock::time_point
+    computeYieldTime(VirtualClock& clock,
+                     std::chrono::milliseconds intendedDuration);
+    void recordDifferenceFromIntendedYieldTime(
+        VirtualClock& clock, VirtualClock::time_point intendedYieldTime);
+};
+
+/**
  * A small helper for controlling loops that might otherwise run too long,
  * starving the main thread: make a YieldTimer outside the loop and check its
  * shouldYield() method in the loop header, along with whatever other condition
@@ -242,42 +285,17 @@ class VirtualClockEvent : public NonMovableOrCopyable
 class YieldTimer : private NonMovableOrCopyable
 {
     VirtualClock& mClock;
+    TimeDebtTracker& mDebtTracker;
     VirtualClock::time_point mYieldTime;
     size_t mIterationsRemaining;
 
   public:
-    YieldTimer(VirtualClock& clock,
-               std::chrono::milliseconds yieldAfterDuration =
-                   std::chrono::milliseconds(100),
-               size_t yieldAfterIteration = 1024)
-        : mClock(clock)
-        , mYieldTime(clock.now() + yieldAfterDuration)
-        , mIterationsRemaining(yieldAfterIteration)
-    {
-    }
-    bool
-    shouldKeepGoing()
-    {
-        // To make it easier to read meaning of loop headers.
-        return !shouldYield();
-    }
-    bool
-    shouldYield()
-    {
-        if (mIterationsRemaining == 0)
-        {
-            return true;
-        }
-        if (mClock.now() >= mYieldTime)
-        {
-            // Set counter to 0 so we will never return false again, even if the
-            // system clock subsequently travels backwards in time.
-            mIterationsRemaining = 0;
-            return true;
-        }
-        --mIterationsRemaining;
-        return false;
-    }
+    explicit YieldTimer(VirtualClock& clock, TimeDebtTracker& tbt,
+                        std::chrono::milliseconds yieldAfterDuration =
+                            std::chrono::milliseconds(100),
+                        size_t yieldAfterIteration = 1024);
+    bool shouldKeepGoing();
+    bool shouldYield();
 };
 
 /**

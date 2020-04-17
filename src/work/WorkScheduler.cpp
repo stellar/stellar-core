@@ -7,13 +7,10 @@
 
 namespace stellar
 {
-// WorkScheduler performs a crank every TRIGGER_PERIOD
-// it should be set small enough that work gets executed fast enough
-// but not too small as to take over execution in the main thread
-std::chrono::milliseconds const WorkScheduler::TRIGGER_PERIOD(50);
 
 WorkScheduler::WorkScheduler(Application& app)
-    : Work(app, "work-scheduler", BasicWork::RETRY_NEVER), mTriggerTimer(app)
+    : Work(app, "work-scheduler", BasicWork::RETRY_NEVER)
+    , mDebtTracker("work", 1024)
 {
 }
 
@@ -49,59 +46,47 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
         return;
     }
 
-    // Note: at the moment we're using a timer to throttle _down_ the amount of
-    // "work" we do statically: we set a yield timer to 1ms so that in case
-    // we're a long-running step, we don't hog the CPU and incur IO debt.
-    //
-    // Long-running work steps are a problem in practice: specifically the
-    // bucket-apply work tends to have a long pause when it commits -- longer
-    // than the presumed quantum in the central IO-vs-RR-queues time-slicing
-    // scheme -- and this can cause a node that is catching up to starve IO and
-    // desync.
-    //
-    // In other words, while we _could_ avoid trying to explicitly time-slice
-    // ourselves here, and instead post ourselves to the RR queues, the problem
-    // with this is that the RR queues do not currently account for IO debt very
-    // well and we may well go "over budget" every time we get scheduled. The RR
-    // queues really need to track how much a callback exceeds its yield-timer
-    // loop and treat that as over-budget debt to pay off in subsequent
-    // iterations, to maintain a static schedule. This is TBD.
-    //
-    // See
-    // https://github.com/stellar/stellar-core/issues/2304#issuecomment-614953677
-
     self->mScheduled = true;
-    self->mTriggerTimer.expires_from_now(TRIGGER_PERIOD);
-    self->mTriggerTimer.async_wait([weak](asio::error_code) {
-        auto innerSelf = weak.lock();
-        if (!innerSelf)
-        {
-            return;
-        }
-
-        try
-        {
-            // loop as to perform some meaningful amount of work
-            YieldTimer yt(innerSelf->mApp.getClock(),
-                          std::chrono::milliseconds(1));
-            do
+    self->mApp.postOnMainThread(
+        [weak]() {
+            auto innerSelf = weak.lock();
+            if (!innerSelf)
             {
-                innerSelf->crankWork();
-            } while (innerSelf->getState() == State::WORK_RUNNING &&
-                     yt.shouldKeepGoing());
-        }
-        catch (...)
-        {
-            innerSelf->mScheduled = false;
-            throw;
-        }
-        innerSelf->mScheduled = false;
+                return;
+            }
 
-        if (innerSelf->getState() == State::WORK_RUNNING)
-        {
-            scheduleOne(weak);
-        }
-    });
+            try
+            {
+                // Loop as to perform some meaningful amount of work.
+                //
+                // Note this is charged to the WorkScheduler's local
+                // TimeDebtTracker as we expect Work steps to run over budget
+                // relatively frequently and do not want their debt mixed with
+                // the main VirtualClock ExecutionDebtTracker, which would cause
+                // other higher-priority callbacks to be delayed to pay off our
+                // debts.
+                YieldTimer yt(innerSelf->mApp.getClock(),
+                              innerSelf->mDebtTracker,
+                              std::chrono::milliseconds(1));
+                while (innerSelf->getState() == State::WORK_RUNNING &&
+                       yt.shouldKeepGoing())
+                {
+                    innerSelf->crankWork();
+                };
+            }
+            catch (...)
+            {
+                innerSelf->mScheduled = false;
+                throw;
+            }
+            innerSelf->mScheduled = false;
+
+            if (innerSelf->getState() == State::WORK_RUNNING)
+            {
+                scheduleOne(weak);
+            }
+        },
+        {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT, "WorkScheduler"});
 }
 
 void
