@@ -51,6 +51,7 @@ class TestBasicWork : public BasicWork
     {
         CLOG(DEBUG, "Work") << "Running " << getName();
         mRunningCount++;
+        mApp.getClock().sleep_for(std::chrono::milliseconds(1));
         if (--mCount > 0)
         {
             return State::WORK_RUNNING;

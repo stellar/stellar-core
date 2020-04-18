@@ -21,6 +21,8 @@ class WorkScheduler : public Work
 {
     explicit WorkScheduler(Application& app);
     bool mScheduled{false};
+    VirtualTimer mTriggerTimer;
+    static std::chrono::milliseconds const TRIGGER_PERIOD;
 
   public:
     virtual ~WorkScheduler();
