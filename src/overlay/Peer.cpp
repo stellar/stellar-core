@@ -287,12 +287,15 @@ Peer::sendPeers()
         maxPeerCount, mAddress);
     assert(peers.size() <= maxPeerCount);
 
-    newMsg.peers().reserve(peers.size());
-    for (auto const& address : peers)
+    if (!peers.empty())
     {
-        newMsg.peers().push_back(toXdr(address));
+        newMsg.peers().reserve(peers.size());
+        for (auto const& address : peers)
+        {
+            newMsg.peers().push_back(toXdr(address));
+        }
+        sendMessage(newMsg);
     }
-    sendMessage(newMsg);
 }
 
 void
