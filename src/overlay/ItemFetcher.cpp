@@ -161,4 +161,17 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
         CLOG(TRACE, "Overlay") << "Recv untracked " << hexAbbrev(itemHash);
     }
 }
+
+#ifdef BUILD_TESTS
+std::shared_ptr<Tracker>
+ItemFetcher::getTracker(Hash const& h)
+{
+    auto it = mTrackers.find(h);
+    if (it == mTrackers.end())
+    {
+        return nullptr;
+    }
+    return it->second;
+}
+#endif
 }

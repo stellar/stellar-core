@@ -101,6 +101,12 @@ Tracker::tryNextPeer()
         mLastAskedPeer.reset();
     }
 
+    auto canAskPeer = [&](Peer::pointer const& p, bool peerHas) {
+        auto it = mPeersAsked.find(p);
+        return (p->isAuthenticated() &&
+                (it == mPeersAsked.end() || (peerHas && !it->second)));
+    };
+
     // Helper function to populate "candidates" with a set of peers, which we're
     // going to randomly select a candidate from to ask for the item.
     //
@@ -109,16 +115,22 @@ Tracker::tryNextPeer()
     // in units of 500ms (1/3 of the MS_TO_WAIT_FOR_FETCH_REPLY) until we have a
     // "closest peers" bucket that we have at least one peer for, and keep all
     // the peers in that bucket, and then (later) randomly select from it.
+    //
+    // if the map of peers passed in is for peers that claim to have the data we
+    // need, `peersHave` is also set to true. in this case, the candidate list
+    // will also be populated with peers that we asked before but that since
+    // then received the data that we need
     std::vector<Peer::pointer> candidates;
     int64 curBest = INT64_MAX;
-    auto procPeers = [&](std::map<NodeID, Peer::pointer> const& peerMap) {
+
+    auto procPeers = [&](std::map<NodeID, Peer::pointer> const& peerMap,
+                         bool peersHave) {
         for (auto& mp : peerMap)
         {
             auto& p = mp.second;
-            if (p->isAuthenticated() &&
-                mPeersAsked.find(p) == mPeersAsked.end())
+            if (canAskPeer(p, peersHave))
             {
-                int64 GROUPSIZE_MS = (MS_TO_WAIT_FOR_FETCH_REPLY.count()/3);
+                int64 GROUPSIZE_MS = (MS_TO_WAIT_FOR_FETCH_REPLY.count() / 3);
                 int64 plat = p->getPing().count() / GROUPSIZE_MS;
                 if (plat < curBest)
                 {
@@ -142,25 +154,25 @@ Tracker::tryNextPeer()
         for (auto pit = s.begin(); pit != s.end(); ++pit)
         {
             auto& p = *pit;
-            if (p->isAuthenticated() &&
-                mPeersAsked.find(p) == mPeersAsked.end())
+            if (canAskPeer(p, true))
             {
                 newPeersWithEnvelope.emplace(p->getPeerID(), *pit);
             }
         }
     }
 
-    if (!newPeersWithEnvelope.empty())
+    bool peerWithEnvelopeSelected = !newPeersWithEnvelope.empty();
+    if (peerWithEnvelopeSelected)
     {
-        procPeers(newPeersWithEnvelope);
+        procPeers(newPeersWithEnvelope, true);
     }
     else
     {
         auto& inPeers = mApp.getOverlayManager().getInboundAuthenticatedPeers();
         auto& outPeers =
             mApp.getOverlayManager().getOutboundAuthenticatedPeers();
-        procPeers(inPeers);
-        procPeers(outPeers);
+        procPeers(inPeers, false);
+        procPeers(outPeers, false);
     }
 
     // pick a random element from the candidate list
@@ -185,7 +197,7 @@ Tracker::tryNextPeer()
     }
     else
     {
-        mPeersAsked.emplace(mLastAskedPeer);
+        mPeersAsked[mLastAskedPeer] = peerWithEnvelopeSelected;
         CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash)
                                << " to " << mLastAskedPeer->toString();
         mAskPeer(mLastAskedPeer, mItemHash);
