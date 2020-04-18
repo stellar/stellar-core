@@ -38,8 +38,9 @@ TEST_CASE("standalone", "[herder][acceptance]")
 {
     SIMULATION_CREATE_NODE(0);
 
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
 
+    cfg.MANUAL_CLOSE = false;
     cfg.NODE_SEED = v0SecretKey;
 
     cfg.QUORUM_SET.threshold = 1;
@@ -1063,7 +1064,9 @@ static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
               bool checkHighFee, bool withSCPsignature)
 {
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
+
+    cfg.MANUAL_CLOSE = false;
     cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = maxTxSize;
 

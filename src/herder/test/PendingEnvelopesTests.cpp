@@ -18,7 +18,9 @@ using namespace stellar::txtest;
 
 TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 {
-    Config cfg(getTestConfig());
+    Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
+    cfg.MANUAL_CLOSE = false;
+
     VirtualClock clock;
 
     auto s = SecretKey::pseudoRandomForTesting();
@@ -139,7 +141,9 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
             REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                 p.second));
 
-            REQUIRE(*herder.getSCP().getLatestMessage(pk) == saneEnvelope);
+            auto m = herder.getSCP().getLatestMessage(pk);
+            REQUIRE(m);
+            REQUIRE(*m == saneEnvelope);
 
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                     Herder::ENVELOPE_STATUS_PROCESSED);
@@ -167,7 +171,9 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
 
             // this triggers process
             REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
-            REQUIRE(*herder.getSCP().getLatestMessage(pk) == saneEnvelope);
+            auto m = herder.getSCP().getLatestMessage(pk);
+            REQUIRE(m);
+            REQUIRE(*m == saneEnvelope);
             REQUIRE(!pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                     Herder::ENVELOPE_STATUS_PROCESSED);
@@ -247,7 +253,9 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
         // saneEnvelope gets processed
         REQUIRE(
             pendingEnvelopes.recvTxSet(p.second->getContentsHash(), p.second));
-        REQUIRE(*herder.getSCP().getLatestMessage(pk) == saneEnvelope);
+        auto m = herder.getSCP().getLatestMessage(pk);
+        REQUIRE(m);
+        REQUIRE(*m == saneEnvelope);
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_PROCESSED);
 

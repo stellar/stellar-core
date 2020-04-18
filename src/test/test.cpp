@@ -129,6 +129,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.RUN_STANDALONE = true;
         thisConfig.FORCE_SCP = true;
 
+        thisConfig.MANUAL_CLOSE = true;
+
         thisConfig.TEST_CASES_ENABLED = true;
 
         thisConfig.PEER_PORT =
