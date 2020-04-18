@@ -49,7 +49,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     auto socket = make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
-    result->startIdleTimer();
+    result->startRecurrentTimer();
     asio::ip::tcp::endpoint endpoint(
         asio::ip::address::from_string(address.getIP()), address.getPort());
     socket->next_layer().async_connect(
@@ -85,7 +85,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
         CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
                                << "@" << app.getConfig().PEER_PORT;
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
-        result->startIdleTimer();
+        result->startRecurrentTimer();
         result->startRead();
     }
     else
@@ -101,7 +101,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 TCPPeer::~TCPPeer()
 {
     assertThreadIsMain();
-    mIdleTimer.cancel();
+    mRecurringTimer.cancel();
     if (mSocket)
     {
         // Ignore: this indicates an attempt to cancel events
@@ -168,7 +168,7 @@ TCPPeer::shutdown()
         return;
     }
 
-    mIdleTimer.cancel();
+    mRecurringTimer.cancel();
     mShutdownScheduled = true;
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 

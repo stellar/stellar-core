@@ -28,6 +28,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewMeter({"overlay", "timeout", "idle"}, "timeout"))
     , mTimeoutStraggler(app.getMetrics().NewMeter(
           {"overlay", "timeout", "straggler"}, "timeout"))
+    , mConnectionLatencyTimer(
+          app.getMetrics().NewTimer({"overlay", "connection", "latency"}))
 
     , mItemFetcherNextPeer(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
