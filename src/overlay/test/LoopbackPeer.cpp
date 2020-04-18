@@ -77,14 +77,14 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
         {
             if (rand_flip() || rand_flip())
             {
-                CLOG(INFO, "Overlay")
+                CLOG(DEBUG, "Overlay")
                     << "Loopback send-to-straggler pausing, "
                     << "outbound queue at " << mOutQueue.size();
                 break;
             }
             else
             {
-                CLOG(INFO, "Overlay")
+                CLOG(DEBUG, "Overlay")
                     << "Loopback send-to-straggler sending, "
                     << "outbound queue at " << mOutQueue.size();
             }
@@ -114,7 +114,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                 auto remS = remW.lock();
                 if (remS)
                 {
-                    remS->drop("remote dropping because of " + reason,
+                    remS->drop(reason,
                                direction ==
                                        Peer::DropDirection::WE_DROPPED_REMOTE
                                    ? Peer::DropDirection::REMOTE_DROPPED_US

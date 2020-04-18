@@ -243,6 +243,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
             while (clock.crank(false) > 0)
             {
+                std::this_thread::sleep_for(std::chrono::microseconds(1));
             }
 
             REQUIRE(asked.size() == 4);
