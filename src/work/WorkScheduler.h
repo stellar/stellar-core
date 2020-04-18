@@ -41,10 +41,16 @@ class WorkScheduler : public Work
         return work;
     }
 
+    // Returns a work that's been scheduled, or nullptr if the WorkScheduler
+    // is aborting.
     template <typename T, typename... Args>
     std::shared_ptr<T>
     scheduleWork(Args&&... args)
     {
+        if (isAborting())
+        {
+            return nullptr;
+        }
         std::weak_ptr<WorkScheduler> weak(
             std::static_pointer_cast<WorkScheduler>(shared_from_this()));
         // Callback to schedule next crank that will only run if WorkScheduler

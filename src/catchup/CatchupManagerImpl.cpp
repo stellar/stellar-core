@@ -152,6 +152,8 @@ CatchupManagerImpl::startCatchup(CatchupConfiguration configuration,
 
     assert(!mCatchupWork);
 
+    // NB: if WorkScheduler is aborting this returns nullptr, but that
+    // which means we don't "really" start catchup.
     mCatchupWork = mApp.getWorkScheduler().scheduleWork<CatchupWork>(
         configuration, archive);
 }
