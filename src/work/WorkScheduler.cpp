@@ -59,7 +59,7 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
                 scheduleOne(weak);
             }
         },
-        "workScheduler");
+        {false, "workScheduler"});
 }
 
 void

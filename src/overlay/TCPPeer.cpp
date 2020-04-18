@@ -218,7 +218,8 @@ TCPPeer::shutdown()
                         << ec2.message();
                 }
             },
-            "TCPPeer: close");
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             "TCPPeer: close"});
     });
 }
 
@@ -510,7 +511,8 @@ TCPPeer::startRead()
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
         self->getApp().postOnMainThread(
             [self]() { self->startRead(); },
-            fmt::format("{} TCPPeer: startRead", toString()));
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             fmt::format("{} TCPPeer: startRead", toString())});
     }
 }
 

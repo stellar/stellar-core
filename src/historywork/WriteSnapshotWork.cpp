@@ -60,7 +60,8 @@ WriteSnapshotWork::onRun()
                     self->wakeUp();
                 }
             },
-            "WriteSnapshotWork: finish");
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             "WriteSnapshotWork: finish"});
     };
 
     // Throw the work over to a worker thread if we can use DB pools,
@@ -72,7 +73,9 @@ WriteSnapshotWork::onRun()
     }
     else
     {
-        mApp.postOnMainThread(work, {false, "WriteSnapshotWork: start"});
+        mApp.postOnMainThread(
+            work, {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                   "WriteSnapshotWork: start"});
     }
     return State::WORK_WAITING;
 }

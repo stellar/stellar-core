@@ -420,7 +420,8 @@ HistoryManagerImpl::historyPublished(
     }
     mPublishWork.reset();
     mApp.postOnMainThread([this]() { this->publishQueuedHistory(); },
-                          "HistoryManagerImpl: publishQueuedHistory");
+                          {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                           "HistoryManagerImpl: publishQueuedHistory"});
 }
 
 uint64_t

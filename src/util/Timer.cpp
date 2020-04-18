@@ -247,12 +247,39 @@ VirtualClock::advanceExecutionQueue()
     // ideally we would just pick up everything we can up to the duration.
     // There is a potential issue with picking up too many items all the time,
     // in that round robin gets defeated if work is submitted in batches.
-    size_t const EXECUTION_QUEUE_BATCH_SIZE = 100;
+    size_t EXECUTION_QUEUE_BATCH_SIZE = 100;
 
     // DURATION here needs to be small enough that timers get to fire often
     // enough but it needs to be big enough so that we do enough work generated
     // by pulling items from the IO queue
-    std::chrono::milliseconds const MAX_EXECUTION_QUEUE_DURATION{500};
+    std::chrono::milliseconds MAX_EXECUTION_QUEUE_DURATION{500};
+
+    // safety in case we can't keep up at all with work
+    const size_t QUEUE_SIZE_DROP_THRESHOLD = 10000;
+    if (mExecutionQueueSize > QUEUE_SIZE_DROP_THRESHOLD)
+    {
+        // 1. drain elements that can be dropped
+        for (auto it = mExecutionQueue.begin(); it != mExecutionQueue.end();)
+        {
+            if (it->first.mExecutionType ==
+                ExecutionCategory::Type::DROPPABLE_EVENT)
+            {
+                mExecutionQueueSize -= it->second.size();
+                it = mExecutionQueue.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        // 2. update parameters so that we help drain the queue
+        // this may lock up the instance for a while, but this is the best thing
+        // we can do
+        EXECUTION_QUEUE_BATCH_SIZE = mExecutionQueueSize;
+        MAX_EXECUTION_QUEUE_DURATION = std::chrono::seconds(30);
+
+        mExecutionIterator = mExecutionQueue.begin();
+    }
 
     YieldTimer queueYt(*this, MAX_EXECUTION_QUEUE_DURATION,
                        EXECUTION_QUEUE_BATCH_SIZE);
@@ -261,7 +288,7 @@ VirtualClock::advanceExecutionQueue()
     mergeExecutionQueue();
 
     // consumes items in a round robin fashion
-    // note that mExecutionIterator stays valid outside of this block as only
+    // note that mExecutionIterator stays valid outside of this function as only
     // insertions are performed on mExecutionQueue
     while (mExecutionQueueSize != 0 && queueYt.shouldKeepGoing())
     {
@@ -293,7 +320,7 @@ VirtualClock::mergeExecutionQueue()
     while (!mDelayedExecutionQueue.empty())
     {
         auto& d = mDelayedExecutionQueue.front();
-        mExecutionQueue[d.first].emplace_back(std::move(d.second));
+        mExecutionQueue[std::move(d.first)].emplace_back(std::move(d.second));
         ++mExecutionQueueSize;
         mDelayedExecutionQueue.pop_front();
     }
@@ -379,29 +406,23 @@ VirtualClock::crank(bool block)
 
 void
 VirtualClock::postToExecutionQueue(std::function<void()>&& f,
-                                   std::string const& id)
+                                   ExecutionCategory&& id)
 {
     std::lock_guard<std::recursive_mutex> lock(mDelayExecutionMutex);
 
     if (!mDelayExecution)
     {
-        // Either we are waiting on io_context().run_one here, or by some
-        // chance run_one was woken up by network activity and postToNextCrank
-        // was called from background thread during of just after that (before
-        // mutex is again taken by crank). In first case we need to post
-        // directly to io_context to wake up run_one(). In second case this
-        // handler will be executed in poll_one(), a bit earlier that we want.
-        // But with current design it would be at most one additional job per
-        // crank.
+        // Either we are waiting on io_context().run_one, or by some chance
+        // run_one was woken up by network activity and postToExecutionQueue was
+        // called from a background thread.
 
-        // One immediate post is enough.
+        // In any case, all we need to do is ensure that we wake up `crank`, we
+        // do this by posting an empty event to the main IO queue
         mDelayExecution = true;
-        asio::post(mIOContext, std::move(f));
+        asio::post(mIOContext, []() {});
     }
-    else
-    {
-        mDelayedExecutionQueue.emplace_back(std::make_pair(id, std::move(f)));
-    }
+    mDelayedExecutionQueue.emplace_back(
+        std::make_pair(std::move(id), std::move(f)));
 }
 
 void

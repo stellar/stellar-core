@@ -103,6 +103,30 @@ class VirtualClock
         VIRTUAL_TIME
     };
 
+    struct ExecutionCategory
+    {
+        enum class Type : int
+        {
+            NORMAL_EVENT,
+            DROPPABLE_EVENT
+        };
+        Type mExecutionType;
+        std::string mName;
+
+        bool
+        operator<(ExecutionCategory const& other) const
+        {
+            if (mExecutionType != other.mExecutionType)
+            {
+                return mExecutionType < other.mExecutionType;
+            }
+            else
+            {
+                return mName < other.mName;
+            }
+        }
+    };
+
   private:
     asio::io_context mIOContext;
     Mode mMode;
@@ -116,9 +140,13 @@ class VirtualClock
     bool mDelayExecution{true};
     std::recursive_mutex mDelayExecutionMutex;
     size_t mExecutionQueueSize{0};
-    std::map<std::string, std::deque<std::function<void()>>> mExecutionQueue;
-    std::map<std::string, std::deque<std::function<void()>>>::iterator mExecutionIterator;
-    std::deque<std::pair<std::string, std::function<void()>>>
+
+    using ExecutionQueue =
+        std::map<ExecutionCategory, std::deque<std::function<void()>>>;
+
+    ExecutionQueue mExecutionQueue;
+    ExecutionQueue::iterator mExecutionIterator;
+    std::deque<std::pair<ExecutionCategory, std::function<void()>>>
         mDelayedExecutionQueue;
 
     using PrQueue =
@@ -170,7 +198,8 @@ class VirtualClock
     // returns the time of the next scheduled event
     time_point next();
 
-    void postToExecutionQueue(std::function<void()>&& f, std::string const& id);
+    void postToExecutionQueue(std::function<void()>&& f,
+                              ExecutionCategory&& id);
 
     size_t
     getExecutionQueueSize() const

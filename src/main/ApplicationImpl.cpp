@@ -823,15 +823,15 @@ ApplicationImpl::getWorkerIOContext()
 
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f,
-                                  std::string jobName)
+                                  VirtualClock::ExecutionCategory&& id)
 {
-    LogSlowExecution isSlow{jobName, LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{id.mName, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
     mVirtualClock.postToExecutionQueue([ this, f = std::move(f), isSlow ]() {
         mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     },
-                                       jobName);
+                                       std::move(id));
 }
 
 void

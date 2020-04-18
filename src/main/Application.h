@@ -219,7 +219,7 @@ class Application
     virtual asio::io_context& getWorkerIOContext() = 0;
 
     virtual void postOnMainThread(std::function<void()>&& f,
-                                  std::string jobName) = 0;
+                                  VirtualClock::ExecutionCategory&& jobID) = 0;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) = 0;
 
