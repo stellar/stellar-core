@@ -507,8 +507,9 @@ TCPPeer::startRead()
         // we have enough data but need to bounce on the main thread as we've
         // done too much work already
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        self->getApp().postOnMainThread([self]() { self->startRead(); },
-                                        "TCPPeer: startRead");
+        self->getApp().postOnMainThread(
+            [self]() { self->startRead(); },
+            fmt::format("{} TCPPeer: startRead", toString()));
     }
 }
 
@@ -604,12 +605,14 @@ void
 TCPPeer::recvMessage()
 {
     assertThreadIsMain();
+
     try
     {
         xdr::xdr_get g(mIncomingBody.data(),
                        mIncomingBody.data() + mIncomingBody.size());
         AuthenticatedMessage am;
         xdr::xdr_argpack_archive(g, am);
+
         Peer::recvMessage(am);
     }
     catch (xdr::xdr_runtime_error& e)

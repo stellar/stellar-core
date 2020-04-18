@@ -125,6 +125,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     OverlayMetrics& getOverlayMetrics();
 
     bool shouldAbort() const;
+    void recvRawMessage(StellarMessage const& msg);
     void recvMessage(StellarMessage const& msg);
     void recvMessage(AuthenticatedMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);

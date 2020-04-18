@@ -76,8 +76,6 @@ class ApplicationImpl : public Application
     virtual asio::io_context& getWorkerIOContext() override;
     virtual void postOnMainThread(std::function<void()>&& f,
                                   std::string jobName) override;
-    virtual void postOnMainThreadWithDelay(std::function<void()>&& f,
-                                           std::string jobName) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) override;
 
@@ -185,7 +183,6 @@ class ApplicationImpl : public Application
     std::unique_ptr<medida::MetricsRegistry> mMetrics;
     medida::Counter& mAppStateCurrent;
     medida::Timer& mPostOnMainThreadDelay;
-    medida::Timer& mPostOnMainThreadWithDelayDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
     VirtualClock::time_point mStartedOn;
 

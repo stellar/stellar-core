@@ -726,7 +726,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                                                slotIndex, bestTxSet);
 
         // post to avoid triggering SCP handling code recursively
-        mApp.postOnMainThreadWithDelay(
+        mApp.postOnMainThread(
             [this, bestTxSet]() {
                 mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
                                             bestTxSet);
