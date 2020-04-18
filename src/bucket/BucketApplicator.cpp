@@ -51,7 +51,8 @@ BucketApplicator::advance(BucketApplicator::Counters& counters)
 {
     size_t count = 0;
 
-    LedgerTxn ltx(mApp.getLedgerTxnRoot(), false);
+    auto& root = mApp.getLedgerTxnRoot();
+    LedgerTxn ltx(root, false);
     for (; mBucketIter; ++mBucketIter)
     {
         BucketEntry const& e = *mBucketIter;

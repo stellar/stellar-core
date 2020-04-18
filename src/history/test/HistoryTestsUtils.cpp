@@ -648,9 +648,11 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
         count == std::numeric_limits<uint32_t>::max();
     mCfgs.back().CATCHUP_RECENT = count;
     mSpawnedAppsClocks.emplace_front();
-    return createTestApplication(
+    auto newApp = createTestApplication(
         mSpawnedAppsClocks.front(),
         mHistoryConfigurator->configure(mCfgs.back(), publish));
+    newApp->start();
+    return newApp;
 }
 
 bool
@@ -672,7 +674,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
     auto& cm = app->getCatchupManager();
     auto finished = [&]() { return cm.catchupWorkIsDone(); };
-    crankUntil(app, finished, std::chrono::seconds{30});
+    crankUntil(app, finished, std::chrono::seconds{60});
 
     // Finished successfully
     auto success = cm.isCatchupInitialized() &&

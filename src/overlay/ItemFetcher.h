@@ -92,6 +92,10 @@ class ItemFetcher : private NonMovableOrCopyable
      */
     void recv(Hash itemHash, medida::Timer& timer);
 
+#ifdef BUILD_TESTS
+    std::shared_ptr<Tracker> getTracker(Hash const& h);
+#endif
+
   protected:
     void stopFetchingBelowInternal(uint64 slotIndex);
 

@@ -43,6 +43,9 @@ namespace stellar
 using namespace std;
 using namespace soci;
 
+static constexpr VirtualClock::time_point PING_NOT_SENT =
+    VirtualClock::time_point::min();
+
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -50,12 +53,14 @@ Peer::Peer(Application& app, PeerRole role)
     , mRemoteOverlayMinVersion(0)
     , mRemoteOverlayVersion(0)
     , mCreationTime(app.getClock().now())
-    , mIdleTimer(app)
+    , mRecurringTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
     , mEnqueueTimeOfLastWrite(app.getClock().now())
     , mPeerMetrics(app.getClock().now())
 {
+    mPingSentTime = PING_NOT_SENT;
+    mLastPing = std::chrono::hours(24); // some default very high value
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
 }
@@ -130,22 +135,26 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
 }
 
 void
-Peer::startIdleTimer()
+Peer::startRecurrentTimer()
 {
+    constexpr std::chrono::seconds RECURRENT_TIMER_PERIOD(5);
+
     if (shouldAbort())
     {
         return;
     }
 
+    pingPeer();
+
     auto self = shared_from_this();
-    mIdleTimer.expires_from_now(getIOTimeout());
-    mIdleTimer.async_wait([self](asio::error_code const& error) {
-        self->idleTimerExpired(error);
+    mRecurringTimer.expires_from_now(RECURRENT_TIMER_PERIOD);
+    mRecurringTimer.async_wait([self](asio::error_code const& error) {
+        self->recurrentTimerExpired(error);
     });
 }
 
 void
-Peer::idleTimerExpired(asio::error_code const& error)
+Peer::recurrentTimerExpired(asio::error_code const& error)
 {
     if (!error)
     {
@@ -168,7 +177,7 @@ Peer::idleTimerExpired(asio::error_code const& error)
         }
         else
         {
-            startIdleTimer();
+            startRecurrentTimer();
         }
     }
 }
@@ -278,12 +287,15 @@ Peer::sendPeers()
         maxPeerCount, mAddress);
     assert(peers.size() <= maxPeerCount);
 
-    newMsg.peers().reserve(peers.size());
-    for (auto const& address : peers)
+    if (!peers.empty())
     {
-        newMsg.peers().push_back(toXdr(address));
+        newMsg.peers().reserve(peers.size());
+        for (auto const& address : peers)
+        {
+            newMsg.peers().push_back(toXdr(address));
+        }
+        sendMessage(newMsg);
     }
-    sendMessage(newMsg);
 }
 
 void
@@ -533,6 +545,78 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
+    std::string cat;
+    VirtualClock::ExecutionCategory::Type catType =
+        VirtualClock::ExecutionCategory::Type::NORMAL_EVENT;
+    switch (stellarMsg.type())
+    {
+    // group messages used during handshake, process those synchronously
+    case MessageType::HELLO:
+    case MessageType::AUTH:
+        Peer::recvRawMessage(stellarMsg);
+        return;
+
+    // control messages
+    case GET_PEERS:
+    case PEERS:
+    case ERROR_MSG:
+        cat = "CTRL";
+        break;
+
+    // high volume flooding
+    case TRANSACTION:
+        cat = "TX";
+        catType = VirtualClock::ExecutionCategory::Type::DROPPABLE_EVENT;
+        break;
+
+    // consensus, inbound
+    case GET_TX_SET:
+    case GET_SCP_QUORUMSET:
+    case GET_SCP_STATE:
+        cat = "SCPQ";
+        catType = VirtualClock::ExecutionCategory::Type::DROPPABLE_EVENT;
+        break;
+
+    // consensus, self
+    case DONT_HAVE:
+    case TX_SET:
+    case SCP_QUORUMSET:
+    case SCP_MESSAGE:
+        cat = "SCP";
+        break;
+
+    default:
+        cat = "MISC";
+    }
+
+    std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
+    std::string err =
+        fmt::format("Error RecvMessage T:{} cat:{} {} @{}", stellarMsg.type(),
+                    cat, toString(), mApp.getConfig().PEER_PORT);
+
+    mApp.postOnMainThread(
+        [ err, weak, sm = StellarMessage(stellarMsg) ]() {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->recvRawMessage(sm);
+            }
+            else
+            {
+                CLOG(TRACE, "Overlay") << err;
+            }
+        },
+        {catType, fmt::format("{}-{} recvMessage", cat, toString())});
+}
+
+void
+Peer::recvRawMessage(StellarMessage const& stellarMsg)
+{
+    if (shouldAbort())
+    {
+        return;
+    }
+
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
     {
@@ -660,6 +744,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvDontHave(StellarMessage const& msg)
 {
+    maybeProcessPingResponse(msg.dontHave().reqHash);
+
     mApp.getHerder().peerDoesntHave(msg.dontHave().type, msg.dontHave().reqHash,
                                     shared_from_this());
 }
@@ -715,9 +801,58 @@ Peer::recvTransaction(StellarMessage const& msg)
     }
 }
 
+Hash
+Peer::pingIDfromTimePoint(VirtualClock::time_point const& tp)
+{
+    auto sh = shortHash::xdrComputeHash(
+        xdr::xdr_to_opaque(uint64_t(tp.time_since_epoch().count())));
+    Hash res;
+    assert(res.size() >= sizeof(sh));
+    std::memcpy(res.data(), &sh, sizeof(sh));
+    return res;
+}
+
+void
+Peer::pingPeer()
+{
+    if (!mApp.getConfig().RUN_STANDALONE && isAuthenticated() &&
+        mPingSentTime == PING_NOT_SENT)
+    {
+        mPingSentTime = mApp.getClock().now();
+        auto h = pingIDfromTimePoint(mPingSentTime);
+        sendGetQuorumSet(h);
+    }
+}
+
+void
+Peer::maybeProcessPingResponse(Hash const& id)
+{
+    if (mPingSentTime != PING_NOT_SENT)
+    {
+        auto h = pingIDfromTimePoint(mPingSentTime);
+        if (h == id)
+        {
+            mLastPing = std::chrono::duration_cast<std::chrono::milliseconds>(
+                mApp.getClock().now() - mPingSentTime);
+            mPingSentTime = PING_NOT_SENT;
+            CLOG(DEBUG, "Overlay") << fmt::format(
+                "Latency {}: {} ms", toString(), mLastPing.count());
+            getOverlayMetrics().mConnectionLatencyTimer.Update(mLastPing);
+        }
+    }
+}
+
+std::chrono::milliseconds
+Peer::getPing() const
+{
+    return mLastPing;
+}
+
 void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
+    maybeProcessPingResponse(msg.qSetHash());
+
     SCPQuorumSetPtr qset = mApp.getHerder().getQSet(msg.qSetHash());
 
     if (qset)

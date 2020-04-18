@@ -49,7 +49,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
     auto socket = make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mAddress = address;
-    result->startIdleTimer();
+    result->startRecurrentTimer();
     asio::ip::tcp::endpoint endpoint(
         asio::ip::address::from_string(address.getIP()), address.getPort());
     socket->next_layer().async_connect(
@@ -85,7 +85,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
         CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
                                << "@" << app.getConfig().PEER_PORT;
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
-        result->startIdleTimer();
+        result->startRecurrentTimer();
         result->startRead();
     }
     else
@@ -101,7 +101,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 TCPPeer::~TCPPeer()
 {
     assertThreadIsMain();
-    mIdleTimer.cancel();
+    mRecurringTimer.cancel();
     if (mSocket)
     {
         // Ignore: this indicates an attempt to cancel events
@@ -168,57 +168,59 @@ TCPPeer::shutdown()
         return;
     }
 
-    mIdleTimer.cancel();
+    mRecurringTimer.cancel();
     mShutdownScheduled = true;
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     // To shutdown, we first queue up our desire to shutdown in the strand,
     // behind any pending read/write calls. We'll let them issue first.
-    self->getApp().postOnMainThread(
-        [self]() {
-            // Gracefully shut down connection: this pushes a FIN packet into
-            // TCP which, if we wanted to be really polite about, we would wait
-            // for an ACK from by doing repeated reads until we get a 0-read.
-            //
-            // But since we _might_ be dropping a hostile or unresponsive
-            // connection, we're going to just post a close() immediately after,
-            // and hope the kernel does something useful as far as putting any
-            // queued last-gasp ERROR_MSG packet on the wire.
-            //
-            // All of this is voluntary. We can also just close(2) here and be
-            // done with it, but we want to give some chance of telling peers
-            // why we're disconnecting them.
-            asio::error_code ec;
-            self->mSocket->next_layer().shutdown(
-                asio::ip::tcp::socket::shutdown_both, ec);
-            if (ec)
-            {
-                CLOG(DEBUG, "Overlay")
-                    << "TCPPeer::drop shutdown socket failed: " << ec.message();
-            }
-            self->getApp().postOnMainThread(
-                [self]() {
-                    // Close fd associated with socket. Socket is already shut
-                    // down, but depending on platform (and apparently whether
-                    // there was unread data when we issued shutdown()) this
-                    // call might push RST onto the wire, or some other action;
-                    // in any case it has to be done to free the OS resources.
-                    //
-                    // It will also, at this point, cancel any pending asio
-                    // read/write handlers, i.e. fire them with an error code
-                    // indicating cancellation.
-                    asio::error_code ec2;
-                    self->mSocket->close(ec2);
-                    if (ec2)
-                    {
-                        CLOG(DEBUG, "Overlay")
-                            << "TCPPeer::drop close socket failed: "
-                            << ec2.message();
-                    }
-                },
-                "TCPPeer: close");
-        },
-        "TCPPeer: shutdown");
+
+    // leave some time before actually calling shutdown
+    mRecurringTimer.expires_from_now(std::chrono::seconds(5));
+    mRecurringTimer.async_wait([self](asio::error_code) {
+        // Gracefully shut down connection: this pushes a FIN packet into
+        // TCP which, if we wanted to be really polite about, we would wait
+        // for an ACK from by doing repeated reads until we get a 0-read.
+        //
+        // But since we _might_ be dropping a hostile or unresponsive
+        // connection, we're going to just post a close() immediately after,
+        // and hope the kernel does something useful as far as putting any
+        // queued last-gasp ERROR_MSG packet on the wire.
+        //
+        // All of this is voluntary. We can also just close(2) here and be
+        // done with it, but we want to give some chance of telling peers
+        // why we're disconnecting them.
+        asio::error_code ec;
+        self->mSocket->next_layer().shutdown(
+            asio::ip::tcp::socket::shutdown_both, ec);
+        if (ec)
+        {
+            CLOG(DEBUG, "Overlay")
+                << "TCPPeer::drop shutdown socket failed: " << ec.message();
+        }
+        self->getApp().postOnMainThread(
+            [self]() {
+                // Close fd associated with socket. Socket is already shut
+                // down, but depending on platform (and apparently whether
+                // there was unread data when we issued shutdown()) this
+                // call might push RST onto the wire, or some other action;
+                // in any case it has to be done to free the OS resources.
+                //
+                // It will also, at this point, cancel any pending asio
+                // read/write handlers, i.e. fire them with an error code
+                // indicating cancellation.
+                asio::error_code ec2;
+                self->mSocket->close(ec2);
+                if (ec2)
+                {
+                    CLOG(DEBUG, "Overlay")
+                        << "TCPPeer::drop close socket failed: "
+                        << ec2.message();
+                }
+            },
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             "TCPPeer: close"});
+    });
 }
 
 void
@@ -507,8 +509,10 @@ TCPPeer::startRead()
         // we have enough data but need to bounce on the main thread as we've
         // done too much work already
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        self->getApp().postOnMainThread([self]() { self->startRead(); },
-                                        "TCPPeer: startRead");
+        self->getApp().postOnMainThread(
+            [self]() { self->startRead(); },
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             fmt::format("{} TCPPeer: startRead", toString())});
     }
 }
 
@@ -549,7 +553,6 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
     assertThreadIsMain();
-
     if (error)
     {
         noteErrorReadHeader(bytes_transferred, error);
@@ -604,12 +607,14 @@ void
 TCPPeer::recvMessage()
 {
     assertThreadIsMain();
+
     try
     {
         xdr::xdr_get g(mIncomingBody.data(),
                        mIncomingBody.data() + mIncomingBody.size());
         AuthenticatedMessage am;
         xdr::xdr_argpack_archive(g, am);
+
         Peer::recvMessage(am);
     }
     catch (xdr::xdr_runtime_error& e)

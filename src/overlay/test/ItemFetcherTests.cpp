@@ -11,7 +11,9 @@
 #include "medida/metrics_registry.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/Tracker.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "xdr/Stellar-types.h"
@@ -215,10 +217,10 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
             auto other1 = createTestApplication(clock, getTestConfig(1));
             auto other2 = createTestApplication(clock, getTestConfig(2));
             LoopbackPeerConnection connection1(*app, *other1);
-            LoopbackPeerConnection connection2(*app, *other2);
             auto peer1 = connection1.getInitiator();
-            auto peer2 = connection2.getInitiator();
 
+            LoopbackPeerConnection connection2(*app, *other2);
+            auto peer2 = connection2.getInitiator();
             SECTION("fetching once works")
             {
                 auto zeroEnvelope1 = makeEnvelope(0);
@@ -243,6 +245,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
             while (clock.crank(false) > 0)
             {
+                std::this_thread::sleep_for(std::chrono::microseconds(1));
             }
 
             REQUIRE(asked.size() == 4);
@@ -260,6 +263,112 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
             itemFetcher.recv(zero, timer);
             REQUIRE(app->getHerder().received ==
                     expectedReceived); // no new data received
+        }
+    }
+}
+
+TEST_CASE("next peer strategy", "[overlay][ItemFetcher]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto sim =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    auto cfgMain = getTestConfig(1);
+    auto cfg1 = getTestConfig(2);
+    auto cfg2 = getTestConfig(3);
+
+    SIMULATION_CREATE_NODE(Main);
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+    sim->addNode(vMainSecretKey, cfgMain.QUORUM_SET, &cfgMain);
+
+    sim->addNode(vNode1SecretKey, cfg1.QUORUM_SET, &cfg1);
+    sim->addPendingConnection(vMainNodeID, vNode1NodeID);
+    sim->startAllNodes();
+    auto conn1 = sim->getLoopbackConnection(vMainNodeID, vNode1NodeID);
+    auto peer1 = conn1->getInitiator();
+
+    auto app = sim->getNode(vMainNodeID);
+
+    int askCount = 0;
+    ItemFetcher itemFetcher(*app, [&](Peer::pointer, Hash) { askCount++; });
+
+    sim->crankUntil([&]() { return peer1->isAuthenticated(); },
+                    std::chrono::seconds{3}, false);
+
+    // this causes to fetch from `peer1` as it's the only one
+    // connected
+    auto hundredEnvelope1 = makeEnvelope(100);
+    auto hundred = sha256(ByteSlice("100"));
+    itemFetcher.fetch(hundred, hundredEnvelope1);
+    auto tracker = itemFetcher.getTracker(hundred);
+    REQUIRE(tracker);
+    Peer::pointer trPeer1;
+    trPeer1 = tracker->getLastAskedPeer();
+    REQUIRE(trPeer1 == peer1);
+
+    REQUIRE(askCount == 1);
+
+    SECTION("doesn't try the same peer")
+    {
+        tracker->tryNextPeer();
+        // ran out of peers to try
+        REQUIRE(!tracker->getLastAskedPeer());
+        REQUIRE(askCount == 1);
+    }
+    SECTION("with more peers")
+    {
+        sim->addNode(vNode2SecretKey, cfg2.QUORUM_SET, &cfg2);
+        sim->addPendingConnection(vMainNodeID, vNode2NodeID);
+        sim->startAllNodes();
+        auto conn2 = sim->getLoopbackConnection(vMainNodeID, vNode2NodeID);
+        auto peer2 = conn2->getInitiator();
+
+        sim->crankUntil([&]() { return peer2->isAuthenticated(); },
+                        std::chrono::seconds{3}, false);
+
+        // still connected
+        REQUIRE(peer1->isAuthenticated());
+
+        SECTION("try new peer")
+        {
+            tracker->tryNextPeer();
+            REQUIRE(askCount == 2);
+            auto trPeer2 = tracker->getLastAskedPeer();
+            REQUIRE(trPeer2 == peer2);
+
+            // ran out of peers
+            tracker->tryNextPeer();
+            REQUIRE(askCount == 2);
+            REQUIRE(!tracker->getLastAskedPeer());
+
+            // try again, this time we ask peers again
+
+            tracker->tryNextPeer();
+            REQUIRE(tracker->getLastAskedPeer());
+            REQUIRE(askCount == 3);
+        }
+        SECTION("peer1 told us that it knows")
+        {
+            StellarMessage msg(SCP_MESSAGE);
+            msg.envelope() = hundredEnvelope1;
+            auto index = sha256(xdr::xdr_to_opaque(msg));
+            app->getOverlayManager().recvFloodedMsgID(msg, peer1, index);
+            tracker->tryNextPeer();
+            REQUIRE(askCount == 2);
+            auto trPeer1b = tracker->getLastAskedPeer();
+            REQUIRE(trPeer1b == peer1);
+
+            // next time, we try a new peer
+            tracker->tryNextPeer();
+            REQUIRE(askCount == 3);
+            auto trPeer2 = tracker->getLastAskedPeer();
+            REQUIRE(trPeer2 == peer2);
+
+            // ran out of peers
+            tracker->tryNextPeer();
+            REQUIRE(askCount == 3);
+            REQUIRE(!tracker->getLastAskedPeer());
         }
     }
 }

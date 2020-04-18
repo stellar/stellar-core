@@ -492,7 +492,7 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
     return count;
 }
 
-// called every 2 seconds
+// called every PEER_AUTHENTICATION_TIMEOUT + 1=3 seconds
 void
 OverlayManagerImpl::tick()
 {

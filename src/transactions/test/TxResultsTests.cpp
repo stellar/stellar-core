@@ -52,43 +52,6 @@ enum class PaymentValidity
     MALFORMED,
     UNDERFUNDED
 };
-
-static auto signedTypes = std::vector<Signed>{
-    Signed::NOT_SIGNED, Signed::SIGNED, Signed::DOUBLE_SIGNED};
-static auto signedNames =
-    std::map<Signed, std::string>{{Signed::NOT_SIGNED, "not signed"},
-                                  {Signed::SIGNED, "signed"},
-                                  {Signed::DOUBLE_SIGNED, "double signed"}};
-static auto paymentValidityTypes = std::vector<PaymentValidity>{
-    PaymentValidity::VALID, PaymentValidity::MALFORMED,
-    PaymentValidity::UNDERFUNDED};
-static auto paymentValidityNames = std::map<PaymentValidity, std::string>{
-    {PaymentValidity::VALID, "valid"},
-    {PaymentValidity::MALFORMED, "malformed"},
-    {PaymentValidity::UNDERFUNDED, "underfunded"}};
-}
-
-template <typename T>
-std::vector<std::vector<T>>
-variations(int count, std::vector<T> values)
-{
-    if (count == 0)
-    {
-        return {{}};
-    }
-
-    auto result = std::vector<std::vector<T>>{};
-    auto sub = variations(count - 1, values);
-    for (auto s : sub)
-    {
-        for (auto v : values)
-        {
-            result.push_back(s);
-            result.back().push_back(v);
-        }
-    }
-
-    return result;
 }
 
 TEST_CASE("txresults", "[tx][txresults]")
@@ -490,87 +453,6 @@ TEST_CASE("txresults", "[tx][txresults]")
                 });
             }
         }
-    }
-
-    auto sign3 = variations<Signed>(3, signedTypes);
-    auto op3 = variations<PaymentValidity>(3, paymentValidityTypes);
-
-    auto signSectionName = [](std::vector<Signed> const& signs) {
-        auto result = std::string{"tx and op1 " + signedNames[signs[0]]};
-        for (size_t i = 1; i < signs.size(); i++)
-            result +=
-                ", op" + std::to_string(i + 1) + " " + signedNames[signs[i]];
-        return result;
-    };
-    auto opSectionName = [](std::vector<PaymentValidity> const& ops) {
-        auto result = std::string{"op1 " + paymentValidityNames[ops[0]]};
-        for (size_t i = 1; i < ops.size(); i++)
-            result += ", op" + std::to_string(i + 1) + " " +
-                      paymentValidityNames[ops[i]];
-        return result;
-    };
-
-    auto accounts = std::vector<TestAccount*>{&a, &b, &c, &d, &e};
-    auto makeTx = [&](std::vector<Signed> const& signs,
-                      std::vector<PaymentValidity> const& ops) {
-        auto operations = std::vector<Operation>{};
-        for (size_t i = 0; i < ops.size(); i++)
-        {
-            auto destination = accounts[(i + 1) % ops.size()];
-            auto op = payment(*destination, amount(ops[i]));
-            if (i != 0)
-                op = accounts[i]->op(op);
-            operations.push_back(op);
-        }
-
-        auto tx = a.tx(operations);
-        getSignatures(tx).clear();
-
-        for (size_t i = 0; i < signs.size(); i++)
-        {
-            sign(tx, *accounts[i], signs[i]);
-        }
-
-        return tx;
-    };
-
-    auto test = [&](std::vector<Signed> const& signs,
-                    std::vector<PaymentValidity> const& ops) {
-        for_all_versions(*app, [&] {
-            auto tx = makeTx(signs, ops);
-            uint32_t ledgerVersion = 0;
-            {
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                ledgerVersion = ltx.loadHeader().current().ledgerVersion;
-            }
-            auto validationResult =
-                makeValidationResult(signs, ops, ledgerVersion);
-            auto applyResult = makeApplyResult(signs, ops, ledgerVersion);
-            validateTxResults(tx, *app, validationResult, applyResult);
-        });
-    };
-
-    for (auto signs : sign3)
-    {
-        SECTION(signSectionName(signs))
-        {
-            for (auto ops : op3)
-            {
-                SECTION(opSectionName(ops))
-                {
-                    test(signs, ops);
-                }
-            }
-        }
-    }
-
-    SECTION("5 signed but underfunded")
-    {
-        test({Signed::SIGNED, Signed::SIGNED, Signed::SIGNED, Signed::SIGNED,
-              Signed::SIGNED},
-             {PaymentValidity::UNDERFUNDED, PaymentValidity::UNDERFUNDED,
-              PaymentValidity::UNDERFUNDED, PaymentValidity::UNDERFUNDED,
-              PaymentValidity::UNDERFUNDED});
     }
 
     SECTION("merge account")

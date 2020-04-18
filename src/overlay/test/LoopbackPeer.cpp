@@ -77,14 +77,14 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
         {
             if (rand_flip() || rand_flip())
             {
-                CLOG(INFO, "Overlay")
+                CLOG(DEBUG, "Overlay")
                     << "Loopback send-to-straggler pausing, "
                     << "outbound queue at " << mOutQueue.size();
                 break;
             }
             else
             {
-                CLOG(INFO, "Overlay")
+                CLOG(DEBUG, "Overlay")
                     << "Loopback send-to-straggler sending, "
                     << "outbound queue at " << mOutQueue.size();
             }
@@ -103,7 +103,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 
     mDropReason = reason;
     mState = CLOSING;
-    mIdleTimer.cancel();
+    mRecurringTimer.cancel();
     getApp().getOverlayManager().removePeer(this);
 
     auto remote = mRemote.lock();
@@ -114,7 +114,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                 auto remS = remW.lock();
                 if (remS)
                 {
-                    remS->drop("remote dropping because of " + reason,
+                    remS->drop(reason,
                                direction ==
                                        Peer::DropDirection::WE_DROPPED_REMOTE
                                    ? Peer::DropDirection::REMOTE_DROPPED_US
@@ -122,7 +122,8 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                                Peer::DropMode::IGNORE_WRITE_QUEUE);
                 }
             },
-            "LoopbackPeer: drop");
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             "LoopbackPeer: drop"});
     }
 }
 
@@ -173,8 +174,10 @@ LoopbackPeer::processInQueue()
         if (!mInQueue.empty())
         {
             auto self = static_pointer_cast<LoopbackPeer>(shared_from_this());
-            mApp.postOnMainThread([self]() { self->processInQueue(); },
-                                  "LoopbackPeer: processInQueue");
+            mApp.postOnMainThread(
+                [self]() { self->processInQueue(); },
+                {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                 "LoopbackPeer: processInQueue"});
         }
     }
 }
@@ -249,7 +252,8 @@ LoopbackPeer::deliverOne()
                         remS->processInQueue();
                     }
                 },
-                "LoopbackPeer: processInQueue in deliverOne");
+                {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                 "LoopbackPeer: processInQueue in deliverOne"});
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
@@ -450,8 +454,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
         return;
     }
 
-    mInitiator->startIdleTimer();
-    mAcceptor->startIdleTimer();
+    mInitiator->startRecurrentTimer();
+    mAcceptor->startRecurrentTimer();
 
     std::weak_ptr<LoopbackPeer> init = mInitiator;
     mInitiator->getApp().postOnMainThread(
@@ -462,7 +466,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
                 inC->connectHandler(asio::error_code());
             }
         },
-        "LoopbackPeer: connect");
+        {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+         "LoopbackPeer: connect"});
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()

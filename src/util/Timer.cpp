@@ -19,6 +19,7 @@ static const uint32_t RECENT_CRANK_WINDOW = 1024;
 
 VirtualClock::VirtualClock(Mode mode) : mMode(mode), mRealTimer(mIOContext)
 {
+    mExecutionIterator = mExecutionQueue.begin();
     resetIdleCrankPercent();
 }
 
@@ -239,6 +240,105 @@ VirtualClock::setCurrentVirtualTime(time_point t)
     mVirtualNow = t;
 }
 
+void
+VirtualClock::sleep_for(std::chrono::microseconds us)
+{
+    if (mMode == VIRTUAL_TIME)
+    {
+        setCurrentVirtualTime(now() + us);
+    }
+    else
+    {
+        std::this_thread::sleep_for(us);
+    }
+}
+
+void
+VirtualClock::advanceExecutionQueue()
+{
+    // limit in terms of number of items
+    // ideally we would just pick up everything we can up to the duration.
+    // There is a potential issue with picking up too many items all the time,
+    // in that round robin gets defeated if work is submitted in batches.
+    size_t EXECUTION_QUEUE_BATCH_SIZE = 100;
+
+    // DURATION here needs to be small enough that timers get to fire often
+    // enough but it needs to be big enough so that we do enough work generated
+    // by pulling items from the IO queue
+    std::chrono::milliseconds MAX_EXECUTION_QUEUE_DURATION{500};
+
+    // safety in case we can't keep up at all with work
+    const size_t QUEUE_SIZE_DROP_THRESHOLD = 10000;
+    if (mExecutionQueueSize > QUEUE_SIZE_DROP_THRESHOLD)
+    {
+        // 1. drain elements that can be dropped
+        for (auto it = mExecutionQueue.begin(); it != mExecutionQueue.end();)
+        {
+            if (it->first.mExecutionType ==
+                ExecutionCategory::Type::DROPPABLE_EVENT)
+            {
+                mExecutionQueueSize -= it->second.size();
+                it = mExecutionQueue.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        // 2. update parameters so that we help drain the queue
+        // this may lock up the instance for a while, but this is the best thing
+        // we can do
+        EXECUTION_QUEUE_BATCH_SIZE = mExecutionQueueSize;
+        MAX_EXECUTION_QUEUE_DURATION = std::chrono::seconds(30);
+
+        mExecutionIterator = mExecutionQueue.begin();
+    }
+
+    YieldTimer queueYt(*this, MAX_EXECUTION_QUEUE_DURATION,
+                       EXECUTION_QUEUE_BATCH_SIZE);
+
+    // moves any future work into the main execution queue
+    mergeExecutionQueue();
+
+    // consumes items in a round robin fashion
+    // note that mExecutionIterator stays valid outside of this function as only
+    // insertions are performed on mExecutionQueue
+    while (mExecutionQueueSize != 0 && queueYt.shouldKeepGoing())
+    {
+        if (mExecutionIterator == mExecutionQueue.end())
+        {
+            mExecutionIterator = mExecutionQueue.begin();
+        }
+
+        auto& q = mExecutionIterator->second;
+        auto elem = std::move(q.front());
+        --mExecutionQueueSize;
+        q.pop_front();
+        if (q.empty())
+        {
+            mExecutionIterator = mExecutionQueue.erase(mExecutionIterator);
+        }
+        else
+        {
+            ++mExecutionIterator;
+        }
+
+        elem();
+    }
+}
+
+void
+VirtualClock::mergeExecutionQueue()
+{
+    while (!mDelayedExecutionQueue.empty())
+    {
+        auto& d = mDelayedExecutionQueue.front();
+        mExecutionQueue[std::move(d.first)].emplace_back(std::move(d.second));
+        ++mExecutionQueueSize;
+        mDelayedExecutionQueue.pop_front();
+    }
+}
+
 size_t
 VirtualClock::crank(bool block)
 {
@@ -267,29 +367,32 @@ VirtualClock::crank(bool block)
         // Pick up some work off the IO queue.
         // Calling mIOContext.poll() here may introduce unbounded delays
         // to trigger timers.
-        const size_t WORK_BATCH_SIZE = 100;
         size_t lastPoll;
-        size_t i = 0;
+        // to trigger timers so we instead put bounds on the amount of work we
+        // do at once both in size and time. As MAX_CRANK_WORK_DURATION is
+        // not enforced in virtual mode, we use a smaller batch size.
+        // We later process items queued up in the execution queue, that has
+        // similar parameters.
+        size_t const WORK_BATCH_SIZE = 100;
+        std::chrono::milliseconds const MAX_CRANK_WORK_DURATION{200};
+
+        YieldTimer ioYt(*this, MAX_CRANK_WORK_DURATION, WORK_BATCH_SIZE);
         do
         {
             // May add work to mDelayedExecutionQueue.
             lastPoll = mIOContext.poll_one();
             nWorkDone += lastPoll;
-        } while (lastPoll != 0 && ++i < WORK_BATCH_SIZE);
+        } while (lastPoll != 0 && ioYt.shouldKeepGoing());
 
         nWorkDone -= nRealTimerCancelEvents;
 
-        if (!mDelayedExecutionQueue.empty())
+        if (!mExecutionQueue.empty() || !mDelayedExecutionQueue.empty())
         {
             // If any work is added here, we don't want to advance VIRTUAL_TIME
             // and also we don't need to block, as next crank will have
             // something to execute.
             nWorkDone++;
-            for (auto&& f : mDelayedExecutionQueue)
-            {
-                asio::post(mIOContext, std::move(f));
-            }
-            mDelayedExecutionQueue.clear();
+            advanceExecutionQueue();
         }
 
         if (mMode == VIRTUAL_TIME && nWorkDone == 0)
@@ -315,35 +418,43 @@ VirtualClock::crank(bool block)
 }
 
 void
-VirtualClock::postToCurrentCrank(std::function<void()>&& f)
-{
-    asio::post(mIOContext, std::move(f));
-}
-
-void
-VirtualClock::postToNextCrank(std::function<void()>&& f)
+VirtualClock::postToExecutionQueue(std::function<void()>&& f,
+                                   ExecutionCategory&& id)
 {
     std::lock_guard<std::recursive_mutex> lock(mDelayExecutionMutex);
 
     if (!mDelayExecution)
     {
-        // Either we are waiting on io_context().run_one here, or by some
-        // chance run_one was woke up by network activity and postToNextCrank
-        // was called from background thread during of just after that (before
-        // mutex is again taken by crank). In first case we need to post
-        // directly to io_context to wake up run_one(). In second case this
-        // handler will be executed in poll_one(), a bit earlier that we want.
-        // But with current design it would be at most one additional job per
-        // crank.
+        // Either we are waiting on io_context().run_one, or by some chance
+        // run_one was woken up by network activity and postToExecutionQueue was
+        // called from a background thread.
 
-        // One immediate post is enough.
+        // In any case, all we need to do is ensure that we wake up `crank`, we
+        // do this by posting an empty event to the main IO queue
         mDelayExecution = true;
-        asio::post(mIOContext, std::move(f));
+        asio::post(mIOContext, []() {});
     }
-    else
-    {
-        mDelayedExecutionQueue.emplace_back(std::move(f));
-    }
+
+    // We currently post all callbacks to a temporary "pre-queue" that's
+    // disjoint from anything that will be digested in the current invocation of
+    // `advanceExecutionQueue`.
+    //
+    // This might be surprising and isn't necessarily .. necessary; notably we
+    // batch-transfer all those callbacks to the the RR queues at the beginning
+    // of the _next_ call to `advanceExecutionQueue` anyway!
+    //
+    // But this disjoint "pre-queue" behaviour mandates an interleaving of IO
+    // with batches of CPU-bound callbacks, which can help avoid the phenomenon
+    // of a callback near the end of its timeslice posting back another
+    // long-running callback that will then _exceed_ the timeslice. In this
+    // scheme, batches of callbacks are more likely to run out of things to do
+    // and switch to IO than they are to overshoot their timeslices and yield
+    // (possibly somewhat yielding too late and incurring IO debt).
+    //
+    // This is all somewhat heuristic, but it seems not to do any harm and maybe
+    // does good. We may experiment more in the future.
+    mDelayedExecutionQueue.emplace_back(
+        std::make_pair(std::move(id), std::move(f)));
 }
 
 void
@@ -436,7 +547,7 @@ VirtualClock::advanceToNow()
     }
     // Keep the dispatch loop separate from the pop()-ing loop
     // so the triggered events can't mutate the priority queue
-    // from underneat us while we are looping.
+    // from underneath us while we are looping.
     for (auto ev : toDispatch)
     {
         ev->trigger();
@@ -460,7 +571,12 @@ VirtualClock::advanceToNext()
         return 0;
     }
 
-    mVirtualNow = next();
+    auto nextEvent = next();
+    // jump forward in time, if needed
+    if (mVirtualNow < nextEvent)
+    {
+        mVirtualNow = nextEvent;
+    }
     return advanceToNow();
 }
 

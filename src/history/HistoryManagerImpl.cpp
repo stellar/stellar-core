@@ -280,6 +280,9 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     // Pass in all bucket hashes from HAS. We cannot rely on StateSnapshot
     // buckets here, because its buckets might have some futures resolved by
     // now, differing from the state of the bucketlist during queueing.
+    //
+    // NB: if WorkScheduler is aborting this returns nullptr, but that
+    // which means we don't "really" start publishing.
     mPublishWork = mApp.getWorkScheduler().scheduleWork<PublishWork>(
         snap, seq, allBucketsFromHAS);
 }
@@ -420,7 +423,8 @@ HistoryManagerImpl::historyPublished(
     }
     mPublishWork.reset();
     mApp.postOnMainThread([this]() { this->publishQueuedHistory(); },
-                          "HistoryManagerImpl: publishQueuedHistory");
+                          {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                           "HistoryManagerImpl: publishQueuedHistory"});
 }
 
 uint64_t

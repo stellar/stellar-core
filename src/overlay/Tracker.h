@@ -26,6 +26,7 @@
 #include "xdr/Stellar-types.h"
 
 #include <functional>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -43,7 +44,9 @@ class Tracker
     Application& mApp;
     Peer::pointer mLastAskedPeer;
     int mNumListRebuild;
-    std::deque<Peer::pointer> mPeersToAsk;
+    // keep track of which peer we asked, and if we thought if it had the data
+    // or not at the time
+    std::map<Peer::pointer, bool> mPeersAsked;
     VirtualTimer mTimer;
     std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
     Hash mItemHash;
@@ -149,5 +152,13 @@ class Tracker
     {
         mLastSeenSlotIndex = 0;
     }
+
+#ifdef BUILD_TESTS
+    Peer::pointer
+    getLastAskedPeer()
+    {
+        return mLastAskedPeer;
+    }
+#endif
 };
 }

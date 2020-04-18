@@ -103,6 +103,30 @@ class VirtualClock
         VIRTUAL_TIME
     };
 
+    struct ExecutionCategory
+    {
+        enum class Type : int
+        {
+            NORMAL_EVENT,
+            DROPPABLE_EVENT
+        };
+        Type mExecutionType;
+        std::string mName;
+
+        bool
+        operator<(ExecutionCategory const& other) const
+        {
+            if (mExecutionType != other.mExecutionType)
+            {
+                return mExecutionType < other.mExecutionType;
+            }
+            else
+            {
+                return mName < other.mName;
+            }
+        }
+    };
+
   private:
     asio::io_context mIOContext;
     Mode mMode;
@@ -115,7 +139,15 @@ class VirtualClock
 
     bool mDelayExecution{true};
     std::recursive_mutex mDelayExecutionMutex;
-    std::vector<std::function<void()>> mDelayedExecutionQueue;
+    size_t mExecutionQueueSize{0};
+
+    using ExecutionQueue =
+        std::map<ExecutionCategory, std::deque<std::function<void()>>>;
+
+    ExecutionQueue mExecutionQueue;
+    ExecutionQueue::iterator mExecutionIterator;
+    std::deque<std::pair<ExecutionCategory, std::function<void()>>>
+        mDelayedExecutionQueue;
 
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
@@ -129,6 +161,9 @@ class VirtualClock
     void maybeSetRealtimer();
     size_t advanceToNext();
     size_t advanceToNow();
+
+    void advanceExecutionQueue();
+    void mergeExecutionQueue();
 
     // timer should be last to ensure it gets destroyed first
     asio::basic_waitable_timer<std::chrono::system_clock> mRealTimer;
@@ -159,12 +194,21 @@ class VirtualClock
     // only valid with VIRTUAL_TIME: sets the current value
     // of the clock
     void setCurrentVirtualTime(time_point t);
+    // calls "sleep_for" if REAL_TIME, otherwise, just adds time to the virtual
+    // clock
+    void sleep_for(std::chrono::microseconds us);
 
     // returns the time of the next scheduled event
     time_point next();
 
-    void postToCurrentCrank(std::function<void()>&& f);
-    void postToNextCrank(std::function<void()>&& f);
+    void postToExecutionQueue(std::function<void()>&& f,
+                              ExecutionCategory&& id);
+
+    size_t
+    getExecutionQueueSize() const
+    {
+        return mExecutionQueueSize;
+    }
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable

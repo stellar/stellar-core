@@ -76,8 +76,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
     , mPostOnMainThreadDelay(
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
-    , mPostOnMainThreadWithDelayDelay(mMetrics->NewTimer(
-          {"app", "post-on-main-thread-with-delay", "delay"}))
     , mPostOnBackgroundThreadDelay(
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
     , mStartedOn(clock.now())
@@ -680,6 +678,10 @@ ApplicationImpl::syncOwnMetrics()
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
         .set_count(mProcessManager->getNumRunningProcesses());
+
+    // Update ioservice related metrics
+    mMetrics->NewCounter({"process", "ioservice", "queue"})
+        .set_count(static_cast<int64_t>(getClock().getExecutionQueueSize()));
 }
 
 void
@@ -821,26 +823,15 @@ ApplicationImpl::getWorkerIOContext()
 
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f,
-                                  std::string jobName)
+                                  VirtualClock::ExecutionCategory&& id)
 {
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{id.mName, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    mVirtualClock.postToCurrentCrank([ this, f = std::move(f), isSlow ]() {
+    mVirtualClock.postToExecutionQueue([ this, f = std::move(f), isSlow ]() {
         mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
         f();
-    });
-}
-
-void
-ApplicationImpl::postOnMainThreadWithDelay(std::function<void()>&& f,
-                                           std::string jobName)
-{
-    LogSlowExecution isSlow{std::move(jobName), LogSlowExecution::Mode::MANUAL,
-                            "executed after"};
-    mVirtualClock.postToNextCrank([ this, f = std::move(f), isSlow ]() {
-        mPostOnMainThreadWithDelayDelay.Update(isSlow.checkElapsedTime());
-        f();
-    });
+    },
+                                       std::move(id));
 }
 
 void

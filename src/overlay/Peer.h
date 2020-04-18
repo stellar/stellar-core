@@ -115,16 +115,23 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     VirtualClock::time_point mCreationTime;
 
-    VirtualTimer mIdleTimer;
+    VirtualTimer mRecurringTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
     VirtualClock::time_point mEnqueueTimeOfLastWrite;
+
+    static Hash pingIDfromTimePoint(VirtualClock::time_point const& tp);
+    void pingPeer();
+    void maybeProcessPingResponse(Hash const& id);
+    VirtualClock::time_point mPingSentTime;
+    std::chrono::milliseconds mLastPing;
 
     PeerMetrics mPeerMetrics;
 
     OverlayMetrics& getOverlayMetrics();
 
     bool shouldAbort() const;
+    void recvRawMessage(StellarMessage const& msg);
     void recvMessage(StellarMessage const& msg);
     void recvMessage(AuthenticatedMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
@@ -170,8 +177,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     virtual AuthCert getAuthCert();
 
-    void startIdleTimer();
-    void idleTimerExpired(asio::error_code const& error);
+    void startRecurrentTimer();
+    void recurrentTimerExpired(asio::error_code const& error);
     std::chrono::seconds getIOTimeout() const;
 
     // helper method to acknownledge that some bytes were received
@@ -211,6 +218,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mCreationTime;
     }
     std::chrono::seconds getLifeTime() const;
+    std::chrono::milliseconds getPing() const;
 
     PeerState
     getState() const

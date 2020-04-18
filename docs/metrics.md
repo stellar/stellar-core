@@ -75,6 +75,7 @@ overlay.byte.write                       | meter     | number of bytes sent
 overlay.async.read                       | meter     | number of async read requests issued
 overlay.async.write                      | meter     | number of async write requests issued
 overlay.connection.authenticated         | counter   | number of authenticated peers
+overlay.connection.latency               | timer     | estimated latency between peers
 overlay.connection.pending               | counter   | number of pending connections
 overlay.delay.async-write                | timer     | time between each message's async write issue and completion
 overlay.delay.write-queue                | timer     | time between each message's entry and exit from peer write queue
@@ -105,6 +106,7 @@ overlay.recv.survey-request              | timer     | time spent in processing 
 overlay.recv.survey-response             | timer     | time spent in processing survey response
 overlay.send.survey-request              | meter     | sent survey request
 overlay.send.survey-response             | meter     | sent survey response
+process.ioservice.queue                  | counter   | number of items waiting in internal queue
 scp.envelope.emit                        | meter     | SCP message sent
 scp.envelope.invalidsig                  | meter     | envelope failed signature verification
 scp.envelope.receive                     | meter     | SCP message received
