@@ -65,15 +65,15 @@ WriteSnapshotWork::onRun()
 
     // Throw the work over to a worker thread if we can use DB pools,
     // otherwise run on main thread.
+    // NB: we post in both cases as to share the logic
     if (mApp.getDatabase().canUsePool())
     {
-        mApp.postOnBackgroundThread(work, "WriteSnapshotWork: start");
-        return State::WORK_WAITING;
+        mApp.postOnBackgroundThread(work, "WriteSnapshotWork: bgstart");
     }
     else
     {
-        work();
-        return State::WORK_RUNNING;
+        mApp.postOnMainThread(work, {false, "WriteSnapshotWork: start"});
     }
+    return State::WORK_WAITING;
 }
 }
