@@ -45,19 +45,21 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
     }
 
     self->mScheduled = true;
-    self->mApp.getClock().getIOContext().post([weak]() {
-        auto innerSelf = weak.lock();
-        if (!innerSelf)
-        {
-            return;
-        }
-        innerSelf->mScheduled = false;
-        innerSelf->crankWork();
-        if (innerSelf->getState() == State::WORK_RUNNING)
-        {
-            scheduleOne(weak);
-        }
-    });
+    self->mApp.postOnMainThread(
+        [weak]() {
+            auto innerSelf = weak.lock();
+            if (!innerSelf)
+            {
+                return;
+            }
+            innerSelf->mScheduled = false;
+            innerSelf->crankWork();
+            if (innerSelf->getState() == State::WORK_RUNNING)
+            {
+                scheduleOne(weak);
+            }
+        },
+        "workScheduler");
 }
 
 void
