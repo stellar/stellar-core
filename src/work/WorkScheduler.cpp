@@ -49,9 +49,10 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
         return;
     }
 
-    // Note: at the moment we're using a timer to throttle _down_ the amount of
-    // "work" we do statically: we set a yield timer to 1ms so that in case
-    // we're a long-running step, we don't hog the CPU and incur IO debt.
+    // Note: at the moment we're using a timer (when not in STANDALONE mode) to
+    // throttle _down_ the amount of "work" we do statically: we set a yield
+    // timer to 1ms so that in case we're a long-running step, we don't hog the
+    // CPU and incur IO debt.
     //
     // Long-running work steps are a problem in practice: specifically the
     // bucket-apply work tends to have a long pause when it commits -- longer
@@ -70,9 +71,7 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
     // See
     // https://github.com/stellar/stellar-core/issues/2304#issuecomment-614953677
 
-    self->mScheduled = true;
-    self->mTriggerTimer.expires_from_now(TRIGGER_PERIOD);
-    self->mTriggerTimer.async_wait([weak](asio::error_code) {
+    auto cb = [weak]() {
         auto innerSelf = weak.lock();
         if (!innerSelf)
         {
@@ -101,7 +100,27 @@ WorkScheduler::scheduleOne(std::weak_ptr<WorkScheduler> weak)
         {
             scheduleOne(weak);
         }
-    });
+    };
+
+    // For the tine being -- until we have a better overall scheduling strategy
+    // -- we only do the time-slicing discussed above in non-STANDALONE modes;
+    // when running STANDALONE (such as command-line catchup) we do not care
+    // about yielding to network IO and want to maximize frequency of
+    // work-execution.
+    self->mScheduled = true;
+    if (self->mApp.getConfig().RUN_STANDALONE)
+    {
+        self->mApp.postOnMainThread(
+            cb, {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+                 "WorkScheduler"});
+    }
+    else
+    {
+        self->mTriggerTimer.expires_from_now(TRIGGER_PERIOD);
+        self->mTriggerTimer.async_wait([cb = std::move(cb)](asio::error_code) {
+            cb();
+        });
+    }
 }
 
 void
