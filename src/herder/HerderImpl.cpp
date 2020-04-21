@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
@@ -46,6 +47,7 @@ namespace stellar
 constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
+constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -1421,15 +1423,29 @@ HerderImpl::updateTransactionQueue(
             replacedTx.mNew->toStellarMessage());
     }
 
-    // rebroadcast entries, sorted in apply-order to maximize chances of
-    // propagation
+    // Generate a transaction set from a random hash and drop invalid
+    auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
+    lhhe.hash = HashUtils::random();
+    auto txSet = mTransactionQueue.toTxSet(lhhe);
+    auto removed = txSet->trimInvalid(mApp);
+    mTransactionQueue.ban(removed);
+
+    // Rebroadcast transactions, sorted in apply-order to maximize chances of
+    // propagation. Do not broadcast more operations than
+    // OPERATION_BROADCAST_MULTIPLIER times the maximum number of operations
+    // that can be included in the next ledger.
+    size_t maxOps = mLedgerManager.getLastMaxTxSetSizeOps();
+    size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
+    for (auto tx : txSet->sortForApply())
     {
-        auto toBroadcast = mTransactionQueue.toTxSet({});
-        for (auto tx : toBroadcast->sortForApply())
+        if (opsToFlood < tx->getNumOperations())
         {
-            auto msg = tx->toStellarMessage();
-            mApp.getOverlayManager().broadcastMessage(msg);
+            break;
         }
+        opsToFlood -= tx->getNumOperations();
+
+        auto msg = tx->toStellarMessage();
+        mApp.getOverlayManager().broadcastMessage(msg);
     }
 }
 

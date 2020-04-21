@@ -21,6 +21,7 @@
 #include "lib/catch.hpp"
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMetrics.h"
 #include "test/TxTests.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureUtils.h"
@@ -1854,4 +1855,126 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
     int expected = static_cast<int>(extraK.size() - 1);
     REQUIRE(actual == expected);
     REQUIRE(!found[0]);
+}
+
+static void
+externalize(LedgerManager& lm, HerderImpl& herder,
+            std::vector<TransactionFrameBasePtr> const& txs)
+{
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+    auto ledgerSeq = lcl.header.ledgerSeq + 1;
+
+    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+    for (auto const& tx : txs)
+    {
+        txSet->add(tx);
+    }
+    herder.getPendingEnvelopes().putTxSet(txSet->getContentsHash(), ledgerSeq,
+                                          txSet);
+
+    StellarValue sv{txSet->getContentsHash(), 2, xdr::xvector<UpgradeType, 6>{},
+                    STELLAR_VALUE_BASIC};
+    herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
+                                                  xdr::xdr_to_opaque(sv));
+}
+
+TEST_CASE("do not flood invalid transactions", "[herder]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto& om = app->getOverlayManager();
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& tq = herder.getTransactionQueue();
+
+    auto root = TestAccount::createRoot(*app);
+    auto acc = root.create("A", lm.getLastMinBalance(2));
+
+    auto tx1a = acc.tx({payment(acc, 1)});
+    auto tx1r = root.tx({bumpSequence(INT64_MAX)});
+    auto tx2r = root.tx({payment(root, 1)});
+
+    herder.recvTransaction(tx1a);
+    herder.recvTransaction(tx1r);
+    herder.recvTransaction(tx2r);
+
+    auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
+    externalize(lm, herder, {tx1r});
+    REQUIRE(numBroadcast + 1 ==
+            om.getOverlayMetrics().mMessagesBroadcast.count());
+
+    auto const& lhhe = lm.getLastClosedLedgerHeader();
+    auto txSet = tq.toTxSet(lhhe);
+    REQUIRE(txSet->mTransactions.size() == 1);
+    REQUIRE(txSet->mTransactions.front()->getContentsHash() ==
+            tx1a->getContentsHash());
+    REQUIRE(txSet->checkValid(*app));
+}
+
+TEST_CASE("do not flood too many transactions", "[herder]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 500;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto& om = app->getOverlayManager();
+    auto& lm = app->getLedgerManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+    auto& tq = herder.getTransactionQueue();
+
+    auto root = TestAccount::createRoot(*app);
+    auto acc = root.create("A", lm.getLastMinBalance(2));
+
+    auto genTx = [&](TestAccount& source, uint32_t numOps) {
+        std::vector<Operation> ops;
+        for (int64_t i = 1; i <= numOps; ++i)
+        {
+            ops.emplace_back(payment(source, i));
+        }
+        auto tx = source.tx(ops);
+        REQUIRE(herder.recvTransaction(tx) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        return tx;
+    };
+
+    auto test = [&](uint32_t numOps) {
+        size_t maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
+
+        auto tx1a = genTx(acc, numOps);
+        auto tx1r = genTx(root, numOps);
+        size_t numTx = 2;
+        while ((numTx + 2) * numOps <= maxOps)
+        {
+            genTx(acc, numOps);
+            genTx(root, numOps);
+            numTx += 2;
+        }
+
+        REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx);
+
+        auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
+        externalize(lm, herder, {tx1a, tx1r});
+        REQUIRE(numBroadcast + (numTx - 2) ==
+                om.getOverlayMetrics().mMessagesBroadcast.count());
+
+        REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+    };
+
+    SECTION("one operation per transaction")
+    {
+        test(1);
+    }
+    SECTION("a few operations per transaction")
+    {
+        test(7);
+    }
+    SECTION("full transactions")
+    {
+        test(100);
+    }
 }
