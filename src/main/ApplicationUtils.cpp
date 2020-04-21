@@ -4,6 +4,7 @@
 
 #include "main/ApplicationUtils.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketManager.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "database/Database.h"
@@ -438,8 +439,7 @@ publish(Application::pointer app)
     asio::io_context::work mainWork(io);
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
-    auto isCheckpoint =
-        lcl == app->getHistoryManager().checkpointContainingLedger(lcl);
+    auto isCheckpoint = app->getHistoryManager().isLastLedgerInCheckpoint(lcl);
     auto expectedPublishQueueSize = isCheckpoint ? 1 : 0;
 
     app->getHistoryManager().publishQueuedHistory();
@@ -448,6 +448,9 @@ publish(Application::pointer app)
            clock.crank(true))
     {
     }
+
+    // Cleanup buckets not referenced by publish queue anymore
+    app->getBucketManager().forgetUnreferencedBuckets();
 
     LOG(INFO) << "*";
     LOG(INFO) << "* Publish finished.";
