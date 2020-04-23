@@ -94,4 +94,25 @@ ApplyBufferedLedgersWork::getStatus() const
                        mConditionalWork ? mConditionalWork->getStatus()
                                         : BasicWork::getStatus());
 }
+
+void
+ApplyBufferedLedgersWork::shutdown()
+{
+    if (mConditionalWork)
+    {
+        mConditionalWork->shutdown();
+    }
+    BasicWork::shutdown();
+}
+
+bool
+ApplyBufferedLedgersWork::onAbort()
+{
+    if (mConditionalWork && !mConditionalWork->isDone())
+    {
+        mConditionalWork->crankWork();
+        return false;
+    }
+    return true;
+}
 }
