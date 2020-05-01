@@ -244,6 +244,51 @@ TEST_CASE("postgres smoketest", "[db]")
             app->getDatabase().getSession() << "drop table if exists test";
             checkMVCCIsolation(app);
         }
+
+        SECTION("postgres notify")
+        {
+            auto pg = static_cast<soci::postgresql_session_backend*>(
+                session.get_backend());
+
+            int callCount = 0;
+            auto savedPgNoticeReceiver =
+                PQsetNoticeReceiver(pg->conn_,
+                                    [](void* arg, const PGresult* res) {
+                                        if (res == nullptr)
+                                        {
+                                            return;
+                                        }
+                                        CLOG(WARNING, "Database")
+                                            << PQresultErrorMessage(res);
+
+                                        int* cc = static_cast<int*>(arg);
+                                        ++(*cc);
+                                    },
+                                    &callCount);
+
+            try
+            {
+                session << "do $$ "
+                           "begin "
+                           "raise info 'a test message'; "
+                           "end; "
+                           "$$;";
+
+                session << "drop table if exists non_existing_table;";
+
+                session << "begin; begin; "
+                           "select 1; "
+                           "end;";
+
+                PQsetNoticeReceiver(pg->conn_, savedPgNoticeReceiver, nullptr);
+                REQUIRE(callCount == 3);
+            }
+            catch (...)
+            {
+                PQsetNoticeReceiver(pg->conn_, savedPgNoticeReceiver, nullptr);
+                throw;
+            }
+        }
     }
     catch (soci::soci_error& err)
     {

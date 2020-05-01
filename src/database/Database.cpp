@@ -92,7 +92,17 @@ badPgVersion(int vers)
         << '.' << MIN_POSTGRESQL_MINOR_VERSION;
     return msg.str();
 }
-#endif
+
+static void
+pgNoticeReceiver(void* arg, const PGresult* res)
+{
+    if (res == nullptr)
+    {
+        return;
+    }
+    CLOG(WARNING, "Database") << PQresultErrorMessage(res);
+}
+#endif // USE_POSTGRES
 
 static std::string
 badSqliteVersion(int vers)
@@ -168,6 +178,9 @@ class DatabaseConfigureSessionOp : public DatabaseTypeSpecificOperation<void>
         {
             throw std::runtime_error(badPgVersion(vers));
         }
+
+        PQsetNoticeReceiver(pg->conn_, pgNoticeReceiver, nullptr);
+
         mSession
             << "SET SESSION CHARACTERISTICS AS TRANSACTION ISOLATION LEVEL "
                "SERIALIZABLE";
