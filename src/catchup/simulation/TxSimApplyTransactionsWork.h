@@ -43,10 +43,9 @@ class TxSimApplyTransactionsWork : public BasicWork
                        std::vector<TransactionResultPair>& results,
                        std::vector<UpgradeType>& upgrades);
 
-    uint32_t scaleLedger(std::vector<TransactionEnvelope>& transactions,
-                         std::vector<TransactionResultPair>& results,
-                         std::vector<UpgradeType>& upgrades,
-                         uint32_t partition);
+    size_t scaleLedger(std::vector<TransactionEnvelope>& transactions,
+                       std::vector<TransactionResultPair>& results,
+                       std::vector<UpgradeType>& upgrades, uint32_t partition);
 
     void addSignerKeys(AccountID const& acc, AbstractLedgerTxn& ltx,
                        std::set<SecretKey>& keys,

@@ -325,7 +325,7 @@ TxSimApplyTransactionsWork::mutateOperations(TransactionEnvelope& env,
     }
 }
 
-uint32_t
+size_t
 TxSimApplyTransactionsWork::scaleLedger(
     std::vector<TransactionEnvelope>& transactions,
     std::vector<TransactionResultPair>& results,
