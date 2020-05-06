@@ -12,7 +12,7 @@ namespace stellar
 {
 struct LedgerRange;
 
-class ApplyTransactionsWork : public BasicWork
+class TxSimApplyTransactionsWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
     LedgerRange const mRange;
@@ -36,10 +36,10 @@ class ApplyTransactionsWork : public BasicWork
                        std::vector<UpgradeType>& upgrades);
 
   public:
-    ApplyTransactionsWork(Application& app, TmpDir const& downloadDir,
-                          LedgerRange const& range,
-                          std::string const& networkPassphrase,
-                          uint32_t desiredOperations, bool upgrade);
+    TxSimApplyTransactionsWork(Application& app, TmpDir const& downloadDir,
+                               LedgerRange const& range,
+                               std::string const& networkPassphrase,
+                               uint32_t desiredOperations, bool upgrade);
 
   protected:
     void onReset() override;

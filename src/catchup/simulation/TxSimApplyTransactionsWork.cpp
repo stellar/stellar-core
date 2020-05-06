@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "catchup/simulation/ApplyTransactionsWork.h"
+#include "catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/simulation/SimulationTxSetFrame.h"
 #include "ledger/LedgerManagerImpl.h"
@@ -11,7 +11,7 @@
 namespace stellar
 {
 
-ApplyTransactionsWork::ApplyTransactionsWork(
+TxSimApplyTransactionsWork::TxSimApplyTransactionsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
     std::string const& networkPassphrase, uint32_t desiredOperations,
     bool upgrade)
@@ -36,7 +36,7 @@ ApplyTransactionsWork::ApplyTransactionsWork(
 }
 
 bool
-ApplyTransactionsWork::getNextLedgerFromHistoryArchive()
+TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
 {
     if (mStream->getNextLedger(mHeaderHistory, mTransactionHistory,
                                mResultHistory))
@@ -55,7 +55,7 @@ ApplyTransactionsWork::getNextLedgerFromHistoryArchive()
 }
 
 bool
-ApplyTransactionsWork::getNextLedger(
+TxSimApplyTransactionsWork::getNextLedger(
     std::vector<TransactionEnvelope>& transactions,
     std::vector<TransactionResultPair>& results,
     std::vector<UpgradeType>& upgrades)
@@ -114,7 +114,7 @@ ApplyTransactionsWork::getNextLedger(
 }
 
 void
-ApplyTransactionsWork::onReset()
+TxSimApplyTransactionsWork::onReset()
 {
     // Upgrade max transaction set size if necessary
     auto& lm = mApp.getLedgerManager();
@@ -167,7 +167,7 @@ ApplyTransactionsWork::onReset()
 }
 
 BasicWork::State
-ApplyTransactionsWork::onRun()
+TxSimApplyTransactionsWork::onRun()
 {
     std::vector<TransactionEnvelope> transactions;
     std::vector<TransactionResultPair> results;
@@ -195,7 +195,7 @@ ApplyTransactionsWork::onRun()
 }
 
 bool
-ApplyTransactionsWork::onAbort()
+TxSimApplyTransactionsWork::onAbort()
 {
     return true;
 }
