@@ -22,8 +22,8 @@
 namespace stellar
 {
 
-static TransactionEnvelope
-convertInnerTxToV1(TransactionEnvelope const& envelope)
+TransactionEnvelope
+FeeBumpTransactionFrame::convertInnerTxToV1(TransactionEnvelope const& envelope)
 {
     TransactionEnvelope e(ENVELOPE_TYPE_TX);
     e.v1() = envelope.feeBump().tx.innerTx.v1();
@@ -38,6 +38,15 @@ FeeBumpTransactionFrame::FeeBumpTransactionFrame(
     , mNetworkID(networkID)
 {
 }
+
+#ifdef BUILD_TESTS
+FeeBumpTransactionFrame::FeeBumpTransactionFrame(
+    Hash const& networkID, TransactionEnvelope const& envelope,
+    TransactionFramePtr innerTx)
+    : mEnvelope(envelope), mInnerTx(innerTx), mNetworkID(networkID)
+{
+}
+#endif
 
 static void
 updateResult(TransactionResult& outerRes, TransactionFrameBasePtr innerTx)
