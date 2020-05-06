@@ -9,7 +9,7 @@
 namespace stellar
 {
 
-class SimulationTransactionFrame : public TransactionFrame
+class TxSimTransactionFrame : public TransactionFrame
 {
     TransactionResult mSimulationResult;
 
@@ -29,13 +29,13 @@ class SimulationTransactionFrame : public TransactionFrame
     void processSeqNum(AbstractLedgerTxn& ltx) override;
 
   public:
-    SimulationTransactionFrame(Hash const& networkID,
-                               TransactionEnvelope const& envelope,
-                               TransactionResult simulationResult);
-    SimulationTransactionFrame(TransactionFrame const&) = delete;
-    SimulationTransactionFrame() = delete;
+    TxSimTransactionFrame(Hash const& networkID,
+                          TransactionEnvelope const& envelope,
+                          TransactionResult simulationResult);
+    TxSimTransactionFrame(TransactionFrame const&) = delete;
+    TxSimTransactionFrame() = delete;
 
-    virtual ~SimulationTransactionFrame()
+    virtual ~TxSimTransactionFrame()
     {
     }
 

@@ -2,26 +2,26 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/simulation/SimulationTransactionFrame.h"
+#include "transactions/simulation/TxSimTransactionFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionUtils.h"
-#include "transactions/simulation/SimulationMergeOpFrame.h"
+#include "transactions/simulation/TxSimMergeOpFrame.h"
 
 namespace stellar
 {
 
 TransactionFramePtr
-SimulationTransactionFrame::makeTransactionFromWire(
+TxSimTransactionFrame::makeTransactionFromWire(
     Hash const& networkID, TransactionEnvelope const& envelope,
     TransactionResult simulationResult)
 {
-    TransactionFramePtr res = std::make_shared<SimulationTransactionFrame>(
+    TransactionFramePtr res = std::make_shared<TxSimTransactionFrame>(
         networkID, envelope, simulationResult);
     return res;
 }
 
-SimulationTransactionFrame::SimulationTransactionFrame(
+TxSimTransactionFrame::TxSimTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
     TransactionResult simulationResult)
     : TransactionFrame(networkID, envelope), mSimulationResult(simulationResult)
@@ -29,8 +29,8 @@ SimulationTransactionFrame::SimulationTransactionFrame(
 }
 
 std::shared_ptr<OperationFrame>
-SimulationTransactionFrame::makeOperation(Operation const& op,
-                                          OperationResult& res, size_t index)
+TxSimTransactionFrame::makeOperation(Operation const& op, OperationResult& res,
+                                     size_t index)
 {
     if (mEnvelope.v0().tx.operations[index].body.type() != ACCOUNT_MERGE)
     {
@@ -38,39 +38,37 @@ SimulationTransactionFrame::makeOperation(Operation const& op,
     }
     else
     {
-        return std::make_shared<SimulationMergeOpFrame>(
+        return std::make_shared<TxSimMergeOpFrame>(
             op, res, *this, mSimulationResult.result.results()[index]);
     }
 }
 
 bool
-SimulationTransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
+TxSimTransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
 {
     return mSimulationResult.result.code() == txTOO_EARLY;
 }
 
 bool
-SimulationTransactionFrame::isTooLate(LedgerTxnHeader const& header) const
+TxSimTransactionFrame::isTooLate(LedgerTxnHeader const& header) const
 {
     return mSimulationResult.result.code() == txTOO_LATE;
 }
 
 bool
-SimulationTransactionFrame::isBadSeq(int64_t seqNum) const
+TxSimTransactionFrame::isBadSeq(int64_t seqNum) const
 {
     return mSimulationResult.result.code() == txBAD_SEQ;
 }
 
 int64_t
-SimulationTransactionFrame::getFee(LedgerHeader const& header,
-                                   int64_t baseFee) const
+TxSimTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
 {
     return mSimulationResult.feeCharged;
 }
 
 void
-SimulationTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
-                                             int64_t baseFee)
+TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
 {
     mCachedAccount.reset();
 
@@ -102,7 +100,7 @@ SimulationTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
 }
 
 void
-SimulationTransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
+TxSimTransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 {
     auto header = ltx.loadHeader();
     if (header.current().ledgerVersion >= 10)
