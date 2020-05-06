@@ -5,6 +5,8 @@
 #pragma once
 
 #include "catchup/simulation/HistoryArchiveStream.h"
+#include "ledger/LedgerTxn.h"
+#include "work/ConditionalWork.h"
 #include "work/Work.h"
 #include "xdr/Stellar-ledger.h"
 
@@ -28,6 +30,10 @@ class TxSimApplyTransactionsWork : public BasicWork
     uint32_t const mMaxOperations;
     // Force next version upgrade
     bool const mUpgradeProtocol;
+    uint32_t const mMultiplier;
+    bool const mVerifyResults;
+    std::shared_ptr<ConditionalWork> mApplyLedgerWork;
+    std::vector<TransactionResultPair> mResults;
 
     bool getNextLedgerFromHistoryArchive();
 
@@ -35,17 +41,38 @@ class TxSimApplyTransactionsWork : public BasicWork
                        std::vector<TransactionResultPair>& results,
                        std::vector<UpgradeType>& upgrades);
 
+    uint32_t scaleLedger(std::vector<TransactionEnvelope>& transactions,
+                         std::vector<TransactionResultPair>& results,
+                         std::vector<UpgradeType>& upgrades,
+                         uint32_t partition);
+
+    void addSignerKeys(AccountID const& acc, AbstractLedgerTxn& ltx,
+                       std::set<SecretKey>& keys,
+                       xdr::xvector<DecoratedSignature, 20> const& sigs,
+                       uint32_t partition);
+
+    void addSignerKeys(MuxedAccount const& acc, AbstractLedgerTxn& ltx,
+                       std::set<SecretKey>& keys,
+                       xdr::xvector<DecoratedSignature, 20> const& sigs,
+                       uint32_t partition);
+
+    void mutateTxSourceAccounts(TransactionEnvelope& env,
+                                AbstractLedgerTxn& ltx,
+                                std::set<SecretKey>& keys, uint32_t partition);
+    void mutateOperations(TransactionEnvelope& env, AbstractLedgerTxn& ltx,
+                          std::set<SecretKey>& keys, uint32_t partition);
+
   public:
     TxSimApplyTransactionsWork(Application& app, TmpDir const& downloadDir,
                                LedgerRange const& range,
                                std::string const& networkPassphrase,
-                               uint32_t desiredOperations, bool upgrade);
+                               uint32_t desiredOperations, bool upgrade,
+                               uint32_t multiplier, bool verifyResults);
+    void shutdown() override;
 
   protected:
     void onReset() override;
-
     State onRun() override;
-
     bool onAbort() override;
 };
 }

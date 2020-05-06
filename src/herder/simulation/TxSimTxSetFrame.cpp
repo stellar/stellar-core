@@ -4,6 +4,8 @@
 
 #include "herder/simulation/TxSimTxSetFrame.h"
 #include "crypto/SHA.h"
+#include "transactions/TransactionBridge.h"
+#include "transactions/simulation/TxSimFeeBumpTransactionFrame.h"
 #include "transactions/simulation/TxSimTransactionFrame.h"
 #include "xdrpp/marshal.h"
 #include <numeric>
@@ -24,13 +26,14 @@ computeContentsHash(Hash const& networkID, Hash const& previousLedgerHash,
 TxSimTxSetFrame::TxSimTxSetFrame(
     Hash const& networkID, Hash const& previousLedgerHash,
     std::vector<TransactionEnvelope> const& transactions,
-    std::vector<TransactionResultPair> const& results)
+    std::vector<TransactionResultPair> const& results, uint32_t multiplier)
     : mNetworkID(networkID)
     , mPreviousLedgerHash(previousLedgerHash)
     , mTransactions(transactions)
     , mResults(results)
     , mContentsHash(
           computeContentsHash(mNetworkID, mPreviousLedgerHash, mTransactions))
+    , mMultiplier(multiplier)
 {
 }
 
@@ -62,9 +65,13 @@ size_t
 TxSimTxSetFrame::sizeOp() const
 {
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
-                           size_t(0),
-                           [](size_t a, TransactionEnvelope const& txEnv) {
-                               return a + txEnv.v0().tx.operations.size();
+                           size_t(0), [](size_t a, TransactionEnvelope txEnv) {
+                               auto ops = txbridge::getOperations(txEnv).size();
+                               if (txEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
+                               {
+                                   ++ops;
+                               }
+                               return a + ops;
                            });
 }
 
@@ -75,12 +82,34 @@ TxSimTxSetFrame::sortForApply()
     res.reserve(mTransactions.size());
 
     auto resultIter = mResults.cbegin();
+    uint32_t partition = 0;
     for (auto const& txEnv : mTransactions)
     {
-        res.emplace_back(SimulationTransactionFrame::makeTransactionFromWire(
-            mNetworkID, txEnv, resultIter->result));
+        TransactionFrameBasePtr txFrame;
+        switch (txEnv.type())
+        {
+        case ENVELOPE_TYPE_TX_V0:
+        case ENVELOPE_TYPE_TX:
+            txFrame = std::make_shared<TxSimTransactionFrame>(
+                mNetworkID, txEnv, resultIter->result, partition);
+            break;
+        case ENVELOPE_TYPE_TX_FEE_BUMP:
+            txFrame = std::make_shared<TxSimFeeBumpTransactionFrame>(
+                mNetworkID, txEnv, resultIter->result, partition);
+            break;
+        default:
+            abort();
+        }
+
+        res.emplace_back(txFrame);
         ++resultIter;
+        if (++partition == mMultiplier)
+        {
+            partition = 0;
+        }
     }
+
+    assert(resultIter == mResults.end());
     return res;
 }
 

@@ -5,26 +5,22 @@
 #include "transactions/simulation/TxSimTransactionFrame.h"
 #include "ledger/LedgerTxn.h"
 #include "transactions/OperationFrame.h"
+#include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/simulation/TxSimCreatePassiveSellOfferOpFrame.h"
+#include "transactions/simulation/TxSimManageBuyOfferOpFrame.h"
+#include "transactions/simulation/TxSimManageSellOfferOpFrame.h"
 #include "transactions/simulation/TxSimMergeOpFrame.h"
 
 namespace stellar
 {
 
-TransactionFramePtr
-TxSimTransactionFrame::makeTransactionFromWire(
-    Hash const& networkID, TransactionEnvelope const& envelope,
-    TransactionResult simulationResult)
-{
-    TransactionFramePtr res = std::make_shared<TxSimTransactionFrame>(
-        networkID, envelope, simulationResult);
-    return res;
-}
-
 TxSimTransactionFrame::TxSimTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
-    TransactionResult simulationResult)
-    : TransactionFrame(networkID, envelope), mSimulationResult(simulationResult)
+    TransactionResult simulationResult, uint32_t partition)
+    : TransactionFrame(networkID, envelope)
+    , mSimulationResult(simulationResult)
+    , mCount(partition)
 {
 }
 
@@ -112,7 +108,7 @@ TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     // in v10 we update sequence numbers during apply
     if (header.current().ledgerVersion <= 9)
     {
-        acc.seqNum = mEnvelope.v0().tx.seqNum;
+        acc.seqNum = getSeqNum();
     }
 }
 
@@ -123,8 +119,7 @@ TxSimTransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
     if (header.current().ledgerVersion >= 10)
     {
         auto sourceAccount = loadSourceAccount(ltx, header);
-        sourceAccount.current().data.account().seqNum =
-            mEnvelope.v0().tx.seqNum;
+        sourceAccount.current().data.account().seqNum = getSeqNum();
     }
 }
 }

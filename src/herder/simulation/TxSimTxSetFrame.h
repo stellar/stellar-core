@@ -16,11 +16,13 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
     std::vector<TransactionEnvelope> const mTransactions;
     std::vector<TransactionResultPair> const mResults;
     Hash const mContentsHash;
+    uint32_t const mMultiplier;
 
   public:
     TxSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
                     std::vector<TransactionEnvelope> const& transactions,
-                    std::vector<TransactionResultPair> const& results);
+                    std::vector<TransactionResultPair> const& results,
+                    uint32_t multiplier);
 
     int64_t getBaseFee(LedgerHeader const& lh) const override;
 

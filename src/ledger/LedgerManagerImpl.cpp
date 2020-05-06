@@ -913,7 +913,7 @@ LedgerManagerImpl::applyTransactions(
         auto txTime = mTransactionApply.TimeScope();
         TransactionMeta tm(2);
         CLOG(DEBUG, "Tx") << " tx#" << index << " = "
-                          << hexAbbrev(tx->getFullHash())
+                          << hexAbbrev(tx->getContentsHash())
                           << " ops=" << tx->getNumOperations()
                           << " txseq=" << tx->getSeqNum() << " (@ "
                           << mApp.getConfig().toShortString(tx->getSourceID())
