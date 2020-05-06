@@ -9,14 +9,14 @@
 namespace stellar
 {
 
-class SimulationMergeOpFrame : public MergeOpFrame
+class TxSimMergeOpFrame : public MergeOpFrame
 {
     OperationResult mSimulationResult;
 
   public:
-    SimulationMergeOpFrame(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx,
-                           OperationResult const& simulationResult);
+    TxSimMergeOpFrame(Operation const& op, OperationResult& res,
+                      TransactionFrame& parentTx,
+                      OperationResult const& simulationResult);
 
     bool isSeqnumTooFar(LedgerTxnHeader const& header,
                         AccountEntry const& sourceAccount) override;

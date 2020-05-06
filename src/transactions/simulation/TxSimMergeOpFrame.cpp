@@ -2,21 +2,21 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/simulation/SimulationMergeOpFrame.h"
+#include "transactions/simulation/TxSimMergeOpFrame.h"
 
 namespace stellar
 {
 
-SimulationMergeOpFrame::SimulationMergeOpFrame(
-    Operation const& op, OperationResult& res, TransactionFrame& parentTx,
-    OperationResult const& simulationResult)
+TxSimMergeOpFrame::TxSimMergeOpFrame(Operation const& op, OperationResult& res,
+                                     TransactionFrame& parentTx,
+                                     OperationResult const& simulationResult)
     : MergeOpFrame(op, res, parentTx), mSimulationResult(simulationResult)
 {
 }
 
 bool
-SimulationMergeOpFrame::isSeqnumTooFar(LedgerTxnHeader const& header,
-                                       AccountEntry const& sourceAccount)
+TxSimMergeOpFrame::isSeqnumTooFar(LedgerTxnHeader const& header,
+                                  AccountEntry const& sourceAccount)
 {
     if (mSimulationResult.code() == opINNER)
     {
