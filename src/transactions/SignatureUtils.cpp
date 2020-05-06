@@ -29,9 +29,16 @@ verify(DecoratedSignature const& sig, SignerKey const& signerKey,
        Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    if (!doesHintMatch(pubKey.ed25519(), sig.hint))
-        return false;
+    return verify(sig, pubKey, hash);
+}
 
+bool
+verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
+{
+    if (!doesHintMatch(pubKey.ed25519(), sig.hint))
+    {
+        return false;
+    }
     return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
 }
 
