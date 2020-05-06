@@ -9,7 +9,7 @@
 namespace stellar
 {
 
-class SimulationTxSetFrame : public AbstractTxSetFrameForApply
+class TxSimTxSetFrame : public AbstractTxSetFrameForApply
 {
     Hash const mNetworkID;
     Hash const mPreviousLedgerHash;
@@ -18,9 +18,9 @@ class SimulationTxSetFrame : public AbstractTxSetFrameForApply
     Hash const mContentsHash;
 
   public:
-    SimulationTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
-                         std::vector<TransactionEnvelope> const& transactions,
-                         std::vector<TransactionResultPair> const& results);
+    TxSimTxSetFrame(Hash const& networkID, Hash const& previousLedgerHash,
+                    std::vector<TransactionEnvelope> const& transactions,
+                    std::vector<TransactionResultPair> const& results);
 
     int64_t getBaseFee(LedgerHeader const& lh) const override;
 

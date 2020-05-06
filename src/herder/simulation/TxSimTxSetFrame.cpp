@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "herder/simulation/SimulationTxSetFrame.h"
+#include "herder/simulation/TxSimTxSetFrame.h"
 #include "crypto/SHA.h"
-#include "transactions/simulation/SimulationTransactionFrame.h"
+#include "transactions/simulation/TxSimTransactionFrame.h"
 #include "xdrpp/marshal.h"
 #include <numeric>
 
@@ -21,7 +21,7 @@ computeContentsHash(Hash const& networkID, Hash const& previousLedgerHash,
     return TxSetFrame(networkID, txSet).getContentsHash();
 }
 
-SimulationTxSetFrame::SimulationTxSetFrame(
+TxSimTxSetFrame::TxSimTxSetFrame(
     Hash const& networkID, Hash const& previousLedgerHash,
     std::vector<TransactionEnvelope> const& transactions,
     std::vector<TransactionResultPair> const& results)
@@ -35,31 +35,31 @@ SimulationTxSetFrame::SimulationTxSetFrame(
 }
 
 int64_t
-SimulationTxSetFrame::getBaseFee(LedgerHeader const& lh) const
+TxSimTxSetFrame::getBaseFee(LedgerHeader const& lh) const
 {
     return 0;
 }
 
 Hash const&
-SimulationTxSetFrame::getContentsHash()
+TxSimTxSetFrame::getContentsHash()
 {
     return mContentsHash;
 }
 
 Hash const&
-SimulationTxSetFrame::previousLedgerHash() const
+TxSimTxSetFrame::previousLedgerHash() const
 {
     return mPreviousLedgerHash;
 }
 
 size_t
-SimulationTxSetFrame::sizeTx() const
+TxSimTxSetFrame::sizeTx() const
 {
     return mTransactions.size();
 }
 
 size_t
-SimulationTxSetFrame::sizeOp() const
+TxSimTxSetFrame::sizeOp() const
 {
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            size_t(0),
@@ -69,7 +69,7 @@ SimulationTxSetFrame::sizeOp() const
 }
 
 std::vector<TransactionFrameBasePtr>
-SimulationTxSetFrame::sortForApply()
+TxSimTxSetFrame::sortForApply()
 {
     std::vector<TransactionFrameBasePtr> res;
     res.reserve(mTransactions.size());
@@ -85,7 +85,7 @@ SimulationTxSetFrame::sortForApply()
 }
 
 void
-SimulationTxSetFrame::toXDR(TransactionSet& set)
+TxSimTxSetFrame::toXDR(TransactionSet& set)
 {
     // Delegate to TxSetFrame and explicitly call sortForHash on it for now;
     // likely this whole class will go away at some point.
