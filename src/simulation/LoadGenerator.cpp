@@ -244,22 +244,22 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
     TxInfo tx =
         creationTransaction(mAccounts.size() + offset, numToProcess, ledgerNum);
     TransactionResultCode code;
-    TransactionQueue::AddResult status;
+    TransactionQueue::AddResult result;
     bool createDuplicate = false;
     int numTries = 0;
 
-    while ((status = tx.execute(mApp, true, code, batchSize)) !=
+    while ((result = tx.execute(mApp, true, code, batchSize)).mStatus !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         // Ignore duplicate transactions, simply continue generating load
-        if (status == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
+        if (result.mStatus == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
         {
             createDuplicate = true;
             break;
         }
 
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            result.mStatus != TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             // Failed to submit the step of load
             mFailed = true;
@@ -267,7 +267,7 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
         }
 
         // In case of bad seqnum, attempt refreshing it from the DB
-        maybeHandleFailedTx(tx.mFrom, status, code);
+        maybeHandleFailedTx(tx.mFrom, result, code);
     }
 
     if (!createDuplicate)
@@ -288,21 +288,21 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
         paymentTransaction(nAccounts, offset, ledgerNum, sourceAccountId);
 
     TransactionResultCode code;
-    TransactionQueue::AddResult status;
+    TransactionQueue::AddResult result;
     int numTries = 0;
 
-    while ((status = tx.execute(mApp, false, code, batchSize)) !=
+    while ((result = tx.execute(mApp, false, code, batchSize)).mStatus !=
            TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         if (++numTries >= TX_SUBMIT_MAX_TRIES ||
-            status != TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            result.mStatus != TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             mFailed = true;
             return 0;
         }
 
         // In case of bad seqnum, attempt refreshing it from the DB
-        maybeHandleFailedTx(tx.mFrom, status, code); // Update seq num
+        maybeHandleFailedTx(tx.mFrom, result, code); // Update seq num
 
         // Regenerate a new payment tx
         tx = paymentTransaction(nAccounts, offset, ledgerNum, sourceAccountId);
@@ -475,12 +475,12 @@ LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
 
 void
 LoadGenerator::maybeHandleFailedTx(TestAccountPtr sourceAccount,
-                                   TransactionQueue::AddResult status,
+                                   TransactionQueue::AddResult result,
                                    TransactionResultCode code)
 {
     // Note that if transaction is a DUPLICATE, its sequence number is
     // incremented on the next call to execute.
-    if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
+    if (result.mStatus == TransactionQueue::AddResult::ADD_STATUS_ERROR &&
         code == txBAD_SEQ)
     {
         if (!loadAccount(sourceAccount, mApp))
@@ -630,14 +630,14 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     msg.transaction() = txf->getEnvelope();
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
-    auto status = app.getHerder().recvTransaction(txf);
-    if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    auto result = app.getHerder().recvTransaction(txf);
+    if (result.mStatus != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         CLOG(INFO, "LoadGen")
-            << "tx rejected '" << TX_STATUS_STRING[static_cast<int>(status)]
+            << "tx rejected '" << TX_STATUS_STRING[static_cast<int>(result.mStatus)]
             << "': " << xdr::xdr_to_string(txf->getEnvelope()) << " ===> "
             << xdr::xdr_to_string(txf->getResult());
-        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+        if (result.mStatus == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             code = txf->getResultCode();
         }
@@ -648,6 +648,6 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
         app.getOverlayManager().broadcastMessage(msg);
     }
 
-    return status;
+    return result;
 }
 }

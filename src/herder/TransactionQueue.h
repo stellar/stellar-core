@@ -59,13 +59,22 @@ class TransactionQueue
   public:
     static int64_t const FEE_MULTIPLIER;
 
-    enum class AddResult
+    struct FeeRateRecommendation {
+        int64_t n;
+        int64_t d;
+    };
+
+    struct AddResult
     {
-        ADD_STATUS_PENDING = 0,
-        ADD_STATUS_DUPLICATE,
-        ADD_STATUS_ERROR,
-        ADD_STATUS_TRY_AGAIN_LATER,
-        ADD_STATUS_COUNT
+        enum {
+            ADD_STATUS_PENDING = 0,
+            ADD_STATUS_DUPLICATE,
+            ADD_STATUS_ERROR,
+            ADD_STATUS_TRY_AGAIN_LATER,
+            ADD_STATUS_COUNT,
+        } mStatus;
+
+        FeeRateRecommendation mFeeRateRecommendation;
     };
 
     /*

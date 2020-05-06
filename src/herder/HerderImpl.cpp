@@ -313,7 +313,7 @@ TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 {
     auto result = mTransactionQueue.tryAdd(tx);
-    if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (result.mStatus == TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         if (Logging::logTrace("Herder"))
             CLOG(TRACE, "Herder")

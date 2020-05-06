@@ -121,7 +121,7 @@ class LoadGenerator
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void maybeHandleFailedTx(TestAccountPtr sourceAccount,
-                             TransactionQueue::AddResult status,
+                             TransactionQueue::AddResult result,
                              TransactionResultCode code);
     TxInfo creationTransaction(uint64_t startAccount, uint64_t numItems,
                                uint32_t ledgerNum);

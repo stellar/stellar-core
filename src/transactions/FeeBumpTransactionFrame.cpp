@@ -179,6 +179,8 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     }
 
     auto const& lh = header.current();
+    // The weighted fee per operation should be higher than in the inner
+    // transaction
     auto v1 = bigMultiply(getFeeBid(), mInnerTx->getMinFee(lh));
     auto v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(lh));
     if (v1 < v2)

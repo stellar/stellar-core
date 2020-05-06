@@ -568,8 +568,9 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // add it to our current set
             // and make sure it is valid
-            TransactionQueue::AddResult status =
+            auto result =
                 mApp.getHerder().recvTransaction(transaction);
+            auto status = result.mStatus;
 
             if (status == TransactionQueue::AddResult::ADD_STATUS_PENDING)
             {
@@ -583,6 +584,14 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                    << "\"status\": "
                    << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
                    << "\"";
+            if (result.mFeeRateRecommendation.d > 0)
+            {
+                output << " , \"fee_rate_recommendation\": \""
+                       << "{"
+                       << "\"n\": " << result.mFeeRateRecommendation.n
+                       << " , \"d\": " << result.mFeeRateRecommendation.d
+                       << "}";
+            }
             if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
             {
                 std::string resultBase64;
@@ -889,7 +898,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        switch (mApp.getHerder().recvTransaction(txFrame))
+        switch (mApp.getHerder().recvTransaction(txFrame).mStatus)
         {
         case TransactionQueue::AddResult::ADD_STATUS_PENDING:
             root["status"] = "pending";

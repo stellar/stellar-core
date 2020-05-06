@@ -45,7 +45,7 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     }
 }
 
-static bool
+static std::pair<bool, TransactionQueue::FeeRateRecommendation>
 canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
 {
     int64_t newFee = tx->getFeeBid();
@@ -60,8 +60,17 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
     // FEE_MULTIPLIER * v2 does not overflow uint128_t because fees are bounded
     // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
     auto v1 = bigMultiply(newFee, oldNumOps);
-    auto v2 = bigMultiply(oldFee, newNumOps);
-    return v1 >= TransactionQueue::FEE_MULTIPLIER * v2;
+    auto v2 = TransactionQueue::FEE_MULTIPLIER * bigMultiply(oldFee, newNumOps);
+    std::pair<bool, TransactionQueue::FeeRateRecommendation> result;
+    result.first = v1 >= v2;
+    if (!result.first)
+    {
+        // Add a fee rate recommendation for future attempts
+        // TODO: overflow?
+        result.second.n = TransactionQueue::FEE_MULTIPLIER * oldFee;
+        result.second.d = oldNumOps;
+    }
+    return result;
 }
 
 static bool
@@ -113,9 +122,12 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                          AccountStates::iterator& stateIter,
                          TimestampedTransactions::iterator& oldTxIter)
 {
+    TransactionQueue::AddResult result;
+    result.mFeeRateRecommendation = {0,0};
     if (isBanned(tx->getFullHash()))
     {
-        return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        result.mStatus =TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        return result;
     }
 
     int64_t netFee = tx->getFeeBid();
@@ -136,7 +148,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 if (findBySeq(tx, transactions, iter) &&
                     iter != transactions.end() && isDuplicateTx(iter->mTx, tx))
                 {
-                    return TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+                    result.mStatus = TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+                    return result;
                 }
 
                 seqNum = transactions.back().mTx->getSeqNum();
@@ -146,7 +159,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 if (!findBySeq(tx, transactions, oldTxIter))
                 {
                     tx->getResult().result.code(txBAD_SEQ);
-                    return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                    result.mStatus= TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                    return result;
                 }
 
                 if (oldTxIter != transactions.end())
@@ -154,14 +168,16 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     // Replace-by-fee logic
                     if (isDuplicateTx(oldTxIter->mTx, tx))
                     {
-                        return TransactionQueue::AddResult::
-                            ADD_STATUS_DUPLICATE;
+                        result.mStatus = TransactionQueue::AddResult::ADD_STATUS_DUPLICATE;
+                        return result;
                     }
-
-                    if (!canReplaceByFee(tx, oldTxIter->mTx))
+                    auto replace = canReplaceByFee(tx, oldTxIter->mTx);
+                    if (!replace.first)
                     {
                         tx->getResult().result.code(txINSUFFICIENT_FEE);
-                        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                        result.mStatus = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+                        result.mFeeRateRecommendation = replace.second;
+                        return result;
                     }
 
                     netOps -= oldTxIter->mTx->getNumOperations();
@@ -182,13 +198,15 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     if (netOps + mQueueSizeOps > maxQueueSizeOps())
     {
         ban({tx});
-        return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        result.mStatus = TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+        return result;
     }
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     if (!tx->checkValid(ltx, seqNum))
     {
-        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        result.mStatus = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        return result;
     }
 
     // Note: stateIter corresponds to getSourceID() which is not necessarily
@@ -201,10 +219,12 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     if (getAvailableBalance(ltx.loadHeader(), feeSource) - netFee < totalFees)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        result.mStatus = TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        return result;
     }
 
-    return TransactionQueue::AddResult::ADD_STATUS_PENDING;
+    result.mStatus = TransactionQueue::AddResult::ADD_STATUS_PENDING;
+    return result;
 }
 
 void
@@ -230,7 +250,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     AccountStates::iterator stateIter;
     TimestampedTransactions::iterator oldTxIter;
     auto const res = canAdd(tx, stateIter, oldTxIter);
-    if (res != TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (res.mStatus != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
         return res;
     }

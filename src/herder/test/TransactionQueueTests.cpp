@@ -85,9 +85,9 @@ class TransactionQueueTest
 
     void
     add(TransactionFrameBasePtr const& tx,
-        TransactionQueue::AddResult AddResult)
+        int status)
     {
-        REQUIRE(mTransactionQueue.tryAdd(tx) == AddResult);
+        REQUIRE(mTransactionQueue.tryAdd(tx).mStatus == status);
     }
 
     void
@@ -712,7 +712,7 @@ TEST_CASE("transaction queue starting sequence boundary",
     TransactionQueue tq(*app, 4, 10, 4);
     for (size_t i = 1; i <= 4; ++i)
     {
-        REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100)) ==
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100)).mStatus ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
     }
 
@@ -1217,7 +1217,7 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     }
 
     REQUIRE(tq.toTxSet({})->mTransactions.size() == 1);
-    REQUIRE(herder.recvTransaction(tx4) ==
+    REQUIRE(herder.recvTransaction(tx4).mStatus ==
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
     REQUIRE(tq.toTxSet({})->mTransactions.size() == 2);
 }
