@@ -725,6 +725,12 @@ void
 normalizeSigners(LedgerTxnEntry& entry)
 {
     auto& acc = entry.current().data.account();
+    normalizeSigners(acc);
+}
+
+void
+normalizeSigners(AccountEntry& acc)
+{
     std::sort(
         acc.signers.begin(), acc.signers.end(),
         [](Signer const& s1, Signer const& s2) { return s1.key < s2.key; });
