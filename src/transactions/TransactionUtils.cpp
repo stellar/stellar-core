@@ -790,6 +790,22 @@ toAccountID(MuxedAccount const& m)
     return ret;
 }
 
+MuxedAccount
+toMuxedAccount(AccountID const& a)
+{
+    MuxedAccount ret(static_cast<CryptoKeyType>(a.type()));
+    switch (a.type())
+    {
+    case PUBLIC_KEY_TYPE_ED25519:
+        ret.ed25519() = a.ed25519();
+        break;
+    default:
+        // this would be a bug
+        abort();
+    }
+    return ret;
+}
+
 bool
 trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
 {

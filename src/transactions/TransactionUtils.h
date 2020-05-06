@@ -139,6 +139,7 @@ void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
 AccountID toAccountID(MuxedAccount const& m);
+MuxedAccount toMuxedAccount(AccountID const& a);
 
 void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    uint32_t authorized);

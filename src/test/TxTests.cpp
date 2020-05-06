@@ -417,22 +417,6 @@ getAccountSigners(PublicKey const& k, Application& app)
     return account.current().data.account().signers;
 }
 
-MuxedAccount
-toMuxedAccount(AccountID const& a)
-{
-    MuxedAccount ret(static_cast<CryptoKeyType>(a.type()));
-    switch (a.type())
-    {
-    case PUBLIC_KEY_TYPE_ED25519:
-        ret.ed25519() = a.ed25519();
-        break;
-    default:
-        // this would be a bug
-        abort();
-    }
-    return ret;
-}
-
 TransactionFramePtr
 transactionFromOperationsV0(Application& app, SecretKey const& from,
                             SequenceNumber seq,
