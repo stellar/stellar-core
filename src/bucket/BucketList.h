@@ -356,6 +356,8 @@ class BucketList
     // protocol. Careful about changing it.
     static BucketListDepth kNumLevels;
 
+    static bool shouldMergeWithEmptyCurr(uint32_t ledger, uint32_t level);
+
     // Returns size of a given level, in ledgers.
     static uint32_t levelSize(uint32_t level);
 
