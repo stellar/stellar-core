@@ -27,8 +27,8 @@
 namespace stellar
 {
 
-uint32_t const CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION = 16;
-uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 32;
+uint32_t const CatchupWork::PUBLISH_QUEUE_UNBLOCK_APPLICATION = 8;
+uint32_t const CatchupWork::PUBLISH_QUEUE_MAX_SIZE = 16;
 
 CatchupWork::CatchupWork(Application& app,
                          CatchupConfiguration catchupConfiguration,
