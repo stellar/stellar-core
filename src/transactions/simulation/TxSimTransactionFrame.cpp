@@ -32,14 +32,31 @@ std::shared_ptr<OperationFrame>
 TxSimTransactionFrame::makeOperation(Operation const& op, OperationResult& res,
                                      size_t index)
 {
-    if (mEnvelope.v0().tx.operations[index].body.type() != ACCOUNT_MERGE)
+    auto& ops = txbridge::getOperations(mEnvelope);
+    assert(index < ops.size());
+    OperationResult resultFromArchive;
+    if (mSimulationResult.result.code() == txSUCCESS ||
+        mSimulationResult.result.code() == txFAILED)
     {
-        return OperationFrame::makeHelper(op, res, *this);
+        resultFromArchive = mSimulationResult.result.results()[index];
     }
-    else
+
+    switch (ops[index].body.type())
     {
-        return std::make_shared<TxSimMergeOpFrame>(
-            op, res, *this, mSimulationResult.result.results()[index]);
+    case ACCOUNT_MERGE:
+        return std::make_shared<TxSimMergeOpFrame>(op, res, *this,
+                                                   resultFromArchive);
+    case MANAGE_BUY_OFFER:
+        return std::make_shared<TxSimManageBuyOfferOpFrame>(
+            op, res, *this, resultFromArchive, mCount);
+    case MANAGE_SELL_OFFER:
+        return std::make_shared<TxSimManageSellOfferOpFrame>(
+            op, res, *this, resultFromArchive, mCount);
+    case CREATE_PASSIVE_SELL_OFFER:
+        return std::make_shared<TxSimCreatePassiveSellOfferOpFrame>(
+            op, res, *this, resultFromArchive, mCount);
+    default:
+        return OperationFrame::makeHelper(op, res, *this);
     }
 }
 

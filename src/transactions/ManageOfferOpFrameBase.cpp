@@ -426,7 +426,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                     "Unexpected result from addNumEntries");
             }
 
-            newOffer.data.offer().offerID = generateID(header);
+            newOffer.data.offer().offerID = generateNewOfferID(header);
             getSuccessResult().offer.effect(MANAGE_OFFER_CREATED);
         }
         else
@@ -456,6 +456,12 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
 
     ltx.commit();
     return true;
+}
+
+int64_t
+ManageOfferOpFrameBase::generateNewOfferID(LedgerTxnHeader& header)
+{
+    return generateID(header);
 }
 
 LedgerEntry
