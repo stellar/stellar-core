@@ -72,7 +72,7 @@ TEST_CASE("standalone", "[herder][acceptance]")
             VirtualTimer setupTimer(*app);
 
             auto feedTx = [&](TransactionFramePtr& tx) {
-                REQUIRE(app->getHerder().recvTransaction(tx) ==
+                REQUIRE(app->getHerder().recvTransaction(tx).mStatus ==
                         TransactionQueue::AddResult::ADD_STATUS_PENDING);
             };
 
@@ -1937,7 +1937,7 @@ TEST_CASE("do not flood too many transactions", "[herder]")
             ops.emplace_back(payment(source, i));
         }
         auto tx = source.tx(ops);
-        REQUIRE(herder.recvTransaction(tx) ==
+        REQUIRE(herder.recvTransaction(tx).mStatus ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
         return tx;
     };
