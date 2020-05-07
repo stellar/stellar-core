@@ -595,7 +595,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                     cat, toString(), mApp.getConfig().PEER_PORT);
 
     mApp.postOnMainThread(
-        [ err, weak, sm = StellarMessage(stellarMsg) ]() {
+        [err, weak, sm = StellarMessage(stellarMsg)]() {
             auto self = weak.lock();
             if (self)
             {
@@ -784,16 +784,16 @@ Peer::recvTransaction(StellarMessage const& msg)
     {
         // add it to our current set
         // and make sure it is valid
-        auto recvResStatus =
-            mApp.getHerder().recvTransaction(transaction).mStatus;
+        auto recvResStatus = mApp.getHerder().recvTransaction(transaction);
 
-        if (recvResStatus == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
-            recvResStatus == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
+        if (recvResStatus == TransactionQueue::AddStatus::ADD_STATUS_PENDING ||
+            recvResStatus == TransactionQueue::AddStatus::ADD_STATUS_DUPLICATE)
         {
             // record that this peer sent us this transaction
             mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
 
-            if (recvResStatus == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+            if (recvResStatus ==
+                TransactionQueue::AddStatus::ADD_STATUS_PENDING)
             {
                 // if it's a new transaction, broadcast it
                 mApp.getOverlayManager().broadcastMessage(msg);

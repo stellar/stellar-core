@@ -49,7 +49,6 @@ TEST_CASE("standalone", "[herder][acceptance]")
     cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
     for_all_versions(cfg, [&](Config const& cfg1) {
-
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg1);
 
@@ -72,8 +71,8 @@ TEST_CASE("standalone", "[herder][acceptance]")
             VirtualTimer setupTimer(*app);
 
             auto feedTx = [&](TransactionFramePtr& tx) {
-                REQUIRE(app->getHerder().recvTransaction(tx).mStatus ==
-                        TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                REQUIRE(app->getHerder().recvTransaction(tx) ==
+                        TransactionQueue::AddStatus::ADD_STATUS_PENDING);
             };
 
             auto waitForExternalize = [&]() {
@@ -1937,8 +1936,8 @@ TEST_CASE("do not flood too many transactions", "[herder]")
             ops.emplace_back(payment(source, i));
         }
         auto tx = source.tx(ops);
-        REQUIRE(herder.recvTransaction(tx).mStatus ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(herder.recvTransaction(tx) ==
+                TransactionQueue::AddStatus::ADD_STATUS_PENDING);
         return tx;
     };
 

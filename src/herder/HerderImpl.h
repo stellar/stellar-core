@@ -59,8 +59,11 @@ class HerderImpl : public Herder
     void valueExternalized(uint64 slotIndex, StellarValue const& value);
     void emitEnvelope(SCPEnvelope const& envelope);
 
-    TransactionQueue::AddResult
+    TransactionQueue::AddStatus
     recvTransaction(TransactionFrameBasePtr tx) override;
+
+    TransactionQueue::AddStatus
+    recvTransaction(TransactionFrameBasePtr tx, int64_t &feeRecommendation) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,

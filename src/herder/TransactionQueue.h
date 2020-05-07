@@ -59,22 +59,20 @@ class TransactionQueue
   public:
     static int64_t const FEE_MULTIPLIER;
 
-    struct FeeRateRecommendation {
-        int64_t n;
-        int64_t d;
+    enum class AddStatus
+    {
+        ADD_STATUS_PENDING = 0,
+        ADD_STATUS_DUPLICATE,
+        ADD_STATUS_ERROR,
+        ADD_STATUS_TRY_AGAIN_LATER,
+        ADD_STATUS_COUNT,
+        ADD_STATUS_BAD_REPLACE_BY_FEE,
     };
 
     struct AddResult
     {
-        enum {
-            ADD_STATUS_PENDING = 0,
-            ADD_STATUS_DUPLICATE,
-            ADD_STATUS_ERROR,
-            ADD_STATUS_TRY_AGAIN_LATER,
-            ADD_STATUS_COUNT,
-        } mStatus;
-
-        FeeRateRecommendation mFeeRateRecommendation;
+        AddStatus mStatus;
+        int64_t mFeeRecommendation;
     };
 
     /*
@@ -206,6 +204,6 @@ class TransactionQueue
 };
 
 static const char* TX_STATUS_STRING[static_cast<int>(
-    TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
+    TransactionQueue::AddStatus::ADD_STATUS_COUNT)] = {
     "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER"};
 }

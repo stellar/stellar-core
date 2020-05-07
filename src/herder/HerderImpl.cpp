@@ -309,18 +309,27 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     startRebroadcastTimer();
 }
 
-TransactionQueue::AddResult
+TransactionQueue::AddStatus
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 {
+    int64_t unused;
+    return recvTransaction(tx, unused);
+}
+
+TransactionQueue::AddStatus
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx,
+                            int64_t& feeRecommendation)
+{
     auto result = mTransactionQueue.tryAdd(tx);
-    if (result.mStatus == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+    if (result.mStatus == TransactionQueue::AddStatus::ADD_STATUS_PENDING)
     {
         if (Logging::logTrace("Herder"))
             CLOG(TRACE, "Herder")
                 << "recv transaction " << hexAbbrev(tx->getFullHash())
                 << " for " << KeyUtils::toShortString(tx->getSourceID());
     }
-    return result;
+    feeRecommendation = result.mFeeRecommendation;
+    return result.mStatus;
 }
 
 bool
@@ -547,16 +556,17 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
     bool log = true;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
-        getSCP().processCurrentState(seq,
-                                     [&](SCPEnvelope const& e) {
-                                         StellarMessage m;
-                                         m.type(SCP_MESSAGE);
-                                         m.envelope() = e;
-                                         peer->sendMessage(m, log);
-                                         log = false;
-                                         return true;
-                                     },
-                                     false);
+        getSCP().processCurrentState(
+            seq,
+            [&](SCPEnvelope const& e) {
+                StellarMessage m;
+                m.type(SCP_MESSAGE);
+                m.envelope() = e;
+                peer->sendMessage(m, log);
+                log = false;
+                return true;
+            },
+            false);
         return true;
     });
 }

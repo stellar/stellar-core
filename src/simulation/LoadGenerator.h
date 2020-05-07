@@ -71,7 +71,7 @@ class LoadGenerator
         // re-submit. Any other code points to a loadgen misconfigurations, as
         // transactions must have valid (pre-generated) source accounts,
         // sufficient balances etc.
-        TransactionQueue::AddResult execute(Application& app, bool isCreate,
+        TransactionQueue::AddStatus execute(Application& app, bool isCreate,
                                             TransactionResultCode& code,
                                             int32_t batchSize);
     };
@@ -121,7 +121,7 @@ class LoadGenerator
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void maybeHandleFailedTx(TestAccountPtr sourceAccount,
-                             TransactionQueue::AddResult result,
+                             TransactionQueue::AddStatus status,
                              TransactionResultCode code);
     TxInfo creationTransaction(uint64_t startAccount, uint64_t numItems,
                                uint32_t ledgerNum);

@@ -568,31 +568,29 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // add it to our current set
             // and make sure it is valid
-            auto result =
-                mApp.getHerder().recvTransaction(transaction);
-            auto status = result.mStatus;
+            int64_t feeRecommendation;
+            auto status = mApp.getHerder().recvTransaction(transaction,
+                                                           feeRecommendation);
+            output << "{"
+                   << "\"status\": "
+                   << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
+                   << "\"";
 
-            if (status == TransactionQueue::AddResult::ADD_STATUS_PENDING)
+            switch (status)
+            {
+            case TransactionQueue::AddStatus::ADD_STATUS_PENDING:
             {
                 StellarMessage msg;
                 msg.type(TRANSACTION);
                 msg.transaction() = envelope;
                 mApp.getOverlayManager().broadcastMessage(msg);
             }
-
-            output << "{"
-                   << "\"status\": "
-                   << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
-                   << "\"";
-            if (result.mFeeRateRecommendation.d > 0)
-            {
-                output << " , \"fee_rate_recommendation\": \""
-                       << "{"
-                       << "\"n\": " << result.mFeeRateRecommendation.n
-                       << " , \"d\": " << result.mFeeRateRecommendation.d
-                       << "}";
-            }
-            if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
+            break;
+            case TransactionQueue::AddStatus::ADD_STATUS_BAD_REPLACE_BY_FEE:
+                output << " , \"fee_recommendation\": \"" << feeRecommendation
+                       << "\"";
+                break;
+            case TransactionQueue::AddStatus::ADD_STATUS_ERROR:
             {
                 std::string resultBase64;
                 auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
@@ -601,6 +599,10 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
                 resultBase64 = decoder::encode_b64(resultBin);
 
                 output << " , \"error\": \"" << resultBase64 << "\"";
+            }
+            break;
+            default:
+                break;
             }
             output << "}";
         }
@@ -898,20 +900,20 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        switch (mApp.getHerder().recvTransaction(txFrame).mStatus)
+        switch (mApp.getHerder().recvTransaction(txFrame))
         {
-        case TransactionQueue::AddResult::ADD_STATUS_PENDING:
+        case TransactionQueue::AddStatus::ADD_STATUS_PENDING:
             root["status"] = "pending";
             break;
-        case TransactionQueue::AddResult::ADD_STATUS_DUPLICATE:
+        case TransactionQueue::AddStatus::ADD_STATUS_DUPLICATE:
             root["status"] = "duplicate";
             break;
-        case TransactionQueue::AddResult::ADD_STATUS_ERROR:
+        case TransactionQueue::AddStatus::ADD_STATUS_ERROR:
             root["status"] = "error";
             root["detail"] =
                 xdr::xdr_to_string(txFrame->getResult().result.code());
             break;
-        case TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER:
+        case TransactionQueue::AddStatus::ADD_STATUS_TRY_AGAIN_LATER:
             root["status"] = "try_again_later";
             break;
         default:
