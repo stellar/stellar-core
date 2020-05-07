@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 TxSimManageBuyOfferOpFrame::TxSimManageBuyOfferOpFrame(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx,
@@ -21,6 +23,7 @@ TxSimManageBuyOfferOpFrame::TxSimManageBuyOfferOpFrame(
 int64_t
 TxSimManageBuyOfferOpFrame::generateNewOfferID(LedgerTxnHeader& header)
 {
-    return TxSimUtils::generateScaledOfferID(mSimulationResult, mCount);
+    return generateScaledOfferID(mSimulationResult, mCount);
+}
 }
 }

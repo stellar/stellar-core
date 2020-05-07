@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 class TxSimMergeOpFrame : public MergeOpFrame
 {
@@ -21,4 +23,5 @@ class TxSimMergeOpFrame : public MergeOpFrame
     bool isSeqnumTooFar(LedgerTxnHeader const& header,
                         AccountEntry const& sourceAccount) override;
 };
+}
 }

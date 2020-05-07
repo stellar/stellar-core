@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 class TxSimTransactionFrame : public TransactionFrame
 {
@@ -41,4 +43,5 @@ class TxSimTransactionFrame : public TransactionFrame
     {
     }
 };
+}
 }

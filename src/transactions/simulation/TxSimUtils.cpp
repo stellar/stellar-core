@@ -10,7 +10,7 @@
 
 namespace stellar
 {
-namespace TxSimUtils
+namespace txsimulation
 {
 
 static void

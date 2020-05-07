@@ -9,6 +9,9 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
+
 TxSimFeeBumpTransactionFrame::TxSimFeeBumpTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
     TransactionResult simulationResult, uint32_t partition)
@@ -52,5 +55,6 @@ TxSimFeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
         stellar::addBalance(acc.balance, -fee);
         header.current().feePool += fee;
     }
+}
 }
 }

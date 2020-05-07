@@ -12,6 +12,9 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
+
 TxSimScaleBucketlistWork::TxSimScaleBucketlistWork(
     Application& app, uint32_t multiplier, uint32_t ledger,
     TmpDir const& tmpDir, std::shared_ptr<HistoryArchiveState> has)
@@ -95,5 +98,6 @@ TxSimScaleBucketlistWork::doReset()
     mApplyBuckets.reset();
     mCurrentBuckets.clear();
     mGeneratedBuckets.clear();
+}
 }
 }

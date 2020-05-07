@@ -22,6 +22,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 TxSimApplyTransactionsWork::TxSimApplyTransactionsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
@@ -235,7 +237,7 @@ TxSimApplyTransactionsWork::addSignerKeys(
 
     if (hasSig(acc, sigs, txHash))
     {
-        keys.emplace(TxSimUtils::generateScaledSecret(acc, partition));
+        keys.emplace(generateScaledSecret(acc, partition));
     }
 
     auto account = stellar::loadAccount(ltx, acc);
@@ -251,8 +253,7 @@ TxSimApplyTransactionsWork::addSignerKeys(
             auto pubKey = KeyUtils::convertKey<PublicKey>(signer.key);
             if (hasSig(pubKey, sigs, txHash))
             {
-                keys.emplace(
-                    TxSimUtils::generateScaledSecret(pubKey, partition));
+                keys.emplace(generateScaledSecret(pubKey, partition));
             }
         }
     }
@@ -275,7 +276,7 @@ TxSimApplyTransactionsWork::mutateTxSourceAccounts(TransactionEnvelope& env,
     auto const& sigs = txbridge::getSignaturesInner(env);
     auto addSignerAndReplaceID = [&](MuxedAccount& acc) {
         addSignerKeys(acc, ltx, keys, sigs, partition);
-        TxSimUtils::mutateScaledAccountID(acc, partition);
+        mutateScaledAccountID(acc, partition);
     };
 
     // Depending on the envelope type, update sourceAccount and maybe feeSource
@@ -288,9 +289,7 @@ TxSimApplyTransactionsWork::mutateTxSourceAccounts(TransactionEnvelope& env,
         acc.ed25519() = env.v0().tx.sourceAccountEd25519;
         addSignerKeys(acc, ltx, keys, sigs, partition);
         env.v0().tx.sourceAccountEd25519 =
-            TxSimUtils::generateScaledSecret(acc, partition)
-                .getPublicKey()
-                .ed25519();
+            generateScaledSecret(acc, partition).getPublicKey().ed25519();
         break;
     case ENVELOPE_TYPE_TX:
         addSignerAndReplaceID(env.v1().tx.sourceAccount);
@@ -322,7 +321,7 @@ TxSimApplyTransactionsWork::mutateOperations(TransactionEnvelope& env,
         {
             addSignerKeys(*op.sourceAccount, ltx, keys, sigs, partition);
         }
-        TxSimUtils::mutateScaledOperation(op, partition);
+        mutateScaledOperation(op, partition);
     }
 }
 
@@ -380,8 +379,7 @@ TxSimApplyTransactionsWork::scaleLedger(
         auto& outerSigs = newEnv.feeBump().signatures;
         addSignerKeys(newEnv.feeBump().tx.feeSource, ltx, outerTxKeys,
                       outerSigs, partition);
-        TxSimUtils::mutateScaledAccountID(newEnv.feeBump().tx.feeSource,
-                                          partition);
+        mutateScaledAccountID(newEnv.feeBump().tx.feeSource, partition);
         newTxHash = simulateSigs(outerSigs, outerTxKeys);
     }
 
@@ -640,5 +638,6 @@ TxSimApplyTransactionsWork::onAbort()
         return false;
     }
     return true;
+}
 }
 }

@@ -12,6 +12,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 static Hash
 computeContentsHash(Hash const& networkID, Hash const& previousLedgerHash,
@@ -125,5 +127,6 @@ TxSimTxSetFrame::toXDR(TransactionSet& set)
     TxSetFrame tf(mNetworkID, txSet);
     tf.sortForHash();
     tf.toXDR(set);
+}
 }
 }

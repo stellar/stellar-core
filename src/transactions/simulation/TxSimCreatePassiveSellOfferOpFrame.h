@@ -8,6 +8,9 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
+
 class TxSimCreatePassiveSellOfferOpFrame : public CreatePassiveSellOfferOpFrame
 {
     OperationResult mSimulationResult;
@@ -22,4 +25,5 @@ class TxSimCreatePassiveSellOfferOpFrame : public CreatePassiveSellOfferOpFrame
 
     int64_t generateNewOfferID(LedgerTxnHeader& header) override;
 };
+}
 }

@@ -11,7 +11,7 @@
 
 namespace stellar
 {
-namespace TxSimUtils
+namespace txsimulation
 {
 // generateScaledSecret functions generate new key pairs based on some pubkey
 // (typically used in production) and a partition number

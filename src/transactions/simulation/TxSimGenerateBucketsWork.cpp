@@ -15,6 +15,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 TxSimGenerateBucketsWork::TxSimGenerateBucketsWork(
     Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
@@ -242,12 +244,9 @@ TxSimGenerateBucketsWork::startBucketGeneration(
 
     for (uint32_t count = 1; count < mMultiplier; count++)
     {
-        TxSimUtils::generateScaledLiveEntries(newInitEntries, initEntries,
-                                              count);
-        TxSimUtils::generateScaledLiveEntries(newLiveEntries, liveEntries,
-                                              count);
-        TxSimUtils::generateScaledDeadEntries(newDeadEntries, deadEntries,
-                                              count);
+        generateScaledLiveEntries(newInitEntries, initEntries, count);
+        generateScaledLiveEntries(newLiveEntries, liveEntries, count);
+        generateScaledDeadEntries(newDeadEntries, deadEntries, count);
 
         mIntermediateBuckets.emplace_back(
             Bucket::fresh(mApp.getBucketManager(), ledgerVersion,
@@ -264,5 +263,6 @@ TxSimGenerateBucketsWork::onSuccess()
 {
     // Persist HAS file to avoid re-generating same buckets
     getGeneratedHAS().save("simulate-" + HistoryArchiveState::baseName());
+}
 }
 }

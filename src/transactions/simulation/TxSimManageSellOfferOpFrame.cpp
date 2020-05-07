@@ -8,6 +8,9 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
+
 TxSimManageSellOfferOpFrame::TxSimManageSellOfferOpFrame(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx,
     OperationResult const& simulationResult, uint32_t partition)
@@ -20,6 +23,7 @@ TxSimManageSellOfferOpFrame::TxSimManageSellOfferOpFrame(
 int64_t
 TxSimManageSellOfferOpFrame::generateNewOfferID(LedgerTxnHeader& header)
 {
-    return TxSimUtils::generateScaledOfferID(mSimulationResult, mCount);
+    return generateScaledOfferID(mSimulationResult, mCount);
+}
 }
 }

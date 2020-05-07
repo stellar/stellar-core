@@ -6,6 +6,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 TxSimMergeOpFrame::TxSimMergeOpFrame(Operation const& op, OperationResult& res,
                                      TransactionFrame& parentTx,
@@ -24,5 +26,6 @@ TxSimMergeOpFrame::isSeqnumTooFar(LedgerTxnHeader const& header,
         return code == ACCOUNT_MERGE_SEQNUM_TOO_FAR;
     }
     return false;
+}
 }
 }

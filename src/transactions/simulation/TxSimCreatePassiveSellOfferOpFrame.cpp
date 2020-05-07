@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 TxSimCreatePassiveSellOfferOpFrame::TxSimCreatePassiveSellOfferOpFrame(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx,
@@ -21,6 +23,7 @@ TxSimCreatePassiveSellOfferOpFrame::TxSimCreatePassiveSellOfferOpFrame(
 int64_t
 TxSimCreatePassiveSellOfferOpFrame::generateNewOfferID(LedgerTxnHeader& header)
 {
-    return TxSimUtils::generateScaledOfferID(mSimulationResult, mCount);
+    return generateScaledOfferID(mSimulationResult, mCount);
+}
 }
 }

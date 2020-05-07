@@ -8,6 +8,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 class TxSimTxSetFrame : public AbstractTxSetFrameForApply
 {
@@ -37,4 +39,5 @@ class TxSimTxSetFrame : public AbstractTxSetFrameForApply
     std::vector<TransactionFrameBasePtr> sortForApply() override;
     void toXDR(TransactionSet& set) override;
 };
+}
 }

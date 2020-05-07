@@ -10,10 +10,13 @@ namespace stellar
 {
 
 class GetHistoryArchiveStateWork;
-class TxSimGenerateBucketsWork;
 class Bucket;
 class TmpDir;
 
+namespace txsimulation
+{
+
+class TxSimGenerateBucketsWork;
 /*
  * TxSimScaleBucketlistWork will retrieve the current bucketlist, transform it
  * by creating new Ledger Entries to mimic existing ones, and apply newly
@@ -50,4 +53,5 @@ class TxSimScaleBucketlistWork : public Work
     BasicWork::State doWork() override;
     void doReset() override;
 };
+}
 }

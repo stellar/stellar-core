@@ -14,6 +14,9 @@ namespace stellar
 class Bucket;
 class TmpDir;
 
+namespace txsimulation
+{
+
 /*
  * TxSimGenerateBucketsWork transforms the existing bucketlist by creating new
  * ledger entries that mimic the existing ones. This is useful for simulation
@@ -68,4 +71,5 @@ class TxSimGenerateBucketsWork : public BasicWork
 
     void onSuccess() override;
 };
+}
 }

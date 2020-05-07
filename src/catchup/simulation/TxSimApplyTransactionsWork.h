@@ -14,6 +14,8 @@ namespace stellar
 {
 struct LedgerRange;
 
+namespace txsimulation
+{
 class TxSimApplyTransactionsWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
@@ -75,4 +77,5 @@ class TxSimApplyTransactionsWork : public BasicWork
     State onRun() override;
     bool onAbort() override;
 };
+}
 }

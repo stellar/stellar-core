@@ -14,6 +14,8 @@
 
 namespace stellar
 {
+namespace txsimulation
+{
 
 TxSimTransactionFrame::TxSimTransactionFrame(
     Hash const& networkID, TransactionEnvelope const& envelope,
@@ -121,5 +123,6 @@ TxSimTransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
         auto sourceAccount = loadSourceAccount(ltx, header);
         sourceAccount.current().data.account().seqNum = getSeqNum();
     }
+}
 }
 }

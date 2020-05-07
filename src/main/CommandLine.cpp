@@ -1009,7 +1009,7 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
             *app, cr, HISTORY_FILE_TYPE_TRANSACTIONS, dir);
         auto downloadResults = std::make_shared<BatchDownloadWork>(
             *app, cr, HISTORY_FILE_TYPE_RESULTS, dir);
-        auto apply = std::make_shared<TxSimApplyTransactionsWork>(
+        auto apply = std::make_shared<txsimulation::TxSimApplyTransactionsWork>(
             *app, dir, lr, app->getConfig().NETWORK_PASSPHRASE, opsPerLedger,
             upgrade, multiplier, verifyResults);
         std::vector<std::shared_ptr<BasicWork>> seq{
@@ -1081,8 +1081,9 @@ runSimulateBuckets(CommandLineArgs const& args)
             auto checkpoint =
                 app->getHistoryManager().checkpointContainingLedger(ledger);
 
-            auto simulateBuckets = std::make_shared<TxSimScaleBucketlistWork>(
-                *app, n, checkpoint, dir, has);
+            auto simulateBuckets =
+                std::make_shared<txsimulation::TxSimScaleBucketlistWork>(
+                    *app, n, checkpoint, dir, has);
 
             // Once simulated bucketlist is good to go, download ledgers headers
             // to convince LedgerManager that we have succesfully restored
