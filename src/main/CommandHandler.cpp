@@ -587,7 +587,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             }
             break;
             case TransactionQueue::AddStatus::ADD_STATUS_BAD_REPLACE_BY_FEE:
-                output << " , \"min_fee\": \"" << feeBumpMinFee << "\"";
+                output << " , \"min_fee\": " << feeBumpMinFee;
                 break;
             case TransactionQueue::AddStatus::ADD_STATUS_ERROR:
             {
