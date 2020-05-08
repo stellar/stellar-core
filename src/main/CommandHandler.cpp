@@ -568,9 +568,9 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         {
             // add it to our current set
             // and make sure it is valid
-            int64_t feeRecommendation;
-            auto status = mApp.getHerder().recvTransaction(transaction,
-                                                           feeRecommendation);
+            int64_t feeBumpMinFee;
+            auto status =
+                mApp.getHerder().recvTransaction(transaction, feeBumpMinFee);
             output << "{"
                    << "\"status\": "
                    << "\"" << TX_STATUS_STRING[static_cast<int>(status)]
@@ -587,8 +587,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             }
             break;
             case TransactionQueue::AddStatus::ADD_STATUS_BAD_REPLACE_BY_FEE:
-                output << " , \"fee_recommendation\": \"" << feeRecommendation
-                       << "\"";
+                output << " , \"min_fee\": \"" << feeBumpMinFee << "\"";
                 break;
             case TransactionQueue::AddStatus::ADD_STATUS_ERROR:
             {

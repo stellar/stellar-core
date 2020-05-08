@@ -62,8 +62,8 @@ class HerderImpl : public Herder
     TransactionQueue::AddStatus
     recvTransaction(TransactionFrameBasePtr tx) override;
 
-    TransactionQueue::AddStatus
-    recvTransaction(TransactionFrameBasePtr tx, int64_t &feeRecommendation) override;
+    TransactionQueue::AddStatus recvTransaction(TransactionFrameBasePtr tx,
+                                                int64_t& minFee) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,

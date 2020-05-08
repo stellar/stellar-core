@@ -72,7 +72,7 @@ class TransactionQueue
     struct AddResult
     {
         AddStatus mStatus;
-        int64_t mFeeRecommendation;
+        int64_t mFeeBumpMinFee;
     };
 
     /*

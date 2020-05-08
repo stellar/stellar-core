@@ -101,7 +101,7 @@ class Herder
     virtual TransactionQueue::AddStatus
     recvTransaction(TransactionFrameBasePtr tx) = 0;
     virtual TransactionQueue::AddStatus
-    recvTransaction(TransactionFrameBasePtr tx, int64_t &feeRecommendation) = 0;
+    recvTransaction(TransactionFrameBasePtr tx, int64_t& minFee) = 0;
 
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, Peer::pointer peer) = 0;

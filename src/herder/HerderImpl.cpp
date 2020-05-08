@@ -317,8 +317,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 }
 
 TransactionQueue::AddStatus
-HerderImpl::recvTransaction(TransactionFrameBasePtr tx,
-                            int64_t& feeRecommendation)
+HerderImpl::recvTransaction(TransactionFrameBasePtr tx, int64_t& minFee)
 {
     auto result = mTransactionQueue.tryAdd(tx);
     if (result.mStatus == TransactionQueue::AddStatus::ADD_STATUS_PENDING)
@@ -328,7 +327,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx,
                 << "recv transaction " << hexAbbrev(tx->getFullHash())
                 << " for " << KeyUtils::toShortString(tx->getSourceID());
     }
-    feeRecommendation = result.mFeeRecommendation;
+    minFee = result.mFeeBumpMinFee;
     return result.mStatus;
 }
 

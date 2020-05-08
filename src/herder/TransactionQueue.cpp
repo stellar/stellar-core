@@ -60,7 +60,8 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
     // FEE_MULTIPLIER * v2 does not overflow uint128_t because fees are bounded
     // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
     auto v1 = bigMultiply(newFee, oldNumOps);
-    auto v2 = uint128_t(TransactionQueue::FEE_MULTIPLIER) * bigMultiply(oldFee, newNumOps);
+    auto v2 = uint128_t(TransactionQueue::FEE_MULTIPLIER) *
+              bigMultiply(oldFee, newNumOps);
     std::pair<bool, int64_t> result;
     result.first = v1 >= v2;
     if (!result.first)
@@ -124,10 +125,11 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                          TimestampedTransactions::iterator& oldTxIter)
 {
     TransactionQueue::AddResult result;
-    result.mFeeRecommendation = 0;
+    result.mFeeBumpMinFee = 0;
     if (isBanned(tx->getFullHash()))
     {
-        result.mStatus =TransactionQueue::AddStatus::ADD_STATUS_TRY_AGAIN_LATER;
+        result.mStatus =
+            TransactionQueue::AddStatus::ADD_STATUS_TRY_AGAIN_LATER;
         return result;
     }
 
@@ -149,7 +151,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 if (findBySeq(tx, transactions, iter) &&
                     iter != transactions.end() && isDuplicateTx(iter->mTx, tx))
                 {
-                    result.mStatus = TransactionQueue::AddStatus::ADD_STATUS_DUPLICATE;
+                    result.mStatus =
+                        TransactionQueue::AddStatus::ADD_STATUS_DUPLICATE;
                     return result;
                 }
 
@@ -160,7 +163,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                 if (!findBySeq(tx, transactions, oldTxIter))
                 {
                     tx->getResult().result.code(txBAD_SEQ);
-                    result.mStatus= TransactionQueue::AddStatus::ADD_STATUS_ERROR;
+                    result.mStatus =
+                        TransactionQueue::AddStatus::ADD_STATUS_ERROR;
                     return result;
                 }
 
@@ -169,15 +173,17 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                     // Replace-by-fee logic
                     if (isDuplicateTx(oldTxIter->mTx, tx))
                     {
-                        result.mStatus = TransactionQueue::AddStatus::ADD_STATUS_DUPLICATE;
+                        result.mStatus =
+                            TransactionQueue::AddStatus::ADD_STATUS_DUPLICATE;
                         return result;
                     }
                     auto replace = canReplaceByFee(tx, oldTxIter->mTx);
                     if (!replace.first)
                     {
                         tx->getResult().result.code(txINSUFFICIENT_FEE);
-                        result.mStatus = TransactionQueue::AddStatus::ADD_STATUS_BAD_REPLACE_BY_FEE;
-                        result.mFeeRecommendation = replace.second;
+                        result.mStatus = TransactionQueue::AddStatus::
+                            ADD_STATUS_BAD_REPLACE_BY_FEE;
+                        result.mFeeBumpMinFee = replace.second;
                         return result;
                     }
 
@@ -199,7 +205,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     if (netOps + mQueueSizeOps > maxQueueSizeOps())
     {
         ban({tx});
-        result.mStatus = TransactionQueue::AddStatus::ADD_STATUS_TRY_AGAIN_LATER;
+        result.mStatus =
+            TransactionQueue::AddStatus::ADD_STATUS_TRY_AGAIN_LATER;
         return result;
     }
 
