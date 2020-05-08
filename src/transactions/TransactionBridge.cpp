@@ -52,6 +52,39 @@ getSignatures(TransactionEnvelope& env)
     }
 }
 
+xdr::xvector<DecoratedSignature, 20>&
+getSignaturesInner(TransactionEnvelope& env)
+{
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        return env.v0().signatures;
+    case ENVELOPE_TYPE_TX:
+        return env.v1().signatures;
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+        return env.feeBump().tx.innerTx.v1().signatures;
+    default:
+        abort();
+    }
+}
+
+xdr::xvector<Operation, MAX_OPS_PER_TX>&
+getOperations(TransactionEnvelope& env)
+{
+    switch (env.type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        return env.v0().tx.operations;
+    case ENVELOPE_TYPE_TX:
+        return env.v1().tx.operations;
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+        assert(env.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX);
+        return env.feeBump().tx.innerTx.v1().tx.operations;
+    default:
+        abort();
+    }
+}
+
 #ifdef BUILD_TESTS
 xdr::xvector<DecoratedSignature, 20>&
 getSignatures(TransactionFramePtr tx)

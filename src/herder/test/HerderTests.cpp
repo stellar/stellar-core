@@ -27,6 +27,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 
 #include "xdrpp/marshal.h"
 #include <algorithm>

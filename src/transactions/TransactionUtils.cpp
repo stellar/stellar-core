@@ -725,6 +725,12 @@ void
 normalizeSigners(LedgerTxnEntry& entry)
 {
     auto& acc = entry.current().data.account();
+    normalizeSigners(acc);
+}
+
+void
+normalizeSigners(AccountEntry& acc)
+{
     std::sort(
         acc.signers.begin(), acc.signers.end(),
         [](Signer const& s1, Signer const& s2) { return s1.key < s2.key; });
@@ -776,6 +782,22 @@ toAccountID(MuxedAccount const& m)
         break;
     case KEY_TYPE_MUXED_ED25519:
         ret.ed25519() = m.med25519().ed25519;
+        break;
+    default:
+        // this would be a bug
+        abort();
+    }
+    return ret;
+}
+
+MuxedAccount
+toMuxedAccount(AccountID const& a)
+{
+    MuxedAccount ret(static_cast<CryptoKeyType>(a.type()));
+    switch (a.type())
+    {
+    case PUBLIC_KEY_TYPE_ED25519:
+        ret.ed25519() = a.ed25519();
         break;
     default:
         // this would be a bug

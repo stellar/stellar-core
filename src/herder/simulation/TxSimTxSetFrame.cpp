@@ -2,13 +2,17 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "herder/simulation/SimulationTxSetFrame.h"
+#include "herder/simulation/TxSimTxSetFrame.h"
 #include "crypto/SHA.h"
-#include "transactions/simulation/SimulationTransactionFrame.h"
+#include "transactions/TransactionBridge.h"
+#include "transactions/simulation/TxSimFeeBumpTransactionFrame.h"
+#include "transactions/simulation/TxSimTransactionFrame.h"
 #include "xdrpp/marshal.h"
 #include <numeric>
 
 namespace stellar
+{
+namespace txsimulation
 {
 
 static Hash
@@ -21,71 +25,98 @@ computeContentsHash(Hash const& networkID, Hash const& previousLedgerHash,
     return TxSetFrame(networkID, txSet).getContentsHash();
 }
 
-SimulationTxSetFrame::SimulationTxSetFrame(
+TxSimTxSetFrame::TxSimTxSetFrame(
     Hash const& networkID, Hash const& previousLedgerHash,
     std::vector<TransactionEnvelope> const& transactions,
-    std::vector<TransactionResultPair> const& results)
+    std::vector<TransactionResultPair> const& results, uint32_t multiplier)
     : mNetworkID(networkID)
     , mPreviousLedgerHash(previousLedgerHash)
     , mTransactions(transactions)
     , mResults(results)
     , mContentsHash(
           computeContentsHash(mNetworkID, mPreviousLedgerHash, mTransactions))
+    , mMultiplier(multiplier)
 {
 }
 
 int64_t
-SimulationTxSetFrame::getBaseFee(LedgerHeader const& lh) const
+TxSimTxSetFrame::getBaseFee(LedgerHeader const& lh) const
 {
     return 0;
 }
 
 Hash const&
-SimulationTxSetFrame::getContentsHash()
+TxSimTxSetFrame::getContentsHash()
 {
     return mContentsHash;
 }
 
 Hash const&
-SimulationTxSetFrame::previousLedgerHash() const
+TxSimTxSetFrame::previousLedgerHash() const
 {
     return mPreviousLedgerHash;
 }
 
 size_t
-SimulationTxSetFrame::sizeTx() const
+TxSimTxSetFrame::sizeTx() const
 {
     return mTransactions.size();
 }
 
 size_t
-SimulationTxSetFrame::sizeOp() const
+TxSimTxSetFrame::sizeOp() const
 {
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
-                           size_t(0),
-                           [](size_t a, TransactionEnvelope const& txEnv) {
-                               return a + txEnv.v0().tx.operations.size();
+                           size_t(0), [](size_t a, TransactionEnvelope txEnv) {
+                               auto ops = txbridge::getOperations(txEnv).size();
+                               if (txEnv.type() == ENVELOPE_TYPE_TX_FEE_BUMP)
+                               {
+                                   ++ops;
+                               }
+                               return a + ops;
                            });
 }
 
 std::vector<TransactionFrameBasePtr>
-SimulationTxSetFrame::sortForApply()
+TxSimTxSetFrame::sortForApply()
 {
     std::vector<TransactionFrameBasePtr> res;
     res.reserve(mTransactions.size());
 
     auto resultIter = mResults.cbegin();
+    uint32_t partition = 0;
     for (auto const& txEnv : mTransactions)
     {
-        res.emplace_back(SimulationTransactionFrame::makeTransactionFromWire(
-            mNetworkID, txEnv, resultIter->result));
+        TransactionFrameBasePtr txFrame;
+        switch (txEnv.type())
+        {
+        case ENVELOPE_TYPE_TX_V0:
+        case ENVELOPE_TYPE_TX:
+            txFrame = std::make_shared<TxSimTransactionFrame>(
+                mNetworkID, txEnv, resultIter->result, partition);
+            break;
+        case ENVELOPE_TYPE_TX_FEE_BUMP:
+            txFrame = std::make_shared<TxSimFeeBumpTransactionFrame>(
+                mNetworkID, txEnv, resultIter->result, partition);
+            break;
+        default:
+            abort();
+        }
+
+        res.emplace_back(txFrame);
         ++resultIter;
+        if (++partition == mMultiplier)
+        {
+            partition = 0;
+        }
     }
+
+    assert(resultIter == mResults.end());
     return res;
 }
 
 void
-SimulationTxSetFrame::toXDR(TransactionSet& set)
+TxSimTxSetFrame::toXDR(TransactionSet& set)
 {
     // Delegate to TxSetFrame and explicitly call sortForHash on it for now;
     // likely this whole class will go away at some point.
@@ -96,5 +127,6 @@ SimulationTxSetFrame::toXDR(TransactionSet& set)
     TxSetFrame tf(mNetworkID, txSet);
     tf.sortForHash();
     tf.toXDR(set);
+}
 }
 }

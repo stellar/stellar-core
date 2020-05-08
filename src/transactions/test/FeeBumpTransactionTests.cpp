@@ -10,6 +10,7 @@
 #include "test/test.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrameBase.h"
+#include "transactions/TransactionUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

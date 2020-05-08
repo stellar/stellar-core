@@ -133,11 +133,13 @@ bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 
 void normalizeSigners(LedgerTxnEntry& entry);
+void normalizeSigners(AccountEntry& acc);
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
 AccountID toAccountID(MuxedAccount const& m);
+MuxedAccount toMuxedAccount(AccountID const& a);
 
 void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                    uint32_t authorized);

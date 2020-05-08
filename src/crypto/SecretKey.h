@@ -90,6 +90,21 @@ class SecretKey
     {
         return (mKeyType == rh.mKeyType) && (mSecretKey == rh.mSecretKey);
     }
+
+    bool
+    operator<(SecretKey const& rh) const
+    {
+        if (mKeyType < rh.mKeyType)
+        {
+            return true;
+        }
+        if (mKeyType > rh.mKeyType)
+        {
+            return false;
+        }
+
+        return mSecretKey < rh.mSecretKey;
+    }
 };
 
 template <> struct KeyFunctions<PublicKey>

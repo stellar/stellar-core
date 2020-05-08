@@ -11,6 +11,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 #include <lib/catch.hpp>
