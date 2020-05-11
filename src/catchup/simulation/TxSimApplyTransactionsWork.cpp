@@ -24,6 +24,7 @@ namespace stellar
 {
 namespace txsimulation
 {
+constexpr uint32_t const CLEAR_METRICS_AFTER_NUM_LEDGERS = 100;
 
 TxSimApplyTransactionsWork::TxSimApplyTransactionsWork(
     Application& app, TmpDir const& downloadDir, LedgerRange const& range,
@@ -555,9 +556,18 @@ TxSimApplyTransactionsWork::onRun()
         {
             return mApplyLedgerWork->getState();
         }
-        else if (mVerifyResults)
+        else
         {
-            checkResults(mApp, header.ledgerSeq, mResults);
+            if (mVerifyResults)
+            {
+                checkResults(mApp, header.ledgerSeq, mResults);
+            }
+            auto applied = lm.getLastClosedLedgerNum() - mRange.mFirst + 1;
+            if (applied == CLEAR_METRICS_AFTER_NUM_LEDGERS)
+            {
+                std::string domain;
+                mApp.clearMetrics(domain);
+            }
         }
     }
 
