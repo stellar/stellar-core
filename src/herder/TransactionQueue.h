@@ -65,8 +65,8 @@ class TransactionQueue
         ADD_STATUS_DUPLICATE,
         ADD_STATUS_ERROR,
         ADD_STATUS_TRY_AGAIN_LATER,
-        ADD_STATUS_COUNT,
         ADD_STATUS_BAD_REPLACE_BY_FEE,
+        ADD_STATUS_COUNT,
     };
 
     struct AddResult
@@ -205,5 +205,5 @@ class TransactionQueue
 
 static const char* TX_STATUS_STRING[static_cast<int>(
     TransactionQueue::AddStatus::ADD_STATUS_COUNT)] = {
-    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER"};
+    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER", "REPLACE_BY_FEE"};
 }
