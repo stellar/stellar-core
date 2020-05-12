@@ -185,7 +185,7 @@ Upgrades::toString() const
             if (!r.size())
             {
                 r << "upgradetime="
-                  << VirtualClock::pointToISOString(mParams.mUpgradeTime);
+                  << VirtualClock::systemPointToISOString(mParams.mUpgradeTime);
             }
             r << ", " << s << "=" << *o;
         }

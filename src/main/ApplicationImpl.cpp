@@ -78,7 +78,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
-    , mStartedOn(clock.now())
+    , mStartedOn(clock.system_now())
 {
 #ifdef SIGQUIT
     mStopSignals.add(SIGQUIT);
@@ -264,7 +264,7 @@ ApplicationImpl::getJsonInfo()
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
-    info["startedOn"] = VirtualClock::pointToISOString(mStartedOn);
+    info["startedOn"] = VirtualClock::systemPointToISOString(mStartedOn);
     auto const& lcl = lm.getLastClosedLedgerHeader();
     info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
@@ -351,7 +351,7 @@ ApplicationImpl::~ApplicationImpl()
 uint64_t
 ApplicationImpl::timeNow()
 {
-    return VirtualClock::to_time_t(getClock().now());
+    return VirtualClock::to_time_t(getClock().system_now());
 }
 
 void

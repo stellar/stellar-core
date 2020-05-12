@@ -246,7 +246,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             // build an SCP message for the next ledger
             auto ct = std::max<uint64>(
                 lcl.header.scpValue.closeTime + 1,
-                VirtualClock::to_time_t(inApp->getClock().now()));
+                VirtualClock::to_time_t(inApp->getClock().system_now()));
             StellarValue sv(txSet.getContentsHash(), ct, emptyUpgradeSteps,
                             STELLAR_VALUE_BASIC);
 

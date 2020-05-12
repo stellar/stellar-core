@@ -28,11 +28,25 @@ VirtualClock::now() noexcept
 {
     if (mMode == REAL_TIME)
     {
-        return std::chrono::system_clock::now();
+        return std::chrono::steady_clock::now();
     }
     else
     {
         return mVirtualNow;
+    }
+}
+
+VirtualClock::system_time_point
+VirtualClock::system_now() noexcept
+{
+    if (mMode == REAL_TIME)
+    {
+        return std::chrono::system_clock::now();
+    }
+    else
+    {
+        auto offset = mVirtualNow.time_since_epoch();
+        return std::chrono::system_clock::time_point(offset);
     }
 }
 
@@ -81,15 +95,15 @@ VirtualClock::next()
     return least;
 }
 
-VirtualClock::time_point
+VirtualClock::system_time_point
 VirtualClock::from_time_t(std::time_t timet)
 {
-    time_point epoch;
+    system_time_point epoch;
     return epoch + std::chrono::seconds(timet);
 }
 
 std::time_t
-VirtualClock::to_time_t(time_point point)
+VirtualClock::to_time_t(system_time_point point)
 {
     return static_cast<std::time_t>(
         std::chrono::duration_cast<std::chrono::seconds>(
@@ -107,7 +121,7 @@ timegm(struct tm* tm)
 #endif
 
 std::tm
-VirtualClock::pointToTm(time_point point)
+VirtualClock::systemPointToTm(system_time_point point)
 {
     std::time_t rawtime = to_time_t(point);
     std::tm out;
@@ -122,11 +136,11 @@ VirtualClock::pointToTm(time_point point)
     return out;
 }
 
-VirtualClock::time_point
-VirtualClock::tmToPoint(tm t)
+VirtualClock::system_time_point
+VirtualClock::tmToSystemPoint(tm t)
 {
     time_t tt = timegm(&t);
-    return VirtualClock::time_point() + std::chrono::seconds(tt);
+    return VirtualClock::system_time_point() + std::chrono::seconds(tt);
 }
 
 std::tm
@@ -162,9 +176,9 @@ VirtualClock::tmToISOString(std::tm const& tm)
 }
 
 std::string
-VirtualClock::pointToISOString(time_point point)
+VirtualClock::systemPointToISOString(system_time_point point)
 {
-    return tmToISOString(pointToTm(point));
+    return tmToISOString(systemPointToTm(point));
 }
 
 void
@@ -237,7 +251,16 @@ void
 VirtualClock::setCurrentVirtualTime(time_point t)
 {
     assert(mMode == VIRTUAL_TIME);
+    // Maintain monotonicity in VIRTUAL_TIME mode.
+    assert(t >= mVirtualNow);
     mVirtualNow = t;
+}
+
+void
+VirtualClock::setCurrentVirtualTime(system_time_point t)
+{
+    auto offset = t.time_since_epoch();
+    setCurrentVirtualTime(time_point(offset));
 }
 
 void

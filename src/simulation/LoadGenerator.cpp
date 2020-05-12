@@ -221,8 +221,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
 
     auto submit = submitScope.Stop();
 
-    uint64_t now =
-        static_cast<uint64_t>(VirtualClock::to_time_t(mApp.getClock().now()));
+    uint64_t now = mApp.timeNow();
 
     // Emit a log message once per second.
     if (now != mLastSecond)

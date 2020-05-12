@@ -299,7 +299,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             { // we haven't seen this envelope before
                 // insert it into the fetching set
                 fetchIt =
-                    fetching.emplace(envelope, std::chrono::steady_clock::now())
+                    fetching.emplace(envelope, mApp.getClock().now())
                         .first;
                 startFetch(envelope);
                 updateMetrics();
@@ -316,7 +316,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         if (isFullyFetched(envelope))
         {
             std::chrono::nanoseconds durationNano =
-                std::chrono::steady_clock::now() - fetchIt->second;
+                mApp.getClock().now() - fetchIt->second;
             mFetchDuration.Update(durationNano);
             Hash h = Slot::getCompanionQuorumSetHashFromStatement(
                 envelope.statement);

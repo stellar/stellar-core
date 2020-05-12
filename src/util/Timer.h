@@ -67,11 +67,19 @@ class VirtualClock
     // These model most of the std::chrono clock concept, with the exception of
     // now()
     // which is non-static.
-    typedef std::chrono::system_clock::duration duration;
+    typedef std::chrono::steady_clock::duration duration;
     typedef duration::rep rep;
     typedef duration::period period;
-    typedef std::chrono::system_clock::time_point time_point;
-    static const bool is_steady = false;
+    typedef std::chrono::steady_clock::time_point time_point;
+    static const bool is_steady = true;
+
+    // We also provide a "system clock" interface. This is _not_ related to the
+    // steady_clock / time_point time -- system_time_points are wall/calendar
+    // time which may move forwards or backwards as NTP adjusts it. It should be
+    // used only for things like nomination of a ledger close time (in consensus
+    // with other peers), or interfacing to other programs' notions of absolute
+    // time. Not calculating durations / timers / local-event deadlines.
+    typedef std::chrono::system_clock::time_point system_time_point;
 
     /**
      * NB: Please please please use these helpers for date-time conversions
@@ -87,15 +95,16 @@ class VirtualClock
      */
 
     // These two are named to mimic the std::chrono::system_clock methods
-    static std::time_t to_time_t(time_point);
-    static time_point from_time_t(std::time_t);
+    static std::time_t to_time_t(system_time_point);
+    static system_time_point from_time_t(std::time_t);
 
-    static std::tm pointToTm(time_point);
-    static VirtualClock::time_point tmToPoint(tm t);
-
+    // These are for conversion of system time to external contexts that
+    // believe in a concept of absolute time.
+    static std::tm systemPointToTm(system_time_point);
+    static VirtualClock::system_time_point tmToSystemPoint(tm t);
     static std::tm isoStringToTm(std::string const& iso);
     static std::string tmToISOString(std::tm const& tm);
-    static std::string pointToISOString(time_point point);
+    static std::string systemPointToISOString(system_time_point point);
 
     enum Mode
     {
@@ -166,7 +175,7 @@ class VirtualClock
     void mergeExecutionQueue();
 
     // timer should be last to ensure it gets destroyed first
-    asio::basic_waitable_timer<std::chrono::system_clock> mRealTimer;
+    asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
 
   public:
     // A VirtualClock is instantiated in either real or virtual mode. In real
@@ -187,18 +196,27 @@ class VirtualClock
     // virtual time. Each virtual clock has its own time.
     time_point now() noexcept;
 
+    // This returns a system_time_point which comes from the system clock in
+    // REAL_TIME mode. In VIRTUAL_TIME mode this returns the system-time epoch
+    // plus the steady time offset, i.e. "some time early in 1970" (unless
+    // someone has set the time forward using setCurrentVirtualTime below).
+    system_time_point system_now() noexcept;
+
     void enqueue(std::shared_ptr<VirtualClockEvent> ve);
     void flushCancelledEvents();
     bool cancelAllEvents();
 
-    // only valid with VIRTUAL_TIME: sets the current value
-    // of the clock
+    // Only valid with VIRTUAL_TIME: sets the current value of the
+    // clock. Asserts that t is >= current virtual time.
     void setCurrentVirtualTime(time_point t);
-    // calls "sleep_for" if REAL_TIME, otherwise, just adds time to the virtual
-    // clock
+    // Setting virtual time using a system time works too, though
+    // it still has to be a forward adjustment.
+    void setCurrentVirtualTime(system_time_point t);
+    // Calls "sleep_for" if REAL_TIME, otherwise, just adds time to the virtual
+    // clock.
     void sleep_for(std::chrono::microseconds us);
 
-    // returns the time of the next scheduled event
+    // Returns the time of the next scheduled event.
     time_point next();
 
     void postToExecutionQueue(std::function<void()>&& f,

@@ -68,6 +68,16 @@ Simulation::setCurrentVirtualTime(VirtualClock::time_point t)
     }
 }
 
+void
+Simulation::setCurrentVirtualTime(VirtualClock::system_time_point t)
+{
+    mClock.setCurrentVirtualTime(t);
+    for (auto& p : mNodes)
+    {
+        p.second.mClock->setCurrentVirtualTime(t);
+    }
+}
+
 Application::pointer
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
                     bool newDB)
@@ -607,6 +617,14 @@ Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
     {
         stopAllNodes();
     }
+}
+
+void
+Simulation::crankUntil(VirtualClock::system_time_point timePoint,
+                       bool finalCrank)
+{
+    crankUntil(VirtualClock::time_point(timePoint.time_since_epoch()),
+               finalCrank);
 }
 
 Config

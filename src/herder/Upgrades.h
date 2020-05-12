@@ -42,7 +42,7 @@ class Upgrades
                 make_optional<uint32>(cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
             mBaseReserve = make_optional<uint32>(cfg.TESTING_UPGRADE_RESERVE);
         }
-        VirtualClock::time_point mUpgradeTime;
+        VirtualClock::system_time_point mUpgradeTime;
         optional<uint32> mProtocolVersion;
         optional<uint32> mBaseFee;
         optional<uint32> mMaxTxSize;

@@ -8,6 +8,7 @@
 #include "herder/TxSetFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "util/HashOfHash.h"
+#include "util/Timer.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -99,7 +100,7 @@ class TransactionQueue
     struct TimestampedTx
     {
         TransactionFrameBasePtr mTx;
-        std::chrono::system_clock::time_point mInsertionTime;
+        VirtualClock::time_point mInsertionTime;
     };
     using TimestampedTransactions = std::vector<TimestampedTx>;
     using Transactions = std::vector<TransactionFrameBasePtr>;

@@ -185,7 +185,7 @@ class ApplicationImpl : public Application
     medida::Counter& mAppStateCurrent;
     medida::Timer& mPostOnMainThreadDelay;
     medida::Timer& mPostOnBackgroundThreadDelay;
-    VirtualClock::time_point mStartedOn;
+    VirtualClock::system_time_point mStartedOn;
 
     Hash mNetworkID;
 
