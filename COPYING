@@ -188,3 +188,12 @@ lib/util/siphash.{cpp,h}
   (https://github.com/whitfin/siphash-cpp)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
+
+lib/util/finally.h
+
+  "final_action" class and "finally" function
+  C++ Core Guidelines Support Library
+  Copyright 2015 Microsoft
+  (https://github.com/Microsoft/GSL)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
