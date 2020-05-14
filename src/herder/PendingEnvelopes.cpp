@@ -299,8 +299,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             { // we haven't seen this envelope before
                 // insert it into the fetching set
                 fetchIt =
-                    fetching.emplace(envelope, mApp.getClock().now())
-                        .first;
+                    fetching.emplace(envelope, mApp.getClock().now()).first;
                 startFetch(envelope);
                 updateMetrics();
             }
