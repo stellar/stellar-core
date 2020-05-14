@@ -167,13 +167,13 @@ class VirtualClock
     // Note: this is not a static method, which means that VirtualClock is
     // not an implementation of the C++ `Clock` concept; there is no global
     // virtual time. Each virtual clock has its own time.
-    time_point now() noexcept;
+    time_point now() const noexcept;
 
     // This returns a system_time_point which comes from the system clock in
     // REAL_TIME mode. In VIRTUAL_TIME mode this returns the system-time epoch
     // plus the steady time offset, i.e. "some time early in 1970" (unless
     // someone has set the time forward using setCurrentVirtualTime below).
-    system_time_point system_now() noexcept;
+    system_time_point system_now() const noexcept;
 
     void enqueue(std::shared_ptr<VirtualClockEvent> ve);
     void flushCancelledEvents();
@@ -190,7 +190,7 @@ class VirtualClock
     void sleep_for(std::chrono::microseconds us);
 
     // Returns the time of the next scheduled event.
-    time_point next();
+    time_point next() const;
 
     void postAction(std::function<void()>&& f, std::string&& name,
                     Scheduler::ActionType type);

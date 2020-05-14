@@ -31,7 +31,7 @@ VirtualClock::VirtualClock(Mode mode)
 }
 
 VirtualClock::time_point
-VirtualClock::now() noexcept
+VirtualClock::now() const noexcept
 {
     if (mMode == REAL_TIME)
     {
@@ -44,7 +44,7 @@ VirtualClock::now() noexcept
 }
 
 VirtualClock::system_time_point
-VirtualClock::system_now() noexcept
+VirtualClock::system_now() const noexcept
 {
     if (mMode == REAL_TIME)
     {
@@ -90,7 +90,7 @@ VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
 }
 
 VirtualClock::time_point
-VirtualClock::next()
+VirtualClock::next() const
 {
     assertThreadIsMain();
     VirtualClock::time_point least = time_point::max();
