@@ -1062,6 +1062,12 @@
     <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp">
       <Filter>herder\simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\Scheduler.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1843,6 +1849,18 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h">
       <Filter>herder\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\util\finally.h">
+      <Filter>lib\util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Decoder.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Scheduler.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\XDROperators.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

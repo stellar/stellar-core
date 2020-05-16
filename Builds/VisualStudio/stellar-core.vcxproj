@@ -343,7 +343,9 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
+    <ClCompile Include="..\..\src\util\Scheduler.cpp" />
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
+    <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />
     <ClCompile Include="..\..\src\work\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadVerifyTxResultsWork.cpp" />
@@ -591,6 +593,7 @@ exit /b 0
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\catch.hpp" />
+    <ClInclude Include="..\..\lib\util\finally.h" />
     <ClInclude Include="..\..\lib\util\siphash.h" />
     <ClInclude Include="..\..\src\bucket\Bucket.h" />
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h" />
@@ -670,6 +673,9 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionBridge.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
+    <ClInclude Include="..\..\src\util\Decoder.h" />
+    <ClInclude Include="..\..\src\util\Scheduler.h" />
+    <ClInclude Include="..\..\src\util\XDROperators.h" />
     <ClInclude Include="..\..\src\work\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadVerifyTxResultsWork.h" />
