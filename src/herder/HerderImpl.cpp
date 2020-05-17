@@ -449,6 +449,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     {
         minLedgerSeq -= maxSlotsToRemember;
     }
+    else
+    {
+        minLedgerSeq = LedgerManager::GENESIS_LEDGER_SEQ;
+    }
 
     uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
 
