@@ -31,7 +31,7 @@ curve25519DerivePublic(Curve25519Secret const& sec)
     Curve25519Public out;
     if (crypto_scalarmult_base(out.key.data(), sec.key.data()) != 0)
     {
-        throw std::runtime_error("Could not derive key (mult_base)");
+        throw CryptoError("Could not derive key (mult_base)");
     }
     return out;
 }
@@ -56,7 +56,7 @@ curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
     if (crypto_scalarmult(q, localSecret.key.data(), remotePublic.key.data()) !=
         0)
     {
-        throw std::runtime_error("Could not derive shared key (mult)");
+        throw CryptoError("Could not derive shared key (mult)");
     }
 #ifdef MSAN_ENABLED
     __msan_unpoison(q, crypto_scalarmult_BYTES);
@@ -77,7 +77,7 @@ curve25519Decrypt(Curve25519Secret const& localSecret,
 {
     if (encrypted.size() < crypto_box_SEALBYTES)
     {
-        throw std::runtime_error(
+        throw CryptoError(
             "encrypted.size() is less than crypto_box_SEALBYTES!");
     }
 
@@ -88,7 +88,7 @@ curve25519Decrypt(Curve25519Secret const& localSecret,
                              encrypted.size(), localPublic.key.data(),
                              localSecret.key.data()) != 0)
     {
-        throw std::runtime_error("curve25519Decrypt failed");
+        throw CryptoError("curve25519Decrypt failed");
     }
 
     return decrypted;

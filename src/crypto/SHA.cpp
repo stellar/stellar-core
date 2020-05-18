@@ -4,6 +4,7 @@
 
 #include "crypto/SHA.h"
 #include "crypto/ByteSlice.h"
+#include "crypto/Curve25519.h"
 #include "util/NonCopyable.h"
 #include <sodium.h>
 
@@ -17,7 +18,7 @@ sha256(ByteSlice const& bin)
     uint256 out;
     if (crypto_hash_sha256(out.data(), bin.data(), bin.size()) != 0)
     {
-        throw std::runtime_error("error from crypto_hash_sha256");
+        throw CryptoError("error from crypto_hash_sha256");
     }
     return out;
 }
@@ -50,7 +51,7 @@ SHA256Impl::reset()
 {
     if (crypto_hash_sha256_init(&mState) != 0)
     {
-        throw std::runtime_error("error from crypto_hash_sha256_init");
+        throw CryptoError("error from crypto_hash_sha256_init");
     }
     mFinished = false;
 }
@@ -64,7 +65,7 @@ SHA256Impl::add(ByteSlice const& bin)
     }
     if (crypto_hash_sha256_update(&mState, bin.data(), bin.size()) != 0)
     {
-        throw std::runtime_error("error from crypto_hash_sha256_update");
+        throw CryptoError("error from crypto_hash_sha256_update");
     }
 }
 
@@ -79,7 +80,7 @@ SHA256Impl::finish()
     }
     if (crypto_hash_sha256_final(&mState, out.data()) != 0)
     {
-        throw std::runtime_error("error from crypto_hash_sha256_final");
+        throw CryptoError("error from crypto_hash_sha256_final");
     }
     return out;
 }
@@ -92,7 +93,7 @@ hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
     if (crypto_auth_hmacsha256(out.mac.data(), bin.data(), bin.size(),
                                key.key.data()) != 0)
     {
-        throw std::runtime_error("error from crypto_auto_hmacsha256");
+        throw CryptoError("error from crypto_auto_hmacsha256");
     }
     return out;
 }

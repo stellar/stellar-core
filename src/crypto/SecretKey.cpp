@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "crypto/Curve25519.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -88,7 +89,7 @@ SecretKey::getSeed() const
     if (crypto_sign_ed25519_sk_to_seed(seed.mSeed.data(), mSecretKey.data()) !=
         0)
     {
-        throw std::runtime_error("error extracting seed from secret key");
+        throw CryptoError("error extracting seed from secret key");
     }
     return seed;
 }
@@ -129,7 +130,7 @@ SecretKey::sign(ByteSlice const& bin) const
     if (crypto_sign_detached(out.data(), NULL, bin.data(), bin.size(),
                              mSecretKey.data()) != 0)
     {
-        throw std::runtime_error("error while signing");
+        throw CryptoError("error while signing");
     }
     return out;
 }
@@ -142,7 +143,7 @@ SecretKey::random()
     if (crypto_sign_keypair(sk.mPublicKey.ed25519().data(),
                             sk.mSecretKey.data()) != 0)
     {
-        throw std::runtime_error("error generating random secret key");
+        throw CryptoError("error generating random secret key");
     }
 #ifdef MSAN_ENABLED
     __msan_unpoison(out.key.data(), out.key.size());
@@ -190,12 +191,12 @@ SecretKey::fromSeed(ByteSlice const& seed)
 
     if (seed.size() != crypto_sign_SEEDBYTES)
     {
-        throw std::runtime_error("seed does not match byte size");
+        throw CryptoError("seed does not match byte size");
     }
     if (crypto_sign_seed_keypair(sk.mPublicKey.ed25519().data(),
                                  sk.mSecretKey.data(), seed.data()) != 0)
     {
-        throw std::runtime_error("error generating secret key from seed");
+        throw CryptoError("error generating secret key from seed");
     }
     return sk;
 }
@@ -210,7 +211,7 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
         (seed.size() != crypto_sign_SEEDBYTES) ||
         (strKeySeed.size() != strKey::getStrKeySize(crypto_sign_SEEDBYTES)))
     {
-        throw std::runtime_error("invalid seed");
+        throw CryptoError("invalid seed");
     }
 
     SecretKey sk;
@@ -218,7 +219,7 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
     if (crypto_sign_seed_keypair(sk.mPublicKey.ed25519().data(),
                                  sk.mSecretKey.data(), seed.data()) != 0)
     {
-        throw std::runtime_error("error generating secret key from seed");
+        throw CryptoError("error generating secret key from seed");
     }
     return sk;
 }
@@ -267,7 +268,7 @@ KeyFunctions<PublicKey>::toKeyType(strKey::StrKeyVersionByte keyVersion)
     case strKey::STRKEY_PUBKEY_ED25519:
         return PublicKeyType::PUBLIC_KEY_TYPE_ED25519;
     default:
-        throw std::invalid_argument("invalid public key type");
+        throw CryptoError("invalid public key type");
     }
 }
 
@@ -279,7 +280,7 @@ KeyFunctions<PublicKey>::toKeyVersion(PublicKeyType keyType)
     case PublicKeyType::PUBLIC_KEY_TYPE_ED25519:
         return strKey::STRKEY_PUBKEY_ED25519;
     default:
-        throw std::invalid_argument("invalid public key type");
+        throw CryptoError("invalid public key type");
     }
 }
 
@@ -291,7 +292,7 @@ KeyFunctions<PublicKey>::getKeyValue(PublicKey& key)
     case PUBLIC_KEY_TYPE_ED25519:
         return key.ed25519();
     default:
-        throw std::invalid_argument("invalid public key type");
+        throw CryptoError("invalid public key type");
     }
 }
 
@@ -303,7 +304,7 @@ KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
     case PUBLIC_KEY_TYPE_ED25519:
         return key.ed25519();
     default:
-        throw std::invalid_argument("invalid public key type");
+        throw CryptoError("invalid public key type");
     }
 }
 
