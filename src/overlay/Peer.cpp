@@ -599,7 +599,18 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
             auto self = weak.lock();
             if (self)
             {
-                self->recvRawMessage(sm);
+                try
+                {
+                    self->recvRawMessage(sm);
+                }
+                catch (CryptoError const& e)
+                {
+                    CLOG(ERROR, "Overlay") << fmt::format(
+                        "Dropping connection with {}: {}", err, e.what());
+                    self->drop("Bad crypto request",
+                               Peer::DropDirection::WE_DROPPED_REMOTE,
+                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+                }
             }
             else
             {

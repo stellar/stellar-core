@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/TCPPeer.h"
+#include "crypto/Curve25519.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -621,6 +622,12 @@ TCPPeer::recvMessage()
     {
         CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
         sendErrorAndDrop(ERR_DATA, "received corrupt XDR",
+                         Peer::DropMode::IGNORE_WRITE_QUEUE);
+    }
+    catch (CryptoError const& e)
+    {
+        CLOG(ERROR, "Overlay") << fmt::format("Crypto error: {}", e.what());
+        sendErrorAndDrop(ERR_DATA, "crypto error",
                          Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
 }
