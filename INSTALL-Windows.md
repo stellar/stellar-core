@@ -35,7 +35,12 @@ presumably depend on your operating system's setting might cause inconsistencies
 ## Building xdrc
  In order to compile xdrc and run the binary you will need to either
 * Download and install MinGW from http://sourceforge.net/projects/mingw/files/
-    * In the MinGW Installation Manager in `MSYS/MinGW Developer Toolkit` choose `Flex` and `Bison` packages for installation
+    * In the MinGW Installation Manager in `MSYS/MinGW Developer Toolkit` select the following packages:
+      * `Flex`
+      * `Bison`
+      * `gcc`
+      * `sed`
+      * `curl`
     * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
 * Download and install cygwin 64 bit build from https://cygwin.com/install.html
     * Get cygwin setup to install
@@ -43,6 +48,7 @@ presumably depend on your operating system's setting might cause inconsistencies
         * `Bison`
         * `curl` (command line)
         * `gcc-core`
+        * `sed`
     * Add `c:\cygwin64\bin` to the end of `%PATH%` (at least for Visual Studio)
 
     > Note: if you're going to use 'cp'and 'mkdir' from cygwin (tests do),
