@@ -319,6 +319,11 @@ struct sqlite3_api_routines {
                             void(*xDestroy)(void*));
   /* Version 3.26.0 and later */
   const char *(*normalized_sql)(sqlite3_stmt*);
+  /* Version 3.28.0 and later */
+  int (*stmt_isexplain)(sqlite3_stmt*);
+  int (*value_frombind)(sqlite3_value*);
+  /* Version 3.30.0 and later */
+  int (*drop_modules)(sqlite3*,const char**);
 };
 
 /*
@@ -608,6 +613,11 @@ typedef int (*sqlite3_loadext_entry)(
 #define sqlite3_create_window_function sqlite3_api->create_window_function
 /* Version 3.26.0 and later */
 #define sqlite3_normalized_sql         sqlite3_api->normalized_sql
+/* Version 3.28.0 and later */
+#define sqlite3_stmt_isexplain         sqlite3_api->isexplain
+#define sqlite3_value_frombind         sqlite3_api->frombind
+/* Version 3.30.0 and later */
+#define sqlite3_drop_modules           sqlite3_api->drop_modules
 #endif /* !defined(SQLITE_CORE) && !defined(SQLITE_OMIT_LOAD_EXTENSION) */
 
 #if !defined(SQLITE_CORE) && !defined(SQLITE_OMIT_LOAD_EXTENSION)
