@@ -130,7 +130,7 @@ HerderImpl::bootstrap()
     mLedgerManager.bootstrap();
     mHerderSCPDriver.bootstrap();
 
-    ledgerClosed();
+    ledgerClosed(true);
 }
 
 void
@@ -236,7 +236,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         mPendingEnvelopes.eraseBelow(maxSlot);
     }
 
-    ledgerClosed();
+    ledgerClosed(false);
 
     // Check to see if quorums have changed and we need to reanalyze.
     checkAndMaybeReanalyzeQuorumMap();
@@ -449,6 +449,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     {
         minLedgerSeq -= maxSlotsToRemember;
     }
+    else
+    {
+        minLedgerSeq = LedgerManager::GENESIS_LEDGER_SEQ;
+    }
 
     uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
 
@@ -629,25 +633,21 @@ HerderImpl::getTransactionQueue()
 #endif
 
 void
-HerderImpl::ledgerClosed()
+HerderImpl::processSCPQueueAndTrigger()
 {
-    mTriggerTimer.cancel();
-
-    CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
-
+    if (mApp.isStopping())
+    {
+        return;
+    }
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-
-    mPendingEnvelopes.slotClosed(lastIndex);
-
-    mApp.getOverlayManager().ledgerClosed(lastIndex);
-
     uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
 
     // process any statements up to this slot (this may trigger externalize)
     processSCPQueueUpToIndex(nextIndex);
 
-    // if externalize got called for a future slot, we don't
-    // need to trigger (the now obsolete) next round
+    // if externalize got called for a future slot, this is as far as we go this
+    // time around (and we let the other `ledgerClosed` event for the other
+    // ledger perform its work as it may cause some more ledgers to close)
     if (nextIndex != mHerderSCPDriver.nextConsensusLedgerIndex())
     {
         return;
@@ -679,6 +679,36 @@ HerderImpl::ledgerClosed()
         mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,
                                            static_cast<uint32_t>(nextIndex)),
                                  &VirtualTimer::onFailureNoop);
+}
+
+void
+HerderImpl::ledgerClosed(bool synchronous)
+{
+    // this method is triggered every time a ledger is externalized
+    // it performs some cleanup and also decides if it needs to schedule
+    // triggering the next ledger
+
+    mTriggerTimer.cancel();
+
+    CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
+
+    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+
+    mPendingEnvelopes.slotClosed(lastIndex);
+
+    mApp.getOverlayManager().ledgerClosed(lastIndex);
+
+    if (synchronous)
+    {
+        processSCPQueueAndTrigger();
+    }
+    else
+    {
+        mApp.postOnMainThread(
+            [this]() { processSCPQueueAndTrigger(); },
+            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
+             "processSCPQueueAndTrigger"});
+    }
 }
 
 bool
