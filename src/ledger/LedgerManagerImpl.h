@@ -70,14 +70,7 @@ class LedgerManagerImpl : public LedgerManager
     void storeCurrentLedger(LedgerHeader const& header);
     void prefetchTransactionData(std::vector<TransactionFrameBasePtr>& txs);
     void prefetchTxSourceIds(std::vector<TransactionFrameBasePtr>& txs);
-
-    enum class CloseLedgerIfResult
-    {
-        CLOSED,
-        TOO_OLD,
-        TOO_NEW
-    };
-    CloseLedgerIfResult closeLedgerIf(LedgerCloseData const& ledgerData);
+    void closeLedgerIf(LedgerCloseData const& ledgerData);
 
     State mState;
     void setState(State s);

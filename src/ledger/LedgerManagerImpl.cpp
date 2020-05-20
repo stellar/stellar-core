@@ -427,27 +427,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         assert(false);
     }
 
-    switch (closeLedgerIf(ledgerData))
-    {
-    case CloseLedgerIfResult::CLOSED:
-    {
-        setState(LM_SYNCED_STATE);
-        mApp.getCatchupManager().processLedger(ledgerData);
-    }
-    break;
-    case CloseLedgerIfResult::TOO_OLD:
-        // nothing to do
-        break;
-    case CloseLedgerIfResult::TOO_NEW:
-    {
-        setState(LM_CATCHING_UP_STATE);
-        mApp.getCatchupManager().processLedger(ledgerData);
-    }
-    break;
-    }
+    closeLedgerIf(ledgerData);
+
+    mApp.getCatchupManager().processLedger(ledgerData);
 }
 
-LedgerManagerImpl::CloseLedgerIfResult
+void
 LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 {
     if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.getLedgerSeq())
@@ -455,7 +440,8 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
         closeLedger(ledgerData);
         CLOG(INFO, "Ledger")
             << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
-        return CloseLedgerIfResult::CLOSED;
+
+        setState(LM_SYNCED_STATE);
     }
     else if (ledgerData.getLedgerSeq() <= mLastClosedLedger.header.ledgerSeq)
     {
@@ -463,7 +449,6 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
             << "Skipping close ledger: local state is "
             << mLastClosedLedger.header.ledgerSeq << ", more recent than "
             << ledgerData.getLedgerSeq();
-        return CloseLedgerIfResult::TOO_OLD;
     }
     else
     {
@@ -475,7 +460,8 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
                 << mLastClosedLedger.header.ledgerSeq
                 << ", network closed ledger " << ledgerData.getLedgerSeq();
         }
-        return CloseLedgerIfResult::TOO_NEW;
+
+        setState(LM_CATCHING_UP_STATE);
     }
 }
 
