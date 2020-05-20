@@ -147,22 +147,16 @@ HerderImpl::shutdown()
 }
 
 void
-HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
+HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
 {
-    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
-
-    // record metrics
-    getHerderSCPDriver().recordSCPExecutionMetrics(slotIndex);
-
-    // called both here and at the end (this one is in case of an exception)
-    trackingHeartBeat();
-
     bool validated = getSCP().isSlotFullyValidated(slotIndex);
 
     if (Logging::logDebug("Herder"))
+    {
         CLOG(DEBUG, "Herder") << fmt::format(
             "HerderSCPDriver::valueExternalized index: {} txSet: {}", slotIndex,
             hexAbbrev(value.txSetHash));
+    }
 
     if (getSCP().isValidator() && !validated)
     {
@@ -173,11 +167,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     }
 
     TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
-
-    // trigger will be recreated when the ledger is closed
-    // we do not want it to trigger while downloading the current set
-    // and there is no point in taking a position after the round is over
-    mTriggerTimer.cancel();
 
     // save the SCP messages in the database
     if (mApp.getConfig().MODE_STORES_HISTORY)
@@ -200,50 +189,76 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         }
     }
 
-    // dump SCP information if this ledger took a long time
-    auto gap =
-        std::chrono::duration<double>(mApp.getClock().now() - mLastExternalize)
-            .count();
-    if (gap > DUMP_SCP_TIMEOUT_SECONDS)
-    {
-        auto slotInfo = getJsonQuorumInfo(getSCP().getLocalNodeID(), false,
-                                          false, slotIndex);
-        Json::FastWriter fw;
-        CLOG(WARNING, "Herder")
-            << fmt::format("Ledger took {} seconds, SCP information:{}", gap,
-                           fw.write(slotInfo));
-    }
-
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
-    LedgerCloseData ledgerData(mHerderSCPDriver.lastConsensusLedgerIndex(),
-                               externalizedSet, value);
+    LedgerCloseData ledgerData(slotIndex, externalizedSet, value);
     mLedgerManager.valueExternalized(ledgerData);
+}
 
-    // start timing next externalize from this point
-    mLastExternalize = mApp.getClock().now();
+void
+HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
+{
+    const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+    // SCPDriver always updates tracking for latest slots
+    bool isLatestSlot = slotIndex == getCurrentLedgerSeq();
 
-    // perform cleanups
-    updateTransactionQueue(externalizedSet->mTransactions);
-
-    // Evict slots that are outside of our ledger validity bracket
-    auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    if (slotIndex > maxSlotsToRemember)
+    if (isLatestSlot)
     {
-        auto maxSlot = slotIndex - maxSlotsToRemember + 1;
-        getHerderSCPDriver().purgeSlots(maxSlot);
-        mPendingEnvelopes.eraseBelow(maxSlot);
+        // called both here and at the end (this one is in case of an exception)
+        trackingHeartBeat();
+
+        // dump SCP information if this ledger took a long time
+        auto gap = std::chrono::duration<double>(mApp.getClock().now() -
+                                                 mLastExternalize)
+                       .count();
+        if (gap > DUMP_SCP_TIMEOUT_SECONDS)
+        {
+            auto slotInfo = getJsonQuorumInfo(getSCP().getLocalNodeID(), false,
+                                              false, slotIndex);
+            Json::FastWriter fw;
+            CLOG(WARNING, "Herder")
+                << fmt::format("Ledger took {} seconds, SCP information:{}",
+                               gap, fw.write(slotInfo));
+        }
+
+        // trigger will be recreated when the ledger is closed
+        // we do not want it to trigger while downloading the current set
+        // and there is no point in taking a position after the round is over
+        mTriggerTimer.cancel();
+
+        processExternalized(slotIndex, value);
+
+        // start timing next externalize from this point
+        mLastExternalize = mApp.getClock().now();
+
+        // perform cleanups
+        TxSetFramePtr externalizedSet =
+            mPendingEnvelopes.getTxSet(value.txSetHash);
+        updateTransactionQueue(externalizedSet->mTransactions);
+
+        // Evict slots that are outside of our ledger validity bracket
+        auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
+        if (slotIndex > maxSlotsToRemember)
+        {
+            auto maxSlot = slotIndex - maxSlotsToRemember + 1;
+            getHerderSCPDriver().purgeSlots(maxSlot);
+            mPendingEnvelopes.eraseBelow(maxSlot);
+        }
+
+        ledgerClosed(false);
+
+        // Check to see if quorums have changed and we need to reanalyze.
+        checkAndMaybeReanalyzeQuorumMap();
+
+        // heart beat *after* doing all the work (ensures that we do not include
+        // the overhead of externalization in the way we track SCP)
+        trackingHeartBeat();
     }
-
-    ledgerClosed(false);
-
-    // Check to see if quorums have changed and we need to reanalyze.
-    checkAndMaybeReanalyzeQuorumMap();
-
-    // heart beat *after* doing all the work (ensures that we do not include
-    // the overhead of externalization in the way we track SCP)
-    trackingHeartBeat();
+    else
+    {
+        processExternalized(slotIndex, value);
+    }
 }
 
 void

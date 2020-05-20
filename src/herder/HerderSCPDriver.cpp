@@ -763,18 +763,6 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         it = mSCPTimers.erase(it);
     }
 
-    if (slotIndex <= mApp.getHerder().getCurrentLedgerSeq())
-    {
-        // externalize may trigger on older slots:
-        //  * when the current instance starts up
-        //  * when getting back in sync (a gap potentially opened)
-        // in both cases it's safe to just ignore those as we're already
-        // tracking a more recent state
-        CLOG(DEBUG, "Herder")
-            << "Ignoring old ledger externalize " << slotIndex;
-        return;
-    }
-
     StellarValue b;
     try
     {
@@ -791,44 +779,61 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         abort();
     }
 
-    // log information from older ledger to increase the chances that
-    // all messages made it
-    if (slotIndex > 2)
+    // externalize may trigger on older slots:
+    //  * when the current instance starts up
+    //  * when getting back in sync (a gap potentially opened)
+    // in both cases do limited processing on older slots; more importantly,
+    // deliver externalize events to LedgerManager
+    bool isLatestSlot = slotIndex > mApp.getHerder().getCurrentLedgerSeq();
+
+    // Only update tracking state when newer slot comes in
+    if (isLatestSlot)
     {
-        logQuorumInformation(slotIndex - 2);
-    }
+        // log information from older ledger to increase the chances that
+        // all messages made it
+        if (slotIndex > 2)
+        {
+            logQuorumInformation(slotIndex - 2);
+        }
 
-    if (mCurrentValue)
+        if (mCurrentValue)
+        {
+            // stop nomination
+            // this may or may not be the ledger that is currently externalizing
+            // in both cases, we want to stop nomination as:
+            // either we're closing the current ledger (typical case)
+            // or we're going to trigger catchup from history
+            mSCP.stopNomination(mLedgerSeqNominating);
+            mCurrentValue.reset();
+        }
+
+        if (!mTrackingSCP)
+        {
+            stateChanged();
+        }
+
+        mTrackingSCP = std::make_unique<ConsensusData>(slotIndex, b);
+
+        if (!mLastTrackingSCP)
+        {
+            mLastTrackingSCP = std::make_unique<ConsensusData>(*mTrackingSCP);
+        }
+
+        // record lag
+        recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), false);
+
+        recordSCPExecutionMetrics(slotIndex);
+
+        mHerder.valueExternalized(slotIndex, b);
+
+        // update externalize time so that we don't include the time spent in
+        // `mHerder.valueExternalized`
+        recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), true);
+    }
+    else
     {
-        // stop nomination
-        // this may or may not be the ledger that is currently externalizing
-        // in both cases, we want to stop nomination as:
-        // either we're closing the current ledger (typical case)
-        // or we're going to trigger catchup from history
-        mSCP.stopNomination(mLedgerSeqNominating);
-        mCurrentValue.reset();
+        mHerder.valueExternalized(slotIndex, b);
     }
-
-    if (!mTrackingSCP)
-    {
-        stateChanged();
-    }
-
-    mTrackingSCP = std::make_unique<ConsensusData>(slotIndex, b);
-
-    if (!mLastTrackingSCP)
-    {
-        mLastTrackingSCP = std::make_unique<ConsensusData>(*mTrackingSCP);
-    }
-
-    // record lag
-    recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), false);
-
-    mHerder.valueExternalized(slotIndex, b);
-
-    // update externalize time so that we don't include the time spent in
-    // `mHerder.valueExternalized`
-    recordSCPExternalizeEvent(slotIndex, mSCP.getLocalNodeID(), true);
 }
 
 void
