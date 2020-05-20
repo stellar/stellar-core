@@ -9,4 +9,5 @@ namespace stellar
 {
 
 std::string xdr_printer(const PublicKey& pk);
+std::string xdr_printer(const MuxedAccount& ma);
 }

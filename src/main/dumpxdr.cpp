@@ -116,6 +116,13 @@ xdr_printer(const PublicKey& pk)
     return KeyUtils::toStrKey<PublicKey>(pk);
 }
 
+std::string 
+xdr_printer(const MuxedAccount& muxedAccount)
+{
+    return "muxedAccount xdr_printer has not been implmented!";
+}
+
+
 template <typename T>
 void
 dumpstream(XDRInputFileStream& in, bool json)
