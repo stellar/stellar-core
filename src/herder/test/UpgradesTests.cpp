@@ -46,12 +46,12 @@ struct LedgerUpgradeableData
 struct LedgerUpgradeNode
 {
     LedgerUpgradeableData desiredUpgrades;
-    VirtualClock::time_point preferredUpgradeDatetime;
+    VirtualClock::system_time_point preferredUpgradeDatetime;
 };
 
 struct LedgerUpgradeCheck
 {
-    VirtualClock::time_point time;
+    VirtualClock::system_time_point time;
     std::vector<LedgerUpgradeableData> expected;
 };
 
@@ -77,7 +77,8 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
             SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
         configs.push_back(simulation->newConfig());
         // disable upgrade from config
-        configs.back().TESTING_UPGRADE_DATETIME = VirtualClock::time_point();
+        configs.back().TESTING_UPGRADE_DATETIME =
+            VirtualClock::system_time_point();
         configs.back().USE_CONFIG_FOR_GENESIS = false;
         // first node can write to history, all can read
         configurator.configure(configs.back(), i == 0);
@@ -239,7 +240,7 @@ executeUpgrade(Application& app, LedgerUpgrade const& lupgrade)
 };
 
 void
-testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
+testListUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                  bool shouldListAny)
 {
     auto cfg = getTestConfig();
@@ -322,7 +323,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
 }
 
 void
-testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
+testValidateUpgrades(VirtualClock::system_time_point preferredUpgradeDatetime,
                      bool canBeValid)
 {
     auto cfg = getTestConfig();

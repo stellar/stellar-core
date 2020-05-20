@@ -43,6 +43,7 @@ class Simulation
 
     // updates all clocks in the simulation to the same time_point
     void setCurrentVirtualTime(VirtualClock::time_point t);
+    void setCurrentVirtualTime(VirtualClock::system_time_point t);
 
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
                                  Config const* cfg = nullptr,
@@ -70,6 +71,7 @@ class Simulation
     void crankUntil(std::function<bool()> const& fn,
                     VirtualClock::duration timeout, bool finalCrank);
     void crankUntil(VirtualClock::time_point timePoint, bool finalCrank);
+    void crankUntil(VirtualClock::system_time_point timePoint, bool finalCrank);
     std::string metricsSummary(std::string domain = "");
 
     void addConnection(NodeID initiator, NodeID acceptor);

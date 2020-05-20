@@ -86,12 +86,12 @@ Bucket::apply(Application& app) const
 {
     BucketApplicator applicator(app, app.getConfig().LEDGER_PROTOCOL_VERSION,
                                 shared_from_this());
-    BucketApplicator::Counters counters(std::chrono::system_clock::now());
+    BucketApplicator::Counters counters(app.getClock().now());
     while (applicator)
     {
         applicator.advance(counters);
     }
-    counters.logInfo("direct", 0, std::chrono::system_clock::now());
+    counters.logInfo("direct", 0, app.getClock().now());
 }
 
 std::vector<BucketEntry>

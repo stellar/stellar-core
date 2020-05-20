@@ -78,7 +78,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
           mMetrics->NewTimer({"app", "post-on-main-thread", "delay"}))
     , mPostOnBackgroundThreadDelay(
           mMetrics->NewTimer({"app", "post-on-background-thread", "delay"}))
-    , mStartedOn(clock.now())
+    , mStartedOn(clock.system_now())
 {
 #ifdef SIGQUIT
     mStopSignals.add(SIGQUIT);
@@ -264,7 +264,7 @@ ApplicationImpl::getJsonInfo()
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
-    info["startedOn"] = VirtualClock::pointToISOString(mStartedOn);
+    info["startedOn"] = VirtualClock::systemPointToISOString(mStartedOn);
     auto const& lcl = lm.getLastClosedLedgerHeader();
     info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
@@ -351,7 +351,7 @@ ApplicationImpl::~ApplicationImpl()
 uint64_t
 ApplicationImpl::timeNow()
 {
-    return VirtualClock::to_time_t(getClock().now());
+    return VirtualClock::to_time_t(getClock().system_now());
 }
 
 void
@@ -679,9 +679,11 @@ ApplicationImpl::syncOwnMetrics()
     mMetrics->NewCounter({"process", "memory", "handles"})
         .set_count(mProcessManager->getNumRunningProcesses());
 
-    // Update ioservice related metrics
-    mMetrics->NewCounter({"process", "ioservice", "queue"})
-        .set_count(static_cast<int64_t>(getClock().getExecutionQueueSize()));
+    // Update action-queue related metrics
+    mMetrics->NewCounter({"process", "action", "queue"})
+        .set_count(static_cast<int64_t>(getClock().getActionQueueSize()));
+    mMetrics->NewCounter({"process", "action", "overloaded"})
+        .set_count(static_cast<int64_t>(getClock().actionQueueIsOverloaded()));
 }
 
 void
@@ -822,16 +824,16 @@ ApplicationImpl::getWorkerIOContext()
 }
 
 void
-ApplicationImpl::postOnMainThread(std::function<void()>&& f,
-                                  VirtualClock::ExecutionCategory&& id)
+ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
+                                  Scheduler::ActionType type)
 {
-    LogSlowExecution isSlow{id.mName, LogSlowExecution::Mode::MANUAL,
+    LogSlowExecution isSlow{name, LogSlowExecution::Mode::MANUAL,
                             "executed after"};
-    mVirtualClock.postToExecutionQueue([ this, f = std::move(f), isSlow ]() {
+    mVirtualClock.postAction([ this, f = std::move(f), isSlow ]() {
         mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
         f();
     },
-                                       std::move(id));
+                             std::move(name), type);
 }
 
 void

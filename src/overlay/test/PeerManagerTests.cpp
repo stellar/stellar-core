@@ -260,9 +260,9 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
         return result;
     };
 
-    auto now = clock.now();
-    auto past = clock.now() - std::chrono::seconds(1);
-    auto future = clock.now() + std::chrono::seconds(1);
+    auto now = clock.system_now();
+    auto past = clock.system_now() - std::chrono::seconds(1);
+    auto future = clock.system_now() + std::chrono::seconds(1);
 
     unsigned short port = 1;
     auto peerRecords = std::map<int, PeerRecord>{};
@@ -274,7 +274,7 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
                  {PeerType::INBOUND, PeerType::OUTBOUND, PeerType::PREFERRED})
             {
                 auto peerRecord =
-                    PeerRecord{VirtualClock::pointToTm(time), numFailures,
+                    PeerRecord{VirtualClock::systemPointToTm(time), numFailures,
                                static_cast<int>(type)};
                 peerRecords[port] = peerRecord;
                 peerManager.store(localhost(port), peerRecord, false);
@@ -286,7 +286,7 @@ TEST_CASE("loadRandomPeers", "[overlay][PeerManager]")
     auto valid = [&](PeerQuery const& peerQuery, PeerRecord const& peerRecord) {
         if (peerQuery.mUseNextAttempt)
         {
-            if (VirtualClock::tmToPoint(peerRecord.mNextAttempt) > now)
+            if (VirtualClock::tmToSystemPoint(peerRecord.mNextAttempt) > now)
             {
                 return false;
             }
@@ -484,7 +484,7 @@ TEST_CASE("RandomPeerSource::nextAttemptCutoff also limits maxFailures",
     auto randomPeerSource = RandomPeerSource{
         peerManager, RandomPeerSource::nextAttemptCutoff(PeerType::OUTBOUND)};
 
-    auto now = VirtualClock::pointToTm(clock.now());
+    auto now = VirtualClock::systemPointToTm(clock.system_now());
     peerManager.store(localhost(1),
                       {now, 0, static_cast<int>(PeerType::INBOUND)}, false);
     peerManager.store(localhost(2),

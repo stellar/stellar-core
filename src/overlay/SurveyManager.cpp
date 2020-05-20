@@ -443,7 +443,7 @@ SurveyManager::getMsgSummary(StellarMessage const& msg)
 void
 SurveyManager::topOffRequests(SurveyMessageCommandType type)
 {
-    if (std::chrono::system_clock::now() > mSurveyExpirationTime)
+    if (mApp.getClock().now() > mSurveyExpirationTime)
     {
         stopSurvey();
         return;
@@ -489,7 +489,7 @@ SurveyManager::topOffRequests(SurveyMessageCommandType type)
 void
 SurveyManager::updateSurveyExpiration(std::chrono::seconds surveyDuration)
 {
-    mSurveyExpirationTime = std::chrono::system_clock::now() + surveyDuration;
+    mSurveyExpirationTime = mApp.getClock().now() + surveyDuration;
 }
 
 void

@@ -30,8 +30,7 @@ struct SlotEnvelopes
     // envelopes we have processed already
     std::set<SCPEnvelope> mProcessedEnvelopes;
     // envelopes we are fetching right now
-    std::map<SCPEnvelope, std::chrono::steady_clock::time_point>
-        mFetchingEnvelopes;
+    std::map<SCPEnvelope, VirtualClock::time_point> mFetchingEnvelopes;
 
     // list of ready envelopes that haven't been sent to SCP yet
     std::vector<SCPEnvelopeWrapperPtr> mReadyEnvelopes;

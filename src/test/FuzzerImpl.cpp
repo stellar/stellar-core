@@ -327,9 +327,9 @@ OverlayFuzzer::inject(XDRInputFileStream& in)
         auto initiator = loopbackPeerConnection->getInitiator();
         auto acceptor = loopbackPeerConnection->getAcceptor();
 
-        initiator->getApp().getClock().postToExecutionQueue(
+        initiator->getApp().postOnMainThread(
             [initiator, msg]() { initiator->Peer::sendMessage(msg); },
-            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT, ""});
+            "OverlayFuzzer");
 
         mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
 

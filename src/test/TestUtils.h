@@ -81,5 +81,5 @@ time_t getTestDate(int day, int month, int year);
 std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
                         int second);
 
-VirtualClock::time_point genesis(int minute, int second);
+VirtualClock::system_time_point genesis(int minute, int second);
 }

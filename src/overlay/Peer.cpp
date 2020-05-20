@@ -546,8 +546,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
 
     std::string cat;
-    VirtualClock::ExecutionCategory::Type catType =
-        VirtualClock::ExecutionCategory::Type::NORMAL_EVENT;
+    Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
     switch (stellarMsg.type())
     {
     // group messages used during handshake, process those synchronously
@@ -566,7 +565,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     // high volume flooding
     case TRANSACTION:
         cat = "TX";
-        catType = VirtualClock::ExecutionCategory::Type::DROPPABLE_EVENT;
+        type = Scheduler::ActionType::DROPPABLE_ACTION;
         break;
 
     // consensus, inbound
@@ -574,7 +573,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_SCP_QUORUMSET:
     case GET_SCP_STATE:
         cat = "SCPQ";
-        catType = VirtualClock::ExecutionCategory::Type::DROPPABLE_EVENT;
+        type = Scheduler::ActionType::DROPPABLE_ACTION;
         break;
 
     // consensus, self
@@ -594,30 +593,29 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         fmt::format("Error RecvMessage T:{} cat:{} {} @{}", stellarMsg.type(),
                     cat, toString(), mApp.getConfig().PEER_PORT);
 
-    mApp.postOnMainThread(
-        [ err, weak, sm = StellarMessage(stellarMsg) ]() {
-            auto self = weak.lock();
-            if (self)
+    mApp.postOnMainThread([ err, weak, sm = StellarMessage(stellarMsg) ]() {
+        auto self = weak.lock();
+        if (self)
+        {
+            try
             {
-                try
-                {
-                    self->recvRawMessage(sm);
-                }
-                catch (CryptoError const& e)
-                {
-                    CLOG(ERROR, "Overlay") << fmt::format(
-                        "Dropping connection with {}: {}", err, e.what());
-                    self->drop("Bad crypto request",
-                               Peer::DropDirection::WE_DROPPED_REMOTE,
-                               Peer::DropMode::IGNORE_WRITE_QUEUE);
-                }
+                self->recvRawMessage(sm);
             }
-            else
+            catch (CryptoError const& e)
             {
-                CLOG(TRACE, "Overlay") << err;
+                CLOG(ERROR, "Overlay") << fmt::format(
+                    "Dropping connection with {}: {}", err, e.what());
+                self->drop("Bad crypto request",
+                           Peer::DropDirection::WE_DROPPED_REMOTE,
+                           Peer::DropMode::IGNORE_WRITE_QUEUE);
             }
-        },
-        {catType, fmt::format("{}-{} recvMessage", cat, toString())});
+        }
+        else
+        {
+            CLOG(TRACE, "Overlay") << err;
+        }
+    },
+                          fmt::format("{} recvMessage", cat), type);
 }
 
 void

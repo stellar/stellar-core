@@ -32,8 +32,8 @@ enum PeerRecordFlags
 bool
 operator==(PeerRecord const& x, PeerRecord const& y)
 {
-    if (VirtualClock::tmToPoint(x.mNextAttempt) !=
-        VirtualClock::tmToPoint(y.mNextAttempt))
+    if (VirtualClock::tmToSystemPoint(x.mNextAttempt) !=
+        VirtualClock::tmToSystemPoint(y.mNextAttempt))
     {
         return false;
     }
@@ -122,7 +122,8 @@ PeerManager::loadRandomPeers(PeerQuery const& query, int size)
         where += " AND " + conditions[i];
     }
 
-    std::tm nextAttempt = VirtualClock::pointToTm(mApp.getClock().now());
+    std::tm nextAttempt =
+        VirtualClock::systemPointToTm(mApp.getClock().system_now());
     int maxNumFailures = query.mMaxNumFailures;
     int exactType = static_cast<int>(query.mTypeFilter);
     int inboundType = static_cast<int>(PeerType::INBOUND);
@@ -247,7 +248,7 @@ PeerManager::load(PeerBareAddress const& address)
             if (!inDatabase)
             {
                 result.mNextAttempt =
-                    VirtualClock::pointToTm(mApp.getClock().now());
+                    VirtualClock::systemPointToTm(mApp.getClock().system_now());
                 result.mType = static_cast<int>(PeerType::INBOUND);
             }
         }
@@ -374,8 +375,8 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
     case BackOffUpdate::HARD_RESET:
     {
         peer.mNumFailures = 0;
-        auto nextAttempt = app.getClock().now();
-        peer.mNextAttempt = VirtualClock::pointToTm(nextAttempt);
+        auto nextAttempt = app.getClock().system_now();
+        peer.mNextAttempt = VirtualClock::systemPointToTm(nextAttempt);
         break;
     }
     case BackOffUpdate::RESET:
@@ -384,8 +385,8 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
         peer.mNumFailures =
             backOff == BackOffUpdate::RESET ? 0 : peer.mNumFailures + 1;
         auto nextAttempt =
-            app.getClock().now() + computeBackoff(peer.mNumFailures);
-        peer.mNextAttempt = VirtualClock::pointToTm(nextAttempt);
+            app.getClock().system_now() + computeBackoff(peer.mNumFailures);
+        peer.mNextAttempt = VirtualClock::systemPointToTm(nextAttempt);
         break;
     }
     default:

@@ -333,7 +333,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
 
     if (enforceRecent)
     {
-        ctCutoff = VirtualClock::to_time_t(mApp.getClock().now());
+        ctCutoff = VirtualClock::to_time_t(mApp.getClock().system_now());
         if (ctCutoff >= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT)
         {
             ctCutoff -= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT;
@@ -704,10 +704,8 @@ HerderImpl::ledgerClosed(bool synchronous)
     }
     else
     {
-        mApp.postOnMainThread(
-            [this]() { processSCPQueueAndTrigger(); },
-            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-             "processSCPQueueAndTrigger"});
+        mApp.postOnMainThread([this]() { processSCPQueueAndTrigger(); },
+                              "processSCPQueueAndTrigger");
     }
 }
 
@@ -816,7 +814,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime = VirtualClock::to_time_t(mApp.getClock().now());
+    uint64_t nextCloseTime =
+        VirtualClock::to_time_t(mApp.getClock().system_now());
     if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
         nextCloseTime = lcl.header.scpValue.closeTime + 1;
@@ -1239,8 +1238,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                             hState.mLastGoodLedger = ledger;
                         }
                     },
-                    {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-                     "QuorumIntersectionChecker"});
+                    "QuorumIntersectionChecker finished");
             }
             catch (QuorumIntersectionChecker::InterruptedException&)
             {
@@ -1252,8 +1250,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
                         hState.mInterruptFlag = false;
                         hState.mCheckingQuorumMapHash = Hash{};
                     },
-                    {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-                     "QuorumIntersectionChecker interrupted"});
+                    "QuorumIntersectionChecker interrupted");
             }
         };
         mApp.postOnBackgroundThread(worker, "QuorumIntersectionChecker");

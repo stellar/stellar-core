@@ -267,7 +267,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> KNOWN_CURSORS;
 
     uint32_t LEDGER_PROTOCOL_VERSION;
-    VirtualClock::time_point TESTING_UPGRADE_DATETIME;
+    VirtualClock::system_time_point TESTING_UPGRADE_DATETIME;
 
     // maximum allowed drift for close time when joining the network for the
     // first time

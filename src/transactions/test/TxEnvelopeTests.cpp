@@ -1427,7 +1427,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     // tx too young
                     // tx ok
                     // tx too old
-                    VirtualClock::time_point ledgerTime;
+                    VirtualClock::system_time_point ledgerTime;
                     time_t start = getTestDate(1, 7, 2014);
                     ledgerTime = VirtualClock::from_time_t(start);
 

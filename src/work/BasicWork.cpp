@@ -359,10 +359,18 @@ BasicWork::getRetryDelay() const
 uint64_t
 BasicWork::getRetryETA() const
 {
-    uint64_t now = mApp.timeNow();
-    uint64_t retry =
-        mRetryTimer ? VirtualClock::to_time_t(mRetryTimer->expiry_time()) : 0;
-    return now > retry ? 0 : retry - now;
+    if (!mRetryTimer)
+    {
+        return 0;
+    }
+    auto now = mApp.getClock().now();
+    auto retry = mRetryTimer->expiry_time();
+    if (now > retry)
+    {
+        return 0;
+    }
+    auto secs = std::chrono::duration_cast<std::chrono::seconds>(retry - now);
+    return secs.count();
 }
 
 void

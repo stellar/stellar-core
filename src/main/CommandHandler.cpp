@@ -429,7 +429,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
                 fmt::format("could not parse upgradetime: '{}'", upgradeTime);
             return;
         }
-        p.mUpgradeTime = VirtualClock::tmToPoint(tm);
+        p.mUpgradeTime = VirtualClock::tmToSystemPoint(tm);
 
         uint32 baseFee;
         uint32 baseReserve;
