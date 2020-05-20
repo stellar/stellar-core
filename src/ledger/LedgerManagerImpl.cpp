@@ -452,22 +452,10 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 {
     if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.getLedgerSeq())
     {
-        if (mLastClosedLedger.hash ==
-            ledgerData.getTxSet()->previousLedgerHash())
-        {
-            closeLedger(ledgerData);
-            CLOG(INFO, "Ledger")
-                << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
-            return CloseLedgerIfResult::CLOSED;
-        }
-        else
-        {
-            CLOG(FATAL, "Ledger") << "Network consensus for ledger "
-                                  << mLastClosedLedger.header.ledgerSeq
-                                  << " changed; this should never happen";
-            CLOG(FATAL, "Ledger") << POSSIBLY_CORRUPTED_QUORUM_SET;
-            throw std::runtime_error("Network consensus inconsistency");
-        }
+        closeLedger(ledgerData);
+        CLOG(INFO, "Ledger")
+            << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
+        return CloseLedgerIfResult::CLOSED;
     }
     else if (ledgerData.getLedgerSeq() <= mLastClosedLedger.header.ledgerSeq)
     {
