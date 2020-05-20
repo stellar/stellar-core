@@ -68,6 +68,12 @@ class CatchupWork : public Work
     virtual ~CatchupWork();
     std::string getStatus() const override;
 
+    CatchupConfiguration const&
+    getCatchupConfiguration() const
+    {
+        return mCatchupConfiguration;
+    }
+
   private:
     LedgerNumHashPair mLastClosedLedgerHashPair;
     CatchupConfiguration const mCatchupConfiguration;

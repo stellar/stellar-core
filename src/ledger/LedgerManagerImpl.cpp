@@ -437,11 +437,25 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 {
     if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.getLedgerSeq())
     {
+        auto& cm = mApp.getCatchupManager();
+        // if catchup work is running, we don't want ledger manager to close
+        // this ledger and potentially cause issues.
+        if (cm.isCatchupInitialized() && !cm.catchupWorkIsDone())
+        {
+            CLOG(INFO, "Ledger")
+                << "Can't close ledger: " << ledgerAbbrev(mLastClosedLedger)
+                << "  in LM because catchup is running";
+            return;
+        }
+
         closeLedger(ledgerData);
         CLOG(INFO, "Ledger")
             << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
 
-        setState(LM_SYNCED_STATE);
+        if (!cm.hasBufferedLedger())
+        {
+            setState(LM_SYNCED_STATE);
+        }
     }
     else if (ledgerData.getLedgerSeq() <= mLastClosedLedger.header.ledgerSeq)
     {

@@ -1264,3 +1264,149 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     // 3. Catchup to 191, and then externalize 194 to start catchup
     CHECK(catchupSimulation.catchupOnline(app, checkpointLedger, 1, 191, 3));
 }
+
+TEST_CASE("Change ordering of buffered ledgers", "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        "app2");
+
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
+
+    // we have 3 buffered ledgers after trigger (66, 67, and 68)
+
+    SECTION("Checkpoint and trigger in order")
+    {
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
+                                                {63, 64, 65, 67, 68, 66}));
+    }
+
+    SECTION("Checkpoint and trigger with gap in between")
+    {
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
+                                                {63, 64, 67, 65, 68, 66}));
+    }
+
+    SECTION("Trigger and checkpoint with gap in between")
+    {
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
+                                                {63, 65, 67, 64, 68, 66}));
+    }
+
+    SECTION("Reverse order")
+    {
+        REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 3, 0, 0,
+                                                {68, 67, 66, 65, 64, 63}));
+    }
+}
+
+TEST_CASE("Introduce and fix gap without starting catchup",
+          "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        "app2");
+
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 15);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 5));
+
+    auto& lm = app->getLedgerManager();
+    auto& cm = app->getCatchupManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    auto nextLedger = lm.getLastClosedLedgerNum() + 1;
+
+    // introduce 2 gaps (+1 and +4 are missing)
+    catchupSimulation.externalizeLedger(herder, nextLedger);
+    catchupSimulation.externalizeLedger(herder, nextLedger + 2);
+    catchupSimulation.externalizeLedger(herder, nextLedger + 3);
+    catchupSimulation.externalizeLedger(herder, nextLedger + 5);
+    REQUIRE(!lm.isSynced());
+    REQUIRE(cm.hasBufferedLedger());
+
+    // Fill in the first gap. There will still be buffered ledgers left because
+    // of the second gap
+    catchupSimulation.externalizeLedger(herder, nextLedger + 1);
+    REQUIRE(!lm.isSynced());
+    REQUIRE(cm.hasBufferedLedger());
+    REQUIRE(cm.getBufferedLedger().getLedgerSeq() == nextLedger + 5);
+
+    // Fill in the second gap. All buffered ledgers should be applied, but we
+    // wait for another ledger to close to get in sync
+    catchupSimulation.externalizeLedger(herder, nextLedger + 4);
+    REQUIRE(!lm.isSynced());
+    REQUIRE(!cm.hasBufferedLedger());
+    REQUIRE(!cm.isCatchupInitialized());
+    REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 5);
+
+    // Externalize new ledger. Should be back in sync
+    catchupSimulation.externalizeLedger(herder, nextLedger + 6);
+    REQUIRE(lm.isSynced());
+    REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 6);
+}
+
+TEST_CASE("Receive trigger and checkpoint ledger out of order",
+          "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        "app2");
+
+    auto& lm = app->getLedgerManager();
+    auto& cm = app->getCatchupManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
+
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 60));
+
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 126);
+
+    // Now generate a little more history
+    checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+
+    // introduce a gap (checkpoint ledger is missing) and then fill it in
+    catchupSimulation.externalizeLedger(herder, checkpointLedger + 1);
+    catchupSimulation.externalizeLedger(herder, checkpointLedger);
+    catchupSimulation.externalizeLedger(herder, checkpointLedger + 2);
+
+    REQUIRE(lm.isSynced());
+    REQUIRE(!cm.hasBufferedLedger());
+    REQUIRE(!cm.isCatchupInitialized());
+    REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() ==
+            checkpointLedger + 2);
+}
+
+TEST_CASE("Externalize gap while catchup work is running", "[history][catchup]")
+{
+    CatchupSimulation catchupSimulation{};
+
+    auto app = catchupSimulation.createCatchupApplication(
+        std::numeric_limits<uint32_t>::max(), Config::TESTDB_IN_MEMORY_SQLITE,
+        "app2");
+
+    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(1);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 60);
+    REQUIRE(catchupSimulation.catchupOnline(app, checkpointLedger, 60));
+
+    auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+    REQUIRE(lcl == 126);
+
+    // Now generate a little more history
+    checkpointLedger = catchupSimulation.getLastCheckpointLedger(2);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 10);
+
+    // lcl is 126, so start catchup by skipping 127. Once catchup starts,
+    // externalize 127. This ledger will be ignored because catchup is running.
+    REQUIRE(catchupSimulation.catchupOnline(app, lcl + 2, 0, 0, 0,
+                                            {128, 129, 127}));
+}

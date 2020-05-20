@@ -7,6 +7,7 @@
 #include "bucket/BucketList.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "crypto/Hex.h"
+#include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
@@ -280,7 +281,11 @@ class CatchupSimulation
                         bool extraValidation = false);
     bool catchupOnline(Application::pointer app, uint32_t initLedger,
                        uint32_t bufferLedgers = 0, uint32_t gapLedger = 0,
-                       int32_t numGapLedgers = 1);
+                       int32_t numGapLedgers = 1,
+                       std::vector<uint32_t> const& ledgersToInject = {});
+
+    // this method externalizes through herder
+    void externalizeLedger(HerderImpl& herder, uint32_t ledger);
 
     void crankUntil(Application::pointer app,
                     std::function<bool()> const& predicate,
