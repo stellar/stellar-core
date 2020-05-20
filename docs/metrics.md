@@ -106,7 +106,8 @@ overlay.recv.survey-request              | timer     | time spent in processing 
 overlay.recv.survey-response             | timer     | time spent in processing survey response
 overlay.send.survey-request              | meter     | sent survey request
 overlay.send.survey-response             | meter     | sent survey response
-process.ioservice.queue                  | counter   | number of items waiting in internal queue
+process.action.queue                     | counter   | number of items waiting in internal action-queue
+process.action.overloaded                | counter   | 0-or-1 value indicating action-queue overloading
 scp.envelope.emit                        | meter     | SCP message sent
 scp.envelope.invalidsig                  | meter     | envelope failed signature verification
 scp.envelope.receive                     | meter     | SCP message received

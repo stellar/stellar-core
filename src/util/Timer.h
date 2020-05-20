@@ -9,6 +9,7 @@
 // else.
 #include "util/asio.h"
 #include "util/NonCopyable.h"
+#include "util/Scheduler.h"
 
 #include <chrono>
 #include <ctime>
@@ -112,29 +113,12 @@ class VirtualClock
         VIRTUAL_TIME
     };
 
-    struct ExecutionCategory
-    {
-        enum class Type : int
-        {
-            NORMAL_EVENT,
-            DROPPABLE_EVENT
-        };
-        Type mExecutionType;
-        std::string mName;
-
-        bool
-        operator<(ExecutionCategory const& other) const
-        {
-            if (mExecutionType != other.mExecutionType)
-            {
-                return mExecutionType < other.mExecutionType;
-            }
-            else
-            {
-                return mName < other.mName;
-            }
-        }
-    };
+    // Call this in any loop that should continue for up-to a single
+    // real-time-quantum of scheduling. NB: In VIRTUAL_TIME mode this will
+    // always return true, to improve test determinism. This means you should
+    // _not_ use this in a while-loop header if you need to enter the loop to
+    // make progress. Use a do-while loop or break mid-loop or something.
+    bool shouldYield() const;
 
   private:
     asio::io_context mIOContext;
@@ -146,18 +130,10 @@ class VirtualClock
     size_t nRealTimerCancelEvents{0};
     time_point mVirtualNow;
 
-    bool mDelayExecution{true};
-    std::recursive_mutex mDelayExecutionMutex;
-    size_t mExecutionQueueSize{0};
-
-    using ExecutionQueue =
-        std::map<ExecutionCategory, std::deque<std::function<void()>>>;
-
-    ExecutionQueue mExecutionQueue;
-    ExecutionQueue::iterator mExecutionIterator;
-    std::deque<std::pair<ExecutionCategory, std::function<void()>>>
-        mDelayedExecutionQueue;
-
+    std::recursive_mutex mDispatchingMutex;
+    bool mDispatching{true};
+    std::chrono::steady_clock::time_point mLastDispatchStart;
+    std::unique_ptr<Scheduler> mActionScheduler;
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
                             std::vector<std::shared_ptr<VirtualClockEvent>>,
@@ -170,9 +146,6 @@ class VirtualClock
     void maybeSetRealtimer();
     size_t advanceToNext();
     size_t advanceToNow();
-
-    void advanceExecutionQueue();
-    void mergeExecutionQueue();
 
     // timer should be last to ensure it gets destroyed first
     asio::basic_waitable_timer<std::chrono::steady_clock> mRealTimer;
@@ -219,14 +192,11 @@ class VirtualClock
     // Returns the time of the next scheduled event.
     time_point next();
 
-    void postToExecutionQueue(std::function<void()>&& f,
-                              ExecutionCategory&& id);
+    void postAction(std::function<void()>&& f, std::string&& name,
+                    Scheduler::ActionType type);
 
-    size_t
-    getExecutionQueueSize() const
-    {
-        return mExecutionQueueSize;
-    }
+    size_t getActionQueueSize() const;
+    bool actionQueueIsOverloaded() const;
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable
@@ -243,59 +213,6 @@ class VirtualClockEvent : public NonMovableOrCopyable
     void trigger();
     void cancel();
     bool operator<(VirtualClockEvent const& other) const;
-};
-
-/**
- * A small helper for controlling loops that might otherwise run too long,
- * starving the main thread: make a YieldTimer outside the loop and check its
- * shouldYield() method in the loop header, along with whatever other condition
- * you're checking. Once true, shouldYield() will remain true permanently.
- *
- * The class includes both a time_point based expiry time _and_ an iteration
- * counter; the redundancy is because in virtual-time mode the loop being
- * controlled might not cause virtual time to advance, so a pure time_point
- * based timer would never time out. Counting down an iteration count as well
- * ensures that shouldYield() will eventually return true.
- */
-class YieldTimer : private NonMovableOrCopyable
-{
-    VirtualClock& mClock;
-    VirtualClock::time_point mYieldTime;
-    size_t mIterationsRemaining;
-
-  public:
-    YieldTimer(VirtualClock& clock,
-               std::chrono::milliseconds yieldAfterDuration =
-                   std::chrono::milliseconds(100),
-               size_t yieldAfterIteration = 1024)
-        : mClock(clock)
-        , mYieldTime(clock.now() + yieldAfterDuration)
-        , mIterationsRemaining(yieldAfterIteration)
-    {
-    }
-    bool
-    shouldKeepGoing()
-    {
-        // To make it easier to read meaning of loop headers.
-        return !shouldYield();
-    }
-    bool
-    shouldYield()
-    {
-        if (mIterationsRemaining == 0)
-        {
-            return true;
-        }
-        if (mClock.now() >= mYieldTime)
-        {
-            // Set counter to 0 so we will never return false again, even if the
-            // system clock subsequently travels backwards in time.
-            mIterationsRemaining = 0;
-            return true;
-        }
-        --mIterationsRemaining;
-        return false;
-    }
 };
 
 /**

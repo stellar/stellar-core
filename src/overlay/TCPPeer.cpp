@@ -219,8 +219,7 @@ TCPPeer::shutdown()
                         << ec2.message();
                 }
             },
-            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-             "TCPPeer: close"});
+            "TCPPeer: close");
     });
 }
 
@@ -441,9 +440,7 @@ TCPPeer::startRead()
     // We read large-ish (256KB) buffers of data from TCP which might have quite
     // a few messages in them. We want to digest as many of these
     // _synchronously_ as we can before we issue an async_read against ASIO.
-    YieldTimer yt(mApp.getClock(), mApp.getConfig().MAX_BATCH_READ_PERIOD_MS,
-                  mApp.getConfig().MAX_BATCH_READ_COUNT);
-    while (mSocket->in_avail() >= HDRSZ && yt.shouldKeepGoing())
+    while (mSocket->in_avail() >= HDRSZ)
     {
         asio::error_code ec_hdr, ec_body;
         size_t n = mSocket->read_some(asio::buffer(mIncomingHeader), ec_hdr);
@@ -479,6 +476,10 @@ TCPPeer::startRead()
                 }
                 noteFullyReadBody(length);
                 recvMessage();
+                if (mApp.getClock().shouldYield())
+                {
+                    break;
+                }
             }
         }
         else
@@ -510,10 +511,8 @@ TCPPeer::startRead()
         // we have enough data but need to bounce on the main thread as we've
         // done too much work already
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        self->getApp().postOnMainThread(
-            [self]() { self->startRead(); },
-            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-             fmt::format("{} TCPPeer: startRead", toString())});
+        self->getApp().postOnMainThread([self]() { self->startRead(); },
+                                        "TCPPeer: startRead");
     }
 }
 

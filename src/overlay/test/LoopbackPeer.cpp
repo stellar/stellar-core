@@ -122,8 +122,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
                                Peer::DropMode::IGNORE_WRITE_QUEUE);
                 }
             },
-            {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-             "LoopbackPeer: drop"});
+            "LoopbackPeer: drop");
     }
 }
 
@@ -174,10 +173,8 @@ LoopbackPeer::processInQueue()
         if (!mInQueue.empty())
         {
             auto self = static_pointer_cast<LoopbackPeer>(shared_from_this());
-            mApp.postOnMainThread(
-                [self]() { self->processInQueue(); },
-                {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-                 "LoopbackPeer: processInQueue"});
+            mApp.postOnMainThread([self]() { self->processInQueue(); },
+                                  "LoopbackPeer: processInQueue");
         }
     }
 }
@@ -252,8 +249,7 @@ LoopbackPeer::deliverOne()
                         remS->processInQueue();
                     }
                 },
-                {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-                 "LoopbackPeer: processInQueue in deliverOne"});
+                "LoopbackPeer: processInQueue in deliverOne");
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
@@ -466,8 +462,7 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
                 inC->connectHandler(asio::error_code());
             }
         },
-        {VirtualClock::ExecutionCategory::Type::NORMAL_EVENT,
-         "LoopbackPeer: connect"});
+        "LoopbackPeer: connect");
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()

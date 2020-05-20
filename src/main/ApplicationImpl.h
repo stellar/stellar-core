@@ -74,9 +74,8 @@ class ApplicationImpl : public Application
     virtual StatusManager& getStatusManager() override;
 
     virtual asio::io_context& getWorkerIOContext() override;
-    virtual void
-    postOnMainThread(std::function<void()>&& f,
-                     VirtualClock::ExecutionCategory&& jobID) override;
+    virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
+                                  Scheduler::ActionType type) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) override;
 
