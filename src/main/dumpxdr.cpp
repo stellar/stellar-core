@@ -1,8 +1,10 @@
 #include "main/dumpxdr.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
+#include "crypto/StrKey.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Fs.h"
 #include "util/XDROperators.h"
@@ -119,7 +121,22 @@ xdr_printer(const PublicKey& pk)
 std::string 
 xdr_printer(const MuxedAccount& muxedAccount)
 {
-    return "muxedAccount xdr_printer has not been implmented!";
+    std::stringstream res;
+    switch (muxedAccount.type())
+    {
+        case KEY_TYPE_ED25519:
+            res << KeyUtils::toStrKey(toAccountID(muxedAccount));
+            break;
+        case KEY_TYPE_MUXED_ED25519:
+            res << "{ id = " << muxedAccount.med25519().id << ", ";
+            res << "accountID = " << KeyUtils::toStrKey(toAccountID(muxedAccount));
+            res << " }";
+            break;
+        default:
+            // this would be a bug
+            abort();
+    }
+    return res.str();
 }
 
 
