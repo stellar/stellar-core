@@ -8,7 +8,7 @@ Review the [admin guide](./admin.md) for more detailed information.
 
 First, make sure you have copied the example config to your current working directory.
 From the TLD of the repo, run
-`cp docs/stellar_core_standalone.cfg ./bin/stellar-core.cfg`
+`cp docs/stellar-core_standalone.cfg ./bin/stellar-core.cfg`
 
 By default stellar-core waits to hear from the network for a ledger close before
 it starts emitting its own SCP messages. This works fine in the common case but
