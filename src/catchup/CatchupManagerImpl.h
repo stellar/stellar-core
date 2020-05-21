@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupManager.h"
+#include "catchup/CatchupWork.h"
 #include <memory>
 
 namespace medida
@@ -22,15 +23,17 @@ class Work;
 class CatchupManagerImpl : public CatchupManager
 {
     Application& mApp;
-    std::shared_ptr<BasicWork> mCatchupWork;
+    std::shared_ptr<CatchupWork> mCatchupWork;
 
-    std::deque<LedgerCloseData> mSyncingLedgers;
+    // key is ledgerSeq
+    std::map<uint32_t, LedgerCloseData> mSyncingLedgers;
     medida::Counter& mSyncingLedgersSize;
 
     void addToSyncingLedgers(LedgerCloseData const& ledgerData);
     void startOnlineCatchup();
     void trimSyncingLedgers();
     void trimAndReset();
+    void tryApplySyncingLedgers();
     uint32_t getCatchupCount();
 
   public:

@@ -141,19 +141,43 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
     {
         std::string qSetH = binToHex(p.first);
 
-        auto prepUpQSet =
-            db.getPreparedStatement("UPDATE scpquorums SET "
-                                    "lastledgerseq = :l WHERE qsethash = :h");
-
-        auto& stUp = prepUpQSet.statement();
-        stUp.exchange(soci::use(seq));
-        stUp.exchange(soci::use(qSetH));
-        stUp.define_and_bind();
+        uint32_t lastSeenSeq;
+        auto prepSelQSet = db.getPreparedStatement(
+            "SELECT lastledgerseq FROM scpquorums WHERE qsethash = :h");
+        auto& stSel = prepSelQSet.statement();
+        stSel.exchange(soci::into(lastSeenSeq));
+        stSel.exchange(soci::use(qSetH));
+        stSel.define_and_bind();
         {
-            auto timer = db.getInsertTimer("scpquorums");
-            stUp.execute(true);
+            auto timer = db.getSelectTimer("scpquorums");
+            stSel.execute(true);
         }
-        if (stUp.get_affected_rows() != 1)
+
+        if (stSel.got_data())
+        {
+            if (lastSeenSeq >= seq)
+            {
+                continue;
+            }
+
+            auto prepUpQSet = db.getPreparedStatement(
+                "UPDATE scpquorums SET "
+                "lastledgerseq = :l WHERE qsethash = :h");
+
+            auto& stUp = prepUpQSet.statement();
+            stUp.exchange(soci::use(seq));
+            stUp.exchange(soci::use(qSetH));
+            stUp.define_and_bind();
+            {
+                auto timer = db.getInsertTimer("scpquorums");
+                stUp.execute(true);
+            }
+            if (stUp.get_affected_rows() != 1)
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
+        }
+        else
         {
             auto qSetBytes(xdr::xdr_to_opaque(*p.second));
 

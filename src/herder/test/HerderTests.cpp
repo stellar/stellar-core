@@ -1619,6 +1619,190 @@ TEST_CASE("SCP State", "[herder][acceptance]")
     }
 }
 
+TEST_CASE("values externalized out of order", "[herder][quickRestart]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    auto validatorKey = SecretKey::fromSeed(sha256("validator"));
+    auto listenerKey = SecretKey::fromSeed(sha256("listener"));
+
+    SCPQuorumSet qset;
+    qset.threshold = 1;
+    qset.validators.push_back(validatorKey.getPublicKey());
+
+    simulation->addNode(validatorKey, qset);
+    simulation->addNode(listenerKey, qset);
+    simulation->addPendingConnection(validatorKey.getPublicKey(),
+                                     listenerKey.getPublicKey());
+    simulation->startAllNodes();
+    auto validator = simulation->getNode(validatorKey.getPublicKey());
+    auto listener = simulation->getNode(listenerKey.getPublicKey());
+
+    auto currentValidatorLedger = [&]() {
+        return validator->getLedgerManager().getLastClosedLedgerNum();
+    };
+    auto currentListenerLedger = [&]() {
+        return listener->getLedgerManager().getLastClosedLedgerNum();
+    };
+
+    auto waitForLedgers = [&](int nLedgers) {
+        auto destinationLedger = currentValidatorLedger() + nLedgers;
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(destinationLedger, 100);
+            },
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        return std::min(currentListenerLedger(), currentValidatorLedger());
+    };
+
+    auto waitForValidator = [&](int nLedgers) {
+        auto destinationLedger = currentValidatorLedger() + nLedgers;
+        simulation->crankUntil(
+            [&]() { return currentValidatorLedger() >= destinationLedger; },
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        return currentValidatorLedger();
+    };
+
+    uint32_t currentLedger = 1;
+    REQUIRE(currentValidatorLedger() == currentLedger);
+    REQUIRE(currentListenerLedger() == currentLedger);
+
+    // externalize a few ledgers
+    auto maxSlots = validator->getConfig().MAX_SLOTS_TO_REMEMBER;
+    currentLedger = waitForLedgers(maxSlots / 2);
+
+    REQUIRE(currentValidatorLedger() >= currentLedger);
+    // listener is at most a ledger behind
+    REQUIRE(currentLedger == currentListenerLedger());
+
+    // disconnect listener
+    simulation->dropConnection(validatorKey.getPublicKey(),
+                               listenerKey.getPublicKey());
+
+    HerderImpl& herder = *static_cast<HerderImpl*>(&listener->getHerder());
+    HerderImpl& valHerder = *static_cast<HerderImpl*>(&validator->getHerder());
+    auto const& lm = listener->getLedgerManager();
+    auto const& cm = listener->getCatchupManager();
+
+    // Now construct a few future externalize messages
+    // Make sure out of order messages are still within the validity range
+    std::map<uint32_t, std::pair<SCPEnvelope, TxSetFramePtr>>
+        validatorSCPMessages;
+    Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
+
+    // Advance validator a bit further, and collect its externalize messages
+    auto destinationLedger = waitForValidator(maxSlots / 2);
+    for (auto start = currentLedger + 1; start <= destinationLedger; start++)
+    {
+        auto envs = valHerder.getSCP().getLatestMessagesSend(start);
+        for (auto const& env : envs)
+        {
+            if (env.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+            {
+                StellarValue sv;
+                auto& pe = valHerder.getPendingEnvelopes();
+                valHerder.getHerderSCPDriver().toStellarValue(
+                    env.statement.pledges.externalize().commit.value, sv);
+                auto txset = pe.getTxSet(sv.txSetHash);
+                REQUIRE(txset);
+                validatorSCPMessages[start] = std::make_pair(env, txset);
+            }
+        }
+    }
+
+    REQUIRE(herder.getCurrentLedgerSeq() == currentListenerLedger());
+
+    auto testOutOfOrder = [&](bool partial) {
+        auto first = currentLedger + 1;
+        auto second = first + 1;
+        auto third = second + 1;
+
+        // Externalize future ledger
+        // This should trigger CatchupManager to start buffering ledgers
+        auto futureSlot = validatorSCPMessages[third + 1];
+        REQUIRE(herder.recvSCPEnvelope(futureSlot.first, qset,
+                                       *(futureSlot.second)) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        // Wait until listener goes out of sync
+        simulation->crankUntil([&]() { return !lm.isSynced(); },
+                               2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
+                               false);
+
+        // Ensure LM is out of sync, and Herder tracks ledger seq from latest
+        // envelope
+        REQUIRE(herder.getCurrentLedgerSeq() ==
+                futureSlot.first.statement.slotIndex);
+
+        // Next, externalize a contiguous ledger
+        // This will cause LM to apply it, and catchup manager will try to apply
+        // buffered ledgers
+        // complete - all messages are received out of order
+        // partial - only most recent ledger is received out of order
+        // CatchupManager should apply buffered ledgers and let LM get back
+        // in sync
+        std::vector<uint32_t> ledgers{first, third, second};
+        if (partial)
+        {
+            ledgers = {first, second, third};
+        }
+
+        for (auto ledger : ledgers)
+        {
+            auto it = validatorSCPMessages.find(ledger);
+            auto slot = validatorSCPMessages[it->first];
+            REQUIRE(herder.recvSCPEnvelope(slot.first, qset, *(slot.second)) ==
+                    Herder::ENVELOPE_STATUS_READY);
+            REQUIRE(herder.getCurrentLedgerSeq() ==
+                    futureSlot.first.statement.slotIndex);
+            REQUIRE(!lm.isSynced());
+        }
+
+        REQUIRE(currentListenerLedger() ==
+                futureSlot.first.statement.slotIndex);
+        // Catchup is not running, no more buffered ledgers
+        REQUIRE(!cm.hasBufferedLedger());
+        REQUIRE(!cm.isCatchupInitialized());
+
+        // Close one last ledger, LM must now get back in sync
+        auto newestSlot = validatorSCPMessages[currentListenerLedger() + 1];
+        REQUIRE(herder.recvSCPEnvelope(newestSlot.first, qset,
+                                       *(newestSlot.second)) ==
+                Herder::ENVELOPE_STATUS_READY);
+        REQUIRE(lm.isSynced());
+        REQUIRE(!cm.hasBufferedLedger());
+        REQUIRE(herder.getCurrentLedgerSeq() ==
+                newestSlot.first.statement.slotIndex);
+    };
+
+    SECTION("in order")
+    {
+        for (auto const& msgPair : validatorSCPMessages)
+        {
+            auto msg = msgPair.second;
+            REQUIRE(herder.recvSCPEnvelope(msg.first, qset, *(msg.second)) ==
+                    Herder::ENVELOPE_STATUS_READY);
+            // Tracking is updated correctly
+            REQUIRE(herder.getCurrentLedgerSeq() ==
+                    msg.first.statement.slotIndex);
+            // nothing out of ordinary in LM
+            REQUIRE(lm.isSynced());
+            // Catchup is not running, no ledgers are buffered
+            REQUIRE(!cm.hasBufferedLedger());
+        }
+    }
+    SECTION("completely out of order")
+    {
+        testOutOfOrder(/* partial */ false);
+    }
+    SECTION("partially out of order")
+    {
+        testOutOfOrder(/* partial */ true);
+    }
+}
+
 TEST_CASE("quick restart", "[herder][quickRestart]")
 {
     auto mode = Simulation::OVER_LOOPBACK;
@@ -1637,8 +1821,8 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     cfg1.MAX_SLOTS_TO_REMEMBER = 5;
     cfg2.MAX_SLOTS_TO_REMEMBER = cfg1.MAX_SLOTS_TO_REMEMBER;
 
-    simulation->addNode(validatorKey, qSet);
-    simulation->addNode(listenerKey, qSet);
+    simulation->addNode(validatorKey, qSet, &cfg1);
+    simulation->addNode(listenerKey, qSet, &cfg2);
     simulation->addPendingConnection(validatorKey.getPublicKey(),
                                      listenerKey.getPublicKey());
     simulation->startAllNodes();

@@ -427,46 +427,34 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         assert(false);
     }
 
-    switch (closeLedgerIf(ledgerData))
-    {
-    case CloseLedgerIfResult::CLOSED:
-    {
-        setState(LM_SYNCED_STATE);
-        mApp.getCatchupManager().processLedger(ledgerData);
-    }
-    break;
-    case CloseLedgerIfResult::TOO_OLD:
-        // nothing to do
-        break;
-    case CloseLedgerIfResult::TOO_NEW:
-    {
-        setState(LM_CATCHING_UP_STATE);
-        mApp.getCatchupManager().processLedger(ledgerData);
-    }
-    break;
-    }
+    closeLedgerIf(ledgerData);
+
+    mApp.getCatchupManager().processLedger(ledgerData);
 }
 
-LedgerManagerImpl::CloseLedgerIfResult
+void
 LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 {
     if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.getLedgerSeq())
     {
-        if (mLastClosedLedger.hash ==
-            ledgerData.getTxSet()->previousLedgerHash())
+        auto& cm = mApp.getCatchupManager();
+        // if catchup work is running, we don't want ledger manager to close
+        // this ledger and potentially cause issues.
+        if (cm.isCatchupInitialized() && !cm.catchupWorkIsDone())
         {
-            closeLedger(ledgerData);
             CLOG(INFO, "Ledger")
-                << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
-            return CloseLedgerIfResult::CLOSED;
+                << "Can't close ledger: " << ledgerAbbrev(mLastClosedLedger)
+                << "  in LM because catchup is running";
+            return;
         }
-        else
+
+        closeLedger(ledgerData);
+        CLOG(INFO, "Ledger")
+            << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
+
+        if (!cm.hasBufferedLedger())
         {
-            CLOG(FATAL, "Ledger") << "Network consensus for ledger "
-                                  << mLastClosedLedger.header.ledgerSeq
-                                  << " changed; this should never happen";
-            CLOG(FATAL, "Ledger") << POSSIBLY_CORRUPTED_QUORUM_SET;
-            throw std::runtime_error("Network consensus inconsistency");
+            setState(LM_SYNCED_STATE);
         }
     }
     else if (ledgerData.getLedgerSeq() <= mLastClosedLedger.header.ledgerSeq)
@@ -475,7 +463,6 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
             << "Skipping close ledger: local state is "
             << mLastClosedLedger.header.ledgerSeq << ", more recent than "
             << ledgerData.getLedgerSeq();
-        return CloseLedgerIfResult::TOO_OLD;
     }
     else
     {
@@ -487,7 +474,8 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
                 << mLastClosedLedger.header.ledgerSeq
                 << ", network closed ledger " << ledgerData.getLedgerSeq();
         }
-        return CloseLedgerIfResult::TOO_NEW;
+
+        setState(LM_CATCHING_UP_STATE);
     }
 }
 

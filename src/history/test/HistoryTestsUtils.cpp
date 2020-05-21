@@ -705,12 +705,14 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 bool
 CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
                                  uint32_t bufferLedgers, uint32_t gapLedger,
-                                 int32_t numGapLedgers)
+                                 int32_t numGapLedgers,
+                                 std::vector<uint32_t> const& ledgersToInject)
 {
     auto& lm = app->getLedgerManager();
     auto startCatchupMetrics = getCatchupMetrics(app);
 
     auto& hm = app->getHistoryManager();
+    auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
     // catchup will run to the final ledger in the checkpoint
     auto toLedger = hm.checkpointContainingLedger(initLedger - 1);
@@ -722,11 +724,6 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     auto caughtUp = [&]() { return lm.isSynced(); };
 
     auto externalize = [&](uint32 n) {
-        // Remember the vectors count from 2, not 0.
-        if (n - 2 >= mLedgerCloseDatas.size())
-        {
-            return;
-        }
         if (numGapLedgers > 0 && n == gapLedger)
         {
             if (--numGapLedgers > 0)
@@ -740,13 +737,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         }
         else
         {
-            // Remember the vectors count from 2, not 0.
-            auto const& lcd = mLedgerCloseDatas.at(n - 2);
-            CLOG(INFO, "History")
-                << "force-externalizing LedgerCloseData for " << n
-                << " has txhash:"
-                << hexAbbrev(lcd.getTxSet()->getContentsHash());
-            lm.valueExternalized(lcd);
+            externalizeLedger(herder, n);
         }
     };
 
@@ -766,9 +757,20 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     }
 
     uint32_t triggerLedger = hm.ledgerToTriggerCatchup(firstLedgerInCheckpoint);
-    for (uint32_t n = initLedger; n <= triggerLedger + bufferLedgers; ++n)
+
+    if (ledgersToInject.empty())
     {
-        externalize(n);
+        for (uint32_t n = initLedger; n <= triggerLedger + bufferLedgers; ++n)
+        {
+            externalize(n);
+        }
+    }
+    else
+    {
+        for (auto ledger : ledgersToInject)
+        {
+            externalize(ledger);
+        }
     }
 
     if (caughtUp())
@@ -810,6 +812,29 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
 
     validateCatchup(app);
     return result;
+}
+
+void
+CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
+{
+    // Remember the vectors count from 2, not 0.
+    if (ledger - 2 >= mLedgerCloseDatas.size())
+    {
+        return;
+    }
+
+    auto const& lcd = mLedgerCloseDatas.at(ledger - 2);
+
+    CLOG(INFO, "History") << "force-externalizing LedgerCloseData for "
+                          << ledger << " has txhash:"
+                          << hexAbbrev(lcd.getTxSet()->getContentsHash());
+
+    auto txSet = std::static_pointer_cast<TxSetFrame>(lcd.getTxSet());
+
+    herder.getPendingEnvelopes().putTxSet(lcd.getTxSet()->getContentsHash(),
+                                          lcd.getLedgerSeq(), txSet);
+    herder.getHerderSCPDriver().valueExternalized(
+        lcd.getLedgerSeq(), xdr::xdr_to_opaque(lcd.getValue()));
 }
 
 void
