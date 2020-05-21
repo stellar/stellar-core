@@ -226,5 +226,7 @@ class HerderImpl : public Herder
         }
     };
     QuorumMapIntersectionState mLastQuorumMapIntersectionState;
+
+    uint32_t getMinLedgerSeqToRemember();
 };
 }
