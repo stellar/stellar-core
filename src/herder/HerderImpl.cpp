@@ -238,12 +238,11 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         updateTransactionQueue(externalizedSet->mTransactions);
 
         // Evict slots that are outside of our ledger validity bracket
-        auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-        if (slotIndex > maxSlotsToRemember)
+        auto minSlotToRemember = getMinLedgerSeqToRemember();
+        if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
         {
-            auto maxSlot = slotIndex - maxSlotsToRemember + 1;
-            getHerderSCPDriver().purgeSlots(maxSlot);
-            mPendingEnvelopes.eraseBelow(maxSlot);
+            getHerderSCPDriver().purgeSlots(minSlotToRemember);
+            mPendingEnvelopes.eraseBelow(minSlotToRemember);
         }
 
         ledgerClosed(false);
@@ -442,6 +441,21 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
     return b;
 }
 
+uint32_t
+HerderImpl::getMinLedgerSeqToRemember()
+{
+    auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
+    auto currSlot = getCurrentLedgerSeq();
+    if (currSlot > maxSlotsToRemember)
+    {
+        return (currSlot - maxSlotsToRemember + 1);
+    }
+    else
+    {
+        return LedgerManager::GENESIS_LEDGER_SEQ;
+    }
+}
+
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
@@ -458,17 +472,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     mSCPMetrics.mEnvelopeReceive.Mark();
 
-    uint32_t minLedgerSeq = getCurrentLedgerSeq();
-    auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    if (minLedgerSeq > maxSlotsToRemember)
-    {
-        minLedgerSeq -= maxSlotsToRemember;
-    }
-    else
-    {
-        minLedgerSeq = LedgerManager::GENESIS_LEDGER_SEQ;
-    }
-
+    uint32_t minLedgerSeq = getMinLedgerSeqToRemember();
     uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
 
     if (!checkCloseTime(envelope, false))
