@@ -192,7 +192,8 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
-    LedgerCloseData ledgerData(slotIndex, externalizedSet, value);
+    LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
+                               externalizedSet, value);
     mLedgerManager.valueExternalized(ledgerData);
 }
 
