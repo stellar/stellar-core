@@ -10,8 +10,8 @@
 #include "main/ErrorMessages.h"
 #include "util/FileSystemException.h"
 #include "util/XDRStream.h"
-#include "util/format.h"
 #include "util/types.h"
+#include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 

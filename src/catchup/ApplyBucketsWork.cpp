@@ -15,7 +15,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
-#include "util/format.h"
+#include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 

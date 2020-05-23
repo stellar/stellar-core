@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/Work.h"
-#include "lib/util/format.h"
 #include "util/Logging.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

@@ -5,8 +5,8 @@
 #pragma once
 
 #include "util/Logging.h"
-#include "util/format.h"
 #include <chrono>
+#include <fmt/format.h>
 
 class LogSlowExecution
 {

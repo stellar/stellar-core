@@ -17,7 +17,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 
-#include <util/format.h>
+#include <fmt/format.h>
 
 using namespace stellar;
 

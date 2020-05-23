@@ -7,8 +7,8 @@
 #include "main/ExternalQueue.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/format.h"
 #include "util/numeric.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

@@ -25,11 +25,11 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
-#include "lib/util/format.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "xdrpp/marshal.h"
+#include <fmt/format.h>
 
 #include <soci.h>
 #include <time.h>

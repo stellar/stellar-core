@@ -4,7 +4,6 @@
 
 #include "util/asio.h"
 #include "lib/catch.hpp"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "process/ProcessManager.h"
@@ -15,6 +14,7 @@
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
 #include <chrono>
+#include <fmt/format.h>
 #include <future>
 #include <thread>
 

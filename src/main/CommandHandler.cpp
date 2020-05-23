@@ -11,7 +11,6 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/Maintainer.h"
@@ -22,6 +21,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
+#include <fmt/format.h>
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
@@ -121,15 +121,13 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     {
         route(this, params, retStr);
     }
-    catch (std::exception& e)
+    catch (std::exception const& e)
     {
-        retStr =
-            (fmt::MemoryWriter() << "{\"exception\": \"" << e.what() << "\"}")
-                .str();
+        retStr = fmt::format(R"({"exception": "{}"})", e.what());
     }
     catch (...)
     {
-        retStr = "{\"exception\": \"generic\"}";
+        retStr = R"({"exception": "generic"})";
     }
 }
 

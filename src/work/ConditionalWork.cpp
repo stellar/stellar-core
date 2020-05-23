@@ -4,7 +4,7 @@
 
 #include "ConditionalWork.h"
 #include "util/Logging.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

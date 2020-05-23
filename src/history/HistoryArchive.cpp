@@ -13,12 +13,12 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "history/HistoryManager.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/StellarCoreVersion.h"
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include <fmt/format.h>
 
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
@@ -45,7 +45,7 @@ formatString(std::string const& templateString, Tokens const&... tokens)
     {
         return fmt::format(templateString, tokens...);
     }
-    catch (fmt::FormatError const& ex)
+    catch (fmt::format_error const& ex)
     {
         CLOG(ERROR, "History") << "Failed to format string \"" << templateString
                                << "\":" << ex.what();

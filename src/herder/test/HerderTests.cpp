@@ -31,6 +31,7 @@
 
 #include "xdrpp/marshal.h"
 #include <algorithm>
+#include <fmt/format.h>
 
 using namespace stellar;
 using namespace stellar::txbridge;

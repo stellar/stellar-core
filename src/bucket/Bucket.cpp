@@ -17,7 +17,6 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "medida/timer.h"
 #include "util/Fs.h"
@@ -26,6 +25,7 @@
 #include "util/XDRStream.h"
 #include "xdrpp/message.h"
 #include <cassert>
+#include <fmt/format.h>
 #include <future>
 
 namespace stellar

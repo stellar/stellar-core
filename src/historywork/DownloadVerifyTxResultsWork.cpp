@@ -9,8 +9,8 @@
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/Progress.h"
 #include "historywork/VerifyTxResultsWork.h"
-#include "util/format.h"
 #include "work/WorkSequence.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

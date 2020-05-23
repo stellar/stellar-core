@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "util/Logging.h"
 
-#include <lib/util/format.h>
+#include <fmt/format.h>
 #include <regex>
 #include <sstream>
 

@@ -17,8 +17,8 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
-#include "util/format.h"
 #include "xdrpp/printer.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

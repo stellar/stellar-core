@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
-#include "lib/util/format.h"
 #include "medida/histogram.h"
 #include "medida/stats/sliding_window_sample.h"
 #include "medida/stats/snapshot.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include <deque>
+#include <fmt/format.h>
 #include <iostream>
 #include <random>
 #include <sstream>

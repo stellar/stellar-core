@@ -4,9 +4,9 @@
 
 #include "util/Fs.h"
 #include "crypto/Hex.h"
-#include "lib/util/format.h"
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
+#include <fmt/format.h>
 
 #include <map>
 #include <regex>

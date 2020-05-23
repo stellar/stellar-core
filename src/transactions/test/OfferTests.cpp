@@ -22,7 +22,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 using namespace stellar;
 using namespace stellar::txtest;

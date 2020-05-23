@@ -1,4 +1,4 @@
-Copyright 2014, 2015 Stellar Development Foundation and contributors.
+Copyright 2014-2020 Stellar Development Foundation and contributors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -41,7 +41,7 @@ lib/catch.hpp:
 
   The Catch library,
   Copyright 2012 Two Blue Cubes Ltd.
-  (https://github.com/philsquared)
+  (https://github.com/catchorg/Catch2)
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
@@ -79,14 +79,14 @@ lib/util/cpptoml.h:
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
-lib/util/format.cc and format.h:
+lib/fmt/:
 
   The cppformat library,
   Copyright 2012, Victor Zverovich
   (victor.zverovich@gmail.com)
-  (https://github.com/cppformat/cppformat)
-  Licensed under the 2-clause BSD license
-  (http://opensource.org/licenses/BSD-2-Clause)
+  (https://github.com/fmtlib/fmt)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)
 
 lib/json/:
 

@@ -9,9 +9,9 @@
 #include "database/DatabaseUtils.h"
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
-#include "util/format.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+#include <fmt/format.h>
 #include <util/basen.h>
 
 #include "util/Logging.h"

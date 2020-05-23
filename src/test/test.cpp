@@ -17,7 +17,7 @@
 #include "util/TmpDir.h"
 
 #include <cstdlib>
-#include <lib/util/format.h>
+#include <fmt/format.h>
 #include <numeric>
 #include <time.h>
 

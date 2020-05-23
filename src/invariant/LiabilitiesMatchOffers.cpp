@@ -6,12 +6,12 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

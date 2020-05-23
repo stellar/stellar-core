@@ -18,8 +18,8 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 
+#include <fmt/format.h>
 #include <functional>
-#include <lib/util/format.h>
 #include <sstream>
 #include <unordered_set>
 

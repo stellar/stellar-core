@@ -17,7 +17,7 @@
 #include "main/ErrorMessages.h"
 #include "util/FileSystemException.h"
 
-#include <lib/util/format.h>
+#include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 

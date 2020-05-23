@@ -5,10 +5,10 @@
 #include "bucket/Bucket.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
-#include "lib/util/format.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include <fmt/format.h>
 
 #include <chrono>
 

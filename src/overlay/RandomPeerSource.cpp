@@ -13,7 +13,7 @@
 
 #include <algorithm>
 #include <cmath>
-#include <lib/util/format.h>
+#include <fmt/format.h>
 #include <regex>
 #include <soci.h>
 #include <vector>

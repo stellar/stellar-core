@@ -23,6 +23,7 @@
 #include "util/StatusManager.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include <fmt/format.h>
 #include <xdrpp/marshal.h>
 
 using namespace stellar;

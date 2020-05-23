@@ -17,7 +17,7 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 #include <algorithm>
 #include <functional>

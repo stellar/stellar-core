@@ -29,8 +29,8 @@
 #include "historywork/DownloadBucketsWork.h"
 #include "historywork/DownloadVerifyTxResultsWork.h"
 #include "historywork/VerifyTxResultsWork.h"
+#include <fmt/format.h>
 #include <lib/catch.hpp>
-#include <lib/util/format.h>
 
 using namespace stellar;
 using namespace historytestutils;

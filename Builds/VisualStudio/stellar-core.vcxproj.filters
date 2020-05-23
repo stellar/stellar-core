@@ -151,6 +151,9 @@
     <Filter Include="transactions\simulation">
       <UniqueIdentifier>{b342c551-848c-427d-8d3b-df060afe49aa}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\fmt">
+      <UniqueIdentifier>{1bf54804-bf4a-430d-9416-16df128fd308}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -218,9 +221,6 @@
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\srpc.cc">
       <Filter>lib\xdrpp</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\lib\util\format.cc">
-      <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\asio.cpp">
       <Filter>lib</Filter>
@@ -1115,9 +1115,6 @@
     <ClInclude Include="..\..\src\util\types.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\lib\util\format.h">
-      <Filter>lib\util</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\uint128_t.h">
       <Filter>lib\util</Filter>
     </ClInclude>
@@ -1861,6 +1858,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\XDROperators.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\fmt\include\fmt\format.h">
+      <Filter>lib\fmt</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

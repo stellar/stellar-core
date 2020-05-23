@@ -4,7 +4,6 @@
 
 #include "overlay/LoadManager.h"
 #include "database/Database.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -12,6 +11,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include <fmt/format.h>
 
 #include <chrono>
 

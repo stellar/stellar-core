@@ -17,7 +17,7 @@
 #include "main/ErrorMessages.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 #include "medida/metrics_registry.h"
 

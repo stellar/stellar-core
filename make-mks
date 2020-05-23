@@ -53,7 +53,7 @@ listall() {
  echo ASIO_CXX_FILES = asio.cpp
  echo JSON_FILES = $(listall json)
 
- echo MISC_H_FILES = *.hpp $(listall autocheck cereal)
+ echo MISC_H_FILES = *.hpp $(listall autocheck cereal fmt)
 ) > lib/lib.mk
 
 trap '' 0

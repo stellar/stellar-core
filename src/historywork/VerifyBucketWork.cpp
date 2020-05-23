@@ -10,7 +10,7 @@
 #include "main/ErrorMessages.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>

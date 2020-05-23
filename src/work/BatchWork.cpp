@@ -5,7 +5,7 @@
 #include "work/BatchWork.h"
 #include "catchup/CatchupManager.h"
 #include "util/Logging.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

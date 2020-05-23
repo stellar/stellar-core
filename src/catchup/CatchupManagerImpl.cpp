@@ -14,8 +14,8 @@
 #include "medida/metrics_registry.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
-#include "util/format.h"
 #include "work/WorkScheduler.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

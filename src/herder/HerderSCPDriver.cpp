@@ -18,8 +18,8 @@
 #include "util/Logging.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <fmt/format.h>
 #include <medida/metrics_registry.h>
-#include <util/format.h>
 #include <xdrpp/marshal.h>
 
 namespace stellar
