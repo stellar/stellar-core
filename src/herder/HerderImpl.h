@@ -122,7 +122,6 @@ class HerderImpl : public Herder
     // * it's recent enough (if `enforceRecent` is set)
     bool checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent);
 
-    void processSCPQueueAndTrigger();
     void ledgerClosed(bool synchronous);
 
     void startRebroadcastTimer();
