@@ -54,6 +54,11 @@ Just like 14.04, you can install the test toolchain to build and run stellar-cor
 
 Alternatively, if you want to just depend on stock 16.04, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
 
+Ubuntu 16.04 has clang-8 available, that you can install with
+
+    # install clang-8 toolchain
+    sudo apt-get install clang-8
+
 After installing packages, head to [building with clang and libc++](#building-with-clang-and-libc).
 
 
@@ -114,17 +119,17 @@ On some systems, building with `libc++`, [LLVM's version of the standard library
 
 NB: there are newer versions available of both clang and libc++, you will have to use the versions suited for your system.
 
-You may need to install additional packages for this, for example, on Linux Ubuntu:
+You may need to install additional packages for this, for example, on Linux Ubuntu 16.04 LTS with clang-8:
 
     # install libc++ headers
-    sudo apt-get install libc++-dev libc++abi-dev
+    sudo apt-get install libc++-8-dev libc++abi-8-dev
 
 Here are sample steps to achieve this:
 
-    export CC=clang-5.0
-    export CXX=clang++-5.0
+    export CC=clang-8
+    export CXX=clang++-8
     export CFLAGS="-O3 -g1 -fno-omit-frame-pointer"
-    export CXXFLAGS="$CFLAGS -stdlib=libc++ -isystem /usr/include/libcxxabi"
+    export CXXFLAGS="$CFLAGS -stdlib=libc++"
     git clone https://github.com/stellar/stellar-core.git
     cd stellar-core/
     ./autogen.sh && ./configure && make -j6
