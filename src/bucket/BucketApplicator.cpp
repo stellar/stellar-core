@@ -7,10 +7,10 @@
 #include "bucket/Bucket.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/types.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

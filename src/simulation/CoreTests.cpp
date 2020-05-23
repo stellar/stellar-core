@@ -13,7 +13,6 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "medida/stats/snapshot.h"
 #include "overlay/StellarXDR.h"
@@ -22,9 +21,9 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/format.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
+#include <fmt/format.h>
 #include <sstream>
 
 using namespace stellar;

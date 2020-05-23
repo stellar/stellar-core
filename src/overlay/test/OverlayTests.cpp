@@ -21,7 +21,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
-#include "util/format.h"
+#include <fmt/format.h>
 #include <numeric>
 
 using namespace stellar;

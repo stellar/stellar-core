@@ -37,7 +37,7 @@
 #include "xdrpp/marshal.h"
 
 #include <ctime>
-#include <lib/util/format.h>
+#include <fmt/format.h>
 
 using namespace std;
 

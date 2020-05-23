@@ -50,6 +50,9 @@ AX_FRESH_COMPILER
 # -pthread seems to be required by -std=c++14 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
+# additional defines
+AX_APPEND_COMPILE_FLAGS([-DFMT_HEADER_ONLY=1])
+
 AC_MSG_CHECKING([whether defect report N4387 is resolved])
 AC_COMPILE_IFELSE([AC_LANG_SOURCE([[#include <tuple>
 std::tuple<int, int> f()

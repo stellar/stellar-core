@@ -53,9 +53,9 @@
 #include "simulation/LoadGenerator.h"
 #endif
 
+#include <fmt/format.h>
 #include <set>
 #include <string>
-#include <util/format.h>
 
 static const int SHUTDOWN_DELAY_SECONDS = 1;
 

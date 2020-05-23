@@ -16,8 +16,8 @@
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
-#include "util/format.h"
 #include "util/types.h"
+#include <fmt/format.h>
 #include <fstream>
 #include <map>
 #include <regex>

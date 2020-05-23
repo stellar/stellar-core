@@ -12,9 +12,9 @@
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/format.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

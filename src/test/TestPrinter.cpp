@@ -4,8 +4,8 @@
 
 #include "test/TestPrinter.h"
 #include "catchup/CatchupRange.h"
-#include "lib/util/format.h"
 #include "test/TestMarket.h"
+#include <fmt/format.h>
 
 namespace Catch
 {

@@ -32,7 +32,7 @@
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 #include "medida/buckets.h"
 #include "medida/counter.h"

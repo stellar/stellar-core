@@ -12,9 +12,9 @@
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
-#include "util/format.h"
 #include "util/types.h"
 #include <cassert>
+#include <fmt/format.h>
 
 namespace stellar
 {

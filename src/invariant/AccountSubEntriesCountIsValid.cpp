@@ -7,7 +7,7 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/Logging.h"
-#include "util/format.h"
+#include <fmt/format.h>
 #include <unordered_map>
 
 namespace stellar

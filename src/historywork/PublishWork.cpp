@@ -6,9 +6,9 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "history/StateSnapshot.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

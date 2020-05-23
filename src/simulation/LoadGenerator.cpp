@@ -27,6 +27,7 @@
 #include "medida/metrics_registry.h"
 
 #include <cmath>
+#include <fmt/format.h>
 #include <iomanip>
 #include <set>
 

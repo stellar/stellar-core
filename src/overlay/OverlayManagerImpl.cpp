@@ -18,8 +18,8 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/XDROperators.h"
-#include "util/format.h"
 #include "xdrpp/marshal.h"
+#include <fmt/format.h>
 
 #include "medida/counter.h"
 #include "medida/meter.h"

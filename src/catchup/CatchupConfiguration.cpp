@@ -5,7 +5,7 @@
 #include "catchup/CatchupConfiguration.h"
 
 #include <cassert>
-#include <lib/util/format.h>
+#include <fmt/format.h>
 
 namespace stellar
 {

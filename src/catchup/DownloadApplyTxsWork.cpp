@@ -11,7 +11,7 @@
 #include "work/ConditionalWork.h"
 #include "work/WorkSequence.h"
 
-#include <lib/util/format.h>
+#include <fmt/format.h>
 
 namespace stellar
 {

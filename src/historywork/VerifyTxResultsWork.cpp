@@ -9,7 +9,7 @@
 #include "util/FileSystemException.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

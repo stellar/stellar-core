@@ -6,8 +6,8 @@
 
 #include "ByteSlice.h"
 #include "util/Logging.h"
-#include "util/format.h"
 #include "xdr/Stellar-types.h"
+#include <fmt/format.h>
 #include <functional>
 #include <sodium.h>
 

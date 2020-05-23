@@ -10,11 +10,11 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerTxn.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Logging.h"
 #include "xdrpp/printer.h"
+#include <fmt/format.h>
 
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"

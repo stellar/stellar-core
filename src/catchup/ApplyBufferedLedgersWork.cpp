@@ -9,7 +9,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 
-#include <util/format.h>
+#include <fmt/format.h>
 
 namespace stellar
 {

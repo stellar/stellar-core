@@ -22,7 +22,6 @@
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
 #include "ledger/LedgerManager.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/meter.h"
@@ -36,6 +35,7 @@
 #include "util/TmpDir.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
+#include <fmt/format.h>
 
 #include <fstream>
 #include <system_error>

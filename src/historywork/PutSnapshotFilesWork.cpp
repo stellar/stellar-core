@@ -12,7 +12,7 @@
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
 #include "work/WorkSequence.h"
-#include <util/format.h>
+#include <fmt/format.h>
 
 namespace stellar
 {

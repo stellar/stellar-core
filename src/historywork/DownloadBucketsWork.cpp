@@ -8,7 +8,7 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
-#include "util/format.h"
+#include <fmt/format.h>
 
 namespace stellar
 {

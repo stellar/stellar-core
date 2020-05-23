@@ -17,8 +17,8 @@
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "util/format.h"
 #include "xdrpp/marshal.h"
+#include <fmt/format.h>
 
 using namespace soci;
 

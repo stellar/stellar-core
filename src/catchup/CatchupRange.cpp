@@ -7,7 +7,7 @@
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
 #include "util/Logging.h"
-#include <lib/util/format.h>
+#include <fmt/format.h>
 
 namespace
 {

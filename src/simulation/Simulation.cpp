@@ -16,7 +16,7 @@
 #include "util/Math.h"
 #include "util/types.h"
 
-#include <util/format.h>
+#include <fmt/format.h>
 
 #include "medida/medida.h"
 #include "medida/reporting/console_reporter.h"

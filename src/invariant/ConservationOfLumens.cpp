@@ -5,8 +5,8 @@
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
+#include <fmt/format.h>
 #include <numeric>
 
 namespace stellar

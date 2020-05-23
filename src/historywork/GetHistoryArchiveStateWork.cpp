@@ -6,10 +6,10 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "ledger/LedgerManager.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Logging.h"
+#include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 

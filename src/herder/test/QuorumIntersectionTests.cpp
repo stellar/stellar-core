@@ -12,7 +12,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "xdrpp/marshal.h"
-#include <lib/util/format.h>
+#include <fmt/format.h>
 #include <xdrpp/autocheck.h>
 
 using namespace stellar;
