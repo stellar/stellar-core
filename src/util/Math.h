@@ -12,8 +12,6 @@ namespace stellar
 {
 double rand_fraction();
 
-size_t rand_pareto(float alpha, size_t max);
-
 bool rand_flip();
 
 extern std::default_random_engine gRandomEngine;

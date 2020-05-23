@@ -370,7 +370,7 @@ LedgerManagerImpl::getLastMinBalance(uint32_t ownerCount) const
     if (lh.ledgerVersion <= 8)
         return (2 + ownerCount) * lh.baseReserve;
     else
-        return (2 + ownerCount) * int64_t(lh.baseReserve);
+        return (2LL + ownerCount) * int64_t(lh.baseReserve);
 }
 
 uint32_t
