@@ -192,7 +192,8 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
-    LedgerCloseData ledgerData(slotIndex, externalizedSet, value);
+    LedgerCloseData ledgerData(static_cast<uint32_t>(slotIndex),
+                               externalizedSet, value);
     mLedgerManager.valueExternalized(ledgerData);
 }
 
@@ -652,79 +653,73 @@ HerderImpl::getTransactionQueue()
 #endif
 
 void
-HerderImpl::processSCPQueueAndTrigger()
-{
-    if (mApp.isStopping())
-    {
-        return;
-    }
-    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-    uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
-
-    // process any statements up to this slot (this may trigger externalize)
-    processSCPQueueUpToIndex(nextIndex);
-
-    // if externalize got called for a future slot, this is as far as we go this
-    // time around (and we let the other `ledgerClosed` event for the other
-    // ledger perform its work as it may cause some more ledgers to close)
-    if (nextIndex != mHerderSCPDriver.nextConsensusLedgerIndex())
-    {
-        return;
-    }
-
-    if (!mLedgerManager.isSynced())
-    {
-        CLOG(DEBUG, "Herder")
-            << "Not presently synced, not triggering ledger-close.";
-        return;
-    }
-
-    auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
-
-    // bootstrap with a pessimistic estimate of when
-    // the ballot protocol started last
-    auto lastBallotStart = mApp.getClock().now() - seconds;
-    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
-    if (lastStart)
-    {
-        lastBallotStart = *lastStart;
-    }
-    // even if ballot protocol started before triggering, we just use that time
-    // as reference point for triggering again (this may trigger right away if
-    // externalizing took a long time)
-    mTriggerTimer.expires_at(lastBallotStart + seconds);
-
-    if (!mApp.getConfig().MANUAL_CLOSE)
-        mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,
-                                           static_cast<uint32_t>(nextIndex)),
-                                 &VirtualTimer::onFailureNoop);
-}
-
-void
 HerderImpl::ledgerClosed(bool synchronous)
 {
-    // this method is triggered every time a ledger is externalized
-    // it performs some cleanup and also decides if it needs to schedule
-    // triggering the next ledger
+    // this method is triggered every time the most recent ledger is
+    // externalized it performs some cleanup and also decides if it needs to
+    // schedule triggering the next ledger
 
     mTriggerTimer.cancel();
 
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+    uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
 
     mPendingEnvelopes.slotClosed(lastIndex);
 
     mApp.getOverlayManager().ledgerClosed(lastIndex);
 
-    if (synchronous)
+    if (mLedgerManager.isSynced())
     {
-        processSCPQueueAndTrigger();
+        // if we're in sync, we setup mTriggerTimer
+        // it may get cancelled if a more recent ledger externalizes
+
+        auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
+
+        // bootstrap with a pessimistic estimate of when
+        // the ballot protocol started last
+        auto lastBallotStart = mApp.getClock().now() - seconds;
+        auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+        if (lastStart)
+        {
+            lastBallotStart = *lastStart;
+        }
+        // even if ballot protocol started before triggering, we just use that
+        // time as reference point for triggering again (this may trigger right
+        // away if externalizing took a long time)
+        mTriggerTimer.expires_at(lastBallotStart + seconds);
+
+        if (!mApp.getConfig().MANUAL_CLOSE)
+            mTriggerTimer.async_wait(
+                std::bind(&HerderImpl::triggerNextLedger, this,
+                          static_cast<uint32_t>(nextIndex)),
+                &VirtualTimer::onFailureNoop);
     }
     else
     {
-        mApp.postOnMainThread([this]() { processSCPQueueAndTrigger(); },
-                              "processSCPQueueAndTrigger");
+        CLOG(DEBUG, "Herder")
+            << "Not presently synced, not triggering ledger-close.";
+    }
+
+    // process any statements up to the next slot
+    // this may cause it to externalize
+    auto processSCPQueueSomeMore = [this, nextIndex]() {
+        if (mApp.isStopping())
+        {
+            return;
+        }
+        processSCPQueueUpToIndex(nextIndex);
+    };
+
+    if (synchronous)
+    {
+        processSCPQueueSomeMore();
+    }
+    else
+    {
+        mApp.postOnMainThread(processSCPQueueSomeMore,
+                              "processSCPQueueSomeMore");
     }
 }
 

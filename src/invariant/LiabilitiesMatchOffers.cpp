@@ -22,7 +22,7 @@ getMinBalance(LedgerHeader const& header, uint32_t ownerCount)
     if (header.ledgerVersion <= 8)
         return (2 + ownerCount) * header.baseReserve;
     else
-        return (2 + ownerCount) * int64_t(header.baseReserve);
+        return (2LL + ownerCount) * int64_t(header.baseReserve);
 }
 
 static int64_t
