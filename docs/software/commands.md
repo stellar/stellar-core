@@ -167,12 +167,12 @@ format.
   Clear metrics for a specified domain. If no domain specified, clear all
   metrics (for testing purposes).
 
-* **peers?[&fullkeys=true]**
+* **peers?[&fullkeys=false]**
   Returns the list of known peers in JSON format.
   If `fullkeys` is set, outputs unshortened public keys.
 
 * **quorum**
-  `quorum?[node=NODE_ID][&compact=true][&fullkeys=true][&transitive=true]`<br>
+  `quorum?[node=NODE_ID][&compact=false][&fullkeys=false][&transitive=false]`<br>
   Returns information about the quorum for `NODE_ID` (local node by default).
   If `transitive` is set, information is for the transitive quorum centered on `NODE_ID`, otherwise only for nodes in the quorum set of `NODE_ID`.
 
@@ -201,7 +201,7 @@ format.
   will be returned.
 
 * **scp**
-  `scp?[limit=n][&fullkeys=true]`<br>
+  `scp?[limit=n][&fullkeys=false]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last
   n (default 2) ledgers. Outputs unshortened public keys if fullkeys is set.
 
