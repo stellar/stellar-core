@@ -35,6 +35,7 @@
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 #include <ctime>
 #include <fmt/format.h>
@@ -108,8 +109,9 @@ HerderImpl::getSCP()
 void
 HerderImpl::syncMetrics()
 {
-    mSCPMetrics.mCumulativeStatements.set_count(
-        getSCP().getCumulativeStatemtCount());
+    int64_t count = getSCP().getCumulativeStatemtCount();
+    mSCPMetrics.mCumulativeStatements.set_count(count);
+    TracyPlot("scp.memory.cumulative-statements", count);
 }
 
 std::string
@@ -149,6 +151,7 @@ HerderImpl::shutdown()
 void
 HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
 {
+    ZoneScoped;
     bool validated = getSCP().isSlotFullyValidated(slotIndex);
 
     if (Logging::logDebug("Herder"))
@@ -200,6 +203,7 @@ HerderImpl::processExternalized(uint64 slotIndex, StellarValue const& value)
 void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
+    ZoneScoped;
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;
     // SCPDriver always updates tracking for latest slots
     bool isLatestSlot = slotIndex == getCurrentLedgerSeq();
@@ -264,6 +268,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 void
 HerderImpl::rebroadcast()
 {
+    ZoneScoped;
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
     {
@@ -281,6 +286,7 @@ HerderImpl::rebroadcast()
 void
 HerderImpl::broadcast(SCPEnvelope const& e)
 {
+    ZoneScoped;
     if (!mApp.getConfig().MANUAL_CLOSE)
     {
         StellarMessage m;
@@ -308,6 +314,7 @@ HerderImpl::startRebroadcastTimer()
 void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     uint64 slotIndex = envelope.statement.slotIndex;
 
     if (Logging::logDebug("Herder"))
@@ -327,6 +334,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 TransactionQueue::AddResult
 HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 {
+    ZoneScoped;
     auto result = mTransactionQueue.tryAdd(tx);
     if (result == TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
@@ -341,6 +349,7 @@ HerderImpl::recvTransaction(TransactionFrameBasePtr tx)
 bool
 HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
 {
+    ZoneScoped;
     using std::placeholders::_1;
     auto const& st = envelope.statement;
 
@@ -460,6 +469,7 @@ HerderImpl::getMinLedgerSeqToRemember()
 Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     if (mApp.getConfig().MANUAL_CLOSE)
     {
         return Herder::ENVELOPE_STATUS_DISCARDED;
@@ -467,6 +477,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     if (!verifyEnvelope(envelope))
     {
+        std::string txt("DISCARDED - bad envelope");
+        ZoneText(txt.c_str(), txt.size());
         CLOG(TRACE, "Herder") << "Received bad envelope, discarding";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
@@ -483,6 +495,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // going to just sit in our SCP state not contributing anything useful.
         CLOG(TRACE, "Herder")
             << "skipping invalid close time (incompatible with current state)";
+        std::string txt("DISCARDED - incompatible close time");
+        ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
@@ -506,6 +520,8 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // the latest messages from the network
         CLOG(TRACE, "Herder") << "recvSCPEnvelope: skipping invalid close time "
                                  "(check MAXIMUM_LEDGER_CLOSETIME_DRIFT)";
+        std::string txt("DISCARDED - invalid close time");
+        ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
@@ -516,18 +532,24 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         CLOG(TRACE, "Herder") << "Ignoring SCPEnvelope outside of range: "
                               << envelope.statement.slotIndex << "( "
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
+        std::string txt("DISCARDED - out of range");
+        ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     if (envelope.statement.nodeID == getSCP().getLocalNode()->getNodeID())
     {
         CLOG(TRACE, "Herder") << "recvSCPEnvelope: skipping own message";
+        std::string txt("SKIPPED_SELF");
+        ZoneText(txt.c_str(), txt.size());
         return Herder::ENVELOPE_STATUS_SKIPPED_SELF;
     }
 
     auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
+        std::string txt("READY");
+        ZoneText(txt.c_str(), txt.size());
         if (Logging::logDebug("Herder"))
         {
             CLOG(DEBUG, "Herder")
@@ -542,6 +564,16 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
     else
     {
+        if (status == Herder::ENVELOPE_STATUS_FETCHING)
+        {
+            std::string txt("FETCHING");
+            ZoneText(txt.c_str(), txt.size());
+        }
+        else if (status == Herder::ENVELOPE_STATUS_PROCESSED)
+        {
+            std::string txt("PROCESSED");
+            ZoneText(txt.c_str(), txt.size());
+        }
         if (Logging::logTrace("Herder"))
         {
             CLOG(TRACE, "Herder")
@@ -559,6 +591,7 @@ Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
                             const SCPQuorumSet& qset, TxSetFrame txset)
 {
+    ZoneScoped;
     mPendingEnvelopes.addTxSet(txset.getContentsHash(),
                                envelope.statement.slotIndex,
                                std::make_shared<TxSetFrame>(txset));
@@ -569,6 +602,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
+    ZoneScoped;
     bool log = true;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
         getSCP().processCurrentState(seq,
@@ -588,12 +622,17 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 void
 HerderImpl::processSCPQueue()
 {
+    ZoneScoped;
     if (mHerderSCPDriver.trackingSCP())
     {
+        std::string txt("tracking");
+        ZoneText(txt.c_str(), txt.size());
         processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
     }
     else
     {
+        std::string txt("not tracking");
+        ZoneText(txt.c_str(), txt.size());
         // we don't know which ledger we're in
         // try to consume the messages from the queue
         // starting from the smallest slot
@@ -613,6 +652,7 @@ HerderImpl::processSCPQueue()
 void
 HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
+    ZoneScoped;
     while (true)
     {
         SCPEnvelopeWrapperPtr envW = mPendingEnvelopes.pop(slotIndex);
@@ -659,6 +699,7 @@ HerderImpl::ledgerClosed(bool synchronous)
     // externalized it performs some cleanup and also decides if it needs to
     // schedule triggering the next ledger
 
+    ZoneScoped;
     mTriggerTimer.cancel();
 
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
@@ -726,12 +767,14 @@ HerderImpl::ledgerClosed(bool synchronous)
 bool
 HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 {
+    ZoneScoped;
     return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
 }
 
 bool
 HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
 {
+    ZoneScoped;
     auto txset = std::make_shared<TxSetFrame>(t);
     return mPendingEnvelopes.recvTxSet(hash, txset);
 }
@@ -740,6 +783,7 @@ void
 HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
                            Peer::pointer peer)
 {
+    ZoneScoped;
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
@@ -786,6 +830,9 @@ HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 void
 HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(ledgerSeqToTrigger));
+
     if (!mHerderSCPDriver.trackingSCP() || !mLedgerManager.isSynced())
     {
         CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync) : "
@@ -1153,6 +1200,7 @@ HerderImpl::getCurrentlyTrackedQuorum() const
 static Hash
 getQmapHash(QuorumTracker::QuorumMap const& qmap)
 {
+    ZoneScoped;
     std::unique_ptr<SHA256> hasher = SHA256::create();
     std::map<NodeID, SCPQuorumSetPtr> ordered_map(qmap.begin(), qmap.end());
     for (auto const& pair : ordered_map)
@@ -1177,6 +1225,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
     {
         return;
     }
+    ZoneScoped;
     QuorumTracker::QuorumMap const& qmap = getCurrentlyTrackedQuorum();
     Hash curr = getQmapHash(qmap);
     if (mLastQuorumMapIntersectionState.mLastCheckQuorumMapHash == curr)
@@ -1225,6 +1274,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
         auto worker = [curr, ledger, nNodes, qic, qmap, cfg, &app, &hState] {
             try
             {
+                ZoneScoped;
                 bool ok = qic->networkEnjoysQuorumIntersection();
                 auto split = qic->getPotentialSplit();
                 std::set<std::set<PublicKey>> critical;
@@ -1274,6 +1324,7 @@ HerderImpl::checkAndMaybeReanalyzeQuorumMap()
 void
 HerderImpl::persistSCPState(uint64 slot)
 {
+    ZoneScoped;
     if (slot < mLastSlotSaved)
     {
         return;
@@ -1331,6 +1382,7 @@ HerderImpl::persistSCPState(uint64 slot)
 void
 HerderImpl::restoreSCPState()
 {
+    ZoneScoped;
     // setup a sufficient state that we can participate in consensus
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     if (!mApp.getConfig().FORCE_SCP &&
@@ -1398,6 +1450,7 @@ HerderImpl::restoreSCPState()
 void
 HerderImpl::persistUpgrades()
 {
+    ZoneScoped;
     auto s = mUpgrades.getParameters().toJson();
     mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s);
 }
@@ -1405,6 +1458,7 @@ HerderImpl::persistUpgrades()
 void
 HerderImpl::restoreUpgrades()
 {
+    ZoneScoped;
     std::string s =
         mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
     if (!s.empty())
@@ -1450,6 +1504,7 @@ void
 HerderImpl::updateTransactionQueue(
     std::vector<TransactionFrameBasePtr> const& applied)
 {
+    ZoneScoped;
     // remove all these tx from mTransactionQueue
     mTransactionQueue.removeApplied(applied);
     mTransactionQueue.shift();
@@ -1493,6 +1548,7 @@ HerderImpl::updateTransactionQueue(
 void
 HerderImpl::herderOutOfSync()
 {
+    ZoneScoped;
     CLOG(WARNING, "Herder") << "Lost track of consensus";
 
     auto s = getJsonInfo(20).toStyledString();
@@ -1509,6 +1565,7 @@ HerderImpl::herderOutOfSync()
 void
 HerderImpl::getMoreSCPState()
 {
+    ZoneScoped;
     int const NB_PEERS_TO_ASK = 2;
     auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
@@ -1532,6 +1589,7 @@ HerderImpl::getMoreSCPState()
 bool
 HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     auto b = PubKeyUtils::verifySig(
         envelope.statement.nodeID, envelope.signature,
         xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCP,
@@ -1550,12 +1608,14 @@ HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 void
 HerderImpl::signEnvelope(SecretKey const& s, SCPEnvelope& envelope)
 {
+    ZoneScoped;
     envelope.signature = s.sign(xdr::xdr_to_opaque(
         mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
 }
 bool
 HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 {
+    ZoneScoped;
     auto b = PubKeyUtils::verifySig(
         sv.ext.lcValueSignature().nodeID, sv.ext.lcValueSignature().signature,
         xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCPVALUE,
@@ -1566,6 +1626,7 @@ HerderImpl::verifyStellarValueSignature(StellarValue const& sv)
 void
 HerderImpl::signStellarValue(SecretKey const& s, StellarValue& sv)
 {
+    ZoneScoped;
     sv.ext.v(STELLAR_VALUE_SIGNED);
     sv.ext.lcValueSignature().nodeID = s.getPublicKey();
     sv.ext.lcValueSignature().signature =

@@ -18,6 +18,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 using namespace soci;
@@ -226,6 +227,7 @@ TCPPeer::shutdown()
 void
 TCPPeer::messageSender()
 {
+    ZoneScoped;
     assertThreadIsMain();
 
     // if nothing to do, mark progress and return.
@@ -333,6 +335,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
                       std::size_t bytes_transferred,
                       size_t messages_transferred)
 {
+    ZoneScoped;
     assertThreadIsMain();
     mLastWrite = mApp.getClock().now();
 
@@ -424,6 +427,7 @@ TCPPeer::noteFullyReadBody(size_t nbytes)
 void
 TCPPeer::startRead()
 {
+    ZoneScoped;
     assertThreadIsMain();
     if (shouldAbort())
     {
@@ -606,6 +610,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 void
 TCPPeer::recvMessage()
 {
+    ZoneScoped;
     assertThreadIsMain();
 
     try

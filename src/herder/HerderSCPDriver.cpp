@@ -18,6 +18,7 @@
 #include "util/Logging.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/metrics_registry.h>
 #include <xdrpp/marshal.h>
@@ -157,6 +158,7 @@ HerderSCPDriver::wrapEnvelope(SCPEnvelope const& envelope)
 void
 HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
 {
+    ZoneScoped;
     mSCPMetrics.mEnvelopeSign.Mark();
     mHerder.signEnvelope(mApp.getConfig().NODE_SEED, envelope);
 }
@@ -164,6 +166,7 @@ HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
 void
 HerderSCPDriver::emitEnvelope(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     mHerder.emitEnvelope(envelope);
 }
 
@@ -199,11 +202,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
                                      bool nomination) const
 {
     uint64_t lastCloseTime;
-
+    ZoneScoped;
     if (b.ext.v() == STELLAR_VALUE_SIGNED)
     {
         if (nomination)
         {
+            ZoneNamedN(sigZone, "signature check", true);
             if (!mHerder.verifyStellarValueSignature(b))
             {
                 return SCPDriver::kInvalidValue;
@@ -370,9 +374,11 @@ SCPDriver::ValidationLevel
 HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
                                bool nomination)
 {
+    ZoneScoped;
     StellarValue b;
     try
     {
+        ZoneNamedN(xdrZone, "XDR deserialize", true);
         xdr::xdr_from_opaque(value, b);
     }
     catch (...)
@@ -428,6 +434,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
 ValueWrapperPtr
 HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
 {
+    ZoneScoped;
     StellarValue b;
     try
     {
@@ -608,6 +615,7 @@ ValueWrapperPtr
 HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                                    ValueWrapperPtrSet const& candidates)
 {
+    ZoneScoped;
     CLOG(DEBUG, "Herder") << "Combining " << candidates.size() << " candidates";
     mSCPMetrics.mCombinedCandidates.Mark(candidates.size());
 
@@ -757,6 +765,7 @@ HerderSCPDriver::toStellarValue(Value const& v, StellarValue& sv)
 void
 HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
 {
+    ZoneScoped;
     auto it = mSCPTimers.begin(); // cancel all timers below this slot
     while (it != mSCPTimers.end() && it->first <= slotIndex)
     {
@@ -857,6 +866,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
                           TxSetFramePtr proposedSet,
                           StellarValue const& previousValue)
 {
+    ZoneScoped;
     mCurrentValue = wrapStellarValue(value);
     mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
 

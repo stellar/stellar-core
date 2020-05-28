@@ -9,6 +9,7 @@
 #include "util/FileSystemException.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -50,6 +51,7 @@ VerifyTxResultsWork::onRun()
         auto self = weak.lock();
         if (self)
         {
+            ZoneScoped;
             asio::error_code ec;
             auto verified = self->verifyTxResultsOfCheckpoint();
             CLOG(TRACE, "History")
@@ -85,6 +87,7 @@ VerifyTxResultsWork::onRun()
 bool
 VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
 {
+    ZoneScoped;
     try
     {
         FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
@@ -137,6 +140,7 @@ VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
 TransactionHistoryResultEntry
 VerifyTxResultsWork::getCurrentTxResultSet(uint32_t ledger)
 {
+    ZoneScoped;
     TransactionHistoryResultEntry trs;
     trs.ledgerSeq = ledger;
 

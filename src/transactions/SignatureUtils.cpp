@@ -8,6 +8,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "xdr/Stellar-transaction.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -18,6 +19,7 @@ namespace SignatureUtils
 DecoratedSignature
 sign(SecretKey const& secretKey, Hash const& hash)
 {
+    ZoneScoped;
     DecoratedSignature result;
     result.signature = secretKey.sign(hash);
     result.hint = getHint(secretKey.getPublicKey().ed25519());
@@ -45,6 +47,7 @@ verify(DecoratedSignature const& sig, PublicKey const& pubKey, Hash const& hash)
 DecoratedSignature
 signHashX(const ByteSlice& x)
 {
+    ZoneScoped;
     DecoratedSignature result;
     Signature out(0, 0);
     out.resize(static_cast<uint32_t>(x.size()));
@@ -57,6 +60,7 @@ signHashX(const ByteSlice& x)
 bool
 verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
 {
+    ZoneScoped;
     if (!doesHintMatch(signerKey.hashX(), sig.hint))
         return false;
 

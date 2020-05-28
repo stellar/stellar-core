@@ -12,6 +12,7 @@
 #include "util/Math.h"
 #include "util/must_use.h"
 
+#include <Tracy.hpp>
 #include <algorithm>
 #include <cmath>
 #include <fmt/format.h>
@@ -91,6 +92,7 @@ PeerManager::PeerManager(Application& app)
 std::vector<PeerBareAddress>
 PeerManager::loadRandomPeers(PeerQuery const& query, int size)
 {
+    ZoneScoped;
     // BATCH_SIZE should always be bigger, so it should win anyway
     size = std::max(size, BATCH_SIZE);
 
@@ -166,6 +168,7 @@ void
 PeerManager::removePeersWithManyFailures(int minNumFailures,
                                          PeerBareAddress const* address)
 {
+    ZoneScoped;
     try
     {
         auto& db = mApp.getDatabase();
@@ -204,6 +207,7 @@ PeerManager::removePeersWithManyFailures(int minNumFailures,
 std::vector<PeerBareAddress>
 PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
 {
+    ZoneScoped;
     auto keep = [&](PeerBareAddress const& pba) {
         return !pba.isPrivate() && pba != address;
     };
@@ -223,6 +227,7 @@ PeerManager::getPeersToSend(int size, PeerBareAddress const& address)
 std::pair<PeerRecord, bool>
 PeerManager::load(PeerBareAddress const& address)
 {
+    ZoneScoped;
     auto result = PeerRecord{};
     auto inDatabase = false;
 
@@ -266,6 +271,7 @@ void
 PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
                    bool inDatabase)
 {
+    ZoneScoped;
     std::string query;
 
     if (inDatabase)
@@ -399,6 +405,7 @@ PeerManager::update(PeerRecord& peer, BackOffUpdate backOff, Application& app)
 void
 PeerManager::ensureExists(PeerBareAddress const& address)
 {
+    ZoneScoped;
     auto peer = load(address);
     if (!peer.second)
     {
@@ -411,6 +418,7 @@ PeerManager::ensureExists(PeerBareAddress const& address)
 void
 PeerManager::update(PeerBareAddress const& address, TypeUpdate type)
 {
+    ZoneScoped;
     auto peer = load(address);
     update(peer.first, type);
     store(address, peer.first, peer.second);
@@ -419,6 +427,7 @@ PeerManager::update(PeerBareAddress const& address, TypeUpdate type)
 void
 PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
 {
+    ZoneScoped;
     auto peer = load(address);
     update(peer.first, backOff, mApp);
     store(address, peer.first, peer.second);
@@ -428,6 +437,7 @@ void
 PeerManager::update(PeerBareAddress const& address, TypeUpdate type,
                     BackOffUpdate backOff)
 {
+    ZoneScoped;
     auto peer = load(address);
     update(peer.first, type);
     update(peer.first, backOff, mApp);
@@ -438,6 +448,7 @@ int
 PeerManager::countPeers(std::string const& where,
                         std::function<void(soci::statement&)> const& bind)
 {
+    ZoneScoped;
     int count = 0;
 
     try
@@ -465,6 +476,7 @@ std::vector<PeerBareAddress>
 PeerManager::loadPeers(int limit, int offset, std::string const& where,
                        std::function<void(soci::statement&)> const& bind)
 {
+    ZoneScoped;
     auto result = std::vector<PeerBareAddress>{};
 
     try

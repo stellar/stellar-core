@@ -15,6 +15,7 @@
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "work/WorkScheduler.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -59,6 +60,7 @@ CatchupManagerImpl::getCatchupCount()
 void
 CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 {
+    ZoneScoped;
     if (mCatchupWork && mCatchupWork->isDone())
     {
         trimAndReset();
@@ -175,6 +177,7 @@ void
 CatchupManagerImpl::startCatchup(CatchupConfiguration configuration,
                                  std::shared_ptr<HistoryArchive> archive)
 {
+    ZoneScoped;
     auto lastClosedLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
     if ((configuration.toLedger() != CatchupConfiguration::CURRENT) &&
         (configuration.toLedger() <= lastClosedLedger))
@@ -349,6 +352,7 @@ CatchupManagerImpl::trimSyncingLedgers()
 void
 CatchupManagerImpl::tryApplySyncingLedgers()
 {
+    ZoneScoped;
     auto const& ledgerHeader =
         mApp.getLedgerManager().getLastClosedLedgerHeader();
 

@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "transactions/TransactionFrame.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -35,6 +36,7 @@ BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
 bool
 BumpSequenceOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "BumpSequenceOp apply", true);
     LedgerTxn ltxInner(ltx);
     auto header = ltxInner.loadHeader();
     auto sourceAccountEntry = loadSourceAccount(ltxInner, header);

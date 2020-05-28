@@ -16,6 +16,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <fmt/format.h>
@@ -390,6 +391,7 @@ Upgrades::storeUpgradeHistory(Database& db, uint32_t ledgerSeq,
                               LedgerUpgrade const& upgrade,
                               LedgerEntryChanges const& changes, int index)
 {
+    ZoneScoped;
     xdr::opaque_vec<> upgradeContent(xdr::xdr_to_opaque(upgrade));
     std::string upgradeContent64 = decoder::encode_b64(upgradeContent);
 
@@ -421,6 +423,7 @@ Upgrades::storeUpgradeHistory(Database& db, uint32_t ledgerSeq,
 void
 Upgrades::deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
 {
+    ZoneScoped;
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "upgradehistory", "ledgerseq");
 }

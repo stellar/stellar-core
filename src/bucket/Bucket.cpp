@@ -24,6 +24,7 @@
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "xdrpp/message.h"
+#include <Tracy.hpp>
 #include <cassert>
 #include <fmt/format.h>
 #include <future>
@@ -84,6 +85,7 @@ Bucket::containsBucketIdentity(BucketEntry const& id) const
 void
 Bucket::apply(Application& app) const
 {
+    ZoneScoped;
     BucketApplicator applicator(app, app.getConfig().LEDGER_PROTOCOL_VERSION,
                                 shared_from_this());
     BucketApplicator::Counters counters(app.getClock().now());
@@ -140,6 +142,7 @@ Bucket::fresh(BucketManager& bucketManager, uint32_t protocolVersion,
               std::vector<LedgerKey> const& deadEntries, bool countMergeEvents,
               asio::io_context& ctx, bool doFsync)
 {
+    ZoneScoped;
     // When building fresh buckets after protocol version 10 (i.e. version
     // 11-or-after) we differentiate INITENTRY from LIVEENTRY. In older
     // protocols, for compatibility sake, we mark both cases as LIVEENTRY.
@@ -592,6 +595,7 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
               bool keepDeadEntries, bool countMergeEvents,
               asio::io_context& ctx, bool doFsync)
 {
+    ZoneScoped;
     // This is the key operation in the scheme: merging two (read-only)
     // buckets together into a new 3rd bucket, while calculating its hash,
     // in a single pass.

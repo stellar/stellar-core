@@ -8,6 +8,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/numeric.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -20,6 +21,7 @@ Maintainer::Maintainer(Application& app) : mApp{app}, mTimer{mApp}
 void
 Maintainer::start()
 {
+    ZoneScoped;
     auto& c = mApp.getConfig();
     if (c.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
         c.AUTOMATIC_MAINTENANCE_COUNT > 0)
@@ -50,6 +52,7 @@ Maintainer::scheduleMaintenance()
 void
 Maintainer::tick()
 {
+    ZoneScoped;
     performMaintenance(mApp.getConfig().AUTOMATIC_MAINTENANCE_COUNT);
     scheduleMaintenance();
 }
@@ -57,6 +60,7 @@ Maintainer::tick()
 void
 Maintainer::performMaintenance(uint32_t count)
 {
+    ZoneScoped;
     LOG(INFO) << "Performing maintenance";
     ExternalQueue ps{mApp};
     ps.deleteOldEntries(count);

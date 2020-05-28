@@ -53,6 +53,7 @@
 #include "simulation/LoadGenerator.h"
 #endif
 
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <set>
 #include <string>
@@ -90,6 +91,16 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     std::srand(static_cast<uint32>(clock.now().time_since_epoch().count()));
 
     mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
+
+    TracyAppInfo(STELLAR_CORE_VERSION.c_str(), STELLAR_CORE_VERSION.size());
+    TracyAppInfo(mConfig.NETWORK_PASSPHRASE.c_str(),
+                 mConfig.NETWORK_PASSPHRASE.size());
+    std::string nodeStr("Node: ");
+    nodeStr += mConfig.NODE_SEED.getStrKeyPublic();
+    TracyAppInfo(nodeStr.c_str(), nodeStr.size());
+    std::string homeStr("HomeDomain: ");
+    homeStr += mConfig.NODE_HOME_DOMAIN;
+    TracyAppInfo(homeStr.c_str(), homeStr.size());
 
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
@@ -680,8 +691,9 @@ ApplicationImpl::syncOwnMetrics()
         .set_count(mProcessManager->getNumRunningProcesses());
 
     // Update action-queue related metrics
-    mMetrics->NewCounter({"process", "action", "queue"})
-        .set_count(static_cast<int64_t>(getClock().getActionQueueSize()));
+    int64_t qsize = static_cast<int64_t>(getClock().getActionQueueSize());
+    mMetrics->NewCounter({"process", "action", "queue"}).set_count(qsize);
+    TracyPlot("process.action.queue", qsize);
     mMetrics->NewCounter({"process", "action", "overloaded"})
         .set_count(static_cast<int64_t>(getClock().actionQueueIsOverloaded()));
 }

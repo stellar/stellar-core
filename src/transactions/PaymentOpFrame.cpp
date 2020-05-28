@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -24,6 +25,10 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 bool
 PaymentOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "PaymentOp apply", true);
+    std::string payStr = assetToString(mPayment.asset);
+    ZoneTextV(applyZone, payStr.c_str(), payStr.size());
+
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines
     // in ledger version 2 it would work for any asset type

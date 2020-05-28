@@ -12,6 +12,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 #include <algorithm>
 
 #include "main/Application.h"
@@ -32,6 +33,7 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 bool
 CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "CreateAccountOp apply", true);
     if (!stellar::loadAccount(ltx, mCreateAccount.destination))
     {
         auto header = ltx.loadHeader();

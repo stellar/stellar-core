@@ -6,6 +6,7 @@
 #include "history/StateSnapshot.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -25,6 +26,7 @@ ResolveSnapshotWork::ResolveSnapshotWork(
 BasicWork::State
 ResolveSnapshotWork::onRun()
 {
+    ZoneScoped;
     if (mEc)
     {
         return State::WORK_FAILURE;

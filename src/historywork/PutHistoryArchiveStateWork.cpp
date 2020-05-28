@@ -8,6 +8,7 @@
 #include "historywork/PutRemoteFileWork.h"
 #include "main/ErrorMessages.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -38,6 +39,7 @@ PutHistoryArchiveStateWork::doReset()
 BasicWork::State
 PutHistoryArchiveStateWork::doWork()
 {
+    ZoneScoped;
     if (!mPutRemoteFileWork)
     {
         try
@@ -63,6 +65,7 @@ PutHistoryArchiveStateWork::doWork()
 void
 PutHistoryArchiveStateWork::spawnPublishWork()
 {
+    ZoneScoped;
     // Put the file in the history/ww/xx/yy/history-wwxxyyzz.json file
     auto seqName = HistoryArchiveState::remoteName(mState.currentLedger);
     auto seqDir = HistoryArchiveState::remoteDir(mState.currentLedger);

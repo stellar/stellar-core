@@ -12,6 +12,7 @@
 #include "util/Logging.h"
 #include <fmt/format.h>
 
+#include <Tracy.hpp>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 
@@ -37,6 +38,7 @@ VerifyBucketWork::VerifyBucketWork(
 BasicWork::State
 VerifyBucketWork::onRun()
 {
+    ZoneScoped;
     if (mDone)
     {
         if (mEc)
@@ -57,6 +59,7 @@ VerifyBucketWork::onRun()
 void
 VerifyBucketWork::adoptBucket()
 {
+    ZoneScoped;
     assert(mDone);
     assert(!mEc);
 
@@ -79,6 +82,7 @@ VerifyBucketWork::spawnVerifier()
             auto hasher = SHA256::create();
             asio::error_code ec;
             {
+                ZoneNamedN(verifyZone, "bucket verify", true);
                 CLOG(INFO, "History")
                     << fmt::format("Verifying bucket {}", binToHex(hash));
 

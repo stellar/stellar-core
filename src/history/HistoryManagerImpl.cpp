@@ -35,6 +35,7 @@
 #include "util/TmpDir.h"
 #include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include <fstream>
@@ -126,6 +127,7 @@ HistoryManagerImpl::logAndUpdatePublishStatus()
 size_t
 HistoryManagerImpl::publishQueueLength() const
 {
+    ZoneScoped;
     uint32_t count;
     auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT count(ledger) FROM publishqueue;");
@@ -139,6 +141,7 @@ HistoryManagerImpl::publishQueueLength() const
 string const&
 HistoryManagerImpl::getTmpDir()
 {
+    ZoneScoped;
     if (!mWorkDir)
     {
         TmpDir t = mApp.getTmpDirManager().tmpDir("history");
@@ -165,6 +168,7 @@ HistoryManagerImpl::inferQuorum(uint32_t ledgerNum)
 uint32_t
 HistoryManagerImpl::getMinLedgerQueuedToPublish()
 {
+    ZoneScoped;
     uint32_t seq;
     soci::indicator minIndicator;
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -183,6 +187,7 @@ HistoryManagerImpl::getMinLedgerQueuedToPublish()
 uint32_t
 HistoryManagerImpl::getMaxLedgerQueuedToPublish()
 {
+    ZoneScoped;
     uint32_t seq;
     soci::indicator maxIndicator;
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -221,6 +226,7 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 void
 HistoryManagerImpl::queueCurrentHistory()
 {
+    ZoneScoped;
     auto ledger = mApp.getLedgerManager().getLastClosedLedgerNum();
     HistoryArchiveState has(ledger, mApp.getBucketManager().getBucketList());
 
@@ -252,6 +258,7 @@ HistoryManagerImpl::queueCurrentHistory()
 void
 HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 {
+    ZoneScoped;
     if (mPublishWork)
     {
         return;
@@ -299,6 +306,7 @@ HistoryManagerImpl::publishQueuedHistory()
     }
 #endif
 
+    ZoneScoped;
     std::string state;
 
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -322,6 +330,7 @@ HistoryManagerImpl::publishQueuedHistory()
 std::vector<HistoryArchiveState>
 HistoryManagerImpl::getPublishQueueStates()
 {
+    ZoneScoped;
     std::vector<HistoryArchiveState> states;
 
     std::string state;
@@ -343,6 +352,7 @@ HistoryManagerImpl::getPublishQueueStates()
 PublishQueueBuckets::BucketCount
 HistoryManagerImpl::loadBucketsReferencedByPublishQueue()
 {
+    ZoneScoped;
     auto states = getPublishQueueStates();
     PublishQueueBuckets::BucketCount result{};
     for (auto const& s : states)
@@ -359,6 +369,7 @@ HistoryManagerImpl::loadBucketsReferencedByPublishQueue()
 std::vector<std::string>
 HistoryManagerImpl::getBucketsReferencedByPublishQueue()
 {
+    ZoneScoped;
     if (!mPublishQueueBucketsFilled)
     {
         mPublishQueueBuckets.setBuckets(loadBucketsReferencedByPublishQueue());
@@ -377,6 +388,7 @@ HistoryManagerImpl::getBucketsReferencedByPublishQueue()
 std::vector<std::string>
 HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
 {
+    ZoneScoped;
     auto states = getPublishQueueStates();
     std::set<std::string> buckets;
     for (auto const& s : states)
@@ -392,6 +404,7 @@ HistoryManagerImpl::historyPublished(
     uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets,
     bool success)
 {
+    ZoneScoped;
     if (success)
     {
         auto iter = mEnqueueTimes.find(ledgerSeq);

@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -38,6 +39,7 @@ Floodgate::Floodgate(Application& app)
 void
 Floodgate::clearBelow(uint32_t currentLedger)
 {
+    ZoneScoped;
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
         // give one ledger of leeway
@@ -56,6 +58,7 @@ Floodgate::clearBelow(uint32_t currentLedger)
 bool
 Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 {
+    ZoneScoped;
     index = sha256(xdr::xdr_to_opaque(msg));
     if (mShuttingDown)
     {
@@ -67,6 +70,8 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
         mFloodMap[index] = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), peer);
         mFloodMapSize.set_count(mFloodMap.size());
+        TracyPlot("overlay.memory.flood-known",
+                  static_cast<int64_t>(mFloodMap.size()));
         return true;
     }
     else
@@ -80,6 +85,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 void
 Floodgate::broadcast(StellarMessage const& msg, bool force)
 {
+    ZoneScoped;
     if (mShuttingDown)
     {
         return;
@@ -153,6 +159,7 @@ void
 Floodgate::updateRecord(StellarMessage const& oldMsg,
                         StellarMessage const& newMsg)
 {
+    ZoneScoped;
     Hash oldHash = sha256(xdr::xdr_to_opaque(oldMsg));
     Hash newHash = sha256(xdr::xdr_to_opaque(newMsg));
 

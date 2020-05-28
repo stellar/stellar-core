@@ -11,6 +11,7 @@
 #include "util/FileSystemException.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -21,6 +22,7 @@ namespace stellar
 static HistoryManager::LedgerVerificationStatus
 verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
 {
+    ZoneScoped;
     Hash calculated = sha256(xdr::xdr_to_opaque(hhe.header));
     if (calculated != hhe.hash)
     {
@@ -56,6 +58,7 @@ static HistoryManager::LedgerVerificationStatus
 verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
                              LedgerNumHashPair const& verifiedAhead)
 {
+    ZoneScoped;
     // When last ledger in the checkpoint is reached, verify its hash against
     // the next checkpoint.
     assert(ledger.header.ledgerSeq == verifiedAhead.first);
@@ -130,6 +133,7 @@ VerifyLedgerChainWork::onReset()
 HistoryManager::LedgerVerificationStatus
 VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 {
+    ZoneScoped;
     // When verifying a checkpoint, we rely on the fact that the next checkpoint
     // has been verified (unless there's 1 checkpoint).
     // Once the end of the range is reached, ensure that the chain agrees with
@@ -295,6 +299,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 BasicWork::State
 VerifyLedgerChainWork::onRun()
 {
+    ZoneScoped;
     if (mRange.mCount == 0)
     {
         CLOG(INFO, "History") << "History chain [0,0) trivially verified";

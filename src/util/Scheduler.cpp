@@ -5,6 +5,7 @@
 #include "util/Scheduler.h"
 #include "lib/util/finally.h"
 #include "util/Timer.h"
+#include <Tracy.hpp>
 #include <cassert>
 
 namespace stellar
@@ -142,6 +143,8 @@ class Scheduler::ActionQueue
     void
     runNext(VirtualClock& clock, nsecs minTotalService)
     {
+        ZoneScoped;
+        ZoneText(mName.c_str(), mName.size());
         auto before = clock.now();
         Action action = std::move(mActions.front().mAction);
         mActions.pop_front();

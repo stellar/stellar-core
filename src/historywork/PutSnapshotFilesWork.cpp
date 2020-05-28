@@ -12,6 +12,7 @@
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
 #include "work/WorkSequence.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -31,6 +32,7 @@ PutSnapshotFilesWork::PutSnapshotFilesWork(
 BasicWork::State
 PutSnapshotFilesWork::doWork()
 {
+    ZoneScoped;
     if (!mUploadSeqs.empty())
     {
         return WorkUtils::getWorkStatus(mUploadSeqs);

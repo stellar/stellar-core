@@ -13,6 +13,7 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -20,6 +21,7 @@ namespace stellar
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
 {
+    ZoneScoped;
     int64_t offerID = key.offer().offerID;
     if (offerID < 0)
     {
@@ -50,6 +52,7 @@ LedgerTxnRoot::Impl::loadOffer(LedgerKey const& key) const
 std::vector<LedgerEntry>
 LedgerTxnRoot::Impl::loadAllOffers() const
 {
+    ZoneScoped;
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
                       "FROM offers";
@@ -68,6 +71,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
                                     Asset const& buying, Asset const& selling,
                                     size_t numOffers) const
 {
+    ZoneScoped;
     // price is an approximation of the actual n/d (truncated math, 15 digits)
     // ordering by offerid gives precendence to older offers for fairness
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
@@ -98,6 +102,7 @@ LedgerTxnRoot::Impl::loadBestOffers(std::deque<LedgerEntry>& offers,
                                     OfferDescriptor const& worseThan,
                                     size_t numOffers) const
 {
+    ZoneScoped;
     // ManageOffer and related operations won't work correctly with an offerID
     // equal to or exceeding INT64_MAX, so there is no reason to support it
     // here. We are far from this limit anyway.
@@ -198,6 +203,7 @@ std::vector<LedgerEntry>
 LedgerTxnRoot::Impl::loadOffersByAccountAndAsset(AccountID const& accountID,
                                                  Asset const& asset) const
 {
+    ZoneScoped;
     std::string sql = "SELECT sellerid, offerid, sellingasset, buyingasset, "
                       "amount, pricen, priced, flags, lastmodified "
                       "FROM offers WHERE sellerid = :v1 AND "
@@ -240,6 +246,7 @@ std::deque<LedgerEntry>::const_iterator
 LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
                                 std::deque<LedgerEntry>& offers) const
 {
+    ZoneScoped;
     std::string actIDStrKey;
     std::string sellingAsset, buyingAsset;
 
@@ -278,6 +285,7 @@ LedgerTxnRoot::Impl::loadOffers(StatementContext& prep,
 std::vector<LedgerEntry>
 LedgerTxnRoot::Impl::loadOffers(StatementContext& prep) const
 {
+    ZoneScoped;
     std::vector<LedgerEntry> offers;
 
     std::string actIDStrKey;
@@ -594,6 +602,8 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
 void
 LedgerTxnRoot::Impl::bulkUpsertOffers(std::vector<EntryIterator> const& entries)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkUpsertOffersOperation op(mDatabase, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -602,6 +612,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteOffers(std::vector<EntryIterator> const& entries,
                                       LedgerTxnConsistency cons)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkDeleteOffersOperation op(mDatabase, cons, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -774,6 +786,8 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadOffers(
     std::unordered_set<LedgerKey> const& keys) const
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
         BulkLoadOffersOperation op(mDatabase, keys, mHeader->ledgerVersion);

@@ -14,6 +14,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <functional>
 
 namespace stellar
@@ -149,6 +150,7 @@ BallotProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
 SCP::EnvelopeState
 BallotProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
 {
+    ZoneScoped;
     dbgAssert(envelope->getStatement().slotIndex == mSlot.getSlotIndex());
 
     SCPStatement const& statement = envelope->getStatement();
@@ -307,6 +309,7 @@ BallotProtocol::isStatementSane(SCPStatement const& st, bool self)
 bool
 BallotProtocol::abandonBallot(uint32 n)
 {
+    ZoneScoped;
     CLOG(TRACE, "SCP") << "BallotProtocol::abandonBallot";
     bool res = false;
     auto v = mSlot.getLatestCompositeCandidate();
@@ -349,6 +352,7 @@ BallotProtocol::bumpState(Value const& value, bool force)
 bool
 BallotProtocol::bumpState(Value const& value, uint32 n)
 {
+    ZoneScoped;
     if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
         return false;
@@ -390,6 +394,7 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
 bool
 BallotProtocol::updateCurrentValue(SCPBallot const& ballot)
 {
+    ZoneScoped;
     if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
         return false;
@@ -442,6 +447,10 @@ BallotProtocol::updateCurrentValue(SCPBallot const& ballot)
 void
 BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(mSlot.getSlotIndex()));
+    ZoneValue(static_cast<int64_t>(ballot.counter));
+
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "BallotProtocol::bumpToBallot"
                            << " i: " << mSlot.getSlotIndex()
@@ -511,6 +520,7 @@ BallotProtocol::ballotProtocolTimerExpired()
 SCPStatement
 BallotProtocol::createStatement(SCPStatementType const& type)
 {
+    ZoneScoped;
     SCPStatement statement;
 
     checkInvariants();
@@ -572,6 +582,7 @@ BallotProtocol::createStatement(SCPStatementType const& type)
 void
 BallotProtocol::emitCurrentStateStatement()
 {
+    ZoneScoped;
     SCPStatementType t;
 
     switch (mPhase)
@@ -670,6 +681,7 @@ BallotProtocol::checkInvariants()
 std::set<SCPBallot>
 BallotProtocol::getPrepareCandidates(SCPStatement const& hint)
 {
+    ZoneScoped;
     std::set<SCPBallot> hintBallots;
 
     switch (hint.pledges.type())
@@ -786,6 +798,7 @@ BallotProtocol::updateCurrentIfNeeded(SCPBallot const& h)
 bool
 BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
 {
+    ZoneScoped;
     if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
         return false;
@@ -873,6 +886,7 @@ BallotProtocol::attemptAcceptPrepared(SCPStatement const& hint)
 bool
 BallotProtocol::setAcceptPrepared(SCPBallot const& ballot)
 {
+    ZoneScoped;
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "BallotProtocol::setAcceptPrepared"
                            << " i: " << mSlot.getSlotIndex()
@@ -910,6 +924,7 @@ BallotProtocol::setAcceptPrepared(SCPBallot const& ballot)
 bool
 BallotProtocol::attemptConfirmPrepared(SCPStatement const& hint)
 {
+    ZoneScoped;
     if (mPhase != SCP_PHASE_PREPARE)
     {
         return false;
@@ -1030,6 +1045,7 @@ BallotProtocol::commitPredicate(SCPBallot const& ballot, Interval const& check,
 bool
 BallotProtocol::setConfirmPrepared(SCPBallot const& newC, SCPBallot const& newH)
 {
+    ZoneScoped;
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "BallotProtocol::setConfirmPrepared"
                            << " i: " << mSlot.getSlotIndex()
@@ -1166,6 +1182,7 @@ BallotProtocol::getCommitBoundariesFromStatements(SCPBallot const& ballot)
 bool
 BallotProtocol::attemptAcceptCommit(SCPStatement const& hint)
 {
+    ZoneScoped;
     if (mPhase != SCP_PHASE_PREPARE && mPhase != SCP_PHASE_CONFIRM)
     {
         return false;
@@ -1291,6 +1308,7 @@ BallotProtocol::attemptAcceptCommit(SCPStatement const& hint)
 bool
 BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
 {
+    ZoneScoped;
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "BallotProtocol::setAcceptCommit"
                            << " i: " << mSlot.getSlotIndex()
@@ -1383,6 +1401,7 @@ hasVBlockingSubsetStrictlyAheadOf(
 bool
 BallotProtocol::attemptBump()
 {
+    ZoneScoped;
     if (mPhase == SCP_PHASE_PREPARE || mPhase == SCP_PHASE_CONFIRM)
     {
 
@@ -1427,6 +1446,7 @@ BallotProtocol::attemptBump()
 bool
 BallotProtocol::attemptConfirmCommit(SCPStatement const& hint)
 {
+    ZoneScoped;
     if (mPhase != SCP_PHASE_CONFIRM)
     {
         return false;
@@ -1491,6 +1511,7 @@ BallotProtocol::attemptConfirmCommit(SCPStatement const& hint)
 bool
 BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
 {
+    ZoneScoped;
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "BallotProtocol::setConfirmCommit"
                            << " i: " << mSlot.getSlotIndex()
@@ -1714,6 +1735,7 @@ BallotProtocol::areBallotsLessAndCompatible(SCPBallot const& b1,
 void
 BallotProtocol::setStateFromEnvelope(SCPEnvelopeWrapperPtr e)
 {
+    ZoneScoped;
     if (mCurrentBallot)
     {
         throw std::runtime_error(
@@ -1844,6 +1866,7 @@ BallotProtocol::getExternalizingState() const
 void
 BallotProtocol::advanceSlot(SCPStatement const& hint)
 {
+    ZoneScoped;
     mCurrentMessageLevel++;
     if (Logging::logTrace("SCP"))
         CLOG(TRACE, "SCP") << "BallotProtocol::advanceSlot "
@@ -1939,6 +1962,7 @@ BallotProtocol::getStatementValues(SCPStatement const& st)
 SCPDriver::ValidationLevel
 BallotProtocol::validateValues(SCPStatement const& st)
 {
+    ZoneScoped;
     std::set<Value> values;
 
     values = getStatementValues(st);
@@ -1971,6 +1995,7 @@ BallotProtocol::validateValues(SCPStatement const& st)
 void
 BallotProtocol::sendLatestEnvelope()
 {
+    ZoneScoped;
     // emit current envelope if needed
     if (mCurrentMessageLevel == 0 && mLastEnvelope && mSlot.isFullyValidated())
     {
@@ -2150,12 +2175,14 @@ bool
 BallotProtocol::federatedAccept(StatementPredicate voted,
                                 StatementPredicate accepted)
 {
+    ZoneScoped;
     return mSlot.federatedAccept(voted, accepted, mLatestEnvelopes);
 }
 
 bool
 BallotProtocol::federatedRatify(StatementPredicate voted)
 {
+    ZoneScoped;
     return mSlot.federatedRatify(voted, mLatestEnvelopes);
 }
 
@@ -2170,6 +2197,7 @@ BallotProtocol::checkHeardFromQuorum()
     // for a given counter on the local node
     if (mCurrentBallot)
     {
+        ZoneScoped;
         if (LocalNode::isQuorum(
                 getLocalNode()->getQuorumSet(), mLatestEnvelopes,
                 std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),

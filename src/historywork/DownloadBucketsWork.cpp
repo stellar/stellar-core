@@ -8,6 +8,7 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -60,6 +61,7 @@ DownloadBucketsWork::resetIter()
 std::shared_ptr<BasicWork>
 DownloadBucketsWork::yieldMoreWork()
 {
+    ZoneScoped;
     if (!hasNext())
     {
         throw std::runtime_error("Nothing to iterate over!");

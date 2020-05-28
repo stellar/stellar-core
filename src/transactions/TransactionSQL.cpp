@@ -11,6 +11,7 @@
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -20,6 +21,7 @@ storeTransaction(Database& db, uint32_t ledgerSeq,
                  TransactionFrameBasePtr const& tx, TransactionMeta& tm,
                  TransactionResultSet const& resultSet)
 {
+    ZoneScoped;
     std::string txBody =
         decoder::encode_b64(xdr::xdr_to_opaque(tx->getEnvelope()));
     std::string txResult =
@@ -58,6 +60,7 @@ storeTransactionFee(Database& db, uint32_t ledgerSeq,
                     TransactionFrameBasePtr const& tx,
                     LedgerEntryChanges const& changes, uint32_t txIndex)
 {
+    ZoneScoped;
     std::string txChanges = decoder::encode_b64(xdr::xdr_to_opaque(changes));
 
     std::string txIDString = binToHex(tx->getContentsHash());
@@ -87,6 +90,7 @@ storeTransactionFee(Database& db, uint32_t ledgerSeq,
 TransactionResultSet
 getTransactionHistoryResults(Database& db, uint32 ledgerSeq)
 {
+    ZoneScoped;
     TransactionResultSet res;
     std::string txresult64;
     auto prep =
@@ -117,6 +121,7 @@ getTransactionHistoryResults(Database& db, uint32 ledgerSeq)
 std::vector<LedgerEntryChanges>
 getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
 {
+    ZoneScoped;
     std::vector<LedgerEntryChanges> res;
     std::string changes64;
     auto prep =
@@ -148,6 +153,7 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
                       XDROutputFileStream& txOut,
                       XDROutputFileStream& txResultOut)
 {
+    ZoneScoped;
     // prepare the txset for saving
     auto lh = LedgerHeaderUtils::loadBySequence(db, sess, ledgerSeq);
     if (!lh)
@@ -170,6 +176,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
                          uint32_t ledgerCount, XDROutputFileStream& txOut,
                          XDROutputFileStream& txResultOut)
 {
+    ZoneScoped;
     auto timer = db.getSelectTimer("txhistory");
     std::string txBody, txResult, txMeta;
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
@@ -246,6 +253,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
 void
 dropTransactionHistory(Database& db)
 {
+    ZoneScoped;
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
     db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
@@ -275,6 +283,7 @@ void
 deleteOldTransactionHistoryEntries(Database& db, uint32_t ledgerSeq,
                                    uint32_t count)
 {
+    ZoneScoped;
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "txhistory", "ledgerseq");
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,

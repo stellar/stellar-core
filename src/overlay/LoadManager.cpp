@@ -11,6 +11,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include <chrono>
@@ -182,6 +183,7 @@ LoadManager::PeerContext::PeerContext(Application& app, NodeID const& node)
 
 LoadManager::PeerContext::~PeerContext()
 {
+    ZoneScoped;
     if (!isZero(mNode.ed25519()))
     {
         auto pc = mApp.getOverlayManager().getLoadManager().getPeerCosts(mNode);

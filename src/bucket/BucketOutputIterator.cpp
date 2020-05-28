@@ -6,6 +6,7 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Random.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -15,6 +16,7 @@ namespace
 std::string
 randomBucketName(std::string const& tmpDir)
 {
+    ZoneScoped;
     for (;;)
     {
         std::string name =
@@ -45,6 +47,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
     , mMeta(meta)
     , mMergeCounters(mc)
 {
+    ZoneScoped;
     CLOG(TRACE, "Bucket") << "BucketOutputIterator opening file to write: "
                           << mFilename;
     // Will throw if unable to open the file
@@ -64,6 +67,7 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
 void
 BucketOutputIterator::put(BucketEntry const& e)
 {
+    ZoneScoped;
     Bucket::checkProtocolLegality(e, mMeta.ledgerVersion);
     if (e.type() == METAENTRY)
     {
@@ -110,6 +114,7 @@ std::shared_ptr<Bucket>
 BucketOutputIterator::getBucket(BucketManager& bucketManager,
                                 MergeKey* mergeKey)
 {
+    ZoneScoped;
     if (mBuf)
     {
         mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);

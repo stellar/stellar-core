@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <cassert>
 #include <fmt/format.h>
 
@@ -156,6 +157,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
                      std::vector<std::shared_ptr<Bucket>> const& shadows,
                      bool countMergeEvents)
 {
+    ZoneScoped;
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
     assert(!mNextCurr.isMerging());
@@ -364,6 +366,7 @@ BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 uint256
 BucketList::getHash() const
 {
+    ZoneScoped;
     auto hsh = SHA256::create();
     for (auto const& lev : mLevels)
     {
@@ -425,6 +428,7 @@ BucketList::getLevel(uint32_t i)
 void
 BucketList::resolveAnyReadyFutures()
 {
+    ZoneScoped;
     for (auto& level : mLevels)
     {
         if (level.getNext().isMerging() && level.getNext().mergeComplete())
@@ -437,6 +441,7 @@ BucketList::resolveAnyReadyFutures()
 bool
 BucketList::futuresAllResolved(uint32_t maxLevel) const
 {
+    ZoneScoped;
     assert(maxLevel < mLevels.size());
 
     for (uint32_t i = 0; i <= maxLevel; i++)
@@ -470,6 +475,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
                      std::vector<LedgerEntry> const& liveEntries,
                      std::vector<LedgerKey> const& deadEntries)
 {
+    ZoneScoped;
     assert(currLedger > 0);
 
     std::vector<std::shared_ptr<Bucket>> shadows;
@@ -597,6 +603,7 @@ void
 BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
                           uint32_t ledger)
 {
+    ZoneScoped;
     for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
     {
         auto& level = mLevels[i];

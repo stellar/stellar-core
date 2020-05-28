@@ -20,7 +20,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
-
+#include <Tracy.hpp>
 #include <xdrpp/printer.h>
 
 namespace stellar
@@ -96,6 +96,7 @@ bool
 OperationFrame::apply(SignatureChecker& signatureChecker,
                       AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
     bool res;
     if (Logging::logTrace("Tx"))
     {
@@ -130,6 +131,7 @@ bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker,
                                AbstractLedgerTxn& ltx, bool forApply)
 {
+    ZoneScoped;
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (sourceAccount)
@@ -183,6 +185,7 @@ bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker,
                            AbstractLedgerTxn& ltxOuter, bool forApply)
 {
+    ZoneScoped;
     // Note: ltx is always rolled back so checkValid never modifies the ledger
     LedgerTxn ltx(ltxOuter);
     auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
@@ -220,6 +223,7 @@ LedgerTxnEntry
 OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
                                   LedgerTxnHeader const& header)
 {
+    ZoneScoped;
     return mParentTx.loadAccount(ltx, header, getSourceID());
 }
 

@@ -14,6 +14,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <algorithm>
 #include <functional>
 
@@ -73,12 +74,14 @@ NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
 SCPDriver::ValidationLevel
 NominationProtocol::validateValue(Value const& v)
 {
+    ZoneScoped;
     return mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v, true);
 }
 
 ValueWrapperPtr
 NominationProtocol::extractValidValue(Value const& value)
 {
+    ZoneScoped;
     return mSlot.getSCPDriver().extractValidValue(mSlot.getSlotIndex(), value);
 }
 
@@ -144,6 +147,7 @@ NominationProtocol::recordEnvelope(SCPEnvelopeWrapperPtr env)
 void
 NominationProtocol::emitNomination()
 {
+    ZoneScoped;
     SCPStatement st;
     st.nodeID = mSlot.getLocalNode()->getNodeID();
     st.pledges.type(SCP_ST_NOMINATE);
@@ -216,6 +220,7 @@ NominationProtocol::applyAll(SCPNomination const& nom,
 void
 NominationProtocol::updateRoundLeaders()
 {
+    ZoneScoped;
     SCPQuorumSet myQSet = mSlot.getLocalNode()->getQuorumSet();
 
     // initialize priority with value derived from self
@@ -255,6 +260,7 @@ NominationProtocol::updateRoundLeaders()
 uint64
 NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
 {
+    ZoneScoped;
     dbgAssert(!mPreviousValue.empty());
     return mSlot.getSCPDriver().computeHashNode(
         mSlot.getSlotIndex(), mPreviousValue, isPriority, mRoundNumber, nodeID);
@@ -263,6 +269,7 @@ NominationProtocol::hashNode(bool isPriority, NodeID const& nodeID)
 uint64
 NominationProtocol::hashValue(Value const& value)
 {
+    ZoneScoped;
     dbgAssert(!mPreviousValue.empty());
     return mSlot.getSCPDriver().computeValueHash(
         mSlot.getSlotIndex(), mPreviousValue, mRoundNumber, value);
@@ -272,6 +279,7 @@ uint64
 NominationProtocol::getNodePriority(NodeID const& nodeID,
                                     SCPQuorumSet const& qset)
 {
+    ZoneScoped;
     uint64 res;
     uint64 w;
 
@@ -301,6 +309,7 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
 ValueWrapperPtr
 NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
 {
+    ZoneScoped;
     // pick the highest value we don't have from the leader
     // sorted using hashValue.
     ValueWrapperPtr newVote;
@@ -336,6 +345,7 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
 SCP::EnvelopeState
 NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
 {
+    ZoneScoped;
     auto const& st = envelope->getStatement();
     auto const& nom = st.pledges.nominate();
 
@@ -464,6 +474,7 @@ bool
 NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
                              bool timedout)
 {
+    ZoneScoped;
     if (Logging::logDebug("SCP"))
         CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (" << mRoundNumber
                            << ") "

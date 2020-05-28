@@ -11,6 +11,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -26,6 +27,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 bool
 ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "ChangeTrustOp apply", true);
     auto header = ltx.loadHeader();
     auto issuerID = getIssuer(mChangeTrust.line);
 

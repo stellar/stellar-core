@@ -4,6 +4,7 @@
 
 #include "herder/QuorumTracker.h"
 #include "scp/LocalNode.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -46,6 +47,7 @@ QuorumTracker::expand(NodeID const& id, SCPQuorumSetPtr qSet)
 void
 QuorumTracker::rebuild(std::function<SCPQuorumSetPtr(NodeID const&)> lookup)
 {
+    ZoneScoped;
     mQuorum.clear();
     auto local = mSCP.getLocalNode();
     std::set<NodeID> backlog;

@@ -9,6 +9,7 @@
 #include "ledger/LedgerManager.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -57,6 +58,7 @@ PersistentState::getStoreStateName(PersistentState::Entry n, uint32 subscript)
 std::string
 PersistentState::getState(PersistentState::Entry entry)
 {
+    ZoneScoped;
     return getFromDb(getStoreStateName(entry));
 }
 
@@ -64,12 +66,14 @@ void
 PersistentState::setState(PersistentState::Entry entry,
                           std::string const& value)
 {
+    ZoneScoped;
     updateDb(getStoreStateName(entry), value);
 }
 
 std::vector<std::string>
 PersistentState::getSCPStateAllSlots()
 {
+    ZoneScoped;
     // Collect all slots persisted
     std::vector<std::string> states;
     for (uint32 i = 0; i <= mApp.getConfig().MAX_SLOTS_TO_REMEMBER; i++)
@@ -87,6 +91,7 @@ PersistentState::getSCPStateAllSlots()
 void
 PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 {
+    ZoneScoped;
     auto slotIdx = static_cast<uint32>(
         slot % (mApp.getConfig().MAX_SLOTS_TO_REMEMBER + 1));
     updateDb(getStoreStateName(kLastSCPData, slotIdx), value);
@@ -95,6 +100,7 @@ PersistentState::setSCPStateForSlot(uint64 slot, std::string const& value)
 void
 PersistentState::updateDb(std::string const& entry, std::string const& value)
 {
+    ZoneScoped;
     auto prep = mApp.getDatabase().getPreparedStatement(
         "UPDATE storestate SET state = :v WHERE statename = :n;");
 
@@ -127,6 +133,7 @@ PersistentState::updateDb(std::string const& entry, std::string const& value)
 std::string
 PersistentState::getFromDb(std::string const& entry)
 {
+    ZoneScoped;
     std::string res;
 
     auto& db = mApp.getDatabase();

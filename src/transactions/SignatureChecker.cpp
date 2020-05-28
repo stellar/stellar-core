@@ -11,6 +11,7 @@
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {

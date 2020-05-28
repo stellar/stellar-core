@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "FileTransferInfo.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -15,6 +16,7 @@ char const* HISTORY_FILE_TYPE_SCP = "scp";
 std::string
 FileTransferInfo::getLocalDir(TmpDir const& localRoot) const
 {
+    ZoneScoped;
     auto localDir = localRoot.getName();
     localDir += "/" + fs::remoteDir(mType, mHexDigits);
     int retries = 5;

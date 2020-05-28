@@ -8,6 +8,7 @@
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
 #include "work/WorkSequence.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -28,6 +29,7 @@ PutFilesWork::PutFilesWork(Application& app,
 BasicWork::State
 PutFilesWork::doWork()
 {
+    ZoneScoped;
     if (!mChildrenSpawned)
     {
         for (auto const& f : mSnapshot->differingHASFiles(mRemoteState))

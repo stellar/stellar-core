@@ -17,6 +17,7 @@
 #include "main/ErrorMessages.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include "medida/metrics_registry.h"
@@ -37,6 +38,7 @@ FutureBucket::FutureBucket(Application& app,
     , mInputSnapBucket(snap)
     , mInputShadowBuckets(shadows)
 {
+    ZoneScoped;
     // Constructed with a bunch of inputs, _immediately_ commence merging
     // them; there's no valid state for have-inputs-but-not-merging, the
     // presence of inputs implies merging, and vice-versa.
@@ -63,6 +65,7 @@ FutureBucket::FutureBucket(Application& app,
 void
 FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
 {
+    ZoneScoped;
     mState = FB_LIVE_OUTPUT;
     mOutputBucketHash = binToHex(output->getHash());
     mOutputBucket = output;
@@ -78,6 +81,7 @@ checkHashEq(std::shared_ptr<Bucket> const& b, std::string const& h)
 void
 FutureBucket::checkHashesMatch() const
 {
+    ZoneScoped;
     if (!mInputShadowBuckets.empty())
     {
         assert(mInputShadowBuckets.size() == mInputShadowBucketHashes.size());
@@ -224,6 +228,7 @@ FutureBucket::isClear() const
 bool
 FutureBucket::mergeComplete() const
 {
+    ZoneScoped;
     assert(isLive());
     if (mOutputBucket)
     {
@@ -237,6 +242,7 @@ FutureBucket::mergeComplete() const
 std::shared_ptr<Bucket>
 FutureBucket::resolve()
 {
+    ZoneScoped;
     checkState();
     assert(isLive());
 
@@ -298,6 +304,7 @@ void
 FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                          bool countMergeEvents, uint32_t level)
 {
+    ZoneScoped;
     // NB: startMerge starts with FutureBucket in a half-valid state; the inputs
     // are live but the merge is not yet running. So you can't call checkState()
     // on entry, only on exit.
@@ -351,6 +358,9 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
 
             try
             {
+                ZoneNamedN(mergeZone, "Merge task", true);
+                ZoneValueV(mergeZone, static_cast<int64_t>(level));
+
                 auto res = Bucket::merge(
                     bm, maxProtocolVersion, curr, snap, shadows,
                     BucketList::keepDeadEntries(level), countMergeEvents,
@@ -394,6 +404,7 @@ void
 FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
                        uint32_t level)
 {
+    ZoneScoped;
     checkState();
     assert(!isLive());
     assert(hasHashes());
@@ -426,6 +437,7 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
 std::vector<std::string>
 FutureBucket::getHashes() const
 {
+    ZoneScoped;
     std::vector<std::string> hashes;
     if (!mInputCurrBucketHash.empty())
     {

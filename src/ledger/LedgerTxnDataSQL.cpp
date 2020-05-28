@@ -10,6 +10,7 @@
 #include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -17,6 +18,7 @@ namespace stellar
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
 {
+    ZoneScoped;
     std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = decoder::encode_b64(key.data().dataName);
 
@@ -259,6 +261,8 @@ void
 LedgerTxnRoot::Impl::bulkUpsertAccountData(
     std::vector<EntryIterator> const& entries)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkUpsertDataOperation op(mDatabase, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -267,6 +271,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteAccountData(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkDeleteDataOperation op(mDatabase, cons, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -422,6 +428,8 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadData(
     std::unordered_set<LedgerKey> const& keys) const
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
         BulkLoadDataOperation op(mDatabase, keys);

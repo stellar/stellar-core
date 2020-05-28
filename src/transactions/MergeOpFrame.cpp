@@ -11,6 +11,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 
 using namespace soci;
 
@@ -47,6 +48,7 @@ MergeOpFrame::isSeqnumTooFar(LedgerTxnHeader const& header,
 bool
 MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "MergeOp apply", true);
     auto header = ltx.loadHeader();
 
     auto otherAccount =

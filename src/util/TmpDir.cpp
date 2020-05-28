@@ -9,12 +9,14 @@
 #include "main/Config.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
 
 TmpDir::TmpDir(std::string const& prefix)
 {
+    ZoneScoped;
     size_t attempts = 0;
     for (;;)
     {
@@ -44,6 +46,7 @@ TmpDir::getName() const
 
 TmpDir::~TmpDir()
 {
+    ZoneScoped;
     if (!mPath)
     {
         return;
@@ -80,6 +83,7 @@ TmpDirManager::~TmpDirManager()
 void
 TmpDirManager::clean()
 {
+    ZoneScoped;
     if (fs::exists(mRoot))
     {
         LOG(DEBUG) << "TmpDirManager cleaning: " << mRoot;

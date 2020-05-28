@@ -5,6 +5,7 @@
 #include "work/BasicWork.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -330,6 +331,7 @@ BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
 void
 BasicWork::crankWork()
 {
+    ZoneScoped;
     assert(!isDone() && mState != InternalState::WAITING);
 
     InternalState nextState;

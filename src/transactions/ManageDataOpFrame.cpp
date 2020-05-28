@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -29,6 +30,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 bool
 ManageDataOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "ManageDataOp apply", true);
     auto header = ltx.loadHeader();
     if (header.current().ledgerVersion == 3)
     {

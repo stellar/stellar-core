@@ -11,6 +11,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -30,6 +31,7 @@ AllowTrustOpFrame::getThresholdLevel() const
 bool
 AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "AllowTrustOp apply", true);
     if (ltx.loadHeader().current().ledgerVersion > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
