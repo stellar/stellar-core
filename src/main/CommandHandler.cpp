@@ -123,7 +123,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
     }
     catch (std::exception const& e)
     {
-        retStr = fmt::format(R"({"exception": "{}"})", e.what());
+        retStr = fmt::format(R"({{"exception": "{}"}})", e.what());
     }
     catch (...)
     {
