@@ -71,8 +71,8 @@ InMemoryLedgerTxnRoot::getInflationWinners(size_t maxWinners,
     return std::vector<InflationWinner>();
 }
 
-std::shared_ptr<LedgerEntry const>
-InMemoryLedgerTxnRoot::getNewestVersion(LedgerKey const& key) const
+std::shared_ptr<GeneralizedLedgerEntry const>
+InMemoryLedgerTxnRoot::getNewestVersion(GeneralizedLedgerKey const& key) const
 {
     return nullptr;
 }

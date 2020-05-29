@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
+#include "ledger/GeneralizedLedgerEntry.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <memory>
 
@@ -36,6 +37,8 @@ class LedgerEntryIsValid : public Invariant
     std::string check(IterType iter, IterType const& end, uint32_t ledgerSeq,
                       uint32 version) const;
 
+    std::string checkIsValid(GeneralizedLedgerEntry const& le,
+                             uint32_t ledgerSeq, uint32 version) const;
     std::string checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq,
                              uint32 version) const;
     std::string checkIsValid(AccountEntry const& ae, uint32 version) const;

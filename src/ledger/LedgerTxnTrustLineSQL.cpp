@@ -130,8 +130,11 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(e.entryExists());
-            assert(e.entry().data.type() == TRUSTLINE);
-            auto const& tl = e.entry().data.trustLine();
+            assert(e.entry().type() ==
+                   GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            auto const& le = e.entry().ledgerEntry();
+            assert(le.data.type() == TRUSTLINE);
+            auto const& tl = le.data.trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
                                 assetCodeStr);
@@ -145,7 +148,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
             mBalances.emplace_back(tl.balance);
             mFlags.emplace_back(unsignedToSigned(tl.flags));
             mLastModifieds.emplace_back(
-                unsignedToSigned(e.entry().lastModifiedLedgerSeq));
+                unsignedToSigned(le.lastModifiedLedgerSeq));
 
             if (tl.ext.v() >= 1)
             {
@@ -303,8 +306,9 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
-            assert(e.key().type() == TRUSTLINE);
-            auto const& tl = e.key().trustLine();
+            assert(e.key().type() == GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.key().ledgerKey().type() == TRUSTLINE);
+            auto const& tl = e.key().ledgerKey().trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
                                 assetCodeStr);

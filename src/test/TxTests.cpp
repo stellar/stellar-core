@@ -149,10 +149,14 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             REQUIRE(ltxDelta.entry.size() == 1);
             auto current = ltxDelta.entry.begin()->second.current;
             REQUIRE(current);
+            REQUIRE(current->type() ==
+                    GeneralizedLedgerEntryType::LEDGER_ENTRY);
             auto previous = ltxDelta.entry.begin()->second.previous;
             REQUIRE(previous);
-            auto currAcc = current->data.account();
-            auto prevAcc = previous->data.account();
+            REQUIRE(previous->type() ==
+                    GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            auto currAcc = current->ledgerEntry().data.account();
+            auto prevAcc = previous->ledgerEntry().data.account();
             REQUIRE(prevAcc == srcAccountBefore);
             REQUIRE(currAcc.accountID == tx->getSourceID());
             REQUIRE(currAcc.balance < prevAcc.balance);
@@ -247,15 +251,21 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                         {
                             auto current = kvp.second.current;
                             REQUIRE(current);
+                            REQUIRE(current->type() ==
+                                    GeneralizedLedgerEntryType::LEDGER_ENTRY);
                             auto previous = kvp.second.previous;
                             REQUIRE(previous);
+                            REQUIRE(previous->type() ==
+                                    GeneralizedLedgerEntryType::LEDGER_ENTRY);
 
                             // From V13, it's possible to remove one-time
                             // signers on early failures
                             if (ledgerVersion >= 13 && earlyFailure)
                             {
-                                auto currAcc = current->data.account();
-                                auto prevAcc = previous->data.account();
+                                auto currAcc =
+                                    current->ledgerEntry().data.account();
+                                auto prevAcc =
+                                    previous->ledgerEntry().data.account();
                                 REQUIRE(currAcc.signers.size() + 1 ==
                                         prevAcc.signers.size());
                                 // signers should be the only change so this
