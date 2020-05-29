@@ -8,6 +8,7 @@
 #include "history/StateSnapshot.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -29,6 +30,7 @@ PublishWork::PublishWork(Application& app,
 void
 PublishWork::onFailureRaise()
 {
+    ZoneScoped;
     // use mOriginalBuckets as mSnapshot->mLocalState.allBuckets() could change
     // in meantime
     mApp.getHistoryManager().historyPublished(
@@ -38,6 +40,7 @@ PublishWork::onFailureRaise()
 void
 PublishWork::onSuccess()
 {
+    ZoneScoped;
     // use mOriginalBuckets as mSnapshot->mLocalState.allBuckets() could change
     // in meantime
     mApp.getHistoryManager().historyPublished(

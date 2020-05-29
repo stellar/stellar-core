@@ -21,6 +21,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include "medida/reporting/json_reporter.h"
@@ -119,6 +120,7 @@ CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
 {
     try
     {
+        ZoneNamedN(httpZone, "HTTP command handler", true);
         route(this, params, retStr);
     }
     catch (std::exception const& e)
@@ -211,6 +213,7 @@ parseParam(std::map<std::string, std::string> const& map,
 void
 CommandHandler::peers(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -261,12 +264,14 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
 void
 CommandHandler::info(std::string const&, std::string& retStr)
 {
+    ZoneScoped;
     retStr = mApp.getJsonInfo().toStyledString();
 }
 
 void
 CommandHandler::metrics(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     mApp.syncAllMetrics();
     medida::reporting::JsonReporter jr(mApp.getMetrics());
     retStr = jr.Report();
@@ -275,6 +280,7 @@ CommandHandler::metrics(std::string const& params, std::string& retStr)
 void
 CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     retStr = "Log rotate...";
 
     Logging::rotate();
@@ -283,6 +289,7 @@ CommandHandler::logRotate(std::string const& params, std::string& retStr)
 void
 CommandHandler::connect(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -306,6 +313,7 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
 void
 CommandHandler::dropPeer(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -353,6 +361,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
 void
 CommandHandler::bans(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     Json::Value root;
 
     root["bans"];
@@ -370,6 +379,7 @@ CommandHandler::bans(std::string const& params, std::string& retStr)
 void
 CommandHandler::unban(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -399,6 +409,7 @@ CommandHandler::unban(std::string const& params, std::string& retStr)
 void
 CommandHandler::upgrades(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
     auto s = retMap["mode"];
@@ -456,6 +467,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 void
 CommandHandler::quorum(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -492,6 +504,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
 void
 CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
     size_t lim = 2;
@@ -505,6 +518,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 void
 CommandHandler::ll(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     Json::Value root;
 
     std::map<std::string, std::string> retMap;
@@ -541,6 +555,7 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
 void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::ostringstream output;
 
     const std::string prefix("?blob=");
@@ -606,6 +621,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 void
 CommandHandler::dropcursor(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
     std::string const& id = map["id"];
@@ -625,6 +641,7 @@ CommandHandler::dropcursor(std::string const& params, std::string& retStr)
 void
 CommandHandler::setcursor(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
     std::string const& id = map["id"];
@@ -646,6 +663,7 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
 void
 CommandHandler::getcursor(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     Json::Value root;
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
@@ -674,6 +692,7 @@ CommandHandler::getcursor(std::string const& params, std::string& retStr)
 void
 CommandHandler::maintenance(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
     if (map["queue"] == "true")
@@ -693,6 +712,7 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
 void
 CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
 
@@ -707,6 +727,7 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
 void
 CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
 
@@ -729,6 +750,7 @@ CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
 void
 CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 {
+    ZoneScoped;
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     surveyManager.stopSurvey();
     retStr = "survey stopped";
@@ -737,6 +759,7 @@ CommandHandler::stopSurvey(std::string const&, std::string& retStr)
 void
 CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
 {
+    ZoneScoped;
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
     retStr = surveyManager.getJsonResults().toStyledString();
 }
@@ -745,6 +768,7 @@ CommandHandler::getSurveyResult(std::string const&, std::string& retStr)
 void
 CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
         uint32_t nAccounts = 1000;
@@ -802,6 +826,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 void
 CommandHandler::testAcc(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     using namespace txtest;
 
     std::map<std::string, std::string> retMap;
@@ -842,6 +867,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
 void
 CommandHandler::testTx(std::string const& params, std::string& retStr)
 {
+    ZoneScoped;
     using namespace txtest;
 
     std::map<std::string, std::string> retMap;

@@ -9,6 +9,7 @@
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/Progress.h"
 #include "main/Application.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -41,6 +42,7 @@ BatchDownloadWork::getStatus() const
 std::shared_ptr<BasicWork>
 BatchDownloadWork::yieldMoreWork()
 {
+    ZoneScoped;
     if (!hasNext())
     {
         CLOG(WARNING, "Work")

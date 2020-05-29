@@ -19,6 +19,7 @@
 #include "util/Math.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include "medida/counter.h"
@@ -81,6 +82,7 @@ OverlayManagerImpl::PeersList::PeersList(
 Peer::pointer
 OverlayManagerImpl::PeersList::byAddress(PeerBareAddress const& address) const
 {
+    ZoneScoped;
     auto pendingPeerIt = std::find_if(std::begin(mPending), std::end(mPending),
                                       [address](Peer::pointer const& peer) {
                                           return peer->getAddress() == address;
@@ -106,6 +108,7 @@ OverlayManagerImpl::PeersList::byAddress(PeerBareAddress const& address) const
 void
 OverlayManagerImpl::PeersList::removePeer(Peer* peer)
 {
+    ZoneScoped;
     CLOG(TRACE, "Overlay") << "Removing peer " << peer->toString() << " @"
                            << mOverlayManager.mApp.getConfig().PEER_PORT;
     assert(peer->getState() == Peer::CLOSING);
@@ -140,6 +143,7 @@ OverlayManagerImpl::PeersList::removePeer(Peer* peer)
 bool
 OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 {
+    ZoneScoped;
     CLOG(TRACE, "Overlay") << "Moving peer " << peer->toString()
                            << " to authenticated "
                            << " state: " << peer->getState() << " @"
@@ -177,6 +181,7 @@ OverlayManagerImpl::PeersList::moveToAuthenticated(Peer::pointer peer)
 bool
 OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 {
+    ZoneScoped;
     CLOG(TRACE, "Overlay") << "Trying to promote peer to authenticated "
                            << peer->toString() << " @"
                            << mOverlayManager.mApp.getConfig().PEER_PORT;
@@ -244,6 +249,7 @@ OverlayManagerImpl::PeersList::acceptAuthenticatedPeer(Peer::pointer peer)
 void
 OverlayManagerImpl::PeersList::shutdown()
 {
+    ZoneScoped;
     auto pendingPeersToStop = mPending;
     for (auto& p : pendingPeersToStop)
     {
@@ -315,6 +321,7 @@ OverlayManagerImpl::start()
 void
 OverlayManagerImpl::connectTo(PeerBareAddress const& address)
 {
+    ZoneScoped;
     connectToImpl(address, false);
 }
 
@@ -344,6 +351,7 @@ OverlayManagerImpl::connectToImpl(PeerBareAddress const& address,
 OverlayManagerImpl::PeersList&
 OverlayManagerImpl::getPeersList(Peer* peer)
 {
+    ZoneScoped;
     switch (peer->getRole())
     {
     case Peer::WE_CALLED_REMOTE:
@@ -359,6 +367,7 @@ void
 OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
                                   bool setPreferred, bool startup)
 {
+    ZoneScoped;
     auto typeUpgrade = setPreferred
                            ? PeerManager::TypeUpdate::SET_PREFERRED
                            : PeerManager::TypeUpdate::UPDATE_TO_OUTBOUND;
@@ -392,6 +401,7 @@ OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
 void
 OverlayManagerImpl::storeConfigPeers()
 {
+    ZoneScoped;
     // Synchronously resolve and store peers from the config
     storePeerList(resolvePeers(mApp.getConfig().KNOWN_PEERS), false, true);
     storePeerList(resolvePeers(mApp.getConfig().PREFERRED_PEERS), true, true);
@@ -400,6 +410,7 @@ OverlayManagerImpl::storeConfigPeers()
 void
 OverlayManagerImpl::purgeDeadPeers()
 {
+    ZoneScoped;
     getPeerManager().removePeersWithManyFailures(
         Config::REALLY_DEAD_NUM_FAILURES_CUTOFF);
 }
@@ -407,6 +418,7 @@ OverlayManagerImpl::purgeDeadPeers()
 void
 OverlayManagerImpl::triggerPeerResolution()
 {
+    ZoneScoped;
     assert(!mResolvedPeers.valid());
 
     // Trigger DNS resolution on the background thread
@@ -430,6 +442,7 @@ OverlayManagerImpl::triggerPeerResolution()
 std::vector<PeerBareAddress>
 OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
 {
+    ZoneScoped;
     std::vector<PeerBareAddress> addresses;
     for (auto const& peer : peers)
     {
@@ -453,6 +466,7 @@ OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
 std::vector<PeerBareAddress>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 {
+    ZoneScoped;
     assert(maxNum >= 0);
     if (maxNum == 0)
     {
@@ -473,6 +487,7 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum, PeerType peerType)
 int
 OverlayManagerImpl::connectTo(int maxNum, PeerType peerType)
 {
+    ZoneScoped;
     return connectTo(getPeersToConnectTo(maxNum, peerType),
                      peerType == PeerType::INBOUND);
 }
@@ -481,6 +496,7 @@ int
 OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
                               bool forceoutbound)
 {
+    ZoneScoped;
     auto count = 0;
     for (auto& address : peers)
     {
@@ -496,6 +512,7 @@ OverlayManagerImpl::connectTo(std::vector<PeerBareAddress> const& peers,
 void
 OverlayManagerImpl::tick()
 {
+    ZoneScoped;
     CLOG(TRACE, "Overlay") << "OverlayManagerImpl tick  @"
                            << mApp.getConfig().PEER_PORT;
 
@@ -633,6 +650,7 @@ OverlayManagerImpl::updateSizeCounters()
 void
 OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
 {
+    ZoneScoped;
     assert(peer->getRole() == Peer::REMOTE_CALLED_US);
     mInboundPeers.mConnectionsAttempted.Mark();
 
@@ -687,6 +705,7 @@ OverlayManagerImpl::isPossiblyPreferred(std::string const& ip)
 bool
 OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 {
+    ZoneScoped;
     assert(peer->getRole() == Peer::WE_CALLED_REMOTE);
     mOutboundPeers.mConnectionsAttempted.Mark();
 
@@ -722,6 +741,7 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
 void
 OverlayManagerImpl::removePeer(Peer* peer)
 {
+    ZoneScoped;
     getPeersList(peer).removePeer(peer);
     getPeerManager().removePeersWithManyFailures(
         Config::REALLY_DEAD_NUM_FAILURES_CUTOFF, &peer->getAddress());
@@ -878,18 +898,21 @@ bool
 OverlayManagerImpl::recvFloodedMsgID(StellarMessage const& msg,
                                      Peer::pointer peer, Hash& msgID)
 {
+    ZoneScoped;
     return mFloodGate.addRecord(msg, peer, msgID);
 }
 
 void
 OverlayManagerImpl::forgetFloodedMsg(Hash const& msgID)
 {
+    ZoneScoped;
     mFloodGate.forgetRecord(msgID);
 }
 
 void
 OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 {
+    ZoneScoped;
     mOverlayMetrics.mMessagesBroadcast.Mark();
     mFloodGate.broadcast(msg, force);
 }
@@ -964,6 +987,7 @@ void
 OverlayManagerImpl::recordMessageMetric(StellarMessage const& stellarMsg,
                                         Peer::pointer peer)
 {
+    ZoneScoped;
     auto logMessage = [&](bool unique, std::string const& msgType) {
         if (Logging::logTrace("Overlay"))
         {
@@ -1044,6 +1068,7 @@ void
 OverlayManagerImpl::updateFloodRecord(StellarMessage const& oldMsg,
                                       StellarMessage const& newMsg)
 {
+    ZoneScoped;
     mFloodGate.updateRecord(oldMsg, newMsg);
 }
 }

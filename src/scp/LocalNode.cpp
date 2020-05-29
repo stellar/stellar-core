@@ -13,6 +13,7 @@
 #include "util/XDROperators.h"
 #include "util/numeric.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <algorithm>
 #include <functional>
 #include <unordered_set>
@@ -46,6 +47,7 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
 void
 LocalNode::updateQuorumSet(SCPQuorumSet const& qSet)
 {
+    ZoneScoped;
     mQSetHash = sha256(xdr::xdr_to_opaque(qSet));
     mQSet = qSet;
 }
@@ -215,6 +217,7 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
                        std::map<NodeID, SCPEnvelopeWrapperPtr> const& map,
                        std::function<bool(SCPStatement const&)> const& filter)
 {
+    ZoneScoped;
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
@@ -234,6 +237,7 @@ LocalNode::isQuorum(
     std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
     std::function<bool(SCPStatement const&)> const& filter)
 {
+    ZoneScoped;
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
@@ -291,6 +295,7 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
                                 std::set<NodeID> const& nodes,
                                 NodeID const* excluded)
 {
+    ZoneScoped;
     size_t leftTillBlock =
         ((1 + qset.validators.size() + qset.innerSets.size()) - qset.threshold);
 

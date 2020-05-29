@@ -16,7 +16,7 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/FileSystemException.h"
-
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -78,6 +78,7 @@ ApplyCheckpointWork::onReset()
 void
 ApplyCheckpointWork::openInputFiles()
 {
+    ZoneScoped;
     mHdrIn.close();
     mTxIn.close();
     FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCheckpoint);
@@ -97,6 +98,7 @@ ApplyCheckpointWork::openInputFiles()
 TxSetFramePtr
 ApplyCheckpointWork::getCurrentTxSet()
 {
+    ZoneScoped;
     auto& lm = mApp.getLedgerManager();
     auto seq = lm.getLastClosedLedgerNum() + 1;
 
@@ -131,6 +133,7 @@ ApplyCheckpointWork::getCurrentTxSet()
 std::shared_ptr<LedgerCloseData>
 ApplyCheckpointWork::getNextLedgerCloseData()
 {
+    ZoneScoped;
     if (!mHdrIn || !mHdrIn.readOne(mHeaderHistoryEntry))
     {
         throw std::runtime_error("No more ledgers to replay!");
@@ -243,6 +246,7 @@ ApplyCheckpointWork::getNextLedgerCloseData()
 BasicWork::State
 ApplyCheckpointWork::onRun()
 {
+    ZoneScoped;
     try
     {
         if (mConditionalWork)
@@ -338,6 +342,7 @@ ApplyCheckpointWork::onRun()
 void
 ApplyCheckpointWork::shutdown()
 {
+    ZoneScoped;
     if (mConditionalWork)
     {
         mConditionalWork->shutdown();
@@ -348,6 +353,7 @@ ApplyCheckpointWork::shutdown()
 bool
 ApplyCheckpointWork::onAbort()
 {
+    ZoneScoped;
     if (mConditionalWork && !mConditionalWork->isDone())
     {
         mConditionalWork->crankWork();

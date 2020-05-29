@@ -11,6 +11,7 @@
 #include "scp/Slot.h"
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
+#include <Tracy.hpp>
 
 #include <soci.h>
 #include <xdrpp/marshal.h>
@@ -37,6 +38,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
                                       std::vector<SCPEnvelope> const& envs,
                                       QuorumTracker::QuorumMap const& qmap)
 {
+    ZoneScoped;
     if (envs.empty())
     {
         return;
@@ -214,6 +216,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
                                           uint32_t ledgerCount,
                                           XDROutputFileStream& scpHistory)
 {
+    ZoneScoped;
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
     size_t n = 0;
 
@@ -297,6 +300,7 @@ optional<Hash>
 HerderPersistence::getNodeQuorumSet(Database& db, soci::session& sess,
                                     NodeID const& nodeID)
 {
+    ZoneScoped;
     std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
     std::string qsethHex;
 
@@ -320,6 +324,7 @@ SCPQuorumSetPtr
 HerderPersistence::getQuorumSet(Database& db, soci::session& sess,
                                 Hash const& qSetHash)
 {
+    ZoneScoped;
     SCPQuorumSetPtr res;
     SCPQuorumSet qset;
     std::string qset64, qSetHashHex;
@@ -350,6 +355,7 @@ HerderPersistence::getQuorumSet(Database& db, soci::session& sess,
 void
 HerderPersistence::dropAll(Database& db)
 {
+    ZoneScoped;
     db.getSession() << "DROP TABLE IF EXISTS scphistory";
 
     db.getSession() << "DROP TABLE IF EXISTS scpquorums";
@@ -388,6 +394,7 @@ void
 HerderPersistence::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
 {
+    ZoneScoped;
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "scphistory", "ledgerseq");
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,

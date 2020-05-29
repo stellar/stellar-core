@@ -5,6 +5,7 @@
 #include "historywork/RunCommandWork.h"
 #include "main/Application.h"
 #include "process/ProcessManager.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -18,6 +19,7 @@ RunCommandWork::RunCommandWork(Application& app, std::string const& name,
 BasicWork::State
 RunCommandWork::onRun()
 {
+    ZoneScoped;
     if (mDone)
     {
         return mEc ? State::WORK_FAILURE : State::WORK_SUCCESS;
@@ -67,6 +69,7 @@ RunCommandWork::onReset()
 bool
 RunCommandWork::onAbort()
 {
+    ZoneScoped;
     auto process = mExitEvent.lock();
     if (!process)
     {

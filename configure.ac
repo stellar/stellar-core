@@ -11,6 +11,7 @@ AC_INIT([stellar-core],[0.1],[],[],[http://www.stellar.org])
 AM_INIT_AUTOMAKE([-Wall -Wextra -Wconversion subdir-objects tar-ustar silent-rules])
 AC_CONFIG_SRCDIR([configure.ac])
 AC_CONFIG_MACRO_DIR([m4])
+AC_CANONICAL_HOST
 
 AC_ARG_VAR([LIBCXX_PATH], [path to libc++ and libc++abi])
 
@@ -292,6 +293,44 @@ AC_ARG_ENABLE(tests,
     AS_HELP_STRING([--disable-tests],
         [Disable building test suite]))
 AM_CONDITIONAL(BUILD_TESTS, [test x$enable_tests != xno])
+
+AC_ARG_ENABLE(tracy,
+    AS_HELP_STRING([--enable-tracy],
+        [Enable 'tracy' profiler/tracer client stub]))
+AM_CONDITIONAL(USE_TRACY, [test x$enable_tracy = xyes])
+tracy_CFLAGS='-DTRACY_ENABLE -DTRACY_ON_DEMAND -DTRACY_NO_BROADCAST -DTRACY_ONLY_LOCALHOST'
+if test x"$enable_tracy" = xyes; then
+    case "${host_os}" in
+        *darwin*)
+            ;;
+        *)
+            LDFLAGS+=" -ldl "
+            ;;
+    esac
+fi
+AC_SUBST(tracy_CFLAGS)
+
+AC_ARG_ENABLE(tracy-gui,
+    AS_HELP_STRING([--enable-tracy-gui],
+        [Enable 'tracy' profiler/tracer server GUI]))
+AM_CONDITIONAL(USE_TRACY_GUI, [test x$enable_tracy_gui = xyes])
+if test x"$enable_tracy_gui" = xyes; then
+    PKG_CHECK_MODULES(capstone, capstone)
+    PKG_CHECK_MODULES(freetype, freetype2)
+    PKG_CHECK_MODULES(glfw, glfw3)
+    case "${host_os}" in
+        *darwin*)
+            ;;
+        *)
+            PKG_CHECK_MODULES(gtk, gtk+-2.0)
+            ;;
+    esac
+fi
+
+AC_ARG_ENABLE(tracy-capture,
+    AS_HELP_STRING([--enable-tracy-capture],
+        [Enable 'tracy' profiler/tracer capture program]))
+AM_CONDITIONAL(USE_TRACY_CAPTURE, [test x$enable_tracy_capture = xyes])
 
 # Need this to pass through ccache for xdrpp, libsodium
 esc() {

@@ -18,6 +18,7 @@
 #include "transactions/TransactionSQL.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -48,6 +49,7 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
 bool
 StateSnapshot::writeHistoryBlocks() const
 {
+    ZoneScoped;
     std::unique_ptr<soci::session> snapSess(
         mApp.getDatabase().canUsePool()
             ? std::make_unique<soci::session>(mApp.getDatabase().getPool())
@@ -130,6 +132,7 @@ StateSnapshot::writeHistoryBlocks() const
 std::vector<std::shared_ptr<FileTransferInfo>>
 StateSnapshot::differingHASFiles(HistoryArchiveState const& other)
 {
+    ZoneScoped;
     std::vector<std::shared_ptr<FileTransferInfo>> files{};
     auto addIfExists = [&](std::shared_ptr<FileTransferInfo> const& f) {
         if (f && fs::exists(f->localPath_nogz()))

@@ -31,6 +31,7 @@
 #include "xdrpp/marshal.h"
 #include <fmt/format.h>
 
+#include <Tracy.hpp>
 #include <soci.h>
 #include <time.h>
 
@@ -68,6 +69,7 @@ Peer::Peer(Application& app, PeerRole role)
 void
 Peer::sendHello()
 {
+    ZoneScoped;
     CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString() << " @"
                            << mApp.getConfig().PEER_PORT;
     StellarMessage msg;
@@ -185,6 +187,7 @@ Peer::recurrentTimerExpired(asio::error_code const& error)
 void
 Peer::sendAuth()
 {
+    ZoneScoped;
     StellarMessage msg;
     msg.type(AUTH);
     sendMessage(msg);
@@ -218,6 +221,7 @@ Peer::connectHandler(asio::error_code const& error)
 void
 Peer::sendDontHave(MessageType type, uint256 const& itemID)
 {
+    ZoneScoped;
     StellarMessage msg;
     msg.type(DONT_HAVE);
     msg.dontHave().reqHash = itemID;
@@ -229,6 +233,7 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
 void
 Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 {
+    ZoneScoped;
     StellarMessage msg;
     msg.type(SCP_QUORUMSET);
     msg.qSet() = *qSet;
@@ -239,6 +244,7 @@ Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
 void
 Peer::sendGetTxSet(uint256 const& setID)
 {
+    ZoneScoped;
     StellarMessage newMsg;
     newMsg.type(GET_TX_SET);
     newMsg.txSetHash() = setID;
@@ -249,6 +255,7 @@ Peer::sendGetTxSet(uint256 const& setID)
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {
+    ZoneScoped;
     StellarMessage newMsg;
     newMsg.type(GET_SCP_QUORUMSET);
     newMsg.qSetHash() = setID;
@@ -259,6 +266,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 void
 Peer::sendGetPeers()
 {
+    ZoneScoped;
     StellarMessage newMsg;
     newMsg.type(GET_PEERS);
 
@@ -268,6 +276,7 @@ Peer::sendGetPeers()
 void
 Peer::sendGetScpState(uint32 ledgerSeq)
 {
+    ZoneScoped;
     StellarMessage newMsg;
     newMsg.type(GET_SCP_STATE);
     newMsg.getSCPLedgerSeq() = ledgerSeq;
@@ -278,6 +287,7 @@ Peer::sendGetScpState(uint32 ledgerSeq)
 void
 Peer::sendPeers()
 {
+    ZoneScoped;
     StellarMessage newMsg;
     newMsg.type(PEERS);
     uint32 maxPeerCount = std::min<uint32>(50, newMsg.peers().max_size());
@@ -301,6 +311,7 @@ Peer::sendPeers()
 void
 Peer::sendError(ErrorCode error, std::string const& message)
 {
+    ZoneScoped;
     StellarMessage m;
     m.type(ERROR_MSG);
     m.error().code = error;
@@ -312,6 +323,7 @@ void
 Peer::sendErrorAndDrop(ErrorCode error, std::string const& message,
                        DropMode dropMode)
 {
+    ZoneScoped;
     sendError(error, message);
     drop(message, DropDirection::WE_DROPPED_REMOTE, dropMode);
 }
@@ -384,6 +396,7 @@ Peer::msgSummary(StellarMessage const& msg)
 void
 Peer::sendMessage(StellarMessage const& msg, bool log)
 {
+    ZoneScoped;
     if (log && Logging::logTrace("Overlay"))
     {
         CLOG(TRACE, "Overlay")
@@ -445,18 +458,24 @@ Peer::sendMessage(StellarMessage const& msg, bool log)
     amsg.v0().message = msg;
     if (msg.type() != HELLO && msg.type() != ERROR_MSG)
     {
+        ZoneNamedN(hmacZone, "message HMAC", true);
         amsg.v0().sequence = mSendMacSeq;
         amsg.v0().mac =
             hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
         ++mSendMacSeq;
     }
-    xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
+    xdr::msg_ptr xdrBytes;
+    {
+        ZoneNamedN(xdrZone, "XDR serialize", true);
+        xdrBytes = xdr::xdr_to_msg(amsg);
+    }
     this->sendMessage(std::move(xdrBytes));
 }
 
 void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
+    ZoneScoped;
     if (shouldAbort())
     {
         return;
@@ -466,8 +485,12 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
 
     try
     {
+        ZoneNamedN(hmacZone, "message HMAC", true);
         AuthenticatedMessage am;
-        xdr::xdr_from_msg(msg, am);
+        {
+            ZoneNamedN(xdrZone, "XDR deserialize", true);
+            xdr::xdr_from_msg(msg, am);
+        }
         recvMessage(am);
     }
     catch (xdr::xdr_runtime_error& e)
@@ -508,6 +531,7 @@ Peer::shouldAbort() const
 void
 Peer::recvMessage(AuthenticatedMessage const& msg)
 {
+    ZoneScoped;
     if (shouldAbort())
     {
         return;
@@ -540,6 +564,7 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
+    ZoneScoped;
     if (shouldAbort())
     {
         return;
@@ -621,6 +646,10 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvRawMessage(StellarMessage const& stellarMsg)
 {
+    ZoneScoped;
+    auto peerStr = toString();
+    ZoneText(peerStr.c_str(), peerStr.size());
+
     if (shouldAbort())
     {
         return;
@@ -753,6 +782,7 @@ Peer::recvRawMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvDontHave(StellarMessage const& msg)
 {
+    ZoneScoped;
     maybeProcessPingResponse(msg.dontHave().reqHash);
 
     mApp.getHerder().peerDoesntHave(msg.dontHave().type, msg.dontHave().reqHash,
@@ -762,6 +792,7 @@ Peer::recvDontHave(StellarMessage const& msg)
 void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
+    ZoneScoped;
     auto self = shared_from_this();
     if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
     {
@@ -780,6 +811,7 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
+    ZoneScoped;
     TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
@@ -787,6 +819,7 @@ Peer::recvTxSet(StellarMessage const& msg)
 void
 Peer::recvTransaction(StellarMessage const& msg)
 {
+    ZoneScoped;
     auto transaction = TransactionFrameBase::makeTransactionFromWire(
         mApp.getNetworkID(), msg.transaction());
     if (transaction)
@@ -860,6 +893,7 @@ Peer::getPing() const
 void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
+    ZoneScoped;
     maybeProcessPingResponse(msg.qSetHash());
 
     SCPQuorumSetPtr qset = mApp.getHerder().getQSet(msg.qSetHash());
@@ -880,6 +914,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
+    ZoneScoped;
     Hash hash = sha256(xdr::xdr_to_opaque(msg.qSet()));
     mApp.getHerder().recvSCPQuorumSet(hash, msg.qSet());
 }
@@ -887,6 +922,7 @@ Peer::recvSCPQuorumSet(StellarMessage const& msg)
 void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
+    ZoneScoped;
     SCPEnvelope const& envelope = msg.envelope();
 
     auto type = msg.envelope().statement.pledges.type();
@@ -899,6 +935,24 @@ Peer::recvSCPMessage(StellarMessage const& msg)
                                       .mRecvSCPExternalizeTimer.TimeScope()
                                 : (getOverlayMetrics()
                                        .mRecvSCPNominateTimer.TimeScope()))));
+    std::string codeStr;
+    switch (type)
+    {
+    case SCP_ST_PREPARE:
+        codeStr = "PREPARE";
+        break;
+    case SCP_ST_CONFIRM:
+        codeStr = "CONFIRM";
+        break;
+    case SCP_ST_EXTERNALIZE:
+        codeStr = "EXTERNALIZE";
+        break;
+    case SCP_ST_NOMINATE:
+    default:
+        codeStr = "NOMINATE";
+        break;
+    }
+    ZoneText(codeStr.c_str(), codeStr.size());
 
     // add it to the floodmap so that this peer gets credit for it
     Hash msgID;
@@ -915,6 +969,7 @@ Peer::recvSCPMessage(StellarMessage const& msg)
 void
 Peer::recvGetSCPState(StellarMessage const& msg)
 {
+    ZoneScoped;
     uint32 seq = msg.getSCPLedgerSeq();
     mApp.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
@@ -922,6 +977,7 @@ Peer::recvGetSCPState(StellarMessage const& msg)
 void
 Peer::recvError(StellarMessage const& msg)
 {
+    ZoneScoped;
     std::string codeStr = "UNKNOWN";
     switch (msg.error().code)
     {
@@ -980,6 +1036,7 @@ Peer::updatePeerRecordAfterAuthentication()
 void
 Peer::recvHello(Hello const& elo)
 {
+    ZoneScoped;
     if (mState >= GOT_HELLO)
     {
         drop("received unexpected HELLO",
@@ -1119,6 +1176,7 @@ Peer::recvHello(Hello const& elo)
 void
 Peer::recvAuth(StellarMessage const& msg)
 {
+    ZoneScoped;
     if (mState != GOT_HELLO)
     {
         sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
@@ -1171,12 +1229,14 @@ Peer::recvAuth(StellarMessage const& msg)
 void
 Peer::recvGetPeers(StellarMessage const& msg)
 {
+    ZoneScoped;
     sendPeers();
 }
 
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
+    ZoneScoped;
     for (auto const& peer : msg.peers())
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
@@ -1223,6 +1283,7 @@ Peer::recvPeers(StellarMessage const& msg)
 void
 Peer::recvSurveyRequestMessage(StellarMessage const& msg)
 {
+    ZoneScoped;
     mApp.getOverlayManager().getSurveyManager().relayOrProcessRequest(
         msg, shared_from_this());
 }
@@ -1230,6 +1291,7 @@ Peer::recvSurveyRequestMessage(StellarMessage const& msg)
 void
 Peer::recvSurveyResponseMessage(StellarMessage const& msg)
 {
+    ZoneScoped;
     mApp.getOverlayManager().getSurveyManager().relayOrProcessResponse(
         msg, shared_from_this());
 }

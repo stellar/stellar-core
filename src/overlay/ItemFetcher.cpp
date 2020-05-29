@@ -14,6 +14,7 @@
 #include "overlay/Tracker.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -26,6 +27,7 @@ ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
 void
 ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
 {
+    ZoneScoped;
     CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemHash);
     auto entryIt = mTrackers.find(itemHash);
     if (entryIt == mTrackers.end())
@@ -46,6 +48,7 @@ ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
 void
 ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
@@ -109,6 +112,7 @@ ItemFetcher::stopFetchingBelow(uint64 slotIndex)
 void
 ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex)
 {
+    ZoneScoped;
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
         if (!iter->second->clearEnvelopesBelow(slotIndex))
@@ -125,6 +129,7 @@ ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex)
 void
 ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 {
+    ZoneScoped;
     const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
@@ -135,6 +140,7 @@ ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 void
 ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
 {
+    ZoneScoped;
     const auto& iter = mTrackers.find(itemHash);
 
     if (iter != mTrackers.end())

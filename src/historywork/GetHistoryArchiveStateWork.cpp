@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -36,6 +37,7 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
 BasicWork::State
 GetHistoryArchiveStateWork::doWork()
 {
+    ZoneScoped;
     if (mGetRemoteFile)
     {
         auto state = mGetRemoteFile->getState();

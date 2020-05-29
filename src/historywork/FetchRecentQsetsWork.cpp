@@ -12,6 +12,7 @@
 #include "util/FileSystemException.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -37,6 +38,7 @@ FetchRecentQsetsWork::doReset()
 BasicWork::State
 FetchRecentQsetsWork::doWork()
 {
+    ZoneScoped;
     // Phase 1: fetch remote history archive state
     if (!mGetHistoryArchiveStateWork)
     {

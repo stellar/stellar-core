@@ -4,6 +4,7 @@
 
 #include "bucket/BucketInputIterator.h"
 #include "bucket/Bucket.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -14,6 +15,7 @@ namespace stellar
 void
 BucketInputIterator::loadEntry()
 {
+    ZoneScoped;
     if (mIn.readOne(mEntry))
     {
         mEntryPtr = &mEntry;

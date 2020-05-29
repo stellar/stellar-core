@@ -41,6 +41,7 @@
 #include "medida/timer.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
+#include <Tracy.hpp>
 
 #include <chrono>
 #include <numeric>
@@ -246,6 +247,7 @@ void
 LedgerManagerImpl::loadLastKnownLedger(
     function<void(asio::error_code const& ec)> handler)
 {
+    ZoneScoped;
     DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
 
@@ -411,6 +413,7 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 void
 LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 {
+    ZoneScoped;
     CLOG(INFO, "Ledger")
         << "Got consensus: "
         << "[seq=" << ledgerData.getLedgerSeq()
@@ -430,11 +433,13 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
     closeLedgerIf(ledgerData);
 
     mApp.getCatchupManager().processLedger(ledgerData);
+    FrameMark;
 }
 
 void
 LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
 {
+    ZoneScoped;
     if (mLastClosedLedger.header.ledgerSeq + 1 == ledgerData.getLedgerSeq())
     {
         auto& cm = mApp.getCatchupManager();
@@ -483,6 +488,7 @@ void
 LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
                                 std::shared_ptr<HistoryArchive> archive)
 {
+    ZoneScoped;
     setState(LM_CATCHING_UP_STATE);
     mApp.getCatchupManager().startCatchup(configuration, archive);
 }
@@ -511,6 +517,7 @@ during replays.
 void
 LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
+    ZoneScoped;
     auto ledgerTime = mLedgerClose.TimeScope();
     DBTimeExcluder qtExclude(mApp);
     LogSlowExecution closeLedgerTime{"closeLedger",
@@ -523,6 +530,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     header.current().previousLedgerHash = mLastClosedLedger.hash;
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
                           << header.current().ledgerSeq;
+
+    ZoneValue(static_cast<int64_t>(header.current().ledgerSeq));
 
     auto now = mApp.getClock().now();
     mLedgerAgeClosed.Update(now - mLastClose);
@@ -721,6 +730,7 @@ void
 LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
 {
+    ZoneScoped;
     soci::transaction txscope(db.getSession());
     db.clearPreparedStatementCache();
     LedgerHeaderUtils::deleteOldEntries(db, ledgerSeq, count);
@@ -735,6 +745,7 @@ void
 LedgerManagerImpl::setLastClosedLedger(
     LedgerHeaderHistoryEntry const& lastClosed)
 {
+    ZoneScoped;
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
     header.current() = lastClosed.header;
@@ -794,6 +805,7 @@ LedgerManagerImpl::processFeesSeqNums(
     std::vector<TransactionFrameBasePtr>& txs, AbstractLedgerTxn& ltxOuter,
     int64_t baseFee, std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
 {
+    ZoneScoped;
     CLOG(DEBUG, "Ledger")
         << "processing fees and sequence numbers with base fee " << baseFee;
     int index = 0;
@@ -841,6 +853,7 @@ void
 LedgerManagerImpl::prefetchTxSourceIds(
     std::vector<TransactionFrameBasePtr>& txs)
 {
+    ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
         std::unordered_set<LedgerKey> keys;
@@ -856,6 +869,7 @@ void
 LedgerManagerImpl::prefetchTransactionData(
     std::vector<TransactionFrameBasePtr>& txs)
 {
+    ZoneScoped;
     if (mApp.getConfig().PREFETCH_BATCH_SIZE > 0)
     {
         std::unordered_set<LedgerKey> keys;
@@ -873,6 +887,7 @@ LedgerManagerImpl::applyTransactions(
     TransactionResultSet& txResultSet,
     std::unique_ptr<LedgerCloseMeta> const& ledgerCloseMeta)
 {
+    ZoneNamedN(txsZone, "applyTransactions", true);
     int index = 0;
 
     // Record counts
@@ -881,12 +896,14 @@ LedgerManagerImpl::applyTransactions(
     if (numTxs > 0)
     {
         mTransactionCount.Update(static_cast<int64_t>(numTxs));
+        TracyPlot("ledger.transaction.count", static_cast<int64_t>(numTxs));
         numOps =
             std::accumulate(txs.begin(), txs.end(), size_t(0),
                             [](size_t s, TransactionFrameBasePtr const& v) {
                                 return s + v->getNumOperations();
                             });
         mOperationCount.Update(static_cast<int64_t>(numOps));
+        TracyPlot("ledger.operation.count", static_cast<int64_t>(numOps));
         CLOG(INFO, "Tx") << fmt::format("applying ledger {} (txs:{}, ops:{})",
                                         ltx.loadHeader().current().ledgerSeq,
                                         numTxs, numOps);
@@ -896,6 +913,7 @@ LedgerManagerImpl::applyTransactions(
 
     for (auto tx : txs)
     {
+        ZoneNamedN(txZone, "applyTransaction", true);
         auto txTime = mTransactionApply.TimeScope();
         TransactionMeta tm(2);
         CLOG(DEBUG, "Tx") << " tx#" << index << " = "
@@ -958,11 +976,13 @@ LedgerManagerImpl::logTxApplyMetrics(AbstractLedgerTxn& ltx, size_t numTxs,
 
     // We lose a bit of precision here, as medida only accepts int64_t
     mPrefetchHitRate.Update(std::llround(hitRate));
+    TracyPlot("ledger.prefetch.hit-rate", hitRate);
 }
 
 void
 LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
 {
+    ZoneScoped;
     if (mApp.getConfig().MODE_STORES_HISTORY)
     {
         LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
@@ -992,6 +1012,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
                                                      uint32_t ledgerSeq,
                                                      uint32_t ledgerVers)
 {
+    ZoneScoped;
     std::vector<LedgerEntry> initEntries, liveEntries;
     std::vector<LedgerKey> deadEntries;
     ltx.getAllEntries(initEntries, liveEntries, deadEntries);
@@ -1005,6 +1026,7 @@ LedgerManagerImpl::transferLedgerEntriesToBucketList(AbstractLedgerTxn& ltx,
 void
 LedgerManagerImpl::ledgerClosed(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
     auto ledgerSeq = ltx.loadHeader().current().ledgerSeq;
     auto ledgerVers = ltx.loadHeader().current().ledgerVersion;
     CLOG(TRACE, "Ledger") << fmt::format(

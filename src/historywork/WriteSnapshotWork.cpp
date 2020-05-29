@@ -8,6 +8,7 @@
 #include "historywork/Progress.h"
 #include "main/Application.h"
 #include "util/XDRStream.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -39,6 +40,7 @@ WriteSnapshotWork::onRun()
         {
             return;
         }
+        ZoneScoped;
 
         auto snap = self->mSnapshot;
         bool success = true;

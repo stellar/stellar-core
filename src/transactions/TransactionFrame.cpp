@@ -31,6 +31,7 @@
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
+#include <Tracy.hpp>
 #include <string>
 
 #include "medida/meter.h"
@@ -181,6 +182,7 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
                                  LedgerTxnEntry const& account,
                                  int32_t neededWeight)
 {
+    ZoneScoped;
     auto& acc = account.current().data.account();
     std::vector<Signer> signers;
     if (acc.thresholds[0])
@@ -198,6 +200,7 @@ bool
 TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
                                           AccountID const& accountID)
 {
+    ZoneScoped;
     std::vector<Signer> signers;
     auto signerKey = KeyUtils::convertKey<SignerKey>(accountID);
     signers.push_back(Signer(signerKey, 1));
@@ -208,6 +211,7 @@ LedgerTxnEntry
 TransactionFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
                                     LedgerTxnHeader const& header)
 {
+    ZoneScoped;
     auto res = loadAccount(ltx, header, getSourceID());
     if (header.current().ledgerVersion < 8)
     {
@@ -230,6 +234,7 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
                               LedgerTxnHeader const& header,
                               AccountID const& accountID)
 {
+    ZoneScoped;
     if (header.current().ledgerVersion < 8 && mCachedAccount &&
         mCachedAccount->data.account().accountID == accountID)
     {
@@ -317,6 +322,7 @@ TransactionFrame::isTooLate(LedgerTxnHeader const& header) const
 bool
 TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee)
 {
+    ZoneScoped;
     // this function does validations that are independent of the account state
     //    (stay true regardless of other side effects)
     auto header = ltx.loadHeader();
@@ -369,6 +375,7 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee)
 void
 TransactionFrame::processSeqNum(AbstractLedgerTxn& ltx)
 {
+    ZoneScoped;
     auto header = ltx.loadHeader();
     if (header.current().ledgerVersion >= 10)
     {
@@ -386,6 +393,7 @@ TransactionFrame::processSignatures(ValidationType cv,
                                     SignatureChecker& signatureChecker,
                                     AbstractLedgerTxn& ltxOuter)
 {
+    ZoneScoped;
     bool maybeValid = (cv == ValidationType::kMaybeValid);
     uint32_t ledgerVersion = ltxOuter.loadHeader().current().ledgerVersion;
     if (ledgerVersion < 10)
@@ -447,6 +455,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               SequenceNumber current, bool applying,
                               bool chargeFee)
 {
+    ZoneScoped;
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
@@ -505,6 +514,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 void
 TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
 {
+    ZoneScoped;
     mCachedAccount.reset();
 
     auto header = ltx.loadHeader();
@@ -568,6 +578,7 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
                                       AccountID const& accountID,
                                       SignerKey const& signerKey) const
 {
+    ZoneScoped;
     LedgerTxn ltx(ltxOuter);
 
     auto account = stellar::loadAccount(ltx, accountID);
@@ -595,6 +606,7 @@ bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
                              SequenceNumber current, bool chargeFee)
 {
+    ZoneScoped;
     mCachedAccount.reset();
 
     LedgerTxn ltx(ltxOuter);
@@ -678,6 +690,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                                   Application& app, AbstractLedgerTxn& ltx,
                                   TransactionMeta& outerMeta)
 {
+    ZoneScoped;
     try
     {
         bool success = true;
@@ -779,6 +792,7 @@ bool
 TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
                         TransactionMeta& meta, bool chargeFee)
 {
+    ZoneScoped;
     try
     {
         mCachedAccount.reset();

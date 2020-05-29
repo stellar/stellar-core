@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include <map>
@@ -44,6 +45,7 @@ static std::map<std::string, HANDLE> lockMap;
 void
 lockFile(std::string const& path)
 {
+    ZoneScoped;
     std::ostringstream errmsg;
 
     if (lockMap.find(path) != lockMap.end())
@@ -70,6 +72,7 @@ lockFile(std::string const& path)
 void
 unlockFile(std::string const& path)
 {
+    ZoneScoped;
     auto it = lockMap.find(path);
     if (it != lockMap.end())
     {
@@ -85,6 +88,7 @@ unlockFile(std::string const& path)
 void
 flushFileChanges(native_handle_t fh)
 {
+    ZoneScoped;
     if (FlushFileBuffers(fh) == FALSE)
     {
         FileSystemException::failWithGetLastError(
@@ -102,6 +106,7 @@ shouldUseRandomAccessHandle(std::string const& path)
 native_handle_t
 openFileToWrite(std::string const& path)
 {
+    ZoneScoped;
     HANDLE h = ::CreateFile(
         path.c_str(),
         GENERIC_READ | GENERIC_WRITE,                   // DesiredAccess
@@ -124,6 +129,7 @@ bool
 durableRename(std::string const& src, std::string const& dst,
               std::string const& dir)
 {
+    ZoneScoped;
     if (MoveFileExA(src.c_str(), dst.c_str(), MOVEFILE_WRITE_THROUGH) == 0)
     {
         FileSystemException::failWithGetLastError(
@@ -135,6 +141,7 @@ durableRename(std::string const& src, std::string const& dst,
 bool
 exists(std::string const& name)
 {
+    ZoneScoped;
     if (name.empty())
         return false;
 
@@ -157,6 +164,7 @@ exists(std::string const& name)
 bool
 mkdir(std::string const& name)
 {
+    ZoneScoped;
     bool b = _mkdir(name.c_str()) == 0;
     CLOG(DEBUG, "Fs") << (b ? "created dir " : "failed to create dir ") << name;
     return b;
@@ -165,6 +173,7 @@ mkdir(std::string const& name)
 void
 deltree(std::string const& d)
 {
+    ZoneScoped;
     namespace fs = std::experimental::filesystem;
     fs::remove_all(fs::path(d));
 }
@@ -173,6 +182,7 @@ std::vector<std::string>
 findfiles(std::string const& p,
           std::function<bool(std::string const& name)> predicate)
 {
+    ZoneScoped;
     using namespace std;
     namespace fs = std::experimental::filesystem;
 
@@ -205,6 +215,7 @@ static std::map<std::string, int> lockMap;
 void
 lockFile(std::string const& path)
 {
+    ZoneScoped;
     std::ostringstream errmsg;
 
     if (lockMap.find(path) != lockMap.end())
@@ -236,6 +247,7 @@ lockFile(std::string const& path)
 void
 unlockFile(std::string const& path)
 {
+    ZoneScoped;
     auto it = lockMap.find(path);
     if (it != lockMap.end())
     {
@@ -252,6 +264,7 @@ unlockFile(std::string const& path)
 void
 flushFileChanges(native_handle_t fd)
 {
+    ZoneScoped;
     while (fsync(fd) == -1)
     {
         if (errno == EINTR)
@@ -272,6 +285,7 @@ shouldUseRandomAccessHandle(std::string const& path)
 native_handle_t
 openFileToWrite(std::string const& path)
 {
+    ZoneScoped;
     int fd;
     while ((fd = ::open(path.c_str(), O_CREAT | O_WRONLY | O_APPEND, 0644)) ==
            -1)
@@ -290,6 +304,7 @@ bool
 durableRename(std::string const& src, std::string const& dst,
               std::string const& dir)
 {
+    ZoneScoped;
     if (rename(src.c_str(), dst.c_str()) != 0)
     {
         return false;
@@ -328,6 +343,7 @@ durableRename(std::string const& src, std::string const& dst,
 bool
 exists(std::string const& name)
 {
+    ZoneScoped;
     struct stat buf;
     if (stat(name.c_str(), &buf) == -1)
     {
@@ -347,6 +363,7 @@ exists(std::string const& name)
 bool
 mkdir(std::string const& name)
 {
+    ZoneScoped;
     bool b = ::mkdir(name.c_str(), 0700) == 0;
     CLOG(DEBUG, "Fs") << (b ? "created dir " : "failed to create dir ") << name;
     return b;
@@ -359,6 +376,7 @@ int
 nftw_deltree_callback(char const* name, struct stat const* st, int flag,
                       struct FTW* ftw)
 {
+    ZoneScoped;
     CLOG(DEBUG, "Fs") << "deleting: " << name;
     if (flag == FTW_DP)
     {
@@ -383,6 +401,7 @@ nftw_deltree_callback(char const* name, struct stat const* st, int flag,
 void
 deltree(std::string const& d)
 {
+    ZoneScoped;
     if (nftw(d.c_str(), nftw_deltree_callback, FOPEN_MAX, FTW_DEPTH) != 0)
     {
         throw FileSystemException("nftw failed in deltree for " + d);
@@ -393,6 +412,7 @@ std::vector<std::string>
 findfiles(std::string const& path,
           std::function<bool(std::string const& name)> predicate)
 {
+    ZoneScoped;
     auto dir = opendir(path.c_str());
     auto result = std::vector<std::string>{};
     if (!dir)
@@ -452,6 +472,7 @@ PathSplitter::hasNext() const
 bool
 mkpath(const std::string& path)
 {
+    ZoneScoped;
     auto splitter = PathSplitter{path};
     while (splitter.hasNext())
     {
@@ -528,6 +549,7 @@ checkNoGzipSuffix(std::string const& filename)
 size_t
 size(std::ifstream& ifs)
 {
+    ZoneScoped;
     assert(ifs.is_open());
 
     ifs.seekg(0, ifs.end);
@@ -540,6 +562,7 @@ size(std::ifstream& ifs)
 size_t
 size(std::string const& filename)
 {
+    ZoneScoped;
     std::ifstream ifs;
     ifs.open(filename, std::ifstream::binary);
     if (ifs)

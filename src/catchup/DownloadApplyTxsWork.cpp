@@ -10,7 +10,7 @@
 #include "ledger/LedgerManager.h"
 #include "work/ConditionalWork.h"
 #include "work/WorkSequence.h"
-
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -34,6 +34,7 @@ DownloadApplyTxsWork::DownloadApplyTxsWork(
 std::shared_ptr<BasicWork>
 DownloadApplyTxsWork::yieldMoreWork()
 {
+    ZoneScoped;
     if (!hasNext())
     {
         throw std::runtime_error("Work has no more children to iterate over!");

@@ -197,3 +197,11 @@ lib/util/finally.h
   (https://github.com/Microsoft/GSL)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
+
+lib/tracy
+
+  Tracy Profiler
+  Copyright (c) 2017-2020, Bartosz Taudul <wolf.pld@gmail.com>
+  (https://bitbucket.org/wolfpld/tracy)
+  Licensed under the 3-clause BSD license.
+  (https://opensource.org/licenses/BSD-3-Clause)

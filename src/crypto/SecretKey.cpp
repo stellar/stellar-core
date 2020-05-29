@@ -13,6 +13,7 @@
 #include "util/HashOfHash.h"
 #include "util/Math.h"
 #include "util/RandomEvictionCache.h"
+#include <Tracy.hpp>
 #include <memory>
 #include <mutex>
 #include <sodium.h>
@@ -124,6 +125,7 @@ SecretKey::isZero() const
 Signature
 SecretKey::sign(ByteSlice const& bin) const
 {
+    ZoneScoped;
     assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     Signature out(crypto_sign_BYTES, 0);
@@ -312,6 +314,7 @@ bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
+    ZoneScoped;
     assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
     if (signature.size() != 64)
     {
@@ -325,10 +328,14 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         if (gVerifySigCache.exists(cacheKey))
         {
             ++gVerifyCacheHit;
+            std::string hitStr("hit");
+            ZoneText(hitStr.c_str(), hitStr.size());
             return gVerifySigCache.get(cacheKey);
         }
     }
 
+    std::string missStr("miss");
+    ZoneText(missStr.c_str(), missStr.size());
     ++gVerifyCacheMiss;
     bool ok =
         (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),

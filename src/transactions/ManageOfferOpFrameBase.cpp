@@ -9,6 +9,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -202,6 +203,12 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
 bool
 ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
 {
+    ZoneNamedN(applyZone, "ManageOfferOp apply", true);
+    std::string pairStr = assetToString(mSheep);
+    pairStr += ":";
+    pairStr += assetToString(mWheat);
+    ZoneTextV(applyZone, pairStr.c_str(), pairStr.size());
+
     LedgerTxn ltx(ltxOuter);
     if (!checkOfferValid(ltx))
     {

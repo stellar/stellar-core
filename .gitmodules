@@ -16,3 +16,6 @@
 [submodule "lib/fmt"]
 	path = lib/fmt
 	url = https://github.com/fmtlib/fmt
+[submodule "lib/tracy"]
+	path = lib/tracy
+	url = https://github.com/stellar/tracy

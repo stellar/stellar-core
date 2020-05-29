@@ -13,6 +13,7 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -20,6 +21,7 @@ namespace stellar
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
 {
+    ZoneScoped;
     std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
 
     std::string inflationDest, homeDomain, thresholds, signers;
@@ -437,6 +439,8 @@ void
 LedgerTxnRoot::Impl::bulkUpsertAccounts(
     std::vector<EntryIterator> const& entries)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkUpsertAccountsOperation op(mDatabase, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -445,6 +449,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteAccounts(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkDeleteAccountsOperation op(mDatabase, cons, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -644,6 +650,8 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadAccounts(
     std::unordered_set<LedgerKey> const& keys) const
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
         BulkLoadAccountsOperation op(mDatabase, keys);

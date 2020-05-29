@@ -9,6 +9,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -29,6 +30,17 @@ PathPaymentStrictSendOpFrame::isVersionSupported(uint32_t protocolVersion) const
 bool
 PathPaymentStrictSendOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "PathPaymentStrictSendOp apply", true);
+    std::string pathStr = assetToString(getSourceAsset());
+    for (auto const& asset : mPathPayment.path)
+    {
+        pathStr += "->";
+        pathStr += assetToString(asset);
+    }
+    pathStr += "->";
+    pathStr += assetToString(getDestAsset());
+    ZoneTextV(applyZone, pathStr.c_str(), pathStr.size());
+
     setResultSuccess();
 
     bool bypassIssuerCheck = shouldBypassIssuerCheck(mPathPayment.path);

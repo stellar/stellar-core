@@ -11,6 +11,7 @@
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -43,6 +44,8 @@ SetOptionsOpFrame::getThresholdLevel() const
 bool
 SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
+    ZoneNamedN(applyZone, "SetOptionsOp apply", true);
+
     auto header = ltx.loadHeader();
     auto sourceAccount = loadSourceAccount(ltx, header);
     auto& account = sourceAccount.current().data.account();

@@ -4,6 +4,7 @@
 
 #include "work/Work.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -35,6 +36,7 @@ Work::getStatus() const
 void
 Work::shutdown()
 {
+    ZoneScoped;
     shutdownChildren();
     BasicWork::shutdown();
 }
@@ -42,6 +44,7 @@ Work::shutdown()
 BasicWork::State
 Work::onRun()
 {
+    ZoneScoped;
     if (mAbortChildrenButNotSelf)
     {
         // Stop whatever work was doing, just wait for children to abort
@@ -80,6 +83,7 @@ Work::onRun()
 bool
 Work::onAbort()
 {
+    ZoneScoped;
     auto child = yieldNextRunningChild();
     if (child)
     {
@@ -120,6 +124,7 @@ Work::shutdownChildren()
 void
 Work::onReset()
 {
+    ZoneScoped;
     clearChildren();
     mAbortChildrenButNotSelf = false;
     doReset();
@@ -133,6 +138,7 @@ Work::doReset()
 void
 Work::clearChildren()
 {
+    ZoneScoped;
     assert(allChildrenDone());
     mDoneChildren += mChildren.size();
     mChildren.clear();

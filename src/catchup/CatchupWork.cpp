@@ -22,6 +22,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -78,6 +79,7 @@ CatchupWork::getStatus() const
 void
 CatchupWork::doReset()
 {
+    ZoneScoped;
     mBucketsAppliedEmitted = false;
     mTransactionsVerifyEmitted = false;
     mBuckets.clear();
@@ -111,6 +113,7 @@ void
 CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
                                        LedgerNumHashPair rangeEnd)
 {
+    ZoneScoped;
     auto verifyRange = catchupRange.getFullRangeIncludingBucketApply();
     assert(verifyRange.mCount != 0);
     auto checkpointRange =
@@ -130,6 +133,7 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
 void
 CatchupWork::downloadVerifyTxResults(CatchupRange const& catchupRange)
 {
+    ZoneScoped;
     auto range = catchupRange.getReplayRange();
     auto checkpointRange = CheckpointRange{range, mApp.getHistoryManager()};
     mVerifyTxResults = std::make_shared<DownloadVerifyTxResultsWork>(
@@ -146,6 +150,7 @@ CatchupWork::alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const
 WorkSeqPtr
 CatchupWork::downloadApplyBuckets()
 {
+    ZoneScoped;
     auto const& has = mGetBucketStateWork->getHistoryArchiveState();
     std::vector<std::string> hashes = has.differingBuckets(mLocalState);
     auto getBuckets = std::make_shared<DownloadBucketsWork>(
@@ -187,6 +192,7 @@ CatchupWork::assertBucketState()
 void
 CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 {
+    ZoneScoped;
     auto waitForPublish = mCatchupConfiguration.offline();
     auto range = catchupRange.getReplayRange();
     mTransactionsVerifyApplySeq = std::make_shared<DownloadApplyTxsWork>(
@@ -196,6 +202,7 @@ CatchupWork::downloadApplyTransactions(CatchupRange const& catchupRange)
 BasicWork::State
 CatchupWork::runCatchupStep()
 {
+    ZoneScoped;
     // Step 1: Get history archive state
     if (!mGetHistoryArchiveStateWork)
     {
@@ -402,6 +409,7 @@ CatchupWork::runCatchupStep()
 BasicWork::State
 CatchupWork::doWork()
 {
+    ZoneScoped;
     auto nextState = runCatchupStep();
     auto& cm = mApp.getCatchupManager();
 

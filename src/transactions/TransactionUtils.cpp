@@ -11,6 +11,7 @@
 #include "transactions/OfferExchange.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -71,12 +72,14 @@ dataKey(AccountID const& accountID, std::string const& dataName)
 LedgerTxnEntry
 loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
+    ZoneScoped;
     return ltx.load(accountKey(accountID));
 }
 
 ConstLedgerTxnEntry
 loadAccountWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
+    ZoneScoped;
     return ltx.loadWithoutRecord(accountKey(accountID));
 }
 
@@ -84,12 +87,14 @@ LedgerTxnEntry
 loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
          std::string const& dataName)
 {
+    ZoneScoped;
     return ltx.load(dataKey(accountID, dataName));
 }
 
 LedgerTxnEntry
 loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, int64_t offerID)
 {
+    ZoneScoped;
     return ltx.load(offerKey(sellerID, offerID));
 }
 
@@ -97,6 +102,7 @@ TrustLineWrapper
 loadTrustLine(AbstractLedgerTxn& ltx, AccountID const& accountID,
               Asset const& asset)
 {
+    ZoneScoped;
     return TrustLineWrapper(ltx, accountID, asset);
 }
 
@@ -104,6 +110,7 @@ ConstTrustLineWrapper
 loadTrustLineWithoutRecord(AbstractLedgerTxn& ltx, AccountID const& accountID,
                            Asset const& asset)
 {
+    ZoneScoped;
     return ConstTrustLineWrapper(ltx, accountID, asset);
 }
 
@@ -111,6 +118,7 @@ TrustLineWrapper
 loadTrustLineIfNotNative(AbstractLedgerTxn& ltx, AccountID const& accountID,
                          Asset const& asset)
 {
+    ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return {};
@@ -123,6 +131,7 @@ loadTrustLineWithoutRecordIfNotNative(AbstractLedgerTxn& ltx,
                                       AccountID const& accountID,
                                       Asset const& asset)
 {
+    ZoneScoped;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         return {};
@@ -135,6 +144,7 @@ acquireOrReleaseLiabilities(AbstractLedgerTxn& ltx,
                             LedgerTxnHeader const& header,
                             LedgerTxnEntry const& offerEntry, bool isAcquire)
 {
+    ZoneScoped;
     // This should never happen
     auto const& offer = offerEntry.current().data.offer();
     if (offer.buying == offer.selling)

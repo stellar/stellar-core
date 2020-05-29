@@ -9,6 +9,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -47,6 +48,7 @@ getTrustLineStrings(AccountID const& accountID, Asset const& asset,
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
 {
+    ZoneScoped;
     std::string accountIDStr, issuerStr, assetStr;
     getTrustLineStrings(key.trustLine().accountID, key.trustLine().asset,
                         accountIDStr, issuerStr, assetStr);
@@ -381,6 +383,8 @@ void
 LedgerTxnRoot::Impl::bulkUpsertTrustLines(
     std::vector<EntryIterator> const& entries)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkUpsertTrustLinesOperation op(mDatabase, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -389,6 +393,8 @@ void
 LedgerTxnRoot::Impl::bulkDeleteTrustLines(
     std::vector<EntryIterator> const& entries, LedgerTxnConsistency cons)
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(entries.size()));
     BulkDeleteTrustLinesOperation op(mDatabase, cons, entries);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
@@ -615,6 +621,8 @@ std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadTrustLines(
     std::unordered_set<LedgerKey> const& keys) const
 {
+    ZoneScoped;
+    ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
         BulkLoadTrustLinesOperation op(mDatabase, keys);

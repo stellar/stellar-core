@@ -15,6 +15,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -63,6 +64,7 @@ ApplyBucketsWork::getBucket(std::string const& hash)
 void
 ApplyBucketsWork::onReset()
 {
+    ZoneScoped;
     CLOG(INFO, "History") << "Applying buckets";
 
     mTotalBuckets = 0;
@@ -102,6 +104,7 @@ ApplyBucketsWork::onReset()
 void
 ApplyBucketsWork::startLevel()
 {
+    ZoneScoped;
     assert(isLevelComplete());
 
     CLOG(DEBUG, "History") << "ApplyBuckets : starting level " << mLevel;
@@ -148,6 +151,7 @@ ApplyBucketsWork::startLevel()
 BasicWork::State
 ApplyBucketsWork::onRun()
 {
+    ZoneScoped;
     if (!mHaveCheckedApplyStateValidity && mLevel == BucketList::kNumLevels - 1)
     {
         if (!mApplyState.containsValidBuckets(mApp))
@@ -215,6 +219,7 @@ void
 ApplyBucketsWork::advance(std::string const& bucketName,
                           BucketApplicator& applicator)
 {
+    ZoneScoped;
     assert(applicator);
     assert(mTotalSize != 0);
     auto sz = applicator.advance(mCounters);

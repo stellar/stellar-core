@@ -51,6 +51,7 @@ listall() {
  # The following does not work without boost or -DASIO_STANDALONE=1
  #echo ASIO_CXX_FILES = asio/src/*.cpp
  echo ASIO_CXX_FILES = asio.cpp
+ echo TRACY_CXX_FILES = tracy/TracyClient.cpp
  echo JSON_FILES = $(listall json)
 
  echo MISC_H_FILES = *.hpp $(listall autocheck cereal fmt)

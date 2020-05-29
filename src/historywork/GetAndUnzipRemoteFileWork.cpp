@@ -7,6 +7,7 @@
 #include "historywork/GetRemoteFileWork.h"
 #include "historywork/GunzipFileWork.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -69,6 +70,7 @@ GetAndUnzipRemoteFileWork::onSuccess()
 BasicWork::State
 GetAndUnzipRemoteFileWork::doWork()
 {
+    ZoneScoped;
     if (mGunzipFileWork)
     {
         // Download completed, unzipping started
@@ -114,6 +116,7 @@ GetAndUnzipRemoteFileWork::doWork()
 bool
 GetAndUnzipRemoteFileWork::validateFile()
 {
+    ZoneScoped;
     if (!fs::exists(mFt.localPath_gz_tmp()))
     {
         CLOG(ERROR, "History") << "Downloading and unzipping "

@@ -18,6 +18,7 @@
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 #include <cereal/archives/json.hpp>
@@ -58,6 +59,7 @@ formatString(std::string const& templateString, Tokens const&... tokens)
 bool
 HistoryArchiveState::futuresAllResolved() const
 {
+    ZoneScoped;
     for (auto const& level : currentBuckets)
     {
         if (level.next.isMerging())
@@ -79,6 +81,7 @@ HistoryArchiveState::futuresAllClear() const
 void
 HistoryArchiveState::resolveAllFutures()
 {
+    ZoneScoped;
     for (auto& level : currentBuckets)
     {
         if (level.next.isMerging())
@@ -91,6 +94,7 @@ HistoryArchiveState::resolveAllFutures()
 void
 HistoryArchiveState::resolveAnyReadyFutures()
 {
+    ZoneScoped;
     for (auto& level : currentBuckets)
     {
         if (level.next.isMerging() && level.next.mergeComplete())
@@ -103,6 +107,7 @@ HistoryArchiveState::resolveAnyReadyFutures()
 void
 HistoryArchiveState::save(std::string const& outFile) const
 {
+    ZoneScoped;
     std::ofstream out(outFile);
     cereal::JSONOutputArchive ar(out);
     serialize(ar);
@@ -111,6 +116,7 @@ HistoryArchiveState::save(std::string const& outFile) const
 std::string
 HistoryArchiveState::toString() const
 {
+    ZoneScoped;
     // We serialize-to-a-string any HAS, regardless of resolvedness, as we are
     // usually doing this to write to the database on the main thread, just as a
     // durability step: we don't want to block.
@@ -125,6 +131,7 @@ HistoryArchiveState::toString() const
 void
 HistoryArchiveState::load(std::string const& inFile)
 {
+    ZoneScoped;
     std::ifstream in(inFile);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
@@ -139,6 +146,7 @@ HistoryArchiveState::load(std::string const& inFile)
 void
 HistoryArchiveState::fromString(std::string const& str)
 {
+    ZoneScoped;
     std::istringstream in(str);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
@@ -185,6 +193,7 @@ HistoryArchiveState::localName(Application& app, std::string const& archiveName)
 Hash
 HistoryArchiveState::getBucketListHash() const
 {
+    ZoneScoped;
     // NB: This hash algorithm has to match "what the BucketList does" to
     // calculate its BucketList hash exactly. It's not a particularly complex
     // algorithm -- just hash all the hashes of all the bucket levels, in order,
@@ -208,6 +217,7 @@ HistoryArchiveState::getBucketListHash() const
 std::vector<std::string>
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
+    ZoneScoped;
     assert(futuresAllResolved());
     std::set<std::string> inhibit;
     uint256 zero;
@@ -251,6 +261,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 std::vector<std::string>
 HistoryArchiveState::allBuckets() const
 {
+    ZoneScoped;
     std::set<std::string> buckets;
     for (auto const& level : currentBuckets)
     {
@@ -265,6 +276,7 @@ HistoryArchiveState::allBuckets() const
 bool
 HistoryArchiveState::containsValidBuckets(Application& app) const
 {
+    ZoneScoped;
     // This function assumes presence of required buckets to verify state
     // Level 0 future buckets are always clear
     assert(currentBuckets[0].next.isClear());
@@ -305,6 +317,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 void
 HistoryArchiveState::prepareForPublish(Application& app)
 {
+    ZoneScoped;
     // Level 0 future buckets are always clear
     assert(currentBuckets[0].next.isClear());
 

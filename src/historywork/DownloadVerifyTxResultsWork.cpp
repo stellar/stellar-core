@@ -10,6 +10,7 @@
 #include "historywork/Progress.h"
 #include "historywork/VerifyTxResultsWork.h"
 #include "work/WorkSequence.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -54,6 +55,7 @@ DownloadVerifyTxResultsWork::resetIter()
 std::shared_ptr<BasicWork>
 DownloadVerifyTxResultsWork::yieldMoreWork()
 {
+    ZoneScoped;
     if (!hasNext())
     {
         throw std::runtime_error("Nothing to iterate over!");

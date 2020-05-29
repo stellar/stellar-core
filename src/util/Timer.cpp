@@ -7,6 +7,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Scheduler.h"
+#include <Tracy.hpp>
 #include <chrono>
 #include <cstdio>
 #include <thread>
@@ -206,6 +207,7 @@ VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
 void
 VirtualClock::flushCancelledEvents()
 {
+    ZoneScoped;
     if (mDestructing)
     {
         return;
@@ -243,6 +245,7 @@ VirtualClock::flushCancelledEvents()
 bool
 VirtualClock::cancelAllEvents()
 {
+    ZoneScoped;
     assertThreadIsMain();
 
     bool wasEmpty = mEvents.empty();
@@ -275,6 +278,7 @@ VirtualClock::setCurrentVirtualTime(system_time_point t)
 void
 VirtualClock::sleep_for(std::chrono::microseconds us)
 {
+    ZoneScoped;
     if (mMode == VIRTUAL_TIME)
     {
         setCurrentVirtualTime(now() + us);
@@ -321,6 +325,7 @@ crankStep(VirtualClock& clock, std::function<size_t()> step, size_t divisor = 1)
 size_t
 VirtualClock::crank(bool block)
 {
+    ZoneScoped;
     if (mDestructing)
     {
         return 0;
@@ -333,6 +338,7 @@ VirtualClock::crank(bool block)
         nRealTimerCancelEvents = 0;
         if (mMode == REAL_TIME)
         {
+            ZoneNamedN(timerZone, "dispatch timers", true);
             // Dispatch all pending timers.
             progressCount += advanceToNow();
         }
@@ -344,14 +350,24 @@ VirtualClock::crank(bool block)
         auto overloadedDuration =
             std::min(static_cast<std::chrono::seconds::rep>(30),
                      mActionScheduler->getOverloadedDuration().count());
+        std::string overloadStr =
+            overloadedDuration > 0 ? "overloaded" : "slack";
         size_t ioDivisor = 1ULL << overloadedDuration;
-        progressCount += crankStep(
-            *this, [this] { return this->mIOContext.poll_one(); }, ioDivisor);
+        {
+            ZoneNamedN(ioPollZone, "ASIO polling", true);
+            ZoneText(overloadStr.c_str(), overloadStr.size());
+            progressCount +=
+                crankStep(*this, [this] { return this->mIOContext.poll_one(); },
+                          ioDivisor);
+        }
 
         // Dispatch some scheduled actions.
         mLastDispatchStart = now();
-        progressCount += crankStep(
-            *this, [this] { return this->mActionScheduler->runOne(); });
+        {
+            ZoneNamedN(schedZone, "scheduler", true);
+            progressCount += crankStep(
+                *this, [this] { return this->mActionScheduler->runOne(); });
+        }
 
         // Subtract out any timer cancellations from the above two steps.
         progressCount -= nRealTimerCancelEvents;
@@ -366,6 +382,7 @@ VirtualClock::crank(bool block)
     // At this point main and background threads can add work to next crank.
     if (block && progressCount == 0)
     {
+        ZoneNamedN(blockingZone, "ASIO blocking", true);
         // If we didn't make progress and caller wants blocking, block now.
         progressCount += mIOContext.run_one();
     }
@@ -475,6 +492,7 @@ VirtualClock::~VirtualClock()
 size_t
 VirtualClock::advanceToNow()
 {
+    ZoneScoped;
     if (mDestructing)
     {
         return 0;
@@ -597,6 +615,7 @@ VirtualTimer::cancel()
 {
     if (!mCancelled)
     {
+        ZoneScoped;
         mCancelled = true;
         for (auto ev : mEvents)
         {
@@ -622,6 +641,7 @@ VirtualTimer::seq() const
 void
 VirtualTimer::expires_at(VirtualClock::time_point t)
 {
+    ZoneScoped;
     cancel();
     mExpiryTime = t;
     mCancelled = false;
@@ -630,6 +650,7 @@ VirtualTimer::expires_at(VirtualClock::time_point t)
 void
 VirtualTimer::expires_from_now(VirtualClock::duration d)
 {
+    ZoneScoped;
     cancel();
     mExpiryTime = mClock.now() + d;
     mCancelled = false;

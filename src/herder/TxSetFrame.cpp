@@ -19,6 +19,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 #include <algorithm>
 #include <list>
 #include <numeric>
@@ -38,6 +39,7 @@ TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
     : mHashIsValid(false)
 {
+    ZoneScoped;
     for (auto const& env : xdrSet.txs)
     {
         auto tx = TransactionFrameBase::makeTransactionFromWire(networkID, env);
@@ -60,6 +62,7 @@ HashTxSorter(TransactionFrameBasePtr const& tx1,
 void
 TxSetFrame::sortForHash()
 {
+    ZoneScoped;
     std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter);
     mHashIsValid = false;
 }
@@ -101,6 +104,7 @@ SeqSorter(TransactionFrameBasePtr const& tx1,
 std::vector<TransactionFrameBasePtr>
 TxSetFrame::sortForApply()
 {
+    ZoneScoped;
     auto txQueues = buildAccountTxQueues();
 
     // build txBatches
@@ -192,6 +196,7 @@ struct SurgeCompare
 std::unordered_map<AccountID, TxSetFrame::AccountTransactionQueue>
 TxSetFrame::buildAccountTxQueues()
 {
+    ZoneScoped;
     std::unordered_map<AccountID, AccountTransactionQueue> actTxQueueMap;
     for (auto& tx : mTransactions)
     {
@@ -217,6 +222,7 @@ TxSetFrame::buildAccountTxQueues()
 void
 TxSetFrame::surgePricingFilter(Application& app)
 {
+    ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
     auto header = ltx.loadHeader();
 
@@ -279,6 +285,7 @@ TxSetFrame::checkOrTrim(Application& app,
                         std::vector<TransactionFrameBasePtr>& trimmed,
                         bool justCheck)
 {
+    ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
 
     std::unordered_map<AccountID, int64_t> accountFeeMap;
@@ -361,6 +368,7 @@ TxSetFrame::checkOrTrim(Application& app,
 std::vector<TransactionFrameBasePtr>
 TxSetFrame::trimInvalid(Application& app)
 {
+    ZoneScoped;
     std::vector<TransactionFrameBasePtr> trimmed;
     sortForHash();
     checkOrTrim(app, trimmed, false);
@@ -373,6 +381,7 @@ TxSetFrame::trimInvalid(Application& app)
 bool
 TxSetFrame::checkValid(Application& app)
 {
+    ZoneScoped;
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
@@ -418,6 +427,7 @@ TxSetFrame::removeTx(TransactionFrameBasePtr tx)
 Hash const&
 TxSetFrame::getContentsHash()
 {
+    ZoneScoped;
     if (!mHashIsValid)
     {
         sortForHash();
@@ -455,6 +465,7 @@ TxSetFrame::size(LedgerHeader const& lh) const
 size_t
 TxSetFrame::sizeOp() const
 {
+    ZoneScoped;
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            size_t(0),
                            [](size_t a, TransactionFrameBasePtr const& tx) {
@@ -497,6 +508,7 @@ TxSetFrame::getBaseFee(LedgerHeader const& lh) const
 int64_t
 TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 {
+    ZoneScoped;
     auto baseFee = getBaseFee(lh);
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            int64_t(0),
@@ -508,6 +520,7 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
 void
 TxSetFrame::toXDR(TransactionSet& txSet)
 {
+    ZoneScoped;
     releaseAssert(std::is_sorted(mTransactions.begin(), mTransactions.end(),
                                  HashTxSorter));
     txSet.txs.resize(xdr::size32(mTransactions.size()));

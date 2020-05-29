@@ -4,6 +4,7 @@
 
 #include "ConditionalWork.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 
 namespace stellar
@@ -35,6 +36,7 @@ ConditionalWork::ConditionalWork(Application& app, std::string name,
 BasicWork::State
 ConditionalWork::onRun()
 {
+    ZoneScoped;
     if (mWorkStarted)
     {
         mConditionedWork->crankWork();
@@ -75,6 +77,7 @@ ConditionalWork::onRun()
 void
 ConditionalWork::shutdown()
 {
+    ZoneScoped;
     if (mWorkStarted)
     {
         mConditionedWork->shutdown();
@@ -85,6 +88,7 @@ ConditionalWork::shutdown()
 bool
 ConditionalWork::onAbort()
 {
+    ZoneScoped;
     if (mWorkStarted && !mConditionedWork->isDone())
     {
         mConditionedWork->crankWork();

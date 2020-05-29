@@ -11,6 +11,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 #include <unordered_set>
 #include <xdrpp/marshal.h>
 
@@ -105,6 +106,7 @@ PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
 void
 PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
+    ZoneScoped;
     putQSet(hash, q);
     mQuorumSetFetcher.recv(hash, mFetchQsetTimer);
 }
@@ -112,6 +114,7 @@ PendingEnvelopes::addSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 bool
 PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
+    ZoneScoped;
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
@@ -135,6 +138,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 void
 PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
 {
+    ZoneScoped;
     CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with SCPQSet "
                           << hexAbbrev(hash);
 
@@ -159,6 +163,8 @@ PendingEnvelopes::updateMetrics()
         fetching += v.mFetchingEnvelopes.size();
         ready += v.mReadyEnvelopes.size();
     }
+    TracyPlot("scp.pending.processed", processed);
+    TracyPlot("scp.pending.fetching", fetching);
     mProcessedCount.set_count(processed);
     mDiscardedCount.set_count(discarded);
     mFetchingCount.set_count(fetching);
@@ -214,6 +220,7 @@ void
 PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                            TxSetFramePtr txset)
 {
+    ZoneScoped;
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
     putTxSet(hash, lastSeenSlotIndex, txset);
@@ -223,6 +230,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
 bool
 PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFramePtr txset)
 {
+    ZoneScoped;
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
@@ -264,6 +272,7 @@ txSetsToStr(SCPEnvelope const& envelope)
 Herder::EnvelopeStatus
 PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     auto const& nodeID = envelope.statement.nodeID;
     if (!isNodeDefinitelyInQuorum(nodeID))
     {
@@ -432,6 +441,7 @@ PendingEnvelopes::clearQSetCache()
 void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     if (Logging::logTrace("Herder"))
     {
         CLOG(TRACE, "Herder") << "Envelope ready "
@@ -469,6 +479,7 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 void
 PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
 
     bool needSomething = false;
@@ -499,6 +510,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 void
 PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 {
+    ZoneScoped;
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
     mQuorumSetFetcher.stopFetch(h, envelope);
 

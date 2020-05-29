@@ -10,6 +10,7 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 #include <fstream>
 #include <string>
@@ -41,12 +42,14 @@ class XDRInputFileStream
     void
     close()
     {
+        ZoneScoped;
         mIn.close();
     }
 
     void
     open(std::string const& filename)
     {
+        ZoneScoped;
         mIn.open(filename, std::ifstream::binary);
         if (!mIn)
         {
@@ -84,6 +87,7 @@ class XDRInputFileStream
     bool
     readOne(T& out)
     {
+        ZoneScoped;
         char szBuf[4];
         if (!mIn.read(szBuf, 4))
         {
@@ -176,6 +180,7 @@ class XDROutputFileStream
     void
     close()
     {
+        ZoneScoped;
         if (!isOpen())
         {
             FileSystemException::failWith(
@@ -220,6 +225,7 @@ class XDROutputFileStream
     void
     flush()
     {
+        ZoneScoped;
         if (!isOpen())
         {
             FileSystemException::failWith(
@@ -248,6 +254,7 @@ class XDROutputFileStream
     void
     open(std::string const& filename)
     {
+        ZoneScoped;
         mUsingRandomAccessHandle = fs::shouldUseRandomAccessHandle(filename);
         if (isOpen())
         {
@@ -275,6 +282,7 @@ class XDROutputFileStream
     void
     writeOne(T const& t, SHA256* hasher = nullptr, size_t* bytesPut = nullptr)
     {
+        ZoneScoped;
         if (!isOpen())
         {
             FileSystemException::failWith(

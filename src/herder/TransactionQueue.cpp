@@ -12,6 +12,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/HashOfHash.h"
 #include "util/XDROperators.h"
+#include <Tracy.hpp>
 
 #include <algorithm>
 #include <fmt/format.h>
@@ -113,6 +114,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                          AccountStates::iterator& stateIter,
                          TimestampedTransactions::iterator& oldTxIter)
 {
+    ZoneScoped;
     if (isBanned(tx->getFullHash()))
     {
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
@@ -227,6 +229,7 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
 TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 {
+    ZoneScoped;
     AccountStates::iterator stateIter;
     TimestampedTransactions::iterator oldTxIter;
     auto const res = canAdd(tx, stateIter, oldTxIter);
@@ -266,6 +269,7 @@ TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
                                    TimestampedTransactions::iterator begin,
                                    TimestampedTransactions::iterator end)
 {
+    ZoneScoped;
     // Remove fees and update queue size for each transaction to be dropped.
     // Note releaseFeeMaybeEraseSourceAccount may erase other iterators from
     // mAccountStates, but it will not erase stateIter because it has at least
@@ -299,6 +303,7 @@ TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
 void
 TransactionQueue::removeApplied(Transactions const& appliedTxs)
 {
+    ZoneScoped;
     // Find the highest sequence number that was applied for each source account
     std::map<AccountID, int64_t> seqByAccount;
     std::unordered_set<Hash> appliedHashes;
@@ -393,6 +398,7 @@ findTx(TransactionFrameBasePtr tx,
 void
 TransactionQueue::ban(Transactions const& banTxs)
 {
+    ZoneScoped;
     auto& bannedFront = mBannedTransactions.front();
 
     // Group the transactions by source account and ban all the transactions
@@ -481,6 +487,7 @@ TransactionQueue::getAccountTransactionQueueInfo(
 void
 TransactionQueue::shift()
 {
+    ZoneScoped;
     mBannedTransactions.pop_back();
     mBannedTransactions.emplace_front();
 
@@ -558,6 +565,7 @@ TransactionQueue::isBanned(Hash const& hash) const
 std::shared_ptr<TxSetFrame>
 TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
 {
+    ZoneScoped;
     auto result = std::make_shared<TxSetFrame>(lcl.hash);
 
     uint32_t const nextLedgerSeq = lcl.header.ledgerSeq + 1;

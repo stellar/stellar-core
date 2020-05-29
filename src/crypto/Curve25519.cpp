@@ -5,6 +5,7 @@
 #include "crypto/Curve25519.h"
 #include "crypto/SHA.h"
 #include "util/HashOfHash.h"
+#include <Tracy.hpp>
 #include <functional>
 
 #ifdef MSAN_ENABLED
@@ -28,6 +29,7 @@ curve25519RandomSecret()
 Curve25519Public
 curve25519DerivePublic(Curve25519Secret const& sec)
 {
+    ZoneScoped;
     Curve25519Public out;
     if (crypto_scalarmult_base(out.key.data(), sec.key.data()) != 0)
     {
@@ -49,6 +51,7 @@ curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
                           Curve25519Public const& localPublic,
                           Curve25519Public const& remotePublic, bool localFirst)
 {
+    ZoneScoped;
     auto const& publicA = localFirst ? localPublic : remotePublic;
     auto const& publicB = localFirst ? remotePublic : localPublic;
 
@@ -75,6 +78,7 @@ curve25519Decrypt(Curve25519Secret const& localSecret,
                   Curve25519Public const& localPublic,
                   ByteSlice const& encrypted)
 {
+    ZoneScoped;
     if (encrypted.size() < crypto_box_SEALBYTES)
     {
         throw CryptoError(

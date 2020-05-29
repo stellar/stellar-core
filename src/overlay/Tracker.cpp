@@ -15,6 +15,7 @@
 #include "util/Math.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -52,6 +53,7 @@ Tracker::pop()
 bool
 Tracker::clearEnvelopesBelow(uint64 slotIndex)
 {
+    ZoneScoped;
     for (auto iter = mWaitingEnvelopes.begin();
          iter != mWaitingEnvelopes.end();)
     {
@@ -88,6 +90,7 @@ Tracker::doesntHave(Peer::pointer peer)
 void
 Tracker::tryNextPeer()
 {
+    ZoneScoped;
     // will be called by some timer or when we get a
     // response saying they don't have it
     CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
@@ -212,6 +215,7 @@ Tracker::tryNextPeer()
 void
 Tracker::listen(const SCPEnvelope& env)
 {
+    ZoneScoped;
     mLastSeenSlotIndex = std::max(env.statement.slotIndex, mLastSeenSlotIndex);
 
     StellarMessage m;
@@ -226,6 +230,7 @@ Tracker::listen(const SCPEnvelope& env)
 void
 Tracker::discard(const SCPEnvelope& env)
 {
+    ZoneScoped;
     auto matchEnvelope = [&env](std::pair<Hash, SCPEnvelope> const& x) {
         return x.second == env;
     };

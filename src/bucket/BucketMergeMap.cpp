@@ -5,12 +5,14 @@
 #include "bucket/BucketMergeMap.h"
 #include "crypto/Hex.h"
 #include "util/Logging.h"
+#include <Tracy.hpp>
 
 namespace
 {
 std::unordered_set<stellar::Hash>
 getMergeKeyHashes(stellar::MergeKey const& key)
 {
+    ZoneScoped;
     std::unordered_set<stellar::Hash> hashes;
     hashes.emplace(key.mInputCurrBucket);
     hashes.emplace(key.mInputSnapBucket);
@@ -28,6 +30,7 @@ namespace stellar
 void
 BucketMergeMap::recordMerge(MergeKey const& input, Hash const& output)
 {
+    ZoneScoped;
     mMergeKeyToOutput.emplace(input, output);
     mOutputToMergeKey.emplace(output, input);
     for (auto const& in : getMergeKeyHashes(input))
@@ -41,6 +44,7 @@ BucketMergeMap::recordMerge(MergeKey const& input, Hash const& output)
 std::unordered_set<MergeKey>
 BucketMergeMap::forgetAllMergesProducing(Hash const& outputBeingDropped)
 {
+    ZoneScoped;
     std::unordered_set<MergeKey> ret;
     auto mergesProducingOutput =
         mOutputToMergeKey.equal_range(outputBeingDropped);
@@ -102,6 +106,7 @@ BucketMergeMap::forgetAllMergesProducing(Hash const& outputBeingDropped)
 bool
 BucketMergeMap::findMergeFor(MergeKey const& input, Hash& output)
 {
+    ZoneScoped;
     auto i = mMergeKeyToOutput.find(input);
     if (i != mMergeKeyToOutput.end())
     {
@@ -115,6 +120,7 @@ void
 BucketMergeMap::getOutputsUsingInput(Hash const& input,
                                      std::set<Hash>& outputs) const
 {
+    ZoneScoped;
     auto pair = mInputToOutput.equal_range(input);
     for (auto i = pair.first; i != pair.second; ++i)
     {

@@ -133,3 +133,20 @@ Here are sample steps to achieve this:
     git clone https://github.com/stellar/stellar-core.git
     cd stellar-core/
     ./autogen.sh && ./configure && make -j6
+
+## Building with Tracing
+
+Configuring with `--enable-tracy` will build and embed the client component of the [Tracy](https://github.com/wolfpld/tracy) high-resolution tracing system in the `stellar-core` binary.
+
+The tracing client will activate automatically when stellar-core is running, and will listen for connections from Tracy servers (a command-line capture utility, or a cross-platform GUI).
+
+The Tracy server components can also be compiled by configuring with `--enable-tracy-gui` or `--enable-tracy-capture`.
+
+The GUI depends on the `capstone`, `freetype` and `glfw` libraries and their headers, and on linux or BSD the `GTK-2.0` libraries and headers. On Windows and MacOS, native toolkits are used instead.
+
+
+    # On Ubuntu
+    $ sudo apt-get install libcapstone-dev libfreetype6-dev libglfw3-dev libgtk2.0-dev
+
+    # On MacOS
+    $ brew install capstone freetype2 glfw
