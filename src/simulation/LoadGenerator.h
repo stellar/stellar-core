@@ -35,8 +35,14 @@ class LoadGenerator
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
     // with the remainder.
+    // txRate: The number of transactions per second when there is no spike.
+    // spikeInterval: A spike will occur every spikeInterval seconds.
+    //                Set this to 0 if no spikes are needed.
+    // spikeSize: The number of transactions a spike injects on top of the
+    // steady rate.
     void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
-                      uint32_t nTxs, uint32_t txRate, uint32_t batchSize);
+                      uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
+                      std::chrono::seconds spikeInterval, uint32_t spikeSize);
 
     // Verify cached accounts are properly reflected in the database
     // return any accounts that are inconsistent.
@@ -99,12 +105,15 @@ class LoadGenerator
 
     void reset();
     void createRootAccount();
-    int64_t getTxPerStep(uint32_t txRate);
+    int64_t getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
+                         uint32_t spikeSize);
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                 uint32_t offset, uint32_t nTxs, uint32_t txRate,
-                                uint32_t batchSize);
+                                uint32_t batchSize,
+                                std::chrono::seconds spikeInterval,
+                                uint32_t spikeSize);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
