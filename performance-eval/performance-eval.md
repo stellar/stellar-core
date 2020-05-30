@@ -289,6 +289,31 @@ solution is, as root to run
     sysctl kernel.sched_schedstats=1
 
 ## Windows
+
+### Tracy
+
+Stellar-core has built-in support for Tracy traces.
+
+To install the visualizer, follow the [build and install instructions](https://github.com/wolfpld/tracy) from the main Tracy site.
+
+At a high level you need to
+
+install the required pre-requesites to build clients, run in a shell:
+
+    vcpkg.exe integrate install
+    vcpkg.exe install --triplet x64-windows-static capstone freetype glfw3
+
+Then build one of the servers.
+
+Solutions for servers compatible with the version of stellar-core can be found under:
+
+    * lib/tracy/profiler/build/win32 (GUI)
+    * lib/tracy/capture/build/win32
+
+Note: when connecting, use `localhost` instead of `127.0.0.1` as Tracy binds by default to IPV6 addresses.
+
+### General Visual Studio profiler
+
 The main page for the profiler built into Visual Studio Community Edition is located there:  https://docs.microsoft.com/en-us/visualstudio/profiling/index
 
 ## All platforms

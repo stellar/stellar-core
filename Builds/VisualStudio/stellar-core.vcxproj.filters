@@ -154,6 +154,9 @@
     <Filter Include="lib\fmt">
       <UniqueIdentifier>{1bf54804-bf4a-430d-9416-16df128fd308}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\tracy">
+      <UniqueIdentifier>{59b37591-b830-4d78-9b4f-c7e2ddcea012}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -1067,6 +1070,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp">
       <Filter>util\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\lib\tracy\TracyClient.cpp">
+      <Filter>lib\tracy</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
