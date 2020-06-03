@@ -7,6 +7,7 @@
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include "util/optional.h"
 #include <deque>
 #include <functional>
 #include <unordered_map>
@@ -39,8 +40,11 @@ class AbstractTxSetFrameForApply
 
 class TxSetFrame : public AbstractTxSetFrameForApply
 {
-    bool mHashIsValid;
-    Hash mHash;
+    optional<Hash> mHash{nullptr};
+
+    // mValid caches both the last app LCL that we checked
+    // vaidity for, and the result of that validity check.
+    optional<std::pair<Hash, bool>> mValid{nullptr};
 
     Hash mPreviousLedgerHash;
 
@@ -89,7 +93,8 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     add(TransactionFrameBasePtr tx)
     {
         mTransactions.push_back(tx);
-        mHashIsValid = false;
+        mHash.reset();
+        mValid.reset();
     }
 
     size_t size(LedgerHeader const& lh) const;

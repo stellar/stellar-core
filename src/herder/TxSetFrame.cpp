@@ -32,12 +32,12 @@ namespace stellar
 using namespace std;
 
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
-    : mHashIsValid(false), mPreviousLedgerHash(previousLedgerHash)
+    : mHash(nullptr), mValid(nullptr), mPreviousLedgerHash(previousLedgerHash)
 {
 }
 
 TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
-    : mHashIsValid(false)
+    : mHash(nullptr), mValid(nullptr)
 {
     ZoneScoped;
     for (auto const& env : xdrSet.txs)
@@ -64,7 +64,8 @@ TxSetFrame::sortForHash()
 {
     ZoneScoped;
     std::sort(mTransactions.begin(), mTransactions.end(), HashTxSorter);
-    mHashIsValid = false;
+    mHash.reset();
+    mValid.reset();
 }
 
 // We want to XOR the tx hash with the set hash.
@@ -383,12 +384,17 @@ TxSetFrame::checkValid(Application& app)
 {
     ZoneScoped;
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    if (mValid && mValid->first == lcl.hash)
+    {
+        return mValid->second;
+    }
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
     {
         CLOG(DEBUG, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: " << hexAbbrev(lcl.hash);
+        mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
@@ -397,6 +403,7 @@ TxSetFrame::checkValid(Application& app)
         CLOG(DEBUG, "Herder")
             << "Got bad txSet: too many txs " << this->size(lcl.header) << " > "
             << lcl.header.maxTxSetSize;
+        mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
@@ -408,11 +415,14 @@ TxSetFrame::checkValid(Application& app)
         CLOG(DEBUG, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " not sorted correctly";
+        mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
     std::vector<TransactionFrameBasePtr> trimmed;
-    return checkOrTrim(app, trimmed, true);
+    bool valid = checkOrTrim(app, trimmed, true);
+    mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, valid);
+    return valid;
 }
 
 void
@@ -421,14 +431,15 @@ TxSetFrame::removeTx(TransactionFrameBasePtr tx)
     auto it = std::find(mTransactions.begin(), mTransactions.end(), tx);
     if (it != mTransactions.end())
         mTransactions.erase(it);
-    mHashIsValid = false;
+    mHash.reset();
+    mValid.reset();
 }
 
 Hash const&
 TxSetFrame::getContentsHash()
 {
     ZoneScoped;
-    if (!mHashIsValid)
+    if (!mHash)
     {
         sortForHash();
         auto hasher = SHA256::create();
@@ -437,16 +448,18 @@ TxSetFrame::getContentsHash()
         {
             hasher->add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
         }
-        mHash = hasher->finish();
-        mHashIsValid = true;
+        mHash = make_optional<Hash>(hasher->finish());
     }
-    return mHash;
+    return *mHash;
 }
 
 Hash&
 TxSetFrame::previousLedgerHash()
 {
-    mHashIsValid = false;
+    // Handing out a mutable reference means the caller might
+    // be mutating, so we treat this as an invalidation event.
+    mHash.reset();
+    mValid.reset();
     return mPreviousLedgerHash;
 }
 
