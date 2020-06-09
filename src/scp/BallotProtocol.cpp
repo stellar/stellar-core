@@ -477,11 +477,15 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
 
     mCurrentBallot = makeBallot(ballot);
 
+    // note: we have to clear some fields (and recompute them based on latest
+    // messages)
     // invariant: h.value = b.value
     if (mHighBallot && !areBallotsCompatible(mCurrentBallot->getBallot(),
                                              mHighBallot->getBallot()))
     {
         mHighBallot.reset();
+        // invariant: c set only when h is set
+        mCommit.reset();
     }
 
     if (gotBumped)
