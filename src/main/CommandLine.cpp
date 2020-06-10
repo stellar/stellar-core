@@ -600,14 +600,6 @@ runCatchup(CommandLineArgs const& args)
                     writeCatchupInfo(catchupInfo, outputFile);
                 }
             }
-
-            if (replayInMemory)
-            {
-                // Clean up `buckets` folder when in in-memory-replay mode
-                VirtualClock clockBuckets(VirtualClock::REAL_TIME);
-                auto app = Application::create(clockBuckets, config, true);
-            }
-
             return result;
         });
 }
