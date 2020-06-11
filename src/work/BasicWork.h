@@ -238,7 +238,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     size_t mRetries{0};
     size_t const mMaxRetries{RETRY_A_FEW};
 
-    // Whitelist legal state transitions in work state machine
+    // Legal and allowed state transitions in work state machine
     static std::set<Transition> const ALLOWED_TRANSITIONS;
 };
 }
