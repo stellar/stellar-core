@@ -264,12 +264,13 @@ format.
 
 ### The following HTTP commands are exposed on test instances
 * **generateload**
-  `generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L]`<br>
+  `generateload[?mode=(create|pay)&accounts=N&offset=K&txs=M&txrate=R&batchsize=L&spikesize=S&spikeinterval=I]`<br>
   Artificially generate load for testing; must be used with
   `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true. Depending on the mode,
   either creates new accounts or generates payments on accounts specified
   (where number of accounts can be offset). Additionally, allows batching up to
   100 account creations per transaction via 'batchsize'.
+  When a nonzero I is given, a spike will occur every I seconds injecting S transactions on top of `txrate`.
 
 * **manualclose**
   If MANUAL_CLOSE is set to true in the .cfg file. This will cause the current

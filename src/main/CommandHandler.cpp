@@ -776,6 +776,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         uint32_t txRate = 10;
         uint32_t batchSize = 100; // Only for account creations
         uint32_t offset = 0;
+        uint32_t spikeSize = 0;
+        uint32_t spikeIntervalInt = 0;
         std::string mode = "create";
 
         std::map<std::string, std::string> map;
@@ -801,20 +803,24 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         maybeParseParam(map, "batchsize", batchSize);
         maybeParseParam(map, "offset", offset);
         maybeParseParam(map, "txrate", txRate);
+        maybeParseParam(map, "spikeinterval", spikeIntervalInt);
+        std::chrono::seconds spikeInterval(spikeIntervalInt);
+        maybeParseParam(map, "spikesize", spikeSize);
 
         uint32_t numItems = isCreate ? nAccounts : nTxs;
         std::string itemType = isCreate ? "accounts" : "txs";
-        double hours = (numItems / txRate) / 3600.0;
 
         if (batchSize > 100)
         {
             batchSize = 100;
             retStr = "Setting batch size to its limit of 100.";
         }
-        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize);
-        retStr +=
-            fmt::format(" Generating load: {:d} {:s}, {:d} tx/s = {:f} hours",
-                        numItems, itemType, txRate, hours);
+
+        mApp.generateLoad(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
+                          spikeInterval, spikeSize);
+
+        retStr += fmt::format(" Generating load: {:d} {:s}, {:d} tx/s",
+                              numItems, itemType, txRate);
     }
     else
     {

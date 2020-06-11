@@ -76,7 +76,8 @@ LoadGenerator::createRootAccount()
 }
 
 int64_t
-LoadGenerator::getTxPerStep(uint32_t txRate)
+LoadGenerator::getTxPerStep(uint32_t txRate, std::chrono::seconds spikeInterval,
+                            uint32_t spikeSize)
 {
     if (!mStartTime)
     {
@@ -91,6 +92,14 @@ LoadGenerator::getTxPerStep(uint32_t txRate)
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
         now - *mStartTime);
     auto txs = bigDivide(elapsed.count(), txRate, 1000, Rounding::ROUND_DOWN);
+    if (spikeInterval.count() > 0)
+    {
+        txs +=
+            bigDivide(std::chrono::duration_cast<std::chrono::seconds>(elapsed)
+                          .count(),
+                      1, spikeInterval.count(), Rounding::ROUND_DOWN) *
+            spikeSize;
+    }
 
     if (txs <= mTotalSubmitted)
     {
@@ -115,7 +124,9 @@ LoadGenerator::reset()
 void
 LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
                                       uint32_t offset, uint32_t nTxs,
-                                      uint32_t txRate, uint32_t batchSize)
+                                      uint32_t txRate, uint32_t batchSize,
+                                      std::chrono::seconds spikeInterval,
+                                      uint32_t spikeSize)
 {
     // If previously scheduled step of load did not succeed, fail this loadgen
     // run.
@@ -138,9 +149,10 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
     {
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
         mLoadTimer->async_wait(
-            [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate]() {
+            [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate,
+             spikeInterval, spikeSize]() {
                 this->generateLoad(isCreate, nAccounts, offset, nTxs, txRate,
-                                   batchSize);
+                                   batchSize, spikeInterval, spikeSize);
             },
             &VirtualTimer::onFailureNoop);
     }
@@ -151,9 +163,11 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
             << mApp.getState();
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
         mLoadTimer->async_wait(
-            [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate]() {
+            [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate,
+             spikeInterval, spikeSize]() {
                 this->scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs,
-                                             txRate, batchSize);
+                                             txRate, batchSize, spikeInterval,
+                                             spikeSize);
             },
             &VirtualTimer::onFailureNoop);
     }
@@ -165,7 +179,10 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
 // with the remainder.
 void
 LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
-                            uint32_t nTxs, uint32_t txRate, uint32_t batchSize)
+                            uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
+                            std::chrono::seconds spikeInterval,
+                            uint32_t spikeSize)
+
 {
     if (!mStartTime)
     {
@@ -193,7 +210,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
         batchSize = 1;
     }
 
-    auto txPerStep = getTxPerStep(txRate);
+    auto txPerStep = getTxPerStep(txRate, spikeInterval, spikeSize);
     auto& submitTimer =
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
@@ -232,8 +249,8 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
 
     mLastSecond = now;
     mTotalSubmitted += txPerStep;
-    scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs, txRate,
-                           batchSize);
+    scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
+                           spikeInterval, spikeSize);
 }
 
 uint32_t
