@@ -144,6 +144,14 @@ TransactionFrame::getNumOperations() const
                : static_cast<uint32_t>(mEnvelope.v1().tx.operations.size());
 }
 
+std::vector<Operation> const&
+TransactionFrame::getRawOperations() const
+{
+    return mEnvelope.type() == ENVELOPE_TYPE_TX_V0
+               ? mEnvelope.v0().tx.operations
+               : mEnvelope.v1().tx.operations;
+}
+
 int64_t
 TransactionFrame::getFeeBid() const
 {

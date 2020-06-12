@@ -75,6 +75,7 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     Hash const& getInnerFullHash() const;
 
     uint32_t getNumOperations() const override;
+    std::vector<Operation> const& getRawOperations() const override;
 
     TransactionResult& getResult() override;
     TransactionResultCode getResultCode() const override;

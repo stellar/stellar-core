@@ -269,5 +269,4 @@ ChangeTrustAsset assetToChangeTrustAsset(Asset const& asset);
 
 int64_t getPoolWithdrawalAmount(int64_t amountPoolShares,
                                 int64_t totalPoolShares, int64_t reserve);
-
 }
