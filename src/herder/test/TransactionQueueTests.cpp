@@ -8,6 +8,7 @@
 #include "herder/SurgePricingUtils.h"
 #include "herder/TransactionQueue.h"
 #include "herder/TxQueueLimiter.h"
+#include "ledger/LedgerHashUtils.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -15,7 +16,10 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
+#include "xdr/Stellar-transaction.h"
 
+#include <chrono>
+#include <fmt/chrono.h>
 #include <lib/catch.hpp>
 #include <numeric>
 
@@ -1442,4 +1446,225 @@ TEST_CASE("remove applied", "[herder][transactionqueue]")
     REQUIRE(herder.recvTransaction(tx4) ==
             TransactionQueue::AddResult::ADD_STATUS_PENDING);
     REQUIRE(tq.toTxSet({})->mTransactions.size() == 2);
+}
+
+static UnorderedSet<AssetPair, AssetPairHash>
+apVecToSet(std::vector<AssetPair> const& v)
+{
+    UnorderedSet<AssetPair, AssetPairHash> ret;
+    for (auto const& a : v)
+    {
+        ret.emplace(a);
+    }
+    return ret;
+}
+
+TEST_CASE("arbitrage tx identification",
+          "[herder][transactionqueue][arbitrage]")
+{
+    SecretKey aliceSec = txtest::getAccount("alice");
+    SecretKey bobSec = txtest::getAccount("bob");
+    SecretKey carolSec = txtest::getAccount("carol");
+
+    PublicKey alicePub = aliceSec.getPublicKey();
+    PublicKey bobPub = bobSec.getPublicKey();
+    PublicKey carolPub = carolSec.getPublicKey();
+
+    Asset xlm = txtest::makeNativeAsset();
+    Asset usd = txtest::makeAsset(aliceSec, "USD");
+    Asset eur = txtest::makeAsset(bobSec, "EUR");
+    Asset cny = txtest::makeAsset(carolSec, "CNY");
+    Asset gbp = txtest::makeAsset(carolSec, "GBP");
+    Asset inr = txtest::makeAsset(carolSec, "INR");
+    Asset mxn = txtest::makeAsset(carolSec, "MXN");
+    Asset chf = txtest::makeAsset(carolSec, "CHF");
+    Asset jpy = txtest::makeAsset(carolSec, "JPY");
+
+    TransactionEnvelope tx1, tx2, tx3, tx4, tx5, tx6, tx7;
+    tx1.type(ENVELOPE_TYPE_TX);
+    tx2.type(ENVELOPE_TYPE_TX);
+    tx3.type(ENVELOPE_TYPE_TX);
+    tx4.type(ENVELOPE_TYPE_TX);
+    tx5.type(ENVELOPE_TYPE_TX);
+    tx6.type(ENVELOPE_TYPE_TX);
+    tx7.type(ENVELOPE_TYPE_TX);
+
+    // Tx1 is a one-op XLM->USD->XLM loop.
+    tx1.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, xlm, 100, xlm, 100, {usd}));
+
+    // Tx2 is a two-op contiguous XLM->USD->EUR and EUR->CNY->XLM loop.
+    tx2.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, xlm, 100, eur, 100, {usd}));
+    tx2.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, eur, 100, xlm, 100, {cny}));
+
+    // Tx3 is a 4-op discontiguous loop: XLM->USD->CNY, GBP->INR->MXN,
+    // CNY->EUR->GBP, MXN->CHF->XLM.
+    tx3.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, xlm, 100, cny, 100, {usd}));
+    tx3.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, gbp, 100, mxn, 100, {inr}));
+    tx3.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, cny, 100, gbp, 100, {eur}));
+    tx3.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, mxn, 100, xlm, 100, {chf}));
+
+    // Tx4 is the same as Tx3 but the cycle is broken.
+    tx4.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, xlm, 100, cny, 100, {usd}));
+    tx4.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, gbp, 100, mxn, 100, {inr}));
+    tx4.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, cny, 100, jpy, 100, {eur}));
+    tx4.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, mxn, 100, xlm, 100, {chf}));
+
+    // Tx5 is a two-op contiguous USD->EUR->CNY->MXN and
+    // MXN->JPY->INR->USD loop.
+    tx5.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, usd, 100, mxn, 100, {eur, cny}));
+    tx5.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, mxn, 100, usd, 100, {jpy, inr}));
+
+    // Tx6 is a four-op pair of loops, formed discontiguously:
+    // XLM->USD->CNY, GBP->INR->MXN, CNY->EUR->XLM, MXN->CHF->GBP;
+    // We want to identify _both_ loops.
+    tx6.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, xlm, 100, cny, 100, {usd}));
+    tx6.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, gbp, 100, mxn, 100, {inr}));
+    tx6.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, cny, 100, xlm, 100, {eur}));
+    tx6.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, mxn, 100, gbp, 100, {chf}));
+
+    // Tx7 is a non-cycle that has 2 paths from the same source
+    // to the same destination.
+    tx7.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, usd, 100, mxn, 100, {eur, cny}));
+    tx7.v1().tx.operations.emplace_back(
+        txtest::pathPayment(bobPub, usd, 100, mxn, 100, {jpy, inr}));
+
+    auto tx1f = std::make_shared<TransactionFrame>(Hash(), tx1);
+    auto tx2f = std::make_shared<TransactionFrame>(Hash(), tx2);
+    auto tx3f = std::make_shared<TransactionFrame>(Hash(), tx3);
+    auto tx4f = std::make_shared<TransactionFrame>(Hash(), tx4);
+    auto tx5f = std::make_shared<TransactionFrame>(Hash(), tx5);
+    auto tx6f = std::make_shared<TransactionFrame>(Hash(), tx6);
+    auto tx7f = std::make_shared<TransactionFrame>(Hash(), tx7);
+
+    LOG_TRACE(DEFAULT_LOG, "Tx1 - 1 op / 3 asset contiguous loop");
+    REQUIRE(
+        apVecToSet(
+            TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(tx1f)) ==
+        UnorderedSet<AssetPair, AssetPairHash>{{xlm, usd}, {usd, xlm}});
+
+    LOG_TRACE(DEFAULT_LOG, "Tx2 - 2 op / 4 asset contiguous loop");
+    REQUIRE(
+        apVecToSet(TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
+            tx2f)) == UnorderedSet<AssetPair, AssetPairHash>{
+                          {xlm, usd}, {usd, eur}, {eur, cny}, {cny, xlm}});
+
+    LOG_TRACE(DEFAULT_LOG, "Tx3 - 4 op / 8 asset discontiguous loop");
+    REQUIRE(
+        apVecToSet(TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
+            tx3f)) == UnorderedSet<AssetPair, AssetPairHash>{{xlm, usd},
+                                                             {usd, cny},
+                                                             {cny, eur},
+                                                             {eur, gbp},
+                                                             {gbp, inr},
+                                                             {inr, mxn},
+                                                             {mxn, chf},
+                                                             {chf, xlm}});
+
+    LOG_TRACE(DEFAULT_LOG, "Tx4 - 4 op / 8 asset non-loop");
+    REQUIRE(
+        apVecToSet(TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
+            tx4f)) == UnorderedSet<AssetPair, AssetPairHash>{});
+
+    LOG_TRACE(DEFAULT_LOG, "Tx5 - 2 op / 6 asset contiguous loop");
+    REQUIRE(
+        apVecToSet(TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
+            tx5f)) == UnorderedSet<AssetPair, AssetPairHash>{{usd, eur},
+                                                             {eur, cny},
+                                                             {cny, mxn},
+                                                             {mxn, jpy},
+                                                             {jpy, inr},
+                                                             {inr, usd}});
+
+    LOG_TRACE(DEFAULT_LOG, "Tx6 - 4 op / 8 asset dual discontiguous loop");
+    REQUIRE(
+        apVecToSet(TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
+            tx6f)) == UnorderedSet<AssetPair, AssetPairHash>{{xlm, usd},
+                                                             {usd, cny},
+                                                             {cny, eur},
+                                                             {eur, xlm},
+                                                             {gbp, inr},
+                                                             {inr, mxn},
+                                                             {mxn, chf},
+                                                             {chf, gbp}});
+
+    LOG_TRACE(DEFAULT_LOG, "Tx7 - 2 op / 6 asset non-loop");
+    REQUIRE(
+        apVecToSet(TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(
+            tx7f)) == UnorderedSet<AssetPair, AssetPairHash>{});
+}
+
+TEST_CASE("arbitrage tx identification benchmark",
+          "[herder][transactionqueue][arbitrage][bench][!hide]")
+{
+    // This test generates a tx with a single 600-step-long discontiguous loop
+    // formed from 100 7-step ops with 100 overlapping endpoints (forcing the
+    // use of the SCC checker) and then benchmarks how long it takes to check it
+    // for payment loops 100 times, giving a rough idea of how much time the
+    // arb-loop checker might take in the worst case in the middle of the
+    // txqueue flood loop.
+    SecretKey bobSec = txtest::getAccount("bob");
+    PublicKey bobPub = bobSec.getPublicKey();
+    Asset xlm = txtest::makeNativeAsset();
+
+    TransactionEnvelope tx1;
+    tx1.type(ENVELOPE_TYPE_TX);
+
+    Asset prev = xlm;
+    for (size_t i = 0; i < MAX_OPS_PER_TX / 2; ++i)
+    {
+        SecretKey carolSec = txtest::getAccount(fmt::format("carol{}", i));
+        Asset aaa = txtest::makeAsset(carolSec, "AAA");
+        Asset bbb = txtest::makeAsset(carolSec, "BBB");
+        Asset ccc = txtest::makeAsset(carolSec, "CCC");
+        Asset ddd = txtest::makeAsset(carolSec, "DDD");
+        Asset eee = txtest::makeAsset(carolSec, "EEE");
+        Asset fff = txtest::makeAsset(carolSec, "FFF");
+        Asset ggg = txtest::makeAsset(carolSec, "GGG");
+        Asset hhh = txtest::makeAsset(carolSec, "HHH");
+        Asset iii = txtest::makeAsset(carolSec, "III");
+        Asset jjj = txtest::makeAsset(carolSec, "JJJ");
+        Asset kkk = txtest::makeAsset(carolSec, "KKK");
+        Asset lll = txtest::makeAsset(carolSec, "LLL");
+        if (i == MAX_OPS_PER_TX / 2 - 1)
+        {
+            lll = xlm;
+        }
+        tx1.v1().tx.operations.emplace_back(txtest::pathPayment(
+            bobPub, fff, 100, lll, 100, {ggg, hhh, iii, jjj, kkk}));
+        tx1.v1().tx.operations.emplace_back(txtest::pathPayment(
+            bobPub, prev, 100, fff, 100, {aaa, bbb, ccc, ddd, eee}));
+        prev = lll;
+    }
+
+    auto tx1f = std::make_shared<TransactionFrame>(Hash(), tx1);
+
+    namespace ch = std::chrono;
+    using clock = ch::high_resolution_clock;
+    using usec = ch::microseconds;
+    auto start = clock::now();
+    for (size_t i = 0; i < 100; ++i)
+    {
+        TransactionQueue::findAllAssetPairsInvolvedInPaymentLoops(tx1f);
+    }
+    auto end = clock::now();
+    LOG_INFO(DEFAULT_LOG, "executed 100 loop-checks of 600-op tx loop in {}",
+             ch::duration_cast<ch::milliseconds>(end - start));
 }
