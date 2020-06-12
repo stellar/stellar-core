@@ -180,7 +180,7 @@ def run_survey(args):
                 peer_list.append(key)
 
     if nx.is_empty(G):
-        print "Graph is empty!"
+        print("Graph is empty!")
         sys.exit(0)
 
     write_graph_stats(G, args.graphStats)
