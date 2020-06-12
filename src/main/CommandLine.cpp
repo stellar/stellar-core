@@ -233,6 +233,28 @@ configurationParser(CommandLine::ConfigOption& configOption)
                "default 'stellar-core.cfg')");
 }
 
+clara::Opt
+metadataOutputStreamParser(std::string& stream)
+{
+    return clara::Opt(stream, "STREAM")["--metadata-output-stream"](
+        "Filename or file-descriptor number 'fd:N' to stream metadata to");
+}
+
+void
+maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
+{
+    if (!stream.empty())
+    {
+        if (!cfg.METADATA_OUTPUT_STREAM.empty())
+        {
+            throw std::runtime_error(
+                "Command-line --metadata-output-stream conflicts with "
+                "config-file provided METADATA_OUTPUT_STREAM");
+        }
+        cfg.METADATA_OUTPUT_STREAM = stream;
+    }
+}
+
 int
 runWithHelp(CommandLineArgs const& args,
             std::vector<ParserWithValidation> parsers, std::function<int()> f)
@@ -475,6 +497,7 @@ runCatchup(CommandLineArgs const& args)
     std::string archive;
     bool completeValidation = false;
     bool replayInMemory = false;
+    std::string stream;
 
     auto validateCatchupString = [&] {
         try
@@ -525,7 +548,8 @@ runCatchup(CommandLineArgs const& args)
          catchupArchiveParser, outputFileParser(outputFile),
          disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
-         replayInMemoryParser(replayInMemory)},
+         replayInMemoryParser(replayInMemory),
+         metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
             config.setNoListen();
@@ -553,6 +577,8 @@ runCatchup(CommandLineArgs const& args)
                 // they're temporary anyways.
                 config.DISABLE_XDR_FSYNC = true;
             }
+
+            maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
             int result;
@@ -784,6 +810,7 @@ run(CommandLineArgs const& args)
     CommandLine::ConfigOption configOption;
     auto disableBucketGC = false;
     uint32_t simulateSleepPerOp = 0;
+    std::string stream;
 
     auto simulateParser = [](uint32_t& simulateSleepPerOp) {
         return clara::Opt{simulateSleepPerOp,
@@ -794,7 +821,8 @@ run(CommandLineArgs const& args)
     return runWithHelp(args,
                        {configurationParser(configOption),
                         disableBucketGCParser(disableBucketGC),
-                        simulateParser(simulateSleepPerOp)},
+                        simulateParser(simulateSleepPerOp),
+                        metadataOutputStreamParser(stream)},
                        [&] {
                            Config cfg;
                            try
@@ -812,6 +840,8 @@ run(CommandLineArgs const& args)
                                    cfg.MODE_ENABLES_BUCKETLIST = false;
                                    cfg.PREFETCH_BATCH_SIZE = 0;
                                }
+
+                               maybeSetMetadataOutputStream(cfg, stream);
                            }
                            catch (std::exception& e)
                            {
