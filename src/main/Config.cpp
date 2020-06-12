@@ -25,6 +25,7 @@
 #include <functional>
 #include <numeric>
 #include <sstream>
+#include <stdexcept>
 #include <type_traits>
 #include <unordered_set>
 
@@ -185,6 +186,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     FLOOD_OP_RATE_PER_LEDGER = 1.0;
     FLOOD_TX_PERIOD_MS = 200;
+    FLOOD_ARB_TX_BASE_ALLOWANCE = 5;
+    FLOOD_ARB_TX_DAMPING_FACTOR = 0.8;
 
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
@@ -1093,6 +1096,20 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "FLOOD_TX_PERIOD_MS")
             {
                 FLOOD_TX_PERIOD_MS = readInt<int>(item, 1);
+            }
+            else if (item.first == "FLOOD_ARB_TX_BASE_ALLOWANCE")
+            {
+                FLOOD_ARB_TX_BASE_ALLOWANCE = readInt<int32_t>(item, 0);
+            }
+            else if (item.first == "FLOOD_ARB_TX_DAMPING_FACTOR")
+            {
+                FLOOD_ARB_TX_DAMPING_FACTOR = readDouble(item);
+                if (FLOOD_ARB_TX_DAMPING_FACTOR <= 0.0 ||
+                    FLOOD_ARB_TX_DAMPING_FACTOR > 1.0)
+                {
+                    throw std::invalid_argument(
+                        "bad value for FLOOD_ARB_TX_DAMPING_FACTOR");
+                }
             }
             else if (item.first == "PREFERRED_PEERS")
             {
