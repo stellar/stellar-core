@@ -7,6 +7,8 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "util/Decoder.h"
+#include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -48,53 +50,61 @@ getTrustLineStrings(AccountID const& accountID, Asset const& asset,
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
 {
-    ZoneScoped;
-    std::string accountIDStr, issuerStr, assetStr;
-    getTrustLineStrings(key.trustLine().accountID, key.trustLine().asset,
-                        accountIDStr, issuerStr, assetStr);
-
-    Liabilities liabilities;
-    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
-
-    LedgerEntry le;
-    le.data.type(TRUSTLINE);
-    TrustLineEntry& tl = le.data.trustLine();
-
-    auto prep = mDatabase.getPreparedStatement(
-        "SELECT tlimit, balance, flags, lastmodified, buyingliabilities, "
-        "sellingliabilities FROM trustlines "
-        "WHERE accountid= :id AND issuer= :issuer AND assetcode= :asset");
-    auto& st = prep.statement();
-    st.exchange(soci::into(tl.limit));
-    st.exchange(soci::into(tl.balance));
-    st.exchange(soci::into(tl.flags));
-    st.exchange(soci::into(le.lastModifiedLedgerSeq));
-    st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
-    st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
-    st.exchange(soci::use(accountIDStr));
-    st.exchange(soci::use(issuerStr));
-    st.exchange(soci::use(assetStr));
-    st.define_and_bind();
+    try
     {
-        auto timer = mDatabase.getSelectTimer("trust");
-        st.execute(true);
+        ZoneScoped;
+        std::string accountIDStr, issuerStr, assetStr;
+        getTrustLineStrings(key.trustLine().accountID, key.trustLine().asset,
+                            accountIDStr, issuerStr, assetStr);
+
+        std::string extensionStr;
+        soci::indicator extensionInd;
+
+        LedgerEntry le;
+        le.data.type(TRUSTLINE);
+        TrustLineEntry& tl = le.data.trustLine();
+
+        auto prep = mDatabase.getPreparedStatement(
+            "SELECT tlimit, balance, flags, lastmodified, "
+            "extension FROM trustlines "
+            "WHERE accountid= :id AND issuer= :issuer AND assetcode= :asset");
+        auto& st = prep.statement();
+        st.exchange(soci::into(tl.limit));
+        st.exchange(soci::into(tl.balance));
+        st.exchange(soci::into(tl.flags));
+        st.exchange(soci::into(le.lastModifiedLedgerSeq));
+        st.exchange(soci::into(extensionStr, extensionInd));
+        st.exchange(soci::use(accountIDStr));
+        st.exchange(soci::use(issuerStr));
+        st.exchange(soci::use(assetStr));
+        st.define_and_bind();
+        {
+            auto timer = mDatabase.getSelectTimer("trust");
+            st.execute(true);
+        }
+        if (!st.got_data())
+        {
+            return nullptr;
+        }
+
+        tl.accountID = key.trustLine().accountID;
+        tl.asset = key.trustLine().asset;
+
+        if (extensionInd == soci::i_ok)
+        {
+            tl.ext.v(1);
+            std::vector<uint8_t> extensionOpaque;
+            decoder::decode_b64(extensionStr, extensionOpaque);
+            xdr::xdr_from_opaque(extensionOpaque, tl.ext.v1());
+        }
+
+        return std::make_shared<LedgerEntry>(std::move(le));
     }
-    if (!st.got_data())
+    catch (std::exception& e)
     {
-        return nullptr;
+        CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+        throw;
     }
-
-    tl.accountID = key.trustLine().accountID;
-    tl.asset = key.trustLine().asset;
-
-    assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
-    if (buyingLiabilitiesInd == soci::i_ok)
-    {
-        tl.ext.v(1);
-        tl.ext.v1().liabilities = liabilities;
-    }
-
-    return std::make_shared<LedgerEntry>(std::move(le));
 }
 
 class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
@@ -108,9 +118,8 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     std::vector<int64_t> mBalances;
     std::vector<int32_t> mFlags;
     std::vector<int32_t> mLastModifieds;
-    std::vector<int64_t> mBuyingLiabilities;
-    std::vector<int64_t> mSellingLiabilities;
-    std::vector<soci::indicator> mLiabilitiesInds;
+    std::vector<std::string> mExtensions;
+    std::vector<soci::indicator> mExtensionInds;
 
   public:
     BulkUpsertTrustLinesOperation(Database& DB,
@@ -125,9 +134,8 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         mBalances.reserve(entries.size());
         mFlags.reserve(entries.size());
         mLastModifieds.reserve(entries.size());
-        mBuyingLiabilities.reserve(entries.size());
-        mSellingLiabilities.reserve(entries.size());
-        mLiabilitiesInds.reserve(entries.size());
+        mExtensions.reserve(entries.size());
+        mExtensionInds.reserve(entries.size());
 
         for (auto const& e : entries)
         {
@@ -151,16 +159,14 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 
             if (tl.ext.v() >= 1)
             {
-                mBuyingLiabilities.emplace_back(tl.ext.v1().liabilities.buying);
-                mSellingLiabilities.emplace_back(
-                    tl.ext.v1().liabilities.selling);
-                mLiabilitiesInds.emplace_back(soci::i_ok);
+                mExtensions.emplace_back(
+                    decoder::encode_b64(xdr::xdr_to_opaque(tl.ext.v1())));
+                mExtensionInds.emplace_back(soci::i_ok);
             }
             else
             {
-                mBuyingLiabilities.emplace_back(0);
-                mSellingLiabilities.emplace_back(0);
-                mLiabilitiesInds.emplace_back(soci::i_null);
+                mExtensions.emplace_back("");
+                mExtensionInds.emplace_back(soci::i_null);
             }
         }
     }
@@ -172,17 +178,16 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
             "INSERT INTO trustlines ( "
             "accountid, assettype, issuer, assetcode,"
             "tlimit, balance, flags, lastmodified, "
-            "buyingliabilities, sellingliabilities "
+            "extension "
             ") VALUES ( "
-            ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
+            ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8 "
             ") ON CONFLICT (accountid, issuer, assetcode) DO UPDATE SET "
             "assettype = excluded.assettype, "
             "tlimit = excluded.tlimit, "
             "balance = excluded.balance, "
             "flags = excluded.flags, "
             "lastmodified = excluded.lastmodified, "
-            "buyingliabilities = excluded.buyingliabilities, "
-            "sellingliabilities = excluded.sellingliabilities ";
+            "extension = excluded.extension ";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mAccountIDs));
@@ -193,8 +198,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         st.exchange(soci::use(mBalances));
         st.exchange(soci::use(mFlags));
         st.exchange(soci::use(mLastModifieds));
-        st.exchange(soci::use(mBuyingLiabilities, mLiabilitiesInds));
-        st.exchange(soci::use(mSellingLiabilities, mLiabilitiesInds));
+        st.exchange(soci::use(mExtensions, mExtensionInds));
         st.define_and_bind();
         {
             auto timer = mDB.getUpsertTimer("trustline");
@@ -216,71 +220,74 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        PGconn* conn = pg->conn_;
-
-        std::string strAccountIDs, strAssetTypes, strIssuers, strAssetCodes,
-            strTlimits, strBalances, strFlags, strLastModifieds,
-            strBuyingLiabilities, strSellingLiabilities;
-
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strAssetTypes, mAssetTypes);
-        marshalToPGArray(conn, strIssuers, mIssuers);
-        marshalToPGArray(conn, strAssetCodes, mAssetCodes);
-        marshalToPGArray(conn, strTlimits, mTlimits);
-        marshalToPGArray(conn, strBalances, mBalances);
-        marshalToPGArray(conn, strFlags, mFlags);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-        marshalToPGArray(conn, strBuyingLiabilities, mBuyingLiabilities,
-                         &mLiabilitiesInds);
-        marshalToPGArray(conn, strSellingLiabilities, mSellingLiabilities,
-                         &mLiabilitiesInds);
-
-        std::string sql =
-            "WITH r AS (SELECT "
-            "unnest(:ids::TEXT[]), "
-            "unnest(:v1::INT[]), "
-            "unnest(:v2::TEXT[]), "
-            "unnest(:v3::TEXT[]), "
-            "unnest(:v4::BIGINT[]), "
-            "unnest(:v5::BIGINT[]), "
-            "unnest(:v6::INT[]), "
-            "unnest(:v7::INT[]), "
-            "unnest(:v8::BIGINT[]), "
-            "unnest(:v9::BIGINT[]) "
-            ")"
-            "INSERT INTO trustlines ( "
-            "accountid, assettype, issuer, assetcode,"
-            "tlimit, balance, flags, lastmodified, "
-            "buyingliabilities, sellingliabilities "
-            ") SELECT * from r "
-            "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE SET "
-            "assettype = excluded.assettype, "
-            "tlimit = excluded.tlimit, "
-            "balance = excluded.balance, "
-            "flags = excluded.flags, "
-            "lastmodified = excluded.lastmodified, "
-            "buyingliabilities = excluded.buyingliabilities, "
-            "sellingliabilities = excluded.sellingliabilities ";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strAssetTypes));
-        st.exchange(soci::use(strIssuers));
-        st.exchange(soci::use(strAssetCodes));
-        st.exchange(soci::use(strTlimits));
-        st.exchange(soci::use(strBalances));
-        st.exchange(soci::use(strFlags));
-        st.exchange(soci::use(strLastModifieds));
-        st.exchange(soci::use(strBuyingLiabilities));
-        st.exchange(soci::use(strSellingLiabilities));
-        st.define_and_bind();
+        try
         {
-            auto timer = mDB.getUpsertTimer("trustline");
-            st.execute(true);
+            PGconn* conn = pg->conn_;
+
+            std::string strAccountIDs, strAssetTypes, strIssuers, strAssetCodes,
+                strTlimits, strBalances, strFlags, strLastModifieds,
+                strExtensions;
+
+            marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+            marshalToPGArray(conn, strAssetTypes, mAssetTypes);
+            marshalToPGArray(conn, strIssuers, mIssuers);
+            marshalToPGArray(conn, strAssetCodes, mAssetCodes);
+            marshalToPGArray(conn, strTlimits, mTlimits);
+            marshalToPGArray(conn, strBalances, mBalances);
+            marshalToPGArray(conn, strFlags, mFlags);
+            marshalToPGArray(conn, strLastModifieds, mLastModifieds);
+            marshalToPGArray(conn, strExtensions, mExtensions, &mExtensionInds);
+
+            std::string sql =
+                "WITH r AS (SELECT "
+                "unnest(:ids::TEXT[]), "
+                "unnest(:v1::INT[]), "
+                "unnest(:v2::TEXT[]), "
+                "unnest(:v3::TEXT[]), "
+                "unnest(:v4::BIGINT[]), "
+                "unnest(:v5::BIGINT[]), "
+                "unnest(:v6::INT[]), "
+                "unnest(:v7::INT[]), "
+                "unnest(:v8::TEXT[])"
+                ")"
+                "INSERT INTO trustlines ( "
+                "accountid, assettype, issuer, assetcode,"
+                "tlimit, balance, flags, lastmodified, "
+                "extension "
+                ") SELECT * from r "
+                "ON CONFLICT (accountid, issuer, assetcode) DO UPDATE SET "
+                "assettype = excluded.assettype, "
+                "tlimit = excluded.tlimit, "
+                "balance = excluded.balance, "
+                "flags = excluded.flags, "
+                "lastmodified = excluded.lastmodified, "
+                "extension = excluded.extension ";
+            auto prep = mDB.getPreparedStatement(sql);
+            soci::statement& st = prep.statement();
+            st.exchange(soci::use(strAccountIDs));
+            st.exchange(soci::use(strAssetTypes));
+            st.exchange(soci::use(strIssuers));
+            st.exchange(soci::use(strAssetCodes));
+            st.exchange(soci::use(strTlimits));
+            st.exchange(soci::use(strBalances));
+            st.exchange(soci::use(strFlags));
+            st.exchange(soci::use(strLastModifieds));
+            st.exchange(soci::use(strExtensions));
+            st.define_and_bind();
+            {
+                auto timer = mDB.getUpsertTimer("trustline");
+                st.execute(true);
+            }
+            if (static_cast<size_t>(st.get_affected_rows()) !=
+                mAccountIDs.size())
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
+        catch (std::exception& e)
         {
-            throw std::runtime_error("Could not update data in SQL");
+            CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+            throw;
         }
     }
 #endif
@@ -348,32 +355,42 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strAccountIDs, strIssuers, strAssetCodes;
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strIssuers, mIssuers);
-        marshalToPGArray(conn, strAssetCodes, mAssetCodes);
-        std::string sql = "WITH r AS (SELECT "
-                          "unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[]), "
-                          "unnest(:v2::TEXT[]) "
-                          ") "
-                          "DELETE FROM trustlines WHERE "
-                          "(accountid, issuer, assetcode) IN (SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strIssuers));
-        st.exchange(soci::use(strAssetCodes));
-        st.define_and_bind();
+        try
         {
-            auto timer = mDB.getDeleteTimer("trustline");
-            st.execute(true);
+            std::string strAccountIDs, strIssuers, strAssetCodes;
+            PGconn* conn = pg->conn_;
+            marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+            marshalToPGArray(conn, strIssuers, mIssuers);
+            marshalToPGArray(conn, strAssetCodes, mAssetCodes);
+            std::string sql =
+                "WITH r AS (SELECT "
+                "unnest(:ids::TEXT[]), "
+                "unnest(:v1::TEXT[]), "
+                "unnest(:v2::TEXT[]) "
+                ") "
+                "DELETE FROM trustlines WHERE "
+                "(accountid, issuer, assetcode) IN (SELECT * FROM r)";
+            auto prep = mDB.getPreparedStatement(sql);
+            soci::statement& st = prep.statement();
+            st.exchange(soci::use(strAccountIDs));
+            st.exchange(soci::use(strIssuers));
+            st.exchange(soci::use(strAssetCodes));
+            st.define_and_bind();
+            {
+                auto timer = mDB.getDeleteTimer("trustline");
+                st.execute(true);
+            }
+            if (static_cast<size_t>(st.get_affected_rows()) !=
+                    mAccountIDs.size() &&
+                mCons == LedgerTxnConsistency::EXACT)
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
+        catch (std::exception& e)
         {
-            throw std::runtime_error("Could not update data in SQL");
+            CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+            throw;
         }
     }
 #endif
@@ -440,8 +457,8 @@ class BulkLoadTrustLinesOperation
         std::string accountID, assetCode, issuer;
         int64_t balance, limit;
         uint32_t assetType, flags, lastModified;
-        Liabilities liabilities;
-        soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+        std::string extension;
+        soci::indicator extensionInd;
 
         st.exchange(soci::into(accountID));
         st.exchange(soci::into(assetType));
@@ -451,8 +468,7 @@ class BulkLoadTrustLinesOperation
         st.exchange(soci::into(balance));
         st.exchange(soci::into(flags));
         st.exchange(soci::into(lastModified));
-        st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
-        st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+        st.exchange(soci::into(extension, extensionInd));
         st.define_and_bind();
         {
             auto timer = mDb.getSelectTimer("trust");
@@ -489,11 +505,12 @@ class BulkLoadTrustLinesOperation
             tl.flags = flags;
             le.lastModifiedLedgerSeq = lastModified;
 
-            assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
-            if (buyingLiabilitiesInd == soci::i_ok)
+            if (extensionInd == soci::i_ok)
             {
                 tl.ext.v(1);
-                tl.ext.v1().liabilities = liabilities;
+                std::vector<uint8_t> extensionOpaque;
+                decoder::decode_b64(extension, extensionOpaque);
+                xdr::xdr_from_opaque(extensionOpaque, tl.ext.v1());
             }
 
             st.fetch();
@@ -553,19 +570,21 @@ class BulkLoadTrustLinesOperation
             cstrAssetCodes.emplace_back(mAssetCodes[i].c_str());
         }
 
-        std::string sqlJoin =
-            "SELECT x.value, y.value, z.value FROM "
-            "(SELECT rowid, value FROM carray(?, ?, 'char*') ORDER BY rowid) "
-            "AS x "
-            "INNER JOIN (SELECT rowid, value FROM carray(?, ?, 'char*') ORDER "
-            "BY rowid) AS y ON x.rowid = y.rowid "
-            "INNER JOIN (SELECT rowid, value FROM carray(?, ?, 'char*') ORDER "
-            "BY rowid) AS z ON x.rowid = z.rowid";
+        std::string sqlJoin = "SELECT x.value, y.value, z.value FROM "
+                              "(SELECT rowid, value FROM carray(?, ?, "
+                              "'char*') ORDER BY rowid) "
+                              "AS x "
+                              "INNER JOIN (SELECT rowid, value FROM "
+                              "carray(?, ?, 'char*') ORDER "
+                              "BY rowid) AS y ON x.rowid = y.rowid "
+                              "INNER JOIN (SELECT rowid, value FROM "
+                              "carray(?, ?, 'char*') ORDER "
+                              "BY rowid) AS z ON x.rowid = z.rowid";
         std::string sql =
             "WITH r AS (" + sqlJoin +
             ") SELECT accountid, assettype, assetcode, issuer, tlimit, "
-            "balance, flags, lastmodified, buyingliabilities, "
-            "sellingliabilities "
+            "balance, flags, lastmodified, "
+            "extension "
             "FROM trustlines WHERE (accountid, issuer, assetcode) IN r";
 
         auto prep = mDb.getPreparedStatement(sql);
@@ -592,27 +611,38 @@ class BulkLoadTrustLinesOperation
     virtual std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        assert(mAccountIDs.size() == mIssuers.size());
-        assert(mAccountIDs.size() == mAssetCodes.size());
+        try
+        {
+            assert(mAccountIDs.size() == mIssuers.size());
+            assert(mAccountIDs.size() == mAssetCodes.size());
 
-        std::string strAccountIDs;
-        std::string strIssuers;
-        std::string strAssetCodes;
-        marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
-        marshalToPGArray(pg->conn_, strIssuers, mIssuers);
-        marshalToPGArray(pg->conn_, strAssetCodes, mAssetCodes);
+            std::string strAccountIDs;
+            std::string strIssuers;
+            std::string strAssetCodes;
+            marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
+            marshalToPGArray(pg->conn_, strIssuers, mIssuers);
+            marshalToPGArray(pg->conn_, strAssetCodes, mAssetCodes);
 
-        auto prep = mDb.getPreparedStatement(
-            "WITH r AS (SELECT unnest(:v1::TEXT[]), unnest(:v2::TEXT[]), "
-            "unnest(:v3::TEXT[])) SELECT accountid, assettype, assetcode, "
-            "issuer, tlimit, balance, flags, lastmodified, buyingliabilities, "
-            "sellingliabilities FROM trustlines "
-            "WHERE (accountid, issuer, assetcode) IN (SELECT * FROM r)");
-        auto& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strIssuers));
-        st.exchange(soci::use(strAssetCodes));
-        return executeAndFetch(st);
+            auto prep = mDb.getPreparedStatement(
+                "WITH r AS (SELECT unnest(:v1::TEXT[]), "
+                "unnest(:v2::TEXT[]), "
+                "unnest(:v3::TEXT[])) SELECT accountid, assettype, "
+                "assetcode, "
+                "issuer, tlimit, balance, flags, lastmodified, "
+                "extension FROM trustlines "
+                "WHERE (accountid, issuer, assetcode) IN (SELECT * "
+                "FROM r)");
+            auto& st = prep.statement();
+            st.exchange(soci::use(strAccountIDs));
+            st.exchange(soci::use(strIssuers));
+            st.exchange(soci::use(strAssetCodes));
+            return executeAndFetch(st);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+            throw;
+        }
     }
 #endif
 };

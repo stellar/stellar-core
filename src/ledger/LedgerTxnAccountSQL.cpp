@@ -21,80 +21,87 @@ namespace stellar
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
 {
-    ZoneScoped;
-    std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
-
-    std::string inflationDest, homeDomain, thresholds, signers;
-    soci::indicator inflationDestInd, signersInd;
-    Liabilities liabilities;
-    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
-
-    LedgerEntry le;
-    le.data.type(ACCOUNT);
-    auto& account = le.data.account();
-
-    auto prep =
-        mDatabase.getPreparedStatement("SELECT balance, seqnum, numsubentries, "
-                                       "inflationdest, homedomain, thresholds, "
-                                       "flags, lastmodified, "
-                                       "buyingliabilities, sellingliabilities, "
-                                       "signers "
-                                       "FROM accounts WHERE accountid=:v1");
-    auto& st = prep.statement();
-    st.exchange(soci::into(account.balance));
-    st.exchange(soci::into(account.seqNum));
-    st.exchange(soci::into(account.numSubEntries));
-    st.exchange(soci::into(inflationDest, inflationDestInd));
-    st.exchange(soci::into(homeDomain));
-    st.exchange(soci::into(thresholds));
-    st.exchange(soci::into(account.flags));
-    st.exchange(soci::into(le.lastModifiedLedgerSeq));
-    st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
-    st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
-    st.exchange(soci::into(signers, signersInd));
-    st.exchange(soci::use(actIDStrKey));
-    st.define_and_bind();
+    try
     {
-        auto timer = mDatabase.getSelectTimer("account");
-        st.execute(true);
+        ZoneScoped;
+        std::string actIDStrKey = KeyUtils::toStrKey(key.account().accountID);
+
+        std::string inflationDest, homeDomain, thresholds, signers;
+        soci::indicator inflationDestInd, signersInd;
+        std::string extensionStr;
+        soci::indicator extensionInd;
+
+        LedgerEntry le;
+        le.data.type(ACCOUNT);
+        auto& account = le.data.account();
+
+        auto prep = mDatabase.getPreparedStatement(
+            "SELECT balance, seqnum, numsubentries, "
+            "inflationdest, homedomain, thresholds, "
+            "flags, lastmodified, "
+            "signers, extension "
+            "FROM accounts WHERE accountid=:v1");
+        auto& st = prep.statement();
+        st.exchange(soci::into(account.balance));
+        st.exchange(soci::into(account.seqNum));
+        st.exchange(soci::into(account.numSubEntries));
+        st.exchange(soci::into(inflationDest, inflationDestInd));
+        st.exchange(soci::into(homeDomain));
+        st.exchange(soci::into(thresholds));
+        st.exchange(soci::into(account.flags));
+        st.exchange(soci::into(le.lastModifiedLedgerSeq));
+        st.exchange(soci::into(signers, signersInd));
+        st.exchange(soci::into(extensionStr, extensionInd));
+        st.exchange(soci::use(actIDStrKey));
+        st.define_and_bind();
+        {
+            auto timer = mDatabase.getSelectTimer("account");
+            st.execute(true);
+        }
+        if (!st.got_data())
+        {
+            return nullptr;
+        }
+
+        account.accountID = key.account().accountID;
+        decoder::decode_b64(homeDomain, account.homeDomain);
+
+        bn::decode_b64(thresholds.begin(), thresholds.end(),
+                       account.thresholds.begin());
+
+        if (inflationDestInd == soci::i_ok)
+        {
+            account.inflationDest.activate() =
+                KeyUtils::fromStrKey<PublicKey>(inflationDest);
+        }
+
+        if (signersInd == soci::i_ok)
+        {
+            std::vector<uint8_t> signersOpaque;
+            decoder::decode_b64(signers, signersOpaque);
+            xdr::xdr_from_opaque(signersOpaque, account.signers);
+            assert(std::adjacent_find(account.signers.begin(),
+                                      account.signers.end(),
+                                      [](Signer const& lhs, Signer const& rhs) {
+                                          return !(lhs.key < rhs.key);
+                                      }) == account.signers.end());
+        }
+
+        if (extensionInd == soci::i_ok)
+        {
+            account.ext.v(1);
+            std::vector<uint8_t> extensionOpaque;
+            decoder::decode_b64(extensionStr, extensionOpaque);
+            xdr::xdr_from_opaque(extensionOpaque, account.ext.v1());
+        }
+
+        return std::make_shared<LedgerEntry const>(std::move(le));
     }
-    if (!st.got_data())
+    catch (std::exception& e)
     {
-        return nullptr;
+        CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+        throw;
     }
-
-    account.accountID = key.account().accountID;
-    decoder::decode_b64(homeDomain, account.homeDomain);
-
-    bn::decode_b64(thresholds.begin(), thresholds.end(),
-                   account.thresholds.begin());
-
-    if (inflationDestInd == soci::i_ok)
-    {
-        account.inflationDest.activate() =
-            KeyUtils::fromStrKey<PublicKey>(inflationDest);
-    }
-
-    if (signersInd == soci::i_ok)
-    {
-        std::vector<uint8_t> signersOpaque;
-        decoder::decode_b64(signers, signersOpaque);
-        xdr::xdr_from_opaque(signersOpaque, account.signers);
-        assert(std::adjacent_find(account.signers.begin(),
-                                  account.signers.end(),
-                                  [](Signer const& lhs, Signer const& rhs) {
-                                      return !(lhs.key < rhs.key);
-                                  }) == account.signers.end());
-    }
-
-    assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
-    if (buyingLiabilitiesInd == soci::i_ok)
-    {
-        account.ext.v(1);
-        account.ext.v1().liabilities = liabilities;
-    }
-
-    return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
 std::vector<InflationWinner>
@@ -145,9 +152,8 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
     std::vector<std::string> mSigners;
     std::vector<soci::indicator> mSignerInds;
     std::vector<int32_t> mLastModifieds;
-    std::vector<int64_t> mBuyingLiabilities;
-    std::vector<int64_t> mSellingLiabilities;
-    std::vector<soci::indicator> mLiabilitiesInds;
+    std::vector<std::string> mExtensions;
+    std::vector<soci::indicator> mExtensionInds;
 
   public:
     BulkUpsertAccountsOperation(Database& DB,
@@ -166,9 +172,8 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
         mSigners.reserve(entries.size());
         mSignerInds.reserve(entries.size());
         mLastModifieds.reserve(entries.size());
-        mBuyingLiabilities.reserve(entries.size());
-        mSellingLiabilities.reserve(entries.size());
-        mLiabilitiesInds.reserve(entries.size());
+        mExtensions.reserve(entries.size());
+        mExtensionInds.reserve(entries.size());
 
         for (auto const& e : entries)
         {
@@ -210,17 +215,14 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
 
             if (account.ext.v() >= 1)
             {
-                mBuyingLiabilities.emplace_back(
-                    account.ext.v1().liabilities.buying);
-                mSellingLiabilities.emplace_back(
-                    account.ext.v1().liabilities.selling);
-                mLiabilitiesInds.emplace_back(soci::i_ok);
+                mExtensions.emplace_back(
+                    decoder::encode_b64(xdr::xdr_to_opaque(account.ext.v1())));
+                mExtensionInds.emplace_back(soci::i_ok);
             }
             else
             {
-                mBuyingLiabilities.emplace_back(0);
-                mSellingLiabilities.emplace_back(0);
-                mLiabilitiesInds.emplace_back(soci::i_null);
+                mExtensions.emplace_back("");
+                mExtensionInds.emplace_back(soci::i_null);
             }
         }
     }
@@ -232,9 +234,9 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
             "INSERT INTO accounts ( "
             "accountid, balance, seqnum, numsubentries, inflationdest,"
             "homedomain, thresholds, signers, flags, lastmodified, "
-            "buyingliabilities, sellingliabilities "
+            "extension "
             ") VALUES ( "
-            ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, :v11 "
+            ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10 "
             ") ON CONFLICT (accountid) DO UPDATE SET "
             "balance = excluded.balance, "
             "seqnum = excluded.seqnum, "
@@ -245,8 +247,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
             "signers = excluded.signers, "
             "flags = excluded.flags, "
             "lastmodified = excluded.lastmodified, "
-            "buyingliabilities = excluded.buyingliabilities, "
-            "sellingliabilities = excluded.sellingliabilities";
+            "extension = excluded.extension";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mAccountIDs));
@@ -259,8 +260,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
         st.exchange(soci::use(mSigners, mSignerInds));
         st.exchange(soci::use(mFlags));
         st.exchange(soci::use(mLastModifieds));
-        st.exchange(soci::use(mBuyingLiabilities, mLiabilitiesInds));
-        st.exchange(soci::use(mSellingLiabilities, mLiabilitiesInds));
+        st.exchange(soci::use(mExtensions, mExtensionInds));
         st.define_and_bind();
         {
             auto timer = mDB.getUpsertTimer("account");
@@ -282,82 +282,84 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        std::string strAccountIDs, strBalances, strSeqNums, strSubEntryNums,
-            strInflationDests, strFlags, strHomeDomains, strThresholds,
-            strSigners, strLastModifieds, strBuyingLiabilities,
-            strSellingLiabilities;
-
-        PGconn* conn = pg->conn_;
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        marshalToPGArray(conn, strBalances, mBalances);
-        marshalToPGArray(conn, strSeqNums, mSeqNums);
-        marshalToPGArray(conn, strSubEntryNums, mSubEntryNums);
-        marshalToPGArray(conn, strInflationDests, mInflationDests,
-                         &mInflationDestInds);
-        marshalToPGArray(conn, strFlags, mFlags);
-        marshalToPGArray(conn, strHomeDomains, mHomeDomains);
-        marshalToPGArray(conn, strThresholds, mThresholds);
-        marshalToPGArray(conn, strSigners, mSigners, &mSignerInds);
-        marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-        marshalToPGArray(conn, strBuyingLiabilities, mBuyingLiabilities,
-                         &mLiabilitiesInds);
-        marshalToPGArray(conn, strSellingLiabilities, mSellingLiabilities,
-                         &mLiabilitiesInds);
-
-        std::string sql =
-            "WITH r AS (SELECT "
-            "unnest(:ids::TEXT[]), "
-            "unnest(:v1::BIGINT[]), "
-            "unnest(:v2::BIGINT[]), "
-            "unnest(:v3::INT[]), "
-            "unnest(:v4::TEXT[]), "
-            "unnest(:v5::TEXT[]), "
-            "unnest(:v6::TEXT[]), "
-            "unnest(:v7::TEXT[]), "
-            "unnest(:v8::INT[]), "
-            "unnest(:v9::INT[]), "
-            "unnest(:v10::BIGINT[]), "
-            "unnest(:v11::BIGINT[]) "
-            ")"
-            "INSERT INTO accounts ( "
-            "accountid, balance, seqnum, "
-            "numsubentries, inflationdest, homedomain, thresholds, signers, "
-            "flags, lastmodified, buyingliabilities, sellingliabilities "
-            ") SELECT * FROM r "
-            "ON CONFLICT (accountid) DO UPDATE SET "
-            "balance = excluded.balance, "
-            "seqnum = excluded.seqnum, "
-            "numsubentries = excluded.numsubentries, "
-            "inflationdest = excluded.inflationdest, "
-            "homedomain = excluded.homedomain, "
-            "thresholds = excluded.thresholds, "
-            "signers = excluded.signers, "
-            "flags = excluded.flags, "
-            "lastmodified = excluded.lastmodified, "
-            "buyingliabilities = excluded.buyingliabilities, "
-            "sellingliabilities = excluded.sellingliabilities";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.exchange(soci::use(strBalances));
-        st.exchange(soci::use(strSeqNums));
-        st.exchange(soci::use(strSubEntryNums));
-        st.exchange(soci::use(strInflationDests));
-        st.exchange(soci::use(strHomeDomains));
-        st.exchange(soci::use(strThresholds));
-        st.exchange(soci::use(strSigners));
-        st.exchange(soci::use(strFlags));
-        st.exchange(soci::use(strLastModifieds));
-        st.exchange(soci::use(strBuyingLiabilities));
-        st.exchange(soci::use(strSellingLiabilities));
-        st.define_and_bind();
+        try
         {
-            auto timer = mDB.getUpsertTimer("account");
-            st.execute(true);
+            std::string strAccountIDs, strBalances, strSeqNums, strSubEntryNums,
+                strInflationDests, strFlags, strHomeDomains, strThresholds,
+                strSigners, strLastModifieds, strExtensions;
+
+            PGconn* conn = pg->conn_;
+            marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+            marshalToPGArray(conn, strBalances, mBalances);
+            marshalToPGArray(conn, strSeqNums, mSeqNums);
+            marshalToPGArray(conn, strSubEntryNums, mSubEntryNums);
+            marshalToPGArray(conn, strInflationDests, mInflationDests,
+                             &mInflationDestInds);
+            marshalToPGArray(conn, strFlags, mFlags);
+            marshalToPGArray(conn, strHomeDomains, mHomeDomains);
+            marshalToPGArray(conn, strThresholds, mThresholds);
+            marshalToPGArray(conn, strSigners, mSigners, &mSignerInds);
+            marshalToPGArray(conn, strLastModifieds, mLastModifieds);
+            marshalToPGArray(conn, strExtensions, mExtensions, &mExtensionInds);
+
+            std::string sql = "WITH r AS (SELECT "
+                              "unnest(:ids::TEXT[]), "
+                              "unnest(:v1::BIGINT[]), "
+                              "unnest(:v2::BIGINT[]), "
+                              "unnest(:v3::INT[]), "
+                              "unnest(:v4::TEXT[]), "
+                              "unnest(:v5::TEXT[]), "
+                              "unnest(:v6::TEXT[]), "
+                              "unnest(:v7::TEXT[]), "
+                              "unnest(:v8::INT[]), "
+                              "unnest(:v9::INT[]), "
+                              "unnest(:v10::TEXT[]) "
+                              ")"
+                              "INSERT INTO accounts ( "
+                              "accountid, balance, seqnum, "
+                              "numsubentries, inflationdest, homedomain, "
+                              "thresholds, signers, "
+                              "flags, lastmodified, extension "
+                              ") SELECT * FROM r "
+                              "ON CONFLICT (accountid) DO UPDATE SET "
+                              "balance = excluded.balance, "
+                              "seqnum = excluded.seqnum, "
+                              "numsubentries = excluded.numsubentries, "
+                              "inflationdest = excluded.inflationdest, "
+                              "homedomain = excluded.homedomain, "
+                              "thresholds = excluded.thresholds, "
+                              "signers = excluded.signers, "
+                              "flags = excluded.flags, "
+                              "lastmodified = excluded.lastmodified, "
+                              "extension = excluded.extension";
+            auto prep = mDB.getPreparedStatement(sql);
+            soci::statement& st = prep.statement();
+            st.exchange(soci::use(strAccountIDs));
+            st.exchange(soci::use(strBalances));
+            st.exchange(soci::use(strSeqNums));
+            st.exchange(soci::use(strSubEntryNums));
+            st.exchange(soci::use(strInflationDests));
+            st.exchange(soci::use(strHomeDomains));
+            st.exchange(soci::use(strThresholds));
+            st.exchange(soci::use(strSigners));
+            st.exchange(soci::use(strFlags));
+            st.exchange(soci::use(strLastModifieds));
+            st.exchange(soci::use(strExtensions));
+            st.define_and_bind();
+            {
+                auto timer = mDB.getUpsertTimer("account");
+                st.execute(true);
+            }
+            if (static_cast<size_t>(st.get_affected_rows()) !=
+                mAccountIDs.size())
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size())
+        catch (std::exception& e)
         {
-            throw std::runtime_error("Could not update data in SQL");
+            CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+            throw;
         }
     }
 #endif
@@ -412,24 +414,33 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
     void
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        PGconn* conn = pg->conn_;
-        std::string strAccountIDs;
-        marshalToPGArray(conn, strAccountIDs, mAccountIDs);
-        std::string sql =
-            "WITH r AS (SELECT unnest(:ids::TEXT[])) "
-            "DELETE FROM accounts WHERE accountid IN (SELECT * FROM r)";
-        auto prep = mDB.getPreparedStatement(sql);
-        soci::statement& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        st.define_and_bind();
+        try
         {
-            auto timer = mDB.getDeleteTimer("account");
-            st.execute(true);
+            PGconn* conn = pg->conn_;
+            std::string strAccountIDs;
+            marshalToPGArray(conn, strAccountIDs, mAccountIDs);
+            std::string sql =
+                "WITH r AS (SELECT unnest(:ids::TEXT[])) "
+                "DELETE FROM accounts WHERE accountid IN (SELECT * FROM r)";
+            auto prep = mDB.getPreparedStatement(sql);
+            soci::statement& st = prep.statement();
+            st.exchange(soci::use(strAccountIDs));
+            st.define_and_bind();
+            {
+                auto timer = mDB.getDeleteTimer("account");
+                st.execute(true);
+            }
+            if (static_cast<size_t>(st.get_affected_rows()) !=
+                    mAccountIDs.size() &&
+                mCons == LedgerTxnConsistency::EXACT)
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
         }
-        if (static_cast<size_t>(st.get_affected_rows()) != mAccountIDs.size() &&
-            mCons == LedgerTxnConsistency::EXACT)
+        catch (std::exception& e)
         {
-            throw std::runtime_error("Could not update data in SQL");
+            CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+            throw;
         }
     }
 #endif
@@ -499,9 +510,8 @@ class BulkLoadAccountsOperation
         int64_t balance;
         uint64_t seqNum;
         uint32_t numSubEntries, flags, lastModified;
-        Liabilities liabilities;
-        soci::indicator inflationDestInd, signersInd, buyingLiabilitiesInd,
-            sellingLiabilitiesInd;
+        std::string extension;
+        soci::indicator inflationDestInd, signersInd, extensionInd;
 
         st.exchange(soci::into(accountID));
         st.exchange(soci::into(balance));
@@ -512,8 +522,7 @@ class BulkLoadAccountsOperation
         st.exchange(soci::into(thresholds));
         st.exchange(soci::into(flags));
         st.exchange(soci::into(lastModified));
-        st.exchange(soci::into(liabilities.buying, buyingLiabilitiesInd));
-        st.exchange(soci::into(liabilities.selling, sellingLiabilitiesInd));
+        st.exchange(soci::into(extension, extensionInd));
         st.exchange(soci::into(signers, signersInd));
         st.define_and_bind();
         {
@@ -554,11 +563,12 @@ class BulkLoadAccountsOperation
             ae.flags = flags;
             le.lastModifiedLedgerSeq = lastModified;
 
-            assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
-            if (buyingLiabilitiesInd == soci::i_ok)
+            if (extensionInd == soci::i_ok)
             {
                 ae.ext.v(1);
-                ae.ext.v1().liabilities = liabilities;
+                std::vector<uint8_t> extensionOpaque;
+                decoder::decode_b64(extension, extensionOpaque);
+                xdr::xdr_from_opaque(extensionOpaque, ae.ext.v1());
             }
 
             if (signersInd == soci::i_ok)
@@ -604,7 +614,7 @@ class BulkLoadAccountsOperation
         std::string sql =
             "SELECT accountid, balance, seqnum, numsubentries, "
             "inflationdest, homedomain, thresholds, flags, lastmodified, "
-            "buyingliabilities, sellingliabilities, signers FROM accounts "
+            "extension, signers FROM accounts "
             "WHERE accountid IN carray(?, ?, 'char*')";
 
         auto prep = mDb.getPreparedStatement(sql);
@@ -627,21 +637,28 @@ class BulkLoadAccountsOperation
     virtual std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
+        try
+        {
+            std::string strAccountIDs;
+            marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
 
-        std::string strAccountIDs;
-        marshalToPGArray(pg->conn_, strAccountIDs, mAccountIDs);
+            std::string sql =
+                "WITH r AS (SELECT unnest(:v1::TEXT[])) "
+                "SELECT accountid, balance, seqnum, numsubentries, "
+                "inflationdest, homedomain, thresholds, flags, lastmodified, "
+                "extension, signers FROM accounts "
+                "WHERE accountid IN (SELECT * FROM r)";
 
-        std::string sql =
-            "WITH r AS (SELECT unnest(:v1::TEXT[])) "
-            "SELECT accountid, balance, seqnum, numsubentries, "
-            "inflationdest, homedomain, thresholds, flags, lastmodified, "
-            "buyingliabilities, sellingliabilities, signers FROM accounts "
-            "WHERE accountid IN (SELECT * FROM r)";
-
-        auto prep = mDb.getPreparedStatement(sql);
-        auto& st = prep.statement();
-        st.exchange(soci::use(strAccountIDs));
-        return executeAndFetch(st);
+            auto prep = mDb.getPreparedStatement(sql);
+            auto& st = prep.statement();
+            st.exchange(soci::use(strAccountIDs));
+            return executeAndFetch(st);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception: " << e.what();
+            throw;
+        }
     }
 #endif
 };
