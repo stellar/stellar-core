@@ -6,9 +6,10 @@
 
 BASE_INSTANCE="$1"
 TESTS="$2"
+: ${SELFTEST_LOG_LEVEL:="fatal"}
 
 if [[ "$ALL_VERSIONS" != "" ]]; then
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -w NoTests -a -r simple "$TESTS" 2> /dev/null
+    ./stellar-core test --ll $SELFTEST_LOG_LEVEL --base-instance $BASE_INSTANCE --all-versions -w NoTests -a -r simple "$TESTS" 2> /dev/null
 else
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE -w NoTests -a -r simple "$TESTS" 2> /dev/null
+    ./stellar-core test --ll $SELFTEST_LOG_LEVEL --base-instance $BASE_INSTANCE -w NoTests -a -r simple "$TESTS" 2> /dev/null
 fi

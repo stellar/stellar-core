@@ -9,6 +9,7 @@ TESTS="$2"
 if [[ -z "$TEMP_POSTGRES" ]]; then
     TEMP_POSTGRES=1
 fi
+: ${SELFTEST_LOG_LEVEL:="fatal"}
 
 PGDIRS=$(exec 2>/dev/null; cd /usr/lib/postgresql && ls -1d */bin | sort -rn | xargs realpath)
 
@@ -94,7 +95,7 @@ else
     echo "PostgreSQL enabled for tests using existing database cluster"
 fi
 if [ "$ALL_VERSIONS" != "" ]; then
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -w NoTests -a -r simple "$TESTS" 2> /dev/null
+    ./stellar-core test --ll $SELFTEST_LOG_LEVEL --base-instance $BASE_INSTANCE --all-versions -w NoTests -a -r simple "$TESTS" 2> /dev/null
 else                                 
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE -w NoTests -a -r simple "$TESTS" 2> /dev/null
+    ./stellar-core test --ll $SELFTEST_LOG_LEVEL --base-instance $BASE_INSTANCE -w NoTests -a -r simple "$TESTS" 2> /dev/null
 fi
