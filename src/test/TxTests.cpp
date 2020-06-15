@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "test/TxTests.h"
 #include "crypto/ByteSlice.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
@@ -13,6 +12,7 @@
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionFrame.h"
@@ -337,6 +337,24 @@ TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs)
 {
+    return closeLedgerOn(app, ledgerSeq, day, month, year, 0 /* hour */,
+                         0 /* minute */, 0 /* second */, txs);
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
+              int hour, int minute, int second,
+              std::vector<TransactionFrameBasePtr> const& txs)
+{
+    return closeLedgerOn(
+        app, ledgerSeq, getTestDateTime(day, month, year, hour, minute, second),
+        txs);
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs)
+{
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
 
@@ -348,8 +366,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     txSet->sortForHash();
     REQUIRE(txSet->checkValid(app, 0));
 
-    StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
-                    emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+                    STELLAR_VALUE_BASIC);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
