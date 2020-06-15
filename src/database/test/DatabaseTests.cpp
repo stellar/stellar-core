@@ -353,7 +353,14 @@ TEST_CASE("schema test", "[db]")
 class SchemaUpgradeTestApplication : public TestApplication
 {
   public:
-    SchemaUpgradeTestApplication(VirtualClock& clock, Config const& cfg)
+    using PreUpgradeFunc = std::function<void(SchemaUpgradeTestApplication&)>;
+
+  private:
+    PreUpgradeFunc const preUpgradeFunc;
+
+  public:
+    SchemaUpgradeTestApplication(VirtualClock& clock, Config const& cfg,
+                                 PreUpgradeFunc _preUpgradeFunc)
         : TestApplication(clock, cfg)
     {
     }
@@ -361,6 +368,10 @@ class SchemaUpgradeTestApplication : public TestApplication
     virtual void
     actBeforeDBSchemaUpgrade() override
     {
+        if (preUpgradeFunc)
+        {
+            preUpgradeFunc(*this);
+        }
     }
 };
 
@@ -370,7 +381,9 @@ TEST_CASE("schema upgrade test", "[db]")
         Config const& cfg = getTestConfig(0, db_mode);
         VirtualClock clock;
         Application::pointer app =
-            createTestApplication<SchemaUpgradeTestApplication>(clock, cfg);
+            createTestApplication<SchemaUpgradeTestApplication,
+                                  SchemaUpgradeTestApplication::PreUpgradeFunc>(
+                clock, cfg, [](SchemaUpgradeTestApplication& sapp) {});
         app->start();
 
         auto& db = app->getDatabase();
