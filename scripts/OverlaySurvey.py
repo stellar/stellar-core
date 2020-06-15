@@ -104,6 +104,15 @@ def analyze(args):
     write_graph_stats(G, args.graphStats)
     sys.exit(0)
 
+def augment(args):
+    graph = nx.read_graphml(args.graphmlInput)
+    data = requests.get("https://api.stellarbeat.io/v1/nodes").json()
+    for obj in data:
+        if graph.has_node(obj["publicKey"]):
+            graph.add_node(obj["publicKey"], ip=obj["ip"], name=obj["name"])
+    nx.write_graphml(graph, args.graphmlOutput)
+    sys.exit(0)
+
 
 def run_survey(args):
     G = nx.Graph()
@@ -243,6 +252,18 @@ def main():
                                 "--graphmlAnalyze",
                                 help="input graphml file")
     parser_analyze.set_defaults(func=analyze)
+
+    parser_augment = subparsers.add_parser('augment',
+                                           help="augment the master graph "
+                                                "with stellarbeat data")
+    parser_augment.add_argument("-gmli",
+                                "--graphmlInput",
+                                help="input master graph")
+    parser_augment.add_argument("-gmlo",
+                               "--graphmlOutput",
+                               required=True,
+                               help="output file for the augmented graph")
+    parser_augment.set_defaults(func=augment)
 
     args = ap.parse_args()
     args.func(args)
