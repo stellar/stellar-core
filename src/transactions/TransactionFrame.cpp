@@ -31,6 +31,7 @@
 #include "util/XDRStream.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
+#include <fmt/format.h>
 #include <Tracy.hpp>
 #include <string>
 
@@ -551,7 +552,11 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
         {
             // this should not happen as the transaction set is sanitized for
             // sequence numbers
-            throw std::runtime_error("Unexpected account state");
+            throw std::runtime_error(fmt::format("Unexpected account state: "
+                                                 "account seqnum={}, "
+                                                 "tx seqnum={}",
+                                                 acc.seqNum,
+                                                 getSeqNum()));
         }
         acc.seqNum = getSeqNum();
     }
