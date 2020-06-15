@@ -278,6 +278,10 @@ class Application
 
     virtual AbstractLedgerTxnParent& getLedgerTxnRoot() = 0;
 
+    // For tests to perform operations on databases while they're
+    // still using old schemas.
+    virtual void actBeforeDBSchemaUpgrade() = 0;
+
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`
     static pointer create(VirtualClock& clock, Config const& cfg,

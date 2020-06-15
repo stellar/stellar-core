@@ -290,6 +290,7 @@ Database::upgradeToCurrentSchema()
                          std::to_string(SCHEMA_VERSION));
         throw std::runtime_error(s);
     }
+    mApp.actBeforeDBSchemaUpgrade();
     while (vers < SCHEMA_VERSION)
     {
         ++vers;
