@@ -19,6 +19,11 @@
 *.suo
 *.trs
 *.db
+.clangd
+*.xdr.gz
+stellar-core-test-*
+*history*.json
+test-*.txt
 
 # sourcetrail
 compile_commands.json
