@@ -350,12 +350,27 @@ TEST_CASE("schema test", "[db]")
     REQUIRE(dbv == av);
 }
 
+class SchemaUpgradeTestApplication : public TestApplication
+{
+  public:
+    SchemaUpgradeTestApplication(VirtualClock& clock, Config const& cfg)
+        : TestApplication(clock, cfg)
+    {
+    }
+
+    virtual void
+    actBeforeDBSchemaUpgrade() override
+    {
+    }
+};
+
 TEST_CASE("schema upgrade test", "[db]")
 {
     auto test_one_db_mode = [](Config::TestDbMode const db_mode) {
         Config const& cfg = getTestConfig(0, db_mode);
         VirtualClock clock;
-        Application::pointer app = createTestApplication(clock, cfg);
+        Application::pointer app =
+            createTestApplication<SchemaUpgradeTestApplication>(clock, cfg);
         app->start();
 
         auto& db = app->getDatabase();

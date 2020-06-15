@@ -902,4 +902,9 @@ ApplicationImpl::getLedgerTxnRoot()
     return mConfig.MODE_USES_IN_MEMORY_LEDGER ? *mNeverCommittingLedgerTxn
                                               : *mLedgerTxnRoot;
 }
+
+void
+ApplicationImpl::actBeforeDBSchemaUpgrade()
+{
+}
 }
