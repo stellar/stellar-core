@@ -349,3 +349,29 @@ TEST_CASE("schema test", "[db]")
     auto av = db.getAppSchemaVersion();
     REQUIRE(dbv == av);
 }
+
+TEST_CASE("schema upgrade test", "[db]")
+{
+    auto test_one_db_mode = [](Config::TestDbMode const db_mode) {
+        Config const& cfg = getTestConfig(0, db_mode);
+        VirtualClock clock;
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+
+        auto& db = app->getDatabase();
+        auto dbv = db.getDBSchemaVersion();
+        auto av = db.getAppSchemaVersion();
+        REQUIRE(dbv == av);
+    };
+
+    for (auto db_mode :
+         {Config::TESTDB_IN_MEMORY_SQLITE, Config::TESTDB_ON_DISK_SQLITE
+#ifdef USE_POSTGRES
+          ,
+          Config::TESTDB_POSTGRESQL
+#endif // USE_POSTGRES
+         })
+    {
+        test_one_db_mode(db_mode);
+    }
+}
