@@ -103,6 +103,7 @@ class VirtualClock
     // believe in a concept of absolute time.
     static std::tm systemPointToTm(system_time_point);
     static VirtualClock::system_time_point tmToSystemPoint(tm t);
+    static std::time_t tm_to_time_t(std::tm tm);
     static std::tm isoStringToTm(std::string const& iso);
     static std::string tmToISOString(std::tm const& tm);
     static std::string systemPointToISOString(system_time_point point);

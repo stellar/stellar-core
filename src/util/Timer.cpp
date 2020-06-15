@@ -153,6 +153,12 @@ VirtualClock::tmToSystemPoint(tm t)
     return VirtualClock::system_time_point() + std::chrono::seconds(tt);
 }
 
+std::time_t
+VirtualClock::tm_to_time_t(std::tm tm)
+{
+    return to_time_t(tmToSystemPoint(tm));
+}
+
 std::tm
 VirtualClock::isoStringToTm(std::string const& iso)
 {
