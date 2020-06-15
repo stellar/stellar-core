@@ -597,7 +597,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         closeLedgerOn(*app, 2, 1, 1, 2016);
 
                         auto runTest = [&](bool txAccountMissing) {
-
                             // Create merge tx
                             auto txMerge = b1.tx({accountMerge(a1)});
 
@@ -1530,6 +1529,26 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         {
                             offsetTest(false);
                         }
+                    }
+
+                    SECTION("accepted on time, but closed later "
+                            "(protocol issue 622)")
+                    {
+                        auto const ledgerVersion =
+                            app->getLedgerManager()
+                                .getLastClosedLedgerHeader()
+                                .header.ledgerVersion;
+                        time_t const max_seconds = 30;
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        setMinTime(txFrame, 0);
+                        setMaxTime(txFrame, start + max_seconds);
+                        auto resultMeta = closeLedgerOn(
+                            *app, 3, start + max_seconds + 1, {txFrame});
+                        REQUIRE(resultMeta.size() == 1);
+                        TransactionResultCode const code =
+                            resultMeta.begin()->first.result.result.code();
+                        REQUIRE(code == txTOO_LATE);
                     }
                 });
             }
