@@ -452,7 +452,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     }
 
     CLOG(INFO, "Database") << __func__ << ": updated " << numAccountsUpdated
-                           << " accounts with liabilities";
+                           << " account(s) with liabilities";
 }
 
 void
@@ -514,7 +514,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     }
 
     CLOG(INFO, "Database") << __func__ << ": updated " << numTrustLinesUpdated
-                           << " trustlines with liabilities";
+                           << " trustline(s) with liabilities";
 }
 
 void
