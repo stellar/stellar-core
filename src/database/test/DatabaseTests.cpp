@@ -392,11 +392,13 @@ class SchemaUpgradeTestApplication : public TestApplication
 
 TEST_CASE("schema upgrade test", "[db]")
 {
-    std::string static const sqlNULL = "NULL";
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
                               optional<Liabilities> const liabilities0,
                               optional<Liabilities> const liabilities1,
-                              optional<Liabilities> const liabilities2) {
+                              optional<Liabilities> const liabilities2,
+                              optional<Liabilities> const liabilities3,
+                              optional<Liabilities> const liabilities4,
+                              optional<Liabilities> const liabilities5) {
         auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
                                          optional<Liabilities> const
                                              liabilities) {
@@ -437,12 +439,15 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
                           "v9"),
-                soci::use(liabilities ? std::to_string(liabilities->buying)
-                                      : sqlNULL,
-                          "v10"),
-                soci::use(liabilities ? std::to_string(liabilities->selling)
-                                      : sqlNULL,
-                          "v11");
+                soci::use(liabilities ? liabilities->buying : 0, "v10"),
+                soci::use(liabilities ? liabilities->selling : 0, "v11");
+            if (!liabilities)
+            {
+                session << "UPDATE accounts SET buyingliabilities = NULL, "
+                           "sellingliabilities = NULL WHERE "
+                           "accountid = :id",
+                    soci::use(accountIDStr, "id");
+            }
             tx.commit();
         };
 
@@ -451,6 +456,7 @@ TEST_CASE("schema upgrade test", "[db]")
 
             addOneOldSchemaAccount(app, liabilities0);
             addOneOldSchemaAccount(app, liabilities1);
+            addOneOldSchemaAccount(app, liabilities2);
         }
         catch (std::exception& e)
         {
@@ -459,41 +465,48 @@ TEST_CASE("schema upgrade test", "[db]")
             throw;
         }
 
-        auto addOneOldSchemaTrustLine =
-            [](SchemaUpgradeTestApplication& app,
-               optional<Liabilities> const liabilities) {
-                auto tl = LedgerTestUtils::generateValidTrustLineEntry();
-                auto& session = app.getDatabase().getSession();
-                std::string accountIDStr, issuerStr, assetCodeStr;
-                getTrustLineStrings(tl.accountID, tl.asset, accountIDStr,
-                                    issuerStr, assetCodeStr);
-                int32_t assetType = tl.asset.type();
+        auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
+                                           optional<Liabilities> const
+                                               liabilities) {
+            auto tl = LedgerTestUtils::generateValidTrustLineEntry();
+            auto& session = app.getDatabase().getSession();
+            std::string accountIDStr, issuerStr, assetCodeStr;
+            getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
+                                assetCodeStr);
+            int32_t assetType = tl.asset.type();
 
-                soci::transaction tx(session);
-                session << "INSERT INTO trustlines ( "
-                           "accountid, assettype, issuer, assetcode,"
-                           "tlimit, balance, flags, lastmodified, "
-                           "buyingliabilities, sellingliabilities "
-                           ") VALUES ( "
-                           ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
-                           ")",
-                    soci::use(accountIDStr, "id"), soci::use(assetType, "v1"),
-                    soci::use(issuerStr, "v2"), soci::use(assetCodeStr, "v3"),
-                    soci::use(tl.limit, "v4"), soci::use(tl.balance, "v5"),
-                    soci::use(tl.flags, "v6"),
-                    soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
-                              "v7"),
-                    soci::use(liabilities ? std::to_string(liabilities->buying)
-                                          : sqlNULL,
-                              "v8"),
-                    soci::use(liabilities ? std::to_string(liabilities->selling)
-                                          : sqlNULL,
-                              "v9");
-                tx.commit();
-            };
+            soci::transaction tx(session);
+            session << "INSERT INTO trustlines ( "
+                       "accountid, assettype, issuer, assetcode,"
+                       "tlimit, balance, flags, lastmodified, "
+                       "buyingliabilities, sellingliabilities "
+                       ") VALUES ( "
+                       ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
+                       ")",
+                soci::use(accountIDStr, "id"), soci::use(assetType, "v1"),
+                soci::use(issuerStr, "v2"), soci::use(assetCodeStr, "v3"),
+                soci::use(tl.limit, "v4"), soci::use(tl.balance, "v5"),
+                soci::use(tl.flags, "v6"),
+                soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
+                          "v7"),
+                soci::use(liabilities ? liabilities->buying : 0, "v8"),
+                soci::use(liabilities ? liabilities->selling : 0, "v9");
+            if (!liabilities)
+            {
+                session
+                    << "UPDATE trustlines SET buyingliabilities = NULL, "
+                       "sellingliabilities = NULL WHERE "
+                       "accountid = :id AND issuer = :v1 AND assetcode = :v2",
+                    soci::use(accountIDStr, "id"), soci::use(issuerStr, "v1"),
+                    soci::use(assetCodeStr, "v2");
+            }
+            tx.commit();
+        };
         try
         {
-            addOneOldSchemaTrustLine(app, liabilities2);
+            addOneOldSchemaTrustLine(app, liabilities3);
+            addOneOldSchemaTrustLine(app, liabilities4);
+            addOneOldSchemaTrustLine(app, liabilities5);
         }
         catch (std::exception& e)
         {
@@ -512,17 +525,22 @@ TEST_CASE("schema upgrade test", "[db]")
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
                 [prepOldSchemaDB](SchemaUpgradeTestApplication& sapp) {
-                    Liabilities liabilities0, liabilities1, liabilities2;
-                    liabilities0.buying = 12;
-                    liabilities0.selling = 17;
-                    liabilities1.buying = 3;
-                    liabilities1.selling = 0;
-                    liabilities2.buying = 0;
-                    liabilities2.selling = 6;
-                    prepOldSchemaDB(sapp,
-                                    make_optional<Liabilities>(liabilities0),
+                    Liabilities liabilities1, liabilities2, liabilities3,
+                        liabilities4;
+                    liabilities1.buying = 12;
+                    liabilities1.selling = 17;
+                    liabilities2.buying = 3;
+                    liabilities2.selling = 0;
+                    liabilities3.buying = 0;
+                    liabilities3.selling = 6;
+                    liabilities4.buying = 0;
+                    liabilities4.selling = 0;
+                    prepOldSchemaDB(sapp, nullopt<Liabilities>(),
                                     make_optional<Liabilities>(liabilities1),
-                                    make_optional<Liabilities>(liabilities2));
+                                    make_optional<Liabilities>(liabilities2),
+                                    make_optional<Liabilities>(liabilities3),
+                                    make_optional<Liabilities>(liabilities4),
+                                    nullopt<Liabilities>());
                 });
         app->start();
     };
