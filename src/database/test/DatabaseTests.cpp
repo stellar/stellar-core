@@ -392,11 +392,11 @@ class SchemaUpgradeTestApplication : public TestApplication
 TEST_CASE("schema upgrade test", "[db]")
 {
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
-                              Liabilities const mLiabilities0,
-                              Liabilities const mLiabilities1,
-                              Liabilities const mLiabilities2) {
+                              Liabilities const liabilities0,
+                              Liabilities const liabilities1,
+                              Liabilities const liabilities2) {
         auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
-                                         Liabilities const mLiabilities) {
+                                         Liabilities const liabilities) {
             auto ae = LedgerTestUtils::generateValidAccountEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr =
@@ -434,16 +434,16 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
                           "v9"),
-                soci::use(mLiabilities.buying, "v10"),
-                soci::use(mLiabilities.selling, "v11");
+                soci::use(liabilities.buying, "v10"),
+                soci::use(liabilities.selling, "v11");
             tx.commit();
         };
 
         try
         {
 
-            addOneOldSchemaAccount(app, mLiabilities0);
-            addOneOldSchemaAccount(app, mLiabilities1);
+            addOneOldSchemaAccount(app, liabilities0);
+            addOneOldSchemaAccount(app, liabilities1);
         }
         catch (std::exception& e)
         {
@@ -453,7 +453,7 @@ TEST_CASE("schema upgrade test", "[db]")
         }
 
         auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
-                                           Liabilities const mLiabilities) {
+                                           Liabilities const liabilities) {
             auto tl = LedgerTestUtils::generateValidTrustLineEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr, issuerStr, assetCodeStr;
@@ -475,13 +475,13 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(tl.flags, "v6"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
                           "v7"),
-                soci::use(mLiabilities.buying, "v8"),
-                soci::use(mLiabilities.selling, "v9");
+                soci::use(liabilities.buying, "v8"),
+                soci::use(liabilities.selling, "v9");
             tx.commit();
         };
         try
         {
-            addOneOldSchemaTrustLine(app, mLiabilities2);
+            addOneOldSchemaTrustLine(app, liabilities2);
         }
         catch (std::exception& e)
         {
