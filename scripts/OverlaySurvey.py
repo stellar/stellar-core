@@ -15,12 +15,6 @@ def add_new_node(graph, label, version=""):
     graph.add_node(label, label=label, version=version)
 
 
-def add_new_edge(graph, u, v, bytes_transferred):
-    if graph.has_edge(u, v):
-        return
-    graph.add_edge(u, v, bytes_transferred=bytes_transferred)
-
-
 def next_peer(direction_tag, node_info):
     if direction_tag in node_info and node_info[direction_tag]:
         for peer in node_info[direction_tag]:
@@ -52,8 +46,13 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
         results[direction_tag][other_key] = peer
         add_new_node(graph, parent_key)
         add_new_node(graph, other_key, peer["version"])
-        add_new_edge(graph, other_key, parent_key,
-                     peer["bytesWritten"] + peer["bytesRead"])
+        edge_properties = peer.copy()
+        edge_properties.pop("nodeId", None)
+        edge_properties.pop("version", None)
+        if is_inbound:
+            graph.add_edge(other_key, parent_key, **edge_properties)
+        else:
+            graph.add_edge(parent_key, other_key, **edge_properties)
 
     if "numTotalInboundPeers" in parent_info:
         results["totalInbound"] = parent_info["numTotalInboundPeers"]
@@ -117,7 +116,7 @@ def augment(args):
 
 
 def run_survey(args):
-    graph = nx.Graph()
+    graph = nx.DiGraph()
     merged_results = defaultdict(lambda: {
         "totalInbound": 0,
         "totalOutbound": 0,
