@@ -369,19 +369,37 @@ Database::getPreparedOldLiabilitySelect(std::string const table,
 void
 Database::convertAccountExtensionsToOpaqueXDR()
 {
-    addTextColumnIfNotPresent("accounts", "extension");
-    copyIndividualAccountExtensionFieldsToOpaqueXDR();
-    dropTextColumn("accounts", "buyingliabilities");
-    dropTextColumn("accounts", "sellingliabilities");
+    try
+    {
+        addTextColumnIfNotPresent("accounts", "extension");
+        copyIndividualAccountExtensionFieldsToOpaqueXDR();
+        dropTextColumn("accounts", "buyingliabilities");
+        dropTextColumn("accounts", "sellingliabilities");
+    }
+    catch (std::exception& e)
+    {
+        CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                << " while upgrading account extensions";
+        throw;
+    }
 }
 
 void
 Database::convertTrustLineExtensionsToOpaqueXDR()
 {
-    addTextColumnIfNotPresent("trustlines", "extension");
-    copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
-    dropTextColumn("trustlines", "buyingliabilities");
-    dropTextColumn("trustlines", "sellingliabilities");
+    try
+    {
+        addTextColumnIfNotPresent("trustlines", "extension");
+        copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
+        dropTextColumn("trustlines", "buyingliabilities");
+        dropTextColumn("trustlines", "sellingliabilities");
+    }
+    catch (std::exception& e)
+    {
+        CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                << " while upgrading trustline extensions";
+        throw;
+    }
 }
 
 void
