@@ -475,7 +475,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         auto prep_update = getPreparedStatement(
             "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
             "AND "
-            "issuer = :issuer_id AND asset = :asset_id");
+            "issuer = :issuer_id AND assetcode = :asset_id");
         auto& st_update = prep_update.statement();
         st_update.exchange(soci::use(opaqueExtension, "ext"));
         st_update.exchange(soci::use(accountIDStrKey, "id"));
