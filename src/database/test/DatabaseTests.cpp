@@ -4,12 +4,16 @@
 
 #include "util/asio.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "database/Database.h"
+#include "ledger/LedgerTxn.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
@@ -378,26 +382,26 @@ class SchemaUpgradeTestApplication : public TestApplication
 TEST_CASE("schema upgrade test", "[db]")
 {
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
-                              std::string const mAccountID0,
                               int64_t const mBuyingLiabilities0,
                               int64_t const mSellingLiabilities0,
-                              std::string const mAccountID1,
                               int64_t const mBuyingLiabilities1,
-                              int64_t const mSellingLiabilities1) {
+                              int64_t const mSellingLiabilities1,
+                              int64_t const mSellingLiabilities2,
+                              int64_t const mBuyingLiabilities2) {
         auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
-                                         std::string const mAccountID,
                                          int64_t const mBuyingLiabilities,
                                          int64_t const mSellingLiabilities) {
+            auto ae = LedgerTestUtils::generateValidAccountEntry();
             auto& session = app.getDatabase().getSession();
-            int64_t const mBalance = 500;
-            int64_t const mSeqNum = 7;
-            int32_t const mSubEntryNum = 0;
-            std::string const mInflationDest = "infdest";
-            std::string const mHomeDomain = "my.home";
-            std::string const mThreshold = "threshold";
-            std::string const mSigners = "autograph";
-            int32_t const mFlags = 0;
-            int32_t const mLastModified = 3;
+            std::string accountIDStr =
+                KeyUtils::toStrKey<PublicKey>(ae.accountID);
+            std::string inflationDestStr =
+                KeyUtils::toStrKey<PublicKey>(*ae.inflationDest);
+            std::string homeDomainStr;
+            homeDomainStr = decoder::encode_b64(ae.homeDomain);
+            std::string signersStr =
+                decoder::encode_b64(xdr::xdr_to_opaque(ae.signers));
+            std::string thresholdsStr = decoder::encode_b64(ae.thresholds);
 
             soci::transaction tx(session);
 
@@ -415,48 +419,51 @@ TEST_CASE("schema upgrade test", "[db]")
                    ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, "
                    ":v11 "
                    ")",
-                soci::use(mAccountID, "id"), soci::use(mBalance, "v1"),
-                soci::use(mSeqNum, "v2"), soci::use(mSubEntryNum, "v3"),
-                soci::use(mInflationDest, "v4"), soci::use(mHomeDomain, "v5"),
-                soci::use(mThreshold, "v6"), soci::use(mSigners, "v7"),
-                soci::use(mFlags, "v8"), soci::use(mLastModified, "v9"),
+                soci::use(accountIDStr, "id"), soci::use(ae.balance, "v1"),
+                soci::use(ae.seqNum, "v2"), soci::use(ae.numSubEntries, "v3"),
+                soci::use(inflationDestStr, "v4"),
+                soci::use(homeDomainStr, "v5"), soci::use(thresholdsStr, "v6"),
+                soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
+                soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
+                          "v9"),
                 soci::use(mBuyingLiabilities, "v10"),
                 soci::use(mSellingLiabilities, "v11");
             tx.commit();
         };
-        addOneOldSchemaAccount(app, mAccountID0, mBuyingLiabilities0,
-                               mSellingLiabilities0);
-        addOneOldSchemaAccount(app, mAccountID1, mBuyingLiabilities1,
-                               mSellingLiabilities1);
-        auto addOneOldSchemaTrustLine =
-            [](SchemaUpgradeTestApplication& app, std::string const mAccountID,
-               int32_t const mAssetType, std::string const mIssuerID,
-               std::string const mAssetCode, int64_t const mBuyingLiabilities,
-               int64_t const mSellingLiabilities) {
-                auto& session = app.getDatabase().getSession();
-                int64_t const mTlimit = 60;
-                int64_t const mBalance = 300;
-                int32_t const mFlags = 1;
-                int32_t const mLastModified = 4;
 
-                soci::transaction tx(session);
-                session << "INSERT INTO trustlines ( "
-                           "accountid, assettype, issuer, assetcode,"
-                           "tlimit, balance, flags, lastmodified, "
-                           "buyingliabilities, sellingliabilities "
-                           ") VALUES ( "
-                           ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
-                           ")",
-                    soci::use(mAccountID, "id"), soci::use(mAssetType, "v1"),
-                    soci::use(mIssuerID, "v2"), soci::use(mAssetCode, "v3"),
-                    soci::use(mTlimit, "v4"), soci::use(mBalance, "v5"),
-                    soci::use(mFlags, "v6"), soci::use(mLastModified, "v7"),
-                    soci::use(mBuyingLiabilities, "v8"),
-                    soci::use(mSellingLiabilities, "v9");
-                tx.commit();
-            };
-        addOneOldSchemaTrustLine(app, "account2", 4, "issuer0", "assetCode0",
-                                 11, 19);
+        addOneOldSchemaAccount(app, mBuyingLiabilities0, mSellingLiabilities0);
+        addOneOldSchemaAccount(app, mBuyingLiabilities1, mSellingLiabilities1);
+
+        auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
+                                           int64_t const mBuyingLiabilities,
+                                           int64_t const mSellingLiabilities) {
+            auto tl = LedgerTestUtils::generateValidTrustLineEntry();
+            auto& session = app.getDatabase().getSession();
+            std::string accountIDStr, issuerStr, assetCodeStr;
+            getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
+                                assetCodeStr);
+            int32_t assetType = tl.asset.type();
+
+            soci::transaction tx(session);
+            session << "INSERT INTO trustlines ( "
+                       "accountid, assettype, issuer, assetcode,"
+                       "tlimit, balance, flags, lastmodified, "
+                       "buyingliabilities, sellingliabilities "
+                       ") VALUES ( "
+                       ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
+                       ")",
+                soci::use(accountIDStr, "id"), soci::use(assetType, "v1"),
+                soci::use(issuerStr, "v2"), soci::use(assetCodeStr, "v3"),
+                soci::use(tl.limit, "v4"), soci::use(tl.balance, "v5"),
+                soci::use(tl.flags, "v6"),
+                soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
+                          "v7"),
+                soci::use(mBuyingLiabilities, "v8"),
+                soci::use(mSellingLiabilities, "v9");
+            tx.commit();
+        };
+        addOneOldSchemaTrustLine(app, mBuyingLiabilities2,
+                                 mSellingLiabilities2);
     };
 
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
@@ -467,15 +474,9 @@ TEST_CASE("schema upgrade test", "[db]")
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
                 [prepOldSchemaDB](SchemaUpgradeTestApplication& sapp) {
-                    prepOldSchemaDB(sapp, "account0", 12, 17, "account1", 40,
-                                    5);
+                    prepOldSchemaDB(sapp, 12, 17, 40, 5, 3, 0);
                 });
         app->start();
-
-        auto& db = app->getDatabase();
-        auto dbv = db.getDBSchemaVersion();
-        auto av = db.getAppSchemaVersion();
-        REQUIRE(dbv == av);
     };
 
     for (auto db_mode :
