@@ -206,6 +206,11 @@ class Database : NonMovableOrCopyable
     // Check schema version and apply any upgrades if necessary.
     void upgradeToCurrentSchema();
 
+    // The name of the column containing the ledger entry extension,
+    // which appears in all the tables which contain any type of
+    // ledger entry.
+    static std::string const ledgerExtName;
+
     // Access the underlying SOCI session object
     soci::session& getSession();
 

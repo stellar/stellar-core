@@ -35,6 +35,7 @@
 #include "medida/timer.h"
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
+#include <string>
 #ifdef USE_POSTGRES
 #include <lib/soci/src/backends/postgresql/soci-postgresql.h>
 #endif
@@ -199,6 +200,8 @@ Database::Database(Application& app)
     doDatabaseTypeSpecificOperation(op);
 }
 
+std::string const Database::ledgerExtName = "ledgerext";
+
 void
 Database::applySchemaUpgrade(unsigned long vers)
 {
@@ -258,6 +261,12 @@ Database::applySchemaUpgrade(unsigned long vers)
     case 13:
         if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
         {
+            // Add columns for the LedgerEntry extension to each of
+            // the tables that stores a type of ledger entry.
+            addTextColumnIfNotPresent("accounts", ledgerExtName);
+            addTextColumnIfNotPresent("trustlines", ledgerExtName);
+            addTextColumnIfNotPresent("accountdata", ledgerExtName);
+            addTextColumnIfNotPresent("offers", ledgerExtName);
             // Absorb the explicit columns of the extension fields of
             // AccountEntry and TrustLineEntry into single opaque
             // blobs of XDR each of which represents an entire extension.
