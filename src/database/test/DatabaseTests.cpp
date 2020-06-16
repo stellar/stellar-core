@@ -406,7 +406,9 @@ TEST_CASE("schema upgrade test", "[db]")
             std::string accountIDStr =
                 KeyUtils::toStrKey<PublicKey>(ae.accountID);
             std::string inflationDestStr =
-                KeyUtils::toStrKey<PublicKey>(*ae.inflationDest);
+                ae.inflationDest
+                    ? KeyUtils::toStrKey<PublicKey>(*ae.inflationDest)
+                    : "";
             std::string homeDomainStr;
             homeDomainStr = decoder::encode_b64(ae.homeDomain);
             std::string signersStr =
