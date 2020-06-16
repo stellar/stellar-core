@@ -392,15 +392,11 @@ class SchemaUpgradeTestApplication : public TestApplication
 TEST_CASE("schema upgrade test", "[db]")
 {
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
-                              int64_t const mBuyingLiabilities0,
-                              int64_t const mSellingLiabilities0,
-                              int64_t const mBuyingLiabilities1,
-                              int64_t const mSellingLiabilities1,
-                              int64_t const mSellingLiabilities2,
-                              int64_t const mBuyingLiabilities2) {
+                              Liabilities const mLiabilities0,
+                              Liabilities const mLiabilities1,
+                              Liabilities const mLiabilities2) {
         auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
-                                         int64_t const mBuyingLiabilities,
-                                         int64_t const mSellingLiabilities) {
+                                         Liabilities const mLiabilities) {
             auto ae = LedgerTestUtils::generateValidAccountEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr =
@@ -438,18 +434,16 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
                           "v9"),
-                soci::use(mBuyingLiabilities, "v10"),
-                soci::use(mSellingLiabilities, "v11");
+                soci::use(mLiabilities.buying, "v10"),
+                soci::use(mLiabilities.selling, "v11");
             tx.commit();
         };
 
         try
         {
 
-            addOneOldSchemaAccount(app, mBuyingLiabilities0,
-                                   mSellingLiabilities0);
-            addOneOldSchemaAccount(app, mBuyingLiabilities1,
-                                   mSellingLiabilities1);
+            addOneOldSchemaAccount(app, mLiabilities0);
+            addOneOldSchemaAccount(app, mLiabilities1);
         }
         catch (std::exception& e)
         {
@@ -459,8 +453,7 @@ TEST_CASE("schema upgrade test", "[db]")
         }
 
         auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
-                                           int64_t const mBuyingLiabilities,
-                                           int64_t const mSellingLiabilities) {
+                                           Liabilities const mLiabilities) {
             auto tl = LedgerTestUtils::generateValidTrustLineEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr, issuerStr, assetCodeStr;
@@ -482,14 +475,13 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(tl.flags, "v6"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
                           "v7"),
-                soci::use(mBuyingLiabilities, "v8"),
-                soci::use(mSellingLiabilities, "v9");
+                soci::use(mLiabilities.buying, "v8"),
+                soci::use(mLiabilities.selling, "v9");
             tx.commit();
         };
         try
         {
-            addOneOldSchemaTrustLine(app, mBuyingLiabilities2,
-                                     mSellingLiabilities2);
+            addOneOldSchemaTrustLine(app, mLiabilities2);
         }
         catch (std::exception& e)
         {
@@ -508,7 +500,15 @@ TEST_CASE("schema upgrade test", "[db]")
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
                 [prepOldSchemaDB](SchemaUpgradeTestApplication& sapp) {
-                    prepOldSchemaDB(sapp, 12, 17, 40, 5, 3, 0);
+                    Liabilities liabilities0, liabilities1, liabilities2;
+                    liabilities0.buying = 12;
+                    liabilities0.selling = 17;
+                    liabilities1.buying = 3;
+                    liabilities1.selling = 0;
+                    liabilities2.buying = 0;
+                    liabilities2.selling = 6;
+                    prepOldSchemaDB(sapp, liabilities0, liabilities1,
+                                    liabilities2);
                 });
         app->start();
     };
