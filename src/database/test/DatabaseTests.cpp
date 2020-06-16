@@ -428,6 +428,35 @@ TEST_CASE("schema upgrade test", "[db]")
                                mSellingLiabilities0);
         addOneOldSchemaAccount(app, mAccountID1, mBuyingLiabilities1,
                                mSellingLiabilities1);
+        auto addOneOldSchemaTrustLine =
+            [](SchemaUpgradeTestApplication& app, std::string const mAccountID,
+               int32_t const mAssetType, std::string const mIssuerID,
+               std::string const mAssetCode, int64_t const mBuyingLiabilities,
+               int64_t const mSellingLiabilities) {
+                auto& session = app.getDatabase().getSession();
+                int64_t const mTlimit = 60;
+                int64_t const mBalance = 300;
+                int32_t const mFlags = 1;
+                int32_t const mLastModified = 4;
+
+                soci::transaction tx(session);
+                session << "INSERT INTO trustlines ( "
+                           "accountid, assettype, issuer, assetcode,"
+                           "tlimit, balance, flags, lastmodified, "
+                           "buyingliabilities, sellingliabilities "
+                           ") VALUES ( "
+                           ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
+                           ")",
+                    soci::use(mAccountID, "id"), soci::use(mAssetType, "v1"),
+                    soci::use(mIssuerID, "v2"), soci::use(mAssetCode, "v3"),
+                    soci::use(mTlimit, "v4"), soci::use(mBalance, "v5"),
+                    soci::use(mFlags, "v6"), soci::use(mLastModified, "v7"),
+                    soci::use(mBuyingLiabilities, "v8"),
+                    soci::use(mSellingLiabilities, "v9");
+                tx.commit();
+            };
+        addOneOldSchemaTrustLine(app, "account2", 4, "issuer0", "assetCode0",
+                                 11, 19);
     };
 
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
