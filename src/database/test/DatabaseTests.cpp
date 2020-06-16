@@ -378,9 +378,17 @@ class SchemaUpgradeTestApplication : public TestApplication
 TEST_CASE("schema upgrade test", "[db]")
 {
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
-                              std::string const mAccountID) {
-        auto& session = app.getDatabase().getSession();
-        {
+                              std::string const mAccountID0,
+                              int64_t const mBuyingLiabilities0,
+                              int64_t const mSellingLiabilities0,
+                              std::string const mAccountID1,
+                              int64_t const mBuyingLiabilities1,
+                              int64_t const mSellingLiabilities1) {
+        auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
+                                         std::string const mAccountID,
+                                         int64_t const mBuyingLiabilities,
+                                         int64_t const mSellingLiabilities) {
+            auto& session = app.getDatabase().getSession();
             int64_t const mBalance = 500;
             int64_t const mSeqNum = 7;
             int32_t const mSubEntryNum = 0;
@@ -390,8 +398,6 @@ TEST_CASE("schema upgrade test", "[db]")
             std::string const mSigners = "autograph";
             int32_t const mFlags = 0;
             int32_t const mLastModified = 3;
-            int64_t const mBuyingLiabilities = 12;
-            int64_t const mSellingLiabilities = 17;
 
             soci::transaction tx(session);
 
@@ -417,7 +423,11 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(mBuyingLiabilities, "v10"),
                 soci::use(mSellingLiabilities, "v11");
             tx.commit();
-        }
+        };
+        addOneOldSchemaAccount(app, mAccountID0, mBuyingLiabilities0,
+                               mSellingLiabilities0);
+        addOneOldSchemaAccount(app, mAccountID1, mBuyingLiabilities1,
+                               mSellingLiabilities1);
     };
 
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
@@ -428,7 +438,8 @@ TEST_CASE("schema upgrade test", "[db]")
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
                 [prepOldSchemaDB](SchemaUpgradeTestApplication& sapp) {
-                    prepOldSchemaDB(sapp, "account");
+                    prepOldSchemaDB(sapp, "account0", 12, 17, "account1", 40,
+                                    5);
                 });
         app->start();
 
