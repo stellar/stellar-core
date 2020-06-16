@@ -374,7 +374,17 @@ class SchemaUpgradeTestApplication : public TestApplication
     {
         if (preUpgradeFunc)
         {
-            preUpgradeFunc(*this);
+            try
+            {
+                preUpgradeFunc(*this);
+            }
+            catch (std::exception& e)
+            {
+                CLOG(FATAL, "Database")
+                    << __func__ << ": exception " << e.what()
+                    << " while calling pre-upgrade function";
+                throw;
+            }
         }
     }
 };
@@ -431,8 +441,20 @@ TEST_CASE("schema upgrade test", "[db]")
             tx.commit();
         };
 
-        addOneOldSchemaAccount(app, mBuyingLiabilities0, mSellingLiabilities0);
-        addOneOldSchemaAccount(app, mBuyingLiabilities1, mSellingLiabilities1);
+        try
+        {
+
+            addOneOldSchemaAccount(app, mBuyingLiabilities0,
+                                   mSellingLiabilities0);
+            addOneOldSchemaAccount(app, mBuyingLiabilities1,
+                                   mSellingLiabilities1);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while adding old-schema accounts";
+            throw;
+        }
 
         auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
                                            int64_t const mBuyingLiabilities,
@@ -462,8 +484,18 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(mSellingLiabilities, "v9");
             tx.commit();
         };
-        addOneOldSchemaTrustLine(app, mBuyingLiabilities2,
-                                 mSellingLiabilities2);
+        try
+        {
+            addOneOldSchemaTrustLine(app, mBuyingLiabilities2,
+                                     mSellingLiabilities2);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while adding old-schema trustlines";
+            throw;
+        }
+
     };
 
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
@@ -487,6 +519,15 @@ TEST_CASE("schema upgrade test", "[db]")
 #endif // USE_POSTGRES
          })
     {
-        testOneDBMode(db_mode);
+        try
+        {
+            testOneDBMode(db_mode);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while testing db_mode " << db_mode;
+            throw;
+        }
     }
 }
