@@ -377,13 +377,56 @@ class SchemaUpgradeTestApplication : public TestApplication
 
 TEST_CASE("schema upgrade test", "[db]")
 {
-    auto test_one_db_mode = [](Config::TestDbMode const db_mode) {
+    auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app) {
+        auto& session = app.getDatabase().getSession();
+        {
+            std::string const mAccountID = "account";
+            int64_t const mBalance = 500;
+            int64_t const mSeqNum = 7;
+            int32_t const mSubEntryNum = 0;
+            std::string const mInflationDest = "infdest";
+            std::string const mHomeDomain = "my.home";
+            std::string const mThreshold = "threshold";
+            std::string const mSigners = "autograph";
+            int32_t const mFlags = 0;
+            int32_t const mLastModified = 3;
+            int64_t const mBuyingLiabilities = 12;
+            int64_t const mSellingLiabilities = 17;
+
+            soci::transaction tx(session);
+
+            // Use raw SQL to perform a couple of database operations,
+            // since we're writing in an old database format, and calling
+            // standard interfaces to create accounts or trustlines would
+            // use SQL corresponding to the new format to which we'll
+            // soon upgrade.
+            session
+                << "INSERT INTO accounts ( "
+                   "accountid, balance, seqnum, numsubentries, inflationdest,"
+                   "homedomain, thresholds, signers, flags, lastmodified, "
+                   "buyingliabilities, sellingliabilities "
+                   ") VALUES ( "
+                   ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, "
+                   ":v11 "
+                   ")",
+                soci::use(mAccountID, "id"), soci::use(mBalance, "v1"),
+                soci::use(mSeqNum, "v2"), soci::use(mSubEntryNum, "v3"),
+                soci::use(mInflationDest, "v4"), soci::use(mHomeDomain, "v5"),
+                soci::use(mThreshold, "v6"), soci::use(mSigners, "v7"),
+                soci::use(mFlags, "v8"), soci::use(mLastModified, "v9"),
+                soci::use(mBuyingLiabilities, "v10"),
+                soci::use(mSellingLiabilities, "v11");
+            tx.commit();
+        }
+    };
+
+    auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
         Config const& cfg = getTestConfig(0, db_mode);
         VirtualClock clock;
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
-                clock, cfg, [](SchemaUpgradeTestApplication& sapp) {});
+                clock, cfg, prepOldSchemaDB);
         app->start();
 
         auto& db = app->getDatabase();
@@ -400,6 +443,6 @@ TEST_CASE("schema upgrade test", "[db]")
 #endif // USE_POSTGRES
          })
     {
-        test_one_db_mode(db_mode);
+        testOneDBMode(db_mode);
     }
 }
