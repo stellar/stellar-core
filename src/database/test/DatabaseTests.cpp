@@ -361,7 +361,7 @@ class SchemaUpgradeTestApplication : public TestApplication
   public:
     SchemaUpgradeTestApplication(VirtualClock& clock, Config const& cfg,
                                  PreUpgradeFunc _preUpgradeFunc)
-        : TestApplication(clock, cfg)
+        : TestApplication(clock, cfg), preUpgradeFunc(_preUpgradeFunc)
     {
     }
 
