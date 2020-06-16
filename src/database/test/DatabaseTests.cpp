@@ -377,10 +377,10 @@ class SchemaUpgradeTestApplication : public TestApplication
 
 TEST_CASE("schema upgrade test", "[db]")
 {
-    auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app) {
+    auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
+                              std::string const mAccountID) {
         auto& session = app.getDatabase().getSession();
         {
-            std::string const mAccountID = "account";
             int64_t const mBalance = 500;
             int64_t const mSeqNum = 7;
             int32_t const mSubEntryNum = 0;
@@ -426,7 +426,10 @@ TEST_CASE("schema upgrade test", "[db]")
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
-                clock, cfg, prepOldSchemaDB);
+                clock, cfg,
+                [prepOldSchemaDB](SchemaUpgradeTestApplication& sapp) {
+                    prepOldSchemaDB(sapp, "account");
+                });
         app->start();
 
         auto& db = app->getDatabase();
