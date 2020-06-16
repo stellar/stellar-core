@@ -453,7 +453,6 @@ TEST_CASE("schema upgrade test", "[db]")
 
         try
         {
-
             addOneOldSchemaAccount(app, liabilities0);
             addOneOldSchemaAccount(app, liabilities1);
             addOneOldSchemaAccount(app, liabilities2);
