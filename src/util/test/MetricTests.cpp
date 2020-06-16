@@ -502,3 +502,24 @@ TEST_CASE("sliding window percentiles - alternating frequencies and patterns",
     swt.addUniformSamplesAtHighFrequency(1, 100);
     swt.checkPercentiles(false);
 }
+
+TEST_CASE("sums of nanoseconds do not overflow", "[medida_math]")
+{
+    // This tests that sums (and possibly other derived values of accumulated
+    // nanoseconds -- billionths of a second) in medida are not stored in an
+    // int64 and therefore don't overflow after a few months of accumulation at
+    // decently-high frequency.
+    medida::Histogram hist;
+    int64_t billion = 1000000000;
+    int64_t billion_billion = billion * billion;
+    // the biggest int64_t is 9.2 billion billion.
+    for (size_t i = 0; i < 15; ++i)
+    {
+        hist.Update(billion_billion);
+        REQUIRE(hist.sum() >= 0);
+        REQUIRE(hist.min() >= 0);
+        REQUIRE(hist.max() >= 0);
+        REQUIRE(hist.mean() >= 0);
+        REQUIRE(hist.std_dev() >= 0);
+    }
+}
