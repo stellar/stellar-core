@@ -18,6 +18,7 @@
 #include "util/Math.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
+#include "util/optional.h"
 #include <random>
 
 using namespace stellar;
@@ -391,12 +392,14 @@ class SchemaUpgradeTestApplication : public TestApplication
 
 TEST_CASE("schema upgrade test", "[db]")
 {
+    std::string static const sqlNULL = "NULL";
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
-                              Liabilities const liabilities0,
-                              Liabilities const liabilities1,
-                              Liabilities const liabilities2) {
+                              optional<Liabilities> const liabilities0,
+                              optional<Liabilities> const liabilities1,
+                              optional<Liabilities> const liabilities2) {
         auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
-                                         Liabilities const liabilities) {
+                                         optional<Liabilities> const
+                                             liabilities) {
             auto ae = LedgerTestUtils::generateValidAccountEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr =
@@ -434,8 +437,12 @@ TEST_CASE("schema upgrade test", "[db]")
                 soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
                           "v9"),
-                soci::use(liabilities.buying, "v10"),
-                soci::use(liabilities.selling, "v11");
+                soci::use(liabilities ? std::to_string(liabilities->buying)
+                                      : sqlNULL,
+                          "v10"),
+                soci::use(liabilities ? std::to_string(liabilities->selling)
+                                      : sqlNULL,
+                          "v11");
             tx.commit();
         };
 
@@ -452,33 +459,38 @@ TEST_CASE("schema upgrade test", "[db]")
             throw;
         }
 
-        auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
-                                           Liabilities const liabilities) {
-            auto tl = LedgerTestUtils::generateValidTrustLineEntry();
-            auto& session = app.getDatabase().getSession();
-            std::string accountIDStr, issuerStr, assetCodeStr;
-            getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
-                                assetCodeStr);
-            int32_t assetType = tl.asset.type();
+        auto addOneOldSchemaTrustLine =
+            [](SchemaUpgradeTestApplication& app,
+               optional<Liabilities> const liabilities) {
+                auto tl = LedgerTestUtils::generateValidTrustLineEntry();
+                auto& session = app.getDatabase().getSession();
+                std::string accountIDStr, issuerStr, assetCodeStr;
+                getTrustLineStrings(tl.accountID, tl.asset, accountIDStr,
+                                    issuerStr, assetCodeStr);
+                int32_t assetType = tl.asset.type();
 
-            soci::transaction tx(session);
-            session << "INSERT INTO trustlines ( "
-                       "accountid, assettype, issuer, assetcode,"
-                       "tlimit, balance, flags, lastmodified, "
-                       "buyingliabilities, sellingliabilities "
-                       ") VALUES ( "
-                       ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
-                       ")",
-                soci::use(accountIDStr, "id"), soci::use(assetType, "v1"),
-                soci::use(issuerStr, "v2"), soci::use(assetCodeStr, "v3"),
-                soci::use(tl.limit, "v4"), soci::use(tl.balance, "v5"),
-                soci::use(tl.flags, "v6"),
-                soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
-                          "v7"),
-                soci::use(liabilities.buying, "v8"),
-                soci::use(liabilities.selling, "v9");
-            tx.commit();
-        };
+                soci::transaction tx(session);
+                session << "INSERT INTO trustlines ( "
+                           "accountid, assettype, issuer, assetcode,"
+                           "tlimit, balance, flags, lastmodified, "
+                           "buyingliabilities, sellingliabilities "
+                           ") VALUES ( "
+                           ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
+                           ")",
+                    soci::use(accountIDStr, "id"), soci::use(assetType, "v1"),
+                    soci::use(issuerStr, "v2"), soci::use(assetCodeStr, "v3"),
+                    soci::use(tl.limit, "v4"), soci::use(tl.balance, "v5"),
+                    soci::use(tl.flags, "v6"),
+                    soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
+                              "v7"),
+                    soci::use(liabilities ? std::to_string(liabilities->buying)
+                                          : sqlNULL,
+                              "v8"),
+                    soci::use(liabilities ? std::to_string(liabilities->selling)
+                                          : sqlNULL,
+                              "v9");
+                tx.commit();
+            };
         try
         {
             addOneOldSchemaTrustLine(app, liabilities2);
@@ -507,8 +519,10 @@ TEST_CASE("schema upgrade test", "[db]")
                     liabilities1.selling = 0;
                     liabilities2.buying = 0;
                     liabilities2.selling = 6;
-                    prepOldSchemaDB(sapp, liabilities0, liabilities1,
-                                    liabilities2);
+                    prepOldSchemaDB(sapp,
+                                    make_optional<Liabilities>(liabilities0),
+                                    make_optional<Liabilities>(liabilities1),
+                                    make_optional<Liabilities>(liabilities2));
                 });
         app->start();
     };
