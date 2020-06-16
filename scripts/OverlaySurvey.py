@@ -10,7 +10,7 @@ import time
 
 
 def add_new_node(graph, label, version=""):
-    if graph.has_node(label) and version is "":
+    if graph.has_node(label) and version == "":
         return
     graph.add_node(label, label=label, version=version)
 
@@ -52,7 +52,8 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
         results[direction_tag][other_key] = peer
         add_new_node(graph, parent_key)
         add_new_node(graph, other_key, peer["version"])
-        add_new_edge(graph, other_key, parent_key, peer["bytesWritten"] + peer["bytesRead"])
+        add_new_edge(graph, other_key, parent_key,
+                     peer["bytesWritten"] + peer["bytesRead"])
 
     if "numTotalInboundPeers" in parent_info:
         results["totalInbound"] = parent_info["numTotalInboundPeers"]
@@ -60,10 +61,10 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
         results["totalOutbound"] = parent_info["numTotalOutboundPeers"]
 
 
-def send_requests(peer_list, params, requestUrl):
+def send_requests(peer_list, params, request_url):
     for key in peer_list:
         params["node"] = key
-        requests.get(url=requestUrl, params=params)
+        requests.get(url=request_url, params=params)
 
 
 def check_results(data, graph, merged_results):
@@ -87,7 +88,7 @@ def check_results(data, graph, merged_results):
     return get_next_peers(topology)
 
 
-def write_graph_stats(graph, outputFile):
+def write_graph_stats(graph, output_file):
     stats = {}
     stats[
         "average_shortest_path_length"
@@ -95,14 +96,15 @@ def write_graph_stats(graph, outputFile):
     stats["average_clustering"] = nx.average_clustering(graph)
     stats["clustering"] = nx.clustering(graph)
     stats["degree"] = dict(nx.degree(graph))
-    with open(outputFile, 'w') as outfile:
+    with open(output_file, 'w') as outfile:
         json.dump(stats, outfile)
 
 
 def analyze(args):
-    G = nx.read_graphml(args.graphmlAnalyze)
-    write_graph_stats(G, args.graphStats)
+    graph = nx.read_graphml(args.graphmlAnalyze)
+    write_graph_stats(graph, args.graphStats)
     sys.exit(0)
+
 
 def augment(args):
     graph = nx.read_graphml(args.graphmlInput)
@@ -115,7 +117,7 @@ def augment(args):
 
 
 def run_survey(args):
-    G = nx.Graph()
+    graph = nx.Graph()
     merged_results = defaultdict(lambda: {
         "totalInbound": 0,
         "totalOutbound": 0,
@@ -123,26 +125,25 @@ def run_survey(args):
         "outboundPeers": {}
     })
 
-    URL = args.node
+    url = args.node
 
-    PEERS = URL + "/peers"
-    SURVEY_REQUEST = URL + "/surveytopology"
-    SURVEY_RESULT = URL + "/getsurveyresult"
-    STOP_SURVEY = URL + "/stopsurvey"
+    peers = url + "/peers"
+    survey_request = url + "/surveytopology"
+    survey_result = url + "/getsurveyresult"
+    stop_survey = url + "/stopsurvey"
 
     duration = int(args.duration)
-    PARAMS = {'duration': duration}
+    params = {'duration': duration}
 
-    add_new_node(G,
+    add_new_node(graph,
                  requests
-                 .get(URL + "/scp?limit=0&fullkeys=true")
+                 .get(url + "/scp?limit=0&fullkeys=true")
                  .json()
                  ["you"],
-                 requests.get(URL + "/info").json()["info"]["build"])
-
+                 requests.get(url + "/info").json()["info"]["build"])
 
     # reset survey
-    r = requests.get(url=STOP_SURVEY)
+    requests.get(url=stop_survey)
 
     peer_list = []
     if args.nodeList:
@@ -151,11 +152,10 @@ def run_survey(args):
         for node in f:
             peer_list.append(node.rstrip('\n'))
 
-    PEERS_PARAMS = {'fullkeys': "true"}
-    r = requests.get(url=PEERS, params=PEERS_PARAMS)
+    peers_params = {'fullkeys': "true"}
 
-    data = r.json()
-    peers = data["authenticated_peers"]
+    peers = requests.get(url=peers, params=peers_params).json()[
+        "authenticated_peers"]
 
     # seed initial peers off of /peers endpoint
     if peers["inbound"]:
@@ -168,7 +168,7 @@ def run_survey(args):
     sent_requests = set()
 
     while True:
-        send_requests(peer_list, PARAMS, SURVEY_REQUEST)
+        send_requests(peer_list, params, survey_request)
 
         for peer in peer_list:
             sent_requests.add(peer)
@@ -178,10 +178,9 @@ def run_survey(args):
         # allow time for results
         time.sleep(1)
 
-        r = requests.get(url=SURVEY_RESULT)
-        data = r.json()
+        data = requests.get(url=survey_result).json()
 
-        result_node_list = check_results(data, G, merged_results)
+        result_node_list = check_results(data, graph, merged_results)
 
         if "surveyInProgress" in data and data["surveyInProgress"] is False:
             break
@@ -199,13 +198,13 @@ def run_survey(args):
             if node["totalOutbound"] > len(node["outboundPeers"]):
                 peer_list.append(key)
 
-    if nx.is_empty(G):
+    if nx.is_empty(graph):
         print("Graph is empty!")
         sys.exit(0)
 
-    write_graph_stats(G, args.graphStats)
+    write_graph_stats(graph, args.graphStats)
 
-    nx.write_graphml(G, args.graphmlWrite)
+    nx.write_graphml(graph, args.graphmlWrite)
 
     with open(args.surveyResult, 'w') as outfile:
         json.dump(merged_results, outfile)
@@ -213,13 +212,13 @@ def run_survey(args):
 
 def main():
     # construct the argument parse and parse the arguments
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-gs",
-                    "--graphStats",
-                    required=True,
-                    help="output file for graph stats")
+    argument_parser = argparse.ArgumentParser()
+    argument_parser.add_argument("-gs",
+                                 "--graphStats",
+                                 required=True,
+                                 help="output file for graph stats")
 
-    subparsers = ap.add_subparsers()
+    subparsers = argument_parser.add_subparsers()
 
     parser_survey = subparsers.add_parser('survey',
                                           help="run survey and "
@@ -260,12 +259,12 @@ def main():
                                 "--graphmlInput",
                                 help="input master graph")
     parser_augment.add_argument("-gmlo",
-                               "--graphmlOutput",
-                               required=True,
-                               help="output file for the augmented graph")
+                                "--graphmlOutput",
+                                required=True,
+                                help="output file for the augmented graph")
     parser_augment.set_defaults(func=augment)
 
-    args = ap.parse_args()
+    args = argument_parser.parse_args()
     args.func(args)
 
 
