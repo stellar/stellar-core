@@ -9,16 +9,16 @@ import sys
 import time
 
 
-def add_new_node(graph, label):
-    if graph.has_node(label):
+def add_new_node(graph, label, version=""):
+    if graph.has_node(label) and version is "":
         return
-    graph.add_node(label, label=label)
+    graph.add_node(label, label=label, version=version)
 
 
-def add_new_edge(graph, u, v):
+def add_new_edge(graph, u, v, bytes_transferred):
     if graph.has_edge(u, v):
         return
-    graph.add_edge(u, v)
+    graph.add_edge(u, v, bytes_transferred=bytes_transferred)
 
 
 def next_peer(direction_tag, node_info):
@@ -51,8 +51,8 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
 
         results[direction_tag][other_key] = peer
         add_new_node(graph, parent_key)
-        add_new_node(graph, other_key)
-        add_new_edge(graph, other_key, parent_key)
+        add_new_node(graph, other_key, peer["version"])
+        add_new_edge(graph, other_key, parent_key, peer["bytesWritten"] + peer["bytesRead"])
 
     if "numTotalInboundPeers" in parent_info:
         results["totalInbound"] = parent_info["numTotalInboundPeers"]
@@ -68,7 +68,8 @@ def send_requests(peer_list, params, requestUrl):
 
 def check_results(data, graph, merged_results):
     if "topology" not in data:
-        raise ValueError("stellar-core is missing survey nodes. Are the public keys surveyed valid?")
+        raise ValueError("stellar-core is missing survey nodes."
+                         "Are the public keys surveyed valid?")
 
     topology = data["topology"]
 
@@ -88,7 +89,9 @@ def check_results(data, graph, merged_results):
 
 def write_graph_stats(graph, outputFile):
     stats = {}
-    stats["average_shortest_path_length"] = nx.average_shortest_path_length(graph)
+    stats[
+        "average_shortest_path_length"
+    ] = nx.average_shortest_path_length(graph)
     stats["average_clustering"] = nx.average_clustering(graph)
     stats["clustering"] = nx.clustering(graph)
     stats["degree"] = dict(nx.degree(graph))
@@ -101,15 +104,24 @@ def analyze(args):
     write_graph_stats(G, args.graphStats)
     sys.exit(0)
 
+def augment(args):
+    graph = nx.read_graphml(args.graphmlInput)
+    data = requests.get("https://api.stellarbeat.io/v1/nodes").json()
+    for obj in data:
+        if graph.has_node(obj["publicKey"]):
+            graph.add_node(obj["publicKey"], ip=obj["ip"], name=obj["name"])
+    nx.write_graphml(graph, args.graphmlOutput)
+    sys.exit(0)
+
 
 def run_survey(args):
     G = nx.Graph()
     merged_results = defaultdict(lambda: {
-                    "totalInbound": 0,
-                    "totalOutbound": 0,
-                    "inboundPeers": {},
-                    "outboundPeers": {}
-                    })
+        "totalInbound": 0,
+        "totalOutbound": 0,
+        "inboundPeers": {},
+        "outboundPeers": {}
+    })
 
     URL = args.node
 
@@ -120,6 +132,14 @@ def run_survey(args):
 
     duration = int(args.duration)
     PARAMS = {'duration': duration}
+
+    add_new_node(G,
+                 requests
+                 .get(URL + "/scp?limit=0&fullkeys=true")
+                 .json()
+                 ["you"],
+                 requests.get(URL + "/info").json()["info"]["build"])
+
 
     # reset survey
     r = requests.get(url=STOP_SURVEY)
@@ -163,7 +183,7 @@ def run_survey(args):
 
         result_node_list = check_results(data, G, merged_results)
 
-        if "surveyInProgress" in data and data["surveyInProgress"] == False:
+        if "surveyInProgress" in data and data["surveyInProgress"] is False:
             break
 
         # try new nodes
@@ -174,9 +194,9 @@ def run_survey(args):
         # retry for incomplete nodes
         for key in merged_results:
             node = merged_results[key]
-            if(node["totalInbound"] > len(node["inboundPeers"])):
+            if node["totalInbound"] > len(node["inboundPeers"]):
                 peer_list.append(key)
-            if(node["totalOutbound"] > len(node["outboundPeers"])):
+            if node["totalOutbound"] > len(node["outboundPeers"]):
                 peer_list.append(key)
 
     if nx.is_empty(G):
@@ -194,21 +214,56 @@ def run_survey(args):
 def main():
     # construct the argument parse and parse the arguments
     ap = argparse.ArgumentParser()
-    ap.add_argument("-gs", "--graphStats", required=True, help="output file for graph stats")
+    ap.add_argument("-gs",
+                    "--graphStats",
+                    required=True,
+                    help="output file for graph stats")
 
     subparsers = ap.add_subparsers()
 
-    parser_survey = subparsers.add_parser('survey', help="run survey and analyze results")
-    parser_survey.add_argument("-n", "--node", required=True, help="address of initial survey node")
-    parser_survey.add_argument("-d", "--duration", required=True, help="duration of survey in seconds")
-    parser_survey.add_argument("-sr", "--surveyResult", required=True, help="output file for survey results")
-    parser_survey.add_argument("-gmlw", "--graphmlWrite", required=True, help="output file for graphml file")
-    parser_survey.add_argument("-nl", "--nodeList", help="optional list of seed nodes")
+    parser_survey = subparsers.add_parser('survey',
+                                          help="run survey and "
+                                               "analyze results")
+    parser_survey.add_argument("-n",
+                               "--node",
+                               required=True,
+                               help="address of initial survey node")
+    parser_survey.add_argument("-d",
+                               "--duration",
+                               required=True,
+                               help="duration of survey in seconds")
+    parser_survey.add_argument("-sr",
+                               "--surveyResult",
+                               required=True,
+                               help="output file for survey results")
+    parser_survey.add_argument("-gmlw",
+                               "--graphmlWrite",
+                               required=True,
+                               help="output file for graphml file")
+    parser_survey.add_argument("-nl",
+                               "--nodeList",
+                               help="optional list of seed nodes")
     parser_survey.set_defaults(func=run_survey)
 
-    parser_analyze = subparsers.add_parser('analyze', help="write stats for the graphml input graph")
-    parser_analyze.add_argument("-gmla", "--graphmlAnalyze", help="input graphml file")
+    parser_analyze = subparsers.add_parser('analyze',
+                                           help="write stats for "
+                                                "the graphml input graph")
+    parser_analyze.add_argument("-gmla",
+                                "--graphmlAnalyze",
+                                help="input graphml file")
     parser_analyze.set_defaults(func=analyze)
+
+    parser_augment = subparsers.add_parser('augment',
+                                           help="augment the master graph "
+                                                "with stellarbeat data")
+    parser_augment.add_argument("-gmli",
+                                "--graphmlInput",
+                                help="input master graph")
+    parser_augment.add_argument("-gmlo",
+                               "--graphmlOutput",
+                               required=True,
+                               help="output file for the augmented graph")
+    parser_augment.set_defaults(func=augment)
 
     args = ap.parse_args()
     args.func(args)
