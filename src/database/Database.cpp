@@ -423,6 +423,10 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     st_select.define_and_bind();
     st_select.execute(true);
 
+    auto prep_update = getPreparedStatement(
+        "UPDATE accounts SET extension = :ext WHERE accountID = :id");
+    auto& st_update = prep_update.statement();
+
     size_t numAccountsUpdated = 0;
     for (; st_select.got_data(); st_select.fetch())
     {
@@ -433,9 +437,6 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         assert(sellingLiabilitiesInd == soci::i_ok);
         std::string opaqueExtension(
             decoder::encode_b64(xdr::xdr_to_opaque(extension)));
-        auto prep_update = getPreparedStatement(
-            "UPDATE accounts SET extension = :ext WHERE accountID = :id");
-        auto& st_update = prep_update.statement();
         st_update.exchange(soci::use(opaqueExtension, "ext"));
         st_update.exchange(soci::use(accountIDStrKey, "id"));
         st_update.define_and_bind();
