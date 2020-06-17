@@ -475,10 +475,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     st_select.exchange(
         soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
     st_select.define_and_bind();
-    {
-        auto timer = getSelectTimer("trustline-ext-to-opaque");
-        st_select.execute(true);
-    }
+    st_select.execute(true);
 
     size_t numTrustLinesUpdated = 0;
     for (; st_select.got_data(); st_select.fetch())
