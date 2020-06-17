@@ -410,19 +410,17 @@ TEST_CASE("schema upgrade test", "[db]")
                                          optional<Liabilities> const
                                              liabilities) {
             auto& session = app.getDatabase().getSession();
-            std::string accountIDStr =
-                KeyUtils::toStrKey<PublicKey>(ae.accountID);
-            std::string inflationDestStr =
+            auto accountIDStr = KeyUtils::toStrKey<PublicKey>(ae.accountID);
+            auto inflationDestStr =
                 ae.inflationDest
                     ? KeyUtils::toStrKey<PublicKey>(*ae.inflationDest)
                     : "";
-            soci::indicator inflationDestInd =
+            auto inflationDestInd =
                 ae.inflationDest ? soci::i_ok : soci::i_null;
-            std::string homeDomainStr;
-            homeDomainStr = decoder::encode_b64(ae.homeDomain);
-            std::string signersStr =
+            auto homeDomainStr = decoder::encode_b64(ae.homeDomain);
+            auto signersStr =
                 decoder::encode_b64(xdr::xdr_to_opaque(ae.signers));
-            std::string thresholdsStr = decoder::encode_b64(ae.thresholds);
+            auto thresholdsStr = decoder::encode_b64(ae.thresholds);
 
             soci::transaction tx(session);
 
