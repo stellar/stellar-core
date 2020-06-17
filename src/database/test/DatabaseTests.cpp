@@ -533,22 +533,22 @@ TEST_CASE("schema upgrade test", "[db]")
         auto tl3 = LedgerTestUtils::generateValidTrustLineEntry();
         auto tl4 = LedgerTestUtils::generateValidTrustLineEntry();
         auto tl5 = LedgerTestUtils::generateValidTrustLineEntry();
+        Liabilities liabilities1, liabilities2, liabilities3, liabilities4;
+        liabilities1.buying = 12;
+        liabilities1.selling = 17;
+        liabilities2.buying = 3;
+        liabilities2.selling = 0;
+        liabilities3.buying = 0;
+        liabilities3.selling = 6;
+        liabilities4.buying = 0;
+        liabilities4.selling = 0;
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
-                [prepOldSchemaDB, ae0, ae1, ae2, tl3, tl4,
-                 tl5](SchemaUpgradeTestApplication& sapp) {
-                    Liabilities liabilities1, liabilities2, liabilities3,
-                        liabilities4;
-                    liabilities1.buying = 12;
-                    liabilities1.selling = 17;
-                    liabilities2.buying = 3;
-                    liabilities2.selling = 0;
-                    liabilities3.buying = 0;
-                    liabilities3.selling = 6;
-                    liabilities4.buying = 0;
-                    liabilities4.selling = 0;
+                [prepOldSchemaDB, ae0, ae1, ae2, tl3, tl4, tl5, liabilities1,
+                 liabilities2, liabilities3,
+                 liabilities4](SchemaUpgradeTestApplication& sapp) {
                     prepOldSchemaDB(
                         sapp, ae0, nullopt<Liabilities>(), ae1,
                         make_optional<Liabilities>(liabilities1), ae2,
