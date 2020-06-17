@@ -313,7 +313,7 @@ Database::upgradeToCurrentSchema()
 }
 
 void
-Database::addTextColumn(std::string const table, std::string const column)
+Database::addTextColumn(std::string const& table, std::string const& column)
 {
     std::string addColumnStr("ALTER TABLE " + table + " ADD " + column +
                              " TEXT;");
@@ -323,7 +323,7 @@ Database::addTextColumn(std::string const table, std::string const column)
 }
 
 void
-Database::dropTextColumn(std::string const table, std::string const column)
+Database::dropTextColumn(std::string const& table, std::string const& column)
 {
     // SQLite doesn't give us a way of dropping a column with a single
     // SQL command.  If we need it in production, we could re-create the
@@ -355,8 +355,8 @@ Database::dropTextColumn(std::string const table, std::string const column)
 }
 
 StatementContext
-Database::getPreparedOldLiabilitySelect(std::string const table,
-                                        std::string const fields)
+Database::getPreparedOldLiabilitySelect(std::string const& table,
+                                        std::string const& fields)
 {
     return getPreparedStatement("SELECT " + fields + "," +
                                 "buyingliabilities, sellingliabilities "

@@ -108,10 +108,10 @@ class Database : NonMovableOrCopyable
     void convertAccountExtensionsToOpaqueXDR();
     void copyIndividualAccountExtensionFieldsToOpaqueXDR();
 
-    StatementContext getPreparedOldLiabilitySelect(std::string const table,
-                                                   std::string const fields);
-    void addTextColumn(std::string const table, std::string const column);
-    void dropTextColumn(std::string const table, std::string const column);
+    StatementContext getPreparedOldLiabilitySelect(std::string const& table,
+                                                   std::string const& fields);
+    void addTextColumn(std::string const& table, std::string const& column);
+    void dropTextColumn(std::string const& table, std::string const& column);
 
     // Convert the trustlines table from using explicit entries for
     // extension fields into storing the entire extension as opaque XDR.
