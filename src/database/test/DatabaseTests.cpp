@@ -575,12 +575,19 @@ TEST_CASE("schema upgrade test", "[db]")
         acc = ltx.load(key);
         REQUIRE(acc.current().data.type() == ACCOUNT);
         REQUIRE(acc.current().data.account().ext.v() == 1);
-        REQUIRE(acc.current().data.account().ext.v1().liabilities.buying == 12);
+        REQUIRE(acc.current().data.account().ext.v1().liabilities.buying ==
+                liabilities1.buying);
+        REQUIRE(acc.current().data.account().ext.v1().liabilities.selling ==
+                liabilities1.selling);
 
         key.account().accountID = ae2.accountID;
         acc = ltx.load(key);
         REQUIRE(acc.current().data.type() == ACCOUNT);
         REQUIRE(acc.current().data.account().ext.v() == 1);
+        REQUIRE(acc.current().data.account().ext.v1().liabilities.buying ==
+                liabilities2.buying);
+        REQUIRE(acc.current().data.account().ext.v1().liabilities.selling ==
+                liabilities2.selling);
 
         key.type(TRUSTLINE);
 
@@ -589,12 +596,20 @@ TEST_CASE("schema upgrade test", "[db]")
         tl = ltx.load(key);
         REQUIRE(tl.current().data.type() == TRUSTLINE);
         REQUIRE(tl.current().data.trustLine().ext.v() == 1);
+        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.buying ==
+                liabilities3.buying);
+        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.selling ==
+                liabilities3.selling);
 
         key.trustLine().accountID = tl4.accountID;
         key.trustLine().asset = tl4.asset;
         tl = ltx.load(key);
         REQUIRE(tl.current().data.type() == TRUSTLINE);
         REQUIRE(tl.current().data.trustLine().ext.v() == 1);
+        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.buying ==
+                liabilities4.buying);
+        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.selling ==
+                liabilities4.selling);
 
         key.trustLine().accountID = tl5.accountID;
         key.trustLine().asset = tl5.asset;
