@@ -393,16 +393,22 @@ class SchemaUpgradeTestApplication : public TestApplication
 TEST_CASE("schema upgrade test", "[db]")
 {
     auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
+                              AccountEntry const& ae0,
                               optional<Liabilities> const liabilities0,
+                              AccountEntry const& ae1,
                               optional<Liabilities> const liabilities1,
+                              AccountEntry const& ae2,
                               optional<Liabilities> const liabilities2,
+                              TrustLineEntry const& tl3,
                               optional<Liabilities> const liabilities3,
+                              TrustLineEntry const& tl4,
                               optional<Liabilities> const liabilities4,
+                              TrustLineEntry const& tl5,
                               optional<Liabilities> const liabilities5) {
         auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
+                                         AccountEntry const& ae,
                                          optional<Liabilities> const
                                              liabilities) {
-            auto ae = LedgerTestUtils::generateValidAccountEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr =
                 KeyUtils::toStrKey<PublicKey>(ae.accountID);
@@ -453,9 +459,9 @@ TEST_CASE("schema upgrade test", "[db]")
 
         try
         {
-            addOneOldSchemaAccount(app, liabilities0);
-            addOneOldSchemaAccount(app, liabilities1);
-            addOneOldSchemaAccount(app, liabilities2);
+            addOneOldSchemaAccount(app, ae0, liabilities0);
+            addOneOldSchemaAccount(app, ae1, liabilities1);
+            addOneOldSchemaAccount(app, ae2, liabilities2);
         }
         catch (std::exception& e)
         {
@@ -465,9 +471,9 @@ TEST_CASE("schema upgrade test", "[db]")
         }
 
         auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
+                                           TrustLineEntry const& tl,
                                            optional<Liabilities> const
                                                liabilities) {
-            auto tl = LedgerTestUtils::generateValidTrustLineEntry();
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
@@ -503,9 +509,9 @@ TEST_CASE("schema upgrade test", "[db]")
         };
         try
         {
-            addOneOldSchemaTrustLine(app, liabilities3);
-            addOneOldSchemaTrustLine(app, liabilities4);
-            addOneOldSchemaTrustLine(app, liabilities5);
+            addOneOldSchemaTrustLine(app, tl3, liabilities3);
+            addOneOldSchemaTrustLine(app, tl4, liabilities4);
+            addOneOldSchemaTrustLine(app, tl5, liabilities5);
         }
         catch (std::exception& e)
         {
@@ -519,11 +525,18 @@ TEST_CASE("schema upgrade test", "[db]")
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
         Config const& cfg = getTestConfig(0, db_mode);
         VirtualClock clock;
+        auto ae0 = LedgerTestUtils::generateValidAccountEntry();
+        auto ae1 = LedgerTestUtils::generateValidAccountEntry();
+        auto ae2 = LedgerTestUtils::generateValidAccountEntry();
+        auto tl3 = LedgerTestUtils::generateValidTrustLineEntry();
+        auto tl4 = LedgerTestUtils::generateValidTrustLineEntry();
+        auto tl5 = LedgerTestUtils::generateValidTrustLineEntry();
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
-                [prepOldSchemaDB](SchemaUpgradeTestApplication& sapp) {
+                [prepOldSchemaDB, ae0, ae1, ae2, tl3, tl4,
+                 tl5](SchemaUpgradeTestApplication& sapp) {
                     Liabilities liabilities1, liabilities2, liabilities3,
                         liabilities4;
                     liabilities1.buying = 12;
@@ -534,12 +547,13 @@ TEST_CASE("schema upgrade test", "[db]")
                     liabilities3.selling = 6;
                     liabilities4.buying = 0;
                     liabilities4.selling = 0;
-                    prepOldSchemaDB(sapp, nullopt<Liabilities>(),
-                                    make_optional<Liabilities>(liabilities1),
-                                    make_optional<Liabilities>(liabilities2),
-                                    make_optional<Liabilities>(liabilities3),
-                                    make_optional<Liabilities>(liabilities4),
-                                    nullopt<Liabilities>());
+                    prepOldSchemaDB(
+                        sapp, ae0, nullopt<Liabilities>(), ae1,
+                        make_optional<Liabilities>(liabilities1), ae2,
+                        make_optional<Liabilities>(liabilities2), tl3,
+                        make_optional<Liabilities>(liabilities3), tl4,
+                        make_optional<Liabilities>(liabilities4), tl5,
+                        nullopt<Liabilities>());
                 });
         app->start();
     };
