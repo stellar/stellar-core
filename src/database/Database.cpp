@@ -421,10 +421,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     st_select.exchange(
         soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
     st_select.define_and_bind();
-    {
-        auto timer = getSelectTimer("account-ext-to-opaque");
-        st_select.execute(true);
-    }
+    st_select.execute(true);
 
     size_t numAccountsUpdated = 0;
     for (; st_select.got_data(); st_select.fetch())
