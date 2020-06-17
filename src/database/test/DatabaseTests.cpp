@@ -438,21 +438,20 @@ TEST_CASE("schema upgrade test", "[db]")
                    ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, "
                    ":v11 "
                    ")",
-                soci::use(accountIDStr, "id"), soci::use(ae.balance, "v1"),
-                soci::use(ae.seqNum, "v2"), soci::use(ae.numSubEntries, "v3"),
-                soci::use(inflationDestStr, inflationDestInd, "v4"),
-                soci::use(homeDomainStr, "v5"), soci::use(thresholdsStr, "v6"),
-                soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
-                soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
-                          "v9"),
-                soci::use(liabilities ? liabilities->buying : 0, "v10"),
-                soci::use(liabilities ? liabilities->selling : 0, "v11");
+                soci::use(accountIDStr), soci::use(ae.balance),
+                soci::use(ae.seqNum), soci::use(ae.numSubEntries),
+                soci::use(inflationDestStr, inflationDestInd),
+                soci::use(homeDomainStr), soci::use(thresholdsStr),
+                soci::use(signersStr), soci::use(ae.flags),
+                soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
+                soci::use(liabilities ? liabilities->buying : 0),
+                soci::use(liabilities ? liabilities->selling : 0);
             if (!liabilities)
             {
                 session << "UPDATE accounts SET buyingliabilities = NULL, "
                            "sellingliabilities = NULL WHERE "
                            "accountid = :id",
-                    soci::use(accountIDStr, "id");
+                    soci::use(accountIDStr);
             }
             tx.commit();
         };
@@ -488,22 +487,20 @@ TEST_CASE("schema upgrade test", "[db]")
                        ") VALUES ( "
                        ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
                        ")",
-                soci::use(accountIDStr, "id"), soci::use(assetType, "v1"),
-                soci::use(issuerStr, "v2"), soci::use(assetCodeStr, "v3"),
-                soci::use(tl.limit, "v4"), soci::use(tl.balance, "v5"),
-                soci::use(tl.flags, "v6"),
-                soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
-                          "v7"),
-                soci::use(liabilities ? liabilities->buying : 0, "v8"),
-                soci::use(liabilities ? liabilities->selling : 0, "v9");
+                soci::use(accountIDStr), soci::use(assetType),
+                soci::use(issuerStr), soci::use(assetCodeStr),
+                soci::use(tl.limit), soci::use(tl.balance), soci::use(tl.flags),
+                soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
+                soci::use(liabilities ? liabilities->buying : 0),
+                soci::use(liabilities ? liabilities->selling : 0);
             if (!liabilities)
             {
                 session
                     << "UPDATE trustlines SET buyingliabilities = NULL, "
                        "sellingliabilities = NULL WHERE "
                        "accountid = :id AND issuer = :v1 AND assetcode = :v2",
-                    soci::use(accountIDStr, "id"), soci::use(issuerStr, "v1"),
-                    soci::use(assetCodeStr, "v2");
+                    soci::use(accountIDStr), soci::use(issuerStr),
+                    soci::use(assetCodeStr);
             }
             tx.commit();
         };
