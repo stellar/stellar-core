@@ -361,23 +361,23 @@ class SchemaUpgradeTestApplication : public TestApplication
     using PreUpgradeFunc = std::function<void(SchemaUpgradeTestApplication&)>;
 
   private:
-    PreUpgradeFunc const preUpgradeFunc;
+    PreUpgradeFunc const mPreUpgradeFunc;
 
   public:
     SchemaUpgradeTestApplication(VirtualClock& clock, Config const& cfg,
-                                 PreUpgradeFunc _preUpgradeFunc)
-        : TestApplication(clock, cfg), preUpgradeFunc(_preUpgradeFunc)
+                                 PreUpgradeFunc preUpgradeFunc)
+        : TestApplication(clock, cfg), mPreUpgradeFunc(preUpgradeFunc)
     {
     }
 
     virtual void
     actBeforeDBSchemaUpgrade() override
     {
-        if (preUpgradeFunc)
+        if (mPreUpgradeFunc)
         {
             try
             {
-                preUpgradeFunc(*this);
+                mPreUpgradeFunc(*this);
             }
             catch (std::exception& e)
             {
