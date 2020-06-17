@@ -522,8 +522,8 @@ TEST_CASE("schema upgrade test", "[db]")
 
     };
 
-    auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const db_mode) {
-        Config const& cfg = getTestConfig(0, db_mode);
+    auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const dbMode) {
+        Config const& cfg = getTestConfig(0, dbMode);
         VirtualClock clock;
         auto ae0 = LedgerTestUtils::generateValidAccountEntry();
         auto ae1 = LedgerTestUtils::generateValidAccountEntry();
@@ -616,7 +616,7 @@ TEST_CASE("schema upgrade test", "[db]")
         REQUIRE(tl.current().data.trustLine().ext.v() == 0);
     };
 
-    for (auto db_mode :
+    for (auto dbMode :
          {Config::TESTDB_IN_MEMORY_SQLITE, Config::TESTDB_ON_DISK_SQLITE
 #ifdef USE_POSTGRES
           ,
@@ -626,12 +626,12 @@ TEST_CASE("schema upgrade test", "[db]")
     {
         try
         {
-            testOneDBMode(db_mode);
+            testOneDBMode(dbMode);
         }
         catch (std::exception& e)
         {
             CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
-                                    << " while testing db_mode " << db_mode;
+                                    << " while testing dbMode " << dbMode;
             throw;
         }
     }
