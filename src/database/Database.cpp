@@ -263,10 +263,10 @@ Database::applySchemaUpgrade(unsigned long vers)
         {
             // Add columns for the LedgerEntry extension to each of
             // the tables that stores a type of ledger entry.
-            addTextColumnIfNotPresent("accounts", ledgerExtName);
-            addTextColumnIfNotPresent("trustlines", ledgerExtName);
-            addTextColumnIfNotPresent("accountdata", ledgerExtName);
-            addTextColumnIfNotPresent("offers", ledgerExtName);
+            addTextColumn("accounts", ledgerExtName);
+            addTextColumn("trustlines", ledgerExtName);
+            addTextColumn("accountdata", ledgerExtName);
+            addTextColumn("offers", ledgerExtName);
             // Absorb the explicit columns of the extension fields of
             // AccountEntry and TrustLineEntry into single opaque
             // blobs of XDR each of which represents an entire extension.
@@ -313,27 +313,13 @@ Database::upgradeToCurrentSchema()
 }
 
 void
-Database::addTextColumnIfNotPresent(std::string const table,
-                                    std::string const column)
+Database::addTextColumn(std::string const table, std::string const column)
 {
     std::string addColumnStr("ALTER TABLE " + table + " ADD " + column +
                              " TEXT;");
     CLOG(INFO, "Database") << "Adding column with string '" << addColumnStr
                            << "'";
-    // SQLite doesn't give us a way of doing an "ALTER TABLE" only if some
-    // condition is met (in particular, if the column doesn't already exist),
-    // so we just ignore a failure to add the column.
-    try
-    {
-        mSession << addColumnStr;
-    }
-    catch (soci::soci_error& e)
-    {
-        CLOG(ERROR, "Database")
-            << "Adding column '" << column << "' to table '" << table
-            << "' failed: '" << e.what()
-            << "' (possibly the table already has the column)";
-    }
+    mSession << addColumnStr;
 }
 
 void
@@ -380,7 +366,7 @@ Database::convertAccountExtensionsToOpaqueXDR()
 {
     try
     {
-        addTextColumnIfNotPresent("accounts", "extension");
+        addTextColumn("accounts", "extension");
         copyIndividualAccountExtensionFieldsToOpaqueXDR();
         dropTextColumn("accounts", "buyingliabilities");
         dropTextColumn("accounts", "sellingliabilities");
@@ -398,7 +384,7 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
 {
     try
     {
-        addTextColumnIfNotPresent("trustlines", "extension");
+        addTextColumn("trustlines", "extension");
         copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
         dropTextColumn("trustlines", "buyingliabilities");
         dropTextColumn("trustlines", "sellingliabilities");
