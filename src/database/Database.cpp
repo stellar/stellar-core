@@ -329,7 +329,8 @@ Database::dropTextColumn(std::string const table, std::string const column)
     // SQL command.  If we need it in production, we could re-create the
     // table without the column and drop the old one.  Since we currently
     // use SQLite only for testing and PostgreSQL in production, we simply
-    // leave the unused columm around in SQLite at the moment.
+    // leave the unused columm around in SQLite at the moment, and NULL
+    // out all of the cells in that column.
     if (!isSqlite())
     {
         std::string dropColumnStr("ALTER TABLE " + table + " DROP COLUMN " +
@@ -342,8 +343,14 @@ Database::dropTextColumn(std::string const table, std::string const column)
     }
     else
     {
+        std::string nullColumnStr("UPDATE " + table + " SET " + column +
+                                  " = NULL");
         CLOG(INFO, "Database") << "SQLite does not support dropping column '"
-                               << column << "' from table '" << table << "'";
+                               << column << "' from table '" << table
+                               << "'; setting all cells to NULL with string '"
+                               << nullColumnStr << "'";
+
+        mSession << nullColumnStr;
     }
 }
 
