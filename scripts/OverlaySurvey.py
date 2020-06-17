@@ -9,12 +9,6 @@ import sys
 import time
 
 
-def add_new_node(graph, label, version=""):
-    if graph.has_node(label) and version == "":
-        return
-    graph.add_node(label, label=label, version=version)
-
-
 def next_peer(direction_tag, node_info):
     if direction_tag in node_info and node_info[direction_tag]:
         for peer in node_info[direction_tag]:
@@ -40,12 +34,14 @@ def get_next_peers(topology):
 
 def update_results(graph, parent_info, parent_key, results, is_inbound):
     direction_tag = "inboundPeers" if is_inbound else "outboundPeers"
+    graph.add_node(parent_key,
+                   numTotalInboundPeers=parent_info["numTotalInboundPeers"],
+                   numTotalOutboundPeers=parent_info["numTotalOutboundPeers"])
     for peer in next_peer(direction_tag, parent_info):
         other_key = peer["nodeId"]
 
         results[direction_tag][other_key] = peer
-        add_new_node(graph, parent_key)
-        add_new_node(graph, other_key, peer["version"])
+        graph.add_node(other_key, version=peer["version"])
         edge_properties = peer.copy()
         edge_properties.pop("nodeId", None)
         edge_properties.pop("version", None)
@@ -134,13 +130,6 @@ def run_survey(args):
     duration = int(args.duration)
     params = {'duration': duration}
 
-    add_new_node(graph,
-                 requests
-                 .get(url + "/scp?limit=0&fullkeys=true")
-                 .json()
-                 ["you"],
-                 requests.get(url + "/info").json()["info"]["build"])
-
     # reset survey
     requests.get(url=stop_survey)
 
@@ -163,6 +152,14 @@ def run_survey(args):
     if peers["outbound"]:
         for peer in peers["outbound"]:
             peer_list.append(peer["id"])
+
+    graph.add_node(requests
+                   .get(url + "/scp?limit=0&fullkeys=true")
+                   .json()
+                   ["you"],
+                   version=requests.get(url + "/info").json()["info"]["build"],
+                   numTotalInboundPeers=len(peers["inbound"] or []),
+                   numTotalOutboundPeers=len(peers["outbound"] or []))
 
     sent_requests = set()
 
