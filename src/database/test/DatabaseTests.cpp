@@ -392,45 +392,27 @@ class SchemaUpgradeTestApplication : public TestApplication
 
 TEST_CASE("schema upgrade test", "[db]")
 {
-    auto prepOldSchemaDB = [](SchemaUpgradeTestApplication& app,
-                              AccountEntry const& ae0,
-                              optional<Liabilities> const liabilities0,
-                              AccountEntry const& ae1,
-                              optional<Liabilities> const liabilities1,
-                              AccountEntry const& ae2,
-                              optional<Liabilities> const liabilities2,
-                              TrustLineEntry const& tl3,
-                              optional<Liabilities> const liabilities3,
-                              TrustLineEntry const& tl4,
-                              optional<Liabilities> const liabilities4,
-                              TrustLineEntry const& tl5,
-                              optional<Liabilities> const liabilities5) {
-        auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
-                                         AccountEntry const& ae,
-                                         optional<Liabilities> const
-                                             liabilities) {
-            auto& session = app.getDatabase().getSession();
-            auto accountIDStr = KeyUtils::toStrKey<PublicKey>(ae.accountID);
-            auto inflationDestStr =
-                ae.inflationDest
-                    ? KeyUtils::toStrKey<PublicKey>(*ae.inflationDest)
-                    : "";
-            auto inflationDestInd =
-                ae.inflationDest ? soci::i_ok : soci::i_null;
-            auto homeDomainStr = decoder::encode_b64(ae.homeDomain);
-            auto signersStr =
-                decoder::encode_b64(xdr::xdr_to_opaque(ae.signers));
-            auto thresholdsStr = decoder::encode_b64(ae.thresholds);
+    auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
+                                     AccountEntry const& ae,
+                                     optional<Liabilities> const liabilities) {
+        auto& session = app.getDatabase().getSession();
+        auto accountIDStr = KeyUtils::toStrKey<PublicKey>(ae.accountID);
+        auto inflationDestStr =
+            ae.inflationDest ? KeyUtils::toStrKey<PublicKey>(*ae.inflationDest)
+                             : "";
+        auto inflationDestInd = ae.inflationDest ? soci::i_ok : soci::i_null;
+        auto homeDomainStr = decoder::encode_b64(ae.homeDomain);
+        auto signersStr = decoder::encode_b64(xdr::xdr_to_opaque(ae.signers));
+        auto thresholdsStr = decoder::encode_b64(ae.thresholds);
 
-            soci::transaction tx(session);
+        soci::transaction tx(session);
 
-            // Use raw SQL to perform a couple of database operations,
-            // since we're writing in an old database format, and calling
-            // standard interfaces to create accounts or trustlines would
-            // use SQL corresponding to the new format to which we'll
-            // soon upgrade.
-            session
-                << "INSERT INTO accounts ( "
+        // Use raw SQL to perform a couple of database operations,
+        // since we're writing in an old database format, and calling
+        // standard interfaces to create accounts or trustlines would
+        // use SQL corresponding to the new format to which we'll
+        // soon upgrade.
+        session << "INSERT INTO accounts ( "
                    "accountid, balance, seqnum, numsubentries, inflationdest,"
                    "homedomain, thresholds, signers, flags, lastmodified, "
                    "buyingliabilities, sellingliabilities "
@@ -438,41 +420,26 @@ TEST_CASE("schema upgrade test", "[db]")
                    ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10, "
                    ":v11 "
                    ")",
-                soci::use(accountIDStr), soci::use(ae.balance),
-                soci::use(ae.seqNum), soci::use(ae.numSubEntries),
-                soci::use(inflationDestStr, inflationDestInd),
-                soci::use(homeDomainStr), soci::use(thresholdsStr),
-                soci::use(signersStr), soci::use(ae.flags),
-                soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
-                soci::use(liabilities ? liabilities->buying : 0),
-                soci::use(liabilities ? liabilities->selling : 0);
-            if (!liabilities)
-            {
-                session << "UPDATE accounts SET buyingliabilities = NULL, "
-                           "sellingliabilities = NULL WHERE "
-                           "accountid = :id",
-                    soci::use(accountIDStr);
-            }
-            tx.commit();
-        };
-
-        try
+            soci::use(accountIDStr), soci::use(ae.balance),
+            soci::use(ae.seqNum), soci::use(ae.numSubEntries),
+            soci::use(inflationDestStr, inflationDestInd),
+            soci::use(homeDomainStr), soci::use(thresholdsStr),
+            soci::use(signersStr), soci::use(ae.flags),
+            soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
+            soci::use(liabilities ? liabilities->buying : 0),
+            soci::use(liabilities ? liabilities->selling : 0);
+        if (!liabilities)
         {
-            addOneOldSchemaAccount(app, ae0, liabilities0);
-            addOneOldSchemaAccount(app, ae1, liabilities1);
-            addOneOldSchemaAccount(app, ae2, liabilities2);
+            session << "UPDATE accounts SET buyingliabilities = NULL, "
+                       "sellingliabilities = NULL WHERE "
+                       "accountid = :id",
+                soci::use(accountIDStr);
         }
-        catch (std::exception& e)
-        {
-            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
-                                    << " while adding old-schema accounts";
-            throw;
-        }
-
-        auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
-                                           TrustLineEntry const& tl,
-                                           optional<Liabilities> const
-                                               liabilities) {
+        tx.commit();
+    };
+    auto addOneOldSchemaTrustLine =
+        [](SchemaUpgradeTestApplication& app, TrustLineEntry const& tl,
+           optional<Liabilities> const liabilities) {
             auto& session = app.getDatabase().getSession();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
@@ -504,20 +471,44 @@ TEST_CASE("schema upgrade test", "[db]")
             }
             tx.commit();
         };
-        try
-        {
-            addOneOldSchemaTrustLine(app, tl3, liabilities3);
-            addOneOldSchemaTrustLine(app, tl4, liabilities4);
-            addOneOldSchemaTrustLine(app, tl5, liabilities5);
-        }
-        catch (std::exception& e)
-        {
-            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
-                                    << " while adding old-schema trustlines";
-            throw;
-        }
+    auto prepOldSchemaDB =
+        [addOneOldSchemaAccount, addOneOldSchemaTrustLine](
+            SchemaUpgradeTestApplication& app, AccountEntry const& ae0,
+            optional<Liabilities> const liabilities0, AccountEntry const& ae1,
+            optional<Liabilities> const liabilities1, AccountEntry const& ae2,
+            optional<Liabilities> const liabilities2, TrustLineEntry const& tl3,
+            optional<Liabilities> const liabilities3, TrustLineEntry const& tl4,
+            optional<Liabilities> const liabilities4, TrustLineEntry const& tl5,
+            optional<Liabilities> const liabilities5) {
 
-    };
+            try
+            {
+                addOneOldSchemaAccount(app, ae0, liabilities0);
+                addOneOldSchemaAccount(app, ae1, liabilities1);
+                addOneOldSchemaAccount(app, ae2, liabilities2);
+            }
+            catch (std::exception& e)
+            {
+                CLOG(FATAL, "Database")
+                    << __func__ << ": exception " << e.what()
+                    << " while adding old-schema accounts";
+                throw;
+            }
+
+            try
+            {
+                addOneOldSchemaTrustLine(app, tl3, liabilities3);
+                addOneOldSchemaTrustLine(app, tl4, liabilities4);
+                addOneOldSchemaTrustLine(app, tl5, liabilities5);
+            }
+            catch (std::exception& e)
+            {
+                CLOG(FATAL, "Database")
+                    << __func__ << ": exception " << e.what()
+                    << " while adding old-schema trustlines";
+                throw;
+            }
+        };
 
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const dbMode) {
         Config const& cfg = getTestConfig(0, dbMode);
