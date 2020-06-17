@@ -416,6 +416,8 @@ TEST_CASE("schema upgrade test", "[db]")
                 ae.inflationDest
                     ? KeyUtils::toStrKey<PublicKey>(*ae.inflationDest)
                     : "";
+            soci::indicator inflationDestInd =
+                ae.inflationDest ? soci::i_ok : soci::i_null;
             std::string homeDomainStr;
             homeDomainStr = decoder::encode_b64(ae.homeDomain);
             std::string signersStr =
@@ -440,7 +442,7 @@ TEST_CASE("schema upgrade test", "[db]")
                    ")",
                 soci::use(accountIDStr, "id"), soci::use(ae.balance, "v1"),
                 soci::use(ae.seqNum, "v2"), soci::use(ae.numSubEntries, "v3"),
-                soci::use(inflationDestStr, "v4"),
+                soci::use(inflationDestStr, inflationDestInd, "v4"),
                 soci::use(homeDomainStr, "v5"), soci::use(thresholdsStr, "v6"),
                 soci::use(signersStr, "v7"), soci::use(ae.flags, "v8"),
                 soci::use(app.getLedgerManager().getLastClosedLedgerNum(),
@@ -556,6 +558,49 @@ TEST_CASE("schema upgrade test", "[db]")
                         nullopt<Liabilities>());
                 });
         app->start();
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        LedgerKey key;
+        LedgerTxnEntry acc;
+        LedgerTxnEntry tl;
+
+        key.type(ACCOUNT);
+
+        key.account().accountID = ae0.accountID;
+        acc = ltx.load(key);
+        REQUIRE(acc.current().data.type() == ACCOUNT);
+        REQUIRE(acc.current().data.account().ext.v() == 0);
+
+        key.account().accountID = ae1.accountID;
+        acc = ltx.load(key);
+        REQUIRE(acc.current().data.type() == ACCOUNT);
+        REQUIRE(acc.current().data.account().ext.v() == 1);
+        REQUIRE(acc.current().data.account().ext.v1().liabilities.buying == 12);
+
+        key.account().accountID = ae2.accountID;
+        acc = ltx.load(key);
+        REQUIRE(acc.current().data.type() == ACCOUNT);
+        REQUIRE(acc.current().data.account().ext.v() == 1);
+
+        key.type(TRUSTLINE);
+
+        key.trustLine().accountID = tl3.accountID;
+        key.trustLine().asset = tl3.asset;
+        tl = ltx.load(key);
+        REQUIRE(tl.current().data.type() == TRUSTLINE);
+        REQUIRE(tl.current().data.trustLine().ext.v() == 1);
+
+        key.trustLine().accountID = tl4.accountID;
+        key.trustLine().asset = tl4.asset;
+        tl = ltx.load(key);
+        REQUIRE(tl.current().data.type() == TRUSTLINE);
+        REQUIRE(tl.current().data.trustLine().ext.v() == 1);
+
+        key.trustLine().accountID = tl5.accountID;
+        key.trustLine().asset = tl5.asset;
+        tl = ltx.load(key);
+        REQUIRE(tl.current().data.type() == TRUSTLINE);
+        REQUIRE(tl.current().data.trustLine().ext.v() == 0);
     };
 
     for (auto db_mode :
