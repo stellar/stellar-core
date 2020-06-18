@@ -48,6 +48,8 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mSharedBucketsSize;
     MergeCounters mMergeCounters;
 
+    bool const mDeleteEntireBucketDirInDtor;
+
     // Records bucket-merges that are currently _live_ in some FutureBucket, in
     // the sense of either running, or finished (with or without the
     // FutureBucket being resolved). Entries in this map will be cleared when
@@ -64,7 +66,8 @@ class BucketManagerImpl : public BucketManager
     BucketMergeMap mFinishedMerges;
 
     void cleanupStaleFiles();
-    void cleanDir();
+    void deleteTmpDirAndUnlockBucketDir();
+    void deleteEntireBucketDir();
     bool renameBucket(std::string const& src, std::string const& dst);
 
 #ifdef BUILD_TESTS

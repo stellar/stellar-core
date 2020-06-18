@@ -85,15 +85,7 @@ void
 BucketManagerImpl::dropAll()
 {
     ZoneScoped;
-    std::string d = mApp.getConfig().BUCKET_DIR_PATH;
-
-    if (fs::exists(d))
-    {
-        CLOG(DEBUG, "Bucket") << "Deleting bucket directory: " << d;
-        cleanDir();
-        fs::deltree(d);
-    }
-
+    deleteEntireBucketDir();
     initialize();
 }
 
@@ -115,7 +107,7 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
     , mBucketSnapMerge(app.getMetrics().NewTimer({"bucket", "snap", "merge"}))
     , mSharedBucketsSize(
           app.getMetrics().NewCounter({"bucket", "memory", "shared"}))
-
+    , mDeleteEntireBucketDirInDtor(app.getConfig().MODE_USES_IN_MEMORY_LEDGER)
 {
 }
 
@@ -177,13 +169,52 @@ BucketManagerImpl::getBucketDir() const
 
 BucketManagerImpl::~BucketManagerImpl()
 {
-    cleanDir();
+    ZoneScoped;
+    if (mDeleteEntireBucketDirInDtor)
+    {
+        deleteEntireBucketDir();
+    }
+    else
+    {
+        deleteTmpDirAndUnlockBucketDir();
+    }
 }
 
 void
-BucketManagerImpl::cleanDir()
+BucketManagerImpl::deleteEntireBucketDir()
 {
     ZoneScoped;
+    std::string d = mApp.getConfig().BUCKET_DIR_PATH;
+    if (fs::exists(d))
+    {
+        // First clean out the contents of the tmpdir, as usual.
+        deleteTmpDirAndUnlockBucketDir();
+
+        // Then more seriously delete _all the buckets_, even live
+        // ones that represent the canonical state of the ledger.
+        //
+        // Should only happen on new-db or in-memory-replay shutdown.
+        CLOG(DEBUG, "Bucket") << "Deleting bucket directory: " << d;
+        fs::deltree(d);
+    }
+}
+
+void
+BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
+{
+    ZoneScoped;
+
+    // First do fs::deltree on $BUCKET_DIR_PATH/tmp/bucket
+    //
+    // (which should just be bucket merges-in-progress and such)
+    mWorkDir.reset();
+
+    // Then do fs::deltree on $BUCKET_DIR_PATH/tmp
+    //
+    // (which also contains files from other subsystems, like history)
+    mTmpDirManager.reset();
+
+    // Then delete the lockfile $BUCKET_DIR_PATH/stellar-core.lock
     if (mLockedBucketDir)
     {
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
@@ -192,8 +223,6 @@ BucketManagerImpl::cleanDir()
         fs::unlockFile(lock);
         mLockedBucketDir.reset();
     }
-    mWorkDir.reset();
-    mTmpDirManager.reset();
 }
 
 BucketList&
@@ -814,7 +843,9 @@ void
 BucketManagerImpl::shutdown()
 {
     ZoneScoped;
-    // forgetUnreferencedBuckets does what we want - it retains needed buckets
+    // This call happens in shutdown -- before destruction -- so that we
+    // can be sure other subsystems (ledger etc.) are still alive and we
+    // can call into them to figure out which buckets _are_ referenced.
     forgetUnreferencedBuckets();
 }
 }
