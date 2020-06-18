@@ -405,6 +405,56 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
     }
 }
 
+template <typename SelectedData, typename PrepSelect, typename MakeSelected,
+          typename PrepUpdate, typename DescribeData>
+void
+Database::copyIndividualExtensionFieldsToOpaqueXDR(
+    std::string const& tableName, std::string const& fieldsStr,
+    PrepSelect prepSelectForExecution, MakeSelected makeSelectedData,
+    std::string const& updateStr, PrepUpdate prepUpdateForExecution,
+    DescribeData describeData)
+{
+    CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
+                         << tableName;
+
+    std::vector<SelectedData> selectedData;
+
+    {
+        auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
+
+        prepSelectForExecution(st_select);
+        st_select.define_and_bind();
+        st_select.execute();
+
+        while (st_select.fetch())
+        {
+            selectedData.emplace_back(makeSelectedData());
+        }
+    }
+
+    {
+        auto st_update = getPreparedStatement(updateStr).statement();
+
+        for (auto data : selectedData)
+        {
+            prepUpdateForExecution(st_update, data);
+            st_update.define_and_bind();
+            st_update.execute(true);
+            auto affected_rows = st_update.get_affected_rows();
+            if (affected_rows != 1)
+            {
+                throw std::runtime_error(
+                    fmt::format("{}: updating {} affected {} row(s)", __func__,
+                                describeData(data), affected_rows));
+            }
+        }
+    }
+
+    CLOG(INFO, "Database") << __func__ << ": updated " << selectedData.size()
+                           << " records(s) with liabilities in " << tableName
+                           << " table";
+}
+
 void
 Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 {
@@ -444,48 +494,9 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         return fmt::format("account with account ID {}", std::get<0>(data));
     };
 
-    CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
-                         << tableName;
-
-    std::vector<SelectedData> selectedData;
-
-    {
-        auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
-
-        prepSelectForExecution(st_select);
-        st_select.define_and_bind();
-        st_select.execute();
-
-        while (st_select.fetch())
-        {
-            // We've only selected accounts which have at least one of
-            // buying liabilities or selling liabilities present, and if
-            // either is present, then both should be.
-            selectedData.emplace_back(makeSelectedData());
-        }
-    }
-
-    {
-        auto st_update = getPreparedStatement(updateStr).statement();
-
-        for (auto data : selectedData)
-        {
-            prepUpdateForExecution(st_update, data);
-            st_update.define_and_bind();
-            st_update.execute(true);
-            auto affected_rows = st_update.get_affected_rows();
-            if (affected_rows != 1)
-            {
-                throw std::runtime_error(
-                    fmt::format("{}: updating {} affected {} row(s)", __func__,
-                                describeData(data), affected_rows));
-            }
-        }
-    }
-
-    CLOG(INFO, "Database") << __func__ << ": updated " << selectedData.size()
-                           << " records(s) with liabilities in " << tableName
-                           << " table";
+    copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
+        tableName, fieldsStr, prepSelectForExecution, makeSelectedData,
+        updateStr, prepUpdateForExecution, describeData);
 }
 
 void
@@ -536,45 +547,9 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
                            std::get<2>(data));
     };
 
-    CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
-                         << tableName;
-
-    std::vector<SelectedData> selectedData;
-
-    {
-        auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
-
-        prepSelectForExecution(st_select);
-        st_select.define_and_bind();
-        st_select.execute();
-
-        while (st_select.fetch())
-        {
-            selectedData.emplace_back(makeSelectedData());
-        }
-    }
-
-    {
-        auto st_update = getPreparedStatement(updateStr).statement();
-
-        for (auto data : selectedData)
-        {
-            prepUpdateForExecution(st_update, data);
-            st_update.define_and_bind();
-            st_update.execute(true);
-            auto affected_rows = st_update.get_affected_rows();
-            if (affected_rows != 1)
-            {
-                throw std::runtime_error(
-                    fmt::format("{}: updating {} affected {} row(s)", __func__,
-                                describeData(data), affected_rows));
-            }
-        }
-    }
-
-    CLOG(INFO, "Database") << __func__ << ": updated " << selectedData.size()
-                           << " records(s) with liabilities in " << tableName
-                           << " table";
+    copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
+        tableName, fieldsStr, prepSelectForExecution, makeSelectedData,
+        updateStr, prepUpdateForExecution, describeData);
 }
 
 void

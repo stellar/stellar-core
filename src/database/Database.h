@@ -118,6 +118,17 @@ class Database : NonMovableOrCopyable
     void convertTrustLineExtensionsToOpaqueXDR();
     void copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
 
+    // A function which factors out the commonality between
+    // copyIndividualAccountExtensionFieldsToOpaqueXDR() and
+    // copyIndividualTrustLineExtensionFieldsToOpaqueXDR().
+    template <typename SelectedData, typename PrepSelect, typename MakeSelected,
+              typename PrepUpdate, typename DescribeData>
+    void copyIndividualExtensionFieldsToOpaqueXDR(
+        std::string const& tableName, std::string const& fieldsStr,
+        PrepSelect prepSelectForExecution, MakeSelected makeSelectedData,
+        std::string const& updateStr, PrepUpdate prepUpdateForExecution,
+        DescribeData describeData);
+
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
     // if there is a connection error, this will throw.
