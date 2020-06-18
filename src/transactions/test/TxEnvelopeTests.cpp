@@ -1427,7 +1427,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     // tx ok
                     // tx too old
                     VirtualClock::system_time_point ledgerTime;
-                    time_t start = getTestDate(1, 7, 2014);
+                    time_t start = getTestDateTime(1, 7, 2014);
                     ledgerTime = VirtualClock::from_time_t(start);
 
                     clock.setCurrentVirtualTime(ledgerTime);

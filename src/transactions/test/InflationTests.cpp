@@ -292,7 +292,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
     VirtualClock::system_time_point inflationStart;
     // inflation starts on 1-jul-2014
-    time_t start = getTestDate(1, 7, 2014);
+    time_t start = getTestDateTime(1, 7, 2014);
     inflationStart = VirtualClock::from_time_t(start);
 
     VirtualClock clock;
