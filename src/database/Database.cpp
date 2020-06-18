@@ -408,16 +408,22 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
 void
 Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 {
-    CLOG(INFO, "Ledger") << __func__ << ": updating account extension schema";
+    std::string accountIDStrKey;
+    AccountEntry::_ext_t::_v1_t extension;
+    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+    std::string const tableName = "accounts";
+    std::string const fieldsStr = "accountid";
+    std::string const updateStr =
+        "UPDATE accounts SET extension = :ext WHERE accountID = :id";
+    using SelectedData = std::tuple<std::string, std::string>;
 
-    std::vector<std::tuple<std::string, std::string>> accountExtensions;
+    CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
+                         << tableName;
+
+    std::vector<SelectedData> selectedData;
 
     {
-        auto st_select = getPreparedOldLiabilitySelect("accounts", "accountid");
-
-        std::string accountIDStrKey;
-        AccountEntry::_ext_t::_v1_t extension;
-        soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+        auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
 
         st_select.exchange(soci::into(accountIDStrKey));
         st_select.exchange(
@@ -434,19 +440,16 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
             // either is present, then both should be.
             assert(buyingLiabilitiesInd == soci::i_ok);
             assert(sellingLiabilitiesInd == soci::i_ok);
-            accountExtensions.emplace_back(std::make_tuple(
+            selectedData.emplace_back(std::make_tuple(
                 accountIDStrKey,
                 decoder::encode_b64(xdr::xdr_to_opaque(extension))));
         }
     }
 
     {
-        auto st_update =
-            getPreparedStatement(
-                "UPDATE accounts SET extension = :ext WHERE accountID = :id")
-                .statement();
+        auto st_update = getPreparedStatement(updateStr).statement();
 
-        for (auto accountExtension : accountExtensions)
+        for (auto accountExtension : selectedData)
         {
             st_update.exchange(soci::use(std::get<1>(accountExtension), "ext"));
             st_update.exchange(soci::use(std::get<0>(accountExtension), "id"));
@@ -462,26 +465,32 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         }
     }
 
-    CLOG(INFO, "Database") << __func__ << ": updated "
-                           << accountExtensions.size()
-                           << " account(s) with liabilities";
+    CLOG(INFO, "Database") << __func__ << ": updated " << selectedData.size()
+                           << " records(s) with liabilities in " << tableName
+                           << " table";
 }
 
 void
 Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
 {
-    CLOG(INFO, "Ledger") << __func__ << ": updating trustline extension schema";
+    std::string accountIDStrKey, issuerStrKey, assetStrKey;
+    TrustLineEntry::_ext_t::_v1_t extension;
+    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+    std::string const tableName = "trustlines";
+    std::string const fieldsStr = "accountid, issuer, assetcode";
+    std::string const updateStr =
+        "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
+        "AND issuer = :issuer_id AND assetcode = :asset_id";
+    using SelectedData =
+        std::tuple<std::string, std::string, std::string, std::string>;
 
-    std::vector<std::tuple<std::string, std::string, std::string, std::string>>
-        trustLineExtensions;
+    CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
+                         << tableName;
+
+    std::vector<SelectedData> selectedData;
 
     {
-        auto st_select = getPreparedOldLiabilitySelect(
-            "trustlines", "accountid, issuer, assetcode");
-
-        std::string accountIDStrKey, issuerStrKey, assetStrKey;
-        TrustLineEntry::_ext_t::_v1_t extension;
-        soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+        auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
 
         st_select.exchange(soci::into(accountIDStrKey));
         st_select.exchange(soci::into(issuerStrKey));
@@ -500,21 +509,16 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
             // either is present, then both should be.
             assert(buyingLiabilitiesInd == soci::i_ok);
             assert(sellingLiabilitiesInd == soci::i_ok);
-            trustLineExtensions.emplace_back(std::make_tuple(
+            selectedData.emplace_back(std::make_tuple(
                 accountIDStrKey, issuerStrKey, assetStrKey,
                 decoder::encode_b64(xdr::xdr_to_opaque(extension))));
         }
     }
 
     {
-        auto st_update =
-            getPreparedStatement(
-                "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
-                "AND "
-                "issuer = :issuer_id AND assetcode = :asset_id")
-                .statement();
+        auto st_update = getPreparedStatement(updateStr).statement();
 
-        for (auto trustLineExtension : trustLineExtensions)
+        for (auto trustLineExtension : selectedData)
         {
             st_update.exchange(
                 soci::use(std::get<3>(trustLineExtension), "ext"));
@@ -539,9 +543,9 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         }
     }
 
-    CLOG(INFO, "Database") << __func__ << ": updated "
-                           << trustLineExtensions.size()
-                           << " trustline(s) with liabilities";
+    CLOG(INFO, "Database") << __func__ << ": updated " << selectedData.size()
+                           << " records(s) with liabilities in " << tableName
+                           << " table";
 }
 
 void
