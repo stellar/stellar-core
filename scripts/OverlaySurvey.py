@@ -106,7 +106,12 @@ def augment(args):
     data = requests.get("https://api.stellarbeat.io/v1/nodes").json()
     for obj in data:
         if graph.has_node(obj["publicKey"]):
-            graph.add_node(obj["publicKey"], ip=obj["ip"], name=obj["name"])
+            # NetworkX doesn't allow dictionary properties,
+            # so we will turn them into strings.
+            dict_properties = ["geoData", "quorumSet", "statistics"]
+            for dict_property in dict_properties:
+                obj[dict_property] = json.dumps(obj[dict_property])
+            graph.add_node(obj["publicKey"], **obj)
     nx.write_graphml(graph, args.graphmlOutput)
     sys.exit(0)
 
