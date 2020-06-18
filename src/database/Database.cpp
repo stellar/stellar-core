@@ -411,6 +411,15 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     std::string accountIDStrKey;
     AccountEntry::_ext_t::_v1_t extension;
     soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+    auto prepSelectForExecution = [&](soci::statement& st_select) {
+        st_select.exchange(soci::into(accountIDStrKey));
+        st_select.exchange(
+            soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
+        st_select.exchange(
+            soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
+    };
+
     std::string const tableName = "accounts";
     std::string const fieldsStr = "accountid";
     std::string const updateStr =
@@ -425,11 +434,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     {
         auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
 
-        st_select.exchange(soci::into(accountIDStrKey));
-        st_select.exchange(
-            soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
-        st_select.exchange(
-            soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
+        prepSelectForExecution(st_select);
         st_select.define_and_bind();
         st_select.execute();
 
@@ -476,6 +481,17 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     std::string accountIDStrKey, issuerStrKey, assetStrKey;
     TrustLineEntry::_ext_t::_v1_t extension;
     soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+    auto prepSelectForExecution = [&](soci::statement& st_select) {
+        st_select.exchange(soci::into(accountIDStrKey));
+        st_select.exchange(soci::into(issuerStrKey));
+        st_select.exchange(soci::into(assetStrKey));
+        st_select.exchange(
+            soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
+        st_select.exchange(
+            soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
+    };
+
     std::string const tableName = "trustlines";
     std::string const fieldsStr = "accountid, issuer, assetcode";
     std::string const updateStr =
@@ -492,13 +508,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     {
         auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
 
-        st_select.exchange(soci::into(accountIDStrKey));
-        st_select.exchange(soci::into(issuerStrKey));
-        st_select.exchange(soci::into(assetStrKey));
-        st_select.exchange(
-            soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
-        st_select.exchange(
-            soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
+        prepSelectForExecution(st_select);
         st_select.define_and_bind();
         st_select.execute();
 
