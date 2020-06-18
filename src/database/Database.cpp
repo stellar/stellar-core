@@ -410,48 +410,58 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 {
     CLOG(INFO, "Ledger") << __func__ << ": updating account extension schema";
 
-    std::string accountIDStrKey;
-    AccountEntry::_ext_t::_v1_t extension;
-    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+    std::vector<std::tuple<std::string, std::string>> accountExtensions;
 
-    auto st_select = getPreparedOldLiabilitySelect("accounts", "accountid");
-    st_select.exchange(soci::into(accountIDStrKey));
-    st_select.exchange(
-        soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
-    st_select.exchange(
-        soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
-    st_select.define_and_bind();
-    st_select.execute();
-
-    auto prep_update = getPreparedStatement(
-        "UPDATE accounts SET extension = :ext WHERE accountID = :id");
-    auto& st_update = prep_update.statement();
-
-    size_t numAccountsUpdated = 0;
-    while (st_select.fetch())
     {
-        // We've only selected accounts which have at least one of
-        // buying liabilities or selling liabilities present, and if
-        // either is present, then both should be.
-        assert(buyingLiabilitiesInd == soci::i_ok);
-        assert(sellingLiabilitiesInd == soci::i_ok);
-        std::string opaqueExtension(
-            decoder::encode_b64(xdr::xdr_to_opaque(extension)));
-        st_update.exchange(soci::use(opaqueExtension, "ext"));
-        st_update.exchange(soci::use(accountIDStrKey, "id"));
-        st_update.define_and_bind();
-        st_update.execute(true);
-        auto affected_rows = st_update.get_affected_rows();
-        if (affected_rows != 1)
+        std::string accountIDStrKey;
+        AccountEntry::_ext_t::_v1_t extension;
+        soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+        auto st_select = getPreparedOldLiabilitySelect("accounts", "accountid");
+        st_select.exchange(soci::into(accountIDStrKey));
+        st_select.exchange(
+            soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
+        st_select.exchange(
+            soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
+        st_select.define_and_bind();
+        st_select.execute();
+
+        while (st_select.fetch())
         {
-            throw std::runtime_error(
-                fmt::format("{}: updating account {} affected {} row(s)",
-                            __func__, accountIDStrKey, affected_rows));
+            // We've only selected accounts which have at least one of
+            // buying liabilities or selling liabilities present, and if
+            // either is present, then both should be.
+            assert(buyingLiabilitiesInd == soci::i_ok);
+            assert(sellingLiabilitiesInd == soci::i_ok);
+            accountExtensions.emplace_back(std::make_tuple(
+                accountIDStrKey,
+                decoder::encode_b64(xdr::xdr_to_opaque(extension))));
         }
-        ++numAccountsUpdated;
     }
 
-    CLOG(INFO, "Database") << __func__ << ": updated " << numAccountsUpdated
+    {
+        auto prep_update = getPreparedStatement(
+            "UPDATE accounts SET extension = :ext WHERE accountID = :id");
+        auto& st_update = prep_update.statement();
+
+        for (auto accountExtension : accountExtensions)
+        {
+            st_update.exchange(soci::use(std::get<1>(accountExtension), "ext"));
+            st_update.exchange(soci::use(std::get<0>(accountExtension), "id"));
+            st_update.define_and_bind();
+            st_update.execute(true);
+            auto affected_rows = st_update.get_affected_rows();
+            if (affected_rows != 1)
+            {
+                throw std::runtime_error(fmt::format(
+                    "{}: updating account {} affected {} row(s)", __func__,
+                    std::get<0>(accountExtension), affected_rows));
+            }
+        }
+    }
+
+    CLOG(INFO, "Database") << __func__ << ": updated "
+                           << accountExtensions.size()
                            << " account(s) with liabilities";
 }
 
@@ -460,57 +470,73 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
 {
     CLOG(INFO, "Ledger") << __func__ << ": updating trustline extension schema";
 
-    std::string accountIDStrKey, issuerStrKey, assetStrKey;
-    TrustLineEntry::_ext_t::_v1_t extension;
-    soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+    std::vector<std::tuple<std::string, std::string, std::string, std::string>>
+        trustLineExtensions;
 
-    auto st_select = getPreparedOldLiabilitySelect(
-        "trustlines", "accountid, issuer, assetcode");
-    st_select.exchange(soci::into(accountIDStrKey));
-    st_select.exchange(soci::into(issuerStrKey));
-    st_select.exchange(soci::into(assetStrKey));
-    st_select.exchange(
-        soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
-    st_select.exchange(
-        soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
-    st_select.define_and_bind();
-    st_select.execute();
-
-    auto prep_update = getPreparedStatement(
-        "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
-        "AND "
-        "issuer = :issuer_id AND assetcode = :asset_id");
-    auto& st_update = prep_update.statement();
-
-    size_t numTrustLinesUpdated = 0;
-    while (st_select.fetch())
     {
-        // We've only selected trustlines which have at least one of
-        // buying liabilities or selling liabilities present, and if
-        // either is present, then both should be.
-        assert(buyingLiabilitiesInd == soci::i_ok);
-        assert(sellingLiabilitiesInd == soci::i_ok);
-        std::string opaqueExtension(
-            decoder::encode_b64(xdr::xdr_to_opaque(extension)));
-        st_update.exchange(soci::use(opaqueExtension, "ext"));
-        st_update.exchange(soci::use(accountIDStrKey, "id"));
-        st_update.exchange(soci::use(issuerStrKey, "issuer_id"));
-        st_update.exchange(soci::use(assetStrKey, "asset_id"));
-        st_update.define_and_bind();
-        st_update.execute(true);
-        auto affected_rows = st_update.get_affected_rows();
-        if (affected_rows != 1)
+        std::string accountIDStrKey, issuerStrKey, assetStrKey;
+        TrustLineEntry::_ext_t::_v1_t extension;
+        soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
+
+        auto st_select = getPreparedOldLiabilitySelect(
+            "trustlines", "accountid, issuer, assetcode");
+        st_select.exchange(soci::into(accountIDStrKey));
+        st_select.exchange(soci::into(issuerStrKey));
+        st_select.exchange(soci::into(assetStrKey));
+        st_select.exchange(
+            soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
+        st_select.exchange(
+            soci::into(extension.liabilities.selling, sellingLiabilitiesInd));
+        st_select.define_and_bind();
+        st_select.execute();
+
+        while (st_select.fetch())
         {
-            throw std::runtime_error(
-                fmt::format("{}: updating trustline with account ID {}, issuer "
-                            "{}, and asset {} affected {} row(s)",
-                            __func__, accountIDStrKey, issuerStrKey,
-                            assetStrKey, affected_rows));
+            // We've only selected trustlines which have at least one of
+            // buying liabilities or selling liabilities present, and if
+            // either is present, then both should be.
+            assert(buyingLiabilitiesInd == soci::i_ok);
+            assert(sellingLiabilitiesInd == soci::i_ok);
+            trustLineExtensions.emplace_back(std::make_tuple(
+                accountIDStrKey, issuerStrKey, assetStrKey,
+                decoder::encode_b64(xdr::xdr_to_opaque(extension))));
         }
-        ++numTrustLinesUpdated;
     }
 
-    CLOG(INFO, "Database") << __func__ << ": updated " << numTrustLinesUpdated
+    {
+        auto prep_update = getPreparedStatement(
+            "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
+            "AND "
+            "issuer = :issuer_id AND assetcode = :asset_id");
+        auto& st_update = prep_update.statement();
+
+        for (auto trustLineExtension : trustLineExtensions)
+        {
+            st_update.exchange(
+                soci::use(std::get<3>(trustLineExtension), "ext"));
+            st_update.exchange(
+                soci::use(std::get<0>(trustLineExtension), "id"));
+            st_update.exchange(
+                soci::use(std::get<1>(trustLineExtension), "issuer_id"));
+            st_update.exchange(
+                soci::use(std::get<2>(trustLineExtension), "asset_id"));
+            st_update.define_and_bind();
+            st_update.execute(true);
+            auto affected_rows = st_update.get_affected_rows();
+            if (affected_rows != 1)
+            {
+                throw std::runtime_error(fmt::format(
+                    "{}: updating trustline with account ID {}, issuer "
+                    "{}, and asset {} affected {} row(s)",
+                    __func__, std::get<0>(trustLineExtension),
+                    std::get<1>(trustLineExtension),
+                    std::get<2>(trustLineExtension), affected_rows));
+            }
+        }
+    }
+
+    CLOG(INFO, "Database") << __func__ << ": updated "
+                           << trustLineExtensions.size()
                            << " trustline(s) with liabilities";
 }
 
