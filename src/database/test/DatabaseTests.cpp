@@ -556,9 +556,11 @@ TEST_CASE("schema upgrade test", "[db]")
                                tlol);
                        });
 
+        // Create the application, with the code above that inserts old-schema
+        // accounts and trustlines into the database injected between database
+        // creation and upgrade.
         Config const& cfg = getTestConfig(0, dbMode);
         VirtualClock clock;
-
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
@@ -570,63 +572,58 @@ TEST_CASE("schema upgrade test", "[db]")
                 });
         app->start();
 
+        // Validate that the accounts and trustlines have the expected
+        // liabilities now that the database upgrade has completed.
+
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        LedgerKey key;
-        LedgerTxnEntry acc;
-        LedgerTxnEntry tl;
 
-        key.type(ACCOUNT);
+        for (auto aol : accOptLiabilitiesVec)
+        {
+            LedgerKey key;
+            key.type(ACCOUNT);
+            key.account().accountID = aol.first.accountID;
+            auto acc = ltx.load(key);
+            REQUIRE(acc.current().data.type() == ACCOUNT);
+            if (aol.second)
+            {
+                REQUIRE(acc.current().data.account().ext.v() == 1);
+                REQUIRE(
+                    acc.current().data.account().ext.v1().liabilities.buying ==
+                    aol.second->buying);
+                REQUIRE(
+                    acc.current().data.account().ext.v1().liabilities.selling ==
+                    aol.second->selling);
+            }
+            else
+            {
+                REQUIRE(acc.current().data.account().ext.v() == 0);
+            }
+        }
 
-        key.account().accountID = accOptLiabilitiesVec[0].first.accountID;
-        acc = ltx.load(key);
-        REQUIRE(acc.current().data.type() == ACCOUNT);
-        REQUIRE(acc.current().data.account().ext.v() == 0);
-
-        key.account().accountID = accOptLiabilitiesVec[1].first.accountID;
-        acc = ltx.load(key);
-        REQUIRE(acc.current().data.type() == ACCOUNT);
-        REQUIRE(acc.current().data.account().ext.v() == 1);
-        REQUIRE(acc.current().data.account().ext.v1().liabilities.buying ==
-                accOptLiabilitiesVec[1].second->buying);
-        REQUIRE(acc.current().data.account().ext.v1().liabilities.selling ==
-                accOptLiabilitiesVec[1].second->selling);
-
-        key.account().accountID = accOptLiabilitiesVec[2].first.accountID;
-        acc = ltx.load(key);
-        REQUIRE(acc.current().data.type() == ACCOUNT);
-        REQUIRE(acc.current().data.account().ext.v() == 1);
-        REQUIRE(acc.current().data.account().ext.v1().liabilities.buying ==
-                accOptLiabilitiesVec[2].second->buying);
-        REQUIRE(acc.current().data.account().ext.v1().liabilities.selling ==
-                accOptLiabilitiesVec[2].second->selling);
-
-        key.type(TRUSTLINE);
-
-        key.trustLine().accountID = tlOptLiabilitiesVec[0].first.accountID;
-        key.trustLine().asset = tlOptLiabilitiesVec[0].first.asset;
-        tl = ltx.load(key);
-        REQUIRE(tl.current().data.type() == TRUSTLINE);
-        REQUIRE(tl.current().data.trustLine().ext.v() == 1);
-        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.buying ==
-                tlOptLiabilitiesVec[0].second->buying);
-        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.selling ==
-                tlOptLiabilitiesVec[0].second->selling);
-
-        key.trustLine().accountID = tlOptLiabilitiesVec[1].first.accountID;
-        key.trustLine().asset = tlOptLiabilitiesVec[1].first.asset;
-        tl = ltx.load(key);
-        REQUIRE(tl.current().data.type() == TRUSTLINE);
-        REQUIRE(tl.current().data.trustLine().ext.v() == 1);
-        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.buying ==
-                tlOptLiabilitiesVec[1].second->buying);
-        REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.selling ==
-                tlOptLiabilitiesVec[1].second->selling);
-
-        key.trustLine().accountID = tlOptLiabilitiesVec[2].first.accountID;
-        key.trustLine().asset = tlOptLiabilitiesVec[2].first.asset;
-        tl = ltx.load(key);
-        REQUIRE(tl.current().data.type() == TRUSTLINE);
-        REQUIRE(tl.current().data.trustLine().ext.v() == 0);
+        for (auto tlol : tlOptLiabilitiesVec)
+        {
+            LedgerKey key;
+            key.type(TRUSTLINE);
+            key.trustLine().accountID = tlol.first.accountID;
+            key.trustLine().asset = tlol.first.asset;
+            auto tl = ltx.load(key);
+            REQUIRE(tl.current().data.type() == TRUSTLINE);
+            if (tlol.second)
+            {
+                REQUIRE(tl.current().data.trustLine().ext.v() == 1);
+                REQUIRE(
+                    tl.current().data.trustLine().ext.v1().liabilities.buying ==
+                    tlol.second->buying);
+                REQUIRE(tl.current()
+                            .data.trustLine()
+                            .ext.v1()
+                            .liabilities.selling == tlol.second->selling);
+            }
+            else
+            {
+                REQUIRE(tl.current().data.trustLine().ext.v() == 0);
+            }
+        }
     };
 
     for (auto dbMode :
