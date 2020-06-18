@@ -108,8 +108,8 @@ class Database : NonMovableOrCopyable
     void convertAccountExtensionsToOpaqueXDR();
     void copyIndividualAccountExtensionFieldsToOpaqueXDR();
 
-    soci::statement getPreparedOldLiabilitySelect(std::string const& table,
-                                                  std::string const& fields);
+    std::string getPreparedOldLiabilitySelect(std::string const& table,
+                                              std::string const& fields);
     void addTextColumn(std::string const& table, std::string const& column);
     void dropTextColumn(std::string const& table, std::string const& column);
 
@@ -121,13 +121,12 @@ class Database : NonMovableOrCopyable
     // A function which factors out the commonality between
     // copyIndividualAccountExtensionFieldsToOpaqueXDR() and
     // copyIndividualTrustLineExtensionFieldsToOpaqueXDR().
-    template <typename SelectedData, typename PrepSelect, typename MakeSelected,
-              typename PrepUpdate, typename DescribeData>
+    template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
+              typename DescribeData>
     void copyIndividualExtensionFieldsToOpaqueXDR(
         std::string const& tableName, std::string const& fieldsStr,
-        PrepSelect prepSelectForExecution, MakeSelected makeSelectedData,
-        std::string const& updateStr, PrepUpdate prepUpdateForExecution,
-        DescribeData describeData);
+        MakeSelected makeSelectedData, std::string const& updateStr,
+        PrepUpdate prepUpdateForExecution, DescribeData describeData);
 
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
