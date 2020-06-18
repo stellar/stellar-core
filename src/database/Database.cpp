@@ -426,6 +426,12 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         "UPDATE accounts SET extension = :ext WHERE accountID = :id";
     using SelectedData = std::tuple<std::string, std::string>;
 
+    auto prepUpdateForExecution = [](soci::statement& st_update,
+                                     SelectedData const& data) {
+        st_update.exchange(soci::use(std::get<1>(data), "ext"));
+        st_update.exchange(soci::use(std::get<0>(data), "id"));
+    };
+
     CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
                          << tableName;
 
@@ -456,8 +462,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 
         for (auto accountExtension : selectedData)
         {
-            st_update.exchange(soci::use(std::get<1>(accountExtension), "ext"));
-            st_update.exchange(soci::use(std::get<0>(accountExtension), "id"));
+            prepUpdateForExecution(st_update, accountExtension);
             st_update.define_and_bind();
             st_update.execute(true);
             auto affected_rows = st_update.get_affected_rows();
@@ -500,6 +505,14 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     using SelectedData =
         std::tuple<std::string, std::string, std::string, std::string>;
 
+    auto prepUpdateForExecution = [](soci::statement& st_update,
+                                     SelectedData const& data) {
+        st_update.exchange(soci::use(std::get<3>(data), "ext"));
+        st_update.exchange(soci::use(std::get<0>(data), "id"));
+        st_update.exchange(soci::use(std::get<1>(data), "issuer_id"));
+        st_update.exchange(soci::use(std::get<2>(data), "asset_id"));
+    };
+
     CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
                          << tableName;
 
@@ -530,14 +543,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
 
         for (auto trustLineExtension : selectedData)
         {
-            st_update.exchange(
-                soci::use(std::get<3>(trustLineExtension), "ext"));
-            st_update.exchange(
-                soci::use(std::get<0>(trustLineExtension), "id"));
-            st_update.exchange(
-                soci::use(std::get<1>(trustLineExtension), "issuer_id"));
-            st_update.exchange(
-                soci::use(std::get<2>(trustLineExtension), "asset_id"));
+            prepUpdateForExecution(st_update, trustLineExtension);
             st_update.define_and_bind();
             st_update.execute(true);
             auto affected_rows = st_update.get_affected_rows();
