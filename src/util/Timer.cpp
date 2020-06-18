@@ -2,11 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/Timer.h"
 #include "main/Application.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Scheduler.h"
+#include "util/Timer.h"
 #include <Tracy.hpp>
 #include <chrono>
 #include <cstdio>
@@ -154,7 +154,7 @@ VirtualClock::tmToSystemPoint(tm t)
 }
 
 std::time_t
-VirtualClock::tm_to_time_t(std::tm tm)
+VirtualClock::tmToSystemTimeT(std::tm tm)
 {
     return to_time_t(tmToSystemPoint(tm));
 }

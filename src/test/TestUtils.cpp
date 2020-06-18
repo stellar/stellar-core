@@ -103,7 +103,7 @@ time_t
 getTestDateTime(int day, int month, int year, int hour, int minute, int second)
 {
     auto tm = getTestDateTimeStruct(day, month, year, hour, minute, second);
-    return VirtualClock::tm_to_time_t(tm);
+    return VirtualClock::tmToSystemTimeT(tm);
 }
 
 time_t
