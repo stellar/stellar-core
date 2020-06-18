@@ -2365,10 +2365,8 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
             auto mm34 = root.create("mm34", minBalance3);
             auto mm41 = root.create("mm41", minBalance3);
             auto xlm = makeNativeAsset();
-            auto idr = makeAsset(gateway, "IDR");
             auto cur1 = makeAsset(gateway, "CUR1");
             auto cur2 = makeAsset(gateway, "CUR2");
-            auto usd = makeAsset(gateway2, "USD");
             auto cur3 = makeAsset(gateway2, "CUR3");
             auto cur4 = makeAsset(gateway2, "CUR4");
 
@@ -2435,13 +2433,13 @@ TEST_CASE("pathpayment strict send uses all offers in a loop",
                 o3.exchanged(10, 20)};
             checkClaimedOffers(actual, expected, 1280, 10);
             // clang-format off
-                market.requireBalances(
-                    {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 6720}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
-                    {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 1360}, {cur2, 7320}, {cur3, 0}, {cur4, 0}}},
-                    {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 680}, {cur3, 7660}, {cur4, 0}}},
-                    {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 340}, {cur4, 7830}}},
-                    {mm41, {{xlm, minBalance3 - 3 * txfee}, {cur1, 7920}, {cur2, 0}, {cur3, 0}, {cur4, 160}}},
-                    {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
+            market.requireBalances(
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 6720}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 1360}, {cur2, 7320}, {cur3, 0}, {cur4, 0}}},
+                {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 680}, {cur3, 7660}, {cur4, 0}}},
+                {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 340}, {cur4, 7830}}},
+                {mm41, {{xlm, minBalance3 - 3 * txfee}, {cur1, 7920}, {cur2, 0}, {cur3, 0}, {cur4, 160}}},
+                {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
     };
