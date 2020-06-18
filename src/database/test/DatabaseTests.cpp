@@ -19,6 +19,7 @@
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "util/optional.h"
+#include <algorithm>
 #include <random>
 
 using namespace stellar;
@@ -392,6 +393,12 @@ class SchemaUpgradeTestApplication : public TestApplication
 
 TEST_CASE("schema upgrade test", "[db]")
 {
+    using OptLiabilities = stellar::optional<Liabilities>;
+    using AccOptLiabilitiesPair = std::pair<AccountEntry, OptLiabilities>;
+    using AccOptLiabilitiesVec = std::vector<AccOptLiabilitiesPair>;
+    using TLOptLiabilitiesPair = std::pair<TrustLineEntry, OptLiabilities>;
+    using TLOptLiabilitiesVec = std::vector<TLOptLiabilitiesPair>;
+
     auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
                                      AccountEntry const& ae,
                                      optional<Liabilities> const liabilities) {
@@ -513,35 +520,61 @@ TEST_CASE("schema upgrade test", "[db]")
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const dbMode) {
         Config const& cfg = getTestConfig(0, dbMode);
         VirtualClock clock;
-        auto ae0 = LedgerTestUtils::generateValidAccountEntry();
-        auto ae1 = LedgerTestUtils::generateValidAccountEntry();
-        auto ae2 = LedgerTestUtils::generateValidAccountEntry();
-        auto tl3 = LedgerTestUtils::generateValidTrustLineEntry();
-        auto tl4 = LedgerTestUtils::generateValidTrustLineEntry();
-        auto tl5 = LedgerTestUtils::generateValidTrustLineEntry();
-        Liabilities liabilities1, liabilities2, liabilities3, liabilities4;
-        liabilities1.buying = 12;
-        liabilities1.selling = 17;
-        liabilities2.buying = 3;
-        liabilities2.selling = 0;
-        liabilities3.buying = 0;
-        liabilities3.selling = 6;
-        liabilities4.buying = 0;
-        liabilities4.selling = 0;
+
+        // A vector of optional Liabilities entries, for each of which the test
+        // will generate a valid account.
+        auto const accOptLiabilities = {
+            nullopt<Liabilities>(),
+            make_optional<Liabilities>(Liabilities{12, 17}),
+            make_optional<Liabilities>(Liabilities{3, 0})};
+
+        // Pair up each of the optional liabilities in tlOptLiabilities with a
+        // new valid account.
+        AccOptLiabilitiesVec accOptLiabilitiesVec;
+        std::transform(accOptLiabilities.begin(), accOptLiabilities.end(),
+                       std::back_inserter(accOptLiabilitiesVec),
+                       [](OptLiabilities const& aol) {
+                           return AccOptLiabilitiesPair(
+                               LedgerTestUtils::generateValidAccountEntry(),
+                               aol);
+                       });
+
+        // A vector of optional Liabilities entries, for each of which the test
+        // will generate a valid trustline.
+        auto const tlOptLiabilities = {
+            make_optional<Liabilities>(Liabilities{0, 6}),
+            make_optional<Liabilities>(Liabilities{0, 0}),
+            nullopt<Liabilities>()};
+
+        // Pair up each of the optional liabilities in tlOptLiabilities with a
+        // new valid trustline.
+        TLOptLiabilitiesVec tlOptLiabilitiesVec;
+        std::transform(tlOptLiabilities.begin(), tlOptLiabilities.end(),
+                       std::back_inserter(tlOptLiabilitiesVec),
+                       [](OptLiabilities const& tlol) {
+                           return TLOptLiabilitiesPair(
+                               LedgerTestUtils::generateValidTrustLineEntry(),
+                               tlol);
+                       });
+
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
-                [prepOldSchemaDB, ae0, ae1, ae2, tl3, tl4, tl5, liabilities1,
-                 liabilities2, liabilities3,
-                 liabilities4](SchemaUpgradeTestApplication& sapp) {
-                    prepOldSchemaDB(
-                        sapp, ae0, nullopt<Liabilities>(), ae1,
-                        make_optional<Liabilities>(liabilities1), ae2,
-                        make_optional<Liabilities>(liabilities2), tl3,
-                        make_optional<Liabilities>(liabilities3), tl4,
-                        make_optional<Liabilities>(liabilities4), tl5,
-                        nullopt<Liabilities>());
+                [prepOldSchemaDB, accOptLiabilitiesVec,
+                 tlOptLiabilitiesVec](SchemaUpgradeTestApplication& sapp) {
+                    prepOldSchemaDB(sapp, accOptLiabilitiesVec[0].first,
+                                    accOptLiabilitiesVec[0].second,
+                                    accOptLiabilitiesVec[1].first,
+                                    accOptLiabilitiesVec[1].second,
+                                    accOptLiabilitiesVec[2].first,
+                                    accOptLiabilitiesVec[2].second,
+                                    tlOptLiabilitiesVec[0].first,
+                                    tlOptLiabilitiesVec[0].second,
+                                    tlOptLiabilitiesVec[1].first,
+                                    tlOptLiabilitiesVec[1].second,
+                                    tlOptLiabilitiesVec[2].first,
+                                    tlOptLiabilitiesVec[2].second);
                 });
         app->start();
 
@@ -552,53 +585,53 @@ TEST_CASE("schema upgrade test", "[db]")
 
         key.type(ACCOUNT);
 
-        key.account().accountID = ae0.accountID;
+        key.account().accountID = accOptLiabilitiesVec[0].first.accountID;
         acc = ltx.load(key);
         REQUIRE(acc.current().data.type() == ACCOUNT);
         REQUIRE(acc.current().data.account().ext.v() == 0);
 
-        key.account().accountID = ae1.accountID;
+        key.account().accountID = accOptLiabilitiesVec[1].first.accountID;
         acc = ltx.load(key);
         REQUIRE(acc.current().data.type() == ACCOUNT);
         REQUIRE(acc.current().data.account().ext.v() == 1);
         REQUIRE(acc.current().data.account().ext.v1().liabilities.buying ==
-                liabilities1.buying);
+                accOptLiabilitiesVec[1].second->buying);
         REQUIRE(acc.current().data.account().ext.v1().liabilities.selling ==
-                liabilities1.selling);
+                accOptLiabilitiesVec[1].second->selling);
 
-        key.account().accountID = ae2.accountID;
+        key.account().accountID = accOptLiabilitiesVec[2].first.accountID;
         acc = ltx.load(key);
         REQUIRE(acc.current().data.type() == ACCOUNT);
         REQUIRE(acc.current().data.account().ext.v() == 1);
         REQUIRE(acc.current().data.account().ext.v1().liabilities.buying ==
-                liabilities2.buying);
+                accOptLiabilitiesVec[2].second->buying);
         REQUIRE(acc.current().data.account().ext.v1().liabilities.selling ==
-                liabilities2.selling);
+                accOptLiabilitiesVec[2].second->selling);
 
         key.type(TRUSTLINE);
 
-        key.trustLine().accountID = tl3.accountID;
-        key.trustLine().asset = tl3.asset;
+        key.trustLine().accountID = tlOptLiabilitiesVec[0].first.accountID;
+        key.trustLine().asset = tlOptLiabilitiesVec[0].first.asset;
         tl = ltx.load(key);
         REQUIRE(tl.current().data.type() == TRUSTLINE);
         REQUIRE(tl.current().data.trustLine().ext.v() == 1);
         REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.buying ==
-                liabilities3.buying);
+                tlOptLiabilitiesVec[0].second->buying);
         REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.selling ==
-                liabilities3.selling);
+                tlOptLiabilitiesVec[0].second->selling);
 
-        key.trustLine().accountID = tl4.accountID;
-        key.trustLine().asset = tl4.asset;
+        key.trustLine().accountID = tlOptLiabilitiesVec[1].first.accountID;
+        key.trustLine().asset = tlOptLiabilitiesVec[1].first.asset;
         tl = ltx.load(key);
         REQUIRE(tl.current().data.type() == TRUSTLINE);
         REQUIRE(tl.current().data.trustLine().ext.v() == 1);
         REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.buying ==
-                liabilities4.buying);
+                tlOptLiabilitiesVec[1].second->buying);
         REQUIRE(tl.current().data.trustLine().ext.v1().liabilities.selling ==
-                liabilities4.selling);
+                tlOptLiabilitiesVec[1].second->selling);
 
-        key.trustLine().accountID = tl5.accountID;
-        key.trustLine().asset = tl5.asset;
+        key.trustLine().accountID = tlOptLiabilitiesVec[2].first.accountID;
+        key.trustLine().asset = tlOptLiabilitiesVec[2].first.asset;
         tl = ltx.load(key);
         REQUIRE(tl.current().data.type() == TRUSTLINE);
         REQUIRE(tl.current().data.trustLine().ext.v() == 0);
