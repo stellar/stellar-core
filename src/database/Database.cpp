@@ -440,6 +440,10 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         st_update.exchange(soci::use(std::get<0>(data), "id"));
     };
 
+    auto describeData = [](SelectedData const& data) {
+        return fmt::format("account with account ID {}", std::get<0>(data));
+    };
+
     CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
                          << tableName;
 
@@ -464,17 +468,17 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     {
         auto st_update = getPreparedStatement(updateStr).statement();
 
-        for (auto accountExtension : selectedData)
+        for (auto data : selectedData)
         {
-            prepUpdateForExecution(st_update, accountExtension);
+            prepUpdateForExecution(st_update, data);
             st_update.define_and_bind();
             st_update.execute(true);
             auto affected_rows = st_update.get_affected_rows();
             if (affected_rows != 1)
             {
-                throw std::runtime_error(fmt::format(
-                    "{}: updating account {} affected {} row(s)", __func__,
-                    std::get<0>(accountExtension), affected_rows));
+                throw std::runtime_error(
+                    fmt::format("{}: updating {} affected {} row(s)", __func__,
+                                describeData(data), affected_rows));
             }
         }
     }
@@ -525,6 +529,13 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         st_update.exchange(soci::use(std::get<2>(data), "asset_id"));
     };
 
+    auto describeData = [](SelectedData const& data) {
+        return fmt::format("trustline with account ID {}, issuer "
+                           "{}, and asset {}",
+                           std::get<0>(data), std::get<1>(data),
+                           std::get<2>(data));
+    };
+
     CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
                          << tableName;
 
@@ -546,20 +557,17 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     {
         auto st_update = getPreparedStatement(updateStr).statement();
 
-        for (auto trustLineExtension : selectedData)
+        for (auto data : selectedData)
         {
-            prepUpdateForExecution(st_update, trustLineExtension);
+            prepUpdateForExecution(st_update, data);
             st_update.define_and_bind();
             st_update.execute(true);
             auto affected_rows = st_update.get_affected_rows();
             if (affected_rows != 1)
             {
-                throw std::runtime_error(fmt::format(
-                    "{}: updating trustline with account ID {}, issuer "
-                    "{}, and asset {} affected {} row(s)",
-                    __func__, std::get<0>(trustLineExtension),
-                    std::get<1>(trustLineExtension),
-                    std::get<2>(trustLineExtension), affected_rows));
+                throw std::runtime_error(
+                    fmt::format("{}: updating {} affected {} row(s)", __func__,
+                                describeData(data), affected_rows));
             }
         }
     }
