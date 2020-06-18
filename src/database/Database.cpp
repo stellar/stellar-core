@@ -426,6 +426,14 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         "UPDATE accounts SET extension = :ext WHERE accountID = :id";
     using SelectedData = std::tuple<std::string, std::string>;
 
+    auto makeSelectedData = [&]() {
+        assert(buyingLiabilitiesInd == soci::i_ok);
+        assert(sellingLiabilitiesInd == soci::i_ok);
+        return std::make_tuple(
+            accountIDStrKey,
+            decoder::encode_b64(xdr::xdr_to_opaque(extension)));
+    };
+
     auto prepUpdateForExecution = [](soci::statement& st_update,
                                      SelectedData const& data) {
         st_update.exchange(soci::use(std::get<1>(data), "ext"));
@@ -449,11 +457,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
             // We've only selected accounts which have at least one of
             // buying liabilities or selling liabilities present, and if
             // either is present, then both should be.
-            assert(buyingLiabilitiesInd == soci::i_ok);
-            assert(sellingLiabilitiesInd == soci::i_ok);
-            selectedData.emplace_back(std::make_tuple(
-                accountIDStrKey,
-                decoder::encode_b64(xdr::xdr_to_opaque(extension))));
+            selectedData.emplace_back(makeSelectedData());
         }
     }
 
@@ -505,6 +509,14 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     using SelectedData =
         std::tuple<std::string, std::string, std::string, std::string>;
 
+    auto makeSelectedData = [&]() {
+        assert(buyingLiabilitiesInd == soci::i_ok);
+        assert(sellingLiabilitiesInd == soci::i_ok);
+        return std::make_tuple(
+            accountIDStrKey, issuerStrKey, assetStrKey,
+            decoder::encode_b64(xdr::xdr_to_opaque(extension)));
+    };
+
     auto prepUpdateForExecution = [](soci::statement& st_update,
                                      SelectedData const& data) {
         st_update.exchange(soci::use(std::get<3>(data), "ext"));
@@ -527,14 +539,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
 
         while (st_select.fetch())
         {
-            // We've only selected trustlines which have at least one of
-            // buying liabilities or selling liabilities present, and if
-            // either is present, then both should be.
-            assert(buyingLiabilitiesInd == soci::i_ok);
-            assert(sellingLiabilitiesInd == soci::i_ok);
-            selectedData.emplace_back(std::make_tuple(
-                accountIDStrKey, issuerStrKey, assetStrKey,
-                decoder::encode_b64(xdr::xdr_to_opaque(extension))));
+            selectedData.emplace_back(makeSelectedData());
         }
     }
 
