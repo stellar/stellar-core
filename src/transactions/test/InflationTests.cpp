@@ -333,7 +333,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
             auto txFrame = root.tx({inflation()});
 
-            closeLedgerOn(*app, 4, 7, 7, 2014, {txFrame});
+            closeLedgerOn(*app, 4, 7, 7, 2014, 0, 0, 0, {txFrame});
             REQUIRE(getInflationSeq() == 1);
 
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
@@ -376,7 +376,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto target1tx = root.tx({createAccount(target1, minBalance)});
         auto target2tx = root.tx({createAccount(target2, minBalance)});
 
-        closeLedgerOn(*app, 2, 21, 7, 2014,
+        closeLedgerOn(*app, 2, 21, 7, 2014, 0, 0, 0,
                       {voter1tx, voter2tx, target1tx, target2tx});
 
         REQUIRE(getFeePool() == 1000000299);
@@ -387,7 +387,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto setInflationDestination2 = voter2.tx(
             {setOptions(setInflationDestination(target2.getPublicKey()))});
 
-        closeLedgerOn(*app, 3, 21, 7, 2014,
+        closeLedgerOn(*app, 3, 21, 7, 2014, 0, 0, 0,
                       {setInflationDestination1, setInflationDestination2});
 
         REQUIRE(getFeePool() == 1000000499);
@@ -407,7 +407,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto inflationTx = root.tx({inflation()});
 
         for_versions_to(7, *app, [&] {
-            closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
+            closeLedgerOn(*app, 4, 21, 7, 2014, 0, 0, 0, {inflationTx});
 
             REQUIRE(getFeePool() == 95361000000301);
             REQUIRE(getTotalCoins() == 1000095361000000298);
@@ -434,7 +434,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         });
 
         for_versions(8, 11, *app, [&] {
-            closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
+            closeLedgerOn(*app, 4, 21, 7, 2014, 0, 0, 0, {inflationTx});
 
             REQUIRE(getFeePool() == 95361000000301);
             REQUIRE(getTotalCoins() == 1000190721000000000);

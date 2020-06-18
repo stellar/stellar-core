@@ -632,7 +632,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(getAccountSigners(root, *app).size() == 1);
 
                             // merge b1 into a1 and attempt the payment tx
-                            auto r = closeLedgerOn(*app, 3, 1, 2, 2016,
+                            auto r = closeLedgerOn(*app, 3, 1, 2, 2016, 0, 0, 0,
                                                    {txMerge, tx});
 
                             if (txAccountMissing)
@@ -939,12 +939,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         };
                         for_versions(3, 9, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            closeLedgerOn(*app, 2, 1, 1, 2010, 0, 0, 0,
+                                          {tx1, tx2});
                             REQUIRE(getAccountSigners(root, *app).size() == 1);
                         });
                         for_versions_from(10, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            closeLedgerOn(*app, 2, 1, 1, 2010, 0, 0, 0,
+                                          {tx1, tx2});
                             REQUIRE(getAccountSigners(root, *app).size() ==
                                     (alternative.autoRemove ? 0 : 1));
                         });
@@ -970,12 +972,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         };
                         for_versions(3, 9, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            closeLedgerOn(*app, 2, 1, 1, 2010, 0, 0, 0,
+                                          {tx1, tx2});
                             REQUIRE(getAccountSigners(root, *app).size() == 1);
                         });
                         for_versions_from(10, *app, [&] {
                             setup();
-                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            closeLedgerOn(*app, 2, 1, 1, 2010, 0, 0, 0,
+                                          {tx1, tx2});
                             REQUIRE(getAccountSigners(root, *app).size() ==
                                     (alternative.autoRemove ? 0 : 1));
                         });
@@ -1534,10 +1538,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("accepted on time, but closed later "
                             "(protocol issue 622)")
                     {
-                        auto const ledgerVersion =
-                            app->getLedgerManager()
-                                .getLastClosedLedgerHeader()
-                                .header.ledgerVersion;
                         time_t const max_seconds = 30;
                         txFrame = root.tx(
                             {payment(a1.getPublicKey(), paymentAmount)});

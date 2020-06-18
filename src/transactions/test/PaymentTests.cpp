@@ -353,7 +353,7 @@ TEST_CASE("payment", "[tx][payment]")
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
-            auto r = closeLedgerOn(*app, 3, 1, 2, 2016, {tx1, tx2});
+            auto r = closeLedgerOn(*app, 3, 1, 2, 2016, 0, 0, 0, {tx1, tx2});
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
 
@@ -368,7 +368,7 @@ TEST_CASE("payment", "[tx][payment]")
             auto tx1 = b1.tx({payment(root, paymentAmount)});
             auto tx2 = b1.tx({payment(root, 6)});
 
-            auto r = closeLedgerOn(*app, 3, 1, 2, 2016, {tx1, tx2});
+            auto r = closeLedgerOn(*app, 3, 1, 2, 2016, 0, 0, 0, {tx1, tx2});
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txFAILED);
             REQUIRE(r[1].first.result.result.results()[0]

@@ -335,14 +335,6 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-              std::vector<TransactionFrameBasePtr> const& txs)
-{
-    return closeLedgerOn(app, ledgerSeq, day, month, year, 0 /* hour */,
-                         0 /* minute */, 0 /* second */, txs);
-}
-
-TxSetResultMeta
-closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               int hour, int minute, int second,
               std::vector<TransactionFrameBasePtr> const& txs)
 {

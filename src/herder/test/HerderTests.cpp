@@ -717,7 +717,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         auto balancesBefore = getBalances();
 
         // apply this
-        closeLedgerOn(*app, 2, 1, 1, 2020, txSet->mTransactions);
+        closeLedgerOn(*app, 2, 1, 1, 2020, 0, 0, 0, txSet->mTransactions);
 
         auto balancesAfter = getBalances();
         int64_t lowFee = INT64_MAX, highFee = 0;
