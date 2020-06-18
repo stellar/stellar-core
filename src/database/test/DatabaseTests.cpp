@@ -525,13 +525,16 @@ TEST_CASE("schema upgrade test", "[db]")
         auto const accOptLiabilities = {
             nullopt<Liabilities>(),
             make_optional<Liabilities>(Liabilities{12, 17}),
+            nullopt<Liabilities>(),
             make_optional<Liabilities>(Liabilities{3, 0})};
 
         // A vector of optional Liabilities entries, for each of which the test
         // will generate a valid trustline.
         auto const tlOptLiabilities = {
             make_optional<Liabilities>(Liabilities{0, 6}),
+            nullopt<Liabilities>(),
             make_optional<Liabilities>(Liabilities{0, 0}),
+            make_optional<Liabilities>(Liabilities{5, 8}),
             nullopt<Liabilities>()};
 
         // Pair up each of the optional liabilities in tlOptLiabilities with a
