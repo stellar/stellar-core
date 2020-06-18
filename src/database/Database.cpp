@@ -413,11 +413,12 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     std::vector<std::tuple<std::string, std::string>> accountExtensions;
 
     {
+        auto st_select = getPreparedOldLiabilitySelect("accounts", "accountid");
+
         std::string accountIDStrKey;
         AccountEntry::_ext_t::_v1_t extension;
         soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
 
-        auto st_select = getPreparedOldLiabilitySelect("accounts", "accountid");
         st_select.exchange(soci::into(accountIDStrKey));
         st_select.exchange(
             soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
@@ -440,9 +441,10 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     }
 
     {
-        auto prep_update = getPreparedStatement(
-            "UPDATE accounts SET extension = :ext WHERE accountID = :id");
-        auto& st_update = prep_update.statement();
+        auto st_update =
+            getPreparedStatement(
+                "UPDATE accounts SET extension = :ext WHERE accountID = :id")
+                .statement();
 
         for (auto accountExtension : accountExtensions)
         {
@@ -474,12 +476,13 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         trustLineExtensions;
 
     {
+        auto st_select = getPreparedOldLiabilitySelect(
+            "trustlines", "accountid, issuer, assetcode");
+
         std::string accountIDStrKey, issuerStrKey, assetStrKey;
         TrustLineEntry::_ext_t::_v1_t extension;
         soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
 
-        auto st_select = getPreparedOldLiabilitySelect(
-            "trustlines", "accountid, issuer, assetcode");
         st_select.exchange(soci::into(accountIDStrKey));
         st_select.exchange(soci::into(issuerStrKey));
         st_select.exchange(soci::into(assetStrKey));
@@ -504,11 +507,12 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     }
 
     {
-        auto prep_update = getPreparedStatement(
-            "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
-            "AND "
-            "issuer = :issuer_id AND assetcode = :asset_id");
-        auto& st_update = prep_update.statement();
+        auto st_update =
+            getPreparedStatement(
+                "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
+                "AND "
+                "issuer = :issuer_id AND assetcode = :asset_id")
+                .statement();
 
         for (auto trustLineExtension : trustLineExtensions)
         {
