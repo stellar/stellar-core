@@ -108,8 +108,8 @@ class Database : NonMovableOrCopyable
     void convertAccountExtensionsToOpaqueXDR();
     void copyIndividualAccountExtensionFieldsToOpaqueXDR();
 
-    StatementContext getPreparedOldLiabilitySelect(std::string const& table,
-                                                   std::string const& fields);
+    soci::statement getPreparedOldLiabilitySelect(std::string const& table,
+                                                  std::string const& fields);
     void addTextColumn(std::string const& table, std::string const& column);
     void dropTextColumn(std::string const& table, std::string const& column);
 

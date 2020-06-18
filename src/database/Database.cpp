@@ -354,7 +354,7 @@ Database::dropTextColumn(std::string const& table, std::string const& column)
     }
 }
 
-StatementContext
+soci::statement
 Database::getPreparedOldLiabilitySelect(std::string const& table,
                                         std::string const& fields)
 {
@@ -365,7 +365,8 @@ Database::getPreparedOldLiabilitySelect(std::string const& table,
                                 " WHERE "
                                 "buyingliabilities IS NOT NULL"
                                 " OR "
-                                "sellingliabilities IS NOT NULL");
+                                "sellingliabilities IS NOT NULL")
+        .statement();
 }
 
 void
@@ -413,8 +414,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     AccountEntry::_ext_t::_v1_t extension;
     soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
 
-    auto prep_select = getPreparedOldLiabilitySelect("accounts", "accountid");
-    auto& st_select = prep_select.statement();
+    auto st_select = getPreparedOldLiabilitySelect("accounts", "accountid");
     st_select.exchange(soci::into(accountIDStrKey));
     st_select.exchange(
         soci::into(extension.liabilities.buying, buyingLiabilitiesInd));
@@ -464,9 +464,8 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     TrustLineEntry::_ext_t::_v1_t extension;
     soci::indicator buyingLiabilitiesInd, sellingLiabilitiesInd;
 
-    auto prep_select = getPreparedOldLiabilitySelect(
+    auto st_select = getPreparedOldLiabilitySelect(
         "trustlines", "accountid, issuer, assetcode");
-    auto& st_select = prep_select.statement();
     st_select.exchange(soci::into(accountIDStrKey));
     st_select.exchange(soci::into(issuerStrKey));
     st_select.exchange(soci::into(assetStrKey));
