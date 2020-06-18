@@ -400,8 +400,9 @@ TEST_CASE("schema upgrade test", "[db]")
     using TLOptLiabilitiesVec = std::vector<TLOptLiabilitiesPair>;
 
     auto addOneOldSchemaAccount = [](SchemaUpgradeTestApplication& app,
-                                     AccountEntry const& ae,
-                                     optional<Liabilities> const liabilities) {
+                                     AccOptLiabilitiesPair const& aol) {
+        auto const& ae = aol.first;
+        auto const& liabilities = aol.second;
         auto& session = app.getDatabase().getSession();
         auto accountIDStr = KeyUtils::toStrKey<PublicKey>(ae.accountID);
         auto inflationDestStr =
@@ -435,6 +436,7 @@ TEST_CASE("schema upgrade test", "[db]")
             soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
             soci::use(liabilities ? liabilities->buying : 0),
             soci::use(liabilities ? liabilities->selling : 0);
+
         if (!liabilities)
         {
             session << "UPDATE accounts SET buyingliabilities = NULL, "
@@ -442,91 +444,95 @@ TEST_CASE("schema upgrade test", "[db]")
                        "accountid = :id",
                 soci::use(accountIDStr);
         }
+
         tx.commit();
     };
-    auto addOneOldSchemaTrustLine =
-        [](SchemaUpgradeTestApplication& app, TrustLineEntry const& tl,
-           optional<Liabilities> const liabilities) {
-            auto& session = app.getDatabase().getSession();
-            std::string accountIDStr, issuerStr, assetCodeStr;
-            getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
-                                assetCodeStr);
-            int32_t assetType = tl.asset.type();
 
-            soci::transaction tx(session);
-            session << "INSERT INTO trustlines ( "
-                       "accountid, assettype, issuer, assetcode,"
-                       "tlimit, balance, flags, lastmodified, "
-                       "buyingliabilities, sellingliabilities "
-                       ") VALUES ( "
-                       ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
-                       ")",
-                soci::use(accountIDStr), soci::use(assetType),
-                soci::use(issuerStr), soci::use(assetCodeStr),
-                soci::use(tl.limit), soci::use(tl.balance), soci::use(tl.flags),
-                soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
-                soci::use(liabilities ? liabilities->buying : 0),
-                soci::use(liabilities ? liabilities->selling : 0);
-            if (!liabilities)
-            {
-                session
-                    << "UPDATE trustlines SET buyingliabilities = NULL, "
+    auto addOneOldSchemaTrustLine = [](SchemaUpgradeTestApplication& app,
+                                       TLOptLiabilitiesPair const& tlol) {
+        auto const& tl = tlol.first;
+        auto const& liabilities = tlol.second;
+        auto& session = app.getDatabase().getSession();
+        std::string accountIDStr, issuerStr, assetCodeStr;
+        getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
+                            assetCodeStr);
+        int32_t assetType = tl.asset.type();
+
+        soci::transaction tx(session);
+
+        session << "INSERT INTO trustlines ( "
+                   "accountid, assettype, issuer, assetcode,"
+                   "tlimit, balance, flags, lastmodified, "
+                   "buyingliabilities, sellingliabilities "
+                   ") VALUES ( "
+                   ":id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9 "
+                   ")",
+            soci::use(accountIDStr), soci::use(assetType), soci::use(issuerStr),
+            soci::use(assetCodeStr), soci::use(tl.limit), soci::use(tl.balance),
+            soci::use(tl.flags),
+            soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
+            soci::use(liabilities ? liabilities->buying : 0),
+            soci::use(liabilities ? liabilities->selling : 0);
+
+        if (!liabilities)
+        {
+            session << "UPDATE trustlines SET buyingliabilities = NULL, "
                        "sellingliabilities = NULL WHERE "
                        "accountid = :id AND issuer = :v1 AND assetcode = :v2",
-                    soci::use(accountIDStr), soci::use(issuerStr),
-                    soci::use(assetCodeStr);
-            }
-            tx.commit();
-        };
-    auto prepOldSchemaDB =
-        [addOneOldSchemaAccount, addOneOldSchemaTrustLine](
-            SchemaUpgradeTestApplication& app, AccountEntry const& ae0,
-            optional<Liabilities> const liabilities0, AccountEntry const& ae1,
-            optional<Liabilities> const liabilities1, AccountEntry const& ae2,
-            optional<Liabilities> const liabilities2, TrustLineEntry const& tl3,
-            optional<Liabilities> const liabilities3, TrustLineEntry const& tl4,
-            optional<Liabilities> const liabilities4, TrustLineEntry const& tl5,
-            optional<Liabilities> const liabilities5) {
+                soci::use(accountIDStr), soci::use(issuerStr),
+                soci::use(assetCodeStr);
+        }
 
-            try
-            {
-                addOneOldSchemaAccount(app, ae0, liabilities0);
-                addOneOldSchemaAccount(app, ae1, liabilities1);
-                addOneOldSchemaAccount(app, ae2, liabilities2);
-            }
-            catch (std::exception& e)
-            {
-                CLOG(FATAL, "Database")
-                    << __func__ << ": exception " << e.what()
-                    << " while adding old-schema accounts";
-                throw;
-            }
+        tx.commit();
+    };
 
-            try
+    auto prepOldSchemaDB = [addOneOldSchemaAccount, addOneOldSchemaTrustLine](
+                               SchemaUpgradeTestApplication& app,
+                               AccOptLiabilitiesVec const& aols,
+                               TLOptLiabilitiesVec const& tlols) {
+        try
+        {
+            for (auto aol : aols)
             {
-                addOneOldSchemaTrustLine(app, tl3, liabilities3);
-                addOneOldSchemaTrustLine(app, tl4, liabilities4);
-                addOneOldSchemaTrustLine(app, tl5, liabilities5);
+                addOneOldSchemaAccount(app, aol);
             }
-            catch (std::exception& e)
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while adding old-schema accounts";
+            throw;
+        }
+
+        try
+        {
+            for (auto tlol : tlols)
             {
-                CLOG(FATAL, "Database")
-                    << __func__ << ": exception " << e.what()
-                    << " while adding old-schema trustlines";
-                throw;
+                addOneOldSchemaTrustLine(app, tlol);
             }
-        };
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while adding old-schema trustlines";
+            throw;
+        }
+    };
 
     auto testOneDBMode = [prepOldSchemaDB](Config::TestDbMode const dbMode) {
-        Config const& cfg = getTestConfig(0, dbMode);
-        VirtualClock clock;
-
         // A vector of optional Liabilities entries, for each of which the test
         // will generate a valid account.
         auto const accOptLiabilities = {
             nullopt<Liabilities>(),
             make_optional<Liabilities>(Liabilities{12, 17}),
             make_optional<Liabilities>(Liabilities{3, 0})};
+
+        // A vector of optional Liabilities entries, for each of which the test
+        // will generate a valid trustline.
+        auto const tlOptLiabilities = {
+            make_optional<Liabilities>(Liabilities{0, 6}),
+            make_optional<Liabilities>(Liabilities{0, 0}),
+            nullopt<Liabilities>()};
 
         // Pair up each of the optional liabilities in tlOptLiabilities with a
         // new valid account.
@@ -539,13 +545,6 @@ TEST_CASE("schema upgrade test", "[db]")
                                aol);
                        });
 
-        // A vector of optional Liabilities entries, for each of which the test
-        // will generate a valid trustline.
-        auto const tlOptLiabilities = {
-            make_optional<Liabilities>(Liabilities{0, 6}),
-            make_optional<Liabilities>(Liabilities{0, 0}),
-            nullopt<Liabilities>()};
-
         // Pair up each of the optional liabilities in tlOptLiabilities with a
         // new valid trustline.
         TLOptLiabilitiesVec tlOptLiabilitiesVec;
@@ -557,24 +556,17 @@ TEST_CASE("schema upgrade test", "[db]")
                                tlol);
                        });
 
+        Config const& cfg = getTestConfig(0, dbMode);
+        VirtualClock clock;
+
         Application::pointer app =
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
                 [prepOldSchemaDB, accOptLiabilitiesVec,
                  tlOptLiabilitiesVec](SchemaUpgradeTestApplication& sapp) {
-                    prepOldSchemaDB(sapp, accOptLiabilitiesVec[0].first,
-                                    accOptLiabilitiesVec[0].second,
-                                    accOptLiabilitiesVec[1].first,
-                                    accOptLiabilitiesVec[1].second,
-                                    accOptLiabilitiesVec[2].first,
-                                    accOptLiabilitiesVec[2].second,
-                                    tlOptLiabilitiesVec[0].first,
-                                    tlOptLiabilitiesVec[0].second,
-                                    tlOptLiabilitiesVec[1].first,
-                                    tlOptLiabilitiesVec[1].second,
-                                    tlOptLiabilitiesVec[2].first,
-                                    tlOptLiabilitiesVec[2].second);
+                    prepOldSchemaDB(sapp, accOptLiabilitiesVec,
+                                    tlOptLiabilitiesVec);
                 });
         app->start();
 
