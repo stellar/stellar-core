@@ -404,15 +404,15 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
     }
 }
 
-template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
-          typename DescribeData>
+template <typename SelectedData>
 size_t
-Database::selectUpdateMap(std::string const& tableName,
-                          std::string const& selectStr,
-                          MakeSelected makeSelectedData,
-                          std::string const& updateStr,
-                          PrepUpdate prepUpdateForExecution,
-                          DescribeData describeData)
+Database::selectUpdateMap(
+    std::string const& tableName, std::string const& selectStr,
+    std::function<SelectedData(soci::row const&)> makeSelectedData,
+    std::string const& updateStr,
+    std::function<void(soci::statement&, SelectedData const&)>
+        prepUpdateForExecution,
+    std::function<std::string(SelectedData const&)> describeData)
 {
     std::vector<SelectedData> selectedData;
 

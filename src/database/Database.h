@@ -9,6 +9,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
+#include <functional>
 #include <set>
 #include <soci.h>
 #include <string>
@@ -223,13 +224,14 @@ class Database : NonMovableOrCopyable
     // Then map each element of that client-defined datatype
     // into a client-defined update string, and send those
     // update strings to the given table.
-    template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
-              typename DescribeData>
-    size_t
-    selectUpdateMap(std::string const& tableName, std::string const& selectStr,
-                    MakeSelected makeSelectedData, std::string const& updateStr,
-                    PrepUpdate prepUpdateForExecution,
-                    DescribeData describeData);
+    template <typename SelectedData>
+    size_t selectUpdateMap(
+        std::string const& tableName, std::string const& selectStr,
+        std::function<SelectedData(soci::row const&)> makeSelectedData,
+        std::string const& updateStr,
+        std::function<void(soci::statement&, SelectedData const&)>
+            prepUpdateForExecution,
+        std::function<std::string(SelectedData const&)> describeData);
 };
 
 template <typename T>
