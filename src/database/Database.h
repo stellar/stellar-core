@@ -230,11 +230,14 @@ class Database : NonMovableOrCopyable
     // Map each element in the given vector of a client-defined datatype into a
     // SQL update command by applying a client-defined function, then send those
     // update strings to the database.
+    //
+    // The "postUpdate" function receives the number of records affected
+    // by the given update, as well as the element of the client-defined
+    // datatype which generated that update.
     template <typename T>
-    void updateMap(
-        std::vector<T> const& in, std::string const& updateStr,
-        std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
-        std::function<std::string(T const&)> describeT);
+    void updateMap(std::vector<T> const& in, std::string const& updateStr,
+                   std::function<void(soci::statement&, T const&)> prepUpdate,
+                   std::function<void(long long const, T const&)> postUpdate);
 
     // The composition of updateMap() following selectMap().
     //
@@ -242,11 +245,12 @@ class Database : NonMovableOrCopyable
     // then passed through updateMap() before the selectUpdateMap() call
     // returned).
     template <typename T>
-    size_t selectUpdateMap(
-        std::string const& selectStr, std::function<T(soci::row const&)> makeT,
-        std::string const& updateStr,
-        std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
-        std::function<std::string(T const&)> describeT);
+    size_t
+    selectUpdateMap(std::string const& selectStr,
+                    std::function<T(soci::row const&)> makeT,
+                    std::string const& updateStr,
+                    std::function<void(soci::statement&, T const&)> prepUpdate,
+                    std::function<void(long long const, T const&)> postUpdate);
 };
 
 template <typename T>

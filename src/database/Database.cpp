@@ -417,25 +417,19 @@ Database::selectMap(std::string const& selectStr,
 
 template <typename T>
 void
-Database::updateMap(
-    std::vector<T> const& in, std::string const& updateStr,
-    std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
-    std::function<std::string(T const&)> describeT)
+Database::updateMap(std::vector<T> const& in, std::string const& updateStr,
+                    std::function<void(soci::statement&, T const&)> prepUpdate,
+                    std::function<void(long long const, T const&)> postUpdate)
 {
     auto st_update = getPreparedStatement(updateStr).statement();
 
     for (auto recT : in)
     {
-        prepUpdateForExecution(st_update, recT);
+        prepUpdate(st_update, recT);
         st_update.define_and_bind();
         st_update.execute(true);
         auto affected_rows = st_update.get_affected_rows();
-        if (affected_rows != 1)
-        {
-            throw std::runtime_error(
-                fmt::format("{}: updating {} affected {} row(s)", __func__,
-                            describeT(recT), affected_rows));
-        }
+        postUpdate(affected_rows, recT);
     }
 }
 
@@ -444,13 +438,13 @@ size_t
 Database::selectUpdateMap(
     std::string const& selectStr, std::function<T(soci::row const&)> makeT,
     std::string const& updateStr,
-    std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
-    std::function<std::string(T const&)> describeT)
+    std::function<void(soci::statement&, T const&)> prepUpdate,
+    std::function<void(long long const, T const&)> postUpdate)
 {
     std::vector<T> vecT;
 
     selectMap<T>(selectStr, makeT, vecT);
-    updateMap<T>(vecT, updateStr, prepUpdateForExecution, describeT);
+    updateMap<T>(vecT, updateStr, prepUpdate, postUpdate);
 
     return vecT.size();
 }
@@ -467,8 +461,11 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     using T = std::tuple<std::string, std::string>;
 
     std::string const fieldsStr = "accountid";
+    std::string const selectStr = getOldLiabilitySelect(tableStr, fieldsStr);
     auto makeT = [](soci::row const& row) {
         AccountEntry::_ext_t::_v1_t extension;
+        // getOldLiabilitySelect() places the buying and selling extension
+        // column names after the key field in the SQL select string.
         extension.liabilities.buying = row.get<long long>(1);
         extension.liabilities.selling = row.get<long long>(2);
         return std::make_tuple(
@@ -478,19 +475,22 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 
     std::string const updateStr =
         "UPDATE accounts SET extension = :ext WHERE accountID = :id";
-    auto prepUpdateForExecution = [](soci::statement& st_update,
-                                     T const& data) {
+    auto prepUpdate = [](soci::statement& st_update, T const& data) {
         st_update.exchange(soci::use(std::get<1>(data), "ext"));
         st_update.exchange(soci::use(std::get<0>(data), "id"));
     };
 
-    auto describeT = [](T const& data) {
-        return fmt::format("account with account ID {}", std::get<0>(data));
+    auto postUpdate = [](long long const affected_rows, T const& data) {
+        if (affected_rows != 1)
+        {
+            throw std::runtime_error(fmt::format(
+                "{}: updating account with account ID {} affected {} row(s) ",
+                __func__, std::get<0>(data), affected_rows));
+        }
     };
 
     size_t numUpdated =
-        selectUpdateMap<T>(getOldLiabilitySelect(tableStr, fieldsStr), makeT,
-                           updateStr, prepUpdateForExecution, describeT);
+        selectUpdateMap<T>(selectStr, makeT, updateStr, prepUpdate, postUpdate);
 
     CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
                            << " records(s) with liabilities in " << tableStr
@@ -509,8 +509,11 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     using T = std::tuple<std::string, std::string, std::string, std::string>;
 
     std::string const fieldsStr = "accountid, issuer, assetcode";
+    std::string const selectStr = getOldLiabilitySelect(tableStr, fieldsStr);
     auto makeT = [](soci::row const& row) {
         TrustLineEntry::_ext_t::_v1_t extension;
+        // getOldLiabilitySelect() places the buying and selling extension
+        // column names after the three key fields in the SQL select string.
         extension.liabilities.buying = row.get<long long>(3);
         extension.liabilities.selling = row.get<long long>(4);
         return std::make_tuple(
@@ -523,24 +526,26 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     std::string const updateStr =
         "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
         "AND issuer = :issuer_id AND assetcode = :asset_id";
-    auto prepUpdateForExecution = [](soci::statement& st_update,
-                                     T const& data) {
+    auto prepUpdate = [](soci::statement& st_update, T const& data) {
         st_update.exchange(soci::use(std::get<3>(data), "ext"));
         st_update.exchange(soci::use(std::get<0>(data), "id"));
         st_update.exchange(soci::use(std::get<1>(data), "issuer_id"));
         st_update.exchange(soci::use(std::get<2>(data), "asset_id"));
     };
 
-    auto describeT = [](T const& data) {
-        return fmt::format("trustline with account ID {}, issuer "
-                           "{}, and asset {}",
-                           std::get<0>(data), std::get<1>(data),
-                           std::get<2>(data));
+    auto postUpdate = [](long long const affected_rows, T const& data) {
+        if (affected_rows != 1)
+        {
+            throw std::runtime_error(fmt::format(
+                "{}: updating trustline with account ID {}, issuer {}, and "
+                "asset {} affected {} row(s)",
+                __func__, std::get<0>(data), std::get<1>(data),
+                std::get<2>(data), affected_rows));
+        }
     };
 
     size_t numUpdated =
-        selectUpdateMap<T>(getOldLiabilitySelect(tableStr, fieldsStr), makeT,
-                           updateStr, prepUpdateForExecution, describeT);
+        selectUpdateMap<T>(selectStr, makeT, updateStr, prepUpdate, postUpdate);
 
     CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
                            << " records(s) with liabilities in " << tableStr
