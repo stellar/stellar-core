@@ -355,8 +355,8 @@ Database::dropTextColumn(std::string const& table, std::string const& column)
 }
 
 std::string
-Database::getPreparedOldLiabilitySelect(std::string const& table,
-                                        std::string const& fields)
+Database::getOldLiabilitySelect(std::string const& table,
+                                std::string const& fields)
 {
     return "SELECT " + fields + "," +
            "buyingliabilities, sellingliabilities "
@@ -408,7 +408,7 @@ template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
           typename DescribeData>
 void
 Database::copyIndividualExtensionFieldsToOpaqueXDR(
-    std::string const& tableName, std::string const& fieldsStr,
+    std::string const& tableName, std::string const& selectStr,
     MakeSelected makeSelectedData, std::string const& updateStr,
     PrepUpdate prepUpdateForExecution, DescribeData describeData)
 {
@@ -418,8 +418,7 @@ Database::copyIndividualExtensionFieldsToOpaqueXDR(
     std::vector<SelectedData> selectedData;
 
     {
-        auto st_select = getPreparedOldLiabilitySelect(tableName, fieldsStr);
-        soci::rowset<soci::row> rs = (mSession.prepare << st_select);
+        soci::rowset<soci::row> rs = (mSession.prepare << selectStr);
 
         for (auto it = rs.begin(); it != rs.end(); ++it)
         {
@@ -478,9 +477,10 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         return fmt::format("account with account ID {}", std::get<0>(data));
     };
 
+    std::string const tableStr = "accounts";
     copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
-        "accounts", fieldsStr, makeSelectedData, updateStr,
-        prepUpdateForExecution, describeData);
+        tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
+        updateStr, prepUpdateForExecution, describeData);
 }
 
 void
@@ -520,9 +520,10 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
                            std::get<2>(data));
     };
 
+    std::string const tableStr = "trustlines";
     copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
-        "trustlines", fieldsStr, makeSelectedData, updateStr,
-        prepUpdateForExecution, describeData);
+        tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
+        updateStr, prepUpdateForExecution, describeData);
 }
 
 void

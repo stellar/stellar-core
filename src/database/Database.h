@@ -108,8 +108,8 @@ class Database : NonMovableOrCopyable
     void convertAccountExtensionsToOpaqueXDR();
     void copyIndividualAccountExtensionFieldsToOpaqueXDR();
 
-    std::string getPreparedOldLiabilitySelect(std::string const& table,
-                                              std::string const& fields);
+    std::string getOldLiabilitySelect(std::string const& table,
+                                      std::string const& fields);
     void addTextColumn(std::string const& table, std::string const& column);
     void dropTextColumn(std::string const& table, std::string const& column);
 
@@ -124,7 +124,7 @@ class Database : NonMovableOrCopyable
     template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
               typename DescribeData>
     void copyIndividualExtensionFieldsToOpaqueXDR(
-        std::string const& tableName, std::string const& fieldsStr,
+        std::string const& tableName, std::string const& selectStr,
         MakeSelected makeSelectedData, std::string const& updateStr,
         PrepUpdate prepUpdateForExecution, DescribeData describeData);
 
