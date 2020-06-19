@@ -407,10 +407,12 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
 template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
           typename DescribeData>
 size_t
-Database::copyIndividualExtensionFieldsToOpaqueXDR(
-    std::string const& tableName, std::string const& selectStr,
-    MakeSelected makeSelectedData, std::string const& updateStr,
-    PrepUpdate prepUpdateForExecution, DescribeData describeData)
+Database::selectUpdateMap(std::string const& tableName,
+                          std::string const& selectStr,
+                          MakeSelected makeSelectedData,
+                          std::string const& updateStr,
+                          PrepUpdate prepUpdateForExecution,
+                          DescribeData describeData)
 {
     std::vector<SelectedData> selectedData;
 
@@ -477,7 +479,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         return fmt::format("account with account ID {}", std::get<0>(data));
     };
 
-    size_t numUpdated = copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
+    size_t numUpdated = selectUpdateMap<SelectedData>(
         tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
         updateStr, prepUpdateForExecution, describeData);
 
@@ -524,7 +526,7 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     };
 
     std::string const tableStr = "trustlines";
-    size_t numUpdated = copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
+    size_t numUpdated = selectUpdateMap<SelectedData>(
         tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
         updateStr, prepUpdateForExecution, describeData);
 

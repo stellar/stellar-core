@@ -118,16 +118,6 @@ class Database : NonMovableOrCopyable
     void convertTrustLineExtensionsToOpaqueXDR();
     void copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
 
-    // A function which factors out the commonality between
-    // copyIndividualAccountExtensionFieldsToOpaqueXDR() and
-    // copyIndividualTrustLineExtensionFieldsToOpaqueXDR().
-    template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
-              typename DescribeData>
-    size_t copyIndividualExtensionFieldsToOpaqueXDR(
-        std::string const& tableName, std::string const& selectStr,
-        MakeSelected makeSelectedData, std::string const& updateStr,
-        PrepUpdate prepUpdateForExecution, DescribeData describeData);
-
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
     // if there is a connection error, this will throw.
@@ -226,6 +216,20 @@ class Database : NonMovableOrCopyable
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
+
+    // Select a set of records with a client-defined query,
+    // then map each record into an element of a client-defined
+    // datatype.
+    // Then map each element of that client-defined datatype
+    // into a client-defined update string, and send those
+    // update strings to the given table.
+    template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
+              typename DescribeData>
+    size_t
+    selectUpdateMap(std::string const& tableName, std::string const& selectStr,
+                    MakeSelected makeSelectedData, std::string const& updateStr,
+                    PrepUpdate prepUpdateForExecution,
+                    DescribeData describeData);
 };
 
 template <typename T>
