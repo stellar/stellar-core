@@ -272,6 +272,17 @@ Database::applySchemaUpgrade(unsigned long vers)
             // blobs of XDR each of which represents an entire extension.
             convertAccountExtensionsToOpaqueXDR();
             convertTrustLineExtensionsToOpaqueXDR();
+            // Neither earlier schema versions nor the one that we're upgrading
+            // to now had any extension columns in the offers or accountdata
+            // tables, but we add columns in this version, even though we're not
+            // going to use them for anything other than writing out opaque
+            // base64-encoded empty v0 XDR extensions, so that, as with the
+            // other LedgerEntry extensions, we'll be able to add such
+            // extensions in the future without bumping the database schema
+            // version, writing any upgrade code, or changing the SQL that reads
+            // and writes those tables.
+            addTextColumn("offers", "extension");
+            addTextColumn("accountdata", "extension");
         }
         break;
     default:
