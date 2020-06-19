@@ -218,20 +218,35 @@ class Database : NonMovableOrCopyable
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
 
-    // Select a set of records with a client-defined query,
-    // then map each record into an element of a client-defined
-    // datatype.
-    // Then map each element of that client-defined datatype
-    // into a client-defined update string, and send those
-    // update strings to the given table.
-    template <typename SelectedData>
+    // Select a set of records using a client-defined query string, then map
+    // each record into an element of a client-defined datatype by applying a
+    // client-defined function (the records are accumulated in the "out"
+    // vector).
+    template <typename T>
+    void selectMap(std::string const& selectStr,
+                   std::function<T(soci::row const&)> makeT,
+                   std::vector<T>& out);
+
+    // Map each element in the given vector of a client-defined datatype into a
+    // SQL update command by applying a client-defined function, then send those
+    // update strings to the database.
+    template <typename T>
+    void updateMap(
+        std::vector<T> const& in, std::string const& updateStr,
+        std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
+        std::function<std::string(T const&)> describeT);
+
+    // The composition of updateMap() following selectMap().
+    //
+    // Returns the number of records selected by selectMap() (all of which were
+    // then passed through updateMap() before the selectUpdateMap() call
+    // returned).
+    template <typename T>
     size_t selectUpdateMap(
-        std::string const& tableName, std::string const& selectStr,
-        std::function<SelectedData(soci::row const&)> makeSelectedData,
+        std::string const& selectStr, std::function<T(soci::row const&)> makeT,
         std::string const& updateStr,
-        std::function<void(soci::statement&, SelectedData const&)>
-            prepUpdateForExecution,
-        std::function<std::string(SelectedData const&)> describeData);
+        std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
+        std::function<std::string(T const&)> describeT);
 };
 
 template <typename T>

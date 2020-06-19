@@ -404,46 +404,58 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
     }
 }
 
-template <typename SelectedData>
+template <typename T>
+void
+Database::selectMap(std::string const& selectStr,
+                    std::function<T(soci::row const&)> makeT,
+                    std::vector<T>& out)
+{
+    soci::rowset<soci::row> rs = (mSession.prepare << selectStr);
+
+    for (auto it = rs.begin(); it != rs.end(); ++it)
+    {
+        out.emplace_back(makeT(*it));
+    }
+}
+
+template <typename T>
+void
+Database::updateMap(
+    std::vector<T> const& in, std::string const& updateStr,
+    std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
+    std::function<std::string(T const&)> describeT)
+{
+    auto st_update = getPreparedStatement(updateStr).statement();
+
+    for (auto recT : in)
+    {
+        prepUpdateForExecution(st_update, recT);
+        st_update.define_and_bind();
+        st_update.execute(true);
+        auto affected_rows = st_update.get_affected_rows();
+        if (affected_rows != 1)
+        {
+            throw std::runtime_error(
+                fmt::format("{}: updating {} affected {} row(s)", __func__,
+                            describeT(recT), affected_rows));
+        }
+    }
+}
+
+template <typename T>
 size_t
 Database::selectUpdateMap(
-    std::string const& tableName, std::string const& selectStr,
-    std::function<SelectedData(soci::row const&)> makeSelectedData,
+    std::string const& selectStr, std::function<T(soci::row const&)> makeT,
     std::string const& updateStr,
-    std::function<void(soci::statement&, SelectedData const&)>
-        prepUpdateForExecution,
-    std::function<std::string(SelectedData const&)> describeData)
+    std::function<void(soci::statement&, T const&)> prepUpdateForExecution,
+    std::function<std::string(T const&)> describeT)
 {
-    std::vector<SelectedData> selectedData;
+    std::vector<T> vecT;
 
-    {
-        soci::rowset<soci::row> rs = (mSession.prepare << selectStr);
+    selectMap<T>(selectStr, makeT, vecT);
+    updateMap<T>(vecT, updateStr, prepUpdateForExecution, describeT);
 
-        for (auto it = rs.begin(); it != rs.end(); ++it)
-        {
-            selectedData.emplace_back(makeSelectedData(*it));
-        }
-    }
-
-    {
-        auto st_update = getPreparedStatement(updateStr).statement();
-
-        for (auto data : selectedData)
-        {
-            prepUpdateForExecution(st_update, data);
-            st_update.define_and_bind();
-            st_update.execute(true);
-            auto affected_rows = st_update.get_affected_rows();
-            if (affected_rows != 1)
-            {
-                throw std::runtime_error(
-                    fmt::format("{}: updating {} affected {} row(s)", __func__,
-                                describeData(data), affected_rows));
-            }
-        }
-    }
-
-    return selectedData.size();
+    return vecT.size();
 }
 
 void
@@ -455,10 +467,10 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
                            << tableStr;
 
     // <accountID, extension>
-    using SelectedData = std::tuple<std::string, std::string>;
+    using T = std::tuple<std::string, std::string>;
 
     std::string const fieldsStr = "accountid";
-    auto makeSelectedData = [](soci::row const& row) {
+    auto makeT = [](soci::row const& row) {
         AccountEntry::_ext_t::_v1_t extension;
         extension.liabilities.buying = row.get<long long>(1);
         extension.liabilities.selling = row.get<long long>(2);
@@ -470,18 +482,18 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     std::string const updateStr =
         "UPDATE accounts SET extension = :ext WHERE accountID = :id";
     auto prepUpdateForExecution = [](soci::statement& st_update,
-                                     SelectedData const& data) {
+                                     T const& data) {
         st_update.exchange(soci::use(std::get<1>(data), "ext"));
         st_update.exchange(soci::use(std::get<0>(data), "id"));
     };
 
-    auto describeData = [](SelectedData const& data) {
+    auto describeT = [](T const& data) {
         return fmt::format("account with account ID {}", std::get<0>(data));
     };
 
-    size_t numUpdated = selectUpdateMap<SelectedData>(
-        tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
-        updateStr, prepUpdateForExecution, describeData);
+    size_t numUpdated =
+        selectUpdateMap<T>(getOldLiabilitySelect(tableStr, fieldsStr), makeT,
+                           updateStr, prepUpdateForExecution, describeT);
 
     CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
                            << " records(s) with liabilities in " << tableStr
@@ -497,11 +509,10 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
                            << tableStr;
 
     // <accountID, issuer_id, asset_id, extension>
-    using SelectedData =
-        std::tuple<std::string, std::string, std::string, std::string>;
+    using T = std::tuple<std::string, std::string, std::string, std::string>;
 
     std::string const fieldsStr = "accountid, issuer, assetcode";
-    auto makeSelectedData = [](soci::row const& row) {
+    auto makeT = [](soci::row const& row) {
         TrustLineEntry::_ext_t::_v1_t extension;
         extension.liabilities.buying = row.get<long long>(3);
         extension.liabilities.selling = row.get<long long>(4);
@@ -516,23 +527,23 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
         "AND issuer = :issuer_id AND assetcode = :asset_id";
     auto prepUpdateForExecution = [](soci::statement& st_update,
-                                     SelectedData const& data) {
+                                     T const& data) {
         st_update.exchange(soci::use(std::get<3>(data), "ext"));
         st_update.exchange(soci::use(std::get<0>(data), "id"));
         st_update.exchange(soci::use(std::get<1>(data), "issuer_id"));
         st_update.exchange(soci::use(std::get<2>(data), "asset_id"));
     };
 
-    auto describeData = [](SelectedData const& data) {
+    auto describeT = [](T const& data) {
         return fmt::format("trustline with account ID {}, issuer "
                            "{}, and asset {}",
                            std::get<0>(data), std::get<1>(data),
                            std::get<2>(data));
     };
 
-    size_t numUpdated = selectUpdateMap<SelectedData>(
-        tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
-        updateStr, prepUpdateForExecution, describeData);
+    size_t numUpdated =
+        selectUpdateMap<T>(getOldLiabilitySelect(tableStr, fieldsStr), makeT,
+                           updateStr, prepUpdateForExecution, describeT);
 
     CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
                            << " records(s) with liabilities in " << tableStr
