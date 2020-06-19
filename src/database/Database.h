@@ -123,7 +123,7 @@ class Database : NonMovableOrCopyable
     // copyIndividualTrustLineExtensionFieldsToOpaqueXDR().
     template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
               typename DescribeData>
-    void copyIndividualExtensionFieldsToOpaqueXDR(
+    size_t copyIndividualExtensionFieldsToOpaqueXDR(
         std::string const& tableName, std::string const& selectStr,
         MakeSelected makeSelectedData, std::string const& updateStr,
         PrepUpdate prepUpdateForExecution, DescribeData describeData);

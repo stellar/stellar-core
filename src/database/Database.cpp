@@ -406,15 +406,12 @@ Database::convertTrustLineExtensionsToOpaqueXDR()
 
 template <typename SelectedData, typename MakeSelected, typename PrepUpdate,
           typename DescribeData>
-void
+size_t
 Database::copyIndividualExtensionFieldsToOpaqueXDR(
     std::string const& tableName, std::string const& selectStr,
     MakeSelected makeSelectedData, std::string const& updateStr,
     PrepUpdate prepUpdateForExecution, DescribeData describeData)
 {
-    CLOG(INFO, "Ledger") << __func__ << ": updating extension schema for "
-                         << tableName;
-
     std::vector<SelectedData> selectedData;
 
     {
@@ -444,14 +441,17 @@ Database::copyIndividualExtensionFieldsToOpaqueXDR(
         }
     }
 
-    CLOG(INFO, "Database") << __func__ << ": updated " << selectedData.size()
-                           << " records(s) with liabilities in " << tableName
-                           << " table";
+    return selectedData.size();
 }
 
 void
 Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 {
+    std::string const tableStr = "accounts";
+
+    CLOG(INFO, "Database") << __func__ << ": updating extension schema for "
+                           << tableStr;
+
     // <accountID, extension>
     using SelectedData = std::tuple<std::string, std::string>;
 
@@ -477,10 +477,13 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         return fmt::format("account with account ID {}", std::get<0>(data));
     };
 
-    std::string const tableStr = "accounts";
-    copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
+    size_t numUpdated = copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
         tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
         updateStr, prepUpdateForExecution, describeData);
+
+    CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
+                           << " records(s) with liabilities in " << tableStr
+                           << " table";
 }
 
 void
@@ -521,9 +524,13 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     };
 
     std::string const tableStr = "trustlines";
-    copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
+    size_t numUpdated = copyIndividualExtensionFieldsToOpaqueXDR<SelectedData>(
         tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
         updateStr, prepUpdateForExecution, describeData);
+
+    CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
+                           << " records(s) with liabilities in " << tableStr
+                           << " table";
 }
 
 void
