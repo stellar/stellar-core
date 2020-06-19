@@ -412,10 +412,7 @@ Database::selectMap(std::string const& selectStr,
 {
     soci::rowset<soci::row> rs = (mSession.prepare << selectStr);
 
-    for (auto it = rs.begin(); it != rs.end(); ++it)
-    {
-        out.emplace_back(makeT(*it));
-    }
+    std::transform(rs.begin(), rs.end(), std::back_inserter(out), makeT);
 }
 
 template <typename T>
