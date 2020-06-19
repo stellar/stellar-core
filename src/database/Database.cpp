@@ -491,6 +491,11 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 void
 Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
 {
+    std::string const tableStr = "trustlines";
+
+    CLOG(INFO, "Database") << __func__ << ": updating extension schema for "
+                           << tableStr;
+
     // <accountID, issuer_id, asset_id, extension>
     using SelectedData =
         std::tuple<std::string, std::string, std::string, std::string>;
@@ -525,7 +530,6 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
                            std::get<2>(data));
     };
 
-    std::string const tableStr = "trustlines";
     size_t numUpdated = selectUpdateMap<SelectedData>(
         tableStr, getOldLiabilitySelect(tableStr, fieldsStr), makeSelectedData,
         updateStr, prepUpdateForExecution, describeData);
