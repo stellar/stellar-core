@@ -429,6 +429,7 @@ Database::updateMap(std::vector<T> const& in, std::string const& updateStr,
         st_update.define_and_bind();
         st_update.execute(true);
         auto affected_rows = st_update.get_affected_rows();
+        st_update.clean_up(false);
         postUpdate(affected_rows, recT);
     }
 }
@@ -476,8 +477,8 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     std::string const updateStr =
         "UPDATE accounts SET extension = :ext WHERE accountID = :id";
     auto prepUpdate = [](soci::statement& st_update, T const& data) {
-        st_update.exchange(soci::use(std::get<1>(data), "ext"));
-        st_update.exchange(soci::use(std::get<0>(data), "id"));
+        st_update.exchange(soci::use(std::get<1>(data))); // extension
+        st_update.exchange(soci::use(std::get<0>(data))); // account ID
     };
 
     auto postUpdate = [](long long const affected_rows, T const& data) {
@@ -527,10 +528,10 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
         "AND issuer = :issuer_id AND assetcode = :asset_id";
     auto prepUpdate = [](soci::statement& st_update, T const& data) {
-        st_update.exchange(soci::use(std::get<3>(data), "ext"));
-        st_update.exchange(soci::use(std::get<0>(data), "id"));
-        st_update.exchange(soci::use(std::get<1>(data), "issuer_id"));
-        st_update.exchange(soci::use(std::get<2>(data), "asset_id"));
+        st_update.exchange(soci::use(std::get<3>(data))); // extension
+        st_update.exchange(soci::use(std::get<0>(data))); // account ID
+        st_update.exchange(soci::use(std::get<1>(data))); // issuer ID
+        st_update.exchange(soci::use(std::get<2>(data))); // asset ID
     };
 
     auto postUpdate = [](long long const affected_rows, T const& data) {
