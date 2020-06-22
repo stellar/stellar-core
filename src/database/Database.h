@@ -112,6 +112,9 @@ class Database : NonMovableOrCopyable
     std::string getOldLiabilitySelect(std::string const& table,
                                       std::string const& fields);
     void addTextColumn(std::string const& table, std::string const& column);
+    void addTextColumnWithDefault(std::string const& table,
+                                  std::string const& column,
+                                  std::string const& defaultVal);
     void dropTextColumn(std::string const& table, std::string const& column);
 
     // Convert the trustlines table from using explicit entries for

@@ -263,10 +263,18 @@ Database::applySchemaUpgrade(unsigned long vers)
         {
             // Add columns for the LedgerEntry extension to each of
             // the tables that stores a type of ledger entry.
-            addTextColumn("accounts", ledgerExtName);
-            addTextColumn("trustlines", ledgerExtName);
-            addTextColumn("accountdata", ledgerExtName);
-            addTextColumn("offers", ledgerExtName);
+            addTextColumnWithDefault(
+                "accounts", ledgerExtName,
+                decoder::encode_b64(xdr::xdr_to_opaque(LedgerEntry::_ext_t())));
+            addTextColumnWithDefault(
+                "trustlines", ledgerExtName,
+                decoder::encode_b64(xdr::xdr_to_opaque(LedgerEntry::_ext_t())));
+            addTextColumnWithDefault(
+                "accountdata", ledgerExtName,
+                decoder::encode_b64(xdr::xdr_to_opaque(LedgerEntry::_ext_t())));
+            addTextColumnWithDefault(
+                "offers", ledgerExtName,
+                decoder::encode_b64(xdr::xdr_to_opaque(LedgerEntry::_ext_t())));
             // Absorb the explicit columns of the extension fields of
             // AccountEntry and TrustLineEntry into single opaque
             // blobs of XDR each of which represents an entire extension.
@@ -281,8 +289,12 @@ Database::applySchemaUpgrade(unsigned long vers)
             // extensions in the future without bumping the database schema
             // version, writing any upgrade code, or changing the SQL that reads
             // and writes those tables.
-            addTextColumn("offers", "extension");
-            addTextColumn("accountdata", "extension");
+            addTextColumnWithDefault(
+                "offers", "extension",
+                decoder::encode_b64(xdr::xdr_to_opaque(OfferEntry::_ext_t())));
+            addTextColumnWithDefault(
+                "accountdata", "extension",
+                decoder::encode_b64(xdr::xdr_to_opaque(DataEntry::_ext_t())));
         }
         break;
     default:
@@ -331,6 +343,23 @@ Database::addTextColumn(std::string const& table, std::string const& column)
     CLOG(INFO, "Database") << "Adding column with string '" << addColumnStr
                            << "'";
     mSession << addColumnStr;
+}
+
+void
+Database::addTextColumnWithDefault(std::string const& table,
+                                   std::string const& column,
+                                   std::string const& defaultVal)
+{
+    addTextColumn(table, column);
+    std::string defaultColumnStr("UPDATE " + table + " SET " + column +
+                                 " = :v1");
+    auto st = getPreparedStatement(defaultColumnStr).statement();
+    st.exchange(soci::use(defaultVal));
+    CLOG(INFO, "Database") << "Setting all cells of new column '" << column
+                           << "' in table '" << table << "' to '" << defaultVal
+                           << "' with string '" << defaultColumnStr << "'";
+    st.define_and_bind();
+    st.execute(true);
 }
 
 void
