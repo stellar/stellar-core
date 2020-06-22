@@ -391,6 +391,9 @@ class SchemaUpgradeTestApplication : public TestApplication
     }
 };
 
+// This tests upgrading from MIN_SCHEMA_VERSION to SCHEMA_VERSION by creating
+// ledger entries with the old MIN_SCHEMA_VERSION after database creation, then
+// validating their contents after the upgrade to SCHEMA_VERSION.
 TEST_CASE("schema upgrade test", "[db]")
 {
     using OptLiabilities = stellar::optional<Liabilities>;
@@ -415,11 +418,10 @@ TEST_CASE("schema upgrade test", "[db]")
 
         soci::transaction tx(session);
 
-        // Use raw SQL to perform a couple of database operations,
-        // since we're writing in an old database format, and calling
-        // standard interfaces to create accounts or trustlines would
-        // use SQL corresponding to the new format to which we'll
-        // soon upgrade.
+        // Use raw SQL to perform database operations, since we're writing in an
+        // old database format, and calling standard interfaces to create
+        // accounts or trustlines would use SQL corresponding to the new format
+        // to which we'll soon upgrade.
         session << "INSERT INTO accounts ( "
                    "accountid, balance, seqnum, numsubentries, inflationdest,"
                    "homedomain, thresholds, signers, flags, lastmodified, "
@@ -486,10 +488,57 @@ TEST_CASE("schema upgrade test", "[db]")
         tx.commit();
     };
 
-    auto prepOldSchemaDB = [addOneOldSchemaAccount, addOneOldSchemaTrustLine](
+    auto addOneOldSchemaDataEntry = [](SchemaUpgradeTestApplication& app,
+                                       DataEntry const& de) {
+        auto& session = app.getDatabase().getSession();
+        auto accountIDStr = KeyUtils::toStrKey<PublicKey>(de.accountID);
+        auto dataNameStr = decoder::encode_b64(de.dataName);
+        auto dataValueStr = decoder::encode_b64(de.dataValue);
+
+        soci::transaction tx(session);
+
+        session << "INSERT INTO accountdata ( "
+                   "accountid, dataname, datavalue, lastmodified "
+                   ") VALUES ( :id, :v1, :v2, :v3 )",
+            soci::use(accountIDStr), soci::use(dataNameStr),
+            soci::use(dataValueStr),
+            soci::use(app.getLedgerManager().getLastClosedLedgerNum());
+
+        tx.commit();
+    };
+
+    auto addOneOldSchemaOfferEntry = [](SchemaUpgradeTestApplication& app,
+                                        OfferEntry const& oe) {
+        auto& session = app.getDatabase().getSession();
+        auto sellerIDStr = KeyUtils::toStrKey(oe.sellerID);
+        auto sellingStr = decoder::encode_b64(xdr::xdr_to_opaque(oe.selling));
+        auto buyingStr = decoder::encode_b64(xdr::xdr_to_opaque(oe.buying));
+        double price = double(oe.price.n) / double(oe.price.d);
+
+        soci::transaction tx(session);
+
+        session << "INSERT INTO offers ( "
+                   "sellerid, offerid, sellingasset, buyingasset, "
+                   "amount, pricen, priced, price, flags, lastmodified "
+                   ") VALUES ( "
+                   ":v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10 "
+                   ")",
+            soci::use(sellerIDStr), soci::use(oe.offerID),
+            soci::use(sellingStr), soci::use(buyingStr), soci::use(oe.amount),
+            soci::use(oe.price.n), soci::use(oe.price.d), soci::use(price),
+            soci::use(oe.flags),
+            soci::use(app.getLedgerManager().getLastClosedLedgerNum());
+
+        tx.commit();
+    };
+
+    auto prepOldSchemaDB = [addOneOldSchemaAccount, addOneOldSchemaTrustLine,
+                            addOneOldSchemaDataEntry,
+                            addOneOldSchemaOfferEntry](
                                SchemaUpgradeTestApplication& app,
                                AccOptLiabilitiesVec const& aols,
-                               TLOptLiabilitiesVec const& tlols) {
+                               TLOptLiabilitiesVec const& tlols,
+                               DataEntry const& de, OfferEntry const& oe) {
         try
         {
             for (auto aol : aols)
@@ -515,6 +564,28 @@ TEST_CASE("schema upgrade test", "[db]")
         {
             CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
                                     << " while adding old-schema trustlines";
+            throw;
+        }
+
+        try
+        {
+            addOneOldSchemaDataEntry(app, de);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while adding old-schema data";
+            throw;
+        }
+
+        try
+        {
+            addOneOldSchemaOfferEntry(app, oe);
+        }
+        catch (std::exception& e)
+        {
+            CLOG(FATAL, "Database") << __func__ << ": exception " << e.what()
+                                    << " while adding old-schema offer";
             throw;
         }
     };
@@ -559,6 +630,14 @@ TEST_CASE("schema upgrade test", "[db]")
                                tlol);
                        });
 
+        // Create a data entry to test that its extension and ledger
+        // entry extension have the default (empty-XDR-union) values.
+        auto de = LedgerTestUtils::generateValidDataEntry();
+
+        // Create an offer entry to test that its extension and ledger
+        // entry extension have the default (empty-XDR-union) values.
+        auto oe = LedgerTestUtils::generateValidOfferEntry();
+
         // Create the application, with the code above that inserts old-schema
         // accounts and trustlines into the database injected between database
         // creation and upgrade.
@@ -568,15 +647,16 @@ TEST_CASE("schema upgrade test", "[db]")
             createTestApplication<SchemaUpgradeTestApplication,
                                   SchemaUpgradeTestApplication::PreUpgradeFunc>(
                 clock, cfg,
-                [prepOldSchemaDB, accOptLiabilitiesVec,
-                 tlOptLiabilitiesVec](SchemaUpgradeTestApplication& sapp) {
+                [prepOldSchemaDB, accOptLiabilitiesVec, tlOptLiabilitiesVec, de,
+                 oe](SchemaUpgradeTestApplication& sapp) {
                     prepOldSchemaDB(sapp, accOptLiabilitiesVec,
-                                    tlOptLiabilitiesVec);
+                                    tlOptLiabilitiesVec, de, oe);
                 });
         app->start();
 
         // Validate that the accounts and trustlines have the expected
-        // liabilities now that the database upgrade has completed.
+        // liabilities and ledger entry extensions now that the database upgrade
+        // has completed.
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
 
@@ -587,6 +667,22 @@ TEST_CASE("schema upgrade test", "[db]")
             key.account().accountID = aol.first.accountID;
             auto acc = ltx.load(key);
             REQUIRE(acc.current().data.type() == ACCOUNT);
+            REQUIRE(acc.current().data.account().accountID ==
+                    aol.first.accountID);
+            REQUIRE(acc.current().data.account().balance == aol.first.balance);
+            REQUIRE(acc.current().data.account().flags == aol.first.flags);
+            REQUIRE(acc.current().data.account().homeDomain ==
+                    aol.first.homeDomain);
+            REQUIRE(acc.current().data.account().inflationDest ==
+                    aol.first.inflationDest);
+            REQUIRE(acc.current().data.account().numSubEntries ==
+                    aol.first.numSubEntries);
+            REQUIRE(acc.current().data.account().seqNum == aol.first.seqNum);
+            REQUIRE(acc.current().data.account().signers == aol.first.signers);
+            REQUIRE(acc.current().data.account().thresholds ==
+                    aol.first.thresholds);
+            REQUIRE(acc.current().ext == LedgerEntry::_ext_t());
+            REQUIRE(acc.current().ext.v() == 0);
             if (aol.second)
             {
                 REQUIRE(acc.current().data.account().ext.v() == 1);
@@ -611,6 +707,15 @@ TEST_CASE("schema upgrade test", "[db]")
             key.trustLine().asset = tlol.first.asset;
             auto tl = ltx.load(key);
             REQUIRE(tl.current().data.type() == TRUSTLINE);
+            REQUIRE(tl.current().data.trustLine().accountID ==
+                    tlol.first.accountID);
+            REQUIRE(tl.current().data.trustLine().asset == tlol.first.asset);
+            REQUIRE(tl.current().data.trustLine().balance ==
+                    tlol.first.balance);
+            REQUIRE(tl.current().data.trustLine().flags == tlol.first.flags);
+            REQUIRE(tl.current().data.trustLine().limit == tlol.first.limit);
+            REQUIRE(tl.current().ext == LedgerEntry::_ext_t());
+            REQUIRE(tl.current().ext.v() == 0);
             if (tlol.second)
             {
                 REQUIRE(tl.current().data.trustLine().ext.v() == 1);
@@ -626,6 +731,34 @@ TEST_CASE("schema upgrade test", "[db]")
             {
                 REQUIRE(tl.current().data.trustLine().ext.v() == 0);
             }
+        }
+
+        {
+            LedgerKey key;
+            key.type(DATA);
+            key.data().accountID = de.accountID;
+            key.data().dataName = de.dataName;
+            auto data = ltx.load(key);
+            REQUIRE(data.current().data.type() == DATA);
+            REQUIRE(data.current().data.data() == de);
+            REQUIRE(data.current().ext == LedgerEntry::_ext_t());
+            REQUIRE(data.current().ext.v() == 0);
+            REQUIRE(data.current().data.data().ext == DataEntry::_ext_t());
+            REQUIRE(data.current().data.data().ext.v() == 0);
+        }
+
+        {
+            LedgerKey key;
+            key.type(OFFER);
+            key.offer().offerID = oe.offerID;
+            key.offer().sellerID = oe.sellerID;
+            auto offer = ltx.load(key);
+            REQUIRE(offer.current().data.type() == OFFER);
+            REQUIRE(offer.current().data.offer() == oe);
+            REQUIRE(offer.current().ext == LedgerEntry::_ext_t());
+            REQUIRE(offer.current().ext.v() == 0);
+            REQUIRE(offer.current().data.offer().ext == OfferEntry::_ext_t());
+            REQUIRE(offer.current().data.offer().ext.v() == 0);
         }
     };
 
