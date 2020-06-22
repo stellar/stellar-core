@@ -3349,12 +3349,7 @@ TEST_CASE("LedgerTxn bulk-load offers", "[ledgertxn]")
             ltx.commit();
         }
 
-        for_versions({12}, *app, [&]() {
-            app->getLedgerTxnRoot().prefetch({lk1, lk2});
-            LedgerTxn ltx(app->getLedgerTxnRoot());
-            REQUIRE(!ltx.load(lk1));
-        });
-        for_versions_from(13, *app, [&]() {
+        for_all_versions(*app, [&]() {
             app->getLedgerTxnRoot().prefetch({lk1, lk2});
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(ltx.load(lk1));

@@ -702,18 +702,8 @@ class BulkLoadOffersOperation
     : public DatabaseTypeSpecificOperation<std::vector<LedgerEntry>>
 {
     Database& mDb;
-    uint32_t mLedgerVersion;
     std::vector<int64_t> mOfferIDs;
     std::unordered_set<LedgerKey> mKeys;
-    std::unordered_map<int64_t, AccountID> mSellerIDsByOfferID;
-
-    bool
-    shouldIncludeOffer(int64_t offerID, AccountID sellerID)
-    {
-        // Before protocol version 13, exclude offers where sellerID in
-        // LedgerKey doesn't match sellerID in LedgerEntry
-        return mLedgerVersion >= 13 || mSellerIDsByOfferID[offerID] == sellerID;
-    }
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -750,28 +740,25 @@ class BulkLoadOffersOperation
         {
             auto pubKey = KeyUtils::fromStrKey<PublicKey>(sellerID);
 
-            if (shouldIncludeOffer(offerID, pubKey))
-            {
-                res.emplace_back();
-                auto& le = res.back();
-                le.data.type(OFFER);
-                auto& oe = le.data.offer();
+            res.emplace_back();
+            auto& le = res.back();
+            le.data.type(OFFER);
+            auto& oe = le.data.offer();
 
-                oe.sellerID = pubKey;
-                oe.offerID = offerID;
+            oe.sellerID = pubKey;
+            oe.offerID = offerID;
 
-                oe.selling = processAsset(sellingAsset);
-                oe.buying = processAsset(buyingAsset);
+            oe.selling = processAsset(sellingAsset);
+            oe.buying = processAsset(buyingAsset);
 
-                oe.amount = amount;
-                oe.price = price;
-                oe.flags = flags;
-                le.lastModifiedLedgerSeq = lastModified;
+            oe.amount = amount;
+            oe.price = price;
+            oe.flags = flags;
+            le.lastModifiedLedgerSeq = lastModified;
 
-                decodeOpaqueXDR(extension, extensionInd, oe.ext);
+            decodeOpaqueXDR(extension, extensionInd, oe.ext);
 
-                decodeOpaqueXDR(ledgerExtension, ledgerExtInd, le.ext);
-            }
+            decodeOpaqueXDR(ledgerExtension, ledgerExtInd, le.ext);
 
             st.fetch();
         }
@@ -780,9 +767,8 @@ class BulkLoadOffersOperation
 
   public:
     BulkLoadOffersOperation(Database& db,
-                            std::unordered_set<LedgerKey> const& keys,
-                            uint32_t ledgerVersion)
-        : mDb(db), mLedgerVersion(ledgerVersion)
+                            std::unordered_set<LedgerKey> const& keys)
+        : mDb(db)
     {
         mOfferIDs.reserve(keys.size());
         for (auto const& k : keys)
@@ -791,10 +777,6 @@ class BulkLoadOffersOperation
             if (k.offer().offerID >= 0)
             {
                 mOfferIDs.emplace_back(k.offer().offerID);
-                if (mLedgerVersion < 13)
-                {
-                    mSellerIDsByOfferID[mOfferIDs.back()] = k.offer().sellerID;
-                }
             }
         }
     }
@@ -853,7 +835,7 @@ LedgerTxnRoot::Impl::bulkLoadOffers(
     ZoneValue(static_cast<int64_t>(keys.size()));
     if (!keys.empty())
     {
-        BulkLoadOffersOperation op(mDatabase, keys, mHeader->ledgerVersion);
+        BulkLoadOffersOperation op(mDatabase, keys);
         return populateLoadedEntries(
             keys, mDatabase.doDatabaseTypeSpecificOperation(op));
     }
