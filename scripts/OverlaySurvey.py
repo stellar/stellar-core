@@ -34,14 +34,14 @@ def get_next_peers(topology):
 
 def update_results(graph, parent_info, parent_key, results, is_inbound):
     direction_tag = "inboundPeers" if is_inbound else "outboundPeers"
-    graph.add_node(parent_key,
-                   numTotalInboundPeers=parent_info["numTotalInboundPeers"],
-                   numTotalOutboundPeers=parent_info["numTotalOutboundPeers"])
     for peer in next_peer(direction_tag, parent_info):
         other_key = peer["nodeId"]
 
         results[direction_tag][other_key] = peer
         graph.add_node(other_key, version=peer["version"])
+        # Adding an edge that already exists updates the edge data,
+        # so we add everything except for nodeId and version
+        # which are properties of nodes, not edges.
         edge_properties = peer.copy()
         edge_properties.pop("nodeId", None)
         edge_properties.pop("version", None)
@@ -52,8 +52,16 @@ def update_results(graph, parent_info, parent_key, results, is_inbound):
 
     if "numTotalInboundPeers" in parent_info:
         results["totalInbound"] = parent_info["numTotalInboundPeers"]
+        graph.add_node(parent_key,
+                       numTotalInboundPeers=parent_info[
+                           "numTotalInboundPeers"
+                       ])
     if "numTotalOutboundPeers" in parent_info:
         results["totalOutbound"] = parent_info["numTotalOutboundPeers"]
+        graph.add_node(parent_key,
+                       numTotalOutboundPeers=parent_info[
+                           "numTotalOutboundPeers"
+                       ])
 
 
 def send_requests(peer_list, params, request_url):
@@ -97,7 +105,8 @@ def write_graph_stats(graph, output_file):
 
 def analyze(args):
     graph = nx.read_graphml(args.graphmlAnalyze)
-    write_graph_stats(graph, args.graphStats)
+    if args.graphStats is not None:
+        write_graph_stats(graph, args.graphStats)
     sys.exit(0)
 
 
@@ -106,12 +115,23 @@ def augment(args):
     data = requests.get("https://api.stellarbeat.io/v1/nodes").json()
     for obj in data:
         if graph.has_node(obj["publicKey"]):
-            # NetworkX doesn't allow dictionary properties,
-            # so we will turn them into strings.
-            dict_properties = ["geoData", "quorumSet", "statistics"]
-            for dict_property in dict_properties:
-                obj[dict_property] = json.dumps(obj[dict_property])
-            graph.add_node(obj["publicKey"], **obj)
+            desired_properties = ["quorumSet",
+                                  "geoData",
+                                  "isValidating",
+                                  "name",
+                                  "homeDomain",
+                                  "organizationId",
+                                  "index",
+                                  "isp",
+                                  "ip"]
+            prop_dict = {}
+            for prop in desired_properties:
+                if prop in obj:
+                    val = obj[prop]
+                    if type(val) is dict:
+                        val = json.dumps(val)
+                    prop_dict['sb_{}'.format(prop)] = val
+            graph.add_node(obj["publicKey"], **prop_dict)
     nx.write_graphml(graph, args.graphmlOutput)
     sys.exit(0)
 
@@ -203,7 +223,8 @@ def run_survey(args):
         print("Graph is empty!")
         sys.exit(0)
 
-    write_graph_stats(graph, args.graphStats)
+    if args.graphStats is not None:
+        write_graph_stats(graph, args.graphStats)
 
     nx.write_graphml(graph, args.graphmlWrite)
 
@@ -216,7 +237,6 @@ def main():
     argument_parser = argparse.ArgumentParser()
     argument_parser.add_argument("-gs",
                                  "--graphStats",
-                                 required=True,
                                  help="output file for graph stats")
 
     subparsers = argument_parser.add_subparsers()
