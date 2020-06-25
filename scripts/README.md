@@ -21,6 +21,9 @@ This folder is for storing any scripts that may be helpful for using stellar-cor
     - sub command `augment` - analyze an existing graph
         - `-gmli GRAPHMLINPUT` - input graphml file
         - `-gmlo GRAPHMLOUTPUT` - output graphml file
+    - sub command `flatten` - Take a graphml file containing a bidrectional graph (possibly augmented with StellarBeat data) and flatten it into an undirected graph in JSON.
+        - `-gmli GRAPHMLINPUT` - input graphml file
+        - `-json JSONOUTPUT` - output json file
 
 ## Style guide
 We follow [PEP-0008](https://www.python.org/dev/peps/pep-0008/).

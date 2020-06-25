@@ -232,6 +232,22 @@ def run_survey(args):
         json.dump(merged_results, outfile)
 
 
+def flatten(args):
+    output_graph = []
+    graph = nx.read_graphml(args.graphmlInput).to_undirected()
+    for node, attr in graph.nodes(data=True):
+        new_attr = {"publicKey": node, "peers": list(map(str, graph.adj[node]))}
+        for key in attr:
+            try:
+                new_attr[key] = json.loads(attr[key])
+            except (json.JSONDecodeError, TypeError):
+                new_attr[key] = attr[key]
+        output_graph.append(new_attr)
+    with open(args.jsonOutput, 'w') as output_file:
+        json.dump(output_graph, output_file)
+    sys.exit(0)
+
+
 def main():
     # construct the argument parse and parse the arguments
     argument_parser = argparse.ArgumentParser()
@@ -284,6 +300,19 @@ def main():
                                 required=True,
                                 help="output file for the augmented graph")
     parser_augment.set_defaults(func=augment)
+
+    parser_flatten = subparsers.add_parser("flatten",
+                                            help="Flatten a directed graph into "
+                                            "an undirected graph in JSON")
+    parser_flatten.add_argument("-gmli",
+                                 "--graphmlInput",
+                                 required=True,
+                                 help="input file containing a directed graph")
+    parser_flatten.add_argument("-json",
+                                 "--jsonOutput",
+                                 required=True,
+                                 help="output JSON file for the flattened graph")
+    parser_flatten.set_defaults(func=flatten)
 
     args = argument_parser.parse_args()
     args.func(args)
