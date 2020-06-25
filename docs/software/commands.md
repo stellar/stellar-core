@@ -1,5 +1,6 @@
 ---
 title: Commands
+replacement: https://developers.stellar.org/docs/run-core-node/commands/
 ---
 
 stellar-core can be controlled via the following commands.
