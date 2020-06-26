@@ -1,5 +1,6 @@
 ---
 title: Versioning
+replacement: https://developers.stellar.org/docs/glossary/versioning/
 ---
 
 This document describes the various mechanisms used to keep the overall system working as it evolves.
