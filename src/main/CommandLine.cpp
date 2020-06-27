@@ -13,12 +13,14 @@
 #include "main/ErrorMessages.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
+#include "overlay/OverlayManager.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 #include "util/optional.h"
 #include "util/types.h"
 
 #include "historywork/BatchDownloadWork.h"
+#include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "src/catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "src/transactions/simulation/TxSimScaleBucketlistWork.h"
 #include "work/WorkScheduler.h"
@@ -642,6 +644,94 @@ runCheckQuorum(CommandLineArgs const& args)
 }
 
 int
+runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
+{
+    std::string outputFile;
+    uint32_t startLedger = 0;
+    std::string startHash;
+    CommandLine::ConfigOption configOption;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), historyLedgerNumber(startLedger),
+         historyHashParser(startHash), outputFileParser(outputFile).required()},
+        [&] {
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto cfg = configOption.getConfig();
+
+            // Set up for quick in-memory no-catchup mode.
+            cfg.QUORUM_INTERSECTION_CHECKER = false;
+            cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
+            cfg.MODE_STORES_HISTORY = false;
+            cfg.MODE_DOES_CATCHUP = false;
+            cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+            cfg.MODE_ENABLES_BUCKETLIST = true;
+            cfg.DISABLE_XDR_FSYNC = true;
+
+            auto app = Application::create(clock, cfg, false);
+            app->start();
+            auto const& lm = app->getLedgerManager();
+            auto const& hm = app->getHistoryManager();
+            auto const& cm = app->getCatchupManager();
+            auto& io = clock.getIOContext();
+            asio::io_context::work mainWork(io);
+            LedgerNumHashPair authPair;
+            auto tryCheckpoint = [&](uint32_t seq, Hash h) {
+                if (hm.isLastLedgerInCheckpoint(seq))
+                {
+                    LOG(INFO) << "Found authenticated checkpoint hash "
+                              << hexAbbrev(h) << " for ledger " << seq;
+                    authPair.first = seq;
+                    authPair.second = make_optional<Hash>(h);
+                }
+                else if (authPair.first != seq)
+                {
+                    authPair.first = seq;
+                    LOG(INFO) << "Ledger " << seq
+                              << " is not a checkpoint boundary, waiting.";
+                }
+            };
+
+            if (startLedger != 0 && !startHash.empty())
+            {
+                Hash h = hexToBin256(startHash);
+                tryCheckpoint(startLedger, h);
+            }
+
+            while (!(io.stopped() || authPair.second))
+            {
+                clock.crank();
+                if (lm.isSynced())
+                {
+                    auto const& lhe = lm.getLastClosedLedgerHeader();
+                    tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
+                }
+                else if (cm.hasBufferedLedger())
+                {
+                    auto const& lcd = cm.getLastBufferedLedger();
+                    uint32_t seq = lcd.getLedgerSeq() - 1;
+                    Hash hash = lcd.getTxSet()->previousLedgerHash();
+                    tryCheckpoint(seq, hash);
+                }
+            }
+            if (authPair.second)
+            {
+                app->getOverlayManager().shutdown();
+                app->getHerder().shutdown();
+                app->getWorkScheduler()
+                    .executeWork<WriteVerifiedCheckpointHashesWork>(authPair,
+                                                                    outputFile);
+                app->gracefulStop();
+                return 0;
+            }
+            else
+            {
+                app->gracefulStop();
+                return 1;
+            }
+        });
+}
+
+int
 runConvertId(CommandLineArgs const& args)
 {
     std::string id;
@@ -1228,6 +1318,8 @@ handleCommandLine(int argc, char* const* argv)
           runCatchup},
          {"check-quorum", "check quorum intersection of last network activity",
           runCheckQuorum},
+         {"verify-checkpoints", "write verified checkpoint ledger hashes",
+          runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
          {"force-scp", "deprecated, use --wait-for-consensus option instead",
