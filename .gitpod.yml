@@ -9,6 +9,8 @@ tasks:
       && ./autogen.sh
       && ./configure --enable-ccache --enable-tracy --enable-tracy-capture --enable-tracy-gui
       && bear make
+      && (cd lib/tracy/capture/build/unix ; make)
+      && (cd lib/tracy/profiler/build/unix ; make)
       && make check
   - command: echo "Welcome to the stellar-core Gitpod development environment."
 
