@@ -92,6 +92,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MODE_ENABLES_BUCKETLIST = true;
     MODE_USES_IN_MEMORY_LEDGER = false;
     MODE_STORES_HISTORY = true;
+    MODE_DOES_CATCHUP = true;
     OP_APPLY_SLEEP_TIME_FOR_TESTING = 0;
 
     FORCE_SCP = false;

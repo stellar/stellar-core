@@ -209,6 +209,12 @@ class Config : public std::enable_shared_from_this<Config>
     // fees, and scp history in the database
     bool MODE_STORES_HISTORY;
 
+    // A config parameter that controls whether core automatically catches up
+    // when it has buffered enough input; if false an out-of-sync node will
+    // remain out-of-sync, buffering ledgers from the network in memory until
+    // it is halted.
+    bool MODE_DOES_CATCHUP;
+
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;

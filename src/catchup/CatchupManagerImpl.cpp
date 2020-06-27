@@ -129,7 +129,8 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 
     std::string message;
     uint32_t lastLedgerInBuffer = mSyncingLedgers.crbegin()->first;
-    if (it != mSyncingLedgers.end() && it->first < lastLedgerInBuffer)
+    if (mApp.getConfig().MODE_DOES_CATCHUP && it != mSyncingLedgers.end() &&
+        it->first < lastLedgerInBuffer)
     {
         message = fmt::format("Starting catchup after ensuring checkpoint "
                               "ledger {} was closed on network",
