@@ -35,6 +35,9 @@ RUN sudo apt-get -y install clang clangd clang-tools libc++-dev libc++abi-dev cc
 # Install postgresql to enable tests under make check
 RUN sudo apt-get -y install postgresql
 
+# Install some Tracy dependencies
+RUN sudo apt-get -y install libtbb-dev libmkl-tbb-thread
+
 # Install electron dependencies for GUI apps over noVNC
 RUN sudo apt-get install -y libasound2-dev libgtk-3-dev libnss3-dev
 
