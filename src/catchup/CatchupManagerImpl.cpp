@@ -260,15 +260,27 @@ CatchupManagerImpl::hasBufferedLedger() const
 }
 
 LedgerCloseData const&
-CatchupManagerImpl::getBufferedLedger() const
+CatchupManagerImpl::getFirstBufferedLedger() const
 {
     if (!hasBufferedLedger())
     {
         throw std::runtime_error(
-            "getBufferedLedger called when mSyncingLedgers is empty!");
+            "getFirstBufferedLedger called when mSyncingLedgers is empty!");
     }
 
     return mSyncingLedgers.cbegin()->second;
+}
+
+LedgerCloseData const&
+CatchupManagerImpl::getLastBufferedLedger() const
+{
+    if (!hasBufferedLedger())
+    {
+        throw std::runtime_error(
+            "getLastBufferedLedger called when mSyncingLedgers is empty!");
+    }
+
+    return mSyncingLedgers.crbegin()->second;
 }
 
 void

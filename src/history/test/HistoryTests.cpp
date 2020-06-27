@@ -1336,7 +1336,7 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     catchupSimulation.externalizeLedger(herder, nextLedger + 1);
     REQUIRE(!lm.isSynced());
     REQUIRE(cm.hasBufferedLedger());
-    REQUIRE(cm.getBufferedLedger().getLedgerSeq() == nextLedger + 5);
+    REQUIRE(cm.getFirstBufferedLedger().getLedgerSeq() == nextLedger + 5);
 
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync

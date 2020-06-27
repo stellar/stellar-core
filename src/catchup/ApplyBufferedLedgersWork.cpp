@@ -43,7 +43,7 @@ ApplyBufferedLedgersWork::onRun()
         return State::WORK_SUCCESS;
     }
 
-    LedgerCloseData lcd = cm.getBufferedLedger();
+    LedgerCloseData lcd = cm.getFirstBufferedLedger();
 
     auto& lm = mApp.getLedgerManager();
     uint32_t expectedLedger = lm.getLastClosedLedgerNum() + 1;

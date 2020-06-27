@@ -55,7 +55,8 @@ class CatchupManagerImpl : public CatchupManager
     void logAndUpdateCatchupStatus(bool contiguous) override;
 
     bool hasBufferedLedger() const override;
-    LedgerCloseData const& getBufferedLedger() const override;
+    LedgerCloseData const& getFirstBufferedLedger() const override;
+    LedgerCloseData const& getLastBufferedLedger() const override;
     void popBufferedLedger() override;
 
     void syncMetrics() override;
