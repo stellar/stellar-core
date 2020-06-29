@@ -51,8 +51,8 @@ homedomain | VARCHAR(44) | (BASE64)
 thresholds | TEXT | (BASE64)
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-buyingliabilities | BIGINT CHECK (buyingliabilities >= 0) |
-sellingliabilities | BIGINT CHECK (sellingliabilities >= 0) |
+extension | TEXT | Extension specific to AccountEntry (XDR)
+ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
 signers | TEXT | (XDR)
 
 ## offers
@@ -73,6 +73,8 @@ priced | INT NOT NULL | Price.d
 price | DOUBLE PRECISION NOT NULL | computed price n/d, used for ordering offers
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+extension | TEXT | Extension specific to OfferEntry (XDR)
+ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
 (offerid) | PRIMARY KEY |
 
 ## trustlines
@@ -91,8 +93,8 @@ tlimit | BIGINT NOT NULL DEFAULT 0 CHECK (tlimit >= 0) | limit
 balance | BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0) |
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
-buyingliabilities | BIGINT CHECK (buyingliabilities >= 0) |
-sellingliabilities | BIGINT CHECK (sellingliabilities >= 0) |
+extension | TEXT | Extension specific to TrustLineEntry (XDR)
+ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
 (accountid, issuer, assetcode) | PRIMARY KEY |
 
 ## accountdata
@@ -107,6 +109,8 @@ accountid | VARCHAR(56) NOT NULL | (STRKEY)
 dataname | VARCHAR(88) NOT NULL | (BASE64)
 datavalue | VARCHAR(112) NOT NULL | (BASE64)
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+extension | TEXT | Extension specific to DataEntry (XDR)
+ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
 (accountid, dataname) | PRIMARY KEY |
 
 ## txhistory
