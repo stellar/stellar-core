@@ -24,18 +24,25 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
 
     std::string dataValue;
     soci::indicator dataValueIndicator;
+    std::string extensionStr;
+    soci::indicator extensionInd;
+    std::string ledgerExtStr;
+    soci::indicator ledgerExtInd;
 
     LedgerEntry le;
     le.data.type(DATA);
     DataEntry& de = le.data.data();
 
-    std::string sql = "SELECT datavalue, lastmodified "
+    std::string sql = "SELECT datavalue, lastmodified, extension, "
+                      "ledgerext "
                       "FROM accountdata "
                       "WHERE accountid= :id AND dataname= :dataname";
     auto prep = mDatabase.getPreparedStatement(sql);
     auto& st = prep.statement();
     st.exchange(soci::into(dataValue, dataValueIndicator));
     st.exchange(soci::into(le.lastModifiedLedgerSeq));
+    st.exchange(soci::into(extensionStr, extensionInd));
+    st.exchange(soci::into(ledgerExtStr, ledgerExtInd));
     st.exchange(soci::use(actIDStrKey));
     st.exchange(soci::use(dataName));
     st.define_and_bind();
@@ -54,6 +61,10 @@ LedgerTxnRoot::Impl::loadData(LedgerKey const& key) const
     }
     decoder::decode_b64(dataValue, de.dataValue);
 
+    decodeOpaqueXDR(extensionStr, extensionInd, de.ext);
+
+    decodeOpaqueXDR(ledgerExtStr, ledgerExtInd, le.ext);
+
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
 
@@ -64,6 +75,8 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
     std::vector<std::string> mDataNames;
     std::vector<std::string> mDataValues;
     std::vector<int32_t> mLastModifieds;
+    std::vector<std::string> mExtensions;
+    std::vector<std::string> mLedgerExtensions;
 
     void
     accumulateEntry(LedgerEntry const& entry)
@@ -75,6 +88,10 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
         mDataValues.emplace_back(decoder::encode_b64(data.dataValue));
         mLastModifieds.emplace_back(
             unsignedToSigned(entry.lastModifiedLedgerSeq));
+        mExtensions.emplace_back(
+            decoder::encode_b64(xdr::xdr_to_opaque(data.ext)));
+        mLedgerExtensions.emplace_back(
+            decoder::encode_b64(xdr::xdr_to_opaque(entry.ext)));
     }
 
   public:
@@ -102,19 +119,25 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
     void
     doSociGenericOperation()
     {
-        std::string sql = "INSERT INTO accountdata ( "
-                          "accountid, dataname, datavalue, lastmodified "
-                          ") VALUES ( "
-                          ":id, :v1, :v2, :v3 "
-                          ") ON CONFLICT (accountid, dataname) DO UPDATE SET "
-                          "datavalue = excluded.datavalue, "
-                          "lastmodified = excluded.lastmodified ";
+        std::string sql =
+            "INSERT INTO accountdata ( "
+            "accountid, dataname, datavalue, lastmodified, extension, "
+            "ledgerext "
+            ") VALUES ( "
+            ":id, :v1, :v2, :v3, :v4, :v5 "
+            ") ON CONFLICT (accountid, dataname) DO UPDATE SET "
+            "datavalue = excluded.datavalue, "
+            "lastmodified = excluded.lastmodified, "
+            "extension = excluded.extension, "
+            "ledgerext = excluded.ledgerext";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(mAccountIDs));
         st.exchange(soci::use(mDataNames));
         st.exchange(soci::use(mDataValues));
         st.exchange(soci::use(mLastModifieds));
+        st.exchange(soci::use(mExtensions));
+        st.exchange(soci::use(mLedgerExtensions));
         st.define_and_bind();
         {
             auto timer = mDB.getUpsertTimer("data");
@@ -136,31 +159,41 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
         std::string strAccountIDs, strDataNames, strDataValues,
-            strLastModifieds;
+            strLastModifieds, strExtensions, strLedgerExtensions;
 
         PGconn* conn = pg->conn_;
         marshalToPGArray(conn, strAccountIDs, mAccountIDs);
         marshalToPGArray(conn, strDataNames, mDataNames);
         marshalToPGArray(conn, strDataValues, mDataValues);
         marshalToPGArray(conn, strLastModifieds, mLastModifieds);
-        std::string sql = "WITH r AS (SELECT "
-                          "unnest(:ids::TEXT[]), "
-                          "unnest(:v1::TEXT[]), "
-                          "unnest(:v2::TEXT[]), "
-                          "unnest(:v3::INT[]) "
-                          ")"
-                          "INSERT INTO accountdata ( "
-                          "accountid, dataname, datavalue, lastmodified "
-                          ") SELECT * FROM r "
-                          "ON CONFLICT (accountid, dataname) DO UPDATE SET "
-                          "datavalue = excluded.datavalue, "
-                          "lastmodified = excluded.lastmodified ";
+        marshalToPGArray(conn, strExtensions, mExtensions);
+        marshalToPGArray(conn, strLedgerExtensions, mLedgerExtensions);
+        std::string sql =
+            "WITH r AS (SELECT "
+            "unnest(:ids::TEXT[]), "
+            "unnest(:v1::TEXT[]), "
+            "unnest(:v2::TEXT[]), "
+            "unnest(:v3::INT[]), "
+            "unnest(:v4::TEXT[]), "
+            "unnest(:v5::TEXT[]) "
+            ")"
+            "INSERT INTO accountdata ( "
+            "accountid, dataname, datavalue, lastmodified, extension, "
+            "ledgerext "
+            ") SELECT * FROM r "
+            "ON CONFLICT (accountid, dataname) DO UPDATE SET "
+            "datavalue = excluded.datavalue, "
+            "lastmodified = excluded.lastmodified, "
+            "extension = excluded.extension, "
+            "ledgerext = excluded.ledgerext";
         auto prep = mDB.getPreparedStatement(sql);
         soci::statement& st = prep.statement();
         st.exchange(soci::use(strAccountIDs));
         st.exchange(soci::use(strDataNames));
         st.exchange(soci::use(strDataValues));
         st.exchange(soci::use(strLastModifieds));
+        st.exchange(soci::use(strExtensions));
+        st.exchange(soci::use(strLedgerExtensions));
         st.define_and_bind();
         {
             auto timer = mDB.getUpsertTimer("data");
@@ -311,11 +344,17 @@ class BulkLoadDataOperation
     {
         std::string accountID, dataName, dataValue;
         uint32_t lastModified;
+        std::string extension;
+        soci::indicator extensionInd;
+        std::string ledgerExtension;
+        soci::indicator ledgerExtInd;
 
         st.exchange(soci::into(accountID));
         st.exchange(soci::into(dataName));
         st.exchange(soci::into(dataValue));
         st.exchange(soci::into(lastModified));
+        st.exchange(soci::into(extension, extensionInd));
+        st.exchange(soci::into(ledgerExtension, ledgerExtInd));
         st.define_and_bind();
         {
             auto timer = mDb.getSelectTimer("data");
@@ -334,6 +373,10 @@ class BulkLoadDataOperation
             decoder::decode_b64(dataName, de.dataName);
             decoder::decode_b64(dataValue, de.dataValue);
             le.lastModifiedLedgerSeq = lastModified;
+
+            decodeOpaqueXDR(extension, extensionInd, de.ext);
+
+            decodeOpaqueXDR(ledgerExtension, ledgerExtInd, le.ext);
 
             st.fetch();
         }
@@ -376,10 +419,11 @@ class BulkLoadDataOperation
             "AS x "
             "INNER JOIN (SELECT rowid, value FROM carray(?, ?, 'char*') ORDER "
             "BY rowid) AS y ON x.rowid = y.rowid";
-        std::string sql =
-            "WITH r AS (" + sqlJoin +
-            ") SELECT accountid, dataname, datavalue, lastmodified "
-            "FROM accountdata WHERE (accountid, dataname) IN r";
+        std::string sql = "WITH r AS (" + sqlJoin +
+                          ") SELECT accountid, dataname, datavalue, "
+                          "lastmodified, extension, "
+                          "ledgerext "
+                          "FROM accountdata WHERE (accountid, dataname) IN r";
 
         auto prep = mDb.getPreparedStatement(sql);
         auto be = prep.statement().get_backend();
@@ -412,7 +456,8 @@ class BulkLoadDataOperation
 
         std::string sql =
             "WITH r AS (SELECT unnest(:v1::TEXT[]), unnest(:v2::TEXT[])) "
-            "SELECT accountid, dataname, datavalue, lastmodified "
+            "SELECT accountid, dataname, datavalue, lastmodified, extension, "
+            "ledgerext "
             "FROM accountdata WHERE (accountid, dataname) IN (SELECT * FROM r)";
 
         auto prep = mDb.getPreparedStatement(sql);
