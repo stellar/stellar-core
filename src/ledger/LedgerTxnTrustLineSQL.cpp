@@ -16,7 +16,7 @@
 namespace stellar
 {
 
-static void
+void
 getTrustLineStrings(AccountID const& accountID, Asset const& asset,
                     std::string& accountIDStr, std::string& issuerStr,
                     std::string& assetCodeStr)
