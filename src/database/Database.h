@@ -247,4 +247,23 @@ class DBTimeExcluder : NonCopyable
     DBTimeExcluder(Application& mApp);
     ~DBTimeExcluder();
 };
+
+template <typename T>
+void
+decodeOpaqueXDR(std::string const& in, T& out)
+{
+    std::vector<uint8_t> opaque;
+    decoder::decode_b64(in, opaque);
+    xdr::xdr_from_opaque(opaque, out);
+}
+
+template <typename T>
+void
+decodeOpaqueXDR(std::string const& in, soci::indicator const& ind, T& out)
+{
+    if (ind == soci::i_ok)
+    {
+        decodeOpaqueXDR(in, out);
+    }
+}
 }

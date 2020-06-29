@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
+#include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -32,6 +33,7 @@
 #include "medida/timer.h"
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
+#include <string>
 #ifdef USE_POSTGRES
 #include <lib/soci/src/backends/postgresql/soci-postgresql.h>
 #endif
