@@ -248,6 +248,72 @@ class DBTimeExcluder : NonCopyable
     ~DBTimeExcluder();
 };
 
+// Select a set of records using a client-defined query string, then map
+// each record into an element of a client-defined datatype by applying a
+// client-defined function (the records are accumulated in the "out"
+// vector).
+template <typename T>
+void
+selectMap(Database& db, std::string const& selectStr,
+          std::function<T(soci::row const&)> makeT, std::vector<T>& out)
+{
+    soci::rowset<soci::row> rs = (db.getSession().prepare << selectStr);
+
+    std::transform(rs.begin(), rs.end(), std::back_inserter(out), makeT);
+}
+
+// Map each element in the given vector of a client-defined datatype into a
+// SQL update command by applying a client-defined function, then send those
+// update strings to the database.
+//
+// The "postUpdate" function receives the number of records affected
+// by the given update, as well as the element of the client-defined
+// datatype which generated that update.
+template <typename T>
+void updateMap(Database& db, std::vector<T> const& in,
+               std::string const& updateStr,
+               std::function<void(soci::statement&, T const&)> prepUpdate,
+               std::function<void(long long const, T const&)> postUpdate);
+template <typename T>
+void
+updateMap(Database& db, std::vector<T> const& in, std::string const& updateStr,
+          std::function<void(soci::statement&, T const&)> prepUpdate,
+          std::function<void(long long const, T const&)> postUpdate)
+{
+    auto st_update = db.getPreparedStatement(updateStr).statement();
+
+    for (auto& recT : in)
+    {
+        prepUpdate(st_update, recT);
+        st_update.define_and_bind();
+        st_update.execute(true);
+        auto affected_rows = st_update.get_affected_rows();
+        st_update.clean_up(false);
+        postUpdate(affected_rows, recT);
+    }
+}
+
+// The composition of updateMap() following selectMap().
+//
+// Returns the number of records selected by selectMap() (all of which were
+// then passed through updateMap() before the selectUpdateMap() call
+// returned).
+template <typename T>
+size_t
+selectUpdateMap(Database& db, std::string const& selectStr,
+                std::function<T(soci::row const&)> makeT,
+                std::string const& updateStr,
+                std::function<void(soci::statement&, T const&)> prepUpdate,
+                std::function<void(long long const, T const&)> postUpdate)
+{
+    std::vector<T> vecT;
+
+    selectMap<T>(db, selectStr, makeT, vecT);
+    updateMap<T>(db, vecT, updateStr, prepUpdate, postUpdate);
+
+    return vecT.size();
+}
+
 template <typename T>
 void
 decodeOpaqueXDR(std::string const& in, T& out)
