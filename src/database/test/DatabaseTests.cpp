@@ -349,3 +349,48 @@ TEST_CASE("schema test", "[db]")
     auto av = db.getAppSchemaVersion();
     REQUIRE(dbv == av);
 }
+
+class SchemaUpgradeTestApplication : public TestApplication
+{
+  public:
+    using PreUpgradeFunc = std::function<void(SchemaUpgradeTestApplication&)>;
+
+  private:
+    class SchemaUpgradeTestDatabase : public Database
+    {
+        SchemaUpgradeTestApplication& mApp;
+        PreUpgradeFunc const mPreUpgradeFunc;
+
+      public:
+        SchemaUpgradeTestDatabase(SchemaUpgradeTestApplication& app,
+                                  PreUpgradeFunc preUpgradeFunc)
+            : Database(app), mApp(app), mPreUpgradeFunc(preUpgradeFunc)
+        {
+        }
+
+        virtual void
+        actBeforeDBSchemaUpgrade() override
+        {
+            if (mPreUpgradeFunc)
+            {
+                mPreUpgradeFunc(mApp);
+            }
+        }
+    };
+
+    PreUpgradeFunc const mPreUpgradeFunc;
+
+  public:
+    SchemaUpgradeTestApplication(VirtualClock& clock, Config const& cfg,
+                                 PreUpgradeFunc preUpgradeFunc)
+        : TestApplication(clock, cfg), mPreUpgradeFunc(preUpgradeFunc)
+    {
+    }
+
+    virtual std::unique_ptr<Database>
+    createDatabase() override
+    {
+        return std::make_unique<SchemaUpgradeTestDatabase>(*this,
+                                                           mPreUpgradeFunc);
+    }
+};

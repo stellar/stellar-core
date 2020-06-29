@@ -7,11 +7,14 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "medida/timer_context.h"
 #include "overlay/StellarXDR.h"
+#include "util/Decoder.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
+#include <functional>
 #include <set>
 #include <soci.h>
 #include <string>
+#include <xdrpp/marshal.h>
 
 namespace medida
 {
@@ -108,6 +111,10 @@ class Database : NonMovableOrCopyable
     // if there is a connection error, this will throw.
     Database(Application& app);
 
+    virtual ~Database()
+    {
+    }
+
     // Return a crude meter of total queries to the db, for use in
     // overlay/LoadManager.
     medida::Meter& getQueryMeter();
@@ -196,6 +203,16 @@ class Database : NonMovableOrCopyable
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
+
+  protected:
+    // Give clients the opportunity to perform operations on databases while
+    // they're still using old schemas (prior to the upgrade that occurs either
+    // immediately after database creation or after loading a version of
+    // stellar-core that introduces a new schema).
+    virtual void
+    actBeforeDBSchemaUpgrade()
+    {
+    }
 };
 
 template <typename T>

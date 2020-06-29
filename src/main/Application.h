@@ -282,11 +282,12 @@ class Application
     // copy made of `cfg`
     static pointer create(VirtualClock& clock, Config const& cfg,
                           bool newDB = true);
-    template <typename T>
+    template <typename T, typename... Args>
     static std::shared_ptr<T>
-    create(VirtualClock& clock, Config const& cfg, bool newDB = true)
+    create(VirtualClock& clock, Config const& cfg, Args&&... args,
+           bool newDB = true)
     {
-        auto ret = std::make_shared<T>(clock, cfg);
+        auto ret = std::make_shared<T>(clock, cfg, std::forward<Args>(args)...);
         ret->initialize(newDB);
         validateNetworkPassphrase(ret);
 

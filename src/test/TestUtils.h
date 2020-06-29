@@ -65,15 +65,17 @@ class TestApplication : public ApplicationImpl
     std::unique_ptr<InvariantManager> createInvariantManager() override;
 };
 
-template <typename T = TestApplication,
+template <typename T = TestApplication, typename... Args,
           typename = typename std::enable_if<
               std::is_base_of<TestApplication, T>::value>::type>
 std::shared_ptr<T>
-createTestApplication(VirtualClock& clock, Config const& cfg, bool newDB = true)
+createTestApplication(VirtualClock& clock, Config const& cfg, Args&&... args,
+                      bool newDB = true)
 {
     Config c2(cfg);
     c2.adjust();
-    auto app = Application::create<T>(clock, c2, newDB);
+    auto app = Application::create<T, Args...>(
+        clock, c2, std::forward<Args>(args)..., newDB);
     return app;
 }
 
