@@ -69,6 +69,14 @@ dataKey(AccountID const& accountID, std::string const& dataName)
     return key;
 }
 
+LedgerKey
+claimableBalanceKey(ClaimableBalanceID const& balanceID)
+{
+    LedgerKey key(CLAIMABLE_BALANCE);
+    key.claimableBalance().balanceID = balanceID;
+    return key;
+}
+
 LedgerTxnEntry
 loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID)
 {
@@ -96,6 +104,13 @@ loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID, int64_t offerID)
 {
     ZoneScoped;
     return ltx.load(offerKey(sellerID, offerID));
+}
+
+LedgerTxnEntry
+loadClaimableBalance(AbstractLedgerTxn& ltx,
+                     ClaimableBalanceID const& balanceID)
+{
+    return ltx.load(claimableBalanceKey(balanceID));
 }
 
 TrustLineWrapper
