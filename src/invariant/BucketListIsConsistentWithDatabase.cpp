@@ -80,7 +80,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger)
 {
-    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
+    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0,
+             nClaimableBalance = 0;
     {
         LedgerTxn ltx(mApp.getLedgerTxnRoot());
 
@@ -134,6 +135,9 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                 case DATA:
                     ++nData;
                     break;
+                case CLAIMABLE_BALANCE:
+                    ++nClaimableBalance;
+                    break;
                 default:
                     abort();
                 }
@@ -177,6 +181,13 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
     if (nDataInDb != nData)
     {
         return fmt::format(countFormat, "Data", nData, nDataInDb);
+    }
+    uint64_t nClaimableBalanceInDb =
+        ltxRoot.countObjects(CLAIMABLE_BALANCE, range);
+    if (nClaimableBalanceInDb != nClaimableBalance)
+    {
+        return fmt::format(countFormat, "ClaimableBalance", nClaimableBalance,
+                           nClaimableBalanceInDb);
     }
 
     return {};

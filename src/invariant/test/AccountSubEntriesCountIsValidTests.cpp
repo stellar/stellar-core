@@ -50,7 +50,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
     do
     {
         le = LedgerTestUtils::generateValidLedgerEntry(5);
-    } while (le.data.type() == ACCOUNT);
+    } while (le.data.type() == ACCOUNT || le.data.type() == CLAIMABLE_BALANCE);
     le.lastModifiedLedgerSeq = acc.lastModifiedLedgerSeq;
 
     switch (le.data.type())
@@ -67,6 +67,7 @@ generateRandomSubEntry(LedgerEntry const& acc)
         le.data.data().accountID = acc.data.account().accountID;
         le.data.data().dataName = validDataNameGenerator(64);
         break;
+    case CLAIMABLE_BALANCE:
     case ACCOUNT:
     default:
         abort();
@@ -86,6 +87,7 @@ generateRandomModifiedSubEntry(LedgerEntry const& acc, LedgerEntry const& se)
     switch (se.data.type())
     {
     case ACCOUNT:
+    case CLAIMABLE_BALANCE:
         break;
     case OFFER:
         res.data.offer().offerID = se.data.offer().offerID;
