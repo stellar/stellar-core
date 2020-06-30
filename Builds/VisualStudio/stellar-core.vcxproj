@@ -318,6 +318,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\SurveyManager.cpp" />
@@ -325,6 +326,8 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\test\SurveyManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\SurveyMessageLimiterTests.cpp" />
     <ClCompile Include="..\..\src\test\FuzzerImpl.cpp" />
+    <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\FeeBumpTransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp" />
@@ -338,6 +341,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\simulation\TxSimScaleBucketlistWork.cpp" />
     <ClCompile Include="..\..\src\transactions\simulation\TxSimTransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\simulation\TxSimUtils.cpp" />
+    <ClCompile Include="..\..\src\transactions\test\ClaimableBalanceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\FeeBumpTransactionTests.cpp" />
     <ClCompile Include="..\..\src\transactions\test\PathPaymentStrictSendTests.cpp" />
     <ClCompile Include="..\..\src\transactions\TransactionBridge.cpp" />
@@ -658,6 +662,8 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h" />
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
+    <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\FeeBumpTransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h" />
