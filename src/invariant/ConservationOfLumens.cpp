@@ -23,6 +23,24 @@ calculateDeltaBalance(std::shared_ptr<LedgerEntry const> const& current,
         return (current ? current->data.account().balance : 0) -
                (previous ? previous->data.account().balance : 0);
     }
+    if (let == CLAIMABLE_BALANCE)
+    {
+        int64_t reserveDelta =
+            (current ? current->data.claimableBalance().reserve : 0) -
+            (previous ? previous->data.claimableBalance().reserve : 0);
+
+        auto const& asset = current ? current->data.claimableBalance().asset
+                                    : previous->data.claimableBalance().asset;
+
+        if (asset.type() != ASSET_TYPE_NATIVE)
+        {
+            return reserveDelta;
+        }
+
+        return ((current ? current->data.claimableBalance().amount : 0) -
+                (previous ? previous->data.claimableBalance().amount : 0)) +
+               reserveDelta;
+    }
     return 0;
 }
 
