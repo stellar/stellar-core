@@ -198,73 +198,87 @@ TEST_CASE("LedgerTxn commit into LedgerTxn", "[ledgertxn]")
 
 TEST_CASE("LedgerTxn rollback into LedgerTxn", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
-    le1.lastModifiedLedgerSeq = 1;
-    LedgerKey key = LedgerEntryKey(le1);
+        LedgerEntry le1 = LedgerTestUtils::generateValidLedgerEntry();
+        le1.lastModifiedLedgerSeq = 1;
+        LedgerKey key = LedgerEntryKey(le1);
 
-    auto le2 = generateLedgerEntryWithSameKey(le1);
+        auto le2 = generateLedgerEntryWithSameKey(le1);
 
-    SECTION("one entry")
+        SECTION("one entry")
+        {
+            SECTION("created in child")
+            {
+                LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+                LedgerTxn ltx2(ltx1);
+                REQUIRE(ltx2.create(le1));
+                ltx2.rollback();
+
+                validate(ltx1, {});
+            }
+
+            SECTION("loaded in child")
+            {
+                LedgerTxn ltx1(app->getLedgerTxnRoot());
+                REQUIRE(ltx1.create(le1));
+
+                LedgerTxn ltx2(ltx1);
+                REQUIRE(ltx2.load(key));
+                ltx2.rollback();
+
+                validate(ltx1, {{key,
+                                 {std::make_shared<LedgerEntry const>(le1),
+                                  nullptr}}});
+            }
+
+            SECTION("modified in child")
+            {
+                LedgerTxn ltx1(app->getLedgerTxnRoot());
+                REQUIRE(ltx1.create(le1));
+
+                LedgerTxn ltx2(ltx1);
+                auto ltxe1 = ltx2.load(key);
+                REQUIRE(ltxe1);
+                ltxe1.current() = le2;
+                ltx2.rollback();
+
+                validate(ltx1, {{key,
+                                 {std::make_shared<LedgerEntry const>(le1),
+                                  nullptr}}});
+            }
+
+            SECTION("erased in child")
+            {
+                LedgerTxn ltx1(app->getLedgerTxnRoot());
+                REQUIRE(ltx1.create(le1));
+
+                LedgerTxn ltx2(ltx1);
+                REQUIRE_NOTHROW(ltx2.erase(key));
+                ltx2.rollback();
+
+                validate(ltx1, {{key,
+                                 {std::make_shared<LedgerEntry const>(le1),
+                                  nullptr}}});
+            }
+        }
+    };
+
+    SECTION("default")
     {
-        SECTION("created in child")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-
-            LedgerTxn ltx2(ltx1);
-            REQUIRE(ltx2.create(le1));
-            ltx2.rollback();
-
-            validate(ltx1, {});
-        }
-
-        SECTION("loaded in child")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(ltx1.create(le1));
-
-            LedgerTxn ltx2(ltx1);
-            REQUIRE(ltx2.load(key));
-            ltx2.rollback();
-
-            validate(
-                ltx1,
-                {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
-        }
-
-        SECTION("modified in child")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(ltx1.create(le1));
-
-            LedgerTxn ltx2(ltx1);
-            auto ltxe1 = ltx2.load(key);
-            REQUIRE(ltxe1);
-            ltxe1.current() = le2;
-            ltx2.rollback();
-
-            validate(
-                ltx1,
-                {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
-        }
-
-        SECTION("erased in child")
-        {
-            LedgerTxn ltx1(app->getLedgerTxnRoot());
-            REQUIRE(ltx1.create(le1));
-
-            LedgerTxn ltx2(ltx1);
-            REQUIRE_NOTHROW(ltx2.erase(key));
-            ltx2.rollback();
-
-            validate(
-                ltx1,
-                {{key, {std::make_shared<LedgerEntry const>(le1), nullptr}}});
-        }
+        runTest(Config::TESTDB_DEFAULT);
     }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
 }
 
 TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
@@ -383,39 +397,53 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         }
     };
 
-    SECTION("round trip to LedgerTxn")
-    {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        app->start();
-
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        runTest(ltx1);
-    }
-
-    SECTION("round trip to LedgerTxnRoot")
-    {
-        SECTION("with normal caching")
+    auto runTestWithDbMode = [&](Config::TestDbMode mode) {
+        SECTION("round trip to LedgerTxn")
         {
             VirtualClock clock;
-            auto app = createTestApplication(clock, getTestConfig());
+            auto app = createTestApplication(clock, getTestConfig(0, mode));
             app->start();
 
-            runTest(app->getLedgerTxnRoot());
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            runTest(ltx1);
         }
 
-        SECTION("with no cache")
+        SECTION("round trip to LedgerTxnRoot")
         {
-            VirtualClock clock;
-            auto cfg = getTestConfig();
-            cfg.ENTRY_CACHE_SIZE = 0;
-            cfg.BEST_OFFERS_CACHE_SIZE = 0;
-            auto app = createTestApplication(clock, cfg);
-            app->start();
+            SECTION("with normal caching")
+            {
+                VirtualClock clock;
+                auto app = createTestApplication(clock, getTestConfig(0, mode));
+                app->start();
 
-            runTest(app->getLedgerTxnRoot());
+                runTest(app->getLedgerTxnRoot());
+            }
+
+            SECTION("with no cache")
+            {
+                VirtualClock clock;
+                auto cfg = getTestConfig(0, mode);
+                cfg.ENTRY_CACHE_SIZE = 0;
+                cfg.BEST_OFFERS_CACHE_SIZE = 0;
+                auto app = createTestApplication(clock, cfg);
+                app->start();
+
+                runTest(app->getLedgerTxnRoot());
+            }
         }
+    };
+
+    SECTION("default")
+    {
+        runTestWithDbMode(Config::TESTDB_DEFAULT);
     }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTestWithDbMode(Config::TESTDB_POSTGRESQL);
+    }
+#endif
 }
 
 TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
@@ -531,195 +559,241 @@ TEST_CASE("LedgerTxn create", "[ledgertxn]")
 
 TEST_CASE("LedgerTxn createOrUpdateWithoutLoading", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
-    le.lastModifiedLedgerSeq = 1;
-    LedgerKey key = LedgerEntryKey(le);
+        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        le.lastModifiedLedgerSeq = 1;
+        LedgerKey key = LedgerEntryKey(le);
 
-    SECTION("fails with children")
+        SECTION("fails with children")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+                              std::runtime_error);
+        }
+
+        SECTION("fails if sealed")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+                              std::runtime_error);
+        }
+
+        SECTION("when key does not exist")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
+            validate(
+                ltx1,
+                {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
+        }
+
+        SECTION("when key exists in self or parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+            REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.createOrUpdateWithoutLoading(le));
+            validate(ltx2, {{key,
+                             {std::make_shared<LedgerEntry const>(le),
+                              std::make_shared<LedgerEntry const>(le)}}});
+        }
+
+        SECTION("when key is active during overwrite")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            auto ltxe = ltx1.create(le);
+            REQUIRE(ltxe);
+            REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
+                              std::runtime_error);
+        }
+
+        SECTION("when key exists in grandparent, erased in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+
+            LedgerTxn ltx3(ltx2);
+            REQUIRE_NOTHROW(ltx3.createOrUpdateWithoutLoading(le));
+            validate(
+                ltx3,
+                {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
+        }
+    };
+
+    SECTION("default")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
-                          std::runtime_error);
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("fails if sealed")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        ltx1.getDelta();
-        REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
-                          std::runtime_error);
+        runTest(Config::TESTDB_POSTGRESQL);
     }
-
-    SECTION("when key does not exist")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
-        validate(ltx1,
-                 {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
-    }
-
-    SECTION("when key exists in self or parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-        REQUIRE_NOTHROW(ltx1.createOrUpdateWithoutLoading(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.createOrUpdateWithoutLoading(le));
-        validate(ltx2, {{key,
-                         {std::make_shared<LedgerEntry const>(le),
-                          std::make_shared<LedgerEntry const>(le)}}});
-    }
-
-    SECTION("when key is active during overwrite")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        auto ltxe = ltx1.create(le);
-        REQUIRE(ltxe);
-        REQUIRE_THROWS_AS(ltx1.createOrUpdateWithoutLoading(le),
-                          std::runtime_error);
-    }
-
-    SECTION("when key exists in grandparent, erased in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.erase(key));
-
-        LedgerTxn ltx3(ltx2);
-        REQUIRE_NOTHROW(ltx3.createOrUpdateWithoutLoading(le));
-        validate(ltx3,
-                 {{key, {std::make_shared<LedgerEntry const>(le), nullptr}}});
-    }
+#endif
 }
 
 TEST_CASE("LedgerTxn erase", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
-    le.lastModifiedLedgerSeq = 1;
-    LedgerKey key = LedgerEntryKey(le);
+        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        le.lastModifiedLedgerSeq = 1;
+        LedgerKey key = LedgerEntryKey(le);
 
-    SECTION("fails with children")
+        SECTION("fails with children")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+        }
+
+        SECTION("fails if sealed")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+        }
+
+        SECTION("when key does not exist")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+            validate(ltx1, {});
+        }
+
+        SECTION("when key exists in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+            validate(
+                ltx2,
+                {{key, {nullptr, std::make_shared<LedgerEntry const>(le)}}});
+        }
+
+        SECTION("when key exists in grandparent, erased in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+
+            LedgerTxn ltx3(ltx2);
+            REQUIRE_THROWS_AS(ltx3.erase(key), std::runtime_error);
+            validate(ltx3, {});
+        }
+    };
+    SECTION("default")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("fails if sealed")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-        ltx1.getDelta();
-        REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
+        runTest(Config::TESTDB_POSTGRESQL);
     }
-
-    SECTION("when key does not exist")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE_THROWS_AS(ltx1.erase(key), std::runtime_error);
-        validate(ltx1, {});
-    }
-
-    SECTION("when key exists in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.erase(key));
-        validate(ltx2,
-                 {{key, {nullptr, std::make_shared<LedgerEntry const>(le)}}});
-    }
-
-    SECTION("when key exists in grandparent, erased in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.erase(key));
-
-        LedgerTxn ltx3(ltx2);
-        REQUIRE_THROWS_AS(ltx3.erase(key), std::runtime_error);
-        validate(ltx3, {});
-    }
+#endif
 }
 
 TEST_CASE("LedgerTxn eraseWithoutLoading", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
-    le.lastModifiedLedgerSeq = 1;
-    LedgerKey key = LedgerEntryKey(le);
+        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        le.lastModifiedLedgerSeq = 1;
+        LedgerKey key = LedgerEntryKey(le);
 
-    SECTION("fails with children")
+        SECTION("fails with children")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key),
+                              std::runtime_error);
+        }
+
+        SECTION("fails if sealed")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+            std::vector<LedgerEntry> init, live;
+            std::vector<LedgerKey> dead;
+            ltx1.getAllEntries(init, live, dead);
+            REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key),
+                              std::runtime_error);
+        }
+
+        SECTION("when key does not exist")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE_NOTHROW(ltx1.eraseWithoutLoading(key));
+            REQUIRE_THROWS_AS(ltx1.getDelta(), std::runtime_error);
+            REQUIRE(ltx1.getNewestVersion(key).get() == nullptr);
+        }
+
+        SECTION("when key exists in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.eraseWithoutLoading(key));
+            REQUIRE_THROWS_AS(ltx2.getDelta(), std::runtime_error);
+            REQUIRE(ltx2.getNewestVersion(key).get() == nullptr);
+        }
+
+        SECTION("when key exists in grandparent, erased in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+
+            LedgerTxn ltx3(ltx2);
+            REQUIRE_NOTHROW(ltx3.eraseWithoutLoading(key));
+            REQUIRE_THROWS_AS(ltx3.getDelta(), std::runtime_error);
+            REQUIRE(ltx3.getNewestVersion(key).get() == nullptr);
+        }
+    };
+
+    SECTION("default")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key), std::runtime_error);
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("fails if sealed")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-        std::vector<LedgerEntry> init, live;
-        std::vector<LedgerKey> dead;
-        ltx1.getAllEntries(init, live, dead);
-        REQUIRE_THROWS_AS(ltx1.eraseWithoutLoading(key), std::runtime_error);
+        runTest(Config::TESTDB_POSTGRESQL);
     }
-
-    SECTION("when key does not exist")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE_NOTHROW(ltx1.eraseWithoutLoading(key));
-        REQUIRE_THROWS_AS(ltx1.getDelta(), std::runtime_error);
-        REQUIRE(ltx1.getNewestVersion(key).get() == nullptr);
-    }
-
-    SECTION("when key exists in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.eraseWithoutLoading(key));
-        REQUIRE_THROWS_AS(ltx2.getDelta(), std::runtime_error);
-        REQUIRE(ltx2.getNewestVersion(key).get() == nullptr);
-    }
-
-    SECTION("when key exists in grandparent, erased in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.erase(key));
-
-        LedgerTxn ltx3(ltx2);
-        REQUIRE_NOTHROW(ltx3.eraseWithoutLoading(key));
-        REQUIRE_THROWS_AS(ltx3.getDelta(), std::runtime_error);
-        REQUIRE(ltx3.getNewestVersion(key).get() == nullptr);
-    }
+#endif
 }
 
 static void
@@ -1127,101 +1201,129 @@ TEST_CASE("LedgerTxn queryInflationWinners", "[ledgertxn]")
 
 TEST_CASE("LedgerTxn loadHeader", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerHeader lh = autocheck::generator<LedgerHeader>()(5);
+        LedgerHeader lh = autocheck::generator<LedgerHeader>()(5);
 
-    SECTION("fails with children")
+        SECTION("fails with children")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
+        }
+
+        SECTION("fails if sealed")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
+        }
+
+        SECTION("fails if header already loaded")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            auto lhe = ltx1.loadHeader();
+            REQUIRE(lhe);
+            REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
+        }
+
+        SECTION("check after update")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            auto lhPrev = ltx1.loadHeader().current();
+            ltx1.loadHeader().current() = lh;
+
+            auto delta = ltx1.getDelta();
+            REQUIRE(delta.header.current == lh);
+            REQUIRE(delta.header.previous == lhPrev);
+        }
+    };
+
+    SECTION("default")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("fails if sealed")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        ltx1.getDelta();
-        REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
+        runTest(Config::TESTDB_POSTGRESQL);
     }
-
-    SECTION("fails if header already loaded")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        auto lhe = ltx1.loadHeader();
-        REQUIRE(lhe);
-        REQUIRE_THROWS_AS(ltx1.loadHeader(), std::runtime_error);
-    }
-
-    SECTION("check after update")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        auto lhPrev = ltx1.loadHeader().current();
-        ltx1.loadHeader().current() = lh;
-
-        auto delta = ltx1.getDelta();
-        REQUIRE(delta.header.current == lh);
-        REQUIRE(delta.header.previous == lhPrev);
-    }
+#endif
 }
 
 TEST_CASE("LedgerTxn load", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
-    le.lastModifiedLedgerSeq = 1;
-    LedgerKey key = LedgerEntryKey(le);
+        LedgerEntry le = LedgerTestUtils::generateValidLedgerEntry();
+        le.lastModifiedLedgerSeq = 1;
+        LedgerKey key = LedgerEntryKey(le);
 
-    SECTION("fails with children")
+        SECTION("fails with children")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
+        }
+
+        SECTION("fails if sealed")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
+        }
+
+        SECTION("when key does not exist")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(!ltx1.load(key));
+            validate(ltx1, {});
+        }
+
+        SECTION("when key exists in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.load(key));
+            validate(ltx2, {{key,
+                             {std::make_shared<LedgerEntry const>(le),
+                              std::make_shared<LedgerEntry const>(le)}}});
+        }
+
+        SECTION("when key exists in grandparent, erased in parent")
+        {
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            REQUIRE(ltx1.create(le));
+
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_NOTHROW(ltx2.erase(key));
+
+            LedgerTxn ltx3(ltx2);
+            REQUIRE(!ltx3.load(key));
+            validate(ltx3, {});
+        }
+    };
+
+    SECTION("default")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("fails if sealed")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        ltx1.getDelta();
-        REQUIRE_THROWS_AS(ltx1.load(key), std::runtime_error);
+        runTest(Config::TESTDB_POSTGRESQL);
     }
-
-    SECTION("when key does not exist")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(!ltx1.load(key));
-        validate(ltx1, {});
-    }
-
-    SECTION("when key exists in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE(ltx2.load(key));
-        validate(ltx2, {{key,
-                         {std::make_shared<LedgerEntry const>(le),
-                          std::make_shared<LedgerEntry const>(le)}}});
-    }
-
-    SECTION("when key exists in grandparent, erased in parent")
-    {
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        REQUIRE(ltx1.create(le));
-
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_NOTHROW(ltx2.erase(key));
-
-        LedgerTxn ltx3(ltx2);
-        REQUIRE(!ltx3.load(key));
-        validate(ltx3, {});
-    }
+#endif
 }
 
 TEST_CASE("LedgerTxn loadWithoutRecord", "[ledgertxn]")
@@ -1373,7 +1475,8 @@ testAllOffers(
              std::vector<std::tuple<int64_t, Asset, Asset, int64_t>>> const&
         expected,
     std::vector<std::map<std::pair<AccountID, int64_t>,
-                         std::tuple<Asset, Asset, int64_t>>> const& updates)
+                         std::tuple<Asset, Asset, int64_t>>> const& updates,
+    Config::TestDbMode mode)
 {
     REQUIRE(!updates.empty());
 
@@ -1391,7 +1494,7 @@ testAllOffers(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
         app->start();
         testAtRoot(*app);
     }
@@ -1400,7 +1503,7 @@ testAllOffers(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig();
+        auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 0;
         cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
@@ -1411,7 +1514,7 @@ testAllOffers(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
         app->start();
 
         testAllOffers(app->getLedgerTxnRoot(), expected, updates.cbegin(),
@@ -1421,49 +1524,130 @@ testAllOffers(
 
 TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
 {
-    auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
-    auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
+    auto runTest = [&](Config::TestDbMode mode) {
+        auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
+        auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
 
-    Asset buying = LedgerTestUtils::generateValidOfferEntry().buying;
-    Asset selling = LedgerTestUtils::generateValidOfferEntry().selling;
+        Asset buying = LedgerTestUtils::generateValidOfferEntry().buying;
+        Asset selling = LedgerTestUtils::generateValidOfferEntry().selling;
 
-    SECTION("fails with children")
-    {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        app->start();
-
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.loadAllOffers(), std::runtime_error);
-    }
-
-    SECTION("fails if sealed")
-    {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        app->start();
-
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        ltx1.getDelta();
-        REQUIRE_THROWS_AS(ltx1.loadAllOffers(), std::runtime_error);
-    }
-
-    SECTION("empty parent")
-    {
-        SECTION("no offers")
+        SECTION("fails with children")
         {
-            testAllOffers({}, {{}});
+            VirtualClock clock;
+            auto app = createTestApplication(clock, getTestConfig(0, mode));
+            app->start();
+
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.loadAllOffers(), std::runtime_error);
         }
 
-        SECTION("two offers")
+        SECTION("fails if sealed")
+        {
+            VirtualClock clock;
+            auto app = createTestApplication(clock, getTestConfig(0, mode));
+            app->start();
+
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(ltx1.loadAllOffers(), std::runtime_error);
+        }
+
+        SECTION("empty parent")
+        {
+            SECTION("no offers")
+            {
+                testAllOffers({}, {{}}, mode);
+            }
+
+            SECTION("two offers")
+            {
+                SECTION("same account")
+                {
+                    testAllOffers(
+                        {{a1,
+                          {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
+                        {{{{a1, 1}, {buying, selling, 1}},
+                          {{a1, 2}, {buying, selling, 1}}}},
+                        mode);
+                }
+
+                SECTION("different accounts")
+                {
+                    testAllOffers({{a1, {{1, buying, selling, 1}}},
+                                   {a2, {{2, buying, selling, 1}}}},
+                                  {{{{a1, 1}, {buying, selling, 1}},
+                                    {{a2, 2}, {buying, selling, 1}}}},
+                                  mode);
+                }
+            }
+        }
+
+        SECTION("one offer in parent")
+        {
+            SECTION("erased in child")
+            {
+                testAllOffers({},
+                              {{{{a1, 1}, {buying, selling, 1}}},
+                               {{{a1, 1}, {buying, selling, 0}}}},
+                              mode);
+            }
+
+            SECTION("modified assets in child")
+            {
+                testAllOffers({{a1, {{1, selling, buying, 1}}}},
+                              {{{{a1, 1}, {buying, selling, 1}}},
+                               {{{a1, 1}, {selling, buying, 1}}}},
+                              mode);
+            }
+
+            SECTION("modified amount in child")
+            {
+                testAllOffers({{a1, {{1, buying, selling, 7}}}},
+                              {{{{a1, 1}, {buying, selling, 1}}},
+                               {{{a1, 1}, {buying, selling, 7}}}},
+                              mode);
+            }
+
+            SECTION("other offer in child")
+            {
+                SECTION("same account")
+                {
+                    testAllOffers(
+                        {{a1,
+                          {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
+                        {{{{a1, 1}, {buying, selling, 1}}},
+                         {{{a1, 2}, {buying, selling, 1}}}},
+                        mode);
+                    testAllOffers(
+                        {{a1,
+                          {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
+                        {{{{a1, 2}, {buying, selling, 1}}},
+                         {{{a1, 1}, {buying, selling, 1}}}},
+                        mode);
+                }
+
+                SECTION("different accounts")
+                {
+                    testAllOffers({{a1, {{1, buying, selling, 1}}},
+                                   {a2, {{2, buying, selling, 1}}}},
+                                  {{{{a1, 1}, {buying, selling, 1}}},
+                                   {{{a2, 2}, {buying, selling, 1}}}},
+                                  mode);
+                }
+            }
+        }
+
+        SECTION("two offers in parent")
         {
             SECTION("same account")
             {
                 testAllOffers(
                     {{a1, {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
                     {{{{a1, 1}, {buying, selling, 1}},
-                      {{a1, 2}, {buying, selling, 1}}}});
+                      {{a1, 2}, {buying, selling, 1}}},
+                     {}},
+                    mode);
             }
 
             SECTION("different accounts")
@@ -1471,77 +1655,24 @@ TEST_CASE("LedgerTxn loadAllOffers", "[ledgertxn]")
                 testAllOffers({{a1, {{1, buying, selling, 1}}},
                                {a2, {{2, buying, selling, 1}}}},
                               {{{{a1, 1}, {buying, selling, 1}},
-                                {{a2, 2}, {buying, selling, 1}}}});
+                                {{a2, 2}, {buying, selling, 1}}},
+                               {}},
+                              mode);
             }
         }
-    }
+    };
 
-    SECTION("one offer in parent")
+    SECTION("default")
     {
-        SECTION("erased in child")
-        {
-            testAllOffers({}, {{{{a1, 1}, {buying, selling, 1}}},
-                               {{{a1, 1}, {buying, selling, 0}}}});
-        }
-
-        SECTION("modified assets in child")
-        {
-            testAllOffers({{a1, {{1, selling, buying, 1}}}},
-                          {{{{a1, 1}, {buying, selling, 1}}},
-                           {{{a1, 1}, {selling, buying, 1}}}});
-        }
-
-        SECTION("modified amount in child")
-        {
-            testAllOffers({{a1, {{1, buying, selling, 7}}}},
-                          {{{{a1, 1}, {buying, selling, 1}}},
-                           {{{a1, 1}, {buying, selling, 7}}}});
-        }
-
-        SECTION("other offer in child")
-        {
-            SECTION("same account")
-            {
-                testAllOffers(
-                    {{a1, {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
-                    {{{{a1, 1}, {buying, selling, 1}}},
-                     {{{a1, 2}, {buying, selling, 1}}}});
-                testAllOffers(
-                    {{a1, {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
-                    {{{{a1, 2}, {buying, selling, 1}}},
-                     {{{a1, 1}, {buying, selling, 1}}}});
-            }
-
-            SECTION("different accounts")
-            {
-                testAllOffers({{a1, {{1, buying, selling, 1}}},
-                               {a2, {{2, buying, selling, 1}}}},
-                              {{{{a1, 1}, {buying, selling, 1}}},
-                               {{{a2, 2}, {buying, selling, 1}}}});
-            }
-        }
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("two offers in parent")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        SECTION("same account")
-        {
-            testAllOffers(
-                {{a1, {{1, buying, selling, 1}, {2, buying, selling, 1}}}},
-                {{{{a1, 1}, {buying, selling, 1}},
-                  {{a1, 2}, {buying, selling, 1}}},
-                 {}});
-        }
-
-        SECTION("different accounts")
-        {
-            testAllOffers({{a1, {{1, buying, selling, 1}}},
-                           {a2, {{2, buying, selling, 1}}}},
-                          {{{{a1, 1}, {buying, selling, 1}},
-                            {{a2, 2}, {buying, selling, 1}}},
-                           {}});
-        }
+        runTest(Config::TESTDB_POSTGRESQL);
     }
+#endif
 }
 
 static void
@@ -1625,7 +1756,8 @@ testBestOffer(
         expected,
     std::vector<std::map<std::pair<AccountID, int64_t>,
                          std::tuple<Asset, Asset, Price, int64_t>>>
-        updates)
+        updates,
+    Config::TestDbMode mode)
 {
     REQUIRE(!updates.empty());
 
@@ -1643,7 +1775,7 @@ testBestOffer(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
         app->start();
         testAtRoot(*app);
     }
@@ -1652,7 +1784,7 @@ testBestOffer(
     if (updates.size() > 1)
     {
         VirtualClock clock;
-        auto cfg = getTestConfig();
+        auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 0;
         cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
@@ -1663,7 +1795,7 @@ testBestOffer(
     // first changes are in child of LedgerTxnRoot
     {
         VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
         app->start();
 
         testBestOffer(app->getLedgerTxnRoot(), buying, selling, expected,
@@ -1673,169 +1805,203 @@ testBestOffer(
 
 TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
 {
-    auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
-    auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
+    auto runTest = [&](Config::TestDbMode mode) {
+        auto a1 = LedgerTestUtils::generateValidAccountEntry().accountID;
+        auto a2 = LedgerTestUtils::generateValidAccountEntry().accountID;
 
-    Asset buying = LedgerTestUtils::generateValidOfferEntry().buying;
-    Asset selling = LedgerTestUtils::generateValidOfferEntry().selling;
-    REQUIRE(!(buying == selling));
+        Asset buying = LedgerTestUtils::generateValidOfferEntry().buying;
+        Asset selling = LedgerTestUtils::generateValidOfferEntry().selling;
+        REQUIRE(!(buying == selling));
 
-    SECTION("fails with children")
-    {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        app->start();
-
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        LedgerTxn ltx2(ltx1);
-        REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
-                          std::runtime_error);
-    }
-
-    SECTION("fails if sealed")
-    {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        app->start();
-
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        ltx1.getDelta();
-        REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
-                          std::runtime_error);
-    }
-
-    SECTION("fails with active entries")
-    {
-        VirtualClock clock;
-        auto app = createTestApplication(clock, getTestConfig());
-        app->start();
-
-        LedgerTxn ltx1(app->getLedgerTxnRoot());
-        auto ltxe = ltx1.create(LedgerTestUtils::generateValidLedgerEntry());
-        REQUIRE_THROWS_AS(ltx1.getBestOffer(buying, selling),
-                          std::runtime_error);
-        REQUIRE_THROWS_AS(ltx1.getBestOffer(buying, selling, {Price{1, 1}, 1}),
-                          std::runtime_error);
-        REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
-                          std::runtime_error);
-    }
-
-    SECTION("empty parent")
-    {
-        SECTION("no offers")
+        SECTION("fails with children")
         {
-            testBestOffer(buying, selling, {}, {{}});
+            VirtualClock clock;
+            auto app = createTestApplication(clock, getTestConfig(0, mode));
+            app->start();
+
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
+                              std::runtime_error);
         }
 
-        SECTION("two offers")
+        SECTION("fails if sealed")
         {
-            SECTION("same assets")
-            {
-                SECTION("same price")
-                {
-                    testBestOffer(
-                        buying, selling, {{1, buying, selling, Price{1, 1}, 1}},
-                        {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
-                          {{a1, 2}, {buying, selling, Price{1, 1}, 1}}}});
-                }
+            VirtualClock clock;
+            auto app = createTestApplication(clock, getTestConfig(0, mode));
+            app->start();
 
-                SECTION("different price")
-                {
-                    testBestOffer(
-                        buying, selling, {{2, buying, selling, Price{1, 1}, 1}},
-                        {{{{a1, 1}, {buying, selling, Price{2, 1}, 1}},
-                          {{a1, 2}, {buying, selling, Price{1, 1}, 1}}}});
-                    testBestOffer(
-                        buying, selling, {{1, buying, selling, Price{1, 1}, 1}},
-                        {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
-                          {{a1, 2}, {buying, selling, Price{2, 1}, 1}}}});
-                }
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            ltx1.getDelta();
+            REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
+                              std::runtime_error);
+        }
+
+        SECTION("fails with active entries")
+        {
+            VirtualClock clock;
+            auto app = createTestApplication(clock, getTestConfig(0, mode));
+            app->start();
+
+            LedgerTxn ltx1(app->getLedgerTxnRoot());
+            auto ltxe =
+                ltx1.create(LedgerTestUtils::generateValidLedgerEntry());
+            REQUIRE_THROWS_AS(ltx1.getBestOffer(buying, selling),
+                              std::runtime_error);
+            REQUIRE_THROWS_AS(
+                ltx1.getBestOffer(buying, selling, {Price{1, 1}, 1}),
+                std::runtime_error);
+            REQUIRE_THROWS_AS(ltx1.loadBestOffer(buying, selling),
+                              std::runtime_error);
+        }
+
+        SECTION("empty parent")
+        {
+            SECTION("no offers")
+            {
+                testBestOffer(buying, selling, {}, {{}}, mode);
             }
 
-            SECTION("different assets")
+            SECTION("two offers")
+            {
+                SECTION("same assets")
+                {
+                    SECTION("same price")
+                    {
+                        testBestOffer(
+                            buying, selling,
+                            {{1, buying, selling, Price{1, 1}, 1}},
+                            {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
+                              {{a1, 2}, {buying, selling, Price{1, 1}, 1}}}},
+                            mode);
+                    }
+
+                    SECTION("different price")
+                    {
+                        testBestOffer(
+                            buying, selling,
+                            {{2, buying, selling, Price{1, 1}, 1}},
+                            {{{{a1, 1}, {buying, selling, Price{2, 1}, 1}},
+                              {{a1, 2}, {buying, selling, Price{1, 1}, 1}}}},
+                            mode);
+                        testBestOffer(
+                            buying, selling,
+                            {{1, buying, selling, Price{1, 1}, 1}},
+                            {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
+                              {{a1, 2}, {buying, selling, Price{2, 1}, 1}}}},
+                            mode);
+                    }
+                }
+
+                SECTION("different assets")
+                {
+                    testBestOffer(
+                        buying, selling, {{1, buying, selling, Price{1, 1}, 1}},
+                        {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
+                          {{a1, 2}, {selling, buying, Price{1, 1}, 1}}}},
+                        mode);
+                    testBestOffer(
+                        buying, selling, {{2, buying, selling, Price{1, 1}, 1}},
+                        {{{{a1, 1}, {selling, buying, Price{1, 1}, 1}},
+                          {{a1, 2}, {buying, selling, Price{1, 1}, 1}}}},
+                        mode);
+                }
+            }
+        }
+
+        SECTION("one offer in parent")
+        {
+            SECTION("erased in child")
+            {
+                testBestOffer(buying, selling, {},
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {buying, selling, Price{1, 1}, 0}}}},
+                              mode);
+            }
+
+            SECTION("modified assets in child")
+            {
+                testBestOffer(buying, selling, {},
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {selling, buying, Price{1, 1}, 1}}}},
+                              mode);
+                testBestOffer(buying, selling,
+                              {{1, buying, selling, Price{1, 1}, 1}},
+                              {{{{a1, 1}, {selling, buying, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {buying, selling, Price{1, 1}, 1}}}},
+                              mode);
+            }
+
+            SECTION("modified price and amount in child")
+            {
+                testBestOffer(buying, selling,
+                              {{1, buying, selling, Price{2, 1}, 7}},
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {buying, selling, Price{2, 1}, 7}}}},
+                              mode);
+            }
+
+            SECTION("other offer in child")
             {
                 testBestOffer(buying, selling,
                               {{1, buying, selling, Price{1, 1}, 1}},
-                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
-                                {{a1, 2}, {selling, buying, Price{1, 1}, 1}}}});
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 2}, {buying, selling, Price{1, 1}, 1}}}},
+                              mode);
                 testBestOffer(buying, selling,
-                              {{2, buying, selling, Price{1, 1}, 1}},
-                              {{{{a1, 1}, {selling, buying, Price{1, 1}, 1}},
-                                {{a1, 2}, {buying, selling, Price{1, 1}, 1}}}});
+                              {{1, buying, selling, Price{1, 1}, 1}},
+                              {{{{a1, 2}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {buying, selling, Price{1, 1}, 1}}}},
+                              mode);
+
+                testBestOffer(buying, selling,
+                              {{2, buying, selling, Price{1, 2}, 1}},
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 2}, {buying, selling, Price{1, 2}, 1}}}},
+                              mode);
+                testBestOffer(buying, selling,
+                              {{2, buying, selling, Price{1, 2}, 1}},
+                              {{{{a1, 2}, {buying, selling, Price{1, 2}, 1}}},
+                               {{{a1, 1}, {buying, selling, Price{1, 1}, 1}}}},
+                              mode);
             }
         }
-    }
 
-    SECTION("one offer in parent")
+        SECTION("two offers in parent")
+        {
+            SECTION("erased in child")
+            {
+                testBestOffer(buying, selling,
+                              {{2, buying, selling, Price{1, 1}, 1}},
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
+                                {{a1, 2}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {buying, selling, Price{1, 1}, 0}}}},
+                              mode);
+            }
+
+            SECTION("modified assets in child")
+            {
+                testBestOffer(buying, selling,
+                              {{2, buying, selling, Price{1, 1}, 1}},
+                              {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
+                                {{a1, 2}, {buying, selling, Price{1, 1}, 1}}},
+                               {{{a1, 1}, {selling, buying, Price{1, 1}, 0}}}},
+                              mode);
+            }
+        }
+    };
+
+    SECTION("default")
     {
-        SECTION("erased in child")
-        {
-            testBestOffer(buying, selling, {},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {buying, selling, Price{1, 1}, 0}}}});
-        }
-
-        SECTION("modified assets in child")
-        {
-            testBestOffer(buying, selling, {},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {selling, buying, Price{1, 1}, 1}}}});
-            testBestOffer(buying, selling,
-                          {{1, buying, selling, Price{1, 1}, 1}},
-                          {{{{a1, 1}, {selling, buying, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {buying, selling, Price{1, 1}, 1}}}});
-        }
-
-        SECTION("modified price and amount in child")
-        {
-            testBestOffer(buying, selling,
-                          {{1, buying, selling, Price{2, 1}, 7}},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {buying, selling, Price{2, 1}, 7}}}});
-        }
-
-        SECTION("other offer in child")
-        {
-            testBestOffer(buying, selling,
-                          {{1, buying, selling, Price{1, 1}, 1}},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 2}, {buying, selling, Price{1, 1}, 1}}}});
-            testBestOffer(buying, selling,
-                          {{1, buying, selling, Price{1, 1}, 1}},
-                          {{{{a1, 2}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {buying, selling, Price{1, 1}, 1}}}});
-
-            testBestOffer(buying, selling,
-                          {{2, buying, selling, Price{1, 2}, 1}},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 2}, {buying, selling, Price{1, 2}, 1}}}});
-            testBestOffer(buying, selling,
-                          {{2, buying, selling, Price{1, 2}, 1}},
-                          {{{{a1, 2}, {buying, selling, Price{1, 2}, 1}}},
-                           {{{a1, 1}, {buying, selling, Price{1, 1}, 1}}}});
-        }
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    SECTION("two offers in parent")
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
     {
-        SECTION("erased in child")
-        {
-            testBestOffer(buying, selling,
-                          {{2, buying, selling, Price{1, 1}, 1}},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
-                            {{a1, 2}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {buying, selling, Price{1, 1}, 0}}}});
-        }
-
-        SECTION("modified assets in child")
-        {
-            testBestOffer(buying, selling,
-                          {{2, buying, selling, Price{1, 1}, 1}},
-                          {{{{a1, 1}, {buying, selling, Price{1, 1}, 1}},
-                            {{a1, 2}, {buying, selling, Price{1, 1}, 1}}},
-                           {{{a1, 1}, {selling, buying, Price{1, 1}, 0}}}});
-        }
+        runTest(Config::TESTDB_POSTGRESQL);
     }
+#endif
 }
 
 static void
@@ -2177,48 +2343,63 @@ TEST_CASE("LedgerTxnEntry and LedgerTxnHeader move assignment", "[ledgertxn]")
 
 TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    cfg.ENTRY_CACHE_SIZE = 1000;
-    cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto cfg = getTestConfig(0, mode);
+        cfg.ENTRY_CACHE_SIZE = 1000;
+        cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
 
-    std::unordered_set<LedgerKey> keysToPrefetch;
-    auto app = createTestApplication(clock, cfg);
-    app->start();
-    auto& root = app->getLedgerTxnRoot();
+        std::unordered_set<LedgerKey> keysToPrefetch;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+        auto& root = app->getLedgerTxnRoot();
 
-    auto entries = LedgerTestUtils::generateValidLedgerEntries(1000);
-    LedgerTxn ltx(root);
-    for (auto e : entries)
-    {
-        ltx.createOrUpdateWithoutLoading(e);
-        keysToPrefetch.emplace(LedgerEntryKey(e));
-    }
-    ltx.commit();
-
-    SECTION("prefetch normally")
-    {
-        LedgerTxn ltx2(root);
-        std::unordered_set<LedgerKey> smallSet;
-        for (auto const& k : keysToPrefetch)
+        auto entries = LedgerTestUtils::generateValidLedgerEntries(1000);
+        LedgerTxn ltx(root);
+        for (auto e : entries)
         {
-            smallSet.emplace(k);
-            if (smallSet.size() > (cfg.ENTRY_CACHE_SIZE / 3))
-            {
-                break;
-            }
+            ltx.createOrUpdateWithoutLoading(e);
+            keysToPrefetch.emplace(LedgerEntryKey(e));
         }
+        ltx.commit();
 
-        REQUIRE(root.prefetch(smallSet) == smallSet.size());
-        ltx2.commit();
-    }
-    SECTION("stop prefetching as cache fills up")
+        SECTION("prefetch normally")
+        {
+            LedgerTxn ltx2(root);
+            std::unordered_set<LedgerKey> smallSet;
+            for (auto const& k : keysToPrefetch)
+            {
+                smallSet.emplace(k);
+                if (smallSet.size() > (cfg.ENTRY_CACHE_SIZE / 3))
+                {
+                    break;
+                }
+            }
+
+            REQUIRE(root.prefetch(smallSet) == smallSet.size());
+            ltx2.commit();
+        }
+        SECTION("stop prefetching as cache fills up")
+        {
+            LedgerTxn ltx2(root);
+            REQUIRE(root.prefetch(keysToPrefetch) ==
+                    (cfg.ENTRY_CACHE_SIZE / 2));
+            REQUIRE(root.prefetch(keysToPrefetch) == 0);
+            ltx2.commit();
+        }
+    };
+
+    SECTION("default")
     {
-        LedgerTxn ltx2(root);
-        REQUIRE(root.prefetch(keysToPrefetch) == (cfg.ENTRY_CACHE_SIZE / 2));
-        REQUIRE(root.prefetch(keysToPrefetch) == 0);
-        ltx2.commit();
+        runTest(Config::TESTDB_DEFAULT);
     }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
 }
 
 TEST_CASE("Create performance benchmark", "[!hide][createbench]")
@@ -2816,343 +2997,379 @@ generateOfferWithSameKeyAndSwappedAssets(LedgerEntry const& leBase)
 
 TEST_CASE("LedgerTxn in memory order book", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    SECTION("one offer, one asset pair")
-    {
-        LedgerEntry le1;
-        le1.data.type(OFFER);
-        le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-        LedgerEntry le2 = generateOfferWithSameKeyAndAssets(le1);
-        AssetPair assets{le1.data.offer().buying, le1.data.offer().selling};
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
+        SECTION("one offer, one asset pair")
         {
-            auto lte = ltx.create(le1);
+            LedgerEntry le1;
+            le1.data.type(OFFER);
+            le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+            LedgerEntry le2 = generateOfferWithSameKeyAndAssets(le1);
+            AssetPair assets{le1.data.offer().buying, le1.data.offer().selling};
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            {
+                auto lte = ltx.create(le1);
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le1}}});
+
+            {
+                auto lte = ltx.load(LedgerEntryKey(le1));
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le1}}});
+
+            {
+                auto lte = ltx.load(LedgerEntryKey(le1));
+                lte.current() = le2;
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le2}}});
+
+            SECTION("erase without loading")
+            {
+                ltx.erase(LedgerEntryKey(le1));
+                checkOrderBook(ltx, {});
+            }
+            SECTION("erase after loading")
+            {
+                ltx.load(LedgerEntryKey(le1)).erase();
+                checkOrderBook(ltx, {});
+            }
+        }
+
+        SECTION("two offers, one asset pair")
+        {
+            LedgerEntry le1a;
+            le1a.data.type(OFFER);
+            le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+            LedgerEntry le1b = generateOfferWithSameKeyAndAssets(le1a);
+            LedgerEntry le2a = generateOfferWithSameAssets(le1a);
+            LedgerEntry le2b = generateOfferWithSameKeyAndAssets(le2a);
+            AssetPair assets{le1a.data.offer().buying,
+                             le1a.data.offer().selling};
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            {
+                auto lte1 = ltx.create(le1a);
+                auto lte2 = ltx.create(le2a);
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+
+            {
+                auto lte1 = ltx.load(LedgerEntryKey(le1a));
+                checkOrderBook(ltx, {{assets, {le2a}}});
+            }
+            checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+            {
+                auto lte2 = ltx.load(LedgerEntryKey(le2a));
+                checkOrderBook(ltx, {{assets, {le1a}}});
+            }
+            checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+
+            {
+                auto lte1 = ltx.load(LedgerEntryKey(le1a));
+                lte1.current() = le1b;
+                checkOrderBook(ltx, {{assets, {le2a}}});
+            }
+            checkOrderBook(ltx, {{assets, {le1b, le2a}}});
+            {
+                auto lte2 = ltx.load(LedgerEntryKey(le2a));
+                lte2.current() = le2b;
+                checkOrderBook(ltx, {{assets, {le1b}}});
+            }
+            checkOrderBook(ltx, {{assets, {le1b, le2b}}});
+
+            {
+                auto lte1 = ltx.load(LedgerEntryKey(le1b));
+                auto lte2 = ltx.load(LedgerEntryKey(le2b));
+                lte1.current() = le1a;
+                lte2.current() = le2a;
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le1a, le2a}}});
+
+            SECTION("erase one at a time")
+            {
+                ltx.erase(LedgerEntryKey(le1a));
+                checkOrderBook(ltx, {{assets, {le2a}}});
+                ltx.erase(LedgerEntryKey(le2a));
+                checkOrderBook(ltx, {});
+            }
+            SECTION("load then erase both")
+            {
+                auto lte1 = ltx.load(LedgerEntryKey(le1a));
+                auto lte2 = ltx.load(LedgerEntryKey(le2a));
+                lte1.erase();
+                checkOrderBook(ltx, {});
+                lte2.erase();
+                checkOrderBook(ltx, {});
+            }
+        }
+
+        SECTION("four offers, two asset pairs")
+        {
+            LedgerEntry le1a;
+            le1a.data.type(OFFER);
+            le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+            LedgerEntry le1b = generateOfferWithSameKeyAndSwappedAssets(le1a);
+            LedgerEntry le2a = generateOfferWithSameAssets(le1a);
+            LedgerEntry le2b = generateOfferWithSameKeyAndSwappedAssets(le2a);
+            LedgerEntry le3a = generateOfferWithSameAssets(le1a);
+            LedgerEntry le3b = generateOfferWithSameKeyAndSwappedAssets(le3a);
+            LedgerEntry le4a = generateOfferWithSameAssets(le1a);
+            LedgerEntry le4b = generateOfferWithSameKeyAndSwappedAssets(le4a);
+            AssetPair assets{le1a.data.offer().buying,
+                             le1a.data.offer().selling};
+            AssetPair swappedAssets{assets.selling, assets.buying};
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            {
+                auto lte1 = ltx.create(le1a);
+                auto lte2 = ltx.create(le2a);
+                auto lte3 = ltx.create(le3a);
+                auto lte4 = ltx.create(le4a);
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le1a, le2a, le3a, le4a}}});
+
+            {
+                auto lte1 = ltx.load(LedgerEntryKey(le1a));
+                lte1.current() = le1b;
+                checkOrderBook(ltx, {{assets, {le2a, le3a, le4a}}});
+            }
+            checkOrderBook(
+                ltx, {{assets, {le2a, le3a, le4a}}, {swappedAssets, {le1b}}});
+
+            {
+                auto lte2 = ltx.load(LedgerEntryKey(le2a));
+                auto lte3 = ltx.load(LedgerEntryKey(le3a));
+                lte2.current() = le2b;
+                lte3.current() = le3b;
+                checkOrderBook(ltx,
+                               {{assets, {le4a}}, {swappedAssets, {le1b}}});
+            }
+            checkOrderBook(
+                ltx, {{assets, {le4a}}, {swappedAssets, {le1b, le2b, le3b}}});
+
+            {
+                auto lte4 = ltx.load(LedgerEntryKey(le4a));
+                lte4.current() = le4b;
+                checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b}}});
+            }
+            checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b, le4b}}});
+        }
+
+        SECTION("createOrUpdateWithoutLoading correctly modifies order book")
+        {
+            LedgerEntry le1a;
+            le1a.data.type(OFFER);
+            le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+            LedgerEntry le1b = generateLedgerEntryWithSameKey(le1a);
+            AssetPair assetsA{le1a.data.offer().buying,
+                              le1a.data.offer().selling};
+            AssetPair assetsB{le1b.data.offer().buying,
+                              le1b.data.offer().selling};
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.createOrUpdateWithoutLoading(le1a);
+            checkOrderBook(ltx, {{assetsA, {le1a}}});
+            ltx.createOrUpdateWithoutLoading(le1b);
+            checkOrderBook(ltx, {{assetsB, {le1b}}});
+        }
+
+        SECTION("eraseWithoutLoading correctly modifies order book")
+        {
+            LedgerEntry le1a;
+            le1a.data.type(OFFER);
+            le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+            AssetPair assets{le1a.data.offer().buying,
+                             le1a.data.offer().selling};
+
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                ltx.eraseWithoutLoading(LedgerEntryKey(le1a));
+                checkOrderBook(ltx, {});
+                ltx.create(le1a);
+                checkOrderBook(ltx, {{assets, {le1a}}});
+                ltx.eraseWithoutLoading(LedgerEntryKey(le1a));
+                checkOrderBook(ltx, {});
+            }
+
+            {
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                {
+                    LedgerTxn ltxChild(ltx);
+                    ltxChild.eraseWithoutLoading(LedgerEntryKey(le1a));
+                    ltxChild.commit();
+                }
+                checkOrderBook(ltx, {});
+            }
+        }
+
+        SECTION("deactivating ConstLedgerTxnEntry does not modify order book")
+        {
+            LedgerEntry le1a;
+            le1a.data.type(OFFER);
+            le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+            AssetPair assets{le1a.data.offer().buying,
+                             le1a.data.offer().selling};
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            {
+                auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
+                checkOrderBook(ltx, {});
+            }
             checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1}}});
 
-        {
-            auto lte = ltx.load(LedgerEntryKey(le1));
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1}}});
+            {
+                auto lte = ltx.create(le1a);
+                checkOrderBook(ltx, {});
+            }
+            checkOrderBook(ltx, {{assets, {le1a}}});
 
-        {
-            auto lte = ltx.load(LedgerEntryKey(le1));
-            lte.current() = le2;
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le2}}});
-
-        SECTION("erase without loading")
-        {
-            ltx.erase(LedgerEntryKey(le1));
-            checkOrderBook(ltx, {});
-        }
-        SECTION("erase after loading")
-        {
-            ltx.load(LedgerEntryKey(le1)).erase();
-            checkOrderBook(ltx, {});
-        }
-    }
-
-    SECTION("two offers, one asset pair")
-    {
-        LedgerEntry le1a;
-        le1a.data.type(OFFER);
-        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-        LedgerEntry le1b = generateOfferWithSameKeyAndAssets(le1a);
-        LedgerEntry le2a = generateOfferWithSameAssets(le1a);
-        LedgerEntry le2b = generateOfferWithSameKeyAndAssets(le2a);
-        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        {
-            auto lte1 = ltx.create(le1a);
-            auto lte2 = ltx.create(le2a);
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
-
-        {
-            auto lte1 = ltx.load(LedgerEntryKey(le1a));
-            checkOrderBook(ltx, {{assets, {le2a}}});
-        }
-        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
-        {
-            auto lte2 = ltx.load(LedgerEntryKey(le2a));
+            {
+                auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
+                checkOrderBook(ltx, {});
+            }
             checkOrderBook(ltx, {{assets, {le1a}}});
         }
-        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
 
+        SECTION("parent updates correctly on addChild")
         {
-            auto lte1 = ltx.load(LedgerEntryKey(le1a));
-            lte1.current() = le1b;
-            checkOrderBook(ltx, {{assets, {le2a}}});
-        }
-        checkOrderBook(ltx, {{assets, {le1b, le2a}}});
-        {
-            auto lte2 = ltx.load(LedgerEntryKey(le2a));
-            lte2.current() = le2b;
-            checkOrderBook(ltx, {{assets, {le1b}}});
-        }
-        checkOrderBook(ltx, {{assets, {le1b, le2b}}});
-
-        {
-            auto lte1 = ltx.load(LedgerEntryKey(le1b));
-            auto lte2 = ltx.load(LedgerEntryKey(le2b));
-            lte1.current() = le1a;
-            lte2.current() = le2a;
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1a, le2a}}});
-
-        SECTION("erase one at a time")
-        {
-            ltx.erase(LedgerEntryKey(le1a));
-            checkOrderBook(ltx, {{assets, {le2a}}});
-            ltx.erase(LedgerEntryKey(le2a));
-            checkOrderBook(ltx, {});
-        }
-        SECTION("load then erase both")
-        {
-            auto lte1 = ltx.load(LedgerEntryKey(le1a));
-            auto lte2 = ltx.load(LedgerEntryKey(le2a));
-            lte1.erase();
-            checkOrderBook(ltx, {});
-            lte2.erase();
-            checkOrderBook(ltx, {});
-        }
-    }
-
-    SECTION("four offers, two asset pairs")
-    {
-        LedgerEntry le1a;
-        le1a.data.type(OFFER);
-        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-        LedgerEntry le1b = generateOfferWithSameKeyAndSwappedAssets(le1a);
-        LedgerEntry le2a = generateOfferWithSameAssets(le1a);
-        LedgerEntry le2b = generateOfferWithSameKeyAndSwappedAssets(le2a);
-        LedgerEntry le3a = generateOfferWithSameAssets(le1a);
-        LedgerEntry le3b = generateOfferWithSameKeyAndSwappedAssets(le3a);
-        LedgerEntry le4a = generateOfferWithSameAssets(le1a);
-        LedgerEntry le4b = generateOfferWithSameKeyAndSwappedAssets(le4a);
-        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
-        AssetPair swappedAssets{assets.selling, assets.buying};
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        {
-            auto lte1 = ltx.create(le1a);
-            auto lte2 = ltx.create(le2a);
-            auto lte3 = ltx.create(le3a);
-            auto lte4 = ltx.create(le4a);
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1a, le2a, le3a, le4a}}});
-
-        {
-            auto lte1 = ltx.load(LedgerEntryKey(le1a));
-            lte1.current() = le1b;
-            checkOrderBook(ltx, {{assets, {le2a, le3a, le4a}}});
-        }
-        checkOrderBook(ltx,
-                       {{assets, {le2a, le3a, le4a}}, {swappedAssets, {le1b}}});
-
-        {
-            auto lte2 = ltx.load(LedgerEntryKey(le2a));
-            auto lte3 = ltx.load(LedgerEntryKey(le3a));
-            lte2.current() = le2b;
-            lte3.current() = le3b;
-            checkOrderBook(ltx, {{assets, {le4a}}, {swappedAssets, {le1b}}});
-        }
-        checkOrderBook(ltx,
-                       {{assets, {le4a}}, {swappedAssets, {le1b, le2b, le3b}}});
-
-        {
-            auto lte4 = ltx.load(LedgerEntryKey(le4a));
-            lte4.current() = le4b;
-            checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b}}});
-        }
-        checkOrderBook(ltx, {{swappedAssets, {le1b, le2b, le3b, le4b}}});
-    }
-
-    SECTION("createOrUpdateWithoutLoading correctly modifies order book")
-    {
-        LedgerEntry le1a;
-        le1a.data.type(OFFER);
-        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-        LedgerEntry le1b = generateLedgerEntryWithSameKey(le1a);
-        AssetPair assetsA{le1a.data.offer().buying, le1a.data.offer().selling};
-        AssetPair assetsB{le1b.data.offer().buying, le1b.data.offer().selling};
-
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        ltx.createOrUpdateWithoutLoading(le1a);
-        checkOrderBook(ltx, {{assetsA, {le1a}}});
-        ltx.createOrUpdateWithoutLoading(le1b);
-        checkOrderBook(ltx, {{assetsB, {le1b}}});
-    }
-
-    SECTION("eraseWithoutLoading correctly modifies order book")
-    {
-        LedgerEntry le1a;
-        le1a.data.type(OFFER);
-        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
-
-        {
+            OrderBook orderBook;
             LedgerTxn ltx(app->getLedgerTxnRoot());
-            ltx.eraseWithoutLoading(LedgerEntryKey(le1a));
-            checkOrderBook(ltx, {});
-            ltx.create(le1a);
-            checkOrderBook(ltx, {{assets, {le1a}}});
-            ltx.eraseWithoutLoading(LedgerEntryKey(le1a));
-            checkOrderBook(ltx, {});
-        }
 
-        {
-            LedgerTxn ltx(app->getLedgerTxnRoot());
+            std::vector<LedgerTxnEntry> entries;
+            for (size_t i = 0; i < 20; ++i)
+            {
+                LedgerEntry le;
+                le.data.type(OFFER);
+                auto& oe = le.data.offer();
+                oe = LedgerTestUtils::generateValidOfferEntry();
+                entries.emplace_back(ltx.create(le));
+
+                AssetPair assets{oe.buying, oe.selling};
+                orderBook[assets].emplace_back(le);
+            }
+            checkOrderBook(ltx, {});
+
             {
                 LedgerTxn ltxChild(ltx);
-                ltxChild.eraseWithoutLoading(LedgerEntryKey(le1a));
-                ltxChild.commit();
-            }
-            checkOrderBook(ltx, {});
-        }
-    }
+                checkOrderBook(ltx, orderBook);
+                checkOrderBook(ltxChild, {});
 
-    SECTION("deactivating ConstLedgerTxnEntry does not modify order book")
-    {
-        LedgerEntry le1a;
-        le1a.data.type(OFFER);
-        le1a.data.offer() = LedgerTestUtils::generateValidOfferEntry();
-        AssetPair assets{le1a.data.offer().buying, le1a.data.offer().selling};
+                OrderBook newOrderBook;
+                OrderBook combinedOrderBook;
 
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        {
-            auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {});
-
-        {
-            auto lte = ltx.create(le1a);
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1a}}});
-
-        {
-            auto lte = ltx.loadWithoutRecord(LedgerEntryKey(le1a));
-            checkOrderBook(ltx, {});
-        }
-        checkOrderBook(ltx, {{assets, {le1a}}});
-    }
-
-    SECTION("parent updates correctly on addChild")
-    {
-        OrderBook orderBook;
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-
-        std::vector<LedgerTxnEntry> entries;
-        for (size_t i = 0; i < 20; ++i)
-        {
-            LedgerEntry le;
-            le.data.type(OFFER);
-            auto& oe = le.data.offer();
-            oe = LedgerTestUtils::generateValidOfferEntry();
-            entries.emplace_back(ltx.create(le));
-
-            AssetPair assets{oe.buying, oe.selling};
-            orderBook[assets].emplace_back(le);
-        }
-        checkOrderBook(ltx, {});
-
-        {
-            LedgerTxn ltxChild(ltx);
-            checkOrderBook(ltx, orderBook);
-            checkOrderBook(ltxChild, {});
-
-            OrderBook newOrderBook;
-            OrderBook combinedOrderBook;
-
-            size_t j = 0;
-            for (auto& kv : orderBook)
-            {
-                for (auto const& le : kv.second)
+                size_t j = 0;
+                for (auto& kv : orderBook)
                 {
-                    if (j % 3 == 0)
+                    for (auto const& le : kv.second)
                     {
-                        auto leNew = generateLedgerEntryWithSameKey(le);
-                        ltxChild.load(LedgerEntryKey(le)).current() = leNew;
+                        if (j % 3 == 0)
+                        {
+                            auto leNew = generateLedgerEntryWithSameKey(le);
+                            ltxChild.load(LedgerEntryKey(le)).current() = leNew;
 
-                        auto const& oe = leNew.data.offer();
-                        AssetPair assets{oe.buying, oe.selling};
-                        newOrderBook[assets].emplace_back(leNew);
-                        combinedOrderBook[assets].emplace_back(leNew);
+                            auto const& oe = leNew.data.offer();
+                            AssetPair assets{oe.buying, oe.selling};
+                            newOrderBook[assets].emplace_back(leNew);
+                            combinedOrderBook[assets].emplace_back(leNew);
+                        }
+                        else if (j % 3 == 1)
+                        {
+                            auto const& oe = le.data.offer();
+                            AssetPair assets{oe.buying, oe.selling};
+                            combinedOrderBook[assets].emplace_back(le);
+                        }
+                        else if (j % 3 == 2)
+                        {
+                            ltxChild.erase(LedgerEntryKey(le));
+                        }
+                        ++j;
                     }
-                    else if (j % 3 == 1)
-                    {
-                        auto const& oe = le.data.offer();
-                        AssetPair assets{oe.buying, oe.selling};
-                        combinedOrderBook[assets].emplace_back(le);
-                    }
-                    else if (j % 3 == 2)
-                    {
-                        ltxChild.erase(LedgerEntryKey(le));
-                    }
-                    ++j;
+                }
+
+                checkOrderBook(ltxChild, newOrderBook);
+                checkOrderBook(ltx, orderBook);
+
+                SECTION("parent updates correctly on commit")
+                {
+                    ltxChild.commit();
+                    checkOrderBook(ltx, combinedOrderBook);
+                }
+
+                SECTION("parent does not update on rollback")
+                {
+                    ltxChild.rollback();
+                    checkOrderBook(ltx, orderBook);
                 }
             }
-
-            checkOrderBook(ltxChild, newOrderBook);
-            checkOrderBook(ltx, orderBook);
-
-            SECTION("parent updates correctly on commit")
-            {
-                ltxChild.commit();
-                checkOrderBook(ltx, combinedOrderBook);
-            }
-
-            SECTION("parent does not update on rollback")
-            {
-                ltxChild.rollback();
-                checkOrderBook(ltx, orderBook);
-            }
         }
+    };
+
+    SECTION("default")
+    {
+        runTest(Config::TESTDB_DEFAULT);
     }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
 }
 
 TEST_CASE("LedgerTxn bulk-load offers", "[ledgertxn]")
 {
-    VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
-    app->start();
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
 
-    LedgerEntry le1;
-    le1.data.type(OFFER);
-    le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
+        LedgerEntry le1;
+        le1.data.type(OFFER);
+        le1.data.offer() = LedgerTestUtils::generateValidOfferEntry();
 
-    LedgerKey lk1 = LedgerEntryKey(le1);
-    auto lk2 = lk1;
-    lk2.offer().sellerID = LedgerTestUtils::generateValidOfferEntry().sellerID;
+        LedgerKey lk1 = LedgerEntryKey(le1);
+        auto lk2 = lk1;
+        lk2.offer().sellerID =
+            LedgerTestUtils::generateValidOfferEntry().sellerID;
 
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.create(le1);
+            ltx.commit();
+        }
+
+        for_versions({12}, *app, [&]() {
+            app->getLedgerTxnRoot().prefetch({lk1, lk2});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!ltx.load(lk1));
+        });
+        for_versions_from(13, *app, [&]() {
+            app->getLedgerTxnRoot().prefetch({lk1, lk2});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(ltx.load(lk1));
+        });
+    };
+
+    SECTION("default")
     {
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        ltx.create(le1);
-        ltx.commit();
+        runTest(Config::TESTDB_DEFAULT);
     }
 
-    for_versions({12}, *app, [&]() {
-        app->getLedgerTxnRoot().prefetch({lk1, lk2});
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(!ltx.load(lk1));
-    });
-    for_versions_from(13, *app, [&]() {
-        app->getLedgerTxnRoot().prefetch({lk1, lk2});
-        LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(ltx.load(lk1));
-    });
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
 }
