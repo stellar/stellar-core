@@ -122,6 +122,11 @@ Operation payment(PublicKey const& to, int64_t amount);
 
 Operation payment(PublicKey const& to, Asset const& asset, int64_t amount);
 
+Operation createClaimableBalance(Asset const& asset, int64_t amount,
+                                 xdr::xvector<Claimant, 10> const& claimants);
+
+Operation claimClaimableBalance(ClaimableBalanceID const& balanceID);
+
 TransactionFramePtr createPaymentTx(Application& app, SecretKey const& from,
                                     PublicKey const& to, SequenceNumber seq,
                                     int64_t amount);
