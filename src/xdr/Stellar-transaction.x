@@ -41,7 +41,9 @@ enum OperationType
     MANAGE_DATA = 10,
     BUMP_SEQUENCE = 11,
     MANAGE_BUY_OFFER = 12,
-    PATH_PAYMENT_STRICT_SEND = 13
+    PATH_PAYMENT_STRICT_SEND = 13,
+    CREATE_CLAIMABLE_BALANCE = 14,
+    CLAIM_CLAIMABLE_BALANCE = 15
 };
 
 /* CreateAccount
@@ -292,6 +294,30 @@ struct BumpSequenceOp
     SequenceNumber bumpTo;
 };
 
+/* Creates a claimable balance entry
+
+    Threshold: med
+
+    Result: CreateClaimableBalanceResult
+*/
+struct CreateClaimableBalanceOp
+{
+    Asset asset;
+    int64 amount;
+    Claimant claimants<10>;
+};
+
+/* Claims a claimable balance entry
+
+    Threshold: low
+
+    Result: ClaimClaimableBalanceResult
+*/
+struct ClaimClaimableBalanceOp
+{
+    ClaimableBalanceID balanceID;
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -330,8 +356,23 @@ struct Operation
         ManageBuyOfferOp manageBuyOfferOp;
     case PATH_PAYMENT_STRICT_SEND:
         PathPaymentStrictSendOp pathPaymentStrictSendOp;
+    case CREATE_CLAIMABLE_BALANCE:
+        CreateClaimableBalanceOp createClaimableBalanceOp;
+    case CLAIM_CLAIMABLE_BALANCE:
+        ClaimClaimableBalanceOp claimClaimableBalanceOp;
     }
     body;
+};
+
+union OperationID switch (EnvelopeType type)
+{
+case ENVELOPE_TYPE_OP_ID:
+    struct
+    {
+        MuxedAccount sourceAccount;
+        SequenceNumber seqNum;
+        uint32 opNum;
+    } id;
 };
 
 enum MemoType
@@ -595,7 +636,8 @@ struct SimplePaymentResult
     int64 amount;
 };
 
-union PathPaymentStrictReceiveResult switch (PathPaymentStrictReceiveResultCode code)
+union PathPaymentStrictReceiveResult switch (
+    PathPaymentStrictReceiveResultCode code)
 {
 case PATH_PAYMENT_STRICT_RECEIVE_SUCCESS:
     struct
@@ -908,6 +950,49 @@ case BUMP_SEQUENCE_SUCCESS:
 default:
     void;
 };
+
+/******* CreateClaimableBalance Result ********/
+
+enum CreateClaimableBalanceResultCode
+{
+    CREATE_CLAIMABLE_BALANCE_SUCCESS = 0,
+    CREATE_CLAIMABLE_BALANCE_MALFORMED = -1,
+    CREATE_CLAIMABLE_BALANCE_LOW_RESERVE = -2,
+    CREATE_CLAIMABLE_BALANCE_NO_TRUST = -3,
+    CREATE_CLAIMABLE_BALANCE_NOT_AUTHORIZED = -4,
+    CREATE_CLAIMABLE_BALANCE_UNDERFUNDED = -5
+};
+
+union CreateClaimableBalanceResult switch (
+    CreateClaimableBalanceResultCode code)
+{
+case CREATE_CLAIMABLE_BALANCE_SUCCESS:
+    ClaimableBalanceID balanceID;
+default:
+    void;
+};
+
+/******* ClaimClaimableBalance Result ********/
+
+enum ClaimClaimableBalanceResultCode
+{
+    CLAIM_CLAIMABLE_BALANCE_SUCCESS = 0,
+    CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST = -1,
+    CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM = -2,
+    CLAIM_CLAIMABLE_BALANCE_LINE_FULL = -3,
+    CLAIM_CLAIMABLE_BALANCE_NO_TRUST = -4,
+    CLAIM_CLAIMABLE_BALANCE_NOT_AUTHORIZED = -5
+
+};
+
+union ClaimClaimableBalanceResult switch (ClaimClaimableBalanceResultCode code)
+{
+case CLAIM_CLAIMABLE_BALANCE_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /* High level Operation Result */
 
 enum OperationResultCode
@@ -954,6 +1039,10 @@ case opINNER:
         ManageBuyOfferResult manageBuyOfferResult;
     case PATH_PAYMENT_STRICT_SEND:
         PathPaymentStrictSendResult pathPaymentStrictSendResult;
+    case CREATE_CLAIMABLE_BALANCE:
+        CreateClaimableBalanceResult createClaimableBalanceResult;
+    case CLAIM_CLAIMABLE_BALANCE:
+        ClaimClaimableBalanceResult claimClaimableBalanceResult;
     }
     tr;
 default:
