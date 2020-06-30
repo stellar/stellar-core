@@ -116,6 +116,11 @@ InMemoryLedgerTxnRoot::dropTrustLines()
 {
 }
 
+void
+InMemoryLedgerTxnRoot::dropClaimableBalances()
+{
+}
+
 double
 InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 {

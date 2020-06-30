@@ -655,6 +655,7 @@ Database::initialize()
         mApp.getLedgerTxnRoot().dropOffers();
         mApp.getLedgerTxnRoot().dropTrustLines();
         mApp.getLedgerTxnRoot().dropData();
+        mApp.getLedgerTxnRoot().dropClaimableBalances();
     }
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);

@@ -80,6 +80,8 @@ class BulkLedgerEntryChangeAccumulator
     std::vector<EntryIterator> mAccountsToDelete;
     std::vector<EntryIterator> mAccountDataToUpsert;
     std::vector<EntryIterator> mAccountDataToDelete;
+    std::vector<EntryIterator> mClaimableBalanceToUpsert;
+    std::vector<EntryIterator> mClaimableBalanceToDelete;
     std::vector<EntryIterator> mOffersToUpsert;
     std::vector<EntryIterator> mOffersToDelete;
     std::vector<EntryIterator> mTrustLinesToUpsert;
@@ -132,6 +134,18 @@ class BulkLedgerEntryChangeAccumulator
     getAccountDataToDelete()
     {
         return mAccountDataToDelete;
+    }
+
+    std::vector<EntryIterator>&
+    getClaimableBalanceToUpsert()
+    {
+        return mClaimableBalanceToUpsert;
+    }
+
+    std::vector<EntryIterator>&
+    getClaimableBalanceToDelete()
+    {
+        return mClaimableBalanceToDelete;
     }
 
     void accumulate(EntryIterator const& iter);
