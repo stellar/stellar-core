@@ -143,6 +143,12 @@ case DATA:
         AccountID accountID;
         string64 dataName;
     } data;
+
+case CLAIMABLE_BALANCE:
+    struct
+    {
+        ClaimableBalanceID balanceID;
+    } claimableBalance;
 };
 
 enum BucketEntryType
