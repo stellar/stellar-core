@@ -100,6 +100,8 @@ BucketApplicator::Counters::reset(VirtualClock::time_point now)
     mOfferDelete = 0;
     mDataUpsert = 0;
     mDataDelete = 0;
+    mClaimableBalanceUpsert = 0;
+    mClaimableBalanceDelete = 0;
 }
 
 void
@@ -108,6 +110,7 @@ BucketApplicator::Counters::getRates(VirtualClock::time_point now,
                                      uint64_t& tu_sec, uint64_t& td_sec,
                                      uint64_t& ou_sec, uint64_t& od_sec,
                                      uint64_t& du_sec, uint64_t& dd_sec,
+                                     uint64_t& cu_sec, uint64_t& cd_sec,
                                      uint64_t& T_sec, uint64_t& total)
 {
     VirtualClock::duration dur = now - mStarted;
@@ -115,7 +118,7 @@ BucketApplicator::Counters::getRates(VirtualClock::time_point now,
     uint64_t usecs = usec.count() + 1;
     total = mAccountUpsert + mAccountDelete + mTrustLineUpsert +
             mTrustLineDelete + mOfferUpsert + mOfferDelete + mDataUpsert +
-            mDataDelete;
+            mDataDelete + mClaimableBalanceUpsert + mClaimableBalanceDelete;
     au_sec = (mAccountUpsert * 1000000) / usecs;
     ad_sec = (mAccountDelete * 1000000) / usecs;
     tu_sec = (mTrustLineUpsert * 1000000) / usecs;
@@ -124,6 +127,8 @@ BucketApplicator::Counters::getRates(VirtualClock::time_point now,
     od_sec = (mOfferDelete * 1000000) / usecs;
     du_sec = (mDataUpsert * 1000000) / usecs;
     dd_sec = (mDataDelete * 1000000) / usecs;
+    cu_sec = (mClaimableBalanceUpsert * 1000000) / usecs;
+    cd_sec = (mClaimableBalanceDelete * 1000000) / usecs;
     T_sec = (total * 1000000) / usecs;
 }
 
@@ -133,22 +138,25 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
                                     VirtualClock::time_point now)
 {
     uint64_t au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec, dd_sec,
-        T_sec, total;
+        cu_sec, cd_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
-             dd_sec, T_sec, total);
+             dd_sec, cu_sec, cd_sec, T_sec, total);
     CLOG(INFO, "Bucket") << "Apply-rates for " << total << "-entry bucket "
                          << level << "." << bucketName << " au:" << au_sec
                          << " ad:" << ad_sec << " tu:" << tu_sec
                          << " td:" << td_sec << " ou:" << ou_sec
                          << " od:" << od_sec << " du:" << du_sec
-                         << " dd:" << dd_sec << " T:" << T_sec;
+                         << " dd:" << dd_sec << " cu:" << cu_sec
+                         << " cd:" << cd_sec << " T:" << T_sec;
     CLOG(INFO, "Bucket") << "Entry-counts for " << total << "-entry bucket "
                          << level << "." << bucketName
                          << " au:" << mAccountUpsert << " ad:" << mAccountDelete
                          << " tu:" << mTrustLineUpsert
                          << " td:" << mTrustLineDelete << " ou:" << mOfferUpsert
                          << " od:" << mOfferDelete << " du:" << mDataUpsert
-                         << " dd:" << mDataDelete;
+                         << " dd:" << mDataDelete
+                         << " cu:" << mClaimableBalanceUpsert
+                         << " cd:" << mClaimableBalanceDelete;
 }
 
 void
@@ -157,15 +165,16 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
                                      VirtualClock::time_point now)
 {
     uint64_t au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec, dd_sec,
-        T_sec, total;
+        cu_sec, cd_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
-             dd_sec, T_sec, total);
+             dd_sec, cu_sec, cd_sec, T_sec, total);
     CLOG(DEBUG, "Bucket") << "Apply-rates for " << total << "-entry bucket "
                           << level << "." << bucketName << " au:" << au_sec
                           << " ad:" << ad_sec << " tu:" << tu_sec
                           << " td:" << td_sec << " ou:" << ou_sec
                           << " od:" << od_sec << " du:" << du_sec
-                          << " dd:" << dd_sec << " T:" << T_sec;
+                          << " dd:" << dd_sec << " cu:" << cu_sec
+                          << " cd:" << cd_sec << " T:" << T_sec;
 }
 
 void
@@ -187,6 +196,9 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
         case DATA:
             ++mDataUpsert;
             break;
+        case CLAIMABLE_BALANCE:
+            ++mClaimableBalanceUpsert;
+            break;
         }
     }
     else
@@ -204,6 +216,9 @@ BucketApplicator::Counters::mark(BucketEntry const& e)
             break;
         case DATA:
             ++mDataDelete;
+            break;
+        case CLAIMABLE_BALANCE:
+            ++mClaimableBalanceDelete;
             break;
         }
     }
