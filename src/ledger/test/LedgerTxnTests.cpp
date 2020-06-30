@@ -84,6 +84,12 @@ generateLedgerEntryWithSameKey(LedgerEntry const& leBase)
             le.data.trustLine().accountID = leBase.data.trustLine().accountID;
             le.data.trustLine().asset = leBase.data.trustLine().asset;
             break;
+        case CLAIMABLE_BALANCE:
+            le.data.claimableBalance() =
+                LedgerTestUtils::generateValidClaimableBalanceEntry();
+            le.data.claimableBalance().balanceID =
+                leBase.data.claimableBalance().balanceID;
+            break;
         default:
             REQUIRE(false);
         }
