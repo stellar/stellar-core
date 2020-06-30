@@ -282,6 +282,8 @@ Database::applySchemaUpgrade(unsigned long vers)
             // and writes those tables.
             addTextColumn("offers", "extension");
             addTextColumn("accountdata", "extension");
+
+            mApp.getLedgerTxnRoot().dropClaimableBalances();
         }
         break;
     default:

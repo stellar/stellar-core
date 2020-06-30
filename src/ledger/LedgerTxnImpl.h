@@ -694,6 +694,8 @@ class LedgerTxnRoot::Impl
                                                       int64_t minBalance) const;
     std::shared_ptr<LedgerEntry const>
     loadTrustLine(LedgerKey const& key) const;
+    std::shared_ptr<LedgerEntry const>
+    loadClaimableBalance(LedgerKey const& key) const;
 
     void bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
                    size_t bufferThreshold, LedgerTxnConsistency cons);
@@ -709,6 +711,9 @@ class LedgerTxnRoot::Impl
     void bulkUpsertAccountData(std::vector<EntryIterator> const& entries);
     void bulkDeleteAccountData(std::vector<EntryIterator> const& entries,
                                LedgerTxnConsistency cons);
+    void bulkUpsertClaimableBalance(std::vector<EntryIterator> const& entries);
+    void bulkDeleteClaimableBalance(std::vector<EntryIterator> const& entries,
+                                    LedgerTxnConsistency cons);
 
     static std::string tableFromLedgerEntryType(LedgerEntryType let);
 
@@ -742,6 +747,8 @@ class LedgerTxnRoot::Impl
     bulkLoadOffers(std::unordered_set<LedgerKey> const& keys) const;
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadData(std::unordered_set<LedgerKey> const& keys) const;
+    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadClaimableBalance(std::unordered_set<LedgerKey> const& keys) const;
 
   public:
     // Constructor has the strong exception safety guarantee
@@ -770,6 +777,7 @@ class LedgerTxnRoot::Impl
     void dropData();
     void dropOffers();
     void dropTrustLines();
+    void dropClaimableBalances();
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     void resetForFuzzer();
