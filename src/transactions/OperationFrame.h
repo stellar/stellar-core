@@ -54,7 +54,7 @@ class OperationFrame
   public:
     static std::shared_ptr<OperationFrame>
     makeHelper(Operation const& op, OperationResult& res,
-               TransactionFrame& parentTx);
+               TransactionFrame& parentTx, uint32_t index);
 
     OperationFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);

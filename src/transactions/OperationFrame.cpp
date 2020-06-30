@@ -6,7 +6,9 @@
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
+#include "transactions/ClaimClaimableBalanceOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
+#include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
@@ -47,7 +49,7 @@ getNeededThreshold(LedgerTxnEntry const& account, ThresholdLevel const level)
 
 shared_ptr<OperationFrame>
 OperationFrame::makeHelper(Operation const& op, OperationResult& res,
-                           TransactionFrame& tx)
+                           TransactionFrame& tx, uint32_t index)
 {
     switch (op.body.type())
     {
@@ -79,6 +81,11 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ManageBuyOfferOpFrame>(op, res, tx);
     case PATH_PAYMENT_STRICT_SEND:
         return std::make_shared<PathPaymentStrictSendOpFrame>(op, res, tx);
+    case CREATE_CLAIMABLE_BALANCE:
+        return std::make_shared<CreateClaimableBalanceOpFrame>(op, res, tx,
+                                                               index);
+    case CLAIM_CLAIMABLE_BALANCE:
+        return std::make_shared<ClaimClaimableBalanceOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
