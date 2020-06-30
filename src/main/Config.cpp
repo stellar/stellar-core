@@ -25,7 +25,7 @@
 
 namespace stellar
 {
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 13;
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 14;
 const uint32 Config::MAXIMUM_QUORUM_NESTING_LEVEL = 4;
 
 // Options that must only be used for testing
