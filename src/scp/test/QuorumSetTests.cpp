@@ -6,6 +6,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
+#include "main/Config.h"
 #include "scp/QuorumSetUtils.h"
 #include "xdr/Stellar-SCP.h"
 #include <algorithm>
@@ -172,32 +173,40 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, true, qSelfSet);
     }
 
-    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 , { t: 1, v4, { t: "
-            "1, v5 }} } } "
-            "} } -> too deep")
+    auto testNestingLevel = [&makeSingleton, &keys, &check](int nestingLevel,
+                                                            bool expected) {
+        std::vector<SCPQuorumSet> qSets;
+        for (int i = 0; i <= nestingLevel; i++)
+        {
+            qSets.push_back(makeSingleton(keys[i]));
+        }
+        for (int i = nestingLevel - 1; i >= 0; i--)
+        {
+            qSets[i].innerSets.push_back(qSets[i + 1]);
+        }
+
+        auto qSelfSet = qSets[0];
+        auto qSetB = &qSelfSet;
+        for (int i = 0; i < nestingLevel - 1; i++)
+        {
+            qSetB = &qSetB->innerSets.back();
+        }
+        qSetB->validators.emplace_back(keys[nestingLevel]);
+        qSetB->innerSets.clear();
+
+        check(qSets[0], expected, qSelfSet);
+    };
+
+    SECTION("{ t: 1, v0, { t: 1, v1, { .. t: 1, "
+            "v_{MAXIMUM_QUORUM_NESTING_LEVEL + 1} }..} -> too deep")
     {
-        auto qSet = makeSingleton(keys[0]);
-        auto qSet1 = makeSingleton(keys[1]);
-        auto qSet2 = makeSingleton(keys[2]);
-        auto qSet3 = makeSingleton(keys[3]);
-        auto qSet4 = makeSingleton(keys[4]);
-        auto qSet5 = makeSingleton(keys[5]);
-        qSet4.innerSets.push_back(qSet5);
-        qSet3.innerSets.push_back(qSet4);
-        qSet2.innerSets.push_back(qSet3);
-        qSet1.innerSets.push_back(qSet2);
-        qSet.innerSets.push_back(qSet1);
+        testNestingLevel(Config::MAXIMUM_QUORUM_NESTING_LEVEL + 1, false);
+    }
 
-        // normalized: v5 gets moved next to v4
-        auto qSelfSet = qSet;
-        auto& qSet4b = qSelfSet.innerSets.back()
-                           .innerSets.back()
-                           .innerSets.back()
-                           .innerSets.back();
-        qSet4b.validators.emplace_back(keys[5]);
-        qSet4b.innerSets.clear();
-
-        check(qSet, false, qSelfSet);
+    SECTION("{ t: 1, v0, { t: 1, v1, { .. t: 1, v_MAXIMUM_QUORUM_NESTING_LEVEL "
+            "}..} ")
+    {
+        testNestingLevel(Config::MAXIMUM_QUORUM_NESTING_LEVEL, true);
     }
 
     SECTION("{ t: 1, v0..v999 } -> { t: 1, v0..v999 }")
