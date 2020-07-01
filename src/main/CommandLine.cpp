@@ -233,6 +233,13 @@ historyLedgerNumber(uint32_t& ledgerNum)
         "specify a ledger number to examine in history");
 }
 
+clara::Opt
+historyHashParser(std::string& hash)
+{
+    return clara::Opt(hash, "HISTORY_HASH")["--history-hash"](
+        "specify a hash to trust for the provided ledger");
+}
+
 clara::Parser
 configurationParser(CommandLine::ConfigOption& configOption)
 {
@@ -505,6 +512,7 @@ runCatchup(CommandLineArgs const& args)
     std::string catchupString;
     std::string outputFile;
     std::string archive;
+    std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
     bool replayInMemory = false;
     std::string stream;
@@ -538,6 +546,11 @@ runCatchup(CommandLineArgs const& args)
     auto catchupStringParser = ParserWithValidation{
         clara::Arg(catchupString, "DESTINATION-LEDGER/LEDGER-COUNT").required(),
         validateCatchupString};
+    auto trustedCheckpointHashesParser = [](std::string& file) {
+        return clara::Opt{file, "FILE-NAME"}["--trusted-checkpoint-hashes"](
+            "get destination ledger hash from trusted output of "
+            "'verify-checkpoints'");
+    };
     auto catchupArchiveParser = ParserWithValidation{
         historyArchiveParser(archive), validateCatchupArchive};
     auto disableBucketGC = false;
@@ -555,8 +568,9 @@ runCatchup(CommandLineArgs const& args)
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
-         catchupArchiveParser, outputFileParser(outputFile),
-         disableBucketGCParser(disableBucketGC),
+         catchupArchiveParser,
+         trustedCheckpointHashesParser(trustedCheckpointHashesFile),
+         outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
          replayInMemoryParser(replayInMemory),
          metadataOutputStreamParser(stream)},
@@ -601,10 +615,35 @@ runCatchup(CommandLineArgs const& args)
                     archivePtr = ham.selectRandomReadableHistoryArchive();
                 }
 
+                CatchupConfiguration cc =
+                    parseCatchup(catchupString, completeValidation);
+                if (!trustedCheckpointHashesFile.empty())
+                {
+                    auto const& hm = app->getHistoryManager();
+                    if (!hm.isLastLedgerInCheckpoint(cc.toLedger()))
+                    {
+                        throw std::runtime_error(
+                            "destination ledger is not a checkpoint boundary,"
+                            " but trusted checkpoints file was provided");
+                    }
+                    Hash h = WriteVerifiedCheckpointHashesWork::
+                        loadHashFromJsonOutput(cc.toLedger(),
+                                               trustedCheckpointHashesFile);
+                    if (isZero(h))
+                    {
+                        throw std::runtime_error("destination ledger not found "
+                                                 "in trusted checkpoints file");
+                    }
+                    LedgerNumHashPair pair;
+                    pair.first = cc.toLedger();
+                    pair.second = make_optional<Hash>(h);
+                    LOG(INFO) << "Found trusted hash " << hexAbbrev(h)
+                              << " for ledger " << cc.toLedger();
+                    cc = CatchupConfiguration(pair, cc.count(), cc.mode());
+                }
+
                 Json::Value catchupInfo;
-                result = catchup(
-                    app, parseCatchup(catchupString, completeValidation),
-                    catchupInfo, archivePtr);
+                result = catchup(app, cc, catchupInfo, archivePtr);
                 if (!catchupInfo.isNull())
                 {
                     writeCatchupInfo(catchupInfo, outputFile);
