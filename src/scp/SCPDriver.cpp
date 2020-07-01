@@ -80,13 +80,13 @@ static const uint32 hash_K = 3;
 
 static uint64
 hashHelper(uint64 slotIndex, Value const& prev,
-           std::function<void(SHA256*)> extra)
+           std::function<void(SHA256&)> extra)
 {
-    auto h = SHA256::create();
-    h->add(xdr::xdr_to_opaque(slotIndex));
-    h->add(xdr::xdr_to_opaque(prev));
-    extra(h.get());
-    uint256 t = h->finish();
+    SHA256 h;
+    h.add(xdr::xdr_to_opaque(slotIndex));
+    h.add(xdr::xdr_to_opaque(prev));
+    extra(h);
+    uint256 t = h.finish();
     uint64 res = 0;
     for (size_t i = 0; i < sizeof(res); i++)
     {
@@ -99,10 +99,10 @@ uint64
 SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
                            int32_t roundNumber, NodeID const& nodeID)
 {
-    return hashHelper(slotIndex, prev, [&](SHA256* h) {
-        h->add(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
-        h->add(xdr::xdr_to_opaque(roundNumber));
-        h->add(xdr::xdr_to_opaque(nodeID));
+    return hashHelper(slotIndex, prev, [&](SHA256& h) {
+        h.add(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
+        h.add(xdr::xdr_to_opaque(roundNumber));
+        h.add(xdr::xdr_to_opaque(nodeID));
     });
 }
 
@@ -110,10 +110,10 @@ uint64
 SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
                             int32_t roundNumber, Value const& value)
 {
-    return hashHelper(slotIndex, prev, [&](SHA256* h) {
-        h->add(xdr::xdr_to_opaque(hash_K));
-        h->add(xdr::xdr_to_opaque(roundNumber));
-        h->add(xdr::xdr_to_opaque(value));
+    return hashHelper(slotIndex, prev, [&](SHA256& h) {
+        h.add(xdr::xdr_to_opaque(hash_K));
+        h.add(xdr::xdr_to_opaque(roundNumber));
+        h.add(xdr::xdr_to_opaque(value));
     });
 }
 

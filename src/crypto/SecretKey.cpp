@@ -35,7 +35,6 @@ namespace stellar
 
 static std::mutex gVerifySigCacheMutex;
 static RandomEvictionCache<Hash, bool> gVerifySigCache(0xffff);
-static std::unique_ptr<SHA256> gHasher = SHA256::create();
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
 
@@ -45,11 +44,11 @@ verifySigCacheKey(PublicKey const& key, Signature const& signature,
 {
     assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
 
-    gHasher->reset();
-    gHasher->add(key.ed25519());
-    gHasher->add(signature);
-    gHasher->add(bin);
-    return gHasher->finish();
+    SHA256 hasher;
+    hasher.add(key.ed25519());
+    hasher.add(signature);
+    hasher.add(bin);
+    return hasher.finish();
 }
 
 SecretKey::SecretKey() : mKeyType(PUBLIC_KEY_TYPE_ED25519)

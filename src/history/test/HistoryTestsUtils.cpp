@@ -148,12 +148,12 @@ BucketOutputIteratorForTesting::writeTmpTestBucket()
 
     // Finish writing and close the bucket file
     REQUIRE(mBuf);
-    mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+    mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
     mObjectsPut++;
     mBuf.reset();
     mOut.close();
 
-    return std::pair<std::string, uint256>(mFilename, mHasher->finish());
+    return std::pair<std::string, uint256>(mFilename, mHasher.finish());
 };
 
 TestBucketGenerator::TestBucketGenerator(

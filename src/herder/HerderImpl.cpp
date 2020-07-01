@@ -1207,21 +1207,21 @@ static Hash
 getQmapHash(QuorumTracker::QuorumMap const& qmap)
 {
     ZoneScoped;
-    std::unique_ptr<SHA256> hasher = SHA256::create();
+    SHA256 hasher;
     std::map<NodeID, SCPQuorumSetPtr> ordered_map(qmap.begin(), qmap.end());
     for (auto const& pair : ordered_map)
     {
-        hasher->add(xdr::xdr_to_opaque(pair.first));
+        hasher.add(xdr::xdr_to_opaque(pair.first));
         if (pair.second)
         {
-            hasher->add(xdr::xdr_to_opaque(*pair.second));
+            hasher.add(xdr::xdr_to_opaque(*pair.second));
         }
         else
         {
-            hasher->add("\0");
+            hasher.add("\0");
         }
     }
-    return hasher->finish();
+    return hasher.finish();
 }
 
 void

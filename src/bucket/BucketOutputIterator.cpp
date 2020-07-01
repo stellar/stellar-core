@@ -42,7 +42,6 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
     : mFilename(randomBucketName(tmpDir))
     , mOut(ctx, doFsync)
     , mBuf(nullptr)
-    , mHasher(SHA256::create())
     , mKeepDeadEntries(keepDeadEntries)
     , mMeta(meta)
     , mMergeCounters(mc)
@@ -96,7 +95,7 @@ BucketOutputIterator::put(BucketEntry const& e)
         if (mCmp(*mBuf, e))
         {
             ++mMergeCounters.mOutputIteratorActualWrites;
-            mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+            mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
             mObjectsPut++;
         }
     }
@@ -117,7 +116,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
     ZoneScoped;
     if (mBuf)
     {
-        mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+        mOut.writeOne(*mBuf, &mHasher, &mBytesPut);
         mObjectsPut++;
         mBuf.reset();
     }
@@ -135,7 +134,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
         }
         return std::make_shared<Bucket>();
     }
-    return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),
+    return bucketManager.adoptFileAsBucket(mFilename, mHasher.finish(),
                                            mObjectsPut, mBytesPut, mergeKey);
 }
 }

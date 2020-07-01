@@ -79,7 +79,7 @@ VerifyBucketWork::spawnVerifier()
         std::static_pointer_cast<VerifyBucketWork>(shared_from_this()));
     app.postOnBackgroundThread(
         [&app, filename, weak, hash]() {
-            auto hasher = SHA256::create();
+            SHA256 hasher;
             asio::error_code ec;
             {
                 ZoneNamedN(verifyZone, "bucket verify", true);
@@ -93,9 +93,9 @@ VerifyBucketWork::spawnVerifier()
                 while (in)
                 {
                     in.read(buf, sizeof(buf));
-                    hasher->add(ByteSlice(buf, in.gcount()));
+                    hasher.add(ByteSlice(buf, in.gcount()));
                 }
-                uint256 vHash = hasher->finish();
+                uint256 vHash = hasher.finish();
                 if (vHash == hash)
                 {
                     CLOG(DEBUG, "History")

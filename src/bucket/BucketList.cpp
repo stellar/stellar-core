@@ -30,10 +30,10 @@ BucketLevel::BucketLevel(uint32_t i)
 uint256
 BucketLevel::getHash() const
 {
-    auto hsh = SHA256::create();
-    hsh->add(mCurr->getHash());
-    hsh->add(mSnap->getHash());
-    return hsh->finish();
+    SHA256 hsh;
+    hsh.add(mCurr->getHash());
+    hsh.add(mSnap->getHash());
+    return hsh.finish();
 }
 
 FutureBucket const&
@@ -367,12 +367,12 @@ uint256
 BucketList::getHash() const
 {
     ZoneScoped;
-    auto hsh = SHA256::create();
+    SHA256 hsh;
     for (auto const& lev : mLevels)
     {
-        hsh->add(lev.getHash());
+        hsh.add(lev.getHash());
     }
-    return hsh->finish();
+    return hsh.finish();
 }
 
 // levelShouldSpill is the set of boundaries at which each level should spill,

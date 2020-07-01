@@ -96,9 +96,9 @@ TEST_CASE("Stateful SHA256 tests", "[crypto]")
     for (auto const& pair : sha256TestVectors)
     {
         LOG(DEBUG) << "fixed test vector SHA256: \"" << pair.second << "\"";
-        auto h = SHA256::create();
-        h->add(pair.first);
-        auto hash = binToHex(h->finish());
+        SHA256 h;
+        h.add(pair.first);
+        auto hash = binToHex(h.finish());
         CHECK(hash.size() == pair.second.size());
         CHECK(hash == pair.second);
     }

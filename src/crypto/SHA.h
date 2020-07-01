@@ -6,6 +6,7 @@
 
 #include "crypto/ByteSlice.h"
 #include "crypto/XDRHasher.h"
+#include "sodium/crypto_hash_sha256.h"
 #include "xdr/Stellar-types.h"
 #include <memory>
 
@@ -18,25 +19,24 @@ uint256 sha256(ByteSlice const& bin);
 // SHA256 in incremental mode, for large inputs.
 class SHA256
 {
+    crypto_hash_sha256_state mState;
+    bool mFinished{false};
+
   public:
-    static std::unique_ptr<SHA256> create();
-    virtual ~SHA256(){};
-    virtual void reset() = 0;
-    virtual void add(ByteSlice const& bin) = 0;
-    virtual uint256 finish() = 0;
+    SHA256();
+    void reset();
+    void add(ByteSlice const& bin);
+    uint256 finish();
 };
 
 // Helper for xdrSha256 below.
 struct XDRSHA256 : XDRHasher<XDRSHA256>
 {
-    std::unique_ptr<SHA256> state;
-    XDRSHA256() : state(SHA256::create())
-    {
-    }
+    SHA256 state;
     void
     hashBytes(unsigned char const* bytes, size_t size)
     {
-        state->add(ByteSlice(bytes, size));
+        state.add(ByteSlice(bytes, size));
     }
 };
 
@@ -53,7 +53,7 @@ xdrSha256(T const& t)
     XDRSHA256 xs;
     xdr::archive(xs, t);
     xs.flush();
-    return xs.state->finish();
+    return xs.state.finish();
 }
 
 // HMAC-SHA256 (keyed)

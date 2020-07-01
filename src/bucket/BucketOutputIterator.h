@@ -27,7 +27,7 @@ class BucketOutputIterator
     XDROutputFileStream mOut;
     BucketEntryIdCmp mCmp;
     std::unique_ptr<BucketEntry> mBuf;
-    std::unique_ptr<SHA256> mHasher;
+    SHA256 mHasher;
     size_t mBytesPut{0};
     size_t mObjectsPut{0};
     bool mKeepDeadEntries{true};

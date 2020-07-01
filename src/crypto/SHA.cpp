@@ -25,31 +25,13 @@ sha256(ByteSlice const& bin)
     return out;
 }
 
-class SHA256Impl : public SHA256, NonCopyable
-{
-    crypto_hash_sha256_state mState;
-    bool mFinished;
-
-  public:
-    SHA256Impl();
-    void reset() override;
-    void add(ByteSlice const& bin) override;
-    uint256 finish() override;
-};
-
-std::unique_ptr<SHA256>
-SHA256::create()
-{
-    return std::make_unique<SHA256Impl>();
-}
-
-SHA256Impl::SHA256Impl() : mFinished(false)
+SHA256::SHA256()
 {
     reset();
 }
 
 void
-SHA256Impl::reset()
+SHA256::reset()
 {
     if (crypto_hash_sha256_init(&mState) != 0)
     {
@@ -59,7 +41,7 @@ SHA256Impl::reset()
 }
 
 void
-SHA256Impl::add(ByteSlice const& bin)
+SHA256::add(ByteSlice const& bin)
 {
     ZoneScoped;
     if (mFinished)
@@ -73,7 +55,7 @@ SHA256Impl::add(ByteSlice const& bin)
 }
 
 uint256
-SHA256Impl::finish()
+SHA256::finish()
 {
     uint256 out;
     assert(out.size() == crypto_hash_sha256_BYTES);
