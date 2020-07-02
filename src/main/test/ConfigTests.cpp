@@ -397,3 +397,44 @@ TEST_CASE("load example configs", "[config]")
         }
     }
 }
+
+TEST_CASE("nesting level", "[config]")
+{
+    auto makePublicKey = [](int i) {
+        auto hash = sha256(std::string{"NODE_SEED_"} + std::to_string(i));
+        auto secretKey = SecretKey::fromSeed(hash);
+        return secretKey.getStrKeyPublic();
+    };
+    std::string configNesting = "UNSAFE_QUORUM=true";
+    std::string quorumSetNumber = "";
+    std::string quorumSetTemplate = R"(
+
+[QUORUM_SET{}]
+THRESHOLD_PERCENT=50
+VALIDATORS=[
+    "{} {}",
+    "{} {}"
+]
+)";
+    for (int nestingLevel = 0; nestingLevel < 10; nestingLevel++)
+    {
+        configNesting += fmt::format(
+            quorumSetTemplate, quorumSetNumber, makePublicKey(nestingLevel * 2),
+            char('A' + nestingLevel * 2), makePublicKey(nestingLevel * 2 + 1),
+            char('A' + nestingLevel * 2 + 1));
+        SECTION(std::string{"nesting level = "} + std::to_string(nestingLevel))
+        {
+            Config c;
+            std::stringstream ss(configNesting);
+            if (nestingLevel <= Config::MAXIMUM_QUORUM_NESTING_LEVEL)
+            {
+                REQUIRE_NOTHROW(c.load(ss));
+            }
+            else
+            {
+                REQUIRE_THROWS(c.load(ss));
+            }
+        }
+        quorumSetNumber += ".1";
+    }
+}

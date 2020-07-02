@@ -4,6 +4,7 @@
 
 #include "QuorumSetUtils.h"
 
+#include "main/Config.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
@@ -46,7 +47,7 @@ QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
 bool
 QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
 {
-    if (depth > 4)
+    if (depth > Config::MAXIMUM_QUORUM_NESTING_LEVEL)
         return false;
 
     if (qSet.threshold < 1)
