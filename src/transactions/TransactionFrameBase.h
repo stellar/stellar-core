@@ -28,8 +28,8 @@ class TransactionFrameBase
     virtual bool apply(Application& app, AbstractLedgerTxn& ltx,
                        TransactionMeta& meta) = 0;
 
-    virtual bool checkValid(AbstractLedgerTxn& ltxOuter,
-                            SequenceNumber current) = 0;
+    virtual bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+                            uint64_t upperBoundCloseTimeOffset) = 0;
 
     virtual TransactionEnvelope const& getEnvelope() const = 0;
 

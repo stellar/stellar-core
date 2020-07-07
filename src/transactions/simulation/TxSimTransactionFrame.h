@@ -18,7 +18,8 @@ class TxSimTransactionFrame : public TransactionFrame
 
   protected:
     bool isTooEarly(LedgerTxnHeader const& header) const override;
-    bool isTooLate(LedgerTxnHeader const& header) const override;
+    bool isTooLate(LedgerTxnHeader const& header,
+                   uint64_t upperBoundCloseTimeOffset) const override;
 
     std::shared_ptr<OperationFrame> makeOperation(Operation const& op,
                                                   OperationResult& res,

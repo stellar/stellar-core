@@ -306,21 +306,27 @@ TransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
 }
 
 bool
-TransactionFrame::isTooLate(LedgerTxnHeader const& header) const
+TransactionFrame::isTooLate(LedgerTxnHeader const& header,
+                            uint64_t upperBoundCloseTimeOffset) const
 {
     auto const& tb = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
                          ? mEnvelope.v0().tx.timeBounds
                          : mEnvelope.v1().tx.timeBounds;
     if (tb)
     {
+        // Prior to consensus, we can pass in an upper bound estimate on when we
+        // expect the ledger to close so we don't accept transactions that will
+        // expire by the time they are applied
         uint64 closeTime = header.current().scpValue.closeTime;
-        return tb->maxTime && (tb->maxTime < closeTime);
+        return tb->maxTime &&
+               (tb->maxTime < (closeTime + upperBoundCloseTimeOffset));
     }
     return false;
 }
 
 bool
-TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee)
+TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
+                                       uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     // this function does validations that are independent of the account state
@@ -346,7 +352,7 @@ TransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee)
         getResult().result.code(txTOO_EARLY);
         return false;
     }
-    if (isTooLate(header))
+    if (isTooLate(header, upperBoundCloseTimeOffset))
     {
         getResult().result.code(txTOO_LATE);
         return false;
@@ -453,13 +459,14 @@ TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               AbstractLedgerTxn& ltxOuter,
                               SequenceNumber current, bool applying,
-                              bool chargeFee)
+                              bool chargeFee,
+                              uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     LedgerTxn ltx(ltxOuter);
     ValidationType res = ValidationType::kInvalid;
 
-    if (!commonValidPreSeqNum(ltx, chargeFee))
+    if (!commonValidPreSeqNum(ltx, chargeFee, upperBoundCloseTimeOffset))
     {
         return res;
     }
@@ -604,7 +611,8 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
 
 bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
-                             SequenceNumber current, bool chargeFee)
+                             SequenceNumber current, bool chargeFee,
+                             uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     mCachedAccount.reset();
@@ -616,8 +624,9 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
                                       getSignatures(mEnvelope)};
-    bool res = commonValid(signatureChecker, ltx, current, false, chargeFee) ==
-               ValidationType::kMaybeValid;
+    bool res =
+        commonValid(signatureChecker, ltx, current, false, chargeFee,
+                    upperBoundCloseTimeOffset) == ValidationType::kMaybeValid;
     if (res)
     {
         for (auto& op : mOperations)
@@ -643,9 +652,10 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 
 bool
 TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
-                             SequenceNumber current)
+                             SequenceNumber current,
+                             uint64_t upperBoundCloseTimeOffset)
 {
-    return checkValid(ltxOuter, current, true);
+    return checkValid(ltxOuter, current, true, upperBoundCloseTimeOffset);
 }
 
 void
@@ -804,7 +814,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
         // when applying, a failure during tx validation means that
         // we'll skip trying to apply operations but we'll still
         // process the sequence number if needed
-        auto cv = commonValid(signatureChecker, ltxTx, 0, true, chargeFee);
+        auto cv = commonValid(signatureChecker, ltxTx, 0, true, chargeFee, 0);
         if (cv >= ValidationType::kInvalidUpdateSeqNum)
         {
             processSeqNum(ltxTx);

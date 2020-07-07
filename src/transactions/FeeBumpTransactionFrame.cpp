@@ -143,7 +143,8 @@ FeeBumpTransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 
 bool
 FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
-                                    SequenceNumber current)
+                                    SequenceNumber current,
+                                    uint64_t upperBoundCloseTimeOffset)
 {
     LedgerTxn ltx(ltxOuter);
     auto minBaseFee = ltx.loadHeader().current().baseFee;
@@ -163,7 +164,8 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
         return false;
     }
 
-    bool res = mInnerTx->checkValid(ltx, current, false);
+    bool res =
+        mInnerTx->checkValid(ltx, current, false, upperBoundCloseTimeOffset);
     updateResult(getResult(), mInnerTx);
     return res;
 }

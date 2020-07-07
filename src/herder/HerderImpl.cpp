@@ -844,12 +844,13 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // during last few ledger closes
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     auto proposedSet = mTransactionQueue.toTxSet(lcl);
-    auto removed = proposedSet->trimInvalid(mApp);
+
+    auto removed = proposedSet->trimInvalid(mApp, 0);
     mTransactionQueue.ban(removed);
 
     proposedSet->surgePricingFilter(mApp);
 
-    if (!proposedSet->checkValid(mApp))
+    if (!proposedSet->checkValid(mApp, 0))
     {
         throw std::runtime_error("wanting to emit an invalid txSet");
     }
@@ -1523,7 +1524,8 @@ HerderImpl::updateTransactionQueue(
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
     lhhe.hash = HashUtils::random();
     auto txSet = mTransactionQueue.toTxSet(lhhe);
-    auto removed = txSet->trimInvalid(mApp);
+
+    auto removed = txSet->trimInvalid(mApp, 0);
     mTransactionQueue.ban(removed);
 
     // Rebroadcast transactions, sorted in apply-order to maximize chances of

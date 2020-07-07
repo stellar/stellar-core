@@ -467,7 +467,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             setup();
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                REQUIRE(!tx->checkValid(ltx, 0));
+                                REQUIRE(!tx->checkValid(ltx, 0, 0));
                             }
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -1185,7 +1185,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValid(ltx, 0));
+                    REQUIRE(!tx->checkValid(ltx, 0, 0));
                 }
 
                 applyCheck(tx, *app);
@@ -1209,7 +1209,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(ltx, 0));
+                            REQUIRE(!tx->checkValid(ltx, 0, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -1223,7 +1223,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1240,7 +1240,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1265,7 +1265,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(ltx, 0));
+                            REQUIRE(!tx->checkValid(ltx, 0, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1292,7 +1292,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1318,7 +1318,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1408,7 +1408,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     setup();
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(ltx, 0));
+                        REQUIRE(!txFrame->checkValid(ltx, 0, 0));
                     }
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1481,7 +1481,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     setSeqNum(txFrame, txFrame->getSeqNum() - 1);
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(ltx, 0));
+                        REQUIRE(!txFrame->checkValid(ltx, 0, 0));
                     }
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);

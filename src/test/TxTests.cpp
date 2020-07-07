@@ -121,7 +121,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     AccountEntry srcAccountBefore;
     {
         LedgerTxn ltxFeeProc(ltx);
-        check = tx->checkValid(ltxFeeProc, 0);
+        check = tx->checkValid(ltxFeeProc, 0, 0);
         checkResult = tx->getResult();
         REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
@@ -306,7 +306,7 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
     auto shouldValidateOk = validationResult.code == txSUCCESS;
     {
         LedgerTxn ltx(app.getLedgerTxnRoot());
-        REQUIRE(tx->checkValid(ltx, 0) == shouldValidateOk);
+        REQUIRE(tx->checkValid(ltx, 0, 0) == shouldValidateOk);
     }
     REQUIRE(tx->getResult().result.code() == validationResult.code);
     REQUIRE(tx->getResult().feeCharged == validationResult.fee);
@@ -346,7 +346,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     }
 
     txSet->sortForHash();
-    REQUIRE(txSet->checkValid(app));
+    REQUIRE(txSet->checkValid(app, 0));
 
     StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
                     emptyUpgradeSteps, STELLAR_VALUE_BASIC);

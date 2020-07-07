@@ -52,7 +52,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     bool checkOrTrim(Application& app,
                      std::vector<TransactionFrameBasePtr>& trimmed,
-                     bool justCheck);
+                     bool justCheck, uint64_t upperBoundCloseTimeOffset);
 
     std::unordered_map<AccountID, AccountTransactionQueue>
     buildAccountTxQueues();
@@ -80,11 +80,12 @@ class TxSetFrame : public AbstractTxSetFrameForApply
 
     std::vector<TransactionFrameBasePtr> sortForApply() override;
 
-    bool checkValid(Application& app);
+    bool checkValid(Application& app, uint64_t upperBoundCloseTimeOffset);
 
     // remove invalid transaction from this set and return those removed
     // transactions
-    std::vector<TransactionFrameBasePtr> trimInvalid(Application& app);
+    std::vector<TransactionFrameBasePtr>
+    trimInvalid(Application& app, uint64_t upperBoundCloseTimeOffset);
     void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFrameBasePtr tx);

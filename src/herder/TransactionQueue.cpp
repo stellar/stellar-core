@@ -188,7 +188,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     }
 
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    if (!tx->checkValid(ltx, seqNum))
+    if (!tx->checkValid(ltx, seqNum, 0))
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
