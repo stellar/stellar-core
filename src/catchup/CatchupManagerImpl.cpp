@@ -69,9 +69,9 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
     uint32_t lastReceivedLedgerSeq = ledgerData.getLedgerSeq();
 
     // 1. CatchupWork is not running yet
-    // 2. The ledger just received is equal to lcl
-    // then it's possible we're back in sync and we can attempt to apply
-    // mSyncingLedgers
+    // 2. CatchupManager received  ledger that was immediately applied by
+    // LedgerManager: check if we have any sequential ledgers.
+    // If so, attempt to apply mSyncingLedgers and possibly get back in sync
     if (!mCatchupWork && lastReceivedLedgerSeq ==
                              mApp.getLedgerManager().getLastClosedLedgerNum())
     {
@@ -356,7 +356,7 @@ CatchupManagerImpl::tryApplySyncingLedgers()
     auto const& ledgerHeader =
         mApp.getLedgerManager().getLastClosedLedgerHeader();
 
-    // We can apply mutiple ledgers here, which might be slow. This is a rare
+    // We can apply multiple ledgers here, which might be slow. This is a rare
     // occurrence so we should be fine.
     auto it = mSyncingLedgers.cbegin();
     while (it != mSyncingLedgers.cend())

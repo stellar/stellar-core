@@ -261,7 +261,17 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     }
     else
     {
+        // This may trigger getting back in sync (buffered ledgers
+        // application)
         processExternalized(slotIndex, value);
+
+        // Any ledgers processed by Herder must have been buffered in LM.
+        // If LM applied them all, Herder and LM must now be consistent with
+        // each other (i.e., track the same ledger)
+        if (mLedgerManager.isSynced())
+        {
+            maybeTriggerNextLedger(false);
+        }
     }
 }
 
@@ -693,26 +703,15 @@ HerderImpl::getTransactionQueue()
 #endif
 
 void
-HerderImpl::ledgerClosed(bool synchronous)
+HerderImpl::maybeTriggerNextLedger(bool synchronous)
 {
-    // this method is triggered every time the most recent ledger is
-    // externalized it performs some cleanup and also decides if it needs to
-    // schedule triggering the next ledger
-
-    ZoneScoped;
     mTriggerTimer.cancel();
 
-    CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
-
-    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
     uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
-
-    mPendingEnvelopes.slotClosed(lastIndex);
-
-    mApp.getOverlayManager().ledgerClosed(lastIndex);
-
     if (mLedgerManager.isSynced())
     {
+        auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+
         // if we're in sync, we setup mTriggerTimer
         // it may get cancelled if a more recent ledger externalizes
 
@@ -762,6 +761,27 @@ HerderImpl::ledgerClosed(bool synchronous)
         mApp.postOnMainThread(processSCPQueueSomeMore,
                               "processSCPQueueSomeMore");
     }
+}
+
+void
+HerderImpl::ledgerClosed(bool synchronous)
+{
+    // this method is triggered every time the most recent ledger is
+    // externalized it performs some cleanup and also decides if it needs to
+    // schedule triggering the next ledger
+
+    ZoneScoped;
+    mTriggerTimer.cancel();
+
+    CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
+
+    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+
+    mPendingEnvelopes.slotClosed(lastIndex);
+
+    mApp.getOverlayManager().ledgerClosed(lastIndex);
+
+    maybeTriggerNextLedger(synchronous);
 }
 
 bool
