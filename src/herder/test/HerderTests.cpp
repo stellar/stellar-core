@@ -299,7 +299,7 @@ testTxSet(uint32 protocolVersion)
             genTx(1);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
     }
     SECTION("order check")
     {
@@ -307,18 +307,18 @@ testTxSet(uint32 protocolVersion)
 
         SECTION("success")
         {
-            REQUIRE(txSet->checkValid(*app));
+            REQUIRE(txSet->checkValid(*app, 0));
 
-            txSet->trimInvalid(*app);
-            REQUIRE(txSet->checkValid(*app));
+            txSet->trimInvalid(*app, 0);
+            REQUIRE(txSet->checkValid(*app, 0));
         }
         SECTION("out of order")
         {
             std::swap(txSet->mTransactions[0], txSet->mTransactions[1]);
-            REQUIRE(!txSet->checkValid(*app));
+            REQUIRE(!txSet->checkValid(*app, 0));
 
-            txSet->trimInvalid(*app);
-            REQUIRE(txSet->checkValid(*app));
+            txSet->trimInvalid(*app, 0);
+            REQUIRE(txSet->checkValid(*app, 0));
         }
     }
     SECTION("invalid tx")
@@ -328,10 +328,10 @@ testTxSet(uint32 protocolVersion)
             auto newUser = TestAccount{*app, getAccount("doesnotexist")};
             txSet->add(newUser.tx({payment(root, 1)}));
             txSet->sortForHash();
-            REQUIRE(!txSet->checkValid(*app));
+            REQUIRE(!txSet->checkValid(*app, 0));
 
-            txSet->trimInvalid(*app);
-            REQUIRE(txSet->checkValid(*app));
+            txSet->trimInvalid(*app, 0);
+            REQUIRE(txSet->checkValid(*app, 0));
         }
         SECTION("sequence gap")
         {
@@ -341,19 +341,19 @@ testTxSet(uint32 protocolVersion)
                 setSeqNum(tx, tx->getSeqNum() + 5);
                 txSet->add(tx);
                 txSet->sortForHash();
-                REQUIRE(!txSet->checkValid(*app));
+                REQUIRE(!txSet->checkValid(*app, 0));
 
-                txSet->trimInvalid(*app);
-                REQUIRE(txSet->checkValid(*app));
+                txSet->trimInvalid(*app, 0);
+                REQUIRE(txSet->checkValid(*app, 0));
             }
             SECTION("gap begin")
             {
                 txSet->removeTx(txSet->sortForApply()[0]);
                 txSet->sortForHash();
-                REQUIRE(!txSet->checkValid(*app));
+                REQUIRE(!txSet->checkValid(*app, 0));
 
-                auto removed = txSet->trimInvalid(*app);
-                REQUIRE(txSet->checkValid(*app));
+                auto removed = txSet->trimInvalid(*app, 0);
+                REQUIRE(txSet->checkValid(*app, 0));
                 // one of the account lost all its transactions
                 REQUIRE(removed.size() == (nbTransactions - 1));
                 REQUIRE(txSet->mTransactions.size() == nbTransactions);
@@ -365,10 +365,10 @@ testTxSet(uint32 protocolVersion)
                 txSet->mTransactions.erase(txSet->mTransactions.begin() +
                                            (remIdx * 2));
                 txSet->sortForHash();
-                REQUIRE(!txSet->checkValid(*app));
+                REQUIRE(!txSet->checkValid(*app, 0));
 
-                auto removed = txSet->trimInvalid(*app);
-                REQUIRE(txSet->checkValid(*app));
+                auto removed = txSet->trimInvalid(*app, 0);
+                REQUIRE(txSet->checkValid(*app, 0));
                 // one account has all its transactions,
                 // other, we removed all its tx
                 REQUIRE(removed.size() == (nbTransactions - 1));
@@ -380,10 +380,10 @@ testTxSet(uint32 protocolVersion)
             // extra transaction would push the account below the reserve
             txSet->add(accounts[0].tx({payment(accounts[0], 10)}));
             txSet->sortForHash();
-            REQUIRE(!txSet->checkValid(*app));
+            REQUIRE(!txSet->checkValid(*app, 0));
 
-            auto removed = txSet->trimInvalid(*app);
-            REQUIRE(txSet->checkValid(*app));
+            auto removed = txSet->trimInvalid(*app, 0);
+            REQUIRE(txSet->checkValid(*app, 0));
             REQUIRE(removed.size() == (nbTransactions + 1));
             REQUIRE(txSet->mTransactions.size() == nbTransactions);
         }
@@ -397,7 +397,7 @@ testTxSet(uint32 protocolVersion)
             tb.maxTime = UINT64_MAX;
             tx->clearCached();
             txSet->sortForHash();
-            REQUIRE(!txSet->checkValid(*app));
+            REQUIRE(!txSet->checkValid(*app, 0));
         }
     }
 }
@@ -452,9 +452,9 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
     auto checkTrimCheck = [&](std::vector<TransactionFrameBasePtr> const& txs) {
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app));
-        REQUIRE(txSet->trimInvalid(*app) == txs);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(txSet->trimInvalid(*app, 0) == txs);
+        REQUIRE(txSet->checkValid(*app, 0));
     };
 
     SECTION("insufficient balance")
@@ -704,7 +704,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         REQUIRE(txSet->size(lhCopy) == lim);
         REQUIRE(extraAccounts >= 2);
         txSet->sortForHash();
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
 
         // fetch balances
         auto getBalances = [&]() {
@@ -856,6 +856,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         LedgerTxn ltx(app->getLedgerTxnRoot());
         lhCopy = ltx.loadHeader().current();
     }
+
     // set up world
     auto root = TestAccount::createRoot(*app);
 
@@ -877,7 +878,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     };
 
     auto surgePricing = [&]() {
-        txSet->trimInvalid(*app);
+        txSet->trimInvalid(*app, 0);
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
     };
@@ -887,10 +888,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto refSeqNum = root.getLastSequenceNumber();
         addRootTxs();
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
         for (auto& tx : txs)
@@ -912,10 +913,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             txSet->add(tx);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
         for (auto& tx : txs)
@@ -941,10 +942,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             txSet->add(tx);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
         for (auto& tx : txs)
@@ -974,10 +975,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             txSet->add(tx);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == expectedReduced);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
         int nbAccountB = 0;
@@ -1009,7 +1010,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         txSet->sortForHash();
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
     }
 }
 
@@ -1048,18 +1049,18 @@ TEST_CASE("surge pricing", "[herder][txset]")
         txSet->sortForHash();
 
         // txSet contains a valid transaction
-        auto inv = txSet->trimInvalid(*app);
+        auto inv = txSet->trimInvalid(*app, 0);
         REQUIRE(inv.empty());
 
         REQUIRE(txSet->sizeOp() == 1);
         // txSet is itself invalid as it's over the limit
-        REQUIRE(!txSet->checkValid(*app));
+        REQUIRE(!txSet->checkValid(*app, 0));
         txSet->surgePricingFilter(*app);
 
         REQUIRE(txSet->sizeOp() == 0);
         txSet->surgePricingFilter(*app);
         REQUIRE(txSet->sizeOp() == 0);
-        REQUIRE(txSet->checkValid(*app));
+        REQUIRE(txSet->checkValid(*app, 0));
     }
 }
 
@@ -1135,7 +1136,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto result = std::make_shared<TxSetFrame>(hash);
         addTransactions(result, n, nbOps, feeMulti);
         result->sortForHash();
-        REQUIRE(result->checkValid(*app));
+        REQUIRE(result->checkValid(*app, 0));
         return result;
     };
 
@@ -2097,7 +2098,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     REQUIRE(txSet->mTransactions.size() == 1);
     REQUIRE(txSet->mTransactions.front()->getContentsHash() ==
             tx1a->getContentsHash());
-    REQUIRE(txSet->checkValid(*app));
+    REQUIRE(txSet->checkValid(*app, 0));
 }
 
 TEST_CASE("do not flood too many transactions", "[herder]")

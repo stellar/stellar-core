@@ -822,6 +822,20 @@ trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header)
     return trustLineFlagIsValid(flag, header.current().ledgerVersion);
 }
 
+uint64_t
+getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
+{
+    uint64_t currentTime = VirtualClock::to_time_t(app.getClock().system_now());
+
+    // account for the time between closeTime and now
+    uint64_t closeTimeDrift =
+        currentTime <= lastCloseTime ? 0 : currentTime - lastCloseTime;
+
+    return app.getConfig().getExpectedLedgerCloseTime().count() *
+               EXPECTED_CLOSE_TIME_MULT +
+           closeTimeDrift;
+}
+
 namespace detail
 {
 struct MuxChecker

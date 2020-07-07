@@ -65,7 +65,8 @@ TxSimTransactionFrame::isTooEarly(LedgerTxnHeader const& header) const
 }
 
 bool
-TxSimTransactionFrame::isTooLate(LedgerTxnHeader const& header) const
+TxSimTransactionFrame::isTooLate(LedgerTxnHeader const& header,
+                                 uint64_t upperBoundCloseTimeOffset) const
 {
     return mSimulationResult.result.code() == txTOO_LATE;
 }

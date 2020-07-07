@@ -284,7 +284,7 @@ TxSetFrame::surgePricingFilter(Application& app)
 bool
 TxSetFrame::checkOrTrim(Application& app,
                         std::vector<TransactionFrameBasePtr>& trimmed,
-                        bool justCheck)
+                        bool justCheck, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -298,7 +298,7 @@ TxSetFrame::checkOrTrim(Application& app,
         while (iter != kv.second.end())
         {
             auto tx = *iter;
-            if (!tx->checkValid(ltx, lastSeq))
+            if (!tx->checkValid(ltx, lastSeq, upperBoundCloseTimeOffset))
             {
                 if (justCheck)
                 {
@@ -367,12 +367,12 @@ TxSetFrame::checkOrTrim(Application& app,
 }
 
 std::vector<TransactionFrameBasePtr>
-TxSetFrame::trimInvalid(Application& app)
+TxSetFrame::trimInvalid(Application& app, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     std::vector<TransactionFrameBasePtr> trimmed;
     sortForHash();
-    checkOrTrim(app, trimmed, false);
+    checkOrTrim(app, trimmed, false, upperBoundCloseTimeOffset);
     return trimmed;
 }
 
@@ -380,7 +380,7 @@ TxSetFrame::trimInvalid(Application& app)
 // the fees of all the tx it has submitted in this set
 // check seq num
 bool
-TxSetFrame::checkValid(Application& app)
+TxSetFrame::checkValid(Application& app, uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
@@ -420,7 +420,7 @@ TxSetFrame::checkValid(Application& app)
     }
 
     std::vector<TransactionFrameBasePtr> trimmed;
-    bool valid = checkOrTrim(app, trimmed, true);
+    bool valid = checkOrTrim(app, trimmed, true, upperBoundCloseTimeOffset);
     mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, valid);
     return valid;
 }

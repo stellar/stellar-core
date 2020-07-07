@@ -62,8 +62,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     bool apply(Application& app, AbstractLedgerTxn& ltx,
                TransactionMeta& meta) override;
 
-    bool checkValid(AbstractLedgerTxn& ltxOuter,
-                    SequenceNumber current) override;
+    bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+                    uint64_t upperBoundCloseTimeOffset) override;
 
     TransactionEnvelope const& getEnvelope() const override;
 

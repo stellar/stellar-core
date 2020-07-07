@@ -351,7 +351,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
 
         res = SCPDriver::kInvalidValue;
     }
-    else if (!txSet->checkValid(mApp))
+    else if (!txSet->checkValid(mApp, 0))
     {
         if (Logging::logDebug("Herder"))
             CLOG(DEBUG, "Herder")
@@ -721,7 +721,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
     }
 
     // just to be sure
-    auto removed = bestTxSet->trimInvalid(mApp);
+    auto removed = bestTxSet->trimInvalid(mApp, 0);
     comp.txSetHash = bestTxSet->getContentsHash();
 
     if (removed.size() != 0)

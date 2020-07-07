@@ -187,8 +187,12 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
     }
 
+    auto closeTime = mApp.getLedgerManager()
+                         .getLastClosedLedgerHeader()
+                         .header.scpValue.closeTime;
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    if (!tx->checkValid(ltx, seqNum))
+    if (!tx->checkValid(ltx, seqNum,
+                        getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
     }
