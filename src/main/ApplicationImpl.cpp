@@ -133,7 +133,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::initialize(bool createNewDB)
 {
-    mDatabase = std::make_unique<Database>(*this);
+    mDatabase = createDatabase();
     mPersistentState = std::make_unique<PersistentState>(*this);
     mOverlayManager = createOverlayManager();
     mLedgerManager = createLedgerManager();
@@ -893,6 +893,12 @@ std::unique_ptr<LedgerManager>
 ApplicationImpl::createLedgerManager()
 {
     return LedgerManager::create(*this);
+}
+
+std::unique_ptr<Database>
+ApplicationImpl::createDatabase()
+{
+    return std::make_unique<Database>(*this);
 }
 
 AbstractLedgerTxnParent&

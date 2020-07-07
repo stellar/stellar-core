@@ -9,10 +9,13 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
+#include "util/Decoder.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/types.h"
+#include <error.h>
+#include <fmt/format.h>
 
 #include "bucket/BucketManager.h"
 #include "herder/HerderPersistence.h"
@@ -30,8 +33,10 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "xdr/Stellar-ledger-entries.h"
 
 #include <lib/soci/src/backends/sqlite3/soci-sqlite3.h>
+#include <string>
 #ifdef USE_POSTGRES
 #include <lib/soci/src/backends/postgresql/soci-postgresql.h>
 #endif
@@ -57,7 +62,7 @@ bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
 static unsigned long const MIN_SCHEMA_VERSION = 9;
-static unsigned long const SCHEMA_VERSION = 12;
+static unsigned long const SCHEMA_VERSION = 13;
 
 // These should always match our compiled version precisely, since we are
 // using a bundled version to get access to carray(). But in case someone
@@ -252,6 +257,33 @@ Database::applySchemaUpgrade(unsigned long vers)
         // the accountbalances index around.
         mSession << "DROP INDEX IF EXISTS accountbalances";
         break;
+    case 13:
+        if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
+        {
+            // Add columns for the LedgerEntry extension to each of
+            // the tables that stores a type of ledger entry.
+            addTextColumn("accounts", "ledgerext");
+            addTextColumn("trustlines", "ledgerext");
+            addTextColumn("accountdata", "ledgerext");
+            addTextColumn("offers", "ledgerext");
+            // Absorb the explicit columns of the extension fields of
+            // AccountEntry and TrustLineEntry into single opaque
+            // blobs of XDR each of which represents an entire extension.
+            convertAccountExtensionsToOpaqueXDR();
+            convertTrustLineExtensionsToOpaqueXDR();
+            // Neither earlier schema versions nor the one that we're upgrading
+            // to now had any extension columns in the offers or accountdata
+            // tables, but we add columns in this version, even though we're not
+            // going to use them for anything other than writing out opaque
+            // base64-encoded empty v0 XDR extensions, so that, as with the
+            // other LedgerEntry extensions, we'll be able to add such
+            // extensions in the future without bumping the database schema
+            // version, writing any upgrade code, or changing the SQL that reads
+            // and writes those tables.
+            addTextColumn("offers", "extension");
+            addTextColumn("accountdata", "extension");
+        }
+        break;
     default:
         throw std::runtime_error("Unknown DB schema version");
     }
@@ -277,6 +309,7 @@ Database::upgradeToCurrentSchema()
                          std::to_string(SCHEMA_VERSION));
         throw std::runtime_error(s);
     }
+    actBeforeDBSchemaUpgrade();
     while (vers < SCHEMA_VERSION)
     {
         ++vers;
@@ -287,6 +320,189 @@ Database::upgradeToCurrentSchema()
     }
     CLOG(INFO, "Database") << "DB schema is in current version";
     assert(vers == SCHEMA_VERSION);
+}
+
+void
+Database::addTextColumn(std::string const& table, std::string const& column)
+{
+    std::string addColumnStr("ALTER TABLE " + table + " ADD " + column +
+                             " TEXT;");
+    CLOG(INFO, "Database") << "Adding column '"
+                           << "' to table '" << table << "'";
+    mSession << addColumnStr;
+}
+
+void
+Database::dropNullableColumn(std::string const& table,
+                             std::string const& column)
+{
+    // SQLite doesn't give us a way of dropping a column with a single
+    // SQL command.  If we need it in production, we could re-create the
+    // table without the column and drop the old one.  Since we currently
+    // use SQLite only for testing and PostgreSQL in production, we simply
+    // leave the unused columm around in SQLite at the moment, and NULL
+    // out all of the cells in that column.
+    if (!isSqlite())
+    {
+        std::string dropColumnStr("ALTER TABLE " + table + " DROP COLUMN " +
+                                  column);
+        CLOG(INFO, "Database") << "Dropping column '" << column
+                               << "' from table '" << table << "'";
+
+        mSession << dropColumnStr;
+    }
+    else
+    {
+        std::string nullColumnStr("UPDATE " + table + " SET " + column +
+                                  " = NULL");
+        CLOG(INFO, "Database") << "Setting all cells of column '" << column
+                               << "' in table '" << table << "' to NULL";
+
+        mSession << nullColumnStr;
+    }
+}
+
+std::string
+Database::getOldLiabilitySelect(std::string const& table,
+                                std::string const& fields)
+{
+    return fmt::format("SELECT {}, "
+                       "buyingliabilities, sellingliabilities FROM {} WHERE "
+                       "buyingliabilities IS NOT NULL OR "
+                       "sellingliabilities IS NOT NULL",
+                       fields, table);
+}
+
+void
+Database::convertAccountExtensionsToOpaqueXDR()
+{
+    addTextColumn("accounts", "extension");
+    copyIndividualAccountExtensionFieldsToOpaqueXDR();
+    dropNullableColumn("accounts", "buyingliabilities");
+    dropNullableColumn("accounts", "sellingliabilities");
+}
+
+void
+Database::convertTrustLineExtensionsToOpaqueXDR()
+{
+    addTextColumn("trustlines", "extension");
+    copyIndividualTrustLineExtensionFieldsToOpaqueXDR();
+    dropNullableColumn("trustlines", "buyingliabilities");
+    dropNullableColumn("trustlines", "sellingliabilities");
+}
+
+void
+Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
+{
+    std::string const tableStr = "accounts";
+
+    CLOG(INFO, "Database") << "Updating extension schema for " << tableStr;
+
+    // <accountID, extension>
+    struct Fields
+    {
+        std::string mAccountID;
+        std::string mExtension;
+    };
+
+    std::string const fieldsStr = "accountid";
+    std::string const selectStr = getOldLiabilitySelect(tableStr, fieldsStr);
+    auto makeFields = [](soci::row const& row) {
+        AccountEntry::_ext_t extension;
+        // getOldLiabilitySelect() places the buying and selling extension
+        // column names after the key field in the SQL select string.
+        extension.v(1);
+        extension.v1().liabilities.buying = row.get<long long>(1);
+        extension.v1().liabilities.selling = row.get<long long>(2);
+        return Fields{.mAccountID = row.get<std::string>(0),
+                      .mExtension =
+                          decoder::encode_b64(xdr::xdr_to_opaque(extension))};
+    };
+
+    std::string const updateStr =
+        "UPDATE accounts SET extension = :ext WHERE accountID = :id";
+    auto prepUpdate = [](soci::statement& st_update, Fields const& data) {
+        st_update.exchange(soci::use(data.mExtension)),
+            st_update.exchange(soci::use(data.mAccountID));
+    };
+
+    auto postUpdate = [](long long const affected_rows, Fields const& data) {
+        if (affected_rows != 1)
+        {
+            throw std::runtime_error(fmt::format(
+                "{}: updating account with account ID {} affected {} row(s) ",
+                __func__, data.mAccountID, affected_rows));
+        }
+    };
+
+    size_t numUpdated = selectUpdateMap<Fields>(
+        *this, selectStr, makeFields, updateStr, prepUpdate, postUpdate);
+
+    CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
+                           << " records(s) with liabilities in " << tableStr
+                           << " table";
+}
+
+void
+Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
+{
+    std::string const tableStr = "trustlines";
+
+    CLOG(INFO, "Database") << __func__ << ": updating extension schema for "
+                           << tableStr;
+
+    // <accountID, issuer_id, asset_id, extension>
+    struct Fields
+    {
+        std::string mAccountID;
+        std::string mIssuerID;
+        std::string mAssetID;
+        std::string mExtension;
+    };
+
+    std::string const fieldsStr = "accountid, issuer, assetcode";
+    std::string const selectStr = getOldLiabilitySelect(tableStr, fieldsStr);
+    auto makeFields = [](soci::row const& row) {
+        TrustLineEntry::_ext_t extension;
+        // getOldLiabilitySelect() places the buying and selling extension
+        // column names after the three key fields in the SQL select string.
+        extension.v(1);
+        extension.v1().liabilities.buying = row.get<long long>(3);
+        extension.v1().liabilities.selling = row.get<long long>(4);
+        return Fields{.mAccountID = row.get<std::string>(0),
+                      .mIssuerID = row.get<std::string>(1),
+                      .mAssetID = row.get<std::string>(2),
+                      .mExtension =
+                          decoder::encode_b64(xdr::xdr_to_opaque(extension))};
+    };
+
+    std::string const updateStr =
+        "UPDATE trustlines SET extension = :ext WHERE accountID = :id "
+        "AND issuer = :issuer_id AND assetcode = :asset_id";
+    auto prepUpdate = [](soci::statement& st_update, Fields const& data) {
+        st_update.exchange(soci::use(data.mExtension));
+        st_update.exchange(soci::use(data.mAccountID));
+        st_update.exchange(soci::use(data.mIssuerID));
+        st_update.exchange(soci::use(data.mAssetID));
+    };
+
+    auto postUpdate = [](long long const affected_rows, Fields const& data) {
+        if (affected_rows != 1)
+        {
+            throw std::runtime_error(fmt::format(
+                "{}: updating trustline with account ID {}, issuer {}, and "
+                "asset {} affected {} row(s)",
+                __func__, data.mAccountID, data.mIssuerID, data.mAssetID,
+                affected_rows));
+        }
+    };
+
+    size_t numUpdated = selectUpdateMap<Fields>(
+        *this, selectStr, makeFields, updateStr, prepUpdate, postUpdate);
+
+    CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
+                           << " records(s) with liabilities in " << tableStr
+                           << " table";
 }
 
 void
