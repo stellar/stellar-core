@@ -257,6 +257,32 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
     }
 }
 
+TEST_CASE("verify-hit benchmarking", "[crypto-bench][bench][!hide]")
+{
+    size_t k = 10;
+    size_t n = 100000;
+    std::vector<SignVerifyTestcase> cases;
+    for (size_t i = 0; i < k; ++i)
+    {
+        cases.push_back(SignVerifyTestcase::create());
+    }
+
+    for (auto& c : cases)
+    {
+        c.sign();
+    }
+
+    LOG(INFO) << "Benchmarking " << n << " verify-hits on " << k
+              << " signatures";
+    for (size_t i = 0; i < n; ++i)
+    {
+        for (auto& c : cases)
+        {
+            c.verify();
+        }
+    }
+}
+
 TEST_CASE("StrKey tests", "[crypto]")
 {
     std::regex b32("^([A-Z2-7])+$");
