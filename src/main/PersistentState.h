@@ -19,7 +19,6 @@ class PersistentState
     {
         kLastClosedLedger = 0,
         kHistoryArchiveState,
-        kForceSCPOnNextLaunch,
         kLastSCPData,
         kDatabaseSchema,
         kNetworkPassphrase,

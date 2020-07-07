@@ -381,16 +381,11 @@ ApplicationImpl::start()
         mHerder->setUpgrades(mConfig);
     }
 
-    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
-        "true")
+    if (mConfig.FORCE_SCP && !mConfig.NODE_IS_VALIDATOR)
     {
-        if (!mConfig.NODE_IS_VALIDATOR)
-        {
-            LOG(ERROR) << "Starting stellar-core in FORCE_SCP mode requires "
-                          "NODE_IS_VALIDATOR to be set";
-            throw std::invalid_argument("NODE_IS_VALIDATOR not set");
-        }
-        mConfig.FORCE_SCP = true;
+        LOG(ERROR) << "Starting stellar-core in FORCE_SCP mode requires "
+                      "NODE_IS_VALIDATOR to be set";
+        throw std::invalid_argument("NODE_IS_VALIDATOR not set");
     }
 
     if (mConfig.METADATA_OUTPUT_STREAM != "" && mConfig.NODE_IS_VALIDATOR)
@@ -452,18 +447,8 @@ ApplicationImpl::start()
             }
             if (mConfig.FORCE_SCP)
             {
-                std::string flagClearedMsg = "";
-                if (mPersistentState->getState(
-                        PersistentState::kForceSCPOnNextLaunch) == "true")
-                {
-                    flagClearedMsg = " (`force scp` flag cleared in the db)";
-                    mPersistentState->setState(
-                        PersistentState::kForceSCPOnNextLaunch, "false");
-                }
-
                 LOG(INFO) << "* ";
-                LOG(INFO) << "* Force-starting scp from the current db state."
-                          << flagClearedMsg;
+                LOG(INFO) << "* Force-starting scp from the current db state.";
                 LOG(INFO) << "* ";
 
                 mHerder->bootstrap();

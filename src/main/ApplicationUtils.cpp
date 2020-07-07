@@ -37,16 +37,6 @@ runWithConfig(Config cfg)
                           "NODE_IS_VALIDATOR to be set";
             return 1;
         }
-
-        // in manual close mode, we set FORCE_SCP
-        // so that the node starts fully in sync
-        // (this is to avoid to force scp all the time when testing)
-        cfg.FORCE_SCP = true;
-    }
-
-    if (cfg.NODE_IS_VALIDATOR && cfg.DATABASE.value == "sqlite3://:memory:")
-    {
-        cfg.FORCE_SCP = true;
     }
 
     LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
@@ -142,33 +132,12 @@ httpCommand(std::string const& command, unsigned short port)
 }
 
 void
-setForceSCPFlag(Config cfg, bool set)
+setForceSCPFlag()
 {
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-
-    app->getPersistentState().setState(PersistentState::kForceSCPOnNextLaunch,
-                                       (set ? "true" : "false"));
-    if (set)
-    {
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* The `force scp` flag has been set in the db.";
-        LOG(INFO) << "* ";
-        LOG(INFO)
-            << "* The next launch will start scp from the account balances";
-        LOG(INFO) << "* as they stand in the db now, without waiting to "
-                     "hear from";
-        LOG(INFO) << "* the network.";
-        LOG(INFO) << "* ";
-    }
-    else
-    {
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* The `force scp` flag has been cleared.";
-        LOG(INFO) << "* The next launch will start normally.";
-        LOG(INFO) << "* ";
-    }
+    LOG(WARNING) << "* ";
+    LOG(WARNING) << "* Nothing to do: `force scp` command has been deprecated";
+    LOG(WARNING) << "* Refer to `--wait-for-consensus` run option instead";
+    LOG(WARNING) << "* ";
 }
 
 void
