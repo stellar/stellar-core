@@ -432,7 +432,17 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
     closeLedgerIf(ledgerData);
 
-    mApp.getCatchupManager().processLedger(ledgerData);
+    auto& cm = mApp.getCatchupManager();
+
+    cm.processLedger(ledgerData);
+
+    // Invariant: if catchup is running or waiting to run, buffered ledgers are
+    // never empty
+    if (!cm.hasBufferedLedger())
+    {
+        setState(LM_SYNCED_STATE);
+    }
+
     FrameMark;
 }
 
@@ -456,11 +466,6 @@ LedgerManagerImpl::closeLedgerIf(LedgerCloseData const& ledgerData)
         closeLedger(ledgerData);
         CLOG(INFO, "Ledger")
             << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
-
-        if (!cm.hasBufferedLedger())
-        {
-            setState(LM_SYNCED_STATE);
-        }
     }
     else if (ledgerData.getLedgerSeq() <= mLastClosedLedger.header.ledgerSeq)
     {
