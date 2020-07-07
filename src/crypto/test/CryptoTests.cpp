@@ -96,9 +96,9 @@ TEST_CASE("Stateful SHA256 tests", "[crypto]")
     for (auto const& pair : sha256TestVectors)
     {
         LOG(DEBUG) << "fixed test vector SHA256: \"" << pair.second << "\"";
-        auto h = SHA256::create();
-        h->add(pair.first);
-        auto hash = binToHex(h->finish());
+        SHA256 h;
+        h.add(pair.first);
+        auto hash = binToHex(h.finish());
         CHECK(hash.size() == pair.second.size());
         CHECK(hash == pair.second);
     }
@@ -249,6 +249,32 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
         }
     }
 
+    {
+        for (auto& c : cases)
+        {
+            c.verify();
+        }
+    }
+}
+
+TEST_CASE("verify-hit benchmarking", "[crypto-bench][bench][!hide]")
+{
+    size_t k = 10;
+    size_t n = 100000;
+    std::vector<SignVerifyTestcase> cases;
+    for (size_t i = 0; i < k; ++i)
+    {
+        cases.push_back(SignVerifyTestcase::create());
+    }
+
+    for (auto& c : cases)
+    {
+        c.sign();
+    }
+
+    LOG(INFO) << "Benchmarking " << n << " verify-hits on " << k
+              << " signatures";
+    for (size_t i = 0; i < n; ++i)
     {
         for (auto& c : cases)
         {

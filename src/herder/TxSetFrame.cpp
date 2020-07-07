@@ -442,13 +442,13 @@ TxSetFrame::getContentsHash()
     if (!mHash)
     {
         sortForHash();
-        auto hasher = SHA256::create();
-        hasher->add(mPreviousLedgerHash);
+        SHA256 hasher;
+        hasher.add(mPreviousLedgerHash);
         for (unsigned int n = 0; n < mTransactions.size(); n++)
         {
-            hasher->add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
+            hasher.add(xdr::xdr_to_opaque(mTransactions[n]->getEnvelope()));
         }
-        mHash = make_optional<Hash>(hasher->finish());
+        mHash = make_optional<Hash>(hasher.finish());
     }
     return *mHash;
 }

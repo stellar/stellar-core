@@ -203,15 +203,15 @@ HistoryArchiveState::getBucketListHash() const
     // relatively-different representations. Everything will explode if there is
     // any difference in these algorithms anyways, so..
 
-    auto totalHash = SHA256::create();
+    SHA256 totalHash;
     for (auto const& level : currentBuckets)
     {
-        auto levelHash = SHA256::create();
-        levelHash->add(hexToBin(level.curr));
-        levelHash->add(hexToBin(level.snap));
-        totalHash->add(levelHash->finish());
+        SHA256 levelHash;
+        levelHash.add(hexToBin(level.curr));
+        levelHash.add(hexToBin(level.snap));
+        totalHash.add(levelHash.finish());
     }
-    return totalHash->finish();
+    return totalHash.finish();
 }
 
 std::vector<std::string>

@@ -29,13 +29,13 @@ TEST_CASE("XDROutputFileStream fail modes", "[xdrstream]")
     }
     SECTION("write throws")
     {
-        auto hasher = SHA256::create();
+        SHA256 hasher;
         size_t bytes = 0;
         auto ledgerEntries = LedgerTestUtils::generateValidLedgerEntries(1);
         auto bucketEntries =
             Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
 
-        REQUIRE_THROWS_AS(out.writeOne(bucketEntries[0], hasher.get(), &bytes),
+        REQUIRE_THROWS_AS(out.writeOne(bucketEntries[0], &hasher, &bytes),
                           std::runtime_error);
     }
     SECTION("close throws")
@@ -49,7 +49,7 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
     VirtualClock clock;
     Config const& cfg = getTestConfig(0);
 
-    auto hasher = SHA256::create();
+    SHA256 hasher;
     auto ledgerEntries = LedgerTestUtils::generateValidLedgerEntries(10000000);
     auto bucketEntries =
         Bucket::convertToBucketEntry(false, {}, ledgerEntries, {});
@@ -70,7 +70,7 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
         auto start = std::chrono::system_clock::now();
         for (auto const& e : bucketEntries)
         {
-            outFsync.writeOne(e, hasher.get(), &bytes);
+            outFsync.writeOne(e, &hasher, &bytes);
         }
         outFsync.close();
         auto stop = std::chrono::system_clock::now();
@@ -83,7 +83,7 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
         start = std::chrono::system_clock::now();
         for (auto const& e : bucketEntries)
         {
-            outNoFsync.writeOne(e, hasher.get(), &bytes);
+            outNoFsync.writeOne(e, &hasher, &bytes);
         }
         outNoFsync.close();
         stop = std::chrono::system_clock::now();
