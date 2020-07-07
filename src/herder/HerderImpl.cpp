@@ -845,12 +845,17 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     auto proposedSet = mTransactionQueue.toTxSet(lcl);
 
-    auto removed = proposedSet->trimInvalid(mApp, 0);
+    auto upperBoundCloseTimeOffset =
+        getUpperBoundCloseTimeOffset(mApp, lcl.header.scpValue.closeTime);
+
+    auto removed = proposedSet->trimInvalid(mApp, upperBoundCloseTimeOffset);
     mTransactionQueue.ban(removed);
 
     proposedSet->surgePricingFilter(mApp);
 
-    if (!proposedSet->checkValid(mApp, 0))
+    // we not only check that the value is valid for consensus (offset=0) but
+    // also that we performed the proper cleanup above
+    if (!proposedSet->checkValid(mApp, upperBoundCloseTimeOffset))
     {
         throw std::runtime_error("wanting to emit an invalid txSet");
     }
@@ -1525,7 +1530,9 @@ HerderImpl::updateTransactionQueue(
     lhhe.hash = HashUtils::random();
     auto txSet = mTransactionQueue.toTxSet(lhhe);
 
-    auto removed = txSet->trimInvalid(mApp, 0);
+    auto removed = txSet->trimInvalid(
+        mApp,
+        getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
     mTransactionQueue.ban(removed);
 
     // Rebroadcast transactions, sorted in apply-order to maximize chances of
