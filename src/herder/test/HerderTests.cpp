@@ -1750,32 +1750,30 @@ TEST_CASE("values externalized out of order", "[herder][quickRestart]")
             ledgers = {first, second, third};
         }
 
-        for (auto ledger : ledgers)
+        for (size_t i = 0; i < ledgers.size(); i++)
         {
-            auto it = validatorSCPMessages.find(ledger);
+            auto it = validatorSCPMessages.find(ledgers[i]);
             auto slot = validatorSCPMessages[it->first];
             REQUIRE(herder.recvSCPEnvelope(slot.first, qset, *(slot.second)) ==
                     Herder::ENVELOPE_STATUS_READY);
             REQUIRE(herder.getCurrentLedgerSeq() ==
                     futureSlot.first.statement.slotIndex);
-            REQUIRE(!lm.isSynced());
+
+            // Catchup was never triggered
+            REQUIRE(!cm.isCatchupInitialized());
+
+            // At the last ledger, LM is back in sync
+            if (i == ledgers.size() - 1)
+            {
+                REQUIRE(lm.isSynced());
+                REQUIRE(!cm.hasBufferedLedger());
+            }
+            else
+            {
+                REQUIRE(!lm.isSynced());
+            }
         }
 
-        REQUIRE(currentListenerLedger() ==
-                futureSlot.first.statement.slotIndex);
-        // Catchup is not running, no more buffered ledgers
-        REQUIRE(!cm.hasBufferedLedger());
-        REQUIRE(!cm.isCatchupInitialized());
-
-        // Close one last ledger, LM must now get back in sync
-        auto newestSlot = validatorSCPMessages[currentListenerLedger() + 1];
-        REQUIRE(herder.recvSCPEnvelope(newestSlot.first, qset,
-                                       *(newestSlot.second)) ==
-                Herder::ENVELOPE_STATUS_READY);
-        REQUIRE(lm.isSynced());
-        REQUIRE(!cm.hasBufferedLedger());
-        REQUIRE(herder.getCurrentLedgerSeq() ==
-                newestSlot.first.statement.slotIndex);
     };
 
     SECTION("in order")
