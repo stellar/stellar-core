@@ -414,9 +414,8 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
         extension.v(1);
         extension.v1().liabilities.buying = row.get<long long>(1);
         extension.v1().liabilities.selling = row.get<long long>(2);
-        return Fields{.mAccountID = row.get<std::string>(0),
-                      .mExtension =
-                          decoder::encode_b64(xdr::xdr_to_opaque(extension))};
+        return Fields{row.get<std::string>(0),
+                      decoder::encode_b64(xdr::xdr_to_opaque(extension))};
     };
 
     std::string const updateStr =
@@ -469,11 +468,9 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
         extension.v(1);
         extension.v1().liabilities.buying = row.get<long long>(3);
         extension.v1().liabilities.selling = row.get<long long>(4);
-        return Fields{.mAccountID = row.get<std::string>(0),
-                      .mIssuerID = row.get<std::string>(1),
-                      .mAssetID = row.get<std::string>(2),
-                      .mExtension =
-                          decoder::encode_b64(xdr::xdr_to_opaque(extension))};
+        return Fields{row.get<std::string>(0), row.get<std::string>(1),
+                      row.get<std::string>(2),
+                      decoder::encode_b64(xdr::xdr_to_opaque(extension))};
     };
 
     std::string const updateStr =

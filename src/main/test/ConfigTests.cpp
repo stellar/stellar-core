@@ -401,7 +401,7 @@ TEST_CASE("load example configs", "[config]")
 TEST_CASE("nesting level", "[config]")
 {
     auto makePublicKey = [](int i) {
-        auto hash = sha256(std::string{"NODE_SEED_"} + std::to_string(i));
+        auto hash = sha256(fmt::format("NODE_SEED_{}", i));
         auto secretKey = SecretKey::fromSeed(hash);
         return secretKey.getStrKeyPublic();
     };
@@ -416,13 +416,13 @@ VALIDATORS=[
     "{} {}"
 ]
 )";
-    for (int nestingLevel = 0; nestingLevel < 10; nestingLevel++)
+    for (uint32 nestingLevel = 0; nestingLevel < 10; nestingLevel++)
     {
         configNesting += fmt::format(
             quorumSetTemplate, quorumSetNumber, makePublicKey(nestingLevel * 2),
             char('A' + nestingLevel * 2), makePublicKey(nestingLevel * 2 + 1),
             char('A' + nestingLevel * 2 + 1));
-        SECTION(std::string{"nesting level = "} + std::to_string(nestingLevel))
+        SECTION(fmt::format("nesting level = {}", nestingLevel))
         {
             Config c;
             std::stringstream ss(configNesting);
