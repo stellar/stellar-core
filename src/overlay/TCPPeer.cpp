@@ -126,7 +126,12 @@ TCPPeer::getIP() const
 
     asio::error_code ec;
     auto ep = mSocket->next_layer().remote_endpoint(ec);
-    if (!ec)
+    if (ec)
+    {
+        CLOG(ERROR, "Overlay")
+            << "Could not determine remote endpoint: " << ec.message();
+    }
+    else
     {
         result = ep.address().to_string();
     }

@@ -1076,6 +1076,13 @@ Peer::recvHello(Hello const& elo)
     mState = GOT_HELLO;
 
     auto ip = getIP();
+    if (ip.empty())
+    {
+        drop("failed to determine remote address",
+             Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        return;
+    }
     mAddress =
         PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
 
