@@ -327,8 +327,8 @@ Database::addTextColumn(std::string const& table, std::string const& column)
 {
     std::string addColumnStr("ALTER TABLE " + table + " ADD " + column +
                              " TEXT;");
-    CLOG(INFO, "Database") << "Adding column '"
-                           << "' to table '" << table << "'";
+    CLOG(INFO, "Database") << "Adding column '" << column << "' to table '"
+                           << table << "'";
     mSession << addColumnStr;
 }
 
