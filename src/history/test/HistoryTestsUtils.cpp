@@ -785,7 +785,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     };
 
     auto lastLedger = lm.getLastClosedLedgerNum();
-    crankUntil(app, catchupIsDone, std::chrono::seconds{30});
+    crankUntil(app, catchupIsDone, std::chrono::seconds{60});
 
     if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
     {
