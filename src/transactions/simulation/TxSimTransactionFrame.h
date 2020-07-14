@@ -17,7 +17,8 @@ class TxSimTransactionFrame : public TransactionFrame
     uint32_t const mCount;
 
   protected:
-    bool isTooEarly(LedgerTxnHeader const& header) const override;
+    bool isTooEarly(LedgerTxnHeader const& header,
+                    uint64_t lowerBoundCloseTimeOffset) const override;
     bool isTooLate(LedgerTxnHeader const& header,
                    uint64_t upperBoundCloseTimeOffset) const override;
 

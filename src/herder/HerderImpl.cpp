@@ -848,17 +848,45 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     auto proposedSet = mTransactionQueue.toTxSet(lcl);
 
-    auto upperBoundCloseTimeOffset =
-        getUpperBoundCloseTimeOffset(mApp, lcl.header.scpValue.closeTime);
+    // We pick as next close time the current time unless it's before the last
+    // close time. We don't know how much time it will take to reach consensus
+    // so this is the most appropriate value to use as closeTime.
+    uint64_t nextCloseTime =
+        VirtualClock::to_time_t(mApp.getClock().system_now());
+    if (nextCloseTime <= lcl.header.scpValue.closeTime)
+    {
+        nextCloseTime = lcl.header.scpValue.closeTime + 1;
+    }
 
-    auto removed = proposedSet->trimInvalid(mApp, upperBoundCloseTimeOffset);
+    // Protocols including the "closetime change" (CAP-0034) externalize
+    // the exact closeTime contained in the StellarValue with the best
+    // transaction set, so we know the exact closeTime against which to
+    // validate here -- 'nextCloseTime'.  (The _offset_, therefore, is
+    // the difference between 'nextCloseTime' and the last ledger close time.)
+    TimePoint upperBoundCloseTimeOffset, lowerBoundCloseTimeOffset;
+    if (getHerderSCPDriver().curProtocolPreservesTxSetCloseTimeAffinity())
+    {
+        upperBoundCloseTimeOffset =
+            nextCloseTime - lcl.header.scpValue.closeTime;
+        lowerBoundCloseTimeOffset = upperBoundCloseTimeOffset;
+    }
+    else
+    {
+        upperBoundCloseTimeOffset =
+            getUpperBoundCloseTimeOffset(mApp, lcl.header.scpValue.closeTime);
+        lowerBoundCloseTimeOffset = 0;
+    }
+
+    auto removed = proposedSet->trimInvalid(mApp, lowerBoundCloseTimeOffset,
+                                            upperBoundCloseTimeOffset);
     mTransactionQueue.ban(removed);
 
     proposedSet->surgePricingFilter(mApp);
 
     // we not only check that the value is valid for consensus (offset=0) but
     // also that we performed the proper cleanup above
-    if (!proposedSet->checkValid(mApp, upperBoundCloseTimeOffset))
+    if (!proposedSet->checkValid(mApp, lowerBoundCloseTimeOffset,
+                                 upperBoundCloseTimeOffset))
     {
         throw std::runtime_error("wanting to emit an invalid txSet");
     }
@@ -879,16 +907,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     if (ledgerSeqToTrigger != slotIndex)
     {
         return;
-    }
-
-    // We pick as next close time the current time unless it's before the last
-    // close time. We don't know how much time it will take to reach consensus
-    // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime =
-        VirtualClock::to_time_t(mApp.getClock().system_now());
-    if (nextCloseTime <= lcl.header.scpValue.closeTime)
-    {
-        nextCloseTime = lcl.header.scpValue.closeTime + 1;
     }
 
     StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
@@ -1530,7 +1548,7 @@ HerderImpl::updateTransactionQueue(
     auto txSet = mTransactionQueue.toTxSet(lhhe);
 
     auto removed = txSet->trimInvalid(
-        mApp,
+        mApp, 0,
         getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
     mTransactionQueue.ban(removed);
 

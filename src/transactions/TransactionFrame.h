@@ -64,11 +64,13 @@ class TransactionFrame : public TransactionFrameBase
         kMaybeValid
     };
 
-    virtual bool isTooEarly(LedgerTxnHeader const& header) const;
+    virtual bool isTooEarly(LedgerTxnHeader const& header,
+                            uint64_t lowerBoundCloseTimeOffset) const;
     virtual bool isTooLate(LedgerTxnHeader const& header,
                            uint64_t upperBoundCloseTimeOffset) const;
 
     bool commonValidPreSeqNum(AbstractLedgerTxn& ltx, bool chargeFee,
+                              uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
 
     virtual bool isBadSeq(int64_t seqNum) const;
@@ -77,6 +79,7 @@ class TransactionFrame : public TransactionFrameBase
                                AbstractLedgerTxn& ltxOuter,
                                SequenceNumber current, bool applying,
                                bool chargeFee,
+                               uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset);
 
     virtual std::shared_ptr<OperationFrame>
@@ -171,8 +174,10 @@ class TransactionFrame : public TransactionFrameBase
                                  AccountID const& accountID);
 
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
-                    bool chargeFee, uint64_t upperBoundCloseTimeOffset);
+                    bool chargeFee, uint64_t lowerBoundCloseTimeOffset,
+                    uint64_t upperBoundCloseTimeOffset);
     bool checkValid(AbstractLedgerTxn& ltxOuter, SequenceNumber current,
+                    uint64_t lowerBoundCloseTimeOffset,
                     uint64_t upperBoundCloseTimeOffset) override;
 
     void insertKeysForFeeProcessing(

@@ -467,7 +467,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             setup();
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                                REQUIRE(!tx->checkValid(ltx, 0, 0));
+                                REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
                             }
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -597,7 +597,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         closeLedgerOn(*app, 2, 1, 1, 2016);
 
                         auto runTest = [&](bool txAccountMissing) {
-
                             // Create merge tx
                             auto txMerge = b1.tx({accountMerge(a1)});
 
@@ -1185,7 +1184,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                    REQUIRE(!tx->checkValid(ltx, 0, 0));
+                    REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
                 }
 
                 applyCheck(tx, *app);
@@ -1209,7 +1208,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(ltx, 0, 0));
+                            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -1223,7 +1222,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1240,7 +1239,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                         }
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -1265,7 +1264,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(!tx->checkValid(ltx, 0, 0));
+                            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1292,7 +1291,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1318,7 +1317,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         {
                             LedgerTxn ltx(app->getLedgerTxnRoot());
-                            REQUIRE(tx->checkValid(ltx, 0, 0));
+                            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
                         }
 
                         applyCheck(tx, *app);
@@ -1411,7 +1410,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     setup();
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(ltx, 0, 0));
+                        REQUIRE(!txFrame->checkValid(ltx, 0, 0, 0));
                     }
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1473,6 +1472,74 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                     }
 
+                    SECTION("lower bound offset")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+
+                        setMaxTime(txFrame, 0);
+
+                        closeLedgerOn(*app, 3, 1, 1, 2020);
+
+                        auto const lastClose = app->getLedgerManager()
+                                                   .getLastClosedLedgerHeader()
+                                                   .header.scpValue.closeTime;
+                        TimePoint const nextOffset = 2;
+                        auto const nextClose = lastClose + nextOffset;
+
+                        auto testOneMinTimeLowerBoundCombination =
+                            [&](TimePoint const minTime,
+                                TimePoint const lowerBound,
+                                bool const expectSuccess) {
+                                setMinTime(txFrame, minTime);
+                                {
+                                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                                    REQUIRE(txFrame->checkValid(
+                                                ltx, 0, lowerBound, 0) ==
+                                            expectSuccess);
+                                }
+                                REQUIRE(
+                                    txFrame->getResultCode() ==
+                                    (expectSuccess ? txSUCCESS : txTOO_EARLY));
+                            };
+
+                        SECTION("too early despite offset")
+                        {
+                            testOneMinTimeLowerBoundCombination(
+                                nextClose + 1, nextOffset, false);
+                        }
+
+                        SECTION("definitely too early without offset")
+                        {
+                            testOneMinTimeLowerBoundCombination(nextClose + 1,
+                                                                0, false);
+                        }
+
+                        SECTION("not too early because of offset")
+                        {
+                            testOneMinTimeLowerBoundCombination(
+                                nextClose, nextOffset, true);
+                        }
+
+                        SECTION("would have been too early without offset")
+                        {
+                            testOneMinTimeLowerBoundCombination(nextClose, 0,
+                                                                false);
+                        }
+
+                        SECTION("not too early even without offset")
+                        {
+                            testOneMinTimeLowerBoundCombination(lastClose, 0,
+                                                                true);
+                        }
+
+                        SECTION("definitely not too early with offset")
+                        {
+                            testOneMinTimeLowerBoundCombination(
+                                lastClose, nextOffset, true);
+                        }
+                    }
+
                     SECTION("upper bound offset")
                     {
                         txFrame = root.tx(
@@ -1505,7 +1572,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 {
                                     LedgerTxn ltx(app->getLedgerTxnRoot());
                                     REQUIRE(
-                                        txFrame->checkValid(ltx, 0, offset));
+                                        txFrame->checkValid(ltx, 0, 0, offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
@@ -1517,8 +1584,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                                 {
                                     LedgerTxn ltx(app->getLedgerTxnRoot());
-                                    REQUIRE(
-                                        !txFrame->checkValid(ltx, 0, offset));
+                                    REQUIRE(!txFrame->checkValid(ltx, 0, 0,
+                                                                 offset));
                                 }
 
                                 REQUIRE(txFrame->getResultCode() == txTOO_LATE);
@@ -1546,7 +1613,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     setSeqNum(txFrame, txFrame->getSeqNum() - 1);
                     {
                         LedgerTxn ltx(app->getLedgerTxnRoot());
-                        REQUIRE(!txFrame->checkValid(ltx, 0, 0));
+                        REQUIRE(!txFrame->checkValid(ltx, 0, 0, 0));
                     }
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);

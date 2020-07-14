@@ -156,6 +156,14 @@ class HerderSCPDriver : public SCPDriver
     // clean up older slots
     void purgeSlots(uint64_t maxSlotIndex);
 
+    // Does the nomination protocol output a BASIC or a SIGNED
+    // StellarValue?
+    virtual StellarValueType compositeValueType() const;
+
+    // Does the current protocol version contain the CAP-0034 closeTime
+    // semantics change?
+    bool curProtocolPreservesTxSetCloseTimeAffinity() const;
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
@@ -163,6 +171,8 @@ class HerderSCPDriver : public SCPDriver
     Upgrades const& mUpgrades;
     PendingEnvelopes& mPendingEnvelopes;
     SCP mSCP;
+
+    static uint32_t const FIRST_PROTOCOL_WITH_TXSET_CLOSETIME_AFFINITY;
 
     struct SCPMetrics
     {

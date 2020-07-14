@@ -2439,8 +2439,6 @@ TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
     auto recvQuorumChecksEx =
         std::bind(recvQuorumChecksEx2, _1, _2, _3, _4, false);
     auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
-    auto recvQuorumEx = std::bind(recvQuorumChecksEx, _1, true, false, _2);
-    auto recvQuorum = std::bind(recvQuorumEx, _1, false);
 
     // no timer is set
     REQUIRE(!scp.hasBallotTimer());

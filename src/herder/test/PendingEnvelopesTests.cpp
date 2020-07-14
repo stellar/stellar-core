@@ -11,6 +11,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 
 using namespace stellar;
@@ -35,16 +36,21 @@ TEST_CASE("PendingEnvelopes recvSCPEnvelope", "[herder]")
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
     using TxPair = std::pair<Value, TxSetFramePtr>;
-    auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
+    auto makeTxPair = [&](TxSetFramePtr txSet, uint64_t closeTime) {
         txSet->sortForHash();
         auto sv = StellarValue{txSet->getContentsHash(), closeTime,
                                emptyUpgradeSteps, STELLAR_VALUE_BASIC};
+        if (herder.getHerderSCPDriver().compositeValueType() ==
+            STELLAR_VALUE_SIGNED)
+        {
+            herder.signStellarValue(s, sv);
+        }
         auto v = xdr::xdr_to_opaque(sv);
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [&s, &herder](TxPair const& p, Hash qSetHash,
-                                      uint64_t slotIndex) {
+    auto makeEnvelope = [&](TxPair const& p, Hash qSetHash,
+                            uint64_t slotIndex) {
         // herder must want the TxSet before receiving it, so we are sending it
         // fake envelope
         auto envelope = SCPEnvelope{};

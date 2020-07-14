@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderImpl.h"
+#include "herder/LedgerCloseData.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "scp/SCP.h"
@@ -29,6 +30,7 @@
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 
+#include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
 #include <fmt/format.h>
@@ -299,7 +301,7 @@ testTxSet(uint32 protocolVersion)
             genTx(1);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
     }
     SECTION("order check")
     {
@@ -307,18 +309,18 @@ testTxSet(uint32 protocolVersion)
 
         SECTION("success")
         {
-            REQUIRE(txSet->checkValid(*app, 0));
+            REQUIRE(txSet->checkValid(*app, 0, 0));
 
-            txSet->trimInvalid(*app, 0);
-            REQUIRE(txSet->checkValid(*app, 0));
+            txSet->trimInvalid(*app, 0, 0);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
         SECTION("out of order")
         {
             std::swap(txSet->mTransactions[0], txSet->mTransactions[1]);
-            REQUIRE(!txSet->checkValid(*app, 0));
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
 
-            txSet->trimInvalid(*app, 0);
-            REQUIRE(txSet->checkValid(*app, 0));
+            txSet->trimInvalid(*app, 0, 0);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
     }
     SECTION("invalid tx")
@@ -328,10 +330,10 @@ testTxSet(uint32 protocolVersion)
             auto newUser = TestAccount{*app, getAccount("doesnotexist")};
             txSet->add(newUser.tx({payment(root, 1)}));
             txSet->sortForHash();
-            REQUIRE(!txSet->checkValid(*app, 0));
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
 
-            txSet->trimInvalid(*app, 0);
-            REQUIRE(txSet->checkValid(*app, 0));
+            txSet->trimInvalid(*app, 0, 0);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
         }
         SECTION("sequence gap")
         {
@@ -341,19 +343,19 @@ testTxSet(uint32 protocolVersion)
                 setSeqNum(tx, tx->getSeqNum() + 5);
                 txSet->add(tx);
                 txSet->sortForHash();
-                REQUIRE(!txSet->checkValid(*app, 0));
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
 
-                txSet->trimInvalid(*app, 0);
-                REQUIRE(txSet->checkValid(*app, 0));
+                txSet->trimInvalid(*app, 0, 0);
+                REQUIRE(txSet->checkValid(*app, 0, 0));
             }
             SECTION("gap begin")
             {
                 txSet->removeTx(txSet->sortForApply()[0]);
                 txSet->sortForHash();
-                REQUIRE(!txSet->checkValid(*app, 0));
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
 
-                auto removed = txSet->trimInvalid(*app, 0);
-                REQUIRE(txSet->checkValid(*app, 0));
+                auto removed = txSet->trimInvalid(*app, 0, 0);
+                REQUIRE(txSet->checkValid(*app, 0, 0));
                 // one of the account lost all its transactions
                 REQUIRE(removed.size() == (nbTransactions - 1));
                 REQUIRE(txSet->mTransactions.size() == nbTransactions);
@@ -365,10 +367,10 @@ testTxSet(uint32 protocolVersion)
                 txSet->mTransactions.erase(txSet->mTransactions.begin() +
                                            (remIdx * 2));
                 txSet->sortForHash();
-                REQUIRE(!txSet->checkValid(*app, 0));
+                REQUIRE(!txSet->checkValid(*app, 0, 0));
 
-                auto removed = txSet->trimInvalid(*app, 0);
-                REQUIRE(txSet->checkValid(*app, 0));
+                auto removed = txSet->trimInvalid(*app, 0, 0);
+                REQUIRE(txSet->checkValid(*app, 0, 0));
                 // one account has all its transactions,
                 // other, we removed all its tx
                 REQUIRE(removed.size() == (nbTransactions - 1));
@@ -380,10 +382,10 @@ testTxSet(uint32 protocolVersion)
             // extra transaction would push the account below the reserve
             txSet->add(accounts[0].tx({payment(accounts[0], 10)}));
             txSet->sortForHash();
-            REQUIRE(!txSet->checkValid(*app, 0));
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
 
-            auto removed = txSet->trimInvalid(*app, 0);
-            REQUIRE(txSet->checkValid(*app, 0));
+            auto removed = txSet->trimInvalid(*app, 0, 0);
+            REQUIRE(txSet->checkValid(*app, 0, 0));
             REQUIRE(removed.size() == (nbTransactions + 1));
             REQUIRE(txSet->mTransactions.size() == nbTransactions);
         }
@@ -397,7 +399,7 @@ testTxSet(uint32 protocolVersion)
             tb.maxTime = UINT64_MAX;
             tx->clearCached();
             txSet->sortForHash();
-            REQUIRE(!txSet->checkValid(*app, 0));
+            REQUIRE(!txSet->checkValid(*app, 0, 0));
         }
     }
 }
@@ -452,9 +454,9 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
 
     auto checkTrimCheck = [&](std::vector<TransactionFrameBasePtr> const& txs) {
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app, 0));
-        REQUIRE(txSet->trimInvalid(*app, 0) == txs);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
+        REQUIRE(txSet->trimInvalid(*app, 0, 0) == txs);
+        REQUIRE(txSet->checkValid(*app, 0, 0));
     };
 
     SECTION("insufficient balance")
@@ -642,6 +644,10 @@ TEST_CASE("txset", "[herder][txset]")
     {
         testTxSet(10);
     }
+    SECTION("protocol 13")
+    {
+        testTxSet(13);
+    }
     SECTION("protocol current")
     {
         testTxSet(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
@@ -704,7 +710,7 @@ TEST_CASE("txset base fee", "[herder][txset]")
         REQUIRE(txSet->size(lhCopy) == lim);
         REQUIRE(extraAccounts >= 2);
         txSet->sortForHash();
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
 
         // fetch balances
         auto getBalances = [&]() {
@@ -878,7 +884,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
     };
 
     auto surgePricing = [&]() {
-        txSet->trimInvalid(*app, 0);
+        txSet->trimInvalid(*app, 0, 0);
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
     };
@@ -888,10 +894,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         auto refSeqNum = root.getLastSequenceNumber();
         addRootTxs();
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
         for (auto& tx : txs)
@@ -913,10 +919,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             txSet->add(tx);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
         for (auto& tx : txs)
@@ -942,10 +948,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             txSet->add(tx);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
         // check that the expected tx are there
         auto& txs = txSet->mTransactions;
         for (auto& tx : txs)
@@ -975,10 +981,10 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
             txSet->add(tx);
         }
         txSet->sortForHash();
-        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == expectedReduced);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
         // check that the expected tx are there
         auto txs = txSet->sortForApply();
         int nbAccountB = 0;
@@ -1010,7 +1016,7 @@ surgeTest(uint32 protocolVersion, uint32_t nbTxs, uint32_t maxTxSetSize,
         txSet->sortForHash();
         surgePricing();
         REQUIRE(txSet->size(lhCopy) == cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
     }
 }
 
@@ -1049,25 +1055,28 @@ TEST_CASE("surge pricing", "[herder][txset]")
         txSet->sortForHash();
 
         // txSet contains a valid transaction
-        auto inv = txSet->trimInvalid(*app, 0);
+        auto inv = txSet->trimInvalid(*app, 0, 0);
         REQUIRE(inv.empty());
 
         REQUIRE(txSet->sizeOp() == 1);
         // txSet is itself invalid as it's over the limit
-        REQUIRE(!txSet->checkValid(*app, 0));
+        REQUIRE(!txSet->checkValid(*app, 0, 0));
         txSet->surgePricingFilter(*app);
 
         REQUIRE(txSet->sizeOp() == 0);
         txSet->surgePricingFilter(*app);
         REQUIRE(txSet->sizeOp() == 0);
-        REQUIRE(txSet->checkValid(*app, 0));
+        REQUIRE(txSet->checkValid(*app, 0, 0));
     }
 }
 
 static void
 testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
-              bool checkHighFee, bool withSCPsignature)
+              bool checkHighFee, bool withSCPsignature,
+              bool const expectTxSetCloseTimeAffinity)
 {
+    using SVUpgrades = decltype(StellarValue::upgrades);
+
     Config cfg(getTestConfig(0, Config::TESTDB_DEFAULT));
 
     cfg.MANUAL_CLOSE = false;
@@ -1088,17 +1097,23 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
     auto a1 = TestAccount{*app, getAccount("A")};
 
     using TxPair = std::pair<Value, TxSetFramePtr>;
-    auto makeTxPair = [&](HerderImpl& herder, TxSetFramePtr txSet,
-                          uint64_t closeTime, bool sig) {
+    auto makeTxUpgradePair = [&](HerderImpl& herder, TxSetFramePtr txSet,
+                                 uint64_t closeTime, SVUpgrades const& upgrades,
+                                 bool sig) {
         txSet->sortForHash();
-        auto sv = StellarValue(txSet->getContentsHash(), closeTime,
-                               emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+        auto sv = StellarValue(txSet->getContentsHash(), closeTime, upgrades,
+                               STELLAR_VALUE_BASIC);
         if (sig)
         {
             herder.signStellarValue(root.getSecretKey(), sv);
         }
         auto v = xdr::xdr_to_opaque(sv);
         return TxPair{v, txSet};
+    };
+    auto makeTxPair = [&](HerderImpl& herder, TxSetFramePtr txSet,
+                          uint64_t closeTime, bool sig) {
+        return makeTxUpgradePair(herder, txSet, closeTime, emptyUpgradeSteps,
+                                 sig);
     };
     auto makeEnvelope = [&s](HerderImpl& herder, TxPair const& p, Hash qSetHash,
                              uint64_t slotIndex, bool nomination) {
@@ -1136,7 +1151,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto result = std::make_shared<TxSetFrame>(hash);
         addTransactions(result, n, nbOps, feeMulti);
         result->sortForHash();
-        REQUIRE(result->checkValid(*app, 0));
+        REQUIRE(result->checkValid(*app, 0, 0));
         return result;
     };
 
@@ -1156,43 +1171,113 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
             candidates.emplace(v);
         };
 
-        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
-        addToCandidates(makeTxPair(herder, txSet0, 10, withSCPsignature));
-
-        ValueWrapperPtr v;
-        StellarValue sv;
-
-        v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
-        xdr::xdr_from_opaque(v->getValue(), sv);
-        REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
-        REQUIRE(sv.closeTime == 10);
-        REQUIRE(sv.txSetHash == txSet0->getContentsHash());
-
-        TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10, 1, 100);
-
-        addToCandidates(makeTxPair(herder, txSet1, 5, withSCPsignature));
-        v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
-        xdr::xdr_from_opaque(v->getValue(), sv);
-        REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
-        REQUIRE(sv.closeTime == 10);
-        REQUIRE(sv.txSetHash == txSet1->getContentsHash());
-
-        TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5, 3, 100);
-        addToCandidates(makeTxPair(herder, txSet2, 20, withSCPsignature));
-
-        auto biggestTxSet = txSet1;
-        if (biggestTxSet->size(lcl.header) < txSet2->size(lcl.header))
+        struct CandidateSpec
         {
-            biggestTxSet = txSet2;
-        }
+            int const n;
+            int const nbOps;
+            uint32 const feeMulti;
+            TimePoint const closeTime;
+            optional<uint32> const baseFeeIncrement;
+        };
 
-        // picks the biggest set, highest time
-        v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
-        xdr::xdr_from_opaque(v->getValue(), sv);
-        REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
-        REQUIRE(sv.closeTime == 20);
-        REQUIRE(sv.txSetHash == biggestTxSet->getContentsHash());
-        REQUIRE(biggestTxSet->sizeOp() == expectedOps);
+        std::vector<Hash> txSetHashes;
+        std::vector<size_t> txSetSizes;
+        std::vector<size_t> txSetOpSizes;
+        std::vector<TimePoint> closeTimes;
+        std::vector<decltype(lcl.header.baseFee)> baseFees;
+
+        auto addCandidateThenTest = [&](CandidateSpec const& spec) {
+            // Create a transaction set using the given parameters, combine
+            // it with the given closeTime and optionally a given base fee
+            // increment, and make it into a StellarValue to add to the list
+            // of candidates so far.  Keep track of the hashes and sizes and
+            // operation sizes of all the transaction sets, all of the close
+            // times, and all of the base fee upgrades that we've seen, so that
+            // we can compute the expected result of combining all the
+            // candidates so far.  (We're using base fees simply as one example
+            // of a type of upgrade, whose expected result is the maximum of all
+            // candidates'.)
+            TxSetFramePtr txSet =
+                makeTransactions(lcl.hash, spec.n, spec.nbOps, spec.feeMulti);
+            txSetHashes.push_back(txSet->getContentsHash());
+            txSetSizes.push_back(txSet->size(lcl.header));
+            txSetOpSizes.push_back(txSet->sizeOp());
+            closeTimes.push_back(spec.closeTime);
+            if (spec.baseFeeIncrement)
+            {
+                auto const baseFee =
+                    lcl.header.baseFee + *spec.baseFeeIncrement;
+                baseFees.push_back(baseFee);
+                LedgerUpgrade ledgerUpgrade;
+                ledgerUpgrade.type(LEDGER_UPGRADE_BASE_FEE);
+                ledgerUpgrade.newBaseFee() = baseFee;
+                Value upgrade(xdr::xdr_to_opaque(ledgerUpgrade));
+                SVUpgrades upgrades;
+                upgrades.emplace_back(upgrade.begin(), upgrade.end());
+                addToCandidates(makeTxUpgradePair(herder, txSet, spec.closeTime,
+                                                  upgrades, withSCPsignature));
+            }
+            else
+            {
+                addToCandidates(makeTxPair(herder, txSet, spec.closeTime,
+                                           withSCPsignature));
+            }
+
+            // Compute the expected transaction set, close time, and upgrade
+            // vector resulting from combining all the candidates so far.
+            auto const bestTxSetIndex = std::distance(
+                txSetSizes.begin(),
+                std::max_element(txSetSizes.begin(), txSetSizes.end()));
+            REQUIRE(txSetSizes.size() == closeTimes.size());
+            auto const expectedHash = txSetHashes[bestTxSetIndex];
+            auto const expectedCloseTime =
+                expectTxSetCloseTimeAffinity
+                    ? closeTimes[bestTxSetIndex]
+                    : *std::max_element(closeTimes.begin(), closeTimes.end());
+            SVUpgrades expectedUpgradeVector;
+            if (!baseFees.empty())
+            {
+                LedgerUpgrade expectedLedgerUpgrade;
+                expectedLedgerUpgrade.type(LEDGER_UPGRADE_BASE_FEE);
+                expectedLedgerUpgrade.newBaseFee() =
+                    *std::max_element(baseFees.begin(), baseFees.end());
+                Value const expectedUpgradeValue(
+                    xdr::xdr_to_opaque(expectedLedgerUpgrade));
+                expectedUpgradeVector.emplace_back(expectedUpgradeValue.begin(),
+                                                   expectedUpgradeValue.end());
+            }
+
+            // Combine all the candidates seen so far, and extract the
+            // returned StellarValue.
+            ValueWrapperPtr v =
+                herder.getHerderSCPDriver().combineCandidates(1, candidates);
+            StellarValue sv;
+            xdr::xdr_from_opaque(v->getValue(), sv);
+
+            // Compare the returned StellarValue's contents with the
+            // expected ones that we computed above.
+            REQUIRE(sv.ext.v() ==
+                    herder.getHerderSCPDriver().compositeValueType());
+            REQUIRE(sv.txSetHash == expectedHash);
+            REQUIRE(sv.closeTime == expectedCloseTime);
+            REQUIRE(sv.upgrades == expectedUpgradeVector);
+        };
+
+        // Test some list of candidates, comparing the output of
+        // combineCandidates() and the one we compute at each step.
+
+        std::vector<CandidateSpec> const specs{
+            {0, 1, 100, 10, make_optional<uint32>()},
+            {10, 1, 100, 5, make_optional<uint32>(1)},
+            {5, 3, 100, 20, make_optional<uint32>(2)},
+            {7, 2, 5, 30, make_optional<uint32>(3)}};
+
+        std::for_each(specs.begin(), specs.end(), addCandidateThenTest);
+
+        auto const bestTxSetIndex = std::distance(
+            txSetSizes.begin(),
+            std::max_element(txSetSizes.begin(), txSetSizes.end()));
+        REQUIRE(txSetOpSizes[bestTxSetIndex] == expectedOps);
 
         if (checkHighFee)
         {
@@ -1202,9 +1287,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
             TxSetFramePtr txSetL2 =
                 makeTransactions(lcl.hash, maxTxSize, 1, 1000);
             addToCandidates(makeTxPair(herder, txSetL2, 20, withSCPsignature));
-            v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
+            auto v =
+                herder.getHerderSCPDriver().combineCandidates(1, candidates);
+            StellarValue sv;
             xdr::xdr_from_opaque(v->getValue(), sv);
-            REQUIRE(sv.ext.v() == STELLAR_VALUE_BASIC);
+            REQUIRE(sv.ext.v() ==
+                    herder.getHerderSCPDriver().compositeValueType());
             REQUIRE(sv.txSetHash == txSetL2->getContentsHash());
         }
     }
@@ -1215,6 +1303,12 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
         auto& scp = herder.getHerderSCPDriver();
         auto seq = herder.getCurrentLedgerSeq() + 1;
         auto ct = app->timeNow() + 1;
+        auto const signedBallots =
+            (scp.compositeValueType() == STELLAR_VALUE_SIGNED);
+
+        REQUIRE(signedBallots == expectTxSetCloseTimeAffinity);
+        REQUIRE(scp.curProtocolPreservesTxSetCloseTimeAffinity() ==
+                expectTxSetCloseTimeAffinity);
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0, 1, 100);
         {
@@ -1232,7 +1326,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
             REQUIRE(scp.validateValue(seq, nomV.first, true) ==
                     SCPDriver::kFullyValidatedValue);
 
-            auto balV = makeTxPair(herder, txSet0, ct, false);
+            auto balV = makeTxPair(herder, txSet0, ct, signedBallots);
             REQUIRE(scp.validateValue(seq, balV.first, false) ==
                     SCPDriver::kFullyValidatedValue);
         }
@@ -1243,8 +1337,7 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
             REQUIRE(scp.validateValue(seq, nomV.first, true) ==
                     SCPDriver::kInvalidValue);
 
-            // ballot protocol, with signature is never valid
-            auto balV = makeTxPair(herder, txSet0, ct, true);
+            auto balV = makeTxPair(herder, txSet0, ct, !signedBallots);
             REQUIRE(scp.validateValue(seq, balV.first, false) ==
                     SCPDriver::kInvalidValue);
 
@@ -1277,6 +1370,75 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
                     checkInvalid(sv);
                 }
             }
+        }
+    }
+
+    SECTION("validateValue closeTimes")
+    {
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& scp = herder.getHerderSCPDriver();
+
+        auto const lclCloseTime = lcl.header.scpValue.closeTime;
+
+        auto testTxBounds = [&](TimePoint const minTime,
+                                TimePoint const maxTime,
+                                TimePoint const nextCloseTime,
+                                bool const expectValid) {
+            REQUIRE(nextCloseTime > lcl.header.scpValue.closeTime);
+            // Build a transaction set containing one transaction (which could
+            // be any transaction that is valid in all ways aside from its time
+            // bounds) with the given minTime and maxTime.
+            auto tx = makeMultiPayment(root, root, 10, 1000, 0, 100);
+            auto& tb = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                           ? tx->getEnvelope().v0().tx.timeBounds.activate()
+                           : tx->getEnvelope().v1().tx.timeBounds.activate();
+            tb.minTime = minTime;
+            tb.maxTime = maxTime;
+            auto txSet = std::make_shared<TxSetFrame>(
+                app->getLedgerManager().getLastClosedLedgerHeader().hash);
+            txSet->add(tx);
+
+            // Build a StellarValue containing the transaction set we just built
+            // and the given next closeTime.
+            auto val =
+                makeTxPair(herder, txSet, nextCloseTime, withSCPsignature);
+            auto const seq = herder.getCurrentLedgerSeq() + 1;
+            auto envelope = makeEnvelope(herder, val, {}, seq, true);
+            REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(herder.recvTxSet(txSet->getContentsHash(), *txSet));
+
+            // Validate the StellarValue.
+            REQUIRE(scp.validateValue(seq, val.first, true) ==
+                    (expectValid ? SCPDriver::kFullyValidatedValue
+                                 : SCPDriver::kInvalidValue));
+
+            // Confirm that trimInvalid() as used by
+            // HerderImpl::triggerNextLedger() trims the transaction if and only
+            // if we expect it to be invalid.
+            auto closeTimeOffset = expectTxSetCloseTimeAffinity
+                                       ? (nextCloseTime - lclCloseTime)
+                                       : 0;
+            auto removed =
+                txSet->trimInvalid(*app, closeTimeOffset, closeTimeOffset);
+            REQUIRE(removed.size() == (expectValid ? 0 : 1));
+        };
+
+        auto t1 = lclCloseTime + 1, t2 = lclCloseTime + 2;
+
+        SECTION("valid in all protocols")
+        {
+            testTxBounds(0, t1, t1, true);
+        }
+
+        SECTION("expired (invalid maxTime) with txSet/closeTime affinity")
+        {
+            testTxBounds(0, t1, t2, !expectTxSetCloseTimeAffinity);
+        }
+
+        SECTION("premature (invalid minTime) without txSet/closeTime affinity")
+        {
+            testTxBounds(t1, 0, t1, expectTxSetCloseTimeAffinity);
         }
     }
 
@@ -1451,12 +1613,16 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
     SECTION("protocol 10")
     {
-        testSCPDriver(10, 10, 10, false, true);
+        testSCPDriver(10, 10, 10, false, true, false);
+    }
+    SECTION("protocol 13")
+    {
+        testSCPDriver(13, 1000, 15, true, true, false);
     }
     SECTION("protocol current")
     {
         testSCPDriver(Config::CURRENT_LEDGER_PROTOCOL_VERSION, 1000, 15, true,
-                      true);
+                      true, true);
     }
 }
 
@@ -2045,7 +2211,7 @@ TEST_CASE("In quorum filtering", "[quorum][herder][acceptance]")
 }
 
 static void
-externalize(LedgerManager& lm, HerderImpl& herder,
+externalize(SecretKey const& sk, LedgerManager& lm, HerderImpl& herder,
             std::vector<TransactionFrameBasePtr> const& txs)
 {
     auto const& lcl = lm.getLastClosedLedgerHeader();
@@ -2061,6 +2227,11 @@ externalize(LedgerManager& lm, HerderImpl& herder,
 
     StellarValue sv{txSet->getContentsHash(), 2, xdr::xvector<UpgradeType, 6>{},
                     STELLAR_VALUE_BASIC};
+    if (herder.getHerderSCPDriver().compositeValueType() ==
+        STELLAR_VALUE_SIGNED)
+    {
+        herder.signStellarValue(sk, sv);
+    }
     herder.getHerderSCPDriver().valueExternalized(ledgerSeq,
                                                   xdr::xdr_to_opaque(sv));
 }
@@ -2089,7 +2260,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     herder.recvTransaction(tx2r);
 
     auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
-    externalize(lm, herder, {tx1r});
+    externalize(cfg.NODE_SEED, lm, herder, {tx1r});
     REQUIRE(numBroadcast + 1 ==
             om.getOverlayMetrics().mMessagesBroadcast.count());
 
@@ -2098,7 +2269,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     REQUIRE(txSet->mTransactions.size() == 1);
     REQUIRE(txSet->mTransactions.front()->getContentsHash() ==
             tx1a->getContentsHash());
-    REQUIRE(txSet->checkValid(*app, 0));
+    REQUIRE(txSet->checkValid(*app, 0, 0));
 }
 
 TEST_CASE("do not flood too many transactions", "[herder]")
@@ -2145,7 +2316,7 @@ TEST_CASE("do not flood too many transactions", "[herder]")
         REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx);
 
         auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
-        externalize(lm, herder, {tx1a, tx1r});
+        externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r});
         REQUIRE(numBroadcast + (numTx - 2) ==
                 om.getOverlayMetrics().mMessagesBroadcast.count());
 
