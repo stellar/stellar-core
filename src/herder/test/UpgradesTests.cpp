@@ -1889,9 +1889,15 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             REQUIRE(getAssetLiabilities(a2, cur2) == Liabilities{8000, 4000});
         };
 
-        for_versions_from(10, *app, [&] { increaseReserveFromV10(false); });
+        SECTION("authorized")
+        {
+            for_versions_from(10, *app, [&] { increaseReserveFromV10(false); });
+        }
 
-        for_versions_from(13, *app, [&] { increaseReserveFromV10(true); });
+        SECTION("authorized to maintain liabilities")
+        {
+            for_versions_from(13, *app, [&] { increaseReserveFromV10(true); });
+        }
     }
 }
 
