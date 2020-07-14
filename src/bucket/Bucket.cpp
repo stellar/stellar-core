@@ -622,8 +622,24 @@ Bucket::merge(BucketManager& bucketManager, uint32_t maxProtocolVersion,
                              mc, ctx, doFsync);
 
     BucketEntryIdCmp cmp;
+    size_t iter = 0;
+
     while (oi || ni)
     {
+        // Check if the merge should be stopped every few entries
+        if (++iter >= 1000)
+        {
+            iter = 0;
+            if (bucketManager.isShutdown())
+            {
+                // Stop merging, as BucketManager is now shutdown
+                // This is safe as temp file has not been adopted yet,
+                // so it will be removed with the tmp dir
+                throw std::runtime_error(
+                    "Incomplete bucket merge due to BucketManager shutdown");
+            }
+        }
+
         if (!mergeCasesWithDefaultAcceptance(cmp, mc, oi, ni, out,
                                              shadowIterators, protocolVersion,
                                              keepShadowedLifecycleEntries))
