@@ -189,14 +189,7 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
     claimableBalanceEntry.amount = amount;
     claimableBalanceEntry.asset = asset;
 
-    OperationID operationID;
-    operationID.type(ENVELOPE_TYPE_OP_ID);
-    operationID.id().sourceAccount = toMuxedAccount(mParentTx.getSourceID());
-    operationID.id().seqNum = mParentTx.getSeqNum();
-    operationID.id().opNum = mOpIndex;
-
-    claimableBalanceEntry.balanceID.v0() =
-        sha256(xdr::xdr_to_opaque(operationID));
+    claimableBalanceEntry.balanceID.v0() = getBalanceID();
 
     claimableBalanceEntry.claimants = claimants;
     for (auto& claimant : claimableBalanceEntry.claimants)
@@ -280,5 +273,17 @@ CreateClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
         keys.emplace(
             trustlineKey(getSourceID(), mCreateClaimableBalance.asset));
     }
+}
+
+Hash
+CreateClaimableBalanceOpFrame::getBalanceID()
+{
+    OperationID operationID;
+    operationID.type(ENVELOPE_TYPE_OP_ID);
+    operationID.id().sourceAccount = toMuxedAccount(mParentTx.getSourceID());
+    operationID.id().seqNum = mParentTx.getSeqNum();
+    operationID.id().opNum = mOpIndex;
+
+    return sha256(xdr::xdr_to_opaque(operationID));
 }
 }

@@ -13,6 +13,8 @@ class AbstractLedgerTxn;
 
 class CreateClaimableBalanceOpFrame : public OperationFrame
 {
+    virtual Hash getBalanceID();
+
     CreateClaimableBalanceResult&
     innerResult()
     {

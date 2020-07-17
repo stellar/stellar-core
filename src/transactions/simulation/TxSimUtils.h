@@ -20,6 +20,10 @@ SecretKey generateScaledSecret(MuxedAccount const& key, uint32_t partition);
 int64_t generateScaledOfferID(int64_t offerId, uint32_t partition);
 int64_t generateScaledOfferID(OperationResult const& result,
                               uint32_t partition);
+Hash generateScaledClaimableBalanceID(OperationResult const& result,
+                                      uint32_t partition);
+Hash generateScaledClaimableBalanceID(Hash const& balanceID,
+                                      uint32_t partition);
 void generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
                                std::vector<LedgerEntry> const& oldEntries,
                                uint32_t partition);
