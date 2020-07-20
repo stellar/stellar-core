@@ -429,6 +429,7 @@ TEST_CASE("schema upgrade test", "[db]")
 
         soci::transaction tx(session);
 
+        auto lastMod = app.getLedgerManager().getLastClosedLedgerNum();
         // Use raw SQL to perform database operations, since we're writing in an
         // old database format, and calling standard interfaces to create
         // accounts or trustlines would use SQL corresponding to the new format
@@ -445,8 +446,7 @@ TEST_CASE("schema upgrade test", "[db]")
             soci::use(ae.seqNum), soci::use(ae.numSubEntries),
             soci::use(inflationDestStr, inflationDestInd),
             soci::use(homeDomainStr), soci::use(thresholdsStr),
-            soci::use(signersStr), soci::use(ae.flags),
-            soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
+            soci::use(signersStr), soci::use(ae.flags), soci::use(lastMod),
             soci::use(buyingLiabilities, liabilitiesInd),
             soci::use(sellingLiabilities, liabilitiesInd);
 
@@ -470,6 +470,7 @@ TEST_CASE("schema upgrade test", "[db]")
 
         soci::transaction tx(session);
 
+        auto lastMod = app.getLedgerManager().getLastClosedLedgerNum();
         session << "INSERT INTO trustlines ( "
                    "accountid, assettype, issuer, assetcode,"
                    "tlimit, balance, flags, lastmodified, "
@@ -479,8 +480,7 @@ TEST_CASE("schema upgrade test", "[db]")
                    ")",
             soci::use(accountIDStr), soci::use(assetType), soci::use(issuerStr),
             soci::use(assetCodeStr), soci::use(tl.limit), soci::use(tl.balance),
-            soci::use(tl.flags),
-            soci::use(app.getLedgerManager().getLastClosedLedgerNum()),
+            soci::use(tl.flags), soci::use(lastMod),
             soci::use(buyingLiabilities, liabilitiesInd),
             soci::use(sellingLiabilities, liabilitiesInd);
 
@@ -496,12 +496,12 @@ TEST_CASE("schema upgrade test", "[db]")
 
         soci::transaction tx(session);
 
+        auto lastMod = app.getLedgerManager().getLastClosedLedgerNum();
         session << "INSERT INTO accountdata ( "
                    "accountid, dataname, datavalue, lastmodified "
                    ") VALUES ( :id, :v1, :v2, :v3 )",
             soci::use(accountIDStr), soci::use(dataNameStr),
-            soci::use(dataValueStr),
-            soci::use(app.getLedgerManager().getLastClosedLedgerNum());
+            soci::use(dataValueStr), soci::use(lastMod);
 
         tx.commit();
     };
@@ -516,6 +516,7 @@ TEST_CASE("schema upgrade test", "[db]")
 
         soci::transaction tx(session);
 
+        auto lastMod = app.getLedgerManager().getLastClosedLedgerNum();
         session << "INSERT INTO offers ( "
                    "sellerid, offerid, sellingasset, buyingasset, "
                    "amount, pricen, priced, price, flags, lastmodified "
@@ -525,8 +526,7 @@ TEST_CASE("schema upgrade test", "[db]")
             soci::use(sellerIDStr), soci::use(oe.offerID),
             soci::use(sellingStr), soci::use(buyingStr), soci::use(oe.amount),
             soci::use(oe.price.n), soci::use(oe.price.d), soci::use(price),
-            soci::use(oe.flags),
-            soci::use(app.getLedgerManager().getLastClosedLedgerNum());
+            soci::use(oe.flags), soci::use(lastMod);
 
         tx.commit();
     };
