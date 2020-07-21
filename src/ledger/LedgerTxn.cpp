@@ -1538,6 +1538,13 @@ LedgerTxn::dropTrustLines()
     throw std::runtime_error("called dropTrustLines on non-root LedgerTxn");
 }
 
+void
+LedgerTxn::dropClaimableBalances()
+{
+    throw std::runtime_error(
+        "called dropClaimableBalances on non-root LedgerTxn");
+}
+
 double
 LedgerTxn::getPrefetchHitRate() const
 {
@@ -2017,6 +2024,9 @@ BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
     case DATA:
         accum(iter, mAccountDataToUpsert, mAccountDataToDelete);
         break;
+    case CLAIMABLE_BALANCE:
+        accum(iter, mClaimableBalanceToUpsert, mClaimableBalanceToDelete);
+        break;
     default:
         abort();
     }
@@ -2074,6 +2084,18 @@ LedgerTxnRoot::Impl::bulkApply(BulkLedgerEntryChangeAccumulator& bleca,
     {
         bulkDeleteAccountData(deleteAccountData, cons);
         deleteAccountData.clear();
+    }
+    auto& upsertClaimableBalance = bleca.getClaimableBalanceToUpsert();
+    if (upsertClaimableBalance.size() > bufferThreshold)
+    {
+        bulkUpsertClaimableBalance(upsertClaimableBalance);
+        upsertClaimableBalance.clear();
+    }
+    auto& deleteClaimableBalance = bleca.getClaimableBalanceToDelete();
+    if (deleteClaimableBalance.size() > bufferThreshold)
+    {
+        bulkDeleteClaimableBalance(deleteClaimableBalance, cons);
+        deleteClaimableBalance.clear();
     }
 }
 
@@ -2149,6 +2171,8 @@ LedgerTxnRoot::Impl::tableFromLedgerEntryType(LedgerEntryType let)
         return "offers";
     case TRUSTLINE:
         return "trustlines";
+    case CLAIMABLE_BALANCE:
+        return "claimablebalance";
     default:
         throw std::runtime_error("Unknown ledger entry type");
     }
@@ -2211,7 +2235,7 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
     mEntryCache.clear();
     mBestOffersCache.clear();
 
-    for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER})
+    for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER, CLAIMABLE_BALANCE})
     {
         std::string query = "DELETE FROM " + tableFromLedgerEntryType(let) +
                             " WHERE lastmodified >= :v1";
@@ -2243,6 +2267,12 @@ LedgerTxnRoot::dropTrustLines()
     mImpl->dropTrustLines();
 }
 
+void
+LedgerTxnRoot::dropClaimableBalances()
+{
+    mImpl->dropClaimableBalances();
+}
+
 uint32_t
 LedgerTxnRoot::prefetch(std::unordered_set<LedgerKey> const& keys)
 {
@@ -2259,6 +2289,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
     std::unordered_set<LedgerKey> offers;
     std::unordered_set<LedgerKey> trustlines;
     std::unordered_set<LedgerKey> data;
+    std::unordered_set<LedgerKey> claimablebalance;
 
     auto cacheResult =
         [&](std::unordered_map<LedgerKey,
@@ -2320,6 +2351,14 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
                 data.clear();
             }
             break;
+        case CLAIMABLE_BALANCE:
+            insertIfNotLoaded(claimablebalance, key);
+            if (data.size() == mBulkLoadBatchSize)
+            {
+                cacheResult(bulkLoadClaimableBalance(claimablebalance));
+                claimablebalance.clear();
+            }
+            break;
         }
     }
 
@@ -2328,6 +2367,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
     cacheResult(bulkLoadOffers(offers));
     cacheResult(bulkLoadTrustLines(trustlines));
     cacheResult(bulkLoadData(data));
+    cacheResult(bulkLoadClaimableBalance(claimablebalance));
 
     return total;
 }
@@ -2621,6 +2661,9 @@ LedgerTxnRoot::Impl::getNewestVersion(LedgerKey const& key) const
             break;
         case TRUSTLINE:
             entry = loadTrustLine(key);
+            break;
+        case CLAIMABLE_BALANCE:
+            entry = loadClaimableBalance(key);
             break;
         default:
             throw std::runtime_error("Unknown key type");

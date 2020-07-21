@@ -113,6 +113,18 @@ extension | TEXT | Extension specific to DataEntry (XDR)
 ledgerext | TEXT | Extension common to all LedgerEntry types (XDR)
 (accountid, dataname) | PRIMARY KEY |
 
+## claimablebalance
+
+Defined in [`src/ledger/LedgerTxnClaimableBalanceSQL.cpp`](/src/ledger/LedgerTxnClaimableBalanceSQL.cpp)
+
+Equivalent to _ClaimableBalanceEntry_
+
+Field | Type | Description
+------|------|---------------
+balanceid | VARCHAR(48) PRIMARY KEY | This is a ClaimableBalanceID (XDR)
+ledgerentry | TEXT NOT NULL | LedgerEntry that contains a ClaimableBalanceEntry (XDR)
+lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+
 ## txhistory
 
 Defined in [`src/transactions/TransactionFrame.cpp`](/src/transactions/TransactionFrame.cpp)

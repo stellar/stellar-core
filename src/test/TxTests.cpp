@@ -1061,6 +1061,27 @@ bumpSequence(SequenceNumber to)
     return op;
 }
 
+Operation
+createClaimableBalance(Asset const& asset, int64_t amount,
+                       xdr::xvector<Claimant, 10> const& claimants)
+{
+    Operation op;
+    op.body.type(CREATE_CLAIMABLE_BALANCE);
+    op.body.createClaimableBalanceOp().asset = asset;
+    op.body.createClaimableBalanceOp().amount = amount;
+    op.body.createClaimableBalanceOp().claimants = claimants;
+    return op;
+}
+
+Operation
+claimClaimableBalance(ClaimableBalanceID const& balanceID)
+{
+    Operation op;
+    op.body.type(CLAIM_CLAIMABLE_BALANCE);
+    op.body.claimClaimableBalanceOp().balanceID = balanceID;
+    return op;
+}
+
 OperationFrame const&
 getFirstOperationFrame(TransactionFrame const& tx)
 {

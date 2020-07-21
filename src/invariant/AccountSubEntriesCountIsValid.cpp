@@ -74,6 +74,11 @@ updateChangedSubEntriesCount(
             calculateDelta(current, previous);
         break;
     }
+    case CLAIMABLE_BALANCE:
+    {
+        // claimable balance is not a subentry
+        break;
+    }
     default:
         abort();
     }

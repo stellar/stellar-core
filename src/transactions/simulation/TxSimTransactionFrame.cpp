@@ -54,7 +54,8 @@ TxSimTransactionFrame::makeOperation(Operation const& op, OperationResult& res,
         return std::make_shared<TxSimCreatePassiveSellOfferOpFrame>(
             op, res, *this, resultFromArchive, mCount);
     default:
-        return OperationFrame::makeHelper(op, res, *this);
+        return OperationFrame::makeHelper(op, res, *this,
+                                          static_cast<uint32_t>(index));
     }
 }
 

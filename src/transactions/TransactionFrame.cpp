@@ -263,7 +263,8 @@ std::shared_ptr<OperationFrame>
 TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
                                 size_t index)
 {
-    return OperationFrame::makeHelper(op, res, *this);
+    return OperationFrame::makeHelper(op, res, *this,
+                                      static_cast<uint32_t>(index));
 }
 
 void

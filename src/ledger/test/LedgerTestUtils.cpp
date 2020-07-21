@@ -90,6 +90,10 @@ randomlyModifyEntry(LedgerEntry& e)
         e.data.data().dataValue = autocheck::generator<DataValue>{}(8);
         makeValid(e.data.data());
         break;
+    case CLAIMABLE_BALANCE:
+        e.data.claimableBalance().amount = autocheck::generator<int64>{}();
+        makeValid(e.data.claimableBalance());
+        break;
     }
 }
 
@@ -187,6 +191,19 @@ makeValid(DataEntry& d)
 }
 
 void
+makeValid(ClaimableBalanceEntry& c)
+{
+    c.amount = std::abs(c.amount);
+    clampLow<int64>(1, c.amount);
+
+    c.reserve = std::abs(c.reserve);
+    clampLow<int64>(1, c.reserve);
+
+    c.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(c.asset.alphaNum4().assetCode, "CAD");
+}
+
+void
 makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
           LedgerHeaderHistoryEntry firstLedger,
           HistoryManager::LedgerVerificationStatus state)
@@ -251,19 +268,20 @@ static auto validLedgerEntryGenerator = autocheck::map(
         le.lastModifiedLedgerSeq = le.lastModifiedLedgerSeq & INT32_MAX;
         switch (led.type())
         {
-        case TRUSTLINE:
-            makeValid(led.trustLine());
-            break;
-
-        case OFFER:
-            makeValid(led.offer());
-            break;
-
         case ACCOUNT:
             makeValid(led.account());
             break;
+        case TRUSTLINE:
+            makeValid(led.trustLine());
+            break;
+        case OFFER:
+            makeValid(led.offer());
+            break;
         case DATA:
             makeValid(led.data());
+            break;
+        case CLAIMABLE_BALANCE:
+            makeValid(led.claimableBalance());
             break;
         }
 
@@ -298,6 +316,13 @@ static auto validDataEntryGenerator = autocheck::map(
         return d;
     },
     autocheck::generator<DataEntry>());
+
+static auto validClaimableBalanceEntryGenerator = autocheck::map(
+    [](ClaimableBalanceEntry&& c, size_t s) {
+        makeValid(c);
+        return c;
+    },
+    autocheck::generator<ClaimableBalanceEntry>());
 
 LedgerEntry
 generateValidLedgerEntry(size_t b)
@@ -361,6 +386,20 @@ std::vector<DataEntry>
 generateValidDataEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validDataEntryGenerator);
+    return vecgen(n);
+}
+
+ClaimableBalanceEntry
+generateValidClaimableBalanceEntry(size_t b)
+{
+    return validClaimableBalanceEntryGenerator(b);
+}
+
+std::vector<ClaimableBalanceEntry>
+generateValidClaimableBalanceEntries(size_t n)
+{
+    static auto vecgen =
+        autocheck::list_of(validClaimableBalanceEntryGenerator);
     return vecgen(n);
 }
 

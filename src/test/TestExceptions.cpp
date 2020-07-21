@@ -351,6 +351,50 @@ throwIf(BumpSequenceResult const& result)
 }
 
 void
+throwIf(CreateClaimableBalanceResult const& result)
+{
+    switch (result.code())
+    {
+    case CREATE_CLAIMABLE_BALANCE_MALFORMED:
+        throw ex_CREATE_CLAIMABLE_BALANCE_MALFORMED{};
+    case CREATE_CLAIMABLE_BALANCE_LOW_RESERVE:
+        throw ex_CREATE_CLAIMABLE_BALANCE_LOW_RESERVE{};
+    case CREATE_CLAIMABLE_BALANCE_NO_TRUST:
+        throw ex_CREATE_CLAIMABLE_BALANCE_NO_TRUST{};
+    case CREATE_CLAIMABLE_BALANCE_NOT_AUTHORIZED:
+        throw ex_CREATE_CLAIMABLE_BALANCE_NOT_AUTHORIZED{};
+    case CREATE_CLAIMABLE_BALANCE_UNDERFUNDED:
+        throw ex_CREATE_CLAIMABLE_BALANCE_UNDERFUNDED{};
+    case CREATE_CLAIMABLE_BALANCE_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
+throwIf(ClaimClaimableBalanceResult const& result)
+{
+    switch (result.code())
+    {
+    case CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST:
+        throw ex_CLAIM_CLAIMABLE_BALANCE_DOES_NOT_EXIST{};
+    case CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM:
+        throw ex_CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM{};
+    case CLAIM_CLAIMABLE_BALANCE_LINE_FULL:
+        throw ex_CLAIM_CLAIMABLE_BALANCE_LINE_FULL{};
+    case CLAIM_CLAIMABLE_BALANCE_NOT_AUTHORIZED:
+        throw ex_CLAIM_CLAIMABLE_BALANCE_NOT_AUTHORIZED{};
+    case CLAIM_CLAIMABLE_BALANCE_NO_TRUST:
+        throw ex_CLAIM_CLAIMABLE_BALANCE_NO_TRUST{};
+    case CLAIM_CLAIMABLE_BALANCE_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -433,6 +477,12 @@ throwIf(TransactionResult const& result)
         break;
     case PATH_PAYMENT_STRICT_SEND:
         throwIf(opResult.tr().pathPaymentStrictSendResult());
+        break;
+    case CREATE_CLAIMABLE_BALANCE:
+        throwIf(opResult.tr().createClaimableBalanceResult());
+        break;
+    case CLAIM_CLAIMABLE_BALANCE:
+        throwIf(opResult.tr().claimClaimableBalanceResult());
         break;
     }
 }

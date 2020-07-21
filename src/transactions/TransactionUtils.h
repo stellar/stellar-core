@@ -24,6 +24,7 @@ LedgerKey accountKey(AccountID const& accountID);
 LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
+LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
 
 uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
@@ -39,6 +40,9 @@ LedgerTxnEntry loadData(AbstractLedgerTxn& ltx, AccountID const& accountID,
 
 LedgerTxnEntry loadOffer(AbstractLedgerTxn& ltx, AccountID const& sellerID,
                          int64_t offerID);
+
+LedgerTxnEntry loadClaimableBalance(AbstractLedgerTxn& ltx,
+                                    ClaimableBalanceID const& balanceID);
 
 TrustLineWrapper loadTrustLine(AbstractLedgerTxn& ltx,
                                AccountID const& accountID, Asset const& asset);

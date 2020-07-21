@@ -78,7 +78,8 @@ enum LedgerEntryType
     ACCOUNT = 0,
     TRUSTLINE = 1,
     OFFER = 2,
-    DATA = 3
+    DATA = 3,
+    CLAIMABLE_BALANCE = 4
 };
 
 struct Signer
@@ -260,6 +261,92 @@ struct DataEntry
     ext;
 };
 
+enum ClaimPredicateType
+{
+    CLAIM_PREDICATE_UNCONDITIONAL = 0,
+    CLAIM_PREDICATE_AND = 1,
+    CLAIM_PREDICATE_OR = 2,
+    CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME = 3,
+    CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME = 4,
+    CLAIM_PREDICATE_BEFORE_RELATIVE_TIME = 5,
+    CLAIM_PREDICATE_AFTER_RELATIVE_TIME = 6
+};
+
+union ClaimPredicate switch (ClaimPredicateType type)
+{
+case CLAIM_PREDICATE_UNCONDITIONAL:
+    void;
+case CLAIM_PREDICATE_AND:
+    ClaimPredicate andPredicates<2>;
+case CLAIM_PREDICATE_OR:
+    ClaimPredicate orPredicates<2>;
+case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
+    int64 absBefore; // Predicate will be true if closeTime < absBefore
+case CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME:
+    int64 absAfter; // Predicate will be true if closeTime >= absAfter
+case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
+    int64 relBefore; // Seconds since closeTime of the ledger in which the
+                     // ClaimableBalanceEntry was created
+case CLAIM_PREDICATE_AFTER_RELATIVE_TIME:
+    int64 relAfter; // Seconds since closeTime of the ledger in which the
+                    // ClaimableBalanceEntry was created
+};
+
+enum ClaimantType
+{
+    CLAIMANT_TYPE_V0 = 0
+};
+
+union Claimant switch (ClaimantType type)
+{
+case CLAIMANT_TYPE_V0:
+    struct
+    {
+        AccountID destination;    // The account that can use this condition
+        ClaimPredicate predicate; // Claimable if predicate is true
+    } v0;
+};
+
+enum ClaimableBalanceIDType
+{
+    CLAIMABLE_BALANCE_ID_TYPE_V0 = 0
+};
+
+union ClaimableBalanceID switch (ClaimableBalanceIDType type)
+{
+case CLAIMABLE_BALANCE_ID_TYPE_V0:
+    Hash v0;
+};
+
+struct ClaimableBalanceEntry
+{
+    // Unique identifier for this ClaimableBalanceEntry
+    ClaimableBalanceID balanceID;
+
+    // Account that created this ClaimableBalanceEntry
+    AccountID createdBy;
+
+    // List of claimants with associated predicate
+    Claimant claimants<10>;
+
+    // Any asset including native
+    Asset asset;
+
+    // Amount of asset
+    int64 amount;
+
+    // Amount of native asset to pay the reserve
+    int64 reserve;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
 struct LedgerEntry
 {
     uint32 lastModifiedLedgerSeq; // ledger the LedgerEntry was last changed
@@ -274,6 +361,8 @@ struct LedgerEntry
         OfferEntry offer;
     case DATA:
         DataEntry data;
+    case CLAIMABLE_BALANCE:
+        ClaimableBalanceEntry claimableBalance;
     }
     data;
 
@@ -296,6 +385,7 @@ enum EnvelopeType
     ENVELOPE_TYPE_TX = 2,
     ENVELOPE_TYPE_AUTH = 3,
     ENVELOPE_TYPE_SCPVALUE = 4,
-    ENVELOPE_TYPE_TX_FEE_BUMP = 5
+    ENVELOPE_TYPE_TX_FEE_BUMP = 5,
+    ENVELOPE_TYPE_OP_ID = 6
 };
 }

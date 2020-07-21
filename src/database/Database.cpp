@@ -282,6 +282,8 @@ Database::applySchemaUpgrade(unsigned long vers)
             // and writes those tables.
             addTextColumn("offers", "extension");
             addTextColumn("accountdata", "extension");
+
+            mApp.getLedgerTxnRoot().dropClaimableBalances();
         }
         break;
     default:
@@ -653,6 +655,7 @@ Database::initialize()
         mApp.getLedgerTxnRoot().dropOffers();
         mApp.getLedgerTxnRoot().dropTrustLines();
         mApp.getLedgerTxnRoot().dropData();
+        mApp.getLedgerTxnRoot().dropClaimableBalances();
     }
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);

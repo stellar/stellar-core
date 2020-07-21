@@ -1074,6 +1074,18 @@
     <ClCompile Include="..\..\lib\tracy\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ClaimableBalanceTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1867,6 +1879,12 @@
     </ClInclude>
     <ClInclude Include="..\..\lib\fmt\include\fmt\format.h">
       <Filter>lib\fmt</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
