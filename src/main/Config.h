@@ -121,12 +121,12 @@ class Config : public std::enable_shared_from_this<Config>
     // application config
 
     // The default way stellar-core starts is to load the state from disk and
-    // catch up to the network before starting SCP. If you need different
-    // behavior you need to use new-db or force-scp which sets the following
-    // flags:
+    // start a consensus round (if node is validating), then maybe trigger
+    // catchup. If you need different behavior you need to use new-db or
+    // --wait-for-consensus option which sets the following flag to false:
 
     // SCP will start running immediately using the current local state to
-    // participate in consensus. DO NOT INCLUDE THIS IN A CONFIG FILE
+    // participate in consensus
     bool FORCE_SCP;
 
     // This is a mode for testing. It prevents you from trying to connect to

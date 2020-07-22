@@ -210,6 +210,14 @@ disableBucketGCParser(bool& disableBucketGC)
 }
 
 clara::Opt
+waitForConsensusParser(bool& waitForConsensus)
+{
+    return clara::Opt{waitForConsensus}["--wait-for-consensus"](
+        "wait to hear from the network before voting, for validating nodes "
+        "only");
+}
+
+clara::Opt
 historyArchiveParser(std::string& archive)
 {
     return clara::Opt(archive, "ARCHIVE-NAME")["--archive"](
@@ -670,7 +678,7 @@ runForceSCP(CommandLineArgs const& args)
 
     return runWithHelp(args, {configurationParser(configOption), resetOption},
                        [&] {
-                           setForceSCPFlag(configOption.getConfig(), !reset);
+                           setForceSCPFlag();
                            return 0;
                        });
 }
@@ -803,6 +811,7 @@ run(CommandLineArgs const& args)
     auto disableBucketGC = false;
     uint32_t simulateSleepPerOp = 0;
     std::string stream;
+    bool waitForConsensus = false;
 
     auto simulateParser = [](uint32_t& simulateSleepPerOp) {
         return clara::Opt{simulateSleepPerOp,
@@ -810,41 +819,42 @@ run(CommandLineArgs const& args)
             "simulate application time per operation");
     };
 
-    return runWithHelp(args,
-                       {configurationParser(configOption),
-                        disableBucketGCParser(disableBucketGC),
-                        simulateParser(simulateSleepPerOp),
-                        metadataOutputStreamParser(stream)},
-                       [&] {
-                           Config cfg;
-                           try
-                           {
-                               cfg = configOption.getConfig();
-                               cfg.DISABLE_BUCKET_GC = disableBucketGC;
-                               if (simulateSleepPerOp > 0)
-                               {
-                                   cfg.DATABASE =
-                                       SecretValue{"sqlite3://:memory:"};
-                                   cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING =
-                                       simulateSleepPerOp;
-                                   cfg.MODE_STORES_HISTORY = false;
-                                   cfg.MODE_USES_IN_MEMORY_LEDGER = false;
-                                   cfg.MODE_ENABLES_BUCKETLIST = false;
-                                   cfg.PREFETCH_BATCH_SIZE = 0;
-                               }
+    return runWithHelp(
+        args,
+        {configurationParser(configOption),
+         disableBucketGCParser(disableBucketGC),
+         simulateParser(simulateSleepPerOp), metadataOutputStreamParser(stream),
+         waitForConsensusParser(waitForConsensus)},
+        [&] {
+            Config cfg;
+            try
+            {
+                cfg = configOption.getConfig();
+                cfg.DISABLE_BUCKET_GC = disableBucketGC;
+                if (simulateSleepPerOp > 0)
+                {
+                    cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
+                    cfg.OP_APPLY_SLEEP_TIME_FOR_TESTING = simulateSleepPerOp;
+                    cfg.MODE_STORES_HISTORY = false;
+                    cfg.MODE_USES_IN_MEMORY_LEDGER = false;
+                    cfg.MODE_ENABLES_BUCKETLIST = false;
+                    cfg.PREFETCH_BATCH_SIZE = 0;
+                }
 
-                               maybeSetMetadataOutputStream(cfg, stream);
-                           }
-                           catch (std::exception& e)
-                           {
-                               LOG(FATAL) << "Got an exception: " << e.what();
-                               LOG(FATAL) << REPORT_INTERNAL_BUG;
-                               return 1;
-                           }
-                           // run outside of catch block so that we properly
-                           // capture crashes
-                           return runWithConfig(cfg);
-                       });
+                maybeSetMetadataOutputStream(cfg, stream);
+                cfg.FORCE_SCP =
+                    cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
+            }
+            catch (std::exception& e)
+            {
+                LOG(FATAL) << "Got an exception: " << e.what();
+                LOG(FATAL) << REPORT_INTERNAL_BUG;
+                return 1;
+            }
+            // run outside of catch block so that we properly
+            // capture crashes
+            return runWithConfig(cfg);
+        });
 }
 
 int
@@ -1220,10 +1230,7 @@ handleCommandLine(int argc, char* const* argv)
           runCheckQuorum},
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
-         {"force-scp",
-          "next time stellar-core is run, SCP will start with "
-          "the local ledger rather than waiting to hear from the "
-          "network",
+         {"force-scp", "deprecated, use --wait-for-consensus option instead",
           runForceSCP},
          {"gen-seed", "generate and print a random node seed", runGenSeed},
          {"http-command", "send a command to local stellar-core",

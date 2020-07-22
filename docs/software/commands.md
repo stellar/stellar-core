@@ -35,15 +35,6 @@ Command options can only by placed after command.
 `$ stellar-core convert-id SDQVDISRYN2JXBS7ICL7QJAEKB3HWBJFP2QECXG7GZICAHBK4UNJCWK2`
 
 * **dump-xdr <FILE-NAME>**:  Dumps the given XDR file and then exits.
-* **force-scp**: This command is used to start a network from scratch or when a
-  network has lost quorum because of failed nodes or otherwise. It sets a flag
-  in the database. The next time stellar-core is run, stellar-core will start
-  emitting SCP messages based on its last known ledger. Without this flag
-  stellar-core waits to hear a ledger close from the network before starting
-  SCP.<br> force-scp doesn't change the requirements for quorum so although
-  this node will emit SCP messages SCP won't complete until there are also a
-  quorum of other nodes also emitting SCP messages on this same ledger. Value
-  of force-scp can be reset with --reset flag.
 * **fuzz <FILE-NAME>**: Run a single fuzz input and exit.
 * **gen-fuzz <FILE-NAME>**:  Generate a random fuzzer input file.
 * **gen-seed**: Generate and print a random public/private key and then exit.
@@ -74,7 +65,8 @@ Command options can only by placed after command.
   is on checkpoint boundary.
 * **report-last-history-checkpoint**: Download and report last history
   checkpoint from a history archive.
-* **run**: Runs stellar-core service.
+* **run**: Runs stellar-core service. Option --wait-for-consensus lets validators
+  wait to hear from the network before participating in consensus.
 * **sec-to-pub**:  Reads a secret key on standard input and outputs the
   corresponding public key.  Both keys are in Stellar's standard
   base-32 ASCII format. 

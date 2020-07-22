@@ -992,6 +992,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
                 throw std::invalid_argument(err);
             }
         }
+
+        // Validators default to starting the network from local state
+        FORCE_SCP = NODE_IS_VALIDATOR;
+
         // process elements that potentially depend on others
         if (t->contains("VALIDATORS"))
         {
