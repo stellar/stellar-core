@@ -442,6 +442,7 @@ class ScaleReporter
                                 std::time(nullptr)))
         , mOut(mFilename)
     {
+        mOut.exceptions(std::ios::failbit | std::ios::badbit);
         LOG(INFO) << "Opened " << mFilename << " for writing";
         mOut << join(columns, ",") << std::endl;
     }

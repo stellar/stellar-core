@@ -109,6 +109,7 @@ HistoryArchiveState::save(std::string const& outFile) const
 {
     ZoneScoped;
     std::ofstream out(outFile);
+    out.exceptions(std::ios::failbit | std::ios::badbit);
     cereal::JSONOutputArchive ar(out);
     serialize(ar);
 }
@@ -133,6 +134,7 @@ HistoryArchiveState::load(std::string const& inFile)
 {
     ZoneScoped;
     std::ifstream in(inFile);
+    in.exceptions(std::ios::badbit);
     cereal::JSONInputArchive ar(in);
     serialize(ar);
     if (version != HISTORY_ARCHIVE_STATE_VERSION)

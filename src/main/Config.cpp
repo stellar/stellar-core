@@ -558,6 +558,7 @@ Config::load(std::string const& filename)
             {
                 throw std::runtime_error("could not open file");
             }
+            ifs.exceptions(std::ios::badbit);
             load(ifs);
         }
     }

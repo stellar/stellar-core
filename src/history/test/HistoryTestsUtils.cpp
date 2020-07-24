@@ -205,6 +205,7 @@ TestBucketGenerator::generateBucket(TestBucketState state)
         else
         {
             std::ofstream out(filename + ".gz");
+            out.exceptions(std::ios::failbit | std::ios::badbit);
             out.close();
             seq = {mkdir, put};
         }
