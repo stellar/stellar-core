@@ -138,6 +138,9 @@ HerderImpl::bootstrap()
 void
 HerderImpl::shutdown()
 {
+    mTrackingTimer.cancel();
+    mRebroadcastTimer.cancel();
+    mTriggerTimer.cancel();
     if (mLastQuorumMapIntersectionState.mRecalculating)
     {
         // We want to interrupt any calculation-in-progress at shutdown to

@@ -129,7 +129,8 @@ CatchupManagerImpl::processLedger(LedgerCloseData const& ledgerData)
 
     std::string message;
     uint32_t lastLedgerInBuffer = mSyncingLedgers.crbegin()->first;
-    if (it != mSyncingLedgers.end() && it->first < lastLedgerInBuffer)
+    if (mApp.getConfig().MODE_DOES_CATCHUP && it != mSyncingLedgers.end() &&
+        it->first < lastLedgerInBuffer)
     {
         message = fmt::format("Starting catchup after ensuring checkpoint "
                               "ledger {} was closed on network",
@@ -259,15 +260,27 @@ CatchupManagerImpl::hasBufferedLedger() const
 }
 
 LedgerCloseData const&
-CatchupManagerImpl::getBufferedLedger() const
+CatchupManagerImpl::getFirstBufferedLedger() const
 {
     if (!hasBufferedLedger())
     {
         throw std::runtime_error(
-            "getBufferedLedger called when mSyncingLedgers is empty!");
+            "getFirstBufferedLedger called when mSyncingLedgers is empty!");
     }
 
     return mSyncingLedgers.cbegin()->second;
+}
+
+LedgerCloseData const&
+CatchupManagerImpl::getLastBufferedLedger() const
+{
+    if (!hasBufferedLedger())
+    {
+        throw std::runtime_error(
+            "getLastBufferedLedger called when mSyncingLedgers is empty!");
+    }
+
+    return mSyncingLedgers.crbegin()->second;
 }
 
 void

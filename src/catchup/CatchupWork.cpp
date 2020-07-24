@@ -121,8 +121,12 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
     auto getLedgers = std::make_shared<BatchDownloadWork>(
         mApp, checkpointRange, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir,
         mArchive);
+    mRangeEndPromise = std::promise<LedgerNumHashPair>();
+    mRangeEndFuture = mRangeEndPromise.get_future().share();
+    mRangeEndPromise.set_value(rangeEnd);
     mVerifyLedgers = std::make_shared<VerifyLedgerChainWork>(
-        mApp, *mDownloadDir, verifyRange, mLastClosedLedgerHashPair, rangeEnd);
+        mApp, *mDownloadDir, verifyRange, mLastClosedLedgerHashPair,
+        mRangeEndFuture);
 
     std::vector<std::shared_ptr<BasicWork>> seq{getLedgers, mVerifyLedgers};
     mDownloadVerifyLedgersSeq =
@@ -171,6 +175,12 @@ CatchupWork::assertBucketState()
 
     // Consistency check: remote state and mVerifiedLedgerRangeStart should
     // point to the same ledger and the same BucketList.
+    if (has.currentLedger != mVerifiedLedgerRangeStart.header.ledgerSeq)
+    {
+        CLOG(ERROR, "History")
+            << "Caught up to wrong ledger: wanted " << has.currentLedger
+            << ", got " << mVerifiedLedgerRangeStart.header.ledgerSeq;
+    }
     assert(has.currentLedger == mVerifiedLedgerRangeStart.header.ledgerSeq);
     assert(has.getBucketListHash() ==
            mVerifiedLedgerRangeStart.header.bucketListHash);
@@ -362,7 +372,7 @@ CatchupWork::runCatchupStep()
         if (mDownloadVerifyLedgersSeq->getState() == State::WORK_SUCCESS)
         {
             mVerifiedLedgerRangeStart =
-                mVerifyLedgers->getVerifiedLedgerRangeStart();
+                mVerifyLedgers->getMaxVerifiedLedgerOfMinCheckpoint();
             if (catchupRange.applyBuckets() && !mBucketsAppliedEmitted)
             {
                 assertBucketState();

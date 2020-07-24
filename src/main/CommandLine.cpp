@@ -13,12 +13,14 @@
 #include "main/ErrorMessages.h"
 #include "main/StellarCoreVersion.h"
 #include "main/dumpxdr.h"
+#include "overlay/OverlayManager.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 #include "util/optional.h"
 #include "util/types.h"
 
 #include "historywork/BatchDownloadWork.h"
+#include "historywork/WriteVerifiedCheckpointHashesWork.h"
 #include "src/catchup/simulation/TxSimApplyTransactionsWork.h"
 #include "src/transactions/simulation/TxSimScaleBucketlistWork.h"
 #include "work/WorkScheduler.h"
@@ -229,6 +231,13 @@ historyLedgerNumber(uint32_t& ledgerNum)
 {
     return clara::Opt{ledgerNum, "HISTORY-LEDGER"}["--history-ledger"](
         "specify a ledger number to examine in history");
+}
+
+clara::Opt
+historyHashParser(std::string& hash)
+{
+    return clara::Opt(hash, "HISTORY_HASH")["--history-hash"](
+        "specify a hash to trust for the provided ledger");
 }
 
 clara::Parser
@@ -503,6 +512,7 @@ runCatchup(CommandLineArgs const& args)
     std::string catchupString;
     std::string outputFile;
     std::string archive;
+    std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
     bool replayInMemory = false;
     std::string stream;
@@ -536,6 +546,11 @@ runCatchup(CommandLineArgs const& args)
     auto catchupStringParser = ParserWithValidation{
         clara::Arg(catchupString, "DESTINATION-LEDGER/LEDGER-COUNT").required(),
         validateCatchupString};
+    auto trustedCheckpointHashesParser = [](std::string& file) {
+        return clara::Opt{file, "FILE-NAME"}["--trusted-checkpoint-hashes"](
+            "get destination ledger hash from trusted output of "
+            "'verify-checkpoints'");
+    };
     auto catchupArchiveParser = ParserWithValidation{
         historyArchiveParser(archive), validateCatchupArchive};
     auto disableBucketGC = false;
@@ -553,8 +568,9 @@ runCatchup(CommandLineArgs const& args)
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
-         catchupArchiveParser, outputFileParser(outputFile),
-         disableBucketGCParser(disableBucketGC),
+         catchupArchiveParser,
+         trustedCheckpointHashesParser(trustedCheckpointHashesFile),
+         outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
          replayInMemoryParser(replayInMemory),
          metadataOutputStreamParser(stream)},
@@ -599,10 +615,35 @@ runCatchup(CommandLineArgs const& args)
                     archivePtr = ham.selectRandomReadableHistoryArchive();
                 }
 
+                CatchupConfiguration cc =
+                    parseCatchup(catchupString, completeValidation);
+                if (!trustedCheckpointHashesFile.empty())
+                {
+                    auto const& hm = app->getHistoryManager();
+                    if (!hm.isLastLedgerInCheckpoint(cc.toLedger()))
+                    {
+                        throw std::runtime_error(
+                            "destination ledger is not a checkpoint boundary,"
+                            " but trusted checkpoints file was provided");
+                    }
+                    Hash h = WriteVerifiedCheckpointHashesWork::
+                        loadHashFromJsonOutput(cc.toLedger(),
+                                               trustedCheckpointHashesFile);
+                    if (isZero(h))
+                    {
+                        throw std::runtime_error("destination ledger not found "
+                                                 "in trusted checkpoints file");
+                    }
+                    LedgerNumHashPair pair;
+                    pair.first = cc.toLedger();
+                    pair.second = make_optional<Hash>(h);
+                    LOG(INFO) << "Found trusted hash " << hexAbbrev(h)
+                              << " for ledger " << cc.toLedger();
+                    cc = CatchupConfiguration(pair, cc.count(), cc.mode());
+                }
+
                 Json::Value catchupInfo;
-                result = catchup(
-                    app, parseCatchup(catchupString, completeValidation),
-                    catchupInfo, archivePtr);
+                result = catchup(app, cc, catchupInfo, archivePtr);
                 if (!catchupInfo.isNull())
                 {
                     writeCatchupInfo(catchupInfo, outputFile);
@@ -638,6 +679,94 @@ runCheckQuorum(CommandLineArgs const& args)
         [&] {
             checkQuorumIntersection(configOption.getConfig(), ledgerNum);
             return 0;
+        });
+}
+
+int
+runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
+{
+    std::string outputFile;
+    uint32_t startLedger = 0;
+    std::string startHash;
+    CommandLine::ConfigOption configOption;
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), historyLedgerNumber(startLedger),
+         historyHashParser(startHash), outputFileParser(outputFile).required()},
+        [&] {
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto cfg = configOption.getConfig();
+
+            // Set up for quick in-memory no-catchup mode.
+            cfg.QUORUM_INTERSECTION_CHECKER = false;
+            cfg.DATABASE = SecretValue{"sqlite3://:memory:"};
+            cfg.MODE_STORES_HISTORY = false;
+            cfg.MODE_DOES_CATCHUP = false;
+            cfg.MODE_USES_IN_MEMORY_LEDGER = true;
+            cfg.MODE_ENABLES_BUCKETLIST = true;
+            cfg.DISABLE_XDR_FSYNC = true;
+
+            auto app = Application::create(clock, cfg, false);
+            app->start();
+            auto const& lm = app->getLedgerManager();
+            auto const& hm = app->getHistoryManager();
+            auto const& cm = app->getCatchupManager();
+            auto& io = clock.getIOContext();
+            asio::io_context::work mainWork(io);
+            LedgerNumHashPair authPair;
+            auto tryCheckpoint = [&](uint32_t seq, Hash h) {
+                if (hm.isLastLedgerInCheckpoint(seq))
+                {
+                    LOG(INFO) << "Found authenticated checkpoint hash "
+                              << hexAbbrev(h) << " for ledger " << seq;
+                    authPair.first = seq;
+                    authPair.second = make_optional<Hash>(h);
+                }
+                else if (authPair.first != seq)
+                {
+                    authPair.first = seq;
+                    LOG(INFO) << "Ledger " << seq
+                              << " is not a checkpoint boundary, waiting.";
+                }
+            };
+
+            if (startLedger != 0 && !startHash.empty())
+            {
+                Hash h = hexToBin256(startHash);
+                tryCheckpoint(startLedger, h);
+            }
+
+            while (!(io.stopped() || authPair.second))
+            {
+                clock.crank();
+                if (lm.isSynced())
+                {
+                    auto const& lhe = lm.getLastClosedLedgerHeader();
+                    tryCheckpoint(lhe.header.ledgerSeq, lhe.hash);
+                }
+                else if (cm.hasBufferedLedger())
+                {
+                    auto const& lcd = cm.getLastBufferedLedger();
+                    uint32_t seq = lcd.getLedgerSeq() - 1;
+                    Hash hash = lcd.getTxSet()->previousLedgerHash();
+                    tryCheckpoint(seq, hash);
+                }
+            }
+            if (authPair.second)
+            {
+                app->getOverlayManager().shutdown();
+                app->getHerder().shutdown();
+                app->getWorkScheduler()
+                    .executeWork<WriteVerifiedCheckpointHashesWork>(authPair,
+                                                                    outputFile);
+                app->gracefulStop();
+                return 0;
+            }
+            else
+            {
+                app->gracefulStop();
+                return 1;
+            }
         });
 }
 
@@ -1228,6 +1357,8 @@ handleCommandLine(int argc, char* const* argv)
           runCatchup},
          {"check-quorum", "check quorum intersection of last network activity",
           runCheckQuorum},
+         {"verify-checkpoints", "write verified checkpoint ledger hashes",
+          runWriteVerifiedCheckpointHashes},
          {"convert-id", "displays ID in all known forms", runConvertId},
          {"dump-xdr", "dump an XDR file, for debugging", runDumpXDR},
          {"force-scp", "deprecated, use --wait-for-consensus option instead",

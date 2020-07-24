@@ -87,6 +87,8 @@ class CatchupWork : public Work
     std::shared_ptr<GetHistoryArchiveStateWork> mGetBucketStateWork;
 
     WorkSeqPtr mDownloadVerifyLedgersSeq;
+    std::promise<LedgerNumHashPair> mRangeEndPromise;
+    std::shared_future<LedgerNumHashPair> mRangeEndFuture;
     std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgers;
     std::shared_ptr<Work> mVerifyTxResults;
     WorkSeqPtr mBucketVerifyApplySeq;

@@ -30,6 +30,8 @@ compile_commands.json
 *~
 *.swp
 **/.vscode/*
+.idea
+.clangd
 
 .libs
 .deps

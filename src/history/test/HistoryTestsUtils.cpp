@@ -615,6 +615,28 @@ CatchupSimulation::ensureOnlineCatchupPossible(uint32_t targetLedger,
     ensurePublishesComplete();
 }
 
+LedgerNumHashPair
+CatchupSimulation::getLastPublishedCheckpoint() const
+{
+    LedgerNumHashPair pair;
+    assert(mLedgerHashes.size() == mLedgerSeqs.size());
+    auto hi = mLedgerHashes.rbegin();
+    auto si = mLedgerSeqs.rbegin();
+    auto const& hm = mApp.getHistoryManager();
+    while (si != mLedgerSeqs.rend())
+    {
+        if (hm.isLastLedgerInCheckpoint(*si))
+        {
+            pair.first = *si;
+            pair.second = make_optional<Hash>(*hi);
+            break;
+        }
+        ++hi;
+        ++si;
+    }
+    return pair;
+}
+
 void
 CatchupSimulation::crankUntil(Application::pointer app,
                               std::function<bool()> const& predicate,

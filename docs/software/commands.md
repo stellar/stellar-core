@@ -26,6 +26,9 @@ Command options can only by placed after command.
   that at least LEDGER-COUNT entries are present in history table afterwards.
   For instances that already have some history entries, all ledgers since last
   closed ledger will be replayed.
+  Option **--trusted-checkpoint-hashes <FILE-NAME>** checks the destination
+  ledger hash against the provided reference list of trusted hashes. See the
+  command verify-checkpoints for details.
 * **check-quorum**:   Check quorum intersection from history to ensure there is
   closure over all the validators in the network.
 * **convert-id <ID>**: Will output the passed ID in all known forms and then
@@ -98,6 +101,12 @@ Command options can only by placed after command.
     `stellar-core test -a --version 9 --version 10 "[tx]"`
 * **upgrade-db**: Upgrades local database to current schema version. This is
   usually done automatically during stellar-core run or other command.
+* **verify-checkpoints**: Listens to the network until it observes a consensus
+  hash for a checkpoint ledger, and then verifies the entire earlier history
+  of an archive that ends in that ledger hash, writing the output to a reference
+  list of trusted checkpoint hashes.
+  Option **--output-filename <FILE-NAME>** is mandatory and specifies the file
+  to write the trusted checkpoint hashes to.
 * **version**: Print version info and then exit.
 * **write-quorum**: Print a quorum set graph from history.
 
