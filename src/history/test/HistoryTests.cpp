@@ -86,6 +86,7 @@ TEST_CASE("HistoryManager compress", "[history]")
     std::string fname = hm.localFilename("compressme");
     {
         std::ofstream out(fname, std::ofstream::binary);
+        out.exceptions(std::ios::failbit | std::ios::badbit);
         out.write(s.data(), s.size());
     }
     std::string compressed = fname + ".gz";

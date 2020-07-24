@@ -60,7 +60,7 @@ class XDRInputFileStream
             CLOG(ERROR, "Fs") << msg;
             throw FileSystemException(msg);
         }
-
+        mIn.exceptions(std::ios::badbit);
         mSize = fs::size(mIn);
     }
 

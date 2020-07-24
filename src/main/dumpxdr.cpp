@@ -216,6 +216,7 @@ readFile(const std::string& filename, bool base64 = false)
         ifstream file(filename.c_str());
         if (!file)
             throw_perror(filename);
+        file.exceptions(std::ios::badbit);
         input << file.rdbuf();
     }
     string ret;

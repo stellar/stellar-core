@@ -89,6 +89,7 @@ VerifyBucketWork::spawnVerifier()
                 // ensure that the stream gets its own scope to avoid race with
                 // main thread
                 std::ifstream in(filename, std::ifstream::binary);
+                in.exceptions(std::ios::badbit);
                 char buf[4096];
                 while (in)
                 {

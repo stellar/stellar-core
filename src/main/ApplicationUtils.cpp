@@ -319,6 +319,7 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
     else
     {
         std::ofstream out{};
+        out.exceptions(std::ios::failbit | std::ios::badbit);
         out.open(filename);
         out.write(content.c_str(), content.size());
         out.close();

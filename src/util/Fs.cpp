@@ -567,6 +567,7 @@ size(std::string const& filename)
     ifs.open(filename, std::ifstream::binary);
     if (ifs)
     {
+        ifs.exceptions(std::ios::badbit);
         return size(ifs);
     }
     else

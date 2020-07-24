@@ -22,6 +22,7 @@ TEST_CASE("Serialization round trip", "[history]")
         SECTION("Serialize " + fnPath)
         {
             std::ifstream in(fnPath);
+            in.exceptions(std::ios::badbit);
             std::string fromFile((std::istreambuf_iterator<char>(in)),
                                  std::istreambuf_iterator<char>());
 
