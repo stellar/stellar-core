@@ -148,18 +148,26 @@ TransactionFrame::getMinFee(LedgerHeader const& header) const
 }
 
 int64_t
-TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
+TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
+                         bool applying) const
 {
-    if (header.ledgerVersion < 11)
-    {
-        return getFeeBid();
-    }
-    else
+    if (header.ledgerVersion >= 11 || !applying)
     {
         int64_t adjustedFee =
             baseFee * std::max<int64_t>(1, getNumOperations());
 
-        return std::min<int64_t>(getFeeBid(), adjustedFee);
+        if (applying)
+        {
+            return std::min<int64_t>(getFeeBid(), adjustedFee);
+        }
+        else
+        {
+            return adjustedFee;
+        }
+    }
+    else
+    {
+        return getFeeBid();
     }
 }
 
@@ -268,7 +276,8 @@ TransactionFrame::makeOperation(Operation const& op, OperationResult& res,
 }
 
 void
-TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
+TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee,
+                               bool applying)
 {
     auto& ops = mEnvelope.type() == ENVELOPE_TYPE_TX_V0
                     ? mEnvelope.v0().tx.operations
@@ -289,7 +298,7 @@ TransactionFrame::resetResults(LedgerHeader const& header, int64_t baseFee)
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    getResult().feeCharged = getFee(header, baseFee);
+    getResult().feeCharged = getFee(header, baseFee, applying);
 }
 
 bool
@@ -526,7 +535,7 @@ TransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     mCachedAccount.reset();
 
     auto header = ltx.loadHeader();
-    resetResults(header.current(), baseFee);
+    resetResults(header.current(), baseFee, true);
 
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)
@@ -620,7 +629,7 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 
     LedgerTxn ltx(ltxOuter);
     int64_t minBaseFee = chargeFee ? ltx.loadHeader().current().baseFee : 0;
-    resetResults(ltx.loadHeader().current(), minBaseFee);
+    resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),

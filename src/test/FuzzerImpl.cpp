@@ -69,7 +69,7 @@ class FuzzTransactionFrame : public TransactionFrame
     attemptApplication(Application& app, AbstractLedgerTxn& ltx)
     {
         // reset results of operations
-        resetResults(ltx.getHeader(), 0);
+        resetResults(ltx.getHeader(), 0, true);
 
         // attempt application of transaction without accounting for sequence
         // number, processing the fee, or committing the LedgerTxn

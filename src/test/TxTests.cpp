@@ -114,6 +114,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     // Increment ledgerSeq to simulate the behavior of closeLedger, which begins
     // by advancing the ledgerSeq.
     ++ltx.loadHeader().current().ledgerSeq;
+    auto ledgerVersion = ltx.loadHeader().current().ledgerVersion;
 
     bool check = false;
     TransactionResult checkResult;
@@ -141,8 +142,13 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
             // no account -> can't process the fee
             auto baseFee = ltxFeeProc.loadHeader().current().baseFee;
             tx->processFeeSeqNum(ltxFeeProc, baseFee);
-            uint32_t ledgerVersion =
-                ltxFeeProc.loadHeader().current().ledgerVersion;
+            // check that the recommended fee is correct, ignore the difference
+            // for later
+            if (ledgerVersion >= 11)
+            {
+                REQUIRE(checkResult.feeCharged >= tx->getResult().feeCharged);
+            }
+            checkResult.feeCharged = tx->getResult().feeCharged;
 
             // verify that the fee got processed
             auto ltxDelta = ltxFeeProc.getDelta();
@@ -224,7 +230,6 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
                 auto header = ltxTx.loadHeader();
-                auto ledgerVersion = header.current().ledgerVersion;
                 if (checkSeqNum && ledgerVersion >= 10 && !earlyFailure)
                 {
                     REQUIRE(srcAccountAfter.current().data.account().seqNum ==

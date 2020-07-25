@@ -26,7 +26,7 @@ TxSimFeeBumpTransactionFrame::TxSimFeeBumpTransactionFrame(
 
 int64_t
 TxSimFeeBumpTransactionFrame::getFee(const stellar::LedgerHeader& header,
-                                     int64_t baseFee) const
+                                     int64_t baseFee, bool applying) const
 {
     return mSimulationResult.feeCharged;
 }
@@ -35,7 +35,7 @@ void
 TxSimFeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                                int64_t baseFee)
 {
-    resetResults(ltx.loadHeader().current(), baseFee);
+    resetResults(ltx.loadHeader().current(), baseFee, true);
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
     if (!feeSource)

@@ -79,7 +79,8 @@ TxSimTransactionFrame::isBadSeq(int64_t seqNum) const
 }
 
 int64_t
-TxSimTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee) const
+TxSimTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
+                              bool applying) const
 {
     return mSimulationResult.feeCharged;
 }
@@ -90,7 +91,7 @@ TxSimTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee)
     mCachedAccount.reset();
 
     auto header = ltx.loadHeader();
-    resetResults(header.current(), baseFee);
+    resetResults(header.current(), baseFee, true);
 
     auto sourceAccount = loadSourceAccount(ltx, header);
     if (!sourceAccount)

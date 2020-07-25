@@ -526,7 +526,7 @@ TxSetFrame::getTotalFees(LedgerHeader const& lh) const
     return std::accumulate(mTransactions.begin(), mTransactions.end(),
                            int64_t(0),
                            [&](int64_t t, TransactionFrameBasePtr const& tx) {
-                               return t + tx->getFee(lh, baseFee);
+                               return t + tx->getFee(lh, baseFee, true);
                            });
 }
 

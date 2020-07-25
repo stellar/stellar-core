@@ -141,7 +141,8 @@ class TransactionFrame : public TransactionFrameBase
         return getResult().result.code();
     }
 
-    void resetResults(LedgerHeader const& header, int64_t baseFee);
+    void resetResults(LedgerHeader const& header, int64_t baseFee,
+                      bool applying);
 
     TransactionEnvelope const& getEnvelope() const override;
     TransactionEnvelope& getEnvelope();
@@ -157,8 +158,8 @@ class TransactionFrame : public TransactionFrameBase
 
     int64_t getMinFee(LedgerHeader const& header) const override;
 
-    virtual int64_t getFee(LedgerHeader const& header,
-                           int64_t baseFee) const override;
+    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+                           bool applying) const override;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
