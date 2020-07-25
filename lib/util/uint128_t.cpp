@@ -28,6 +28,7 @@ uint128_t::operator bool() const{
 uint128_t::operator char() const{
     return (char) LOWER;
 }
+
 uint128_t::operator int() const{
     return (int) LOWER;
 }
