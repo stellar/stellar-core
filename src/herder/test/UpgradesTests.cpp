@@ -1949,7 +1949,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades][acceptance]")
                                                     {upgrade, genesis(0, 15)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 21), {upgrade, upgrade, upgrade}}};
+            {genesis(0, 28), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -1975,7 +1975,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades][acceptance]")
                                                     {upgrade, genesis(0, 30)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 20), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 36), {upgrade, upgrade, upgrade}}};
+            {genesis(0, 37), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -1986,7 +1986,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades][acceptance]")
                                                     {upgrade, genesis(0, 30)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 9), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 20), {upgrade, upgrade, upgrade}}};
+            {genesis(0, 27), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 }

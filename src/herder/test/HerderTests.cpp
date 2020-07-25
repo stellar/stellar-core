@@ -1451,7 +1451,7 @@ TEST_CASE("SCP Driver", "[herder][acceptance]")
 {
     SECTION("protocol 10")
     {
-        testSCPDriver(10, 10, 10, false, false);
+        testSCPDriver(10, 10, 10, false, true);
     }
     SECTION("protocol current")
     {

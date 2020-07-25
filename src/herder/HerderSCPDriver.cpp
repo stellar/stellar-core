@@ -319,20 +319,16 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
         return SCPDriver::kInvalidValue;
     }
 
-    if ((!nomination || lcl.ledgerVersion < 11) &&
-        b.ext.v() != STELLAR_VALUE_BASIC)
+    if (!nomination && b.ext.v() != STELLAR_VALUE_BASIC)
     {
-        // ballot protocol or
-        // pre version 11 only supports BASIC
+        // ballot protocol only supports BASIC
         CLOG(TRACE, "Herder")
             << "HerderSCPDriver::validateValue"
             << " i: " << slotIndex << " invalid value type - expected BASIC";
         return SCPDriver::kInvalidValue;
     }
-    if (nomination &&
-        (lcl.ledgerVersion >= 11 && b.ext.v() != STELLAR_VALUE_SIGNED))
+    if (nomination && b.ext.v() != STELLAR_VALUE_SIGNED)
     {
-        // v11 and above use SIGNED for nomination
         CLOG(TRACE, "Herder")
             << "HerderSCPDriver::validateValue"
             << " i: " << slotIndex << " invalid value type - expected SIGNED";
