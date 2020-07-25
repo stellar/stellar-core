@@ -4,6 +4,7 @@
 
 #include "main/CommandLine.h"
 #include "catchup/CatchupConfiguration.h"
+#include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/InferredQuorumUtils.h"
 #include "ledger/LedgerManager.h"
