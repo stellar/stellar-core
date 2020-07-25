@@ -148,7 +148,7 @@ FeeBumpTransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 {
     LedgerTxn ltx(ltxOuter);
     auto minBaseFee = ltx.loadHeader().current().baseFee;
-    resetResults(ltx.loadHeader().current(), minBaseFee);
+    resetResults(ltx.loadHeader().current(), minBaseFee, false);
 
     SignatureChecker signatureChecker{ltx.loadHeader().current().ledgerVersion,
                                       getContentsHash(),
@@ -194,6 +194,11 @@ FeeBumpTransactionFrame::commonValidPreSeqNum(AbstractLedgerTxn& ltx)
     auto v2 = bigMultiply(mInnerTx->getFeeBid(), getMinFee(lh));
     if (v1 < v2)
     {
+        if (!bigDivide(getResult().feeCharged, v2, mInnerTx->getMinFee(lh),
+                       Rounding::ROUND_UP))
+        {
+            getResult().feeCharged = INT64_MAX;
+        }
         getResult().result.code(txINSUFFICIENT_FEE);
         return false;
     }
@@ -265,11 +270,18 @@ FeeBumpTransactionFrame::getMinFee(LedgerHeader const& header) const
 }
 
 int64_t
-FeeBumpTransactionFrame::getFee(LedgerHeader const& header,
-                                int64_t baseFee) const
+FeeBumpTransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
+                                bool applying) const
 {
     int64_t adjustedFee = baseFee * std::max<int64_t>(1, getNumOperations());
-    return std::min<int64_t>(getFeeBid(), adjustedFee);
+    if (applying)
+    {
+        return std::min<int64_t>(getFeeBid(), adjustedFee);
+    }
+    else
+    {
+        return adjustedFee;
+    }
 }
 
 Hash const&
@@ -354,7 +366,7 @@ void
 FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
                                           int64_t baseFee)
 {
-    resetResults(ltx.loadHeader().current(), baseFee);
+    resetResults(ltx.loadHeader().current(), baseFee, true);
 
     auto feeSource = stellar::loadAccount(ltx, getFeeSourceID());
     if (!feeSource)
@@ -416,14 +428,14 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
 
 void
 FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
-                                      int64_t baseFee)
+                                      int64_t baseFee, bool applying)
 {
-    mInnerTx->resetResults(header, baseFee);
+    mInnerTx->resetResults(header, baseFee, applying);
     mResult.result.code(txFEE_BUMP_INNER_SUCCESS);
 
     // feeCharged is updated accordingly to represent the cost of the
     // transaction regardless of the failure modes.
-    mResult.feeCharged = getFee(header, baseFee);
+    mResult.feeCharged = getFee(header, baseFee, applying);
 }
 
 StellarMessage

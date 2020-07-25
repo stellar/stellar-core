@@ -1399,6 +1399,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
+                    // during apply, feeCharged is smaller in this case
+                    REQUIRE(txFrame->getResult().feeCharged ==
+                            app->getLedgerManager().getLastTxFee() - 1);
                 });
             }
 

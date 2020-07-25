@@ -93,6 +93,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValid(ltx, 0, 0));
                 REQUIRE(fb->getResultCode() == txINSUFFICIENT_FEE);
+                REQUIRE(fb->getResult().feeCharged == 2 * fee);
             });
         }
 
@@ -104,6 +105,7 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 REQUIRE(!fb->checkValid(ltx, 0, 0));
                 REQUIRE(fb->getResultCode() == txINSUFFICIENT_FEE);
+                REQUIRE(fb->getResult().feeCharged == 2 * 101);
             });
         }
 

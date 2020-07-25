@@ -35,8 +35,8 @@ class TransactionFrameBase
 
     virtual int64_t getFeeBid() const = 0;
     virtual int64_t getMinFee(LedgerHeader const& header) const = 0;
-    virtual int64_t getFee(LedgerHeader const& header,
-                           int64_t baseFee) const = 0;
+    virtual int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+                           bool applying) const = 0;
 
     virtual Hash const& getContentsHash() const = 0;
     virtual Hash const& getFullHash() const = 0;

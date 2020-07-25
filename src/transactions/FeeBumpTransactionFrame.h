@@ -46,7 +46,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
   protected:
-    void resetResults(LedgerHeader const& header, int64_t baseFee);
+    void resetResults(LedgerHeader const& header, int64_t baseFee,
+                      bool applying);
 
   public:
     FeeBumpTransactionFrame(Hash const& networkID,
@@ -69,7 +70,8 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
 
     int64_t getFeeBid() const override;
     int64_t getMinFee(LedgerHeader const& header) const override;
-    int64_t getFee(LedgerHeader const& header, int64_t baseFee) const override;
+    int64_t getFee(LedgerHeader const& header, int64_t baseFee,
+                   bool applying) const override;
 
     Hash const& getContentsHash() const override;
     Hash const& getFullHash() const override;
