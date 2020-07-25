@@ -209,5 +209,7 @@ class BucketManager : NonMovableOrCopyable
 
     // Ensure all needed buckets are retained
     virtual void shutdown() = 0;
+
+    virtual bool isShutdown() const = 0;
 };
 }

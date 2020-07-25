@@ -843,9 +843,21 @@ void
 BucketManagerImpl::shutdown()
 {
     ZoneScoped;
-    // This call happens in shutdown -- before destruction -- so that we
-    // can be sure other subsystems (ledger etc.) are still alive and we
-    // can call into them to figure out which buckets _are_ referenced.
-    forgetUnreferencedBuckets();
+
+    if (!mIsShutdown)
+    {
+        mIsShutdown = true;
+
+        // This call happens in shutdown -- before destruction -- so that we
+        // can be sure other subsystems (ledger etc.) are still alive and we
+        // can call into them to figure out which buckets _are_ referenced.
+        forgetUnreferencedBuckets();
+    }
+}
+
+bool
+BucketManagerImpl::isShutdown() const
+{
+    return mIsShutdown;
 }
 }

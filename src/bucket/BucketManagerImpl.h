@@ -65,6 +65,8 @@ class BucketManagerImpl : public BucketManager
     // alive. Needs to be queried and updated on mSharedBuckets GC events.
     BucketMergeMap mFinishedMerges;
 
+    std::atomic<bool> mIsShutdown{false};
+
     void cleanupStaleFiles();
     void deleteTmpDirAndUnlockBucketDir();
     void deleteEntireBucketDir();
@@ -132,6 +134,8 @@ class BucketManagerImpl : public BucketManager
     void assumeState(HistoryArchiveState const& has,
                      uint32_t maxProtocolVersion) override;
     void shutdown() override;
+
+    bool isShutdown() const override;
 };
 
 #define SKIP_1 50

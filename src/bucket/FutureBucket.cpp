@@ -367,19 +367,22 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
                     app.getClock().getIOContext(),
                     !app.getConfig().DISABLE_XDR_FSYNC);
 
-                CLOG(TRACE, "Bucket")
-                    << "Worker finished merging curr="
-                    << hexAbbrev(curr->getHash())
-                    << " with snap=" << hexAbbrev(snap->getHash());
+                if (res)
+                {
+                    CLOG(TRACE, "Bucket")
+                        << "Worker finished merging curr="
+                        << hexAbbrev(curr->getHash())
+                        << " with snap=" << hexAbbrev(snap->getHash());
 
-                std::chrono::duration<double> time(timeScope.Stop());
-                double timePct = time.count() /
-                                 getAvailableTimeForMerge(app, level).count() *
-                                 100;
-                CLOG(DEBUG, "Perf")
-                    << "Bucket merge on level " << level << " finished in "
-                    << time.count() << " seconds (" << timePct
-                    << "% of available time)";
+                    std::chrono::duration<double> time(timeScope.Stop());
+                    double timePct =
+                        time.count() /
+                        getAvailableTimeForMerge(app, level).count() * 100;
+                    CLOG(DEBUG, "Perf")
+                        << "Bucket merge on level " << level << " finished in "
+                        << time.count() << " seconds (" << timePct
+                        << "% of available time)";
+                }
 
                 return res;
             }

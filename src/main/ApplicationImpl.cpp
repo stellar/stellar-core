@@ -353,6 +353,10 @@ ApplicationImpl::~ApplicationImpl()
     {
         mProcessManager->shutdown();
     }
+    if (mBucketManager)
+    {
+        mBucketManager->shutdown();
+    }
     reportCfgMetrics();
     shutdownMainIOContext();
     joinAllThreads();
