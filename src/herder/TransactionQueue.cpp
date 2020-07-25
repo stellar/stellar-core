@@ -46,8 +46,12 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     }
 }
 
+// returns true, if a transaction can be replaced by another
+// `minFee` is set when returning false, and is the smallest fee
+// that would allow replace by fee to succeed in this situation
 static bool
-canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
+canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx,
+                int64_t& minFee)
 {
     int64_t newFee = tx->getFeeBid();
     uint32_t newNumOps = std::max<uint32_t>(1, tx->getNumOperations());
@@ -62,7 +66,16 @@ canReplaceByFee(TransactionFrameBasePtr tx, TransactionFrameBasePtr oldTx)
     // by INT64_MAX, while number of operations and FEE_MULTIPLIER are small.
     auto v1 = bigMultiply(newFee, oldNumOps);
     auto v2 = bigMultiply(oldFee, newNumOps);
-    return v1 >= TransactionQueue::FEE_MULTIPLIER * v2;
+    auto minFeeN = v2 * TransactionQueue::FEE_MULTIPLIER;
+    bool res = v1 >= minFeeN;
+    if (!res)
+    {
+        if (!bigDivide(minFee, minFeeN, int64_t(oldNumOps), Rounding::ROUND_UP))
+        {
+            minFee = INT64_MAX;
+        }
+    }
+    return res;
 }
 
 static bool
@@ -160,9 +173,11 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                             ADD_STATUS_DUPLICATE;
                     }
 
-                    if (!canReplaceByFee(tx, oldTxIter->mTx))
+                    int64_t minFee;
+                    if (!canReplaceByFee(tx, oldTxIter->mTx, minFee))
                     {
                         tx->getResult().result.code(txINSUFFICIENT_FEE);
+                        tx->getResult().feeCharged = minFee;
                         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                     }
 

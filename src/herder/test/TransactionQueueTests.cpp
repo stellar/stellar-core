@@ -1080,6 +1080,9 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                     auto tx = transaction(*app, account1, i, 1, 100);
                     auto fb = feeBump(*app, feeSource, tx, 399);
                     test.add(fb, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                    auto const& res = fb->getResult();
+                    REQUIRE(res.result.code() == txINSUFFICIENT_FEE);
+                    REQUIRE(res.feeCharged == 4000);
                     test.check({{{account1, 0, txs}, {account2}}, {}});
                 }
             }
@@ -1095,6 +1098,9 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
                     auto tx = transaction(*app, account1, i, 1, 100);
                     auto fb = feeBump(*app, feeSource, tx, 3999);
                     test.add(fb, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                    auto const& res = fb->getResult();
+                    REQUIRE(res.result.code() == txINSUFFICIENT_FEE);
+                    REQUIRE(res.feeCharged == 4000);
                     test.check({{{account1, 0, txs}, {account2}}, {}});
                 }
             }
