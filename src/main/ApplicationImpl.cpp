@@ -545,10 +545,21 @@ ApplicationImpl::joinAllThreads()
 bool
 ApplicationImpl::manualClose()
 {
+    // Manual close only makes sense for validating nodes
+    if (!mConfig.NODE_IS_VALIDATOR)
+    {
+        return false;
+    }
+
     if (mConfig.MANUAL_CLOSE)
     {
-        mHerder->triggerNextLedger(mLedgerManager->getLastClosedLedgerNum() +
-                                   1);
+        mHerder->triggerNextLedger(mLedgerManager->getLastClosedLedgerNum() + 1,
+                                   true);
+        return true;
+    }
+    else if (!mConfig.FORCE_SCP)
+    {
+        mHerder->setInSyncAndTriggerNextLedger();
         return true;
     }
     return false;
