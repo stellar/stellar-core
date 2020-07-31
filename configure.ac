@@ -232,7 +232,7 @@ sqlite3_LIBS=
 AC_SUBST(sqlite3_CFLAGS)
 AC_SUBST(sqlite3_LIBS)
 
-PKG_CHECK_MODULES(libsodium, [libsodium >= 1.0.13], :, libsodium_INTERNAL=yes)
+PKG_CHECK_MODULES(libsodium, [libsodium >= 1.0.17], :, libsodium_INTERNAL=yes)
 
 AX_PKGCONFIG_SUBDIR(lib/libsodium)
 if test -n "$libsodium_INTERNAL"; then
