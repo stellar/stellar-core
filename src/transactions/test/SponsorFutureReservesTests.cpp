@@ -12,6 +12,7 @@
 #include "test/test.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -185,5 +186,42 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
             REQUIRE(tx->getResultCode() == txSUCCESS);
         });
+    }
+
+    SECTION("add sponsored entry before adding first sponsored signer")
+    {
+        auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+        auto a1 = root.create("a1", minBalance0);
+        auto cur1 = makeAsset(root, "CUR1");
+        auto signer = makeSigner(getAccount("S1"), 1);
+
+        // creating the sponsored trustline first will make sure the account is
+        // usign a V2 extension before the first signer is added
+        auto tx1 = transactionFrameFromOps(app->getNetworkID(), root,
+                                           {root.op(sponsorFutureReserves(a1)),
+                                            a1.op(changeTrust(cur1, 1000)),
+                                            a1.op(confirmAndClearSponsor())},
+                                           {a1});
+
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        TransactionMeta txm1(2);
+        REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx1->apply(*app, ltx, txm1));
+
+        checkSponsorship(ltx, trustlineKey(a1, cur1), 1, &root.getPublicKey());
+
+        auto tx2 =
+            transactionFrameFromOps(app->getNetworkID(), root,
+                                    {root.op(sponsorFutureReserves(a1)),
+                                     a1.op(setOptions(setSigner(signer))),
+                                     a1.op(confirmAndClearSponsor())},
+                                    {a1});
+
+        TransactionMeta txm2(2);
+        REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx2->apply(*app, ltx, txm2));
+
+        checkSponsorship(ltx, a1.getPublicKey(), signer.key, 2,
+                         &root.getPublicKey());
     }
 }
