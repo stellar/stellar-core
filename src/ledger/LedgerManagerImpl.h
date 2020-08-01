@@ -87,7 +87,7 @@ class LedgerManagerImpl : public LedgerManager
   public:
     LedgerManagerImpl(Application& app);
 
-    void bootstrap() override;
+    void moveToSynced() override;
     State getState() const override;
     std::string getStateHuman() const override;
 

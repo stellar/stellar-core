@@ -135,7 +135,7 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
 }
 
 void
-LedgerManagerImpl::bootstrap()
+LedgerManagerImpl::moveToSynced()
 {
     setState(LM_SYNCED_STATE);
 }

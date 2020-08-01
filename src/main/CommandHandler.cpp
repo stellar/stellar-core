@@ -161,13 +161,14 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
 {
     if (mApp.manualClose())
     {
-        retStr = "Forcing ledger to close...";
+        retStr = "Triggering a new consensus round";
     }
     else
     {
-        retStr =
-            "Set MANUAL_CLOSE=true in the stellar-core.cfg if you want this "
-            "behavior";
+        retStr = "Set MANUAL_CLOSE=true in the stellar-core.cfg if you want to "
+                 "close every ledger manually. Otherwise, run stellar-core "
+                 "with --wait-for-consensus flag to close ledger once and "
+                 "trigger consensus. Ensure NODE_IS_VALIDATOR is set to true.";
     }
 }
 

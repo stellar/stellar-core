@@ -83,7 +83,10 @@ class HerderImpl : public Herder
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
-    void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
+    void triggerNextLedger(uint32_t ledgerSeqToTrigger,
+                           bool checkTrackingSCP) override;
+
+    void setInSyncAndTriggerNextLedger() override;
 
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;

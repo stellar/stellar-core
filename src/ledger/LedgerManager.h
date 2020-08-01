@@ -61,7 +61,7 @@ class LedgerManager
         LM_NUM_STATE
     };
 
-    virtual void bootstrap() = 0;
+    virtual void moveToSynced() = 0;
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 

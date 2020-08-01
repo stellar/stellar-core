@@ -129,7 +129,7 @@ HerderImpl::bootstrap()
     assert(getSCP().isValidator());
     assert(mApp.getConfig().FORCE_SCP);
 
-    mLedgerManager.bootstrap();
+    mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
 
     ledgerClosed(true);
@@ -737,7 +737,7 @@ HerderImpl::ledgerClosed(bool synchronous)
         if (!mApp.getConfig().MANUAL_CLOSE)
             mTriggerTimer.async_wait(
                 std::bind(&HerderImpl::triggerNextLedger, this,
-                          static_cast<uint32_t>(nextIndex)),
+                          static_cast<uint32_t>(nextIndex), true),
                 &VirtualTimer::onFailureNoop);
     }
     else
@@ -828,15 +828,42 @@ HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
     return mTransactionQueue.getAccountTransactionQueueInfo(acc).mMaxSeq;
 }
 
+void
+HerderImpl::setInSyncAndTriggerNextLedger()
+{
+    // We either have not set trigger timer, or we're in the
+    // middle of a consensus round. Either way, we do not want
+    // to trigger ledger, as the node is already making progress
+    if (mTriggerTimer.seq() > 0)
+    {
+        CLOG(DEBUG, "Herder") << "Skipping setInSyncAndTriggerNextLedger: "
+                                 "trigger timer already set";
+        return;
+    }
+
+    // Bring Herder and LM in sync in case they aren't
+    if (mLedgerManager.getState() == LedgerManager::LM_BOOTING_STATE)
+    {
+        mLedgerManager.moveToSynced();
+    }
+
+    // Trigger next ledger, without requiring Herder to properly track SCP
+    auto lcl = mLedgerManager.getLastClosedLedgerNum();
+    triggerNextLedger(lcl + 1, false);
+}
+
 // called to take a position during the next round
 // uses the state in LedgerManager to derive a starting position
 void
-HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
+HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
+                              bool checkTrackingSCP)
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(ledgerSeqToTrigger));
 
-    if (!mHerderSCPDriver.trackingSCP() || !mLedgerManager.isSynced())
+    auto isTrackingValid = mHerderSCPDriver.trackingSCP() || !checkTrackingSCP;
+
+    if (!isTrackingValid || !mLedgerManager.isSynced())
     {
         CLOG(DEBUG, "Herder") << "triggerNextLedger: skipping (out of sync) : "
                               << mApp.getStateHuman();

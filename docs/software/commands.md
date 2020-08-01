@@ -275,8 +275,10 @@ format.
   When a nonzero I is given, a spike will occur every I seconds injecting S transactions on top of `txrate`.
 
 * **manualclose**
-  If MANUAL_CLOSE is set to true in the .cfg file. This will cause the current
-  ledger to close.
+  If MANUAL_CLOSE is set to true in the .cfg file, this will cause the current
+  ledger to close. If MANUAL_CLOSE is set to false, allows a validating node
+  that is waiting to hear about consensus from the network to force ledger close,
+  and start a new consensus round.
 
 * **testacc**
   `testacc?name=N`<br>
