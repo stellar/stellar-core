@@ -695,6 +695,23 @@ HerderImpl::getTransactionQueue()
 }
 #endif
 
+std::chrono::milliseconds
+HerderImpl::ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset)
+{
+    auto maxCandidateCt = mApp.getClock().system_now() + maxCtOffset +
+                          Herder::MAX_TIME_SLIP_SECONDS;
+    auto minCandidateCt = VirtualClock::from_time_t(ct);
+
+    if (minCandidateCt > maxCandidateCt)
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   minCandidateCt - maxCandidateCt) +
+               std::chrono::milliseconds(1);
+    }
+
+    return std::chrono::milliseconds::zero();
+}
+
 void
 HerderImpl::ledgerClosed(bool synchronous)
 {
@@ -723,16 +740,42 @@ HerderImpl::ledgerClosed(bool synchronous)
 
         // bootstrap with a pessimistic estimate of when
         // the ballot protocol started last
-        auto lastBallotStart = mApp.getClock().now() - seconds;
+        auto now = mApp.getClock().now();
+        auto lastBallotStart = now - seconds;
         auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
         if (lastStart)
         {
             lastBallotStart = *lastStart;
         }
+
+        // Adjust trigger time in case node's clock has drifted.
+        // This ensures that next value to nominate is valid
+        auto triggerTime = lastBallotStart + seconds;
+
+        if (triggerTime < now)
+        {
+            triggerTime = now;
+        }
+
+        auto triggerOffset =
+            std::chrono::duration_cast<std::chrono::milliseconds>(triggerTime -
+                                                                  now);
+
+        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+        auto minCandidateCt = lcl.header.scpValue.closeTime + 1;
+        auto ctOffset = ctValidityOffset(minCandidateCt, triggerOffset);
+
+        if (ctOffset > std::chrono::milliseconds::zero())
+        {
+            CLOG(INFO, "Herder") << fmt::format("Adjust trigger time by {} ms",
+                                                ctOffset.count());
+            triggerTime += ctOffset;
+        }
+
         // even if ballot protocol started before triggering, we just use that
         // time as reference point for triggering again (this may trigger right
         // away if externalizing took a long time)
-        mTriggerTimer.expires_at(lastBallotStart + seconds);
+        mTriggerTimer.expires_at(triggerTime);
 
         if (!mApp.getConfig().MANUAL_CLOSE)
             mTriggerTimer.async_wait(
@@ -883,6 +926,18 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger,
     if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
         nextCloseTime = lcl.header.scpValue.closeTime + 1;
+    }
+
+    // Ensure we're about to nominate a value with valid close time
+    auto isCtValid =
+        ctValidityOffset(nextCloseTime) == std::chrono::milliseconds::zero();
+
+    if (!isCtValid)
+    {
+        CLOG(WARNING, "Herder") << fmt::format(
+            "Invalid close time selected ({}), skipping nomination",
+            nextCloseTime);
+        return;
     }
 
     // Protocols including the "closetime change" (CAP-0034) externalize

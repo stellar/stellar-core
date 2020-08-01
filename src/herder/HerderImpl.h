@@ -125,6 +125,12 @@ class HerderImpl : public Herder
     // * it's recent enough (if `enforceRecent` is set)
     bool checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent);
 
+    // Given a candidate close time, determine an offset needed to make it
+    // valid (at current system time). Returns 0 if ct is already valid
+    std::chrono::milliseconds
+    ctValidityOffset(uint64_t ct, std::chrono::milliseconds maxCtOffset =
+                                      std::chrono::milliseconds::zero());
+
     void ledgerClosed(bool synchronous);
 
     void startRebroadcastTimer();
