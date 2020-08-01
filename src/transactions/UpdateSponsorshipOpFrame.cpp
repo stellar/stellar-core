@@ -260,7 +260,7 @@ UpdateSponsorshipOpFrame::updateSignerSponsorship(AbstractLedgerTxn& ltx)
     size_t index = it - ae.signers.begin();
 
     bool wasSignerSponsored = false;
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         auto& extV2 = ae.ext.v1().ext.v2();
         if (index >= extV2.signerSponsoringIDs.size())

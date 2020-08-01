@@ -630,8 +630,7 @@ getMinBalance(LedgerHeader const& header, AccountEntry const& acc)
 {
     uint32_t numSponsoring = 0;
     uint32_t numSponsored = 0;
-    if (header.ledgerVersion >= 14 && acc.ext.v() == 1 &&
-        acc.ext.v1().ext.v() == 2)
+    if (header.ledgerVersion >= 14 && hasAccountEntryExtV2(acc))
     {
         numSponsoring = acc.ext.v1().ext.v2().numSponsoring;
         numSponsored = acc.ext.v1().ext.v2().numSponsored;
@@ -914,6 +913,12 @@ getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime)
     return app.getConfig().getExpectedLedgerCloseTime().count() *
                EXPECTED_CLOSE_TIME_MULT +
            closeTimeDrift;
+}
+
+bool
+hasAccountEntryExtV2(AccountEntry const& ae)
+{
+    return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
 }
 
 namespace detail

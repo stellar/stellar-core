@@ -157,7 +157,7 @@ normalizeSigners(AccountEntry& acc)
     // well
     xdr::xvector<Signer, MAX_SIGNERS> sortedSigners;
     xdr::xvector<SponsorshipDescriptor, MAX_SIGNERS> sortedSignerSponsoringIDs;
-    bool aeIsV2 = acc.ext.v() == 1 && acc.ext.v1().ext.v() == 2;
+    bool aeIsV2 = hasAccountEntryExtV2(acc);
 
     for (size_t index : indices)
     {

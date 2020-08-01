@@ -13,6 +13,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Math.h"
 #include <random>
 #include <xdrpp/autocheck.h>
@@ -30,7 +31,7 @@ generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
     auto& ae = le.data.account();
 
     ae.signers.clear();
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         ae.ext.v1().ext.v2().signerSponsoringIDs.clear();
     }
@@ -164,7 +165,7 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
     if (addSigner)
     {
         acc.signers.push_back(validSignerGenerator());
-        if (acc.ext.v() == 1 && acc.ext.v1().ext.v() == 2)
+        if (hasAccountEntryExtV2(acc))
         {
             acc.ext.v1().ext.v2().signerSponsoringIDs.push_back(
                 autocheck::generator<SponsorshipDescriptor>()(5));
@@ -240,7 +241,7 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
 
         auto pos = dist(gRandomEngine);
         acc.signers.erase(acc.signers.begin() + pos);
-        if (acc.ext.v() == 1 && acc.ext.v1().ext.v() == 2)
+        if (hasAccountEntryExtV2(acc))
         {
             auto& sponsoringIDs = acc.ext.v1().ext.v2().signerSponsoringIDs;
             sponsoringIDs.erase(sponsoringIDs.begin() + pos);

@@ -69,7 +69,7 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx)
 
     auto it = signers.insert(findRes.first, *mSetOptions.signer);
 
-    if (account.ext.v() == 1 && account.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(account))
     {
         size_t n = it - account.signers.begin();
         auto& extV2 = account.ext.v1().ext.v2();
