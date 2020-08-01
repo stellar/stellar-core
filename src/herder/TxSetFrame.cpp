@@ -284,7 +284,8 @@ TxSetFrame::surgePricingFilter(Application& app)
 bool
 TxSetFrame::checkOrTrim(Application& app,
                         std::vector<TransactionFrameBasePtr>& trimmed,
-                        bool justCheck, uint64_t upperBoundCloseTimeOffset)
+                        bool justCheck, uint64_t lowerBoundCloseTimeOffset,
+                        uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -298,7 +299,8 @@ TxSetFrame::checkOrTrim(Application& app,
         while (iter != kv.second.end())
         {
             auto tx = *iter;
-            if (!tx->checkValid(ltx, lastSeq, upperBoundCloseTimeOffset))
+            if (!tx->checkValid(ltx, lastSeq, lowerBoundCloseTimeOffset,
+                                upperBoundCloseTimeOffset))
             {
                 if (justCheck)
                 {
@@ -367,12 +369,14 @@ TxSetFrame::checkOrTrim(Application& app,
 }
 
 std::vector<TransactionFrameBasePtr>
-TxSetFrame::trimInvalid(Application& app, uint64_t upperBoundCloseTimeOffset)
+TxSetFrame::trimInvalid(Application& app, uint64_t lowerBoundCloseTimeOffset,
+                        uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     std::vector<TransactionFrameBasePtr> trimmed;
     sortForHash();
-    checkOrTrim(app, trimmed, false, upperBoundCloseTimeOffset);
+    checkOrTrim(app, trimmed, false, lowerBoundCloseTimeOffset,
+                upperBoundCloseTimeOffset);
     return trimmed;
 }
 
@@ -380,7 +384,8 @@ TxSetFrame::trimInvalid(Application& app, uint64_t upperBoundCloseTimeOffset)
 // the fees of all the tx it has submitted in this set
 // check seq num
 bool
-TxSetFrame::checkValid(Application& app, uint64_t upperBoundCloseTimeOffset)
+TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
+                       uint64_t upperBoundCloseTimeOffset)
 {
     ZoneScoped;
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
@@ -420,7 +425,8 @@ TxSetFrame::checkValid(Application& app, uint64_t upperBoundCloseTimeOffset)
     }
 
     std::vector<TransactionFrameBasePtr> trimmed;
-    bool valid = checkOrTrim(app, trimmed, true, upperBoundCloseTimeOffset);
+    bool valid = checkOrTrim(app, trimmed, true, lowerBoundCloseTimeOffset,
+                             upperBoundCloseTimeOffset);
     mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, valid);
     return valid;
 }

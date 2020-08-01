@@ -206,7 +206,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                          .getLastClosedLedgerHeader()
                          .header.scpValue.closeTime;
     LedgerTxn ltx(mApp.getLedgerTxnRoot());
-    if (!tx->checkValid(ltx, seqNum,
+    if (!tx->checkValid(ltx, seqNum, 0,
                         getUpperBoundCloseTimeOffset(mApp, closeTime)))
     {
         return TransactionQueue::AddResult::ADD_STATUS_ERROR;

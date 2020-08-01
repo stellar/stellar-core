@@ -10,13 +10,16 @@
 #include "scp/SCP.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "xdr/Stellar-ledger.h"
 
 using namespace stellar;
 
-TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
+void
+testQuorumTracker(uint32 protocolVersion)
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     cfg.MANUAL_CLOSE = false;
+    cfg.LEDGER_PROTOCOL_VERSION = protocolVersion;
 
     std::vector<SecretKey> otherKeys;
     int const kKeysCount = 7;
@@ -100,7 +103,10 @@ TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
         envelope.statement.pledges.type(SCP_ST_EXTERNALIZE);
         auto& ext = envelope.statement.pledges.externalize();
         ext.commit.counter = UINT32_MAX;
-        ext.commit.value = v.mBasicV;
+        ext.commit.value = (herder->getHerderSCPDriver().compositeValueType() ==
+                            STELLAR_VALUE_SIGNED)
+                               ? v.mSignedV
+                               : v.mBasicV;
         ext.nH = UINT32_MAX;
 
         auto qSetH = sha256(xdr::xdr_to_opaque(qSet));
@@ -179,5 +185,17 @@ TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
             // nothing changes (slot 3 has precedence)
             checkInQuorum({0, 1, 2, 3});
         }
+    }
+}
+
+TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
+{
+    SECTION("pre-CAP-0034 protocol")
+    {
+        testQuorumTracker(13);
+    }
+    SECTION("post-CAP-0034 protocol")
+    {
+        testQuorumTracker(14);
     }
 }
