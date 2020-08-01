@@ -124,9 +124,13 @@ TxSimGenerateBucketsWork::onRun()
         mTimer->async_wait(wakeSelfUpCallback(), &VirtualTimer::onFailureNoop);
         return BasicWork::State::WORK_WAITING;
     }
-    else if (!mIntermediateBuckets.empty())
+    else
     {
-        processGeneratedBucket();
+        if (!mIntermediateBuckets.empty())
+        {
+            processGeneratedBucket();
+        }
+
         if (mLevel < BucketList::kNumLevels - 1)
         {
             if (!mIsCurr)
