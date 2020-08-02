@@ -233,7 +233,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             TxSetFrame txSet(lcl.hash);
             txSet.add(tx1);
             txSet.sortForHash();
-            auto& herder = inApp->getHerder();
+            auto& herder = static_cast<HerderImpl&>(inApp->getHerder());
 
             // build the quorum set used by this message
             // use sources as validators
@@ -249,6 +249,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 VirtualClock::to_time_t(inApp->getClock().system_now()));
             StellarValue sv(txSet.getContentsHash(), ct, emptyUpgradeSteps,
                             STELLAR_VALUE_BASIC);
+
+            herder.signStellarValue(keys[0], sv);
 
             SCPEnvelope envelope;
 
