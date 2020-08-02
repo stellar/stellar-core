@@ -152,7 +152,7 @@ resilienceTest(Simulation::pointer sim)
         targetLedger += step;
         sim->crankUntil(
             [&]() { return sim->haveAllExternalized(targetLedger, maxGap); },
-            2 * nbLedgerStep * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+            5 * nbLedgerStep * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
         REQUIRE(sim->haveAllExternalized(targetLedger, maxGap));
     };
