@@ -584,6 +584,7 @@ TEST_CASE("schema upgrade test", "[db]")
                 if (aol)
                 {
                     ae.ext.v(1);
+                    ae.ext.v1().ext.v(0);
                     ae.ext.v1().liabilities = *aol;
                 }
                 else
