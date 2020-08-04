@@ -23,6 +23,7 @@
 #include "transactions/SponsorFutureReservesOpFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/UpdateSponsorshipOpFrame.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <xdrpp/printer.h>
@@ -92,6 +93,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<SponsorFutureReservesOpFrame>(op, res, tx);
     case END_SPONSORING_FUTURE_RESERVES:
         return std::make_shared<ConfirmAndClearSponsorOpFrame>(op, res, tx);
+    case REVOKE_SPONSORSHIP:
+        return std::make_shared<UpdateSponsorshipOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
