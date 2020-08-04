@@ -16,6 +16,7 @@
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
@@ -262,6 +263,28 @@ TEST_CASE("set options", "[tx][setoptions]")
 
                 countSubEntriesAndSigners(0);
             });
+        }
+
+        SECTION("sponsorship")
+        {
+            auto const minBalance0 =
+                app->getLedgerManager().getLastMinBalance(0);
+            auto const minBalance1 =
+                app->getLedgerManager().getLastMinBalance(1);
+            auto acc1 = root.create("a1", minBalance1 - 1);
+            auto acc2 = root.create("a2", minBalance0);
+            createSponsoredEntryButSponsorHasInsufficientBalance(
+                *app, acc1, acc2, setOptions(setSigner(sk1)),
+                [](OperationResult const& opRes) {
+                    return opRes.tr().setOptionsResult().code() ==
+                           SET_OPTIONS_LOW_RESERVE;
+                });
+
+            auto sk1b = makeSigner(s1, 2);
+            createModifyAndRemoveSponsoredEntry(
+                *app, acc2, setOptions(setSigner(sk1)),
+                setOptions(setSigner(sk1b)), setOptions(setSigner(sk1)),
+                setOptions(setSigner(makeSigner(s1, 0))), sk1.key);
         }
     }
 
