@@ -348,14 +348,21 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
-    shutdownWorkScheduler();
-    if (mProcessManager)
+    try
     {
-        mProcessManager->shutdown();
+        shutdownWorkScheduler();
+        if (mProcessManager)
+        {
+            mProcessManager->shutdown();
+        }
+        if (mBucketManager)
+        {
+            mBucketManager->shutdown();
+        }
     }
-    if (mBucketManager)
+    catch (std::exception const& e)
     {
-        mBucketManager->shutdown();
+        LOG(ERROR) << "While shutting down " << e.what();
     }
     reportCfgMetrics();
     shutdownMainIOContext();
