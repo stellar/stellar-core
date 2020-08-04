@@ -49,40 +49,39 @@ SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
     auto& account = sourceAccount.current().data.account();
     auto& signers = account.signers;
 
-    bool found = false;
-    for (auto& oldSigner : signers)
+    // Change signer
+    auto it = std::find_if(signers.begin(), signers.end(), [&](auto const& x) {
+        return !(x.key < mSetOptions.signer->key);
+    });
+    if (it != signers.end() && it->key == mSetOptions.signer->key)
     {
-        if (oldSigner.key == mSetOptions.signer->key)
-        {
-            oldSigner.weight = mSetOptions.signer->weight;
-            found = true;
-        }
-    }
-    if (!found)
-    {
-        if (signers.size() == signers.max_size())
-        {
-            innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
-            return false;
-        }
-        switch (addNumEntries(header, sourceAccount, 1))
-        {
-        case AddSubentryResult::SUCCESS:
-            break;
-        case AddSubentryResult::LOW_RESERVE:
-            innerResult().code(SET_OPTIONS_LOW_RESERVE);
-            return false;
-        case AddSubentryResult::TOO_MANY_SUBENTRIES:
-            mResult.code(opTOO_MANY_SUBENTRIES);
-            return false;
-        default:
-            throw std::runtime_error(
-                "Unexpected result from addNumEntries");
-        }
-
-        signers.push_back(*mSetOptions.signer);
+        it->weight = mSetOptions.signer->weight;
+        return true;
     }
 
+    // Add signer
+    if (signers.size() == signers.max_size())
+    {
+        innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
+        return false;
+    }
+
+    switch (addNumEntries(header, sourceAccount, 1))
+    {
+    case AddSubentryResult::SUCCESS:
+        break;
+    case AddSubentryResult::LOW_RESERVE:
+        innerResult().code(SET_OPTIONS_LOW_RESERVE);
+        return false;
+    case AddSubentryResult::TOO_MANY_SUBENTRIES:
+        mResult.code(opTOO_MANY_SUBENTRIES);
+        return false;
+    default:
+        throw std::runtime_error(
+            "Unexpected result from addNumEntries");
+    }
+
+    signers.insert(it, *mSetOptions.signer);
     return true;
 }
 
@@ -94,18 +93,16 @@ SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
     auto& account = sourceAccount.current().data.account();
     auto& signers = account.signers;
 
-    auto it = signers.begin();
-    while (it != signers.end())
+    auto it = std::find_if(signers.begin(), signers.end(), [&](auto const& x) {
+        return !(x.key < mSetOptions.signer->key);
+    });
+    if (it != signers.end() && it->key == mSetOptions.signer->key)
     {
-        Signer& oldSigner = *it;
-        if (oldSigner.key == mSetOptions.signer->key)
+        if (it->key == mSetOptions.signer->key)
         {
-            it = signers.erase(it);
+            signers.erase(it);
             addNumEntries(header, sourceAccount, -1);
-        }
-        else
-        {
-            it++;
+            return;
         }
     }
 }
@@ -196,7 +193,6 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
         {
             deleteSigner(ltx, header, sourceAccount);
         }
-        normalizeSigners(sourceAccount);
     }
 
     innerResult().code(SET_OPTIONS_SUCCESS);
