@@ -56,8 +56,7 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
         auto s = checkIsValid(*entryDelta.second.current, currLedgerSeq, ver);
         if (!s.empty())
         {
-            s += ": ";
-            s += xdr::xdr_to_string(*entryDelta.second.current);
+            s += ": " + entryDelta.second.current->toString();
             return s;
         }
     }
@@ -80,6 +79,17 @@ LedgerEntryIsValid::check(IterType iter, IterType const& end,
         }
     }
     return {};
+}
+
+std::string
+LedgerEntryIsValid::checkIsValid(GeneralizedLedgerEntry const& le,
+                                 uint32_t ledgerSeq, uint32 version) const
+{
+    if (le.type() == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    {
+        return checkIsValid(le.ledgerEntry(), ledgerSeq, version);
+    }
+    return "";
 }
 
 std::string

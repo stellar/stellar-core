@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/ShortHash.h"
+#include "ledger/GeneralizedLedgerEntry.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 
@@ -82,6 +83,22 @@ template <> class hash<stellar::LedgerKey>
             abort();
         }
         return res;
+    }
+};
+
+template <> class hash<stellar::GeneralizedLedgerKey>
+{
+  public:
+    size_t
+    operator()(stellar::GeneralizedLedgerKey const& glk) const
+    {
+        switch (glk.type())
+        {
+        case stellar::GeneralizedLedgerEntryType::LEDGER_ENTRY:
+            return hash<stellar::LedgerKey>()(glk.ledgerKey());
+        default:
+            abort();
+        }
     }
 };
 }

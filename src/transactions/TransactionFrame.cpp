@@ -244,13 +244,13 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
 {
     ZoneScoped;
     if (header.current().ledgerVersion < 8 && mCachedAccount &&
-        mCachedAccount->data.account().accountID == accountID)
+        mCachedAccount->ledgerEntry().data.account().accountID == accountID)
     {
         // this is buggy caching that existed in old versions of the protocol
         auto res = stellar::loadAccount(ltx, accountID);
         if (res)
         {
-            res.current() = *mCachedAccount;
+            res.currentGeneralized() = *mCachedAccount;
         }
         else
         {

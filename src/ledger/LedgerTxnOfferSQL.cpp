@@ -435,7 +435,9 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(e.entryExists());
-            accumulateEntry(e.entry());
+            assert(e.entry().type() ==
+                   GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            accumulateEntry(e.entry().ledgerEntry());
         }
     }
 
@@ -590,8 +592,9 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
-            assert(e.key().type() == OFFER);
-            auto const& offer = e.key().offer();
+            assert(e.key().type() == GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.key().ledgerKey().type() == OFFER);
+            auto const& offer = e.key().ledgerKey().offer();
             mOfferIDs.emplace_back(offer.offerID);
         }
     }
