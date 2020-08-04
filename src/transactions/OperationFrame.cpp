@@ -7,6 +7,7 @@
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/ClaimClaimableBalanceOpFrame.h"
+#include "transactions/ConfirmAndClearSponsorOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
@@ -89,6 +90,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<ClaimClaimableBalanceOpFrame>(op, res, tx);
     case BEGIN_SPONSORING_FUTURE_RESERVES:
         return std::make_shared<SponsorFutureReservesOpFrame>(op, res, tx);
+    case END_SPONSORING_FUTURE_RESERVES:
+        return std::make_shared<ConfirmAndClearSponsorOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
