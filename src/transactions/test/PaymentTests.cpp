@@ -312,7 +312,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             auto getMinBalance = [&] {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                return stellar::getMinBalance(ltx.loadHeader(), 0);
+                return stellar::getMinBalance(ltx.loadHeader(), 0, 0, 0);
             };
 
             int64 orgReserve = getMinBalance();

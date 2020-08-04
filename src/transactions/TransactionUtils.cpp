@@ -301,7 +301,7 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
         }
         if (header.current().ledgerVersion >= 10)
         {
-            auto minBalance = getMinBalance(header, acc.numSubEntries);
+            auto minBalance = getMinBalance(header, acc);
             if (delta < 0 &&
                 newBalance - minBalance < getSellingLiabilities(header, entry))
             {
@@ -419,7 +419,16 @@ addNumEntries(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int count)
         return AddSubentryResult::TOO_MANY_SUBENTRIES;
     }
 
-    int64_t effMinBalance = getMinBalance(header, newEntriesCount);
+    uint32_t numSponsoring = 0;
+    uint32_t numSponsored = 0;
+    if (header.current().ledgerVersion >= 14 && acc.ext.v() == 1 &&
+        acc.ext.v1().ext.v() == 2)
+    {
+        numSponsoring = acc.ext.v1().ext.v2().numSponsoring;
+        numSponsored = acc.ext.v1().ext.v2().numSponsored;
+    }
+    int64_t effMinBalance =
+        getMinBalance(header, newEntriesCount, numSponsoring, numSponsored);
     if (header.current().ledgerVersion >= 10)
     {
         effMinBalance += getSellingLiabilities(header, entry);
@@ -450,8 +459,7 @@ addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     if (entry.current().data.type() == ACCOUNT)
     {
         auto& acc = entry.current().data.account();
-        int64_t maxLiabilities =
-            acc.balance - getMinBalance(header, acc.numSubEntries);
+        int64_t maxLiabilities = acc.balance - getMinBalance(header, acc);
         if (maxLiabilities < 0)
         {
             return false;
@@ -501,7 +509,7 @@ getAvailableBalance(LedgerTxnHeader const& header, LedgerEntry const& le)
     if (le.data.type() == ACCOUNT)
     {
         auto const& acc = le.data.account();
-        avail = acc.balance - getMinBalance(header, acc.numSubEntries);
+        avail = acc.balance - getMinBalance(header, acc);
     }
     else if (le.data.type() == TRUSTLINE)
     {
@@ -611,6 +619,21 @@ getMaxAmountReceive(LedgerTxnHeader const& header,
 }
 
 int64_t
+getMinBalance(LedgerTxnHeader const& header, AccountEntry const& acc)
+{
+    uint32_t numSponsoring = 0;
+    uint32_t numSponsored = 0;
+    if (header.current().ledgerVersion >= 14 && acc.ext.v() == 1 &&
+        acc.ext.v1().ext.v() == 2)
+    {
+        numSponsoring = acc.ext.v1().ext.v2().numSponsoring;
+        numSponsored = acc.ext.v1().ext.v2().numSponsored;
+    }
+    return getMinBalance(header, acc.numSubEntries, numSponsoring,
+                         numSponsored);
+}
+
+int64_t
 getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount)
 {
     auto const& lh = header.current();
@@ -618,6 +641,34 @@ getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount)
         return (2 + ownerCount) * lh.baseReserve;
     else
         return (2LL + ownerCount) * int64_t(lh.baseReserve);
+}
+
+int64_t
+getMinBalance(LedgerTxnHeader const& header, uint32_t numSubentries,
+              uint32_t numSponsoring, uint32_t numSponsored)
+{
+    auto const& lh = header.current();
+    if (lh.ledgerVersion < 14 && (numSponsored != 0 || numSponsoring != 0))
+    {
+        throw std::runtime_error("unexpected sponsorship state");
+    }
+
+    if (lh.ledgerVersion <= 8)
+    {
+        return (2 + numSubentries) * lh.baseReserve;
+    }
+    else
+    {
+        int64_t effEntries = 2LL;
+        effEntries += numSubentries;
+        effEntries += numSponsoring;
+        effEntries -= numSponsored;
+        if (effEntries < 0)
+        {
+            throw std::runtime_error("unexpected account state");
+        }
+        return effEntries * int64_t(lh.baseReserve);
+    }
 }
 
 int64_t
