@@ -138,6 +138,8 @@ makeValid(AccountEntry& a)
         a.ext.v1().liabilities.buying = std::abs(a.ext.v1().liabilities.buying);
         a.ext.v1().liabilities.selling =
             std::abs(a.ext.v1().liabilities.selling);
+        // TODO(jonjove): Make tests support v2
+        a.ext.v1().ext.v(0);
     }
 }
 
