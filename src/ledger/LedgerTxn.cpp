@@ -2353,7 +2353,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
             break;
         case CLAIMABLE_BALANCE:
             insertIfNotLoaded(claimablebalance, key);
-            if (data.size() == mBulkLoadBatchSize)
+            if (claimablebalance.size() == mBulkLoadBatchSize)
             {
                 cacheResult(bulkLoadClaimableBalance(claimablebalance));
                 claimablebalance.clear();
