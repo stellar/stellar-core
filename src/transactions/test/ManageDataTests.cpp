@@ -11,6 +11,8 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
@@ -157,5 +159,23 @@ TEST_CASE("manage data", "[tx][managedata]")
 
         for_versions({2}, *app, [&] { acc1.manageData(t1, &value); });
         for_versions_from(4, *app, [&] { acc1.manageData(t1, &value); });
+    }
+
+    SECTION("sponsorship")
+    {
+        auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+        auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
+        auto acc1 = root.create("a1", minBalance1 - 1);
+        auto acc2 = root.create("a2", minBalance0);
+        createSponsoredEntryButSponsorHasInsufficientBalance(
+            *app, acc1, acc2, manageData(t1, &value),
+            [](OperationResult const& opRes) {
+                return opRes.tr().manageDataResult().code() ==
+                       MANAGE_DATA_LOW_RESERVE;
+            });
+
+        createModifyAndRemoveSponsoredEntry(
+            *app, acc2, manageData(t1, &value), manageData(t1, &value2),
+            manageData(t1, &value), manageData(t1, nullptr), dataKey(acc2, t1));
     }
 }
