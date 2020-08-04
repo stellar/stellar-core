@@ -21,6 +21,7 @@
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Algoritm.h"
@@ -616,17 +617,13 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
         return; // probably account was removed due to merge operation
     }
 
+    auto header = ltx.loadHeader();
     auto& signers = account.current().data.account().signers;
-    auto it = std::find_if(
-        std::begin(signers), std::end(signers),
-        [&signerKey](Signer const& signer) { return signer.key == signerKey; });
-
-    if (it != std::end(signers))
+    auto it = std::find_if(signers.begin(), signers.end(),
+                           [&](auto const& x) { return !(x.key < signerKey); });
+    if (it != signers.end() && it->key == signerKey)
     {
-        auto header = ltx.loadHeader();
-        auto removed = stellar::addNumEntries(header, account, -1);
-        assert(removed == AddSubentryResult::SUCCESS);
-        signers.erase(it);
+        removeSignerWithPossibleSponsorship(ltx, header, it, account);
         ltx.commit();
     }
 }

@@ -39,10 +39,6 @@ class FeeBumpTransactionFrame : public TransactionFrameBase
     ValidationType commonValid(SignatureChecker& signatureChecker,
                                AbstractLedgerTxn& ltxOuter, bool applying);
 
-    bool removeAccountSigner(LedgerTxnHeader const& header,
-                             LedgerTxnEntry& account,
-                             SignerKey const& signerKey) const;
-
     void removeOneTimeSignerKeyFromFeeSource(AbstractLedgerTxn& ltx) const;
 
   protected:
