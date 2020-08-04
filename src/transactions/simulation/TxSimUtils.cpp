@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
+#include "invariant/test/InvariantTestUtils.h"
 #include "transactions/TransactionUtils.h"
 
 namespace stellar
@@ -159,7 +160,7 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
                         signer.weight);
                 }
             }
-            normalizeSigners(newEntry.data.account());
+            InvariantTestUtils::normalizeSigners(newEntry.data.account());
             break;
         case TRUSTLINE:
             mutateScaledAccountID(newEntry.data.trustLine().accountID,
