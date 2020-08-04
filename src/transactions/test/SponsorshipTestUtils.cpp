@@ -291,4 +291,82 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
     createModifyAndRemoveSponsoredEntry(app, sponsoredAcc, opCreate, opModify1,
                                         opModify2, opRemove, uso);
 }
+
+void
+tooManySponsoring(Application& app, TestAccount& sponsoredAcc,
+                  Operation const& successfulOp, Operation const& failOp)
+{
+    tooManySponsoring(app, sponsoredAcc, sponsoredAcc, successfulOp, failOp);
+}
+void
+tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
+                  TestAccount& failOpAcc, Operation const& successfulOp,
+                  Operation const& failOp)
+{
+    // root is the sponsoring account
+    auto root = TestAccount::createRoot(app);
+    SECTION("too many sponsoring")
+    {
+        for_versions_from(14, app, [&] {
+            {
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                auto acc = stellar::loadAccount(ltx, root.getPublicKey());
+                auto& le = acc.current();
+                auto& ae = le.data.account();
+                ae.ext.v(1);
+                ae.ext.v1().ext.v(2);
+
+                uint32_t offset = 1;
+                // we want to be able to do one successful op before the fail op
+                if (successfulOp.body.type() == REVOKE_SPONSORSHIP &&
+                    successfulOp.body.revokeSponsorshipOp().type() ==
+                        REVOKE_SPONSORSHIP_LEDGER_ENTRY &&
+                    successfulOp.body.revokeSponsorshipOp()
+                            .ledgerKey()
+                            .type() == ACCOUNT)
+                {
+                    ++offset;
+                }
+                else if (successfulOp.body.type() == CREATE_ACCOUNT)
+                {
+                    ++offset;
+                }
+
+                ae.ext.v1().ext.v2().numSponsoring = UINT32_MAX - offset;
+                ltx.commit();
+            }
+
+            {
+                auto tx1 = transactionFrameFromOps(
+                    app.getNetworkID(), root,
+                    {root.op(sponsorFutureReserves(successfulOpAcc)),
+                     successfulOp,
+                     successfulOpAcc.op(confirmAndClearSponsor())},
+                    {successfulOpAcc});
+
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                TransactionMeta txm1(2);
+                REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                REQUIRE(tx1->apply(app, ltx, txm1));
+                ltx.commit();
+            }
+
+            {
+                auto tx2 = transactionFrameFromOps(
+                    app.getNetworkID(), root,
+                    {root.op(sponsorFutureReserves(failOpAcc)), failOp,
+                     failOpAcc.op(confirmAndClearSponsor())},
+                    {failOpAcc});
+
+                LedgerTxn ltx(app.getLedgerTxnRoot());
+                TransactionMeta txm2(2);
+                REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!tx2->apply(app, ltx, txm2));
+                REQUIRE(tx2->getResult().result.results()[1].code() ==
+                        opTOO_MANY_SPONSORING);
+                ltx.commit();
+            }
+        });
+    }
+}
 }
