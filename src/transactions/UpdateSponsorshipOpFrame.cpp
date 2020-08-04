@@ -249,15 +249,14 @@ UpdateSponsorshipOpFrame::updateSignerSponsorship(AbstractLedgerTxn& ltx)
     }
     auto& ae = sponsoredAcc.current().data.account();
 
-    auto it = std::find_if(
-        ae.signers.begin(), ae.signers.end(), [&](Signer const& signer) {
-            return signer.key == mUpdateSponsorshipOp.signer().signerKey;
-        });
-    if (it == ae.signers.end())
+    auto findRes = findSignerByKey(ae.signers.begin(), ae.signers.end(),
+                                   mUpdateSponsorshipOp.signer().signerKey);
+    if (!findRes.second)
     {
         innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
         return false;
     }
+    auto it = findRes.first;
     size_t index = it - ae.signers.begin();
 
     bool wasSignerSponsored = false;

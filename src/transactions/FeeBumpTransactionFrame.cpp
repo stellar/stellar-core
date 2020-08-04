@@ -404,11 +404,11 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
     auto header = ltx.loadHeader();
     auto signerKey = SignerKeyUtils::preAuthTxKey(*this);
     auto& signers = account.current().data.account().signers;
-    auto it = std::find_if(signers.begin(), signers.end(),
-                           [&](auto const& x) { return !(x.key < signerKey); });
-    if (it != signers.end() && it->key == signerKey)
+    auto findRes = findSignerByKey(signers.begin(), signers.end(), signerKey);
+    if (findRes.second)
     {
-        removeSignerWithPossibleSponsorship(ltx, header, it, account);
+        removeSignerWithPossibleSponsorship(ltx, header, findRes.first,
+                                            account);
     }
 }
 
