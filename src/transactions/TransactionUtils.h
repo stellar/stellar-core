@@ -22,6 +22,15 @@ struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
 
+AccountEntryExtensionV1& prepareAccountEntryExtensionV1(AccountEntry& ae);
+AccountEntryExtensionV2& prepareAccountEntryExtensionV2(AccountEntry& ae);
+TrustLineEntry::_ext_t::_v1_t&
+prepareTrustLineEntryExtensionV1(TrustLineEntry& tl);
+LedgerEntryExtensionV1& prepareLedgerEntryExtensionV1(LedgerEntry& le);
+
+AccountEntryExtensionV2& getAccountEntryExtensionV2(AccountEntry& ae);
+LedgerEntryExtensionV1& getLedgerEntryExtensionV1(LedgerEntry& le);
+
 LedgerKey accountKey(AccountID const& accountID);
 LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
