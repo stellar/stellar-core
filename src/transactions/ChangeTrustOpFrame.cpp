@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 
@@ -76,9 +77,10 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         if (mChangeTrust.limit == 0)
         {
             // line gets deleted
-            trustLine.erase();
             auto sourceAccount = loadSourceAccount(ltx, header);
-            addNumEntries(header, sourceAccount, -1);
+            removeEntryWithPossibleSponsorship(ltx, header, trustLine.current(),
+                                               sourceAccount);
+            trustLine.erase();
         }
         else
         {
@@ -100,27 +102,6 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
             return false;
         }
-        auto issuer = stellar::loadAccountWithoutRecord(ltx, issuerID);
-        if (!issuer)
-        {
-            innerResult().code(CHANGE_TRUST_NO_ISSUER);
-            return false;
-        }
-
-        auto sourceAccount = loadSourceAccount(ltx, header);
-        switch (addNumEntries(header, sourceAccount, 1))
-        {
-        case AddSubentryResult::SUCCESS:
-            break;
-        case AddSubentryResult::LOW_RESERVE:
-            innerResult().code(CHANGE_TRUST_LOW_RESERVE);
-            return false;
-        case AddSubentryResult::TOO_MANY_SUBENTRIES:
-            mResult.code(opTOO_MANY_SUBENTRIES);
-            return false;
-        default:
-            throw std::runtime_error("Unexpected result from addNumEntries");
-        }
 
         LedgerEntry trustLineEntry;
         trustLineEntry.data.type(TRUSTLINE);
@@ -129,9 +110,41 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
         tl.asset = mChangeTrust.line;
         tl.limit = mChangeTrust.limit;
         tl.balance = 0;
-        if (!isAuthRequired(issuer))
+
         {
-            tl.flags = AUTHORIZED_FLAG;
+            auto issuer = stellar::loadAccountWithoutRecord(ltx, issuerID);
+            if (!issuer)
+            {
+                innerResult().code(CHANGE_TRUST_NO_ISSUER);
+                return false;
+            }
+            if (!isAuthRequired(issuer))
+            {
+                tl.flags = AUTHORIZED_FLAG;
+            }
+        }
+
+        auto sourceAccount = loadSourceAccount(ltx, header);
+        switch (createEntryWithPossibleSponsorship(ltx, header, trustLineEntry,
+                                                   sourceAccount))
+        {
+        case SponsorshipResult::SUCCESS:
+            break;
+        case SponsorshipResult::LOW_RESERVE:
+            innerResult().code(CHANGE_TRUST_LOW_RESERVE);
+            return false;
+        case SponsorshipResult::TOO_MANY_SUBENTRIES:
+            mResult.code(opTOO_MANY_SUBENTRIES);
+            return false;
+        case SponsorshipResult::TOO_MANY_SPONSORING:
+            mResult.code(opTOO_MANY_SPONSORING);
+            return false;
+        case SponsorshipResult::TOO_MANY_SPONSORED:
+            // This is impossible right now because there is a limit on sub
+            // entries, fall through and throw
+        default:
+            throw std::runtime_error("Unexpected result from "
+                                     "createEntryWithPossibleSponsorship");
         }
         ltx.create(trustLineEntry);
 
