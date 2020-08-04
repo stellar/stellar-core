@@ -19,6 +19,7 @@
 #include "transactions/PathPaymentStrictSendOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
+#include "transactions/SponsorFutureReservesOpFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
@@ -86,6 +87,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
                                                                index);
     case CLAIM_CLAIMABLE_BALANCE:
         return std::make_shared<ClaimClaimableBalanceOpFrame>(op, res, tx);
+    case BEGIN_SPONSORING_FUTURE_RESERVES:
+        return std::make_shared<SponsorFutureReservesOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
