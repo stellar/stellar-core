@@ -3387,3 +3387,46 @@ TEST_CASE("LedgerTxn bulk-load offers", "[ledgertxn]")
     }
 #endif
 }
+
+TEST_CASE("LedgerTxn generalized ledger entries", "[ledgertxn]")
+{
+    VirtualClock clock;
+    auto app = createTestApplication(clock, getTestConfig());
+    app->start();
+
+    GeneralizedLedgerEntry gle(GeneralizedLedgerEntryType::SPONSORSHIP);
+    gle.sponsorshipEntry().sponsoredID = autocheck::generator<AccountID>()(5);
+    gle.sponsorshipEntry().sponsoringID = autocheck::generator<AccountID>()(5);
+
+    SECTION("create then load")
+    {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        REQUIRE(ltx.create(gle));
+        REQUIRE(ltx.load(gle.toKey()));
+    }
+
+    SECTION("create then commit then load")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        {
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.create(gle));
+            ltx2.commit();
+        }
+        REQUIRE(ltx1.load(gle.toKey()));
+    }
+
+    SECTION("create then commit then load in child")
+    {
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+        {
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.create(gle));
+            ltx2.commit();
+        }
+        {
+            LedgerTxn ltx2(ltx1);
+            REQUIRE(ltx2.load(gle.toKey()));
+        }
+    }
+}
