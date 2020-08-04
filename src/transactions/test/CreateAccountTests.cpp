@@ -17,14 +17,8 @@ using namespace stellar::txtest;
 
 TEST_CASE("create account", "[tx][createaccount]")
 {
-    Config cfg = getTestConfig();
-
-    // Do our setup in version 1 so that for_all_versions below does not
-    // try to downgrade us from >1 to 1.
-    cfg.USE_CONFIG_FOR_GENESIS = false;
-
     VirtualClock clock;
-    auto app = createTestApplication(clock, cfg);
+    auto app = createTestApplication(clock, getTestConfig());
     app->start();
 
     // set up world
@@ -71,24 +65,19 @@ TEST_CASE("create account", "[tx][createaccount]")
 
     SECTION("with native selling liabilities")
     {
-        auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
-        auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
+        for_versions_from(10, *app, [&] {
+            auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
+            auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
 
-        auto const native = makeNativeAsset();
-        auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
-        auto cur1 = acc1.asset("CUR1");
-        auto setup = [&]() {
+            auto const native = makeNativeAsset();
+            auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
+            auto cur1 = acc1.asset("CUR1");
+
             TestMarket market(*app);
             market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(acc1, {native, cur1, Price{1, 1}, 500});
             });
-        };
-        for_versions_to(9, *app, [&] {
-            setup();
-            acc1.create("acc2", minBal0 + 1);
-        });
-        for_versions_from(10, *app, [&] {
-            setup();
+
             REQUIRE_THROWS_AS(acc1.create("acc2", minBal0 + 1),
                               ex_CREATE_ACCOUNT_UNDERFUNDED);
             root.pay(acc1, txfee);
@@ -98,18 +87,20 @@ TEST_CASE("create account", "[tx][createaccount]")
 
     SECTION("with native buying liabilities")
     {
-        auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
-        auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
+        for_versions_from(10, *app, [&] {
+            auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
+            auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
 
-        auto const native = makeNativeAsset();
-        auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
-        TestMarket market(*app);
+            auto const native = makeNativeAsset();
+            auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
+            auto cur1 = acc1.asset("CUR1");
 
-        auto cur1 = acc1.asset("CUR1");
-        market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(acc1, {cur1, native, Price{1, 1}, 500});
+            TestMarket market(*app);
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(acc1, {cur1, native, Price{1, 1}, 500});
+            });
+
+            acc1.create("acc2", minBal0 + 500);
         });
-
-        for_all_versions(*app, [&] { acc1.create("acc2", minBal0 + 500); });
     }
 }
