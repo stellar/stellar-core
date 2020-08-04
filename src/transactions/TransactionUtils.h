@@ -97,15 +97,6 @@ bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                           int64_t delta);
 
-enum class AddSubentryResult
-{
-    SUCCESS,
-    LOW_RESERVE,
-    TOO_MANY_SUBENTRIES
-};
-AddSubentryResult addNumEntries(LedgerTxnHeader const& header,
-                                LedgerTxnEntry& entry, int count);
-
 bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                            int64_t delta);
 

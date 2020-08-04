@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
@@ -832,7 +833,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
         auto addSubEntries = [&](uint32_t initNumSubEntries,
                                  int64_t initBalance,
                                  int64_t initSellingLiabilities,
-                                 int32_t deltaNumSubEntries) {
+                                 bool addEntry) {
             AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
             ae.balance = initBalance;
             ae.numSubEntries = initNumSubEntries;
@@ -850,21 +851,36 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             auto header = ltx.loadHeader();
             auto acc = ltx.create(le);
-            bool res =
-                stellar::addNumEntries(header, acc, deltaNumSubEntries) ==
-                AddSubentryResult::SUCCESS;
+
+            DataEntry de = LedgerTestUtils::generateValidDataEntry();
+            LedgerEntry dataLe;
+            dataLe.data.type(DATA);
+            dataLe.data.data() = de;
+
+            bool res = true;
+            if (addEntry)
+            {
+                res = createEntryWithPossibleSponsorship(ltx, header, dataLe,
+                                                         acc) ==
+                      SponsorshipResult::SUCCESS;
+            }
+            else
+            {
+                removeEntryWithPossibleSponsorship(ltx, header, dataLe, acc);
+            }
+
             REQUIRE(getSellingLiabilities(header, acc) ==
                     initSellingLiabilities);
             REQUIRE(getBuyingLiabilities(header, acc) == initBuyingLiabilities);
             REQUIRE(acc.current().data.account().balance == initBalance);
             if (res)
             {
-                if (deltaNumSubEntries > 0)
+                if (addEntry)
                 {
                     REQUIRE(getAvailableBalance(header, acc) >= 0);
                 }
                 REQUIRE(acc.current().data.account().numSubEntries ==
-                        initNumSubEntries + deltaNumSubEntries);
+                        initNumSubEntries + (addEntry ? 1 : -1));
             }
             else
             {
@@ -877,45 +893,53 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             SECTION("can decrease sub entries when below min balance")
             {
                 // Below reserve and below new reserve
-                REQUIRE(addSubEntries(1, 0, 0, -1));
-                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0) - 1, 0, -1));
+                REQUIRE(addSubEntries(1, 0, 0, false));
+                REQUIRE(
+                    addSubEntries(1, lm.getLastMinBalance(0) - 1, 0, false));
 
                 // Below reserve but at new reserve
-                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0), 0, -1));
+                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0), 0, false));
 
                 // Below reserve but above new reserve
-                REQUIRE(addSubEntries(1, lm.getLastMinBalance(1) - 1, 0, -1));
-                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0) + 1, 0, -1));
+                REQUIRE(
+                    addSubEntries(1, lm.getLastMinBalance(1) - 1, 0, false));
+                REQUIRE(
+                    addSubEntries(1, lm.getLastMinBalance(0) + 1, 0, false));
             }
 
             SECTION("cannot add sub entry without sufficient balance")
             {
                 // Below reserve, no liabilities
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0) - 1, 0, 1));
+                REQUIRE(
+                    !addSubEntries(0, lm.getLastMinBalance(0) - 1, 0, true));
 
                 // At reserve, no liabilities
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0), 0, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0), 0, true));
 
                 // Above reserve but below new reserve, no liabilities
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0) + 1, 0, 1));
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1) - 1, 0, 1));
+                REQUIRE(
+                    !addSubEntries(0, lm.getLastMinBalance(0) + 1, 0, true));
+                REQUIRE(
+                    !addSubEntries(0, lm.getLastMinBalance(1) - 1, 0, true));
 
                 // Above reserve but below new reserve, with liabilities
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0) + 2, 1, 1));
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1), 1, 1));
+                REQUIRE(
+                    !addSubEntries(0, lm.getLastMinBalance(0) + 2, 1, true));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1), 1, true));
 
                 // Above reserve but at new reserve, no liabilities
-                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1), 0, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1), 0, true));
 
                 // Above reserve but at new reserve, with liabilities
-                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 1, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 1, true));
 
                 // Above reserve and above new reserve, no liabilities
-                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 0, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 0, true));
 
                 // Above reserve and above new reserve, with liabilities
-                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 1, 1));
-                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1) + 1, 2, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 1, true));
+                REQUIRE(
+                    !addSubEntries(0, lm.getLastMinBalance(1) + 1, 2, true));
             }
         });
     }

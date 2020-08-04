@@ -1010,9 +1010,10 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     // Note: No changes have been stored before this point.
     if (newAmount == 0)
     { // entire offer is taken
-        sellingWheatOffer.erase();
         auto accountB = stellar::loadAccount(ltx, accountBID);
-        addNumEntries(ltx.loadHeader(), accountB, -1);
+        removeEntryWithPossibleSponsorship(
+            ltx, ltx.loadHeader(), sellingWheatOffer.current(), accountB);
+        sellingWheatOffer.erase();
     }
     else
     {
