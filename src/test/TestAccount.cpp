@@ -255,9 +255,6 @@ TestAccount::createClaimableBalance(Asset const& asset, int64_t amount,
     REQUIRE(claimableBalance.asset == asset);
     REQUIRE(claimableBalance.amount == amount);
     REQUIRE(claimableBalance.balanceID == returnedBalanceID);
-    REQUIRE(claimableBalance.createdBy == getPublicKey());
-    REQUIRE(static_cast<uint32_t>(claimableBalance.reserve) ==
-            claimants.size() * mApp.getLedgerManager().getLastReserve());
 
     return returnedBalanceID;
 }

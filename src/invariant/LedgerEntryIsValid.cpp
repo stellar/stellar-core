@@ -307,10 +307,6 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
     {
         return "ClaimableBalance amount is not positive";
     }
-    if (cbe.reserve <= 0)
-    {
-        return "ClaimableBalance reserve is not positive";
-    }
 
     for (auto const& claimant : cbe.claimants)
     {

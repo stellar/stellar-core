@@ -39,6 +39,8 @@ getAccountID(LedgerEntry const& le)
         return le.data.offer().sellerID;
     case DATA:
         return le.data.data().accountID;
+    case CLAIMABLE_BALANCE:
+        return *le.ext.v1().sponsoringID;
     default:
         abort();
     }
@@ -125,6 +127,12 @@ UpdateSponsorshipOpFrame::updateLedgerEntrySponsorship(AbstractLedgerTxn& ltx)
         {
             willEntryBeSponsored = true;
         }
+    }
+
+    if (!willEntryBeSponsored && le.data.type() == CLAIMABLE_BALANCE)
+    {
+        innerResult().code(REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
+        return false;
     }
 
     auto header = ltx.loadHeader();
