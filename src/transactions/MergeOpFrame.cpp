@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "main/Application.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -109,6 +110,28 @@ MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
     }
 
+    if (header.current().ledgerVersion >= 14)
+    {
+        if (loadSponsorshipCounter(ltx, getSourceID()))
+        {
+            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            return false;
+        }
+
+        if (getNumSponsoring(sourceAccountEntry.current()) > 0)
+        {
+            innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+            return false;
+        }
+
+        while (!sourceAccount.signers.empty())
+        {
+            removeSignerWithPossibleSponsorship(ltx, header,
+                                                sourceAccount.signers.end() - 1,
+                                                sourceAccountEntry);
+        }
+    }
+
     // "success" path starts
     if (!addBalance(header, otherAccount, sourceBalance))
     {
@@ -116,6 +139,8 @@ MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
         return false;
     }
 
+    removeEntryWithPossibleSponsorship(
+        ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
     sourceAccountEntry.erase();
 
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
