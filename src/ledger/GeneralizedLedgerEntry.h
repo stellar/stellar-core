@@ -15,6 +15,11 @@ enum class GeneralizedLedgerEntryType
     LEDGER_ENTRY
 };
 
+struct SponsorshipKey
+{
+    AccountID sponsoredID;
+};
+
 class GeneralizedLedgerKey
 {
   private:
@@ -51,6 +56,12 @@ class GeneralizedLedgerKey
     LedgerKey const& ledgerKey() const;
 
     std::string toString() const;
+};
+
+struct SponsorshipEntry
+{
+    AccountID sponsoredID;
+    AccountID sponsoringID;
 };
 
 class GeneralizedLedgerEntry
@@ -92,6 +103,11 @@ class GeneralizedLedgerEntry
 
     std::string toString() const;
 };
+
+bool operator==(SponsorshipKey const& lhs, SponsorshipKey const& rhs);
+bool operator!=(SponsorshipKey const& lhs, SponsorshipKey const& rhs);
+bool operator==(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs);
+bool operator!=(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs);
 
 bool operator==(GeneralizedLedgerKey const& lhs,
                 GeneralizedLedgerKey const& rhs);

@@ -10,6 +10,31 @@
 namespace stellar
 {
 
+bool
+operator==(SponsorshipKey const& lhs, SponsorshipKey const& rhs)
+{
+    return lhs.sponsoredID == rhs.sponsoredID;
+}
+
+bool
+operator!=(SponsorshipKey const& lhs, SponsorshipKey const& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool
+operator==(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
+{
+    return lhs.sponsoredID == rhs.sponsoredID &&
+           lhs.sponsoringID == rhs.sponsoringID;
+}
+
+bool
+operator!=(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
+{
+    return !(lhs == rhs);
+}
+
 // GeneralizedLedgerKey -------------------------------------------------------
 GeneralizedLedgerKey::GeneralizedLedgerKey()
     : GeneralizedLedgerKey(GeneralizedLedgerEntryType::LEDGER_ENTRY)
