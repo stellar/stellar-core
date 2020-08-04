@@ -92,16 +92,21 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     }
     Hash index = sha256(xdr::xdr_to_opaque(msg));
 
+    FloodRecord::pointer fr;
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end() || force)
-    { // no one has sent us this message
-        FloodRecord::pointer record = std::make_shared<FloodRecord>(
+    { // no one has sent us this message / start from scratch
+        fr = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
-        result = mFloodMap.insert(std::make_pair(index, record)).first;
+        mFloodMap[index] = fr;
         mFloodMapSize.set_count(mFloodMap.size());
     }
+    else
+    {
+        fr = result->second;
+    }
     // send it to people that haven't sent it to us
-    auto& peersTold = result->second->mPeersTold;
+    auto& peersTold = fr->mPeersTold;
 
     // make a copy, in case peers gets modified
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
