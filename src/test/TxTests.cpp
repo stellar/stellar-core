@@ -1097,6 +1097,44 @@ claimClaimableBalance(ClaimableBalanceID const& balanceID)
     return op;
 }
 
+Operation
+sponsorFutureReserves(PublicKey const& sponsoredID)
+{
+    Operation op;
+    op.body.type(BEGIN_SPONSORING_FUTURE_RESERVES);
+    op.body.beginSponsoringFutureReservesOp().sponsoredID = sponsoredID;
+    return op;
+}
+
+Operation
+confirmAndClearSponsor()
+{
+    Operation op;
+    op.body.type(END_SPONSORING_FUTURE_RESERVES);
+    return op;
+}
+
+Operation
+updateSponsorship(LedgerKey const& key)
+{
+    Operation op;
+    op.body.type(REVOKE_SPONSORSHIP);
+    op.body.revokeSponsorshipOp().type(REVOKE_SPONSORSHIP_LEDGER_ENTRY);
+    op.body.revokeSponsorshipOp().ledgerKey() = key;
+    return op;
+}
+
+Operation
+updateSponsorship(AccountID const& accID, SignerKey const& key)
+{
+    Operation op;
+    op.body.type(REVOKE_SPONSORSHIP);
+    op.body.revokeSponsorshipOp().type(REVOKE_SPONSORSHIP_SIGNER);
+    op.body.revokeSponsorshipOp().signer().accountID = accID;
+    op.body.revokeSponsorshipOp().signer().signerKey = key;
+    return op;
+}
+
 OperationFrame const&
 getFirstOperationFrame(TransactionFrame const& tx)
 {
