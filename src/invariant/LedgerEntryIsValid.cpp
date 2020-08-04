@@ -113,7 +113,7 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq,
     case DATA:
         return checkIsValid(le.data.data(), version);
     case CLAIMABLE_BALANCE:
-        return checkIsValid(le.data.claimableBalance(), version);
+        return checkIsValid(le, version);
     default:
         return "LedgerEntry has invalid type";
     }
@@ -292,9 +292,14 @@ LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
 }
 
 std::string
-LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
-                                 uint32 version) const
+LedgerEntryIsValid::checkIsValid(LedgerEntry const& le, uint32 version) const
 {
+    if (le.ext.v() != 1 || !le.ext.v1().sponsoringID)
+    {
+        return "ClaimableBalance is not sponsored";
+    }
+
+    auto const& cbe = le.data.claimableBalance();
     if (cbe.claimants.empty())
     {
         return "ClaimableBalance claimants is empty";
