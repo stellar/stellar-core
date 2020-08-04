@@ -16,7 +16,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -241,5 +241,24 @@ TEST_CASE("change trust", "[tx][changetrust]")
             REQUIRE_THROWS_AS(acc1.changeTrust(idr, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
         });
+    }
+
+    SECTION("sponsorship")
+    {
+        auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
+        auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
+        auto acc1 = root.create("a1", minBalance1 - 1);
+        auto acc2 = root.create("a2", minBalance0);
+        createSponsoredEntryButSponsorHasInsufficientBalance(
+            *app, acc1, acc2, changeTrust(idr, 1000),
+            [](OperationResult const& opRes) {
+                return opRes.tr().changeTrustResult().code() ==
+                       CHANGE_TRUST_LOW_RESERVE;
+            });
+
+        createModifyAndRemoveSponsoredEntry(
+            *app, acc2, changeTrust(idr, 1000), changeTrust(idr, 999),
+            changeTrust(idr, 1001), changeTrust(idr, 0),
+            trustlineKey(acc2, idr));
     }
 }
