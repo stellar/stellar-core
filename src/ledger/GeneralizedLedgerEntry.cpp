@@ -64,7 +64,6 @@ operator!=(SponsorshipCounterEntry const& lhs,
     return !(lhs == rhs);
 }
 
-
 // GeneralizedLedgerKey -------------------------------------------------------
 GeneralizedLedgerKey::GeneralizedLedgerKey()
     : GeneralizedLedgerKey(GeneralizedLedgerEntryType::LEDGER_ENTRY)
@@ -87,6 +86,12 @@ GeneralizedLedgerKey::GeneralizedLedgerKey(SponsorshipKey const& sk)
     : GeneralizedLedgerKey(GeneralizedLedgerEntryType::SPONSORSHIP)
 {
     sponsorshipKey() = sk;
+}
+
+GeneralizedLedgerKey::GeneralizedLedgerKey(SponsorshipCounterKey const& sck)
+    : GeneralizedLedgerKey(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER)
+{
+    sponsorshipCounterKey() = sck;
 }
 
 GeneralizedLedgerKey::GeneralizedLedgerKey(GeneralizedLedgerKey const& glk)
@@ -139,6 +144,9 @@ GeneralizedLedgerKey::assign(GeneralizedLedgerKey const& glk)
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         sponsorshipKey() = glk.sponsorshipKey();
         break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        sponsorshipCounterKey() = glk.sponsorshipCounterKey();
+        break;
     default:
         abort();
     }
@@ -156,6 +164,9 @@ GeneralizedLedgerKey::assign(GeneralizedLedgerKey&& glk)
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         sponsorshipKey() = std::move(glk.sponsorshipKey());
         break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        sponsorshipCounterKey() = std::move(glk.sponsorshipCounterKey());
+        break;
     default:
         abort();
     }
@@ -172,6 +183,9 @@ GeneralizedLedgerKey::construct()
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         new (&mSponsorshipKey) SponsorshipKey();
         break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        new (&mSponsorshipCounterKey) SponsorshipCounterKey();
+        break;
     default:
         abort();
     }
@@ -187,6 +201,9 @@ GeneralizedLedgerKey::destruct()
         break;
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         mSponsorshipKey.~SponsorshipKey();
+        break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        mSponsorshipCounterKey.~SponsorshipCounterKey();
         break;
     default:
         abort();
@@ -248,6 +265,20 @@ GeneralizedLedgerKey::sponsorshipKey() const
     return mSponsorshipKey;
 }
 
+SponsorshipCounterKey&
+GeneralizedLedgerKey::sponsorshipCounterKey()
+{
+    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    return mSponsorshipCounterKey;
+}
+
+SponsorshipCounterKey const&
+GeneralizedLedgerKey::sponsorshipCounterKey() const
+{
+    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    return mSponsorshipCounterKey;
+}
+
 std::string
 GeneralizedLedgerKey::toString() const
 {
@@ -258,6 +289,9 @@ GeneralizedLedgerKey::toString() const
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {}\n}}\n",
                            xdr_printer(sponsorshipKey().sponsoredID));
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        return fmt::format("{{\n  sponsoringID = {}\n}}\n",
+                           xdr_printer(sponsorshipCounterKey().sponsoringID));
     default:
         abort();
     }
@@ -277,6 +311,8 @@ operator==(GeneralizedLedgerKey const& lhs, GeneralizedLedgerKey const& rhs)
         return lhs.ledgerKey() == rhs.ledgerKey();
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return lhs.sponsorshipKey() == rhs.sponsorshipKey();
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        return lhs.sponsorshipCounterKey() == rhs.sponsorshipCounterKey();
     default:
         abort();
     }
@@ -310,6 +346,13 @@ GeneralizedLedgerEntry::GeneralizedLedgerEntry(SponsorshipEntry const& se)
     : GeneralizedLedgerEntry(GeneralizedLedgerEntryType::SPONSORSHIP)
 {
     sponsorshipEntry() = se;
+}
+
+GeneralizedLedgerEntry::GeneralizedLedgerEntry(
+    SponsorshipCounterEntry const& sce)
+    : GeneralizedLedgerEntry(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER)
+{
+    sponsorshipCounterEntry() = sce;
 }
 
 GeneralizedLedgerEntry::GeneralizedLedgerEntry(
@@ -363,6 +406,9 @@ GeneralizedLedgerEntry::assign(GeneralizedLedgerEntry const& gle)
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         sponsorshipEntry() = gle.sponsorshipEntry();
         break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        sponsorshipCounterEntry() = gle.sponsorshipCounterEntry();
+        break;
     default:
         abort();
     }
@@ -380,6 +426,9 @@ GeneralizedLedgerEntry::assign(GeneralizedLedgerEntry&& gle)
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         sponsorshipEntry() = std::move(gle.sponsorshipEntry());
         break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        sponsorshipCounterEntry() = std::move(gle.sponsorshipCounterEntry());
+        break;
     default:
         abort();
     }
@@ -396,6 +445,9 @@ GeneralizedLedgerEntry::construct()
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         new (&mSponsorshipEntry) SponsorshipEntry();
         break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        new (&mSponsorshipCounterEntry) SponsorshipCounterEntry();
+        break;
     default:
         abort();
     }
@@ -411,6 +463,9 @@ GeneralizedLedgerEntry::destruct()
         break;
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         mSponsorshipEntry.~SponsorshipEntry();
+        break;
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        mSponsorshipCounterEntry.~SponsorshipCounterEntry();
         break;
     default:
         abort();
@@ -472,6 +527,20 @@ GeneralizedLedgerEntry::sponsorshipEntry() const
     return mSponsorshipEntry;
 }
 
+SponsorshipCounterEntry&
+GeneralizedLedgerEntry::sponsorshipCounterEntry()
+{
+    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    return mSponsorshipCounterEntry;
+}
+
+SponsorshipCounterEntry const&
+GeneralizedLedgerEntry::sponsorshipCounterEntry() const
+{
+    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    return mSponsorshipCounterEntry;
+}
+
 GeneralizedLedgerKey
 GeneralizedLedgerEntry::toKey() const
 {
@@ -482,6 +551,9 @@ GeneralizedLedgerEntry::toKey() const
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return GeneralizedLedgerKey(
             SponsorshipKey{sponsorshipEntry().sponsoredID});
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        return GeneralizedLedgerKey(
+            SponsorshipCounterKey{sponsorshipCounterEntry().sponsoringID});
     default:
         abort();
     }
@@ -498,6 +570,11 @@ GeneralizedLedgerEntry::toString() const
         return fmt::format("{{\n  sponsoredID = {},\n  sponsoringID = {}\n}}\n",
                            xdr_printer(sponsorshipEntry().sponsoredID),
                            xdr_printer(sponsorshipEntry().sponsoringID));
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        return fmt::format(
+            "{{\n  sponsoringID = {},\n  numSponsoring = {}\n}}\n",
+            xdr_printer(sponsorshipCounterEntry().sponsoringID),
+            sponsorshipCounterEntry().numSponsoring);
     default:
         abort();
     }
@@ -517,6 +594,8 @@ operator==(GeneralizedLedgerEntry const& lhs, GeneralizedLedgerEntry const& rhs)
         return lhs.ledgerEntry() == rhs.ledgerEntry();
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return lhs.sponsorshipEntry() == rhs.sponsorshipEntry();
+    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        return lhs.sponsorshipCounterEntry() == rhs.sponsorshipCounterEntry();
     default:
         abort();
     }

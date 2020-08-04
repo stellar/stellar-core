@@ -13,7 +13,8 @@ namespace stellar
 enum class GeneralizedLedgerEntryType
 {
     LEDGER_ENTRY,
-    SPONSORSHIP
+    SPONSORSHIP,
+    SPONSORSHIP_COUNTER
 };
 
 struct SponsorshipKey
@@ -33,6 +34,7 @@ class GeneralizedLedgerKey
     union {
         LedgerKey mLedgerKey;
         SponsorshipKey mSponsorshipKey;
+        SponsorshipCounterKey mSponsorshipCounterKey;
     };
 
     void assign(GeneralizedLedgerKey const& glk);
@@ -48,6 +50,7 @@ class GeneralizedLedgerKey
 
     GeneralizedLedgerKey(LedgerKey const& lk);
     explicit GeneralizedLedgerKey(SponsorshipKey const& sk);
+    explicit GeneralizedLedgerKey(SponsorshipCounterKey const& sck);
 
     GeneralizedLedgerKey(GeneralizedLedgerKey const& glk);
     GeneralizedLedgerKey(GeneralizedLedgerKey&& glk);
@@ -65,6 +68,9 @@ class GeneralizedLedgerKey
 
     SponsorshipKey& sponsorshipKey();
     SponsorshipKey const& sponsorshipKey() const;
+
+    SponsorshipCounterKey& sponsorshipCounterKey();
+    SponsorshipCounterKey const& sponsorshipCounterKey() const;
 
     std::string toString() const;
 };
@@ -88,6 +94,7 @@ class GeneralizedLedgerEntry
     union {
         LedgerEntry mLedgerEntry;
         SponsorshipEntry mSponsorshipEntry;
+        SponsorshipCounterEntry mSponsorshipCounterEntry;
     };
 
     void assign(GeneralizedLedgerEntry const& gle);
@@ -103,6 +110,7 @@ class GeneralizedLedgerEntry
 
     GeneralizedLedgerEntry(LedgerEntry const& le);
     explicit GeneralizedLedgerEntry(SponsorshipEntry const& se);
+    explicit GeneralizedLedgerEntry(SponsorshipCounterEntry const& sce);
 
     GeneralizedLedgerEntry(GeneralizedLedgerEntry const& gle);
     GeneralizedLedgerEntry(GeneralizedLedgerEntry&& gle);
@@ -120,6 +128,9 @@ class GeneralizedLedgerEntry
 
     SponsorshipEntry& sponsorshipEntry();
     SponsorshipEntry const& sponsorshipEntry() const;
+
+    SponsorshipCounterEntry& sponsorshipCounterEntry();
+    SponsorshipCounterEntry const& sponsorshipCounterEntry() const;
 
     GeneralizedLedgerKey toKey() const;
 
