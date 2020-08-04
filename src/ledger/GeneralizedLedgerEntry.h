@@ -21,6 +21,11 @@ struct SponsorshipKey
     AccountID sponsoredID;
 };
 
+struct SponsorshipCounterKey
+{
+    AccountID sponsoringID;
+};
+
 class GeneralizedLedgerKey
 {
   private:
@@ -68,6 +73,12 @@ struct SponsorshipEntry
 {
     AccountID sponsoredID;
     AccountID sponsoringID;
+};
+
+struct SponsorshipCounterEntry
+{
+    AccountID sponsoringID;
+    int64_t numSponsoring;
 };
 
 class GeneralizedLedgerEntry
@@ -119,6 +130,15 @@ bool operator==(SponsorshipKey const& lhs, SponsorshipKey const& rhs);
 bool operator!=(SponsorshipKey const& lhs, SponsorshipKey const& rhs);
 bool operator==(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs);
 bool operator!=(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs);
+
+bool operator==(SponsorshipCounterKey const& lhs,
+                SponsorshipCounterKey const& rhs);
+bool operator!=(SponsorshipCounterKey const& lhs,
+                SponsorshipCounterKey const& rhs);
+bool operator==(SponsorshipCounterEntry const& lhs,
+                SponsorshipCounterEntry const& rhs);
+bool operator!=(SponsorshipCounterEntry const& lhs,
+                SponsorshipCounterEntry const& rhs);
 
 bool operator==(GeneralizedLedgerKey const& lhs,
                 GeneralizedLedgerKey const& rhs);

@@ -37,6 +37,34 @@ operator!=(SponsorshipEntry const& lhs, SponsorshipEntry const& rhs)
     return !(lhs == rhs);
 }
 
+bool
+operator==(SponsorshipCounterKey const& lhs, SponsorshipCounterKey const& rhs)
+{
+    return lhs.sponsoringID == rhs.sponsoringID;
+}
+
+bool
+operator!=(SponsorshipCounterKey const& lhs, SponsorshipCounterKey const& rhs)
+{
+    return !(lhs == rhs);
+}
+
+bool
+operator==(SponsorshipCounterEntry const& lhs,
+           SponsorshipCounterEntry const& rhs)
+{
+    return lhs.sponsoringID == rhs.sponsoringID &&
+           lhs.numSponsoring == rhs.numSponsoring;
+}
+
+bool
+operator!=(SponsorshipCounterEntry const& lhs,
+           SponsorshipCounterEntry const& rhs)
+{
+    return !(lhs == rhs);
+}
+
+
 // GeneralizedLedgerKey -------------------------------------------------------
 GeneralizedLedgerKey::GeneralizedLedgerKey()
     : GeneralizedLedgerKey(GeneralizedLedgerEntryType::LEDGER_ENTRY)
