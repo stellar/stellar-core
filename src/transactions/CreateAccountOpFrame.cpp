@@ -37,7 +37,8 @@ CreateAccountOpFrame::doApply(AbstractLedgerTxn& ltx)
     if (!stellar::loadAccount(ltx, mCreateAccount.destination))
     {
         auto header = ltx.loadHeader();
-        if (mCreateAccount.startingBalance < getMinBalance(header, 0))
+        if (mCreateAccount.startingBalance <
+            getMinBalance(header.current(), 0, 0, 0))
         { // not over the minBalance to make an account
             innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
             return false;

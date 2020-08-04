@@ -17,15 +17,6 @@ namespace stellar
 {
 
 static int64_t
-getMinBalance(LedgerHeader const& header, uint32_t ownerCount)
-{
-    if (header.ledgerVersion <= 8)
-        return (2 + ownerCount) * header.baseReserve;
-    else
-        return (2LL + ownerCount) * int64_t(header.baseReserve);
-}
-
-static int64_t
 getOfferBuyingLiabilities(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
@@ -261,7 +252,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
                 liabilities.selling = getSellingLiabilities(*current);
                 liabilities.buying = getBuyingLiabilities(*current);
             }
-            int64_t minBalance = getMinBalance(header, account.numSubEntries);
+            int64_t minBalance = getMinBalance(header, account);
             if ((account.balance < minBalance + liabilities.selling) ||
                 (INT64_MAX - account.balance < liabilities.buying))
             {

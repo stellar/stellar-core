@@ -183,7 +183,8 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
         int64_t minBalance = 0;
         {
             LedgerTxn ltx(app.getLedgerTxnRoot());
-            minBalance = getMinBalance(ltx.loadHeader(), account) + oe.amount;
+            minBalance =
+                getMinBalance(ltx.loadHeader().current(), account) + oe.amount;
         }
         account.balance = excess ? std::min(account.balance, minBalance - 1)
                                  : std::max(account.balance, minBalance);

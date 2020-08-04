@@ -665,7 +665,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         // balanceAboveReserve must exclude native selling liabilities, since
         // these are in the process of being recalculated from scratch.
         int64_t balance = acc.balance;
-        int64_t minBalance = getMinBalance(header, acc.numSubEntries);
+        int64_t minBalance = getMinBalance(header.current(), acc);
         int64_t balanceAboveReserve = balance - minBalance;
 
         std::map<Asset, Liabilities> liabilities;

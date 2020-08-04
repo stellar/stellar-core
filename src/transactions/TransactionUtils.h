@@ -17,6 +17,7 @@ class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
 class GeneralizedLedgerKey;
+struct LedgerHeader;
 struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
@@ -90,8 +91,7 @@ bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 
 uint64_t generateID(LedgerTxnHeader& header);
 
-int64_t getAvailableBalance(LedgerTxnHeader const& header,
-                            LedgerEntry const& le);
+int64_t getAvailableBalance(LedgerHeader const& header, LedgerEntry const& le);
 int64_t getAvailableBalance(LedgerTxnHeader const& header,
                             LedgerTxnEntry const& entry);
 int64_t getAvailableBalance(LedgerTxnHeader const& header,
@@ -109,9 +109,9 @@ int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
 int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
                             ConstLedgerTxnEntry const& entry);
 
-int64_t getMinBalance(LedgerTxnHeader const& header, AccountEntry const& acc);
-int64_t getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount);
-int64_t getMinBalance(LedgerTxnHeader const& header, uint32_t numSubentries,
+int64_t getMinBalance(LedgerHeader const& header, AccountEntry const& acc);
+int64_t getMinBalance(LedgerHeader const& header, uint32_t ownerCount);
+int64_t getMinBalance(LedgerHeader const& header, uint32_t numSubentries,
                       uint32_t numSponsoring, uint32_t numSponsored);
 
 int64_t getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le);
@@ -130,7 +130,7 @@ int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
 int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
                                    LedgerTxnEntry const& entry);
 
-int64_t getSellingLiabilities(LedgerTxnHeader const& header,
+int64_t getSellingLiabilities(LedgerHeader const& header,
                               LedgerEntry const& le);
 int64_t getSellingLiabilities(LedgerTxnHeader const& header,
                               LedgerTxnEntry const& offer);
