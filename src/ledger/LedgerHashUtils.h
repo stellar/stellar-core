@@ -96,6 +96,9 @@ template <> class hash<stellar::GeneralizedLedgerKey>
         {
         case stellar::GeneralizedLedgerEntryType::LEDGER_ENTRY:
             return hash<stellar::LedgerKey>()(glk.ledgerKey());
+        case stellar::GeneralizedLedgerEntryType::SPONSORSHIP:
+            return stellar::shortHash::computeHash(stellar::ByteSlice(
+                glk.sponsorshipKey().sponsoredID.ed25519().data(), 8));
         default:
             abort();
         }
