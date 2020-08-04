@@ -20,6 +20,12 @@ class SetOptionsOpFrame : public OperationFrame
     }
     SetOptionsOp const& mSetOptions;
 
+    bool addOrChangeSigner(AbstractLedgerTxn& ltx,
+                           LedgerTxnHeader const& header,
+                           LedgerTxnEntry& sourceAccount);
+    void deleteSigner(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+                      LedgerTxnEntry& sourceAccount);
+
   public:
     SetOptionsOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);

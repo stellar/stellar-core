@@ -42,6 +42,75 @@ SetOptionsOpFrame::getThresholdLevel() const
 }
 
 bool
+SetOptionsOpFrame::addOrChangeSigner(AbstractLedgerTxn& ltx,
+                                     LedgerTxnHeader const& header,
+                                     LedgerTxnEntry& sourceAccount)
+{
+    auto& account = sourceAccount.current().data.account();
+    auto& signers = account.signers;
+
+    bool found = false;
+    for (auto& oldSigner : signers)
+    {
+        if (oldSigner.key == mSetOptions.signer->key)
+        {
+            oldSigner.weight = mSetOptions.signer->weight;
+            found = true;
+        }
+    }
+    if (!found)
+    {
+        if (signers.size() == signers.max_size())
+        {
+            innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
+            return false;
+        }
+        switch (addNumEntries(header, sourceAccount, 1))
+        {
+        case AddSubentryResult::SUCCESS:
+            break;
+        case AddSubentryResult::LOW_RESERVE:
+            innerResult().code(SET_OPTIONS_LOW_RESERVE);
+            return false;
+        case AddSubentryResult::TOO_MANY_SUBENTRIES:
+            mResult.code(opTOO_MANY_SUBENTRIES);
+            return false;
+        default:
+            throw std::runtime_error(
+                "Unexpected result from addNumEntries");
+        }
+
+        signers.push_back(*mSetOptions.signer);
+    }
+
+    return true;
+}
+
+void
+SetOptionsOpFrame::deleteSigner(AbstractLedgerTxn& ltx,
+                                LedgerTxnHeader const& header,
+                                LedgerTxnEntry& sourceAccount)
+{
+    auto& account = sourceAccount.current().data.account();
+    auto& signers = account.signers;
+
+    auto it = signers.begin();
+    while (it != signers.end())
+    {
+        Signer& oldSigner = *it;
+        if (oldSigner.key == mSetOptions.signer->key)
+        {
+            it = signers.erase(it);
+            addNumEntries(header, sourceAccount, -1);
+        }
+        else
+        {
+            it++;
+        }
+    }
+}
+
+bool
 SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "SetOptionsOp apply", true);
@@ -116,59 +185,16 @@ SetOptionsOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     if (mSetOptions.signer)
     {
-        auto& signers = account.signers;
         if (mSetOptions.signer->weight)
-        { // add or change signer
-            bool found = false;
-            for (auto& oldSigner : signers)
+        {
+            if (!addOrChangeSigner(ltx, header, sourceAccount))
             {
-                if (oldSigner.key == mSetOptions.signer->key)
-                {
-                    oldSigner.weight = mSetOptions.signer->weight;
-                    found = true;
-                }
-            }
-            if (!found)
-            {
-                if (signers.size() == signers.max_size())
-                {
-                    innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
-                    return false;
-                }
-                switch (addNumEntries(header, sourceAccount, 1))
-                {
-                case AddSubentryResult::SUCCESS:
-                    break;
-                case AddSubentryResult::LOW_RESERVE:
-                    innerResult().code(SET_OPTIONS_LOW_RESERVE);
-                    return false;
-                case AddSubentryResult::TOO_MANY_SUBENTRIES:
-                    mResult.code(opTOO_MANY_SUBENTRIES);
-                    return false;
-                default:
-                    throw std::runtime_error(
-                        "Unexpected result from addNumEntries");
-                }
-
-                signers.push_back(*mSetOptions.signer);
+                return false;
             }
         }
         else
-        { // delete signer
-            auto it = signers.begin();
-            while (it != signers.end())
-            {
-                Signer& oldSigner = *it;
-                if (oldSigner.key == mSetOptions.signer->key)
-                {
-                    it = signers.erase(it);
-                    addNumEntries(header, sourceAccount, -1);
-                }
-                else
-                {
-                    it++;
-                }
-            }
+        {
+            deleteSigner(ltx, header, sourceAccount);
         }
         normalizeSigners(sourceAccount);
     }
