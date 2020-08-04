@@ -102,12 +102,12 @@ class TestAccount
         return getPublicKey();
     }
 
-    const SecretKey&
+    SecretKey const&
     getSecretKey() const
     {
         return mSk;
     }
-    PublicKey
+    PublicKey const&
     getPublicKey() const
     {
         return mSk.getPublicKey();
