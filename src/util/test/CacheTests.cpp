@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
-#include "lib/util/lrucache.hpp"
 #include "util/RandomEvictionCache.h"
 #include <ctime>
 #include <map>
@@ -113,9 +112,8 @@ TEST_CASE("cachetable does not thrash", "[randomevictioncachethrash][!hide]")
 }
 
 using RandCache = RandomEvictionCache<int, int>;
-using LruCache = cache::lru_cache<int, int>;
 
-TEMPLATE_TEST_CASE("cache empty", "[cache][template]", RandCache, LruCache)
+TEMPLATE_TEST_CASE("cache empty", "[cache][template]", RandCache)
 {
     TestType c{5};
 
@@ -123,7 +121,7 @@ TEMPLATE_TEST_CASE("cache empty", "[cache][template]", RandCache, LruCache)
 }
 
 TEMPLATE_TEST_CASE("cache keeps most added items", "[cache][template]",
-                   RandCache, LruCache)
+                   RandCache)
 {
     TestType c{5};
     c.put(0, 0);
@@ -151,7 +149,7 @@ TEMPLATE_TEST_CASE("cache keeps most added items", "[cache][template]",
 }
 
 TEMPLATE_TEST_CASE("cache keeps last read items", "[cache][template]",
-                   RandCache, LruCache)
+                   RandCache)
 {
     TestType c{5};
     c.put(0, 0);
@@ -174,8 +172,7 @@ TEMPLATE_TEST_CASE("cache keeps last read items", "[cache][template]",
     REQUIRE(existing == 5);
 }
 
-TEMPLATE_TEST_CASE("cache replace element", "[cache][template]", RandCache,
-                   LruCache)
+TEMPLATE_TEST_CASE("cache replace element", "[cache][template]", RandCache)
 {
     TestType c{5};
     c.put(0, 0);
@@ -191,7 +188,7 @@ TEMPLATE_TEST_CASE("cache replace element", "[cache][template]", RandCache,
 }
 
 TEMPLATE_TEST_CASE("cache erase_if removes some nodes", "[cache][template]",
-                   RandCache, LruCache)
+                   RandCache)
 {
     TestType c{5};
     c.put(0, 0);
@@ -210,7 +207,7 @@ TEMPLATE_TEST_CASE("cache erase_if removes some nodes", "[cache][template]",
 }
 
 TEMPLATE_TEST_CASE("cache erase_if removes no nodes", "[cache][template]",
-                   RandCache, LruCache)
+                   RandCache)
 {
     TestType c{5};
     c.put(0, 0);
@@ -229,7 +226,7 @@ TEMPLATE_TEST_CASE("cache erase_if removes no nodes", "[cache][template]",
 }
 
 TEMPLATE_TEST_CASE("cache erase_if removes all nodes", "[cache][template]",
-                   RandCache, LruCache)
+                   RandCache)
 {
     TestType c{5};
     c.put(0, 0);

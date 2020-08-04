@@ -3,8 +3,8 @@
 #include "herder/Herder.h"
 #include "herder/QuorumTracker.h"
 #include "lib/json/json.h"
-#include "lib/util/lrucache.hpp"
 #include "overlay/ItemFetcher.h"
+#include "util/RandomEvictionCache.h"
 #include <autocheck/function.hpp>
 #include <chrono>
 #include <map>
@@ -45,7 +45,7 @@ class PendingEnvelopes
     std::map<uint64, SlotEnvelopes> mEnvelopes;
 
     // recent quorum sets
-    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
+    RandomEvictionCache<Hash, SCPQuorumSetPtr> mQsetCache;
     // weak references to all known qsets
     std::unordered_map<Hash, std::weak_ptr<SCPQuorumSet>> mKnownQSets;
 
@@ -54,7 +54,7 @@ class PendingEnvelopes
 
     using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
     // recent txsets
-    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
+    RandomEvictionCache<Hash, TxSetFramCacheItem> mTxSetCache;
     // weak references to all known txsets
     std::unordered_map<Hash, std::weak_ptr<TxSetFrame>> mKnownTxSets;
 
