@@ -16,6 +16,7 @@ class AbstractLedgerTxn;
 class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
+class GeneralizedLedgerKey;
 struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
@@ -25,6 +26,8 @@ LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
+GeneralizedLedgerKey sponsorshipKey(AccountID const& sponsoredID);
+GeneralizedLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 
 uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
@@ -57,6 +60,12 @@ TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
 
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
     AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset);
+
+LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
+                               AccountID const& sponsoredID);
+
+LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
+                                      AccountID const& sponsoringID);
 
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
