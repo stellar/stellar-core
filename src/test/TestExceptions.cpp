@@ -295,6 +295,8 @@ throwIf(AccountMergeResult const& result)
         throw ex_ACCOUNT_MERGE_SEQNUM_TOO_FAR{};
     case ACCOUNT_MERGE_DEST_FULL:
         throw ex_ACCOUNT_MERGE_DEST_FULL{};
+    case ACCOUNT_MERGE_IS_SPONSOR:
+        throw ex_ACCOUNT_MERGE_IS_SPONSOR{};
     case ACCOUNT_MERGE_SUCCESS:
         break;
     default:

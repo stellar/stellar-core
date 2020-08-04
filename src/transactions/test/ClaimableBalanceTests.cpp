@@ -10,13 +10,50 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/SignatureUtils.h"
+#include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Math.h"
 #include <fmt/format.h>
 
-#include "transactions/TransactionUtils.h"
-
 using namespace stellar;
 using namespace stellar::txtest;
+
+static void
+sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
+{
+    env.signatures.emplace_back(SignatureUtils::sign(
+        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
+}
+
+static TransactionEnvelope
+envelopeFromOps(Hash const& networkID, TestAccount& source,
+                std::vector<Operation> const& ops,
+                std::vector<SecretKey> const& opKeys)
+{
+    TransactionEnvelope tx(ENVELOPE_TYPE_TX);
+    tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    tx.v1().tx.fee = 100 * ops.size();
+    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    std::copy(ops.begin(), ops.end(),
+              std::back_inserter(tx.v1().tx.operations));
+
+    sign(networkID, source, tx.v1());
+    for (auto const& opKey : opKeys)
+    {
+        sign(networkID, opKey, tx.v1());
+    }
+    return tx;
+}
+
+static TransactionFrameBasePtr
+transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                        std::vector<Operation> const& ops,
+                        std::vector<SecretKey> const& opKeys)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID, envelopeFromOps(networkID, source, ops, opKeys));
+}
 
 static Claimant
 makeClaimant(AccountID const& account, ClaimPredicate const& pred)
@@ -139,23 +176,57 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
                                  Asset const& asset, int64_t amount,
                                  xdr::xvector<Claimant, 10> const& claimants,
                                  TestApplication& app,
-                                 bool mergeCreateAcc = false)
+                                 bool mergeCreateAcc = false,
+                                 bool createIsSponsored = false,
+                                 bool claimIsSponsored = false)
 {
+    // use root to merge and/or sponsor entries if desired
+    auto root = TestAccount::createRoot(app);
 
     auto const& lm = app.getLedgerManager();
-
     bool const isNative = asset.type() == ASSET_TYPE_NATIVE;
+    int64_t const reserve = claimants.size() * lm.getLastReserve();
 
     auto getAccAssetBalance = [&](TestAccount const& acc) {
-        return isNative ? acc.getBalance() : acc.loadTrustLine(asset).balance;
+        return isNative ? acc.getAvailableBalance()
+                        : acc.loadTrustLine(asset).balance;
     };
 
     // verify the delta in balances
-    auto createAccNativeBeforeCreate = createAcc.getBalance();
+    auto createAccNativeBeforeCreate = createAcc.getAvailableBalance();
     auto claimAccBalanceBeforeCreate = getAccAssetBalance(claimAcc);
+    auto rootBalanceBeforeCreate = root.getAvailableBalance();
 
     auto createAccAssetBeforeCreate = getAccAssetBalance(createAcc);
-    auto balanceID = createAcc.createClaimableBalance(asset, amount, claimants);
+
+    // Create claimable balance
+    ClaimableBalanceID balanceID;
+    if (createIsSponsored)
+    {
+        auto tx = transactionFrameFromOps(
+            app.getNetworkID(), root,
+            {root.op(sponsorFutureReserves(createAcc)),
+             createAcc.op(createClaimableBalance(asset, amount, claimants)),
+             createAcc.op(confirmAndClearSponsor())},
+            {createAcc});
+
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        TransactionMeta txm(2);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app, ltx, txm));
+        REQUIRE(tx->getResultCode() == txSUCCESS);
+
+        // the create is the second op in the tx
+        balanceID = root.getBalanceID(1);
+        checkSponsorship(ltx, claimableBalanceKey(balanceID), 1,
+                         &root.getPublicKey());
+
+        ltx.commit();
+    }
+    else
+    {
+        balanceID = createAcc.createClaimableBalance(asset, amount, claimants);
+    }
 
     // if the asset is non-native, then the createAcc has two balances that
     // changed (native for reserve and non-native for amount). Check
@@ -166,42 +237,101 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     // move close time forward
     closeLedgerOn(app, lm.getLastClosedLedgerNum() + 1, 2, 1, 2016);
 
-    auto createAccNativeAfterCreate = createAcc.getBalance();
+    auto createAccNativeAfterCreate = createAcc.getAvailableBalance();
     auto claimAccBalanceAfterCreate = getAccAssetBalance(claimAcc);
+    auto rootBalanceAfterCreate = root.getAvailableBalance();
 
-    int64_t reserve = claimants.size() * lm.getLastReserve();
-    REQUIRE(createAccNativeBeforeCreate - (isNative ? amount : 0) - reserve -
-                static_cast<int64_t>(lm.getLastTxFee()) ==
-            createAccNativeAfterCreate);
+    if (createIsSponsored)
+    {
+        // fee isn't charged here because we used tx->apply above
+        REQUIRE(rootBalanceBeforeCreate - reserve == rootBalanceAfterCreate);
+        REQUIRE(createAccNativeBeforeCreate - (isNative ? amount : 0) ==
+                createAccNativeAfterCreate);
+    }
+    else
+    {
+        REQUIRE(rootBalanceBeforeCreate == rootBalanceAfterCreate);
+        REQUIRE(createAccNativeBeforeCreate - (isNative ? amount : 0) -
+                    reserve - static_cast<int64_t>(lm.getLastTxFee()) ==
+                createAccNativeAfterCreate);
+    }
 
     // the claim account doesn't change on the create
     REQUIRE(claimAccBalanceBeforeCreate == claimAccBalanceAfterCreate);
 
     if (mergeCreateAcc)
     {
-        auto root = TestAccount::createRoot(app);
+        // We need to transfer the sponsorship before we can merge
+        auto tx = transactionFrameFromOps(
+            app.getNetworkID(), root,
+            {root.op(sponsorFutureReserves(createAcc)),
+             createAcc.op(updateSponsorship(claimableBalanceKey(balanceID))),
+             createAcc.op(confirmAndClearSponsor())},
+            {createAcc});
+
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        TransactionMeta txm(2);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app, ltx, txm));
+        ltx.commit();
+
+        REQUIRE(tx->getResultCode() == txSUCCESS);
+
         createAcc.merge(root);
     }
 
-    claimAcc.claimClaimableBalance(balanceID);
+    // claim claimable balance
+    if (claimIsSponsored)
+    {
+        auto tx = transactionFrameFromOps(
+            app.getNetworkID(), root,
+            {root.op(sponsorFutureReserves(claimAcc)),
+             claimAcc.op(claimClaimableBalance(balanceID)),
+             claimAcc.op(confirmAndClearSponsor())},
+            {claimAcc});
+
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        TransactionMeta txm(2);
+        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        REQUIRE(tx->apply(app, ltx, txm));
+        ltx.commit();
+
+        REQUIRE(tx->getResultCode() == txSUCCESS);
+    }
+    else
+    {
+        claimAcc.claimClaimableBalance(balanceID);
+    }
 
     if (!mergeCreateAcc)
     {
-        // check that reserve is sent back to createAcc
-        auto createAccNativeAfterClaim = createAcc.getBalance();
-        REQUIRE(createAccNativeAfterCreate + reserve ==
-                createAccNativeAfterClaim);
+        // check that entries are no longer sponsored
+        auto createAccNativeAfterClaim = createAcc.getAvailableBalance();
+        auto rootBalanceAfterClaim = root.getAvailableBalance();
+
+        if (createIsSponsored)
+        {
+            REQUIRE(rootBalanceAfterCreate + reserve == rootBalanceAfterClaim);
+            REQUIRE(createAccNativeAfterCreate == createAccNativeAfterClaim);
+        }
+        else
+        {
+            REQUIRE(rootBalanceAfterCreate == rootBalanceAfterClaim);
+            REQUIRE(createAccNativeAfterCreate + reserve ==
+                    createAccNativeAfterClaim);
+        }
     }
 
-    int64_t fee = isNative ? lm.getLastTxFee() : 0;
-    reserve = mergeCreateAcc ? reserve : 0;
+    // The only difference if the claim account is sponsored is that the fee
+    // wasn't charged
+    int64_t fee = (isNative && !claimIsSponsored) ? lm.getLastTxFee() : 0;
 
     auto claimAccBalanceAfterClaim = getAccAssetBalance(claimAcc);
-    REQUIRE(claimAccBalanceAfterCreate + amount - fee + reserve ==
+    REQUIRE(claimAccBalanceAfterCreate + amount - fee ==
             claimAccBalanceAfterClaim);
 }
 
-TEST_CASE("claimableBalance", "[tx][managedata]")
+TEST_CASE("claimableBalance", "[tx][claimablebalance]")
 {
     Config const& cfg = getTestConfig();
 
@@ -292,6 +422,8 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                 acc1.createClaimableBalance(asset, amount, validClaimants),
                 ex_CREATE_CLAIMABLE_BALANCE_UNDERFUNDED);
 
+            fundForClaimableBalance();
+
             // Include second claimant. An additional baseReserve is
             // required, but will not be available. Account was created with
             // 3 baseReserves, but we need 4 (1 for account, 1 for
@@ -302,8 +434,6 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                                             {makeClaimant(acc2, simplePred),
                                              makeClaimant(issuer, simplePred)}),
                 ex_CREATE_CLAIMABLE_BALANCE_LOW_RESERVE);
-
-            fundForClaimableBalance();
 
             SECTION("valid predicate and claimant combinations")
             {
@@ -903,92 +1033,14 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
             issuer.manageOffer(0, usd, native, Price{1, 1},
                                INT64_MAX - issuer.getBalance());
 
-            auto reserve = lm.getLastReserve();
+            auto amount = issuer.getBalance();
+            root.pay(acc2, amount);
 
-            SECTION("native claim amount results in line full")
-            {
-                auto amount = issuer.getBalance();
-                root.pay(acc2, amount);
+            auto balanceId = acc2.createClaimableBalance(
+                native, amount, {makeClaimant(issuer, simplePred)});
 
-                auto balanceId = acc2.createClaimableBalance(
-                    native, amount, {makeClaimant(issuer, simplePred)});
-
-                REQUIRE_THROWS_AS(issuer.claimClaimableBalance(balanceId),
-                                  ex_CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
-            }
-
-            SECTION("not enough space left for reserve to be paid back to "
-                    "balance creator on claim")
-            {
-                SECTION("createdBy != claimant")
-                {
-                    auto balanceId =
-                        issuer.createClaimableBalance(usd, 100, validClaimants);
-
-                    // increase issuer native balance by reserve
-                    root.pay(issuer, reserve);
-
-                    SECTION("reserve is sent to claiming account")
-                    {
-                        auto issuerBalanceBeforeClaim = issuer.getBalance();
-                        auto acc2BalanceBeforeClaim = acc2.getBalance();
-
-                        acc2.claimClaimableBalance(balanceId);
-
-                        // check that the reserve was sent to acc2 (the claiming
-                        // account)
-                        REQUIRE(issuerBalanceBeforeClaim ==
-                                issuer.getBalance());
-                        REQUIRE(acc2BalanceBeforeClaim + reserve -
-                                    lm.getLastTxFee() ==
-                                acc2.getBalance());
-                    }
-
-                    SECTION("use create account to claim")
-                    {
-                        auto issuerBalanceBeforeClaim = issuer.getBalance();
-                        auto acc2BalanceBeforeClaim = acc2.getBalance();
-
-                        acc2.claimClaimableBalance(balanceId);
-
-                        // check that the reserve was sent to acc2 (the claiming
-                        // account)
-                        REQUIRE(issuerBalanceBeforeClaim ==
-                                issuer.getBalance());
-                        REQUIRE(acc2BalanceBeforeClaim + reserve -
-                                    lm.getLastTxFee() ==
-                                acc2.getBalance());
-                    }
-
-                    SECTION("no space left in both accounts")
-                    {
-                        auto idr = makeAsset(acc2, "IDR");
-
-                        // acc2 native line is full
-                        acc2.manageOffer(0, idr, native, Price{1, 1},
-                                         INT64_MAX - acc2.getBalance());
-
-                        REQUIRE_THROWS_AS(acc2.claimClaimableBalance(balanceId),
-                                          ex_CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
-                    }
-                }
-
-                SECTION("createdBy == claimant")
-                {
-                    // issuer is the creator and claimant
-
-                    auto balanceId = issuer.createClaimableBalance(
-                        usd, 1, {makeClaimant(issuer, simplePred)});
-
-                    // increase issuer native balance by reserve.
-                    root.pay(issuer, reserve);
-
-                    // reserve can't be paid back to the the createdBy account
-                    // or the sourceAccount (both the issuer in this case)
-                    REQUIRE_THROWS_AS(issuer.claimClaimableBalance(balanceId),
-                                      ex_CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
-                }
-            }
+            REQUIRE_THROWS_AS(issuer.claimClaimableBalance(balanceId),
+                              ex_CLAIM_CLAIMABLE_BALANCE_LINE_FULL);
         }
 
         SECTION("multiple creates in tx to test index in hash")
@@ -1019,9 +1071,6 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                 REQUIRE(claimableBalance.asset == native);
                 REQUIRE(claimableBalance.amount == amount);
                 REQUIRE(claimableBalance.balanceID == balanceID);
-                REQUIRE(claimableBalance.createdBy == acc1.getPublicKey());
-                REQUIRE(static_cast<uint32_t>(claimableBalance.reserve) ==
-                        validClaimants.size() * lm.getLastReserve());
             };
 
             validateEntry(entry1, balanceID1, 1);
@@ -1117,6 +1166,66 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
             // claim both balances
             acc2.claimClaimableBalance(id1);
             acc2.claimClaimableBalance(id2);
+        }
+
+        SECTION("create is sponsored")
+        {
+            validateBalancesOnCreateAndClaim(acc1, acc2, native, 100,
+                                             validClaimants, *app, false, true);
+        }
+        SECTION("claim is sponsored")
+        {
+            validateBalancesOnCreateAndClaim(acc1, acc2, native, 100,
+                                             validClaimants, *app, false, false,
+                                             true);
+        }
+        SECTION("claim and create are sponsored")
+        {
+            validateBalancesOnCreateAndClaim(acc1, acc2, native, 100,
+                                             validClaimants, *app, false, true,
+                                             true);
+        }
+        SECTION("merge sponsoring account")
+        {
+            acc1.createClaimableBalance(native, 1, validClaimants);
+
+            closeLedgerOn(*app, lm.getLastClosedLedgerNum() + 1, 2, 1, 2016);
+
+            REQUIRE_THROWS_AS(acc1.merge(root), ex_ACCOUNT_MERGE_IS_SPONSOR);
+        }
+        SECTION("claimable balance sponsorship can only be transferred")
+        {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(sponsorFutureReserves(acc1)),
+                 acc1.op(createClaimableBalance(native, 1, validClaimants)),
+                 acc1.op(confirmAndClearSponsor())},
+                {acc1});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            REQUIRE(tx->getResultCode() == txSUCCESS);
+
+            auto balanceID = root.getBalanceID(1);
+
+            // try to remove sponsorship
+            auto tx2 = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(updateSponsorship(claimableBalanceKey(balanceID)))},
+                {});
+
+            TransactionMeta txm2(2);
+            REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+            REQUIRE(!tx2->apply(*app, ltx, txm2));
+            REQUIRE(tx2->getResultCode() == txFAILED);
+
+            REQUIRE(tx2->getResult()
+                        .result.results()[0]
+                        .tr()
+                        .revokeSponsorshipResult()
+                        .code() == REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
         }
     });
 }

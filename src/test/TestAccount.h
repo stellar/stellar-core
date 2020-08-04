@@ -141,6 +141,7 @@ class TestAccount
     }
 
     int64_t getBalance() const;
+    int64_t getAvailableBalance() const;
 
     bool exists() const;
 
