@@ -641,15 +641,6 @@ getMinBalance(LedgerHeader const& header, AccountEntry const& acc)
 }
 
 int64_t
-getMinBalance(LedgerHeader const& lh, uint32_t ownerCount)
-{
-    if (lh.ledgerVersion <= 8)
-        return (2 + ownerCount) * lh.baseReserve;
-    else
-        return (2LL + ownerCount) * int64_t(lh.baseReserve);
-}
-
-int64_t
 getMinBalance(LedgerHeader const& lh, uint32_t numSubentries,
               uint32_t numSponsoring, uint32_t numSponsored)
 {

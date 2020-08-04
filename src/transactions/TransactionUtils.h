@@ -121,7 +121,6 @@ int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
                             ConstLedgerTxnEntry const& entry);
 
 int64_t getMinBalance(LedgerHeader const& header, AccountEntry const& acc);
-int64_t getMinBalance(LedgerHeader const& header, uint32_t ownerCount);
 int64_t getMinBalance(LedgerHeader const& header, uint32_t numSubentries,
                       uint32_t numSponsoring, uint32_t numSponsored);
 
