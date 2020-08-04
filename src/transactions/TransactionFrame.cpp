@@ -733,6 +733,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
         // shield outer scope of any side effects with LedgerTxn
         LedgerTxn ltxTx(ltx);
+        uint32_t ledgerVersion = ltxTx.loadHeader().current().ledgerVersion;
+
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
         for (auto& op : mOperations)
@@ -751,13 +753,15 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     op->getOperation(), op->getResult(), ltxOp.getDelta());
             }
 
-            newMeta.v2().operations.emplace_back(ltxOp.getChanges());
-            ltxOp.commit();
+            if (txRes || ledgerVersion < 14)
+            {
+                newMeta.v2().operations.emplace_back(ltxOp.getChanges());
+                ltxOp.commit();
+            }
         }
 
         if (success)
         {
-            uint32_t ledgerVersion = ltxTx.loadHeader().current().ledgerVersion;
             if (ledgerVersion < 10)
             {
                 if (!signatureChecker.checkAllSignaturesUsed())
