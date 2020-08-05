@@ -46,6 +46,11 @@ updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
 
         break;
     }
+    case CLAIM_PREDICATE_NOT:
+    {
+        updatePredicatesForApply(*pred.notPredicate(), closeTime);
+        break;
+    }
     case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
     {
         auto relBefore = pred.relBefore();
@@ -54,16 +59,7 @@ updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
 
         break;
     }
-    case CLAIM_PREDICATE_AFTER_RELATIVE_TIME:
-    {
-        auto relAfter = pred.relAfter();
-        pred.type(CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME);
-        pred.absAfter() = relativeToAbsolute(closeTime, relAfter);
-
-        break;
-    }
     case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
-    case CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME:
     case CLAIM_PREDICATE_UNCONDITIONAL:
         break;
     default:
@@ -104,15 +100,19 @@ validatePredicate(ClaimPredicate const& pred, uint32_t depth)
         return validatePredicate(orPredicates[0], depth + 1) &&
                validatePredicate(orPredicates[1], depth + 1);
     }
+    case CLAIM_PREDICATE_NOT:
+    {
+        if (!pred.notPredicate())
+        {
+            return false;
+        }
+        return validatePredicate(*pred.notPredicate(), depth + 1);
+    }
 
     case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
         return pred.absBefore() >= 0;
-    case CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME:
-        return pred.absAfter() >= 0;
     case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
         return pred.relBefore() >= 0;
-    case CLAIM_PREDICATE_AFTER_RELATIVE_TIME:
-        return pred.relAfter() >= 0;
     default:
         throw std::runtime_error("Invalid ClaimPredicate");
     }

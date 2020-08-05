@@ -93,20 +93,19 @@ makePredicate(ClaimPredicateType type, bool satisfied, TimePoint nextCloseTime,
         randomizePredicatePos(pred1, pred2, pred.orPredicates());
         break;
     }
+    case ClaimPredicateType::CLAIM_PREDICATE_NOT:
+    {
+        pred.notPredicate().activate() = makePredicate(
+            CLAIM_PREDICATE_AND, !satisfied, nextCloseTime, secondsToNextClose);
+        break;
+    }
 
     case ClaimPredicateType::CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
         pred.absBefore() = satisfied ? nextCloseTime + 1 : nextCloseTime;
         break;
-    case ClaimPredicateType::CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME:
-        pred.absAfter() = satisfied ? nextCloseTime : nextCloseTime + 1;
-        break;
     case ClaimPredicateType::CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
         pred.relBefore() =
             satisfied ? secondsToNextClose + 1 : secondsToNextClose;
-        break;
-    case ClaimPredicateType::CLAIM_PREDICATE_AFTER_RELATIVE_TIME:
-        pred.relAfter() =
-            satisfied ? secondsToNextClose : secondsToNextClose + 1;
         break;
     default:
         abort();
@@ -418,13 +417,6 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                                 .absBefore() = -1;
                             invalidPredicateTest(pred);
                         }
-                        SECTION("invalid absAfter")
-                        {
-                            ClaimPredicate pred;
-                            pred.type(CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME)
-                                .absAfter() = -1;
-                            invalidPredicateTest(pred);
-                        }
                         SECTION("invalid relBefore")
                         {
                             ClaimPredicate pred;
@@ -432,16 +424,43 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                                 .relBefore() = -1;
                             invalidPredicateTest(pred);
                         }
-                        SECTION("invalid relAfter")
+                        SECTION("invalid null not")
                         {
                             ClaimPredicate pred;
-                            pred.type(CLAIM_PREDICATE_AFTER_RELATIVE_TIME)
-                                .relAfter() = -1;
+                            pred.type(CLAIM_PREDICATE_NOT).notPredicate() =
+                                nullptr;
                             invalidPredicateTest(pred);
+                        }
+                        SECTION("invalid not nested")
+                        {
+                            ClaimPredicate insidePred;
+                            insidePred
+                                .type(CLAIM_PREDICATE_BEFORE_RELATIVE_TIME)
+                                .relBefore() = -1;
+
+                            ClaimPredicate notPred;
+                            notPred.type(CLAIM_PREDICATE_NOT)
+                                .notPredicate()
+                                .activate() = insidePred;
+                            invalidPredicateTest(notPred);
                         }
                         SECTION("invalid predicate height")
                         {
-                            invalidPredicateTest(makeSimplePredicate(4));
+                            // make sure AND, OR, and NOT account for depth
+                            // correctly
+                            auto tree1 =
+                                connectPredicate(false, makeSimplePredicate(0),
+                                                 makeSimplePredicate(0));
+
+                            auto tree2 = connectPredicate(true, tree1, tree1);
+
+                            ClaimPredicate notPred;
+                            notPred.type(CLAIM_PREDICATE_NOT)
+                                .notPredicate()
+                                .activate() = tree2;
+
+                            invalidPredicateTest(
+                                connectPredicate(false, tree2, notPred));
                         }
                     }
                 }
@@ -464,28 +483,36 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                 auto absBeforeFalse =
                     makePredicate(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME, false,
                                   nextCloseTime, dayInSeconds);
-                auto absAfterFalse =
-                    makePredicate(CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME, false,
-                                  nextCloseTime, dayInSeconds);
                 auto relBeforeFalse =
                     makePredicate(CLAIM_PREDICATE_BEFORE_RELATIVE_TIME, false,
-                                  nextCloseTime, dayInSeconds);
-                auto relAfterFalse =
-                    makePredicate(CLAIM_PREDICATE_AFTER_RELATIVE_TIME, false,
                                   nextCloseTime, dayInSeconds);
 
                 auto absBeforeTrue =
                     makePredicate(CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME, true,
                                   nextCloseTime, dayInSeconds);
-                auto absAfterTrue =
-                    makePredicate(CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME, true,
-                                  nextCloseTime, dayInSeconds);
                 auto relBeforeTrue =
                     makePredicate(CLAIM_PREDICATE_BEFORE_RELATIVE_TIME, true,
                                   nextCloseTime, dayInSeconds);
-                auto relAfterTrue =
-                    makePredicate(CLAIM_PREDICATE_AFTER_RELATIVE_TIME, true,
-                                  nextCloseTime, dayInSeconds);
+
+                ClaimPredicate absAfterTrue;
+                absAfterTrue.type(CLAIM_PREDICATE_NOT)
+                    .notPredicate()
+                    .activate() = absBeforeFalse;
+
+                ClaimPredicate absAfterFalse;
+                absAfterFalse.type(CLAIM_PREDICATE_NOT)
+                    .notPredicate()
+                    .activate() = absBeforeTrue;
+
+                ClaimPredicate relAfterTrue;
+                relAfterTrue.type(CLAIM_PREDICATE_NOT)
+                    .notPredicate()
+                    .activate() = relBeforeFalse;
+
+                ClaimPredicate relAfterFalse;
+                relAfterFalse.type(CLAIM_PREDICATE_NOT)
+                    .notPredicate()
+                    .activate() = relBeforeTrue;
 
                 SECTION("predicate not satisfied")
                 {
@@ -501,29 +528,24 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                             ex_CLAIM_CLAIMABLE_BALANCE_CANNOT_CLAIM);
                     };
 
-                    // validate 6
+                    SECTION("not unconditional")
+                    {
+                        ClaimPredicate u;
+                        u.type(CLAIM_PREDICATE_UNCONDITIONAL);
+
+                        ClaimPredicate notPred;
+                        notPred.type(CLAIM_PREDICATE_NOT)
+                            .notPredicate()
+                            .activate() = u;
+                        predicateTest(notPred);
+                    }
                     SECTION("absBefore not satisfied")
                     {
                         predicateTest(absBeforeFalse);
                     }
-                    SECTION("absAfter not satisfied")
-                    {
-                        predicateTest(absAfterFalse);
-                    }
                     SECTION("relBefore not satisfied")
                     {
                         predicateTest(relBeforeFalse);
-                    }
-                    SECTION("relAfter not satisfied")
-                    {
-                        predicateTest(relAfterFalse);
-                    }
-                    SECTION("relAfter max not satisfied")
-                    {
-                        ClaimPredicate pred;
-                        pred.type(CLAIM_PREDICATE_AFTER_RELATIVE_TIME);
-                        pred.relAfter() = INT64_MAX;
-                        predicateTest(pred);
                     }
                     SECTION("and predicate not satisfied")
                     {
@@ -534,6 +556,12 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                     SECTION("or predicate not satisfied")
                     {
                         predicateTest(makePredicate(CLAIM_PREDICATE_OR, false,
+                                                    nextCloseTime,
+                                                    dayInSeconds));
+                    }
+                    SECTION("NOT predicate not satisfied")
+                    {
+                        predicateTest(makePredicate(CLAIM_PREDICATE_NOT, false,
                                                     nextCloseTime,
                                                     dayInSeconds));
                     }
@@ -549,31 +577,42 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                     }
                     SECTION("complex 2")
                     {
-                        auto right =
-                            connectPredicate(true, absAfterTrue, absBeforeTrue);
-                        auto left = connectPredicate(false, relBeforeFalse,
-                                                     absAfterFalse);
-                        auto connectedRight =
-                            connectPredicate(true, left, right);
+                        auto right = absAfterTrue;
 
-                        predicateTest(connectPredicate(false, relAfterFalse,
-                                                       connectedRight));
+                        // left will validate to true, so use the NOT predicate
+                        auto left = relAfterTrue;
+
+                        ClaimPredicate notLeft;
+                        notLeft.type(CLAIM_PREDICATE_NOT)
+                            .notPredicate()
+                            .activate() = left;
+
+                        predicateTest(connectPredicate(true, notLeft, right));
                     }
                     SECTION("complex 3")
                     {
                         // full tree with all ORs. No predicate is satisfied
-                        auto tree1 = connectPredicate(false, absAfterFalse,
+                        auto tree1 = connectPredicate(false, relBeforeFalse,
                                                       absBeforeFalse);
-                        auto tree2 = connectPredicate(false, relAfterFalse,
+                        auto tree2 = connectPredicate(false, absBeforeFalse,
                                                       relBeforeFalse);
-                        auto tree3 = connectPredicate(false, absAfterFalse,
+                        auto tree3 = connectPredicate(false, absBeforeFalse,
                                                       relBeforeFalse);
-                        auto tree4 = connectPredicate(false, relAfterFalse,
+                        auto tree4 = connectPredicate(false, relBeforeFalse,
                                                       absBeforeFalse);
 
                         auto c1 = connectPredicate(false, tree1, tree2);
                         auto c2 = connectPredicate(false, tree3, tree4);
                         predicateTest(connectPredicate(false, c1, c2));
+                    }
+                    SECTION("complex 4")
+                    {
+                        auto tree1 = connectPredicate(false, absAfterFalse,
+                                                      absBeforeFalse);
+                        auto tree2 = connectPredicate(false, relAfterFalse,
+                                                      relBeforeFalse);
+
+                        predicateTest(connectPredicate(false, tree1, tree2));
                     }
                 }
 
@@ -630,6 +669,12 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                                                     nextCloseTime,
                                                     dayInSeconds));
                     }
+                    SECTION("NOT predicate satisfied")
+                    {
+                        predicateTest(makePredicate(CLAIM_PREDICATE_NOT, true,
+                                                    nextCloseTime,
+                                                    dayInSeconds));
+                    }
                     SECTION("complex 1")
                     {
                         auto right =
@@ -640,27 +685,27 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                     }
                     SECTION("complex 2")
                     {
-                        auto right =
-                            connectPredicate(true, absAfterTrue, absBeforeTrue);
-                        auto left = connectPredicate(false, relBeforeTrue,
-                                                     absAfterFalse);
-                        auto connectedRight =
-                            connectPredicate(true, left, right);
+                        auto tree = connectPredicate(false, absAfterFalse,
+                                                     absBeforeFalse);
 
-                        predicateTest(connectPredicate(false, relAfterFalse,
-                                                       connectedRight));
+                        ClaimPredicate notPred;
+                        notPred.type(CLAIM_PREDICATE_NOT)
+                            .notPredicate()
+                            .activate() = tree;
+
+                        predicateTest(notPred);
                     }
                     SECTION("complex 3")
                     {
                         // full tree with all ANDs. All predicates are satisfied
-                        auto tree1 =
-                            connectPredicate(true, absAfterTrue, absBeforeTrue);
-                        auto tree2 =
-                            connectPredicate(true, relAfterTrue, relBeforeTrue);
-                        auto tree3 =
-                            connectPredicate(true, absAfterTrue, relBeforeTrue);
-                        auto tree4 =
-                            connectPredicate(true, relAfterTrue, absBeforeTrue);
+                        auto tree1 = connectPredicate(true, relBeforeTrue,
+                                                      absBeforeTrue);
+                        auto tree2 = connectPredicate(true, absBeforeTrue,
+                                                      relBeforeTrue);
+                        auto tree3 = connectPredicate(true, absBeforeTrue,
+                                                      relBeforeTrue);
+                        auto tree4 = connectPredicate(true, relBeforeTrue,
+                                                      absBeforeTrue);
 
                         auto c1 = connectPredicate(true, tree1, tree2);
                         auto c2 = connectPredicate(true, tree3, tree4);
@@ -669,19 +714,28 @@ TEST_CASE("claimableBalance", "[tx][managedata]")
                     SECTION("complex 4")
                     {
                         // full tree with all ORs. One predicate is satisfied
-                        auto tree1 = connectPredicate(false, absAfterFalse,
+                        auto tree1 = connectPredicate(false, relBeforeFalse,
                                                       absBeforeFalse);
-                        auto tree2 = connectPredicate(false, relAfterFalse,
+                        auto tree2 = connectPredicate(false, absBeforeFalse,
                                                       relBeforeFalse);
                         // absAfterTrue is used here
-                        auto tree3 = connectPredicate(false, absAfterTrue,
+                        auto tree3 = connectPredicate(false, absBeforeTrue,
                                                       relBeforeFalse);
-                        auto tree4 = connectPredicate(false, relAfterFalse,
+                        auto tree4 = connectPredicate(false, relBeforeFalse,
                                                       absBeforeFalse);
 
                         auto c1 = connectPredicate(false, tree1, tree2);
                         auto c2 = connectPredicate(false, tree3, tree4);
                         predicateTest(connectPredicate(false, c1, c2));
+                    }
+                    SECTION("complex 5")
+                    {
+                        auto tree1 =
+                            connectPredicate(true, absAfterTrue, absBeforeTrue);
+                        auto tree2 =
+                            connectPredicate(true, relAfterTrue, relBeforeTrue);
+
+                        predicateTest(connectPredicate(true, tree1, tree2));
                     }
                 }
 

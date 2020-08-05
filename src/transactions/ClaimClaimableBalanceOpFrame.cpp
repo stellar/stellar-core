@@ -54,11 +54,10 @@ validatePredicate(ClaimPredicate const& pred, TimePoint closeTime)
         return validatePredicate(orPredicates.at(0), closeTime) ||
                validatePredicate(orPredicates.at(1), closeTime);
     }
-
+    case CLAIM_PREDICATE_NOT:
+        return !validatePredicate(*pred.notPredicate(), closeTime);
     case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
         return static_cast<uint64_t>(pred.absBefore()) > closeTime;
-    case CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME:
-        return static_cast<uint64_t>(pred.absAfter()) <= closeTime;
     default:
         throw std::runtime_error("Invalid ClaimPredicate");
     }
