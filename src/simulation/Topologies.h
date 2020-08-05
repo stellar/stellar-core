@@ -64,7 +64,10 @@ class Topologies
         int connectionsToCore = 1,
         Simulation::QuorumSetAdjuster qSetAdjust = nullptr);
 
-    // custom-A
+    // custom-A models a network with 7 nodes A, B, C, T, I, E, S where I is a
+    // dead node for resilience tests. The threshold 4 for the qsets of A, B, C
+    // is valid for the resilience tests because the resilience tests do not
+    // simulate Byzantine failures.
     static Simulation::pointer
     customA(Simulation::Mode mode, Hash const& networkID,
             Simulation::ConfigGen confGen = nullptr, int connections = 1,
