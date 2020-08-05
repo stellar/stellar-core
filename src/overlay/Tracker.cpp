@@ -212,11 +212,28 @@ Tracker::tryNextPeer()
                       VirtualTimer::onFailureNoop);
 }
 
+static std::function<bool(std::pair<Hash, SCPEnvelope> const&)>
+matchEnvelope(SCPEnvelope const& env)
+{
+    return [&env](std::pair<Hash, SCPEnvelope> const& x) {
+        return x.second == env;
+    };
+}
+
 void
 Tracker::listen(const SCPEnvelope& env)
 {
     ZoneScoped;
     mLastSeenSlotIndex = std::max(env.statement.slotIndex, mLastSeenSlotIndex);
+
+    // don't track the same envelope twice
+    auto matcher = matchEnvelope(env);
+    auto it = std::find_if(mWaitingEnvelopes.begin(), mWaitingEnvelopes.end(),
+                           matcher);
+    if (it != mWaitingEnvelopes.end())
+    {
+        return;
+    }
 
     StellarMessage m;
     m.type(SCP_MESSAGE);
@@ -231,12 +248,10 @@ void
 Tracker::discard(const SCPEnvelope& env)
 {
     ZoneScoped;
-    auto matchEnvelope = [&env](std::pair<Hash, SCPEnvelope> const& x) {
-        return x.second == env;
-    };
+    auto matcher = matchEnvelope(env);
     mWaitingEnvelopes.erase(std::remove_if(std::begin(mWaitingEnvelopes),
                                            std::end(mWaitingEnvelopes),
-                                           matchEnvelope),
+                                           matcher),
                             std::end(mWaitingEnvelopes));
 }
 
