@@ -46,6 +46,11 @@ updatePredicatesForApply(ClaimPredicate& pred, TimePoint closeTime)
 
         break;
     }
+    case CLAIM_PREDICATE_NOT:
+    {
+        updatePredicatesForApply(*pred.notPredicate(), closeTime);
+        break;
+    }
     case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
     {
         auto relBefore = pred.relBefore();
@@ -103,6 +108,14 @@ validatePredicate(ClaimPredicate const& pred, uint32_t depth)
         }
         return validatePredicate(orPredicates[0], depth + 1) &&
                validatePredicate(orPredicates[1], depth + 1);
+    }
+    case CLAIM_PREDICATE_NOT:
+    {
+        if (!pred.notPredicate())
+        {
+            return false;
+        }
+        return validatePredicate(*pred.notPredicate(), depth + 1);
     }
 
     case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:

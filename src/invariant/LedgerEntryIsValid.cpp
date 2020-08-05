@@ -263,6 +263,14 @@ LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
         return validatePredicate(orPredicates[0], depth + 1) &&
                validatePredicate(orPredicates[1], depth + 1);
     }
+    case CLAIM_PREDICATE_NOT:
+    {
+        if (!pred.notPredicate())
+        {
+            return false;
+        }
+        return validatePredicate(*pred.notPredicate(), depth + 1);
+    }
 
     case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
         return pred.absBefore() >= 0;
