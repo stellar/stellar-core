@@ -253,11 +253,12 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
             fb->processFeeSeqNum(ltx, fee);
             auto delta = ltx.getDelta();
             REQUIRE(delta.entry.size() == 1);
-            REQUIRE(delta.entry.begin()->first.account().accountID ==
-                    acc.getPublicKey());
+            auto gkey = delta.entry.begin()->first;
+            REQUIRE(gkey.type() == GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            REQUIRE(gkey.ledgerKey().account().accountID == acc.getPublicKey());
             auto entryDelta = delta.entry.begin()->second;
-            auto prev = entryDelta.previous->data.account();
-            auto curr = entryDelta.current->data.account();
+            auto prev = entryDelta.previous->ledgerEntry().data.account();
+            auto curr = entryDelta.current->ledgerEntry().data.account();
             REQUIRE(prev.balance == curr.balance + 2 * fee);
         });
     }

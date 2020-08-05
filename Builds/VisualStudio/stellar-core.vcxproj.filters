@@ -1074,16 +1074,46 @@
     <ClCompile Include="..\..\lib\tracy\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\GeneralizedLedgerEntry.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ConfirmAndClearSponsorOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SponsorFutureReservesOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SponsorshipUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\UpdateSponsorshipOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\ClaimableBalanceTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ConfirmAndClearSponsorTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\CreateAccountTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\SponsorFutureReservesTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\SponsorshipTestUtils.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\UpdateSponsorshipTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1880,11 +1910,29 @@
     <ClInclude Include="..\..\lib\fmt\include\fmt\format.h">
       <Filter>lib\fmt</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ledger\GeneralizedLedgerEntry.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ConfirmAndClearSponsorOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SponsorFutureReservesOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SponsorshipUtils.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\UpdateSponsorshipOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h">
+      <Filter>transactions\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

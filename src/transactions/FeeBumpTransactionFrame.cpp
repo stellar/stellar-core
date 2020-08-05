@@ -13,6 +13,7 @@
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "xdrpp/marshal.h"
@@ -390,26 +391,6 @@ FeeBumpTransactionFrame::processFeeSeqNum(AbstractLedgerTxn& ltx,
     }
 }
 
-bool
-FeeBumpTransactionFrame::removeAccountSigner(LedgerTxnHeader const& header,
-                                             LedgerTxnEntry& account,
-                                             SignerKey const& signerKey) const
-{
-    auto& acc = account.current().data.account();
-    auto it = std::find_if(
-        std::begin(acc.signers), std::end(acc.signers),
-        [&signerKey](Signer const& signer) { return signer.key == signerKey; });
-    if (it != std::end(acc.signers))
-    {
-        auto removed = stellar::addNumEntries(header, account, -1);
-        assert(removed == AddSubentryResult::SUCCESS);
-        acc.signers.erase(it);
-        return true;
-    }
-
-    return false;
-}
-
 void
 FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
     AbstractLedgerTxn& ltx) const
@@ -422,9 +403,12 @@ FeeBumpTransactionFrame::removeOneTimeSignerKeyFromFeeSource(
 
     auto header = ltx.loadHeader();
     auto signerKey = SignerKeyUtils::preAuthTxKey(*this);
-    if (removeAccountSigner(header, account, signerKey))
+    auto& signers = account.current().data.account().signers;
+    auto findRes = findSignerByKey(signers.begin(), signers.end(), signerKey);
+    if (findRes.second)
     {
-        normalizeSigners(account);
+        removeSignerWithPossibleSponsorship(ltx, header, findRes.first,
+                                            account);
     }
 }
 

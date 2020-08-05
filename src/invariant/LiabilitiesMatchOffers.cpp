@@ -17,15 +17,6 @@ namespace stellar
 {
 
 static int64_t
-getMinBalance(LedgerHeader const& header, uint32_t ownerCount)
-{
-    if (header.ledgerVersion <= 8)
-        return (2 + ownerCount) * header.baseReserve;
-    else
-        return (2LL + ownerCount) * int64_t(header.baseReserve);
-}
-
-static int64_t
 getOfferBuyingLiabilities(LedgerEntry const& le)
 {
     auto const& oe = le.data.offer();
@@ -78,8 +69,7 @@ getSellingLiabilities(LedgerEntry const& le)
 }
 
 static std::string
-checkAuthorized(std::shared_ptr<LedgerEntry const> const& current,
-                std::shared_ptr<LedgerEntry const> const& previous)
+checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
 {
     if (!current)
     {
@@ -127,10 +117,26 @@ checkAuthorized(std::shared_ptr<LedgerEntry const> const& current,
     return "";
 }
 
+static std::string
+checkAuthorized(
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genCurrent,
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious)
+{
+    auto type = genCurrent ? genCurrent->type() : genPrevious->type();
+    if (type == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    {
+        auto const* current = genCurrent ? &genCurrent->ledgerEntry() : nullptr;
+        auto const* previous =
+            genPrevious ? &genPrevious->ledgerEntry() : nullptr;
+        return checkAuthorized(current, previous);
+    }
+    return "";
+}
+
 static void
 addOrSubtractLiabilities(
     std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-    std::shared_ptr<LedgerEntry const> const& entry, bool isAdd)
+    LedgerEntry const* entry, bool isAdd)
 {
     if (!entry)
     {
@@ -175,18 +181,30 @@ addOrSubtractLiabilities(
 }
 
 static void
+addOrSubtractLiabilities(
+    std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genEntry, bool isAdd)
+{
+    if (genEntry &&
+        genEntry->type() == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    {
+        addOrSubtractLiabilities(deltaLiabilities, &genEntry->ledgerEntry(),
+                                 isAdd);
+    }
+}
+
+static void
 accumulateLiabilities(
     std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-    std::shared_ptr<LedgerEntry const> const& current,
-    std::shared_ptr<LedgerEntry const> const& previous)
+    std::shared_ptr<GeneralizedLedgerEntry const> const& current,
+    std::shared_ptr<GeneralizedLedgerEntry const> const& previous)
 {
     addOrSubtractLiabilities(deltaLiabilities, current, true);
     addOrSubtractLiabilities(deltaLiabilities, previous, false);
 }
 
 static bool
-shouldCheckAccount(std::shared_ptr<LedgerEntry const> const& current,
-                   std::shared_ptr<LedgerEntry const> const& previous,
+shouldCheckAccount(LedgerEntry const* current, LedgerEntry const* previous,
                    uint32_t ledgerVersion)
 {
     if (!previous)
@@ -215,10 +233,8 @@ shouldCheckAccount(std::shared_ptr<LedgerEntry const> const& current,
 }
 
 static std::string
-checkBalanceAndLimit(LedgerHeader const& header,
-                     std::shared_ptr<LedgerEntry const> const& current,
-                     std::shared_ptr<LedgerEntry const> const& previous,
-                     uint32_t ledgerVersion)
+checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
+                     LedgerEntry const* previous, uint32_t ledgerVersion)
 {
     if (!current)
     {
@@ -236,7 +252,7 @@ checkBalanceAndLimit(LedgerHeader const& header,
                 liabilities.selling = getSellingLiabilities(*current);
                 liabilities.buying = getBuyingLiabilities(*current);
             }
-            int64_t minBalance = getMinBalance(header, account.numSubEntries);
+            int64_t minBalance = getMinBalance(header, account);
             if ((account.balance < minBalance + liabilities.selling) ||
                 (INT64_MAX - account.balance < liabilities.buying))
             {
@@ -264,6 +280,24 @@ checkBalanceAndLimit(LedgerHeader const& header,
         }
     }
     return {};
+}
+
+static std::string
+checkBalanceAndLimit(
+    LedgerHeader const& header,
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genCurrent,
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious,
+    uint32_t ledgerVersion)
+{
+    auto type = genCurrent ? genCurrent->type() : genPrevious->type();
+    if (type == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    {
+        auto const* current = genCurrent ? &genCurrent->ledgerEntry() : nullptr;
+        auto const* previous =
+            genPrevious ? &genPrevious->ledgerEntry() : nullptr;
+        return checkBalanceAndLimit(header, current, previous, ledgerVersion);
+    }
+    return "";
 }
 
 std::shared_ptr<Invariant>
@@ -294,8 +328,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
         std::map<AccountID, std::map<Asset, Liabilities>> deltaLiabilities;
         for (auto const& entryDelta : ltxDelta.entry)
         {
-            auto checkAuthStr = stellar::checkAuthorized(
-                entryDelta.second.current, entryDelta.second.previous);
+            auto checkAuthStr = checkAuthorized(entryDelta.second.current,
+                                                entryDelta.second.previous);
             if (!checkAuthStr.empty())
             {
                 return checkAuthStr;

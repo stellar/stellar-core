@@ -12,6 +12,7 @@ namespace stellar
 
 class Application;
 class AbstractLedgerTxn;
+struct AccountEntry;
 struct LedgerEntry;
 struct OperationResult;
 
@@ -34,5 +35,7 @@ UpdateList makeUpdateList(std::vector<LedgerEntry> const& current,
                           std::vector<LedgerEntry> const& previous);
 UpdateList makeUpdateList(std::nullptr_t current,
                           std::vector<LedgerEntry> const& previous);
+
+void normalizeSigners(AccountEntry& acc);
 }
 }

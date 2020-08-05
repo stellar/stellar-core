@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
@@ -1009,9 +1010,10 @@ crossOffer(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
     // Note: No changes have been stored before this point.
     if (newAmount == 0)
     { // entire offer is taken
-        sellingWheatOffer.erase();
         auto accountB = stellar::loadAccount(ltx, accountBID);
-        addNumEntries(ltx.loadHeader(), accountB, -1);
+        removeEntryWithPossibleSponsorship(
+            ltx, ltx.loadHeader(), sellingWheatOffer.current(), accountB);
+        sellingWheatOffer.erase();
     }
     else
     {
@@ -1192,9 +1194,10 @@ crossOfferV10(AbstractLedgerTxn& ltx, LedgerTxnEntry& sellingWheatOffer,
         sellingWheatOffer = loadOffer(ltxInner, accountBID, offerID);
         if (res == CrossOfferResult::eOfferTaken)
         {
+            auto account = loadAccount(ltxInner, accountBID);
+            removeEntryWithPossibleSponsorship(
+                ltxInner, header, sellingWheatOffer.current(), account);
             sellingWheatOffer.erase();
-            accountB = stellar::loadAccount(ltxInner, accountBID);
-            addNumEntries(header, accountB, -1);
         }
         else
         {

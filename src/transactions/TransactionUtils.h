@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-ledger-entries.h"
+#include <algorithm>
 
 namespace stellar
 {
@@ -16,15 +17,38 @@ class AbstractLedgerTxn;
 class LedgerTxnEntry;
 class LedgerTxnHeader;
 class TrustLineWrapper;
+class GeneralizedLedgerKey;
+struct LedgerHeader;
 struct LedgerKey;
 struct TransactionEnvelope;
 struct MuxedAccount;
+
+template <typename IterType>
+std::pair<IterType, bool>
+findSignerByKey(IterType begin, IterType end, SignerKey const& key)
+{
+    auto it =
+        std::find_if(begin, end, [&](auto const& x) { return !(x.key < key); });
+    bool found = (it != end && it->key == key);
+    return {it, found};
+}
+
+AccountEntryExtensionV1& prepareAccountEntryExtensionV1(AccountEntry& ae);
+AccountEntryExtensionV2& prepareAccountEntryExtensionV2(AccountEntry& ae);
+TrustLineEntry::_ext_t::_v1_t&
+prepareTrustLineEntryExtensionV1(TrustLineEntry& tl);
+LedgerEntryExtensionV1& prepareLedgerEntryExtensionV1(LedgerEntry& le);
+
+AccountEntryExtensionV2& getAccountEntryExtensionV2(AccountEntry& ae);
+LedgerEntryExtensionV1& getLedgerEntryExtensionV1(LedgerEntry& le);
 
 LedgerKey accountKey(AccountID const& accountID);
 LedgerKey trustlineKey(AccountID const& accountID, Asset const& asset);
 LedgerKey offerKey(AccountID const& sellerID, uint64_t offerID);
 LedgerKey dataKey(AccountID const& accountID, std::string const& dataName);
 LedgerKey claimableBalanceKey(ClaimableBalanceID const& balanceID);
+GeneralizedLedgerKey sponsorshipKey(AccountID const& sponsoredID);
+GeneralizedLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 
 uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
@@ -58,6 +82,12 @@ TrustLineWrapper loadTrustLineIfNotNative(AbstractLedgerTxn& ltx,
 ConstTrustLineWrapper loadTrustLineWithoutRecordIfNotNative(
     AbstractLedgerTxn& ltx, AccountID const& accountID, Asset const& asset);
 
+LedgerTxnEntry loadSponsorship(AbstractLedgerTxn& ltx,
+                               AccountID const& sponsoredID);
+
+LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
+                                      AccountID const& sponsoringID);
+
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
@@ -67,22 +97,12 @@ bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 bool addBuyingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                           int64_t delta);
 
-enum class AddSubentryResult
-{
-    SUCCESS,
-    LOW_RESERVE,
-    TOO_MANY_SUBENTRIES
-};
-AddSubentryResult addNumEntries(LedgerTxnHeader const& header,
-                                LedgerTxnEntry& entry, int count);
-
 bool addSellingLiabilities(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                            int64_t delta);
 
 uint64_t generateID(LedgerTxnHeader& header);
 
-int64_t getAvailableBalance(LedgerTxnHeader const& header,
-                            LedgerEntry const& le);
+int64_t getAvailableBalance(LedgerHeader const& header, LedgerEntry const& le);
 int64_t getAvailableBalance(LedgerTxnHeader const& header,
                             LedgerTxnEntry const& entry);
 int64_t getAvailableBalance(LedgerTxnHeader const& header,
@@ -100,7 +120,9 @@ int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
 int64_t getMaxAmountReceive(LedgerTxnHeader const& header,
                             ConstLedgerTxnEntry const& entry);
 
-int64_t getMinBalance(LedgerTxnHeader const& header, uint32_t ownerCount);
+int64_t getMinBalance(LedgerHeader const& header, AccountEntry const& acc);
+int64_t getMinBalance(LedgerHeader const& header, uint32_t numSubentries,
+                      uint32_t numSponsoring, uint32_t numSponsored);
 
 int64_t getMinimumLimit(LedgerTxnHeader const& header, LedgerEntry const& le);
 int64_t getMinimumLimit(LedgerTxnHeader const& header,
@@ -118,7 +140,7 @@ int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
 int64_t getOfferSellingLiabilities(LedgerTxnHeader const& header,
                                    LedgerTxnEntry const& entry);
 
-int64_t getSellingLiabilities(LedgerTxnHeader const& header,
+int64_t getSellingLiabilities(LedgerHeader const& header,
                               LedgerEntry const& le);
 int64_t getSellingLiabilities(LedgerTxnHeader const& header,
                               LedgerTxnEntry const& offer);
@@ -137,9 +159,6 @@ bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);
-
-void normalizeSigners(LedgerTxnEntry& entry);
-void normalizeSigners(AccountEntry& acc);
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);

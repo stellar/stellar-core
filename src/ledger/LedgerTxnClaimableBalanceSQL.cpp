@@ -184,9 +184,9 @@ class BulkDeleteClaimableBalanceOperation
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
-            assert(e.key().type() == CLAIMABLE_BALANCE);
-            mBalanceIDs.emplace_back(
-                toOpaqueBase64(e.key().claimableBalance().balanceID));
+            assert(e.key().ledgerKey().type() == CLAIMABLE_BALANCE);
+            mBalanceIDs.emplace_back(toOpaqueBase64(
+                e.key().ledgerKey().claimableBalance().balanceID));
         }
     }
 
@@ -278,7 +278,7 @@ class BulkUpsertClaimableBalanceOperation
         for (auto const& e : entryIter)
         {
             assert(e.entryExists());
-            accumulateEntry(e.entry());
+            accumulateEntry(e.entry().ledgerEntry());
         }
     }
 

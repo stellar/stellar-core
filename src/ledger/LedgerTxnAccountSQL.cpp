@@ -171,8 +171,11 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(e.entryExists());
-            assert(e.entry().data.type() == ACCOUNT);
-            auto const& account = e.entry().data.account();
+            assert(e.entry().type() ==
+                   GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            auto const& le = e.entry().ledgerEntry();
+            assert(le.data.type() == ACCOUNT);
+            auto const& account = le.data.account();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
             mBalances.emplace_back(account.balance);
             mSeqNums.emplace_back(account.seqNum);
@@ -204,7 +207,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
                 mSignerInds.emplace_back(soci::i_ok);
             }
             mLastModifieds.emplace_back(
-                unsignedToSigned(e.entry().lastModifiedLedgerSeq));
+                unsignedToSigned(le.lastModifiedLedgerSeq));
 
             if (account.ext.v() >= 1)
             {
@@ -219,7 +222,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
             }
 
             mLedgerExtensions.emplace_back(
-                decoder::encode_b64(xdr::xdr_to_opaque(e.entry().ext)));
+                decoder::encode_b64(xdr::xdr_to_opaque(le.ext)));
         }
     }
 
@@ -373,8 +376,9 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
-            assert(e.key().type() == ACCOUNT);
-            auto const& account = e.key().account();
+            assert(e.key().type() == GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.key().ledgerKey().type() == ACCOUNT);
+            auto const& account = e.key().ledgerKey().account();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
         }
     }

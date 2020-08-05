@@ -20,9 +20,6 @@ class ClaimClaimableBalanceOpFrame : public OperationFrame
         return mResult.tr().claimClaimableBalanceResult();
     }
 
-    bool loadAccountAndAddBalance(AbstractLedgerTxn& ltx,
-                                  LedgerTxnHeader const& header,
-                                  AccountID const& accountID, int64_t amount);
     ClaimClaimableBalanceOp const& mClaimClaimableBalance;
 
   public:

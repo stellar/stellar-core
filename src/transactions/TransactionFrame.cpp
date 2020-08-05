@@ -21,6 +21,7 @@
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Algoritm.h"
@@ -244,13 +245,13 @@ TransactionFrame::loadAccount(AbstractLedgerTxn& ltx,
 {
     ZoneScoped;
     if (header.current().ledgerVersion < 8 && mCachedAccount &&
-        mCachedAccount->data.account().accountID == accountID)
+        mCachedAccount->ledgerEntry().data.account().accountID == accountID)
     {
         // this is buggy caching that existed in old versions of the protocol
         auto res = stellar::loadAccount(ltx, accountID);
         if (res)
         {
-            res.current() = *mCachedAccount;
+            res.currentGeneralized() = *mCachedAccount;
         }
         else
         {
@@ -616,17 +617,13 @@ TransactionFrame::removeAccountSigner(AbstractLedgerTxn& ltxOuter,
         return; // probably account was removed due to merge operation
     }
 
+    auto header = ltx.loadHeader();
     auto& signers = account.current().data.account().signers;
-    auto it = std::find_if(
-        std::begin(signers), std::end(signers),
-        [&signerKey](Signer const& signer) { return signer.key == signerKey; });
-
-    if (it != std::end(signers))
+    auto findRes = findSignerByKey(signers.begin(), signers.end(), signerKey);
+    if (findRes.second)
     {
-        auto header = ltx.loadHeader();
-        auto removed = stellar::addNumEntries(header, account, -1);
-        assert(removed == AddSubentryResult::SUCCESS);
-        signers.erase(it);
+        removeSignerWithPossibleSponsorship(ltx, header, findRes.first,
+                                            account);
         ltx.commit();
     }
 }
@@ -736,6 +733,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
         // shield outer scope of any side effects with LedgerTxn
         LedgerTxn ltxTx(ltx);
+        uint32_t ledgerVersion = ltxTx.loadHeader().current().ledgerVersion;
+
         auto& opTimer =
             app.getMetrics().NewTimer({"ledger", "operation", "apply"});
         for (auto& op : mOperations)
@@ -754,13 +753,16 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     op->getOperation(), op->getResult(), ltxOp.getDelta());
             }
 
-            newMeta.v2().operations.emplace_back(ltxOp.getChanges());
-            ltxOp.commit();
+            if (txRes || ledgerVersion < 14)
+            {
+                newMeta.v2().operations.emplace_back(ltxOp.getChanges());
+                ltxOp.commit();
+            }
         }
 
         if (success)
         {
-            if (ltxTx.loadHeader().current().ledgerVersion < 10)
+            if (ledgerVersion < 10)
             {
                 if (!signatureChecker.checkAllSignaturesUsed())
                 {
@@ -776,6 +778,23 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 removeOneTimeSignerFromAllSourceAccounts(ltxAfter);
                 newMeta.v2().txChangesAfter = ltxAfter.getChanges();
                 ltxAfter.commit();
+            }
+            else if (ledgerVersion >= 14)
+            {
+                auto delta = ltxTx.getDelta();
+                for (auto const& kv : delta.entry)
+                {
+                    auto glk = kv.first;
+                    switch (glk.type())
+                    {
+                    case GeneralizedLedgerEntryType::SPONSORSHIP:
+                    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+                        getResult().result.code(txBAD_SPONSORSHIP);
+                        return false;
+                    default:
+                        break;
+                    }
+                }
             }
 
             ltxTx.commit();

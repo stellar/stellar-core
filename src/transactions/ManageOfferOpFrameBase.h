@@ -27,7 +27,8 @@ class ManageOfferOpFrameBase : public OperationFrame
                                         int64_t& maxSheepSend,
                                         int64_t& maxWheatReceive);
 
-    LedgerEntry buildOffer(int64_t amount, uint32_t flags) const;
+    LedgerEntry buildOffer(int64_t amount, uint32_t flags,
+                           LedgerEntry::_ext_t const& extension) const;
 
     virtual int64_t generateNewOfferID(LedgerTxnHeader& header);
 

@@ -19,13 +19,54 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
-#include "util/Logging.h"
-#include "util/Timer.h"
-#include <fmt/format.h>
+#include "transactions/test/SponsorshipTestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
+
+static void
+sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
+{
+    env.signatures.emplace_back(SignatureUtils::sign(
+        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
+}
+
+static TransactionEnvelope
+envelopeFromOps(Hash const& networkID, TestAccount& source,
+                std::vector<Operation> const& ops,
+                std::vector<SecretKey> const& opKeys)
+{
+    TransactionEnvelope tx(ENVELOPE_TYPE_TX);
+    tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    tx.v1().tx.fee = 100 * ops.size();
+    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    std::copy(ops.begin(), ops.end(),
+              std::back_inserter(tx.v1().tx.operations));
+
+    sign(networkID, source, tx.v1());
+    for (auto const& opKey : opKeys)
+    {
+        sign(networkID, opKey, tx.v1());
+    }
+    return tx;
+}
+
+static TransactionFrameBasePtr
+transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                        std::vector<Operation> const& ops,
+                        std::vector<SecretKey> const& opKeys)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID, envelopeFromOps(networkID, source, ops, opKeys));
+}
+
+static OperationResult
+getOperationResult(TransactionFrameBasePtr& tx, size_t i)
+{
+    return tx->getResult().result.results()[i];
+}
 
 // Offer that takes multiple other offers and remains
 // Offer selling XLM
@@ -2956,6 +2997,707 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, -1, {usd, idr, Price{1, 1}, 0}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
+            });
+        }
+    }
+
+    SECTION("sponsorship")
+    {
+        auto const minBalance1 = app->getLedgerManager().getLastMinBalance(1);
+        auto acc1 = root.create("a1", minBalance1 - 1);
+        auto acc2 = root.create("a2", minBalance2 + 2 * txfee);
+        acc2.changeTrust(usd, INT64_MAX);
+        acc2.changeTrust(idr, INT64_MAX);
+        issuer.pay(acc2, usd, 10000);
+        issuer.pay(acc2, idr, 10000);
+        createSponsoredEntryButSponsorHasInsufficientBalance(
+            *app, acc1, acc2, manageOffer(0, usd, idr, Price{1, 1}, 1000),
+            [](OperationResult const& opRes) {
+                return opRes.tr().manageSellOfferResult().code() ==
+                       MANAGE_SELL_OFFER_LOW_RESERVE;
+            });
+
+        createModifyAndRemoveSponsoredEntry(
+            *app, acc2, manageOffer(0, usd, idr, Price{1, 1}, 1000),
+            manageOffer(1, usd, idr, Price{1, 1}, 999),
+            manageOffer(1, usd, idr, Price{1, 1}, 1001),
+            manageOffer(1, usd, idr, Price{1, 1}, 0), offerKey(acc2, 1));
+    }
+
+    SECTION("crossed sponsored offers")
+    {
+        auto doUpdateSponsorship = [&](TestAccount& source, int64_t offerID,
+                                       TestAccount& sponsor) {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), source,
+                {sponsor.op(sponsorFutureReserves(source)),
+                 source.op(updateSponsorship(offerKey(source, offerID))),
+                 source.op(confirmAndClearSponsor())},
+                {sponsor});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+        };
+
+        auto prepareAccount = [&](std::string const& seed) {
+            auto const initBalance =
+                app->getLedgerManager().getLastMinBalance(10);
+
+            auto acc = root.create(seed, initBalance);
+            acc.changeTrust(usd, INT64_MAX);
+            acc.changeTrust(idr, INT64_MAX);
+            issuer.pay(acc, usd, 1000);
+            issuer.pay(acc, idr, 1000);
+            return acc;
+        };
+
+        TestMarket market(*app);
+        auto createOffer = [&](TestAccount& acc, OfferState const& state,
+                               OfferState const& resState,
+                               TestAccount* sponsor) {
+            if (!sponsor)
+            {
+                return market.addOffer(acc, state, resState);
+            }
+
+            // This will not update the internal offerID tracker in market
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), acc,
+                {sponsor->op(sponsorFutureReserves(acc)),
+                 acc.op(manageOffer(0, state.selling, state.buying, state.price,
+                                    state.amount)),
+                 acc.op(confirmAndClearSponsor())},
+                {*sponsor});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            auto expOfferID = ltx.loadHeader().current().idPool + 1;
+
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+
+            auto const& results = tx->getResult().result.results();
+            auto const& msoResult = results[1].tr().manageSellOfferResult();
+
+            int64_t offerID = 0;
+            if (resState == OfferState::DELETED)
+            {
+                REQUIRE(!loadOffer(ltx, acc.getPublicKey(), expOfferID));
+            }
+            else
+            {
+                offerID = expOfferID;
+                auto offer = loadOffer(ltx, acc.getPublicKey(), expOfferID);
+                REQUIRE(offer);
+                auto& offerEntry = offer.current().data.offer();
+                REQUIRE(offerEntry == msoResult.success().offer.offer());
+                REQUIRE(offerEntry.price == resState.price);
+                REQUIRE(offerEntry.selling == resState.selling);
+                REQUIRE(offerEntry.buying == resState.buying);
+            }
+
+            ltx.commit();
+            return TestMarketOffer{{acc, offerID}, resState};
+        };
+
+        SECTION("offer sponsor is source account")
+        {
+            auto runTest = [&](Asset const& selling, Asset const& buying,
+                               bool isSponsored) {
+                auto a1 = prepareAccount("accA1");
+                auto a2 = prepareAccount("accA2");
+                auto b = prepareAccount("accB");
+                auto c = prepareAccount("accC");
+
+                TestAccount* sponsor = isSponsored ? &c : nullptr;
+                int cExt = isSponsored ? 2 : 0;
+
+                auto o1 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+                auto o2 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+                auto o3 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a2, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+
+                doUpdateSponsorship(a1, o1.offerID, b);
+                doUpdateSponsorship(a1, o2.offerID, b);
+                doUpdateSponsorship(a2, o3.offerID, b);
+
+                SECTION("cross one offer partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, {selling, buying, Price{1, 1}, 50}}}, [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 50},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 4, 2, 0, 2);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 3, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross one offer fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED}}, [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 100},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 2, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross one offer fully and one partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, {selling, buying, Price{1, 1}, 50}}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 150},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 2, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross two offers fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED}, {o2, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 200},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 1, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross two offers fully and one partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, {selling, buying, Price{1, 1}, 50}}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 250},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 1, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross three offers fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 300},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross three offers fully with residual")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 350},
+                                {buying, selling, Price{1, 1}, 50}, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, b, 0, nullptr, 3, 2, 0, !!sponsor);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, !!sponsor, 0);
+                }
+            };
+
+            for_versions_from(14, *app, [&]() {
+                SECTION("non-native for non-native")
+                {
+                    runTest(usd, idr, false);
+                }
+
+                SECTION("sponsored, non-native for non-native")
+                {
+                    runTest(usd, idr, true);
+                }
+
+                SECTION("native for non-native")
+                {
+                    runTest(usd, xlm, false);
+                }
+
+                SECTION("sponsored, native for non-native")
+                {
+                    runTest(usd, xlm, true);
+                }
+
+                SECTION("non-native for native")
+                {
+                    runTest(xlm, usd, false);
+                }
+
+                SECTION("sponsored, non-native for native")
+                {
+                    runTest(xlm, usd, true);
+                }
+            });
+        }
+
+        SECTION("offer sponsor is other offer account")
+        {
+            auto runTest = [&](Asset const& selling, Asset const& buying,
+                               bool isSponsored) {
+                auto a1 = prepareAccount("accA1");
+                auto a2 = prepareAccount("accA2");
+                auto b = prepareAccount("accB");
+                auto c = prepareAccount("accC");
+
+                TestAccount* sponsor = isSponsored ? &c : nullptr;
+                int cExt = isSponsored ? 2 : 0;
+
+                TestMarket market(*app);
+                auto o1 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+                auto o2 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+                auto o3 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a2, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+
+                doUpdateSponsorship(a1, o1.offerID, a2);
+                doUpdateSponsorship(a1, o2.offerID, a2);
+                doUpdateSponsorship(a2, o3.offerID, a1);
+
+                SECTION("cross one offer partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, {selling, buying, Price{1, 1}, 50}}}, [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 50},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 4, 2, 1, 2);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 2, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, cExt, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross one offer fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED}}, [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 100},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 3, 2, 1, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 1, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, cExt, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross one offer fully and one partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, {selling, buying, Price{1, 1}, 50}}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 150},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 3, 2, 1, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 1, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, cExt, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross two offers fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED}, {o2, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 200},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 1, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, cExt, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross two offers fully and one partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, {selling, buying, Price{1, 1}, 50}}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 250},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 1, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, cExt, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross three offers fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 300},
+                                OfferState::DELETED, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, cExt, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, 0, 0);
+                }
+
+                SECTION("cross three offers fully with residual")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 350},
+                                {buying, selling, Price{1, 1}, 50}, sponsor);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 2, 0, 0);
+                    int bExt = 0;
+                    if (isSponsored)
+                    {
+                        bExt = 2;
+                    }
+                    else if (buying == xlm || selling == xlm)
+                    {
+                        bExt = 1;
+                    }
+                    checkSponsorship(ltx, b, 0, nullptr, 3, bExt, 0, !!sponsor);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, cExt, !!sponsor, 0);
+                }
+            };
+
+            for_versions_from(14, *app, [&]() {
+                SECTION("non-native for non-native")
+                {
+                    runTest(usd, idr, false);
+                }
+
+                SECTION("sponsored, non-native for non-native")
+                {
+                    runTest(usd, idr, true);
+                }
+
+                SECTION("native for non-native")
+                {
+                    runTest(usd, xlm, false);
+                }
+
+                SECTION("sponsored, native for non-native")
+                {
+                    runTest(usd, xlm, true);
+                }
+
+                SECTION("non-native for native")
+                {
+                    runTest(xlm, usd, false);
+                }
+
+                SECTION("sponsored, non-native for native")
+                {
+                    runTest(xlm, usd, true);
+                }
+            });
+        }
+
+        SECTION("offer sponsor is source account sponsor")
+        {
+            auto runTest = [&](Asset const& selling, Asset const& buying) {
+                auto a1 = prepareAccount("accA1");
+                auto a2 = prepareAccount("accA2");
+                auto b = prepareAccount("accB");
+                auto c = prepareAccount("accC");
+
+                TestMarket market(*app);
+                auto o1 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+                auto o2 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+                auto o3 =
+                    market
+                        .requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a2, {selling, buying, Price{1, 1}, 100});
+                            })
+                        .key;
+
+                doUpdateSponsorship(a1, o1.offerID, c);
+                doUpdateSponsorship(a1, o2.offerID, c);
+                doUpdateSponsorship(a2, o3.offerID, c);
+
+                SECTION("cross one offer partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, {selling, buying, Price{1, 1}, 50}}}, [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 50},
+                                OfferState::DELETED, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 4, 2, 0, 2);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 3, 0);
+                }
+
+                SECTION("cross one offer fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED}}, [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 100},
+                                OfferState::DELETED, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 2, 0);
+                }
+
+                SECTION("cross one offer fully and one partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, {selling, buying, Price{1, 1}, 50}}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 150},
+                                OfferState::DELETED, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 2, 0);
+                }
+
+                SECTION("cross two offers fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED}, {o2, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 200},
+                                OfferState::DELETED, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 1, 0);
+                }
+
+                SECTION("cross two offers fully and one partially")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, {selling, buying, Price{1, 1}, 50}}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 250},
+                                OfferState::DELETED, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 1, 0);
+                }
+
+                SECTION("cross three offers fully")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 300},
+                                OfferState::DELETED, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, b, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 0, 0);
+                }
+
+                SECTION("cross three offers fully with residual")
+                {
+                    market.requireChangesWithOffer(
+                        {{o1, OfferState::DELETED},
+                         {o2, OfferState::DELETED},
+                         {o3, OfferState::DELETED}},
+                        [&] {
+                            return createOffer(
+                                b, {buying, selling, Price{1, 1}, 350},
+                                {buying, selling, Price{1, 1}, 50}, &c);
+                        });
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, b, 0, nullptr, 3, 2, 0, 1);
+                    checkSponsorship(ltx, c, 0, nullptr, 2, 2, 1, 0);
+                }
+            };
+
+            for_versions_from(14, *app, [&]() {
+                SECTION("sponsored, non-native for non-native")
+                {
+                    runTest(usd, idr);
+                }
+
+                SECTION("sponsored, native for non-native")
+                {
+                    runTest(usd, xlm);
+                }
+
+                SECTION("sponsored, non-native for native")
+                {
+                    runTest(xlm, usd);
+                }
             });
         }
     }

@@ -109,10 +109,12 @@ TEST_CASE("base reserve", "[ledger]")
 
     for_versions_to(8, *app, [&]() {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(getMinBalance(ltx.loadHeader(), n) < expectedReserve);
+        REQUIRE(getMinBalance(ltx.loadHeader().current(), n, 0, 0) <
+                expectedReserve);
     });
     for_versions_from(9, *app, [&]() {
         LedgerTxn ltx(app->getLedgerTxnRoot());
-        REQUIRE(getMinBalance(ltx.loadHeader(), n) == expectedReserve);
+        REQUIRE(getMinBalance(ltx.loadHeader().current(), n, 0, 0) ==
+                expectedReserve);
     });
 }

@@ -185,6 +185,11 @@ SetOptionsArguments clearFlags(uint32_t clearFlags);
 SetOptionsArguments setInflationDestination(AccountID inflationDest);
 SetOptionsArguments setHomeDomain(std::string const& homeDomain);
 
+Operation sponsorFutureReserves(PublicKey const& sponsoredID);
+Operation confirmAndClearSponsor();
+Operation updateSponsorship(LedgerKey const& key);
+Operation updateSponsorship(AccountID const& accID, SignerKey const& key);
+
 Asset makeNativeAsset();
 Asset makeInvalidAsset();
 Asset makeAsset(SecretKey const& issuer, std::string const& code);

@@ -102,12 +102,12 @@ class TestAccount
         return getPublicKey();
     }
 
-    const SecretKey&
+    SecretKey const&
     getSecretKey() const
     {
         return mSk;
     }
-    PublicKey
+    PublicKey const&
     getPublicKey() const
     {
         return mSk.getPublicKey();
@@ -141,6 +141,7 @@ class TestAccount
     }
 
     int64_t getBalance() const;
+    int64_t getAvailableBalance() const;
 
     bool exists() const;
 

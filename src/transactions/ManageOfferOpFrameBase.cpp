@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 
@@ -110,27 +111,32 @@ ManageOfferOpFrameBase::computeOfferExchangeParameters(
     auto sourceAccount = loadSourceAccount(ltx, header);
 
     auto ledgerVersion = header.current().ledgerVersion;
-
-    if (creatingNewOffer &&
+    if (ledgerVersion < 14 && creatingNewOffer &&
         (ledgerVersion >= 10 ||
          (mSheep.type() == ASSET_TYPE_NATIVE && ledgerVersion > 8)))
     {
         // we need to compute maxAmountOfSheepCanSell based on the
         // updated reserve to avoid selling too many and falling
         // below the reserve when we try to create the offer later on
-        switch (addNumEntries(header, sourceAccount, 1))
+        auto le = buildOffer(0, 0, LedgerEntry::_ext_t{});
+        switch (canCreateEntryWithoutSponsorship(header.current(), le,
+                                                 sourceAccount.current()))
         {
-        case AddSubentryResult::SUCCESS:
+        case SponsorshipResult::SUCCESS:
             break;
-        case AddSubentryResult::LOW_RESERVE:
+        case SponsorshipResult::LOW_RESERVE:
             setResultLowReserve();
             return false;
-        case AddSubentryResult::TOO_MANY_SUBENTRIES:
+        case SponsorshipResult::TOO_MANY_SUBENTRIES:
             mResult.code(opTOO_MANY_SUBENTRIES);
             return false;
         default:
-            throw std::runtime_error("Unexpected result from addNumEntries");
+            // Includes of SponsorshipResult::TOO_MANY_SPONSORING
+            // and SponsorshipResult::TOO_MANY_SPONSORED
+            throw std::runtime_error("Unexpected result from "
+                                     "createEntryWithPossibleSponsorship");
         }
+        createEntryWithoutSponsorship(le, sourceAccount.current());
     }
 
     auto sheepLineA = loadTrustLineIfNotNative(ltx, getSourceID(), mSheep);
@@ -219,6 +225,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
     bool passive = false;
     int64_t amount = 0;
     uint32_t flags = 0;
+    LedgerEntry::_ext_t extension;
 
     if (mOfferID)
     { // modifying an old offer
@@ -244,10 +251,17 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         flags = sellSheepOffer.current().data.offer().flags;
         passive = flags & PASSIVE_FLAG;
 
+        // Capture sponsorship before erasing offer
+        extension = sellSheepOffer.current().ext;
+
         // WARNING: sellSheepOffer is deleted but sourceAccount is not updated
         // to reflect the change in numSubEntries at this point. However, we
         // can't update it here since doing so would modify sourceAccount,
-        // which would lead to different buckets being generated.
+        // which would lead to different buckets being generated. Furthermore,
+        // sponsorships are not updated here.
+        //
+        // This allows the entire operation to be applied after accounting for
+        // the potential of retaining this entry.
         sellSheepOffer.erase();
     }
     else
@@ -255,6 +269,41 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
         creatingNewOffer = true;
         passive = mSetPassiveOnCreate;
         flags = passive ? PASSIVE_FLAG : 0;
+
+        auto header = ltx.loadHeader();
+        if (header.current().ledgerVersion >= 14)
+        {
+            // WARNING: no offer is actually created here. Instead, we are just
+            // establishing the numSubEntries and sponsorship changes.
+            //
+            // This allows the entire operation to be applied after accounting
+            // for potential of creating this entry.
+            auto le = buildOffer(0, 0, LedgerEntry::_ext_t{});
+            auto sourceAccount = loadAccount(ltx, getSourceID());
+            switch (createEntryWithPossibleSponsorship(ltx, header, le,
+                                                       sourceAccount))
+            {
+            case SponsorshipResult::SUCCESS:
+                break;
+            case SponsorshipResult::LOW_RESERVE:
+                setResultLowReserve();
+                return false;
+            case SponsorshipResult::TOO_MANY_SUBENTRIES:
+                mResult.code(opTOO_MANY_SUBENTRIES);
+                return false;
+            case SponsorshipResult::TOO_MANY_SPONSORING:
+                mResult.code(opTOO_MANY_SPONSORING);
+                return false;
+            case SponsorshipResult::TOO_MANY_SPONSORED:
+                // This is impossible right now because there is a limit on sub
+                // entries, fall through and throw
+            default:
+                throw std::runtime_error("Unexpected result from "
+                                         "createEntryWithPossibleSponsorship");
+            }
+
+            extension = le.ext;
+        }
     }
 
     setResultSuccess();
@@ -412,26 +461,38 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
     auto header = ltx.loadHeader();
     if (amount > 0)
     {
-        auto newOffer = buildOffer(amount, flags);
+        auto newOffer = buildOffer(amount, flags, extension);
         if (creatingNewOffer)
         {
-            // make sure we don't allow us to add offers when we don't have
-            // the minbalance (should never happen at this stage in v9+)
-            auto sourceAccount = loadSourceAccount(ltx, header);
-            switch (addNumEntries(header, sourceAccount, 1))
+            if (header.current().ledgerVersion < 14)
             {
-            case AddSubentryResult::SUCCESS:
-                break;
-            case AddSubentryResult::LOW_RESERVE:
-                setResultLowReserve();
-                return false;
-            case AddSubentryResult::TOO_MANY_SUBENTRIES:
-                mResult.code(opTOO_MANY_SUBENTRIES);
-                return false;
-            default:
-                throw std::runtime_error(
-                    "Unexpected result from addNumEntries");
+                // make sure we don't allow us to add offers when we don't have
+                // the minbalance (should never happen at this stage in v9+)
+                auto sourceAccount = loadSourceAccount(ltx, header);
+                switch (canCreateEntryWithoutSponsorship(
+                    header.current(), newOffer, sourceAccount.current()))
+                {
+                case SponsorshipResult::SUCCESS:
+                    break;
+                case SponsorshipResult::LOW_RESERVE:
+                    setResultLowReserve();
+                    return false;
+                case SponsorshipResult::TOO_MANY_SUBENTRIES:
+                    mResult.code(opTOO_MANY_SUBENTRIES);
+                    return false;
+                default:
+                    // Includes of SponsorshipResult::TOO_MANY_SPONSORING
+                    // and SponsorshipResult::TOO_MANY_SPONSORED
+                    throw std::runtime_error(
+                        "Unexpected result from "
+                        "createEntryWithPossibleSponsorship");
+                }
+                createEntryWithoutSponsorship(newOffer,
+                                              sourceAccount.current());
             }
+            // In versions 14 and beyond, numSubEntries and sponsorships are
+            // updated at the beginning of this operation. Therefore, there is
+            // nothing to do here.
 
             newOffer.data.offer().offerID = generateNewOfferID(header);
             getSuccessResult().offer.effect(MANAGE_OFFER_CREATED);
@@ -454,10 +515,11 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
     {
         getSuccessResult().offer.effect(MANAGE_OFFER_DELETED);
 
-        if (!creatingNewOffer)
+        if (!creatingNewOffer || header.current().ledgerVersion >= 14)
         {
             auto sourceAccount = loadSourceAccount(ltx, header);
-            addNumEntries(header, sourceAccount, -1);
+            auto le = buildOffer(0, 0, extension);
+            removeEntryWithPossibleSponsorship(ltx, header, le, sourceAccount);
         }
     }
 
@@ -472,12 +534,14 @@ ManageOfferOpFrameBase::generateNewOfferID(LedgerTxnHeader& header)
 }
 
 LedgerEntry
-ManageOfferOpFrameBase::buildOffer(int64_t amount, uint32_t flags) const
+ManageOfferOpFrameBase::buildOffer(int64_t amount, uint32_t flags,
+                                   LedgerEntry::_ext_t const& extension) const
 {
     LedgerEntry le;
     le.data.type(OFFER);
-    OfferEntry& o = le.data.offer();
+    le.ext = extension;
 
+    OfferEntry& o = le.data.offer();
     o.sellerID = getSourceID();
     o.amount = amount;
     o.price = mPrice;

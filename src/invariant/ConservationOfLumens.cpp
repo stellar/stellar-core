@@ -13,8 +13,7 @@ namespace stellar
 {
 
 static int64_t
-calculateDeltaBalance(std::shared_ptr<LedgerEntry const> const& current,
-                      std::shared_ptr<LedgerEntry const> const& previous)
+calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
 {
     assert(current || previous);
     auto let = current ? current->data.type() : previous->data.type();
@@ -25,21 +24,32 @@ calculateDeltaBalance(std::shared_ptr<LedgerEntry const> const& current,
     }
     if (let == CLAIMABLE_BALANCE)
     {
-        int64_t reserveDelta =
-            (current ? current->data.claimableBalance().reserve : 0) -
-            (previous ? previous->data.claimableBalance().reserve : 0);
-
         auto const& asset = current ? current->data.claimableBalance().asset
                                     : previous->data.claimableBalance().asset;
 
         if (asset.type() != ASSET_TYPE_NATIVE)
         {
-            return reserveDelta;
+            return 0;
         }
 
         return ((current ? current->data.claimableBalance().amount : 0) -
-                (previous ? previous->data.claimableBalance().amount : 0)) +
-               reserveDelta;
+                (previous ? previous->data.claimableBalance().amount : 0));
+    }
+    return 0;
+}
+
+static int64_t
+calculateDeltaBalance(
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genCurrent,
+    std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious)
+{
+    auto type = genCurrent ? genCurrent->type() : genPrevious->type();
+    if (type == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    {
+        auto const* current = genCurrent ? &genCurrent->ledgerEntry() : nullptr;
+        auto const* previous =
+            genPrevious ? &genPrevious->ledgerEntry() : nullptr;
+        return calculateDeltaBalance(current, previous);
     }
     return 0;
 }

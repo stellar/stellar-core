@@ -48,6 +48,16 @@ TestAccount::getBalance() const
     return entry.current().data.account().balance;
 }
 
+int64_t
+TestAccount::getAvailableBalance() const
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto entry = stellar::loadAccount(ltx, getPublicKey());
+    auto header = ltx.loadHeader();
+
+    return stellar::getAvailableBalance(header, entry);
+}
+
 bool
 TestAccount::exists() const
 {
@@ -255,9 +265,9 @@ TestAccount::createClaimableBalance(Asset const& asset, int64_t amount,
     REQUIRE(claimableBalance.asset == asset);
     REQUIRE(claimableBalance.amount == amount);
     REQUIRE(claimableBalance.balanceID == returnedBalanceID);
-    REQUIRE(claimableBalance.createdBy == getPublicKey());
-    REQUIRE(static_cast<uint32_t>(claimableBalance.reserve) ==
-            claimants.size() * mApp.getLedgerManager().getLastReserve());
+    REQUIRE((entry.current().ext.v() == 1 &&
+             entry.current().ext.v1().sponsoringID));
+    REQUIRE(*entry.current().ext.v1().sponsoringID == getPublicKey());
 
     return returnedBalanceID;
 }

@@ -10,6 +10,7 @@
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include <Tracy.hpp>
 
@@ -136,7 +137,8 @@ AllowTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
 
             releaseLiabilities(ltx, header, offer);
             auto trustAcc = stellar::loadAccount(ltx, mAllowTrust.trustor);
-            addNumEntries(header, trustAcc, -1);
+            removeEntryWithPossibleSponsorship(ltx, header, offer.current(),
+                                               trustAcc);
             offer.erase();
         }
     }

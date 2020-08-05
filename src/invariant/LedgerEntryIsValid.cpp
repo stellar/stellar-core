@@ -56,8 +56,7 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
         auto s = checkIsValid(*entryDelta.second.current, currLedgerSeq, ver);
         if (!s.empty())
         {
-            s += ": ";
-            s += xdr::xdr_to_string(*entryDelta.second.current);
+            s += ": " + entryDelta.second.current->toString();
             return s;
         }
     }
@@ -83,6 +82,17 @@ LedgerEntryIsValid::check(IterType iter, IterType const& end,
 }
 
 std::string
+LedgerEntryIsValid::checkIsValid(GeneralizedLedgerEntry const& le,
+                                 uint32_t ledgerSeq, uint32 version) const
+{
+    if (le.type() == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    {
+        return checkIsValid(le.ledgerEntry(), ledgerSeq, version);
+    }
+    return "";
+}
+
+std::string
 LedgerEntryIsValid::checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq,
                                  uint32 version) const
 {
@@ -103,7 +113,7 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq,
     case DATA:
         return checkIsValid(le.data.data(), version);
     case CLAIMABLE_BALANCE:
-        return checkIsValid(le.data.claimableBalance(), version);
+        return checkIsValid(le, version);
     default:
         return "LedgerEntry has invalid type";
     }
@@ -282,9 +292,14 @@ LedgerEntryIsValid::validatePredicate(ClaimPredicate const& pred,
 }
 
 std::string
-LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
-                                 uint32 version) const
+LedgerEntryIsValid::checkIsValid(LedgerEntry const& le, uint32 version) const
 {
+    if (le.ext.v() != 1 || !le.ext.v1().sponsoringID)
+    {
+        return "ClaimableBalance is not sponsored";
+    }
+
+    auto const& cbe = le.data.claimableBalance();
     if (cbe.claimants.empty())
     {
         return "ClaimableBalance claimants is empty";
@@ -296,10 +311,6 @@ LedgerEntryIsValid::checkIsValid(ClaimableBalanceEntry const& cbe,
     if (cbe.amount <= 0)
     {
         return "ClaimableBalance amount is not positive";
-    }
-    if (cbe.reserve <= 0)
-    {
-        return "ClaimableBalance reserve is not positive";
     }
 
     for (auto const& claimant : cbe.claimants)

@@ -19,6 +19,8 @@
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/SignatureUtils.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
@@ -28,6 +30,42 @@
 
 using namespace stellar;
 using namespace stellar::txtest;
+
+static void
+sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
+{
+    env.signatures.emplace_back(SignatureUtils::sign(
+        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
+}
+
+static TransactionEnvelope
+envelopeFromOps(Hash const& networkID, TestAccount& source,
+                std::vector<Operation> const& ops,
+                std::vector<SecretKey> const& opKeys)
+{
+    TransactionEnvelope tx(ENVELOPE_TYPE_TX);
+    tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    tx.v1().tx.fee = 100 * ops.size();
+    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    std::copy(ops.begin(), ops.end(),
+              std::back_inserter(tx.v1().tx.operations));
+
+    sign(networkID, source, tx.v1());
+    for (auto const& opKey : opKeys)
+    {
+        sign(networkID, opKey, tx.v1());
+    }
+    return tx;
+}
+
+static TransactionFrameBasePtr
+transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                        std::vector<Operation> const& ops,
+                        std::vector<SecretKey> const& opKeys)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID, envelopeFromOps(networkID, source, ops, opKeys));
+}
 
 struct LedgerUpgradeableData
 {
@@ -1736,6 +1774,16 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
         }
         return res;
     };
+    auto getNumSponsoringEntries = [&](TestAccount& acc) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto account = stellar::loadAccount(ltx, acc.getPublicKey());
+        return getNumSponsoring(account.current());
+    };
+    auto getNumSponsoredEntries = [&](TestAccount& acc) {
+        LedgerTxn ltx(app->getLedgerTxnRoot());
+        auto account = stellar::loadAccount(ltx, acc.getPublicKey());
+        return getNumSponsored(account.current());
+    };
 
     auto createOffer = [&](TestAccount& acc, Asset const& selling,
                            Asset const& buying,
@@ -1755,13 +1803,17 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
     };
 
     auto createOffers = [&](TestAccount& acc,
-                            std::vector<TestMarketOffer>& offers) {
-        createOffer(acc, native, cur1, offers);
-        createOffer(acc, native, cur1, offers);
+                            std::vector<TestMarketOffer>& offers,
+                            bool expectToDeleteNativeSells = false) {
+        OfferState nativeSellState =
+            expectToDeleteNativeSells ? OfferState::DELETED : OfferState::SAME;
+
+        createOffer(acc, native, cur1, offers, nativeSellState);
+        createOffer(acc, native, cur1, offers, nativeSellState);
         createOffer(acc, cur1, native, offers);
         createOffer(acc, cur1, native, offers);
-        createOffer(acc, native, cur2, offers);
-        createOffer(acc, native, cur2, offers);
+        createOffer(acc, native, cur2, offers, nativeSellState);
+        createOffer(acc, native, cur2, offers, nativeSellState);
         createOffer(acc, cur2, native, offers);
         createOffer(acc, cur2, native, offers);
         createOffer(acc, cur1, cur2, offers);
@@ -1839,7 +1891,18 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                                   std::bind(executeUpgrade, 2 * baseReserve));
         });
 
-        auto increaseReserveFromV10 = [&](bool allowMaintainLiablities) {
+        auto submitTx = [&](TransactionFrameBasePtr tx) {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+            ltx.commit();
+
+            REQUIRE(tx->getResultCode() == txSUCCESS);
+        };
+
+        auto increaseReserveFromV10 = [&](bool allowMaintainLiablities,
+                                          bool flipSponsorship) {
             auto a1 = root.create("A", 2 * lm.getLastMinBalance(14) + 3999 +
                                            14 * txFee);
             a1.changeTrust(cur1, 12000);
@@ -1855,19 +1918,7 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             issuer.pay(a2, cur2, 4000);
 
             std::vector<TestMarketOffer> offers;
-            createOffer(a1, native, cur1, offers, OfferState::DELETED);
-            createOffer(a1, native, cur1, offers, OfferState::DELETED);
-            createOffer(a1, cur1, native, offers);
-            createOffer(a1, cur1, native, offers);
-            createOffer(a1, native, cur2, offers, OfferState::DELETED);
-            createOffer(a1, native, cur2, offers, OfferState::DELETED);
-            createOffer(a1, cur2, native, offers);
-            createOffer(a1, cur2, native, offers);
-            createOffer(a1, cur1, cur2, offers);
-            createOffer(a1, cur1, cur2, offers);
-            createOffer(a1, cur2, cur1, offers);
-            createOffer(a1, cur2, cur1, offers);
-
+            createOffers(a1, offers, true);
             createOffers(a2, offers);
 
             if (allowMaintainLiablities)
@@ -1876,6 +1927,35 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                     static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
                     static_cast<uint32_t>(AUTH_REVOCABLE_FLAG)));
                 issuer.allowMaintainLiabilities(cur1, a1);
+            }
+
+            if (flipSponsorship)
+            {
+                std::vector<Operation> opsA1 = {
+                    a1.op(sponsorFutureReserves(a2))};
+                std::vector<Operation> opsA2 = {
+                    a2.op(sponsorFutureReserves(a1))};
+                for (auto const& offer : offers)
+                {
+                    if (offer.key.sellerID == a2.getPublicKey())
+                    {
+                        opsA1.emplace_back(a2.op(updateSponsorship(
+                            offerKey(a2, offer.key.offerID))));
+                    }
+                    else
+                    {
+                        opsA2.emplace_back(a1.op(updateSponsorship(
+                            offerKey(a1, offer.key.offerID))));
+                    }
+                }
+                opsA1.emplace_back(a2.op(confirmAndClearSponsor()));
+                opsA2.emplace_back(a1.op(confirmAndClearSponsor()));
+
+                // submit tx to update sponsorship
+                submitTx(transactionFrameFromOps(app->getNetworkID(), a1, opsA1,
+                                                 {a2}));
+                submitTx(transactionFrameFromOps(app->getNetworkID(), a2, opsA2,
+                                                 {a1}));
             }
 
             uint32_t baseReserve = lm.getLastReserve();
@@ -1891,12 +1971,214 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
 
         SECTION("authorized")
         {
-            for_versions_from(10, *app, [&] { increaseReserveFromV10(false); });
+            for_versions_from(10, *app,
+                              [&] { increaseReserveFromV10(false, false); });
         }
 
         SECTION("authorized to maintain liabilities")
         {
-            for_versions_from(13, *app, [&] { increaseReserveFromV10(true); });
+            for_versions_from(13, *app,
+                              [&] { increaseReserveFromV10(true, false); });
+        }
+
+        SECTION("sponsorships")
+        {
+            auto accSponsorsAllOffersTest = [&](TestAccount& sponsoringAcc,
+                                                TestAccount& sponsoredAcc,
+                                                TestAccount& sponsoredAcc2,
+                                                bool sponsoringAccPullOffers,
+                                                bool sponsoredAccPullOffers) {
+                sponsoringAcc.changeTrust(cur1, 12000);
+                sponsoringAcc.changeTrust(cur2, 12000);
+                issuer.pay(sponsoringAcc, cur1, 4000);
+                issuer.pay(sponsoringAcc, cur2, 4000);
+
+                sponsoredAcc.changeTrust(cur1, 12000);
+                sponsoredAcc.changeTrust(cur2, 12000);
+                issuer.pay(sponsoredAcc, cur1, 4000);
+                issuer.pay(sponsoredAcc, cur2, 4000);
+
+                sponsoredAcc2.changeTrust(cur1, 12000);
+                sponsoredAcc2.changeTrust(cur2, 12000);
+                issuer.pay(sponsoredAcc2, cur1, 4000);
+                issuer.pay(sponsoredAcc2, cur2, 4000);
+
+                std::vector<TestMarketOffer> offers;
+                createOffers(sponsoringAcc, offers, sponsoringAccPullOffers);
+                createOffers(sponsoredAcc, offers, sponsoredAccPullOffers);
+                createOffers(sponsoredAcc2, offers, true);
+
+                // prepare ops to transfer sponsorship of all sponsoredAcc
+                // offers and one offer from sponsoredAcc2 to sponsoringAcc
+                std::vector<Operation> ops = {
+                    sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc)),
+                    sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc2))};
+                for (auto const& offer : offers)
+                {
+                    if (offer.key.sellerID == sponsoredAcc.getPublicKey())
+                    {
+                        ops.emplace_back(sponsoredAcc.op(updateSponsorship(
+                            offerKey(sponsoredAcc, offer.key.offerID))));
+                    }
+                }
+
+                // last offer in offers is for sponsoredAcc2
+                ops.emplace_back(sponsoredAcc2.op(updateSponsorship(
+                    offerKey(sponsoredAcc2, offers.back().key.offerID))));
+
+                ops.emplace_back(sponsoredAcc.op(confirmAndClearSponsor()));
+                ops.emplace_back(sponsoredAcc2.op(confirmAndClearSponsor()));
+
+                // submit tx to update sponsorship
+                submitTx(transactionFrameFromOps(
+                    app->getNetworkID(), sponsoringAcc, ops,
+                    {sponsoredAcc, sponsoredAcc2}));
+
+                REQUIRE(getNumSponsoredEntries(sponsoredAcc) == 12);
+                REQUIRE(getNumSponsoredEntries(sponsoredAcc2) == 1);
+                REQUIRE(getNumSponsoringEntries(sponsoringAcc) == 13);
+
+                uint32_t baseReserve = lm.getLastReserve();
+
+                if (sponsoredAccPullOffers)
+                {
+                    // SponsoringAcc is now sponsoring all 12 of sponsoredAcc's
+                    // offers. SponsoredAcc has 4 subentries. It also has enough
+                    // lumens to cover 12 more subentries after the sponsorship
+                    // update. After the upgrade to double the baseReserve, this
+                    // account will need to cover the 4 subEntries, so we only
+                    // need 4 extra baseReserves before the upgrade. Pay out the
+                    // rest (8 reserves) so we can get our orders pulled on
+                    // upgrade. 16(total reserves) - 4(subEntries) -
+                    // 4(base reserve increase) = 8(extra base reserves)
+
+                    sponsoredAcc.pay(root, baseReserve * 8);
+                }
+                else
+                {
+                    sponsoredAcc.pay(root, baseReserve * 8 - 1);
+                }
+
+                if (sponsoringAccPullOffers)
+                {
+                    sponsoringAcc.pay(root, 1);
+                }
+
+                // This account needs to lose a base reserve to get its orders
+                // pulled
+                sponsoredAcc2.pay(root, baseReserve);
+
+                // execute upgrade
+                market.requireChanges(
+                    offers, std::bind(executeUpgrade, 2 * baseReserve));
+
+                if (sponsoredAccPullOffers)
+                {
+                    REQUIRE(getLiabilities(sponsoredAcc) ==
+                            Liabilities{8000, 0});
+                    REQUIRE(getAssetLiabilities(sponsoredAcc, cur1) ==
+                            Liabilities{4000, 4000});
+                    REQUIRE(getAssetLiabilities(sponsoredAcc, cur2) ==
+                            Liabilities{4000, 4000});
+
+                    // the 4 native offers were pulled
+                    REQUIRE(getNumSponsoredEntries(sponsoredAcc) == 8);
+                    REQUIRE(getNumSponsoringEntries(sponsoringAcc) == 9);
+                }
+                else
+                {
+                    REQUIRE(getLiabilities(sponsoredAcc) ==
+                            Liabilities{8000, 4000});
+                    REQUIRE(getAssetLiabilities(sponsoredAcc, cur1) ==
+                            Liabilities{8000, 4000});
+                    REQUIRE(getAssetLiabilities(sponsoredAcc, cur2) ==
+                            Liabilities{8000, 4000});
+
+                    REQUIRE(getNumSponsoredEntries(sponsoredAcc) == 12);
+                    REQUIRE(getNumSponsoringEntries(sponsoringAcc) == 13);
+                }
+
+                if (sponsoringAccPullOffers)
+                {
+                    REQUIRE(getLiabilities(sponsoringAcc) ==
+                            Liabilities{8000, 0});
+                    REQUIRE(getAssetLiabilities(sponsoringAcc, cur1) ==
+                            Liabilities{4000, 4000});
+                    REQUIRE(getAssetLiabilities(sponsoringAcc, cur2) ==
+                            Liabilities{4000, 4000});
+                }
+                else
+                {
+                    REQUIRE(getLiabilities(sponsoringAcc) ==
+                            Liabilities{8000, 4000});
+                    REQUIRE(getAssetLiabilities(sponsoringAcc, cur1) ==
+                            Liabilities{8000, 4000});
+                    REQUIRE(getAssetLiabilities(sponsoringAcc, cur2) ==
+                            Liabilities{8000, 4000});
+                }
+
+                REQUIRE(getLiabilities(sponsoredAcc2) == Liabilities{8000, 0});
+                REQUIRE(getAssetLiabilities(sponsoredAcc2, cur1) ==
+                        Liabilities{4000, 4000});
+                REQUIRE(getAssetLiabilities(sponsoredAcc2, cur2) ==
+                        Liabilities{4000, 4000});
+            };
+
+            auto sponsorshipTestsBySeed = [&](std::string sponsoringSeed,
+                                              std::string sponsoredSeed) {
+                auto sponsoring =
+                    root.create(sponsoringSeed, 2 * lm.getLastMinBalance(27) +
+                                                    4000 + 15 * txFee);
+
+                auto sponsored =
+                    root.create(sponsoredSeed,
+                                lm.getLastMinBalance(14) + 3999 + 15 * txFee);
+
+                // This account will have one sponsored offer and will always
+                // have it's offers pulled.
+                auto sponsored2 = root.create(
+                    "C", 2 * lm.getLastMinBalance(13) + 3999 + 15 * txFee);
+
+                SECTION("sponsored and sponsoring accounts get offers "
+                        "pulled on upgrade")
+                {
+                    accSponsorsAllOffersTest(sponsoring, sponsored, sponsored2,
+                                             true, true);
+                }
+                SECTION("no offers pulled")
+                {
+                    accSponsorsAllOffersTest(sponsoring, sponsored, sponsored2,
+                                             false, false);
+                }
+                SECTION("offers for sponsored account pulled")
+                {
+                    accSponsorsAllOffersTest(sponsoring, sponsored, sponsored2,
+                                             true, false);
+                }
+                SECTION("offers for sponsoring account pulled")
+                {
+                    accSponsorsAllOffersTest(sponsoring, sponsored, sponsored2,
+                                             false, true);
+                }
+            };
+
+            for_versions_from(14, *app, [&] {
+
+                // Swap the seeds to test that the ordering of accounts doesn't
+                // matter when upgrading
+                SECTION("account A is sponsored")
+                {
+                    sponsorshipTestsBySeed("B", "A");
+                }
+                SECTION("account B is sponsored")
+                {
+                    sponsorshipTestsBySeed("A", "B");
+                }
+                SECTION("swap sponsorship of orders")
+                {
+                    increaseReserveFromV10(false, true);
+                }
+            });
         }
     }
 }

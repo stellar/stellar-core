@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/TrustLineWrapper.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 
 namespace stellar
@@ -144,19 +145,6 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
 
     auto const& claimants = mCreateClaimableBalance.claimants;
 
-    // Deduct claimants.size() * baseReserve of native asset
-    int64_t entryCost =
-        int64_t(header.current().baseReserve) * claimants.size();
-
-    if (getAvailableBalance(header, sourceAccount) < entryCost)
-    {
-        innerResult().code(CREATE_CLAIMABLE_BALANCE_LOW_RESERVE);
-        return false;
-    }
-
-    auto costOk = addBalance(header, sourceAccount, -entryCost);
-    assert(costOk);
-
     // Deduct amount of asset from sourceAccount
     auto const& asset = mCreateClaimableBalance.asset;
     auto amount = mCreateClaimableBalance.amount;
@@ -198,10 +186,8 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
     newClaimableBalance.data.type(CLAIMABLE_BALANCE);
 
     auto& claimableBalanceEntry = newClaimableBalance.data.claimableBalance();
-    claimableBalanceEntry.createdBy = getSourceID();
     claimableBalanceEntry.amount = amount;
     claimableBalanceEntry.asset = asset;
-    claimableBalanceEntry.reserve = entryCost;
 
     OperationID operationID;
     operationID.type(ENVELOPE_TYPE_OP_ID);
@@ -217,6 +203,28 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
     {
         updatePredicatesForApply(claimant.v0().predicate,
                                  header.current().scpValue.closeTime);
+    }
+
+    switch (createEntryWithPossibleSponsorship(ltx, header, newClaimableBalance,
+                                               sourceAccount))
+    {
+    case SponsorshipResult::SUCCESS:
+        break;
+    case SponsorshipResult::LOW_RESERVE:
+        innerResult().code(CREATE_CLAIMABLE_BALANCE_LOW_RESERVE);
+        return false;
+    case SponsorshipResult::TOO_MANY_SPONSORING:
+        mResult.code(opTOO_MANY_SPONSORING);
+        return false;
+    case SponsorshipResult::TOO_MANY_SPONSORED:
+        // This is impossible because there's no sponsored account. Fall through
+        // and throw.
+    case SponsorshipResult::TOO_MANY_SUBENTRIES:
+        // This is impossible because claimable balances don't use subentries.
+        // Fall through and throw.
+    default:
+        throw std::runtime_error("Unexpected result from "
+                                 "canEstablishEntrySponsorship");
     }
 
     ltx.create(newClaimableBalance);

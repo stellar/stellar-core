@@ -138,6 +138,8 @@ makeValid(AccountEntry& a)
         a.ext.v1().liabilities.buying = std::abs(a.ext.v1().liabilities.buying);
         a.ext.v1().liabilities.selling =
             std::abs(a.ext.v1().liabilities.selling);
+        // TODO(jonjove): Make tests support v2
+        a.ext.v1().ext.v(0);
     }
 }
 
@@ -195,9 +197,6 @@ makeValid(ClaimableBalanceEntry& c)
 {
     c.amount = std::abs(c.amount);
     clampLow<int64>(1, c.amount);
-
-    c.reserve = std::abs(c.reserve);
-    clampLow<int64>(1, c.reserve);
 
     c.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(c.asset.alphaNum4().assetCode, "CAD");

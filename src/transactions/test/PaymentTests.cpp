@@ -102,85 +102,6 @@ TEST_CASE("payment", "[tx][payment]")
 
     closeLedgerOn(*app, 2, 1, 1, 2016);
 
-    SECTION("Create account")
-    {
-        SECTION("Success")
-        {
-            for_all_versions(*app, [&] {
-                auto b1 = root.create(
-                    "B", app->getLedgerManager().getLastMinBalance(0));
-                SECTION("Account already exists")
-                {
-                    REQUIRE_THROWS_AS(
-                        root.create(
-                            "B", app->getLedgerManager().getLastMinBalance(0)),
-                        ex_CREATE_ACCOUNT_ALREADY_EXIST);
-                }
-            });
-        }
-        SECTION("Not enough funds (source)")
-        {
-            for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(gateway.create("B", gatewayPayment),
-                                  ex_CREATE_ACCOUNT_UNDERFUNDED);
-            });
-        }
-        SECTION("Amount too small to create account")
-        {
-            for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(
-                    root.create(
-                        "B", app->getLedgerManager().getLastMinBalance(0) - 1),
-                    ex_CREATE_ACCOUNT_LOW_RESERVE);
-            });
-        }
-
-        SECTION("with native selling liabilities")
-        {
-            auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
-            auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
-
-            auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
-            auto cur1 = acc1.asset("CUR1");
-            auto setup = [&]() {
-                TestMarket market(*app);
-                market.requireChangesWithOffer({}, [&] {
-                    return market.addOffer(acc1,
-                                           {native, cur1, Price{1, 1}, 500});
-                });
-            };
-            for_versions_to(9, *app, [&] {
-                setup();
-                acc1.create("acc2", minBal0 + 1);
-            });
-            for_versions_from(10, *app, [&] {
-                setup();
-                REQUIRE_THROWS_AS(acc1.create("acc2", minBal0 + 1),
-                                  ex_CREATE_ACCOUNT_UNDERFUNDED);
-                root.pay(acc1, txfee);
-                acc1.create("acc2", minBal0);
-            });
-        }
-
-        SECTION("with native buying liabilities")
-        {
-            auto const minBal0 = app->getLedgerManager().getLastMinBalance(0);
-            auto const minBal3 = app->getLedgerManager().getLastMinBalance(3);
-
-            auto const native = makeNativeAsset();
-            auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
-            TestMarket market(*app);
-
-            auto cur1 = acc1.asset("CUR1");
-            market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(acc1, {cur1, native, Price{1, 1}, 500});
-            });
-
-            for_all_versions(*app, [&] { acc1.create("acc2", minBal0 + 500); });
-        }
-    }
-
     SECTION("a pays b, then a merge into b")
     {
         auto paymentAmountMerge = 1000000;
@@ -312,7 +233,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             auto getMinBalance = [&] {
                 LedgerTxn ltx(app->getLedgerTxnRoot());
-                return stellar::getMinBalance(ltx.loadHeader(), 0);
+                return stellar::getMinBalance(ltx.loadHeader().current(), 0, 0,
+                                              0);
             };
 
             int64 orgReserve = getMinBalance();

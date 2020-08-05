@@ -26,12 +26,49 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
 using namespace stellar;
 using namespace stellar::txbridge;
 using namespace stellar::txtest;
+
+static void
+sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
+{
+    env.signatures.emplace_back(SignatureUtils::sign(
+        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
+}
+
+static TransactionEnvelope
+envelopeFromOps(Hash const& networkID, TestAccount& source,
+                std::vector<Operation> const& ops,
+                std::vector<SecretKey> const& opKeys)
+{
+    TransactionEnvelope tx(ENVELOPE_TYPE_TX);
+    tx.v1().tx.sourceAccount = toMuxedAccount(source);
+    tx.v1().tx.fee = 100 * ops.size();
+    tx.v1().tx.seqNum = source.nextSequenceNumber();
+    std::copy(ops.begin(), ops.end(),
+              std::back_inserter(tx.v1().tx.operations));
+
+    sign(networkID, source, tx.v1());
+    for (auto const& opKey : opKeys)
+    {
+        sign(networkID, opKey, tx.v1());
+    }
+    return tx;
+}
+
+static TransactionFrameBasePtr
+transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                        std::vector<Operation> const& ops,
+                        std::vector<SecretKey> const& opKeys)
+{
+    return TransactionFrameBase::makeTransactionFromWire(
+        networkID, envelopeFromOps(networkID, source, ops, opKeys));
+}
 
 /*
   Tests that are testing the common envelope used in transactions.
@@ -1020,6 +1057,119 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     (alternative.autoRemove ? 1 : 2));
                             REQUIRE(getAccountSigners(root, *app).size() ==
                                     (alternative.autoRemove ? 0 : 1));
+                        });
+                    }
+
+                    SECTION("success complex sponsored signatures + " +
+                            alternative.name)
+                    {
+                        for_versions_from(14, *app, [&] {
+                            auto a2 = root.create("A2", paymentAmount);
+
+                            TransactionFramePtr tx;
+                            tx = a1.tx({payment(root, 1000)});
+                            getSignatures(tx).clear();
+                            tx->addSignature(s1);
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 5); // below low rights
+
+                            // add two more signers. We want to sandwich the
+                            // signer that will be removed (sk1), so we can
+                            // verify how signerSponsoringIDs changes
+                            Signer signer1 = makeSigner(getAccount("1"), 5);
+                            Signer signer2(SignerKeyUtils::hashXKey("5"), 5);
+
+                            REQUIRE(signer1.key < sk);
+                            REQUIRE(sk < signer2.key);
+
+                            // sk1 is sponsored by a2, while signer1 and signer2
+                            // are sponsored by root
+                            auto insideSignerTx = transactionFrameFromOps(
+                                app->getNetworkID(), a2,
+                                {a2.op(sponsorFutureReserves(a1)),
+                                 a1.op(setOptions(setSigner(sk1))),
+                                 a1.op(confirmAndClearSponsor())},
+                                {a1});
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                TransactionMeta txm(2);
+                                REQUIRE(
+                                    insideSignerTx->checkValid(ltx, 0, 0, 0));
+                                REQUIRE(insideSignerTx->apply(*app, ltx, txm));
+                                REQUIRE(insideSignerTx->getResultCode() ==
+                                        txSUCCESS);
+                                ltx.commit();
+                            }
+
+                            auto outsideSignerTx = transactionFrameFromOps(
+                                app->getNetworkID(), root,
+                                {root.op(sponsorFutureReserves(a1)),
+                                 a1.op(setOptions(setSigner(signer1))),
+                                 a1.op(setOptions(setSigner(signer2))),
+                                 a1.op(confirmAndClearSponsor())},
+                                {a1});
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                TransactionMeta txm(2);
+                                REQUIRE(
+                                    outsideSignerTx->checkValid(ltx, 0, 0, 0));
+                                REQUIRE(outsideSignerTx->apply(*app, ltx, txm));
+                                REQUIRE(outsideSignerTx->getResultCode() ==
+                                        txSUCCESS);
+                                ltx.commit();
+                            }
+
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                checkSponsorship(ltx, a1.getPublicKey(),
+                                                 signer1.key, 2,
+                                                 &root.getPublicKey());
+                                checkSponsorship(ltx, a1.getPublicKey(),
+                                                 signer2.key, 2,
+                                                 &root.getPublicKey());
+                                checkSponsorship(ltx, a1.getPublicKey(), sk, 2,
+                                                 &a2.getPublicKey());
+
+                                checkSponsorship(ltx, root.getPublicKey(), 0,
+                                                 nullptr, 0, 2, 2, 0);
+                                checkSponsorship(ltx, a2.getPublicKey(), 0,
+                                                 nullptr, 0, 2, 1, 0);
+                            }
+
+                            REQUIRE(getAccountSigners(a1, *app).size() == 4);
+                            alternative.sign(*tx);
+
+                            applyTx(tx, *app);
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
+                                        *tx)) == PAYMENT_SUCCESS);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 3 : 4));
+
+                            if (alternative.autoRemove)
+                            {
+                                LedgerTxn ltx(app->getLedgerTxnRoot());
+                                checkSponsorship(ltx, root.getPublicKey(), 0,
+                                                 nullptr, 0, 2, 2, 0);
+                                checkSponsorship(ltx, a2.getPublicKey(), 0,
+                                                 nullptr, 0, 2, 0, 0);
+
+                                auto ltxe = stellar::loadAccount(ltx, a1);
+                                auto const& a1Entry =
+                                    ltxe.current().data.account();
+                                auto const& sponsoringIDs =
+                                    a1Entry.ext.v1()
+                                        .ext.v2()
+                                        .signerSponsoringIDs;
+
+                                REQUIRE(sponsoringIDs.size() == 3);
+                                REQUIRE(!sponsoringIDs[0]);
+                                REQUIRE((sponsoringIDs[1] && sponsoringIDs[2]));
+                                REQUIRE(*sponsoringIDs[1] ==
+                                        root.getPublicKey());
+                                REQUIRE(*sponsoringIDs[1] == *sponsoringIDs[2]);
+                            }
                         });
                     }
 

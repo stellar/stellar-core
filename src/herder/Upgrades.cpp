@@ -11,6 +11,7 @@
 #include "ledger/TrustLineWrapper.h"
 #include "main/Config.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/SponsorshipUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
@@ -530,7 +531,7 @@ enum class UpdateOfferResult
     Unchanged,
     Adjusted,
     AdjustedToZero,
-    Erased
+    Erase
 };
 
 static UpdateOfferResult
@@ -557,7 +558,7 @@ updateOffer(
             shouldDeleteOffer(offer.buying, balance, initialBuyingLiabilities,
                               availableLimitBind);
     UpdateOfferResult res =
-        erase ? UpdateOfferResult::Erased : UpdateOfferResult::Unchanged;
+        erase ? UpdateOfferResult::Erase : UpdateOfferResult::Unchanged;
 
     // If erase == false then we know that the total buying liabilities
     // of the buying asset do not exceed its available limit, and the
@@ -572,11 +573,7 @@ updateOffer(
         res = UpdateOfferResult::AdjustedToZero;
     }
 
-    if (erase)
-    {
-        offerEntry.erase();
-    }
-    else
+    if (!erase)
     {
         // The same logic for adjustOffer discussed above applies here,
         // except that we now actually update the offer to reflect the
@@ -614,6 +611,60 @@ updateOffer(
     return res;
 }
 
+static std::unordered_map<AccountID, int64_t>
+getOfferAccountMinBalances(
+    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+    std::map<AccountID, std::vector<LedgerTxnEntry>> const& offersByAccount)
+{
+    std::unordered_map<AccountID, int64_t> minBalanceMap;
+    for (auto const& accountOffers : offersByAccount)
+    {
+        auto const& accountID = accountOffers.first;
+        auto accountEntry = stellar::loadAccount(ltx, accountID);
+        if (!accountEntry)
+        {
+            throw std::runtime_error("account does not exist");
+        }
+        auto const& acc = accountEntry.current().data.account();
+        auto minBalance = getMinBalance(header.current(), acc);
+
+        minBalanceMap.emplace(accountID, minBalance);
+    }
+
+    return minBalanceMap;
+}
+
+static void
+eraseOfferWithPossibleSponsorship(
+    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
+    LedgerTxnEntry& offerEntry, LedgerTxnEntry& accountEntry,
+    std::unordered_set<AccountID>& changedAccounts)
+{
+    LedgerEntry::_ext_t extension = offerEntry.current().ext;
+    bool isSponsored = extension.v() == 1 && extension.v1().sponsoringID;
+    if (isSponsored)
+    {
+        // sponsoring account will change
+        auto const& sponsoringAcc = *extension.v1().sponsoringID;
+        changedAccounts.emplace(sponsoringAcc);
+    }
+
+    // This function can't throw here because -
+    // If offer is sponsored -
+    // 1. ledger version >= 14 is guaranteed
+    // 2. numSponsoring for the sponsoring account will be at
+    //    least 1 because it's sponsoring this offer
+    // 3. The sponsored account will have 1 subEntry and 1
+    //    numSponsored because of this offer
+
+    // If offer is not sponsored -
+    // 1. the offers account will have at least 1 subEntry
+    removeEntryWithPossibleSponsorship(ltx, header, offerEntry.current(),
+                                       accountEntry);
+
+    offerEntry.erase();
+}
+
 // This function is used to bring offers and liabilities into a valid state.
 // For every account that has offers,
 //   1. Calculate total liabilities for each asset
@@ -631,9 +682,16 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
 
     auto offersByAccount = ltx.loadAllOffers();
 
-    uint64_t nChangedAccounts = 0;
+    std::unordered_set<AccountID> changedAccounts;
     uint64_t nChangedTrustLines = 0;
+
     std::map<UpdateOfferResult, uint64_t> nUpdatedOffers;
+
+    // We want to keep track of the original minBalances before they are changed
+    // due to sponsorship changes from deleted offers
+    auto offerAccountMinBalanceMap =
+        getOfferAccountMinBalances(ltx, header, offersByAccount);
+
     for (auto& accountOffers : offersByAccount)
     {
         // The purpose of std::unique_ptr here is to have a special value
@@ -665,7 +723,16 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         // balanceAboveReserve must exclude native selling liabilities, since
         // these are in the process of being recalculated from scratch.
         int64_t balance = acc.balance;
-        int64_t minBalance = getMinBalance(header, acc.numSubEntries);
+
+        auto it = offerAccountMinBalanceMap.find(accountOffers.first);
+        if (it == offerAccountMinBalanceMap.end())
+        {
+            // this shouldn't happen. getOfferAccountMinBalances added all keys
+            // from offersByAccount
+            throw std::runtime_error("min balance missing from map");
+        }
+
+        int64_t minBalance = it->second;
         int64_t balanceAboveReserve = balance - minBalance;
 
         std::map<Asset, Liabilities> liabilities;
@@ -676,9 +743,10 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
                                    liabilities, initialBuyingLiabilities,
                                    initialSellingLiabilities, ltx, header);
             if (res == UpdateOfferResult::AdjustedToZero ||
-                res == UpdateOfferResult::Erased)
+                res == UpdateOfferResult::Erase)
             {
-                stellar::addNumEntries(header, accountEntry, -1);
+                eraseOfferWithPossibleSponsorship(
+                    ltx, header, offerEntry, accountEntry, changedAccounts);
             }
 
             ++nUpdatedOffers[res];
@@ -693,7 +761,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
                 case UpdateOfferResult::AdjustedToZero:
                     message = " was adjusted to zero";
                     break;
-                case UpdateOfferResult::Erased:
+                case UpdateOfferResult::Erase:
                     message = " was erased";
                     break;
                 default:
@@ -761,18 +829,18 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
 
         if (!(acc == accountBefore))
         {
-            ++nChangedAccounts;
+            changedAccounts.emplace(acc.accountID);
         }
     }
 
     CLOG(INFO, "Ledger") << "prepareLiabilities completed with "
-                         << nChangedAccounts << " accounts modified, "
+                         << changedAccounts.size() << " accounts modified, "
                          << nChangedTrustLines << " trustlines modified, "
                          << nUpdatedOffers[UpdateOfferResult::Adjusted]
                          << " offers adjusted, "
                          << nUpdatedOffers[UpdateOfferResult::AdjustedToZero]
                          << " offers adjusted to zero, and "
-                         << nUpdatedOffers[UpdateOfferResult::Erased]
+                         << nUpdatedOffers[UpdateOfferResult::Erase]
                          << " offers erased";
 }
 

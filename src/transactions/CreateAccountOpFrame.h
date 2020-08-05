@@ -20,6 +20,13 @@ class CreateAccountOpFrame : public OperationFrame
     }
     CreateAccountOp const& mCreateAccount;
 
+    bool doApplyBeforeV14(AbstractLedgerTxn& ltx);
+    bool doApplyFromV14(AbstractLedgerTxn& ltxOuter);
+
+    bool checkLowReserve(AbstractLedgerTxn& ltx);
+    bool deductStartingBalance(AbstractLedgerTxn& ltx);
+    void createAccount(AbstractLedgerTxn& ltx);
+
   public:
     CreateAccountOpFrame(Operation const& op, OperationResult& res,
                          TransactionFrame& parentTx);
