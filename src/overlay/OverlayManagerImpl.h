@@ -19,7 +19,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 
-#include "lib/util/lrucache.hpp"
+#include "util/RandomEvictionCache.h"
 
 #include <future>
 #include <set>
@@ -84,7 +84,7 @@ class OverlayManagerImpl : public OverlayManager
     OverlayMetrics mOverlayMetrics;
 
     // NOTE: bool is used here as a placeholder, since no ValueType is needed.
-    cache::lru_cache<uint64_t, bool> mMessageCache;
+    RandomEvictionCache<uint64_t, bool> mMessageCache;
 
     void tick();
     VirtualTimer mTimer;
