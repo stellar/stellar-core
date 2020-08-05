@@ -268,9 +268,7 @@ enum ClaimPredicateType
     CLAIM_PREDICATE_OR = 2,
     CLAIM_PREDICATE_NOT = 3,
     CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME = 4,
-    CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME = 5,
-    CLAIM_PREDICATE_BEFORE_RELATIVE_TIME = 6,
-    CLAIM_PREDICATE_AFTER_RELATIVE_TIME = 7
+    CLAIM_PREDICATE_BEFORE_RELATIVE_TIME = 5
 };
 
 union ClaimPredicate switch (ClaimPredicateType type)
@@ -285,14 +283,9 @@ case CLAIM_PREDICATE_NOT:
     ClaimPredicate* notPredicate;
 case CLAIM_PREDICATE_BEFORE_ABSOLUTE_TIME:
     int64 absBefore; // Predicate will be true if closeTime < absBefore
-case CLAIM_PREDICATE_AFTER_ABSOLUTE_TIME:
-    int64 absAfter; // Predicate will be true if closeTime >= absAfter
 case CLAIM_PREDICATE_BEFORE_RELATIVE_TIME:
     int64 relBefore; // Seconds since closeTime of the ledger in which the
                      // ClaimableBalanceEntry was created
-case CLAIM_PREDICATE_AFTER_RELATIVE_TIME:
-    int64 relAfter; // Seconds since closeTime of the ledger in which the
-                    // ClaimableBalanceEntry was created
 };
 
 enum ClaimantType
