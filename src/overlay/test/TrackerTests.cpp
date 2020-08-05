@@ -61,16 +61,17 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
         REQUIRE(t.getLastSeenSlotIndex() == 0);
     }
 
-    SECTION("can listen twice on the same envelope")
+    SECTION("listen twice on the same envelope")
     {
         Tracker t{*app, hash, nullAskPeer};
         auto env1 = makeEnvelope(1);
         t.listen(env1);
+        // this should no-op (idempotent)
         t.listen(env1);
         REQUIRE(t.getLastSeenSlotIndex() == 1);
 
         REQUIRE(env1 == t.pop());
-        REQUIRE(env1 == t.pop());
+        REQUIRE(t.empty());
     }
 
     SECTION("can listen on different envelopes")
