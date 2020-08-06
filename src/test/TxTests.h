@@ -17,6 +17,7 @@ class ConstLedgerTxnEntry;
 class TransactionFrame;
 class OperationFrame;
 class TxSetFrame;
+class TestAccount;
 
 namespace txtest
 {
@@ -204,5 +205,9 @@ void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected);
 void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
              OperationResultCode code);
 
+TransactionFrameBasePtr
+transactionFrameFromOps(Hash const& networkID, TestAccount& source,
+                        std::vector<Operation> const& ops,
+                        std::vector<SecretKey> const& opKeys);
 } // end txtest namespace
 }
