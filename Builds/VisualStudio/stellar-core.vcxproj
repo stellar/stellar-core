@@ -318,6 +318,8 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumIntersectionCheckerImpl.cpp" />
     <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp" />
+    <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp" />
+    <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp" />
     <ClCompile Include="..\..\src\ledger\GeneralizedLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
@@ -669,6 +671,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
+    <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h" />
     <ClInclude Include="..\..\src\ledger\GeneralizedLedgerEntry.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h" />
@@ -781,7 +784,6 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\cpptoml.h" />
     <ClInclude Include="..\..\lib\util\easylogging++.h" />
     <ClInclude Include="..\..\lib\util\getopt.h" />
-    <ClInclude Include="..\..\lib\util\lrucache.hpp" />
     <ClInclude Include="..\..\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />

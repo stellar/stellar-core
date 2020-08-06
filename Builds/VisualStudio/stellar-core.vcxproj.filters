@@ -1116,6 +1116,12 @@
     <ClCompile Include="..\..\src\transactions\test\UpdateSponsorshipTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp">
+      <Filter>historyWork\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1219,9 +1225,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\GlobalChecks.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\lib\util\lrucache.hpp">
-      <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\HashOfHash.h">
       <Filter>util</Filter>
@@ -1933,6 +1936,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h">
       <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h">
+      <Filter>historyWork</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
