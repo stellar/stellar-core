@@ -18,6 +18,7 @@
 #include "test/test.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -663,6 +664,129 @@ TEST_CASE("merge", "[tx][merge]")
                 REQUIRE(ae.balance == 2 * minBal);
                 REQUIRE(ae.balance + getBuyingLiabilities(header, account) ==
                         INT64_MAX);
+            }
+        });
+    }
+
+    SECTION("sponsorships")
+    {
+        auto sponsoringAcc = root.create("sponsoringAcc", minBalance);
+        for_versions_from(14, *app, [&] {
+            SECTION("with sponsored signers")
+            {
+                // add non-sponsored signer
+                a1.setOptions(setSigner(makeSigner(gateway, 5)));
+
+                // add sponsored signer
+                auto signer = makeSigner(getAccount("S1"), 1);
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), a1,
+                    {sponsoringAcc.op(sponsorFutureReserves(a1)),
+                     a1.op(setOptions(setSigner(signer))),
+                     a1.op(confirmAndClearSponsor())},
+                    {sponsoringAcc});
+
+                {
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+
+                    checkSponsorship(ltx, a1, signer.key, 2,
+                                     &sponsoringAcc.getPublicKey());
+                    checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2, 1,
+                                     0);
+                    ltx.commit();
+                }
+
+                a1.merge(b1);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2, 0, 0);
+            }
+
+            SECTION("with sponsored account")
+            {
+                auto key = getAccount("acc1");
+                TestAccount acc1(*app, key);
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), sponsoringAcc,
+                    {sponsoringAcc.op(sponsorFutureReserves(acc1)),
+                     sponsoringAcc.op(createAccount(acc1, txfee)),
+                     acc1.op(confirmAndClearSponsor())},
+                    {key});
+
+                {
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+
+                    checkSponsorship(ltx, key.getPublicKey(), 1,
+                                     &sponsoringAcc.getPublicKey(), 0, 2, 0, 2);
+                    ltx.commit();
+                }
+
+                acc1.merge(b1);
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                checkSponsorship(ltx, sponsoringAcc.getPublicKey(), 0, nullptr,
+                                 0, 2, 0, 0);
+            }
+
+            SECTION("is sponsor error")
+            {
+                // close ledger to increase ledger seq num so we don't hit
+                // ACCOUNT_MERGE_SEQNUM_TOO_FAR
+                closeLedgerOn(*app, 3, 1, 1, 2016);
+
+                SECTION("is sponsoring future reserves")
+                {
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), a1,
+                        {a1.op(sponsorFutureReserves(b1)),
+                         a1.op(accountMerge(b1)),
+                         b1.op(confirmAndClearSponsor())},
+                        {b1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->getResult()
+                                .result.results()[1]
+                                .tr()
+                                .accountMergeResult()
+                                .code() == ACCOUNT_MERGE_IS_SPONSOR);
+                }
+
+                SECTION("is sponsoring reserve")
+                {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), a1,
+                        {sponsoringAcc.op(sponsorFutureReserves(a1)),
+                         a1.op(changeTrust(cur1, 1000)),
+                         a1.op(confirmAndClearSponsor())},
+                        {sponsoringAcc});
+
+                    {
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        TransactionMeta txm(2);
+                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(*app, ltx, txm));
+
+                        checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2,
+                                         1, 0);
+                        ltx.commit();
+                    }
+
+                    REQUIRE_THROWS_AS(sponsoringAcc.merge(b1),
+                                      ex_ACCOUNT_MERGE_IS_SPONSOR);
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, sponsoringAcc, 0, nullptr, 0, 2, 1,
+                                     0);
+                }
             }
         });
     }
