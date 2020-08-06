@@ -1183,7 +1183,7 @@ envelopeFromOps(Hash const& networkID, TestAccount& source,
 {
     TransactionEnvelope tx(ENVELOPE_TYPE_TX);
     tx.v1().tx.sourceAccount = toMuxedAccount(source);
-    tx.v1().tx.fee = 100 * ops.size();
+    tx.v1().tx.fee = uint32_t(100) * uint32_t(ops.size());
     tx.v1().tx.seqNum = source.nextSequenceNumber();
     std::copy(ops.begin(), ops.end(),
               std::back_inserter(tx.v1().tx.operations));
