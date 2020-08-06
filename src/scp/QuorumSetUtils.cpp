@@ -34,7 +34,7 @@ class QuorumSetSanityChecker
     bool mIsSane;
     size_t mCount{0};
 
-    bool checkSanity(SCPQuorumSet const& qSet, int depth);
+    bool checkSanity(SCPQuorumSet const& qSet, uint32 depth);
 };
 
 QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
@@ -45,7 +45,7 @@ QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
 }
 
 bool
-QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
+QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth)
 {
     if (depth > Config::MAXIMUM_QUORUM_NESTING_LEVEL)
         return false;
