@@ -10,7 +10,6 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
-#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Math.h"
@@ -18,42 +17,6 @@
 
 using namespace stellar;
 using namespace stellar::txtest;
-
-static void
-sign(Hash const& networkID, SecretKey key, TransactionV1Envelope& env)
-{
-    env.signatures.emplace_back(SignatureUtils::sign(
-        key, sha256(xdr::xdr_to_opaque(networkID, ENVELOPE_TYPE_TX, env.tx))));
-}
-
-static TransactionEnvelope
-envelopeFromOps(Hash const& networkID, TestAccount& source,
-                std::vector<Operation> const& ops,
-                std::vector<SecretKey> const& opKeys)
-{
-    TransactionEnvelope tx(ENVELOPE_TYPE_TX);
-    tx.v1().tx.sourceAccount = toMuxedAccount(source);
-    tx.v1().tx.fee = 100 * ops.size();
-    tx.v1().tx.seqNum = source.nextSequenceNumber();
-    std::copy(ops.begin(), ops.end(),
-              std::back_inserter(tx.v1().tx.operations));
-
-    sign(networkID, source, tx.v1());
-    for (auto const& opKey : opKeys)
-    {
-        sign(networkID, opKey, tx.v1());
-    }
-    return tx;
-}
-
-static TransactionFrameBasePtr
-transactionFrameFromOps(Hash const& networkID, TestAccount& source,
-                        std::vector<Operation> const& ops,
-                        std::vector<SecretKey> const& opKeys)
-{
-    return TransactionFrameBase::makeTransactionFromWire(
-        networkID, envelopeFromOps(networkID, source, ops, opKeys));
-}
 
 static Claimant
 makeClaimant(AccountID const& account, ClaimPredicate const& pred)
