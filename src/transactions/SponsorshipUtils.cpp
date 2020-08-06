@@ -505,7 +505,13 @@ canRemoveEntryWithSponsorship(LedgerHeader const& lh, LedgerEntry const& le,
         throw std::runtime_error("invalid sponsoring account state");
     }
 
-    if (sponsoredAcc && (sponsoredAcc->data.account().numSubEntries < mult ||
+    if (le.data.type() == ACCOUNT && (!sponsoredAcc || le != *sponsoredAcc))
+    {
+        throw std::runtime_error("invalid sponsored account");
+    }
+
+    if (sponsoredAcc && ((le.data.type() != ACCOUNT &&
+                          sponsoredAcc->data.account().numSubEntries < mult) ||
                          getNumSponsored(*sponsoredAcc) < mult))
     {
         throw std::runtime_error("invalid sponsored account state");
