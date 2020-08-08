@@ -44,6 +44,7 @@ SurveyManager::startSurvey(SurveyMessageCommandType type,
     // queued peers are only cleared when we start the NEXT survey so we know
     // which peers were in our backlog before we stopped
     mPeersToSurvey.clear();
+    mPeersToSurveyQueue = std::queue<NodeID>();
 
     mRunningSurveyType = make_optional<SurveyMessageCommandType>(type);
 
@@ -460,14 +461,17 @@ SurveyManager::topOffRequests(SurveyMessageCommandType type)
            requestsSentInSchedule < MAX_REQUEST_LIMIT_PER_LEDGER &&
            !mPeersToSurvey.empty())
     {
-        auto it = mPeersToSurvey.begin();
-        auto key = *it;
+        if (mPeersToSurveyQueue.empty())
+        {
+            throw std::runtime_error("mPeersToSurveyQueue unexpectedly empty");
+        }
+        auto key = mPeersToSurveyQueue.front();
+        mPeersToSurvey.erase(key);
+        mPeersToSurveyQueue.pop();
 
         sendTopologyRequest(key);
 
         ++requestsSentInSchedule;
-
-        mPeersToSurvey.erase(it);
     }
 
     std::weak_ptr<SurveyManager> weak = shared_from_this();
@@ -498,6 +502,7 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     // filter conditions-
     // 1. already queued
     // 2. node would survey itself
+    // This ensures that mPeersToSurveyQueue doesn't contain any duplicates.
     if (mPeersToSurvey.count(nodeToSurvey) != 0 ||
         nodeToSurvey == mApp.getConfig().NODE_SEED.getPublicKey())
     {
@@ -513,6 +518,7 @@ SurveyManager::addPeerToBacklog(NodeID const& nodeToSurvey)
     mResults["topology"][KeyUtils::toStrKey(nodeToSurvey)].clear();
 
     mPeersToSurvey.emplace(nodeToSurvey);
+    mPeersToSurveyQueue.emplace(nodeToSurvey);
 }
 
 bool
