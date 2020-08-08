@@ -3677,6 +3677,69 @@ TEST_CASE("create offer", "[tx][offers]")
             *app, acc1, acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)),
             acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)));
     }
+
+    SECTION("pull sponsored offers when authorization is revoked")
+    {
+        const int64_t minBalance3 =
+            app->getLedgerManager().getLastMinBalance(3);
+        auto sponsor = root.create("sponsor", minBalance3);
+        auto acc1 = root.create("a2", minBalance2);
+
+        auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
+                     static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+        issuer.setOptions(txtest::setFlags(toSet));
+
+        acc1.changeTrust(usd, INT64_MAX);
+        acc1.changeTrust(idr, INT64_MAX);
+        issuer.allowTrust(usd, acc1);
+        issuer.allowTrust(idr, acc1);
+        issuer.pay(acc1, usd, 10000);
+        issuer.pay(acc1, idr, 10000);
+
+        auto tx = transactionFrameFromOps(
+            app->getNetworkID(), acc1,
+            {sponsor.op(sponsorFutureReserves(acc1)),
+             acc1.op(manageOffer(0, usd, xlm, Price{1, 1}, 100)),
+             acc1.op(manageOffer(0, xlm, usd, Price{2, 1}, 100)),
+             acc1.op(manageOffer(0, idr, xlm, Price{1, 1}, 100)),
+             acc1.op(confirmAndClearSponsor())},
+            {sponsor});
+
+        uint64_t offerIdUsdXlm = 0;
+        uint64_t offerIdXlmUsd = 0;
+        uint64_t offerIdIdrXlm = 0;
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            offerIdUsdXlm = ltx.loadHeader().current().idPool + 1;
+            offerIdXlmUsd = ltx.loadHeader().current().idPool + 2;
+            offerIdIdrXlm = ltx.loadHeader().current().idPool + 3;
+
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+            REQUIRE(tx->apply(*app, ltx, txm));
+
+            REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdUsdXlm));
+            REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdXlmUsd));
+            REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdIdrXlm));
+
+            checkSponsorship(ltx, acc1, 0, &sponsor.getPublicKey(), 5, 2, 0, 3);
+            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 3, 0);
+            ltx.commit();
+        }
+
+        // The two usd offers should get pulled
+        issuer.denyTrust(usd, acc1);
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            REQUIRE(!loadOffer(ltx, acc1.getPublicKey(), offerIdUsdXlm));
+            REQUIRE(!loadOffer(ltx, acc1.getPublicKey(), offerIdXlmUsd));
+            REQUIRE(loadOffer(ltx, acc1.getPublicKey(), offerIdIdrXlm));
+
+            checkSponsorship(ltx, acc1, 0, &sponsor.getPublicKey(), 3, 2, 0, 1);
+            checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
+        }
+    }
 }
 
 TEST_CASE("liabilities match created offer", "[tx][offers]")
