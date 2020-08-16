@@ -471,7 +471,7 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
         //
         // That said, nondeterminism in tests is no fun and tests that run
         // potentially-forever are no fun. So we put a statistically-unlikely
-        // limit in here of 10,000 merges. If we consistently lose for that
+        // limit in here of 10,000 ledgers. If we consistently lose for that
         // long, there's probably something wrong with the code, and in any case
         // it's a better nondeterministic failure than timing out the entire
         // testsuite with no explanation.
@@ -511,7 +511,7 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
         CLOG(INFO, "Bucket")
             << "reattached to running merge at or around ledger " << ledger;
         REQUIRE(ledger < limit);
-        auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
+        auto ra = bm.readMergeCounters().mRunningMergeReattachments;
         REQUIRE(ra != 0);
     });
 }
