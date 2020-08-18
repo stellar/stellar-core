@@ -61,7 +61,7 @@ using namespace std;
 bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 9;
+static unsigned long const MIN_SCHEMA_VERSION = 10;
 static unsigned long const SCHEMA_VERSION = 13;
 
 // These should always match our compiled version precisely, since we are
@@ -209,10 +209,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 10:
-        // add tracking table information
-        mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
-        break;
     case 11:
         if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
         {
@@ -666,6 +662,7 @@ Database::initialize()
     HerderPersistence::dropAll(*this);
     BanManager::dropAll(*this);
     putSchemaVersion(MIN_SCHEMA_VERSION);
+    mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
 
     LOG(INFO) << "* ";
     LOG(INFO) << "* The database has been initialized";
