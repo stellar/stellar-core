@@ -61,7 +61,7 @@ using namespace std;
 bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 10;
+static unsigned long const MIN_SCHEMA_VERSION = 11;
 static unsigned long const SCHEMA_VERSION = 13;
 
 // These should always match our compiled version precisely, since we are
@@ -209,14 +209,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 11:
-        if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
-        {
-            mSession << "DROP INDEX IF EXISTS bestofferindex;";
-            mSession << "CREATE INDEX bestofferindex ON offers "
-                        "(sellingasset,buyingasset,price,offerid);";
-        }
-        break;
     case 12:
         if (!isSqlite())
         {

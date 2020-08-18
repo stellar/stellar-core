@@ -698,7 +698,7 @@ LedgerTxnRoot::Impl::dropOffers()
            "PRIMARY KEY      (offerid)"
            ");";
     mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
-                              "(sellingasset,buyingasset,price);";
+                              "(sellingasset,buyingasset,price,offerid);";
 }
 
 class BulkLoadOffersOperation
