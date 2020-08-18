@@ -17,7 +17,7 @@
 #include <regex>
 #include <xdrpp/printer.h>
 
-#if !defined(USE_TERMIOS) && !MSVC
+#if !defined(USE_TERMIOS) && !defined(_WIN32)
 #define HAVE_TERMIOS 1
 #endif
 #if HAVE_TERMIOS
@@ -30,10 +30,11 @@ extern "C" {
 }
 #endif // HAVE_TERMIOS
 
-#if MSVC
+#ifdef _WIN32
 #include <io.h>
 #define isatty _isatty
-#endif // MSVC
+#include <wincred.h>
+#endif // _WIN32
 
 using namespace std::placeholders;
 
@@ -313,6 +314,51 @@ set_echo_flag(int fd, bool flag)
 }
 #endif
 
+#ifdef _WIN32
+static std::string
+getSecureCreds(std::string const& prompt)
+{
+    std::string res;
+    CREDUI_INFO cui;
+    TCHAR pszName[CREDUI_MAX_USERNAME_LENGTH + 1] = TEXT("default");
+    TCHAR pszPwd[CREDUI_MAX_PASSWORD_LENGTH + 1];
+    BOOL fSave;
+    DWORD dwErr;
+
+    cui.cbSize = sizeof(CREDUI_INFO);
+    cui.hwndParent = NULL;
+    cui.pszMessageText = prompt.c_str();
+    cui.pszCaptionText = TEXT("SignerUI");
+    cui.hbmBanner = NULL;
+    fSave = FALSE;
+    SecureZeroMemory(pszPwd, sizeof(pszPwd));
+    dwErr = CredUIPromptForCredentials(
+        &cui,                              // CREDUI_INFO structure
+        TEXT("Stellar"),                   // Target for credentials
+                                           //   (usually a server)
+        NULL,                              // Reserved
+        0,                                 // Reason
+        pszName,                           // User name
+        CREDUI_MAX_USERNAME_LENGTH + 1,    // Max number of char for user name
+        pszPwd,                            // Password
+        CREDUI_MAX_PASSWORD_LENGTH + 1,    // Max number of char for password
+        &fSave,                            // State of save check box
+        CREDUI_FLAGS_GENERIC_CREDENTIALS | // flags
+            CREDUI_FLAGS_ALWAYS_SHOW_UI | CREDUI_FLAGS_DO_NOT_PERSIST);
+
+    if (!dwErr)
+    {
+        res = pszPwd;
+    }
+    else
+    {
+        throw std::runtime_error("Could not get password");
+    }
+    return res;
+}
+
+#endif
+
 #if __GNUC__ >= 4 && __GLIBC__ >= 2
 // Realistically, if a write fails in one of these utility functions,
 // it should kill us with SIGPIPE.  Hence, we don't need to check the
@@ -335,12 +381,9 @@ readSecret(const std::string& prompt, bool force_tty)
         std::getline(std::cin, ret);
         return ret;
     }
-#if !HAVE_TERMIOS
-    // Sorry, Windows.  Might need to use something like this:
-    // https://msdn.microsoft.com/en-us/library/ms683167(VS.85).aspx
-    // http://stackoverflow.com/questions/1413445/read-a-password-from-stdcin/1455007#1455007
-    throw std::invalid_argument("reading secrets from terminal not supported");
-#else
+#ifdef _WIN32
+    return getSecureCreds(prompt);
+#elif HAVE_TERMIOS
     struct cleanup
     {
         std::function<void()> action_;
@@ -406,8 +449,9 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             throw std::runtime_error(
                 "Evelope already contains maximum number of signatures");
 
-        SecretKey sk(SecretKey::fromStrKeySeed(
-            readSecret("Secret key seed: ", txn_stdin)));
+        SecretKey sk(SecretKey::fromStrKeySeed(readSecret(
+            fmt::format("Secret key seed [network id: '{}']: ", netId),
+            txn_stdin)));
         TransactionSignaturePayload payload;
         payload.networkId = sha256(netId);
         switch (txenv.type())
