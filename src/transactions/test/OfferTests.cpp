@@ -3664,6 +3664,19 @@ TEST_CASE("create offer", "[tx][offers]")
             });
         }
     }
+
+    SECTION("too many sponsoring")
+    {
+        auto acc1 =
+            root.create("a1", app->getLedgerManager().getLastMinBalance(5));
+        acc1.changeTrust(usd, INT64_MAX);
+        issuer.pay(acc1, usd, 10000);
+        auto native = makeNativeAsset();
+
+        tooManySponsoring(
+            *app, acc1, acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)),
+            acc1.op(manageOffer(0, usd, native, Price{1, 1}, 1000)));
+    }
 }
 
 TEST_CASE("liabilities match created offer", "[tx][offers]")

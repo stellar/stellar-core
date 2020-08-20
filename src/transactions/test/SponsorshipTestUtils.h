@@ -35,4 +35,11 @@ void createModifyAndRemoveSponsoredEntry(
     Application& app, TestAccount& sponsoredAcc, Operation const& opCreate,
     Operation const& opModify1, Operation const& opModify2,
     Operation const& opRemove, SignerKey const& signerKey);
+
+void tooManySponsoring(Application& app, TestAccount& sponsoredAcc,
+                       Operation const& successfulOp, Operation const& failOp);
+
+void tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
+                       TestAccount& failOpAcc, Operation const& successfulOp,
+                       Operation const& failOp);
 }

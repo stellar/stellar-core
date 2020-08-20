@@ -286,6 +286,15 @@ TEST_CASE("set options", "[tx][setoptions]")
                 setOptions(setSigner(sk1b)), setOptions(setSigner(sk1)),
                 setOptions(setSigner(makeSigner(s1, 0))), sk1.key);
         }
+
+        SECTION("too many sponsoring")
+        {
+            auto signer1 = makeSigner(getAccount("S1"), 1);
+            auto signer2 = makeSigner(getAccount("S2"), 1);
+
+            tooManySponsoring(*app, a1, a1.op(setOptions(setSigner(signer1))),
+                              a1.op(setOptions(setSigner(signer2))));
+        }
     }
 
     SECTION("flags")

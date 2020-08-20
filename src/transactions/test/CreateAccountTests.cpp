@@ -198,4 +198,17 @@ TEST_CASE("create account", "[tx][createaccount]")
             }
         });
     }
+
+    SECTION("too many sponsoring")
+    {
+        auto key1 = getAccount("a1");
+        auto key2 = getAccount("a2");
+        TestAccount a1(*app, key1);
+        TestAccount a2(*app, key2);
+
+        // This works because root is the sponsoring account in
+        // tooManySponsoring
+        tooManySponsoring(*app, a1, a2, root.op(createAccount(a1, 0)),
+                          root.op(createAccount(a2, 0)));
+    }
 }

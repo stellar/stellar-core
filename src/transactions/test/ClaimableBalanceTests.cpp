@@ -1190,5 +1190,13 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                         .revokeSponsorshipResult()
                         .code() == REVOKE_SPONSORSHIP_ONLY_TRANSFERABLE);
         }
+
+        SECTION("too many sponsoring")
+        {
+            tooManySponsoring(
+                *app, acc1,
+                acc1.op(createClaimableBalance(native, 1, validClaimants)),
+                acc1.op(createClaimableBalance(native, 1, validClaimants)));
+        }
     });
 }
