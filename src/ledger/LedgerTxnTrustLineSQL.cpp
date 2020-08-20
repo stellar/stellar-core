@@ -429,6 +429,16 @@ LedgerTxnRoot::Impl::dropTrustLines()
            "lastmodified INT             NOT NULL,"
            "PRIMARY KEY  (accountid, issuer, assetcode)"
            ");";
+    if (!mDatabase.isSqlite())
+    {
+        mDatabase.getSession() << "ALTER TABLE trustlines "
+                               << "ALTER COLUMN accountid "
+                               << "TYPE VARCHAR(56) COLLATE \"C\", "
+                               << "ALTER COLUMN issuer "
+                               << "TYPE VARCHAR(56) COLLATE \"C\", "
+                               << "ALTER COLUMN assetcode "
+                               << "TYPE VARCHAR(12) COLLATE \"C\"";
+    }
 }
 
 class BulkLoadTrustLinesOperation

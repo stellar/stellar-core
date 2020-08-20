@@ -333,6 +333,14 @@ LedgerTxnRoot::Impl::dropData()
                               "lastmodified INT          NOT NULL,"
                               "PRIMARY KEY  (accountid, dataname)"
                               ");";
+    if (!mDatabase.isSqlite())
+    {
+        mDatabase.getSession() << "ALTER TABLE accountdata "
+                               << "ALTER COLUMN accountid "
+                               << "TYPE VARCHAR(56) COLLATE \"C\", "
+                               << "ALTER COLUMN dataname "
+                               << "TYPE VARCHAR(88) COLLATE \"C\"";
+    }
 }
 
 class BulkLoadDataOperation

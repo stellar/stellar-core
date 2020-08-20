@@ -61,7 +61,7 @@ using namespace std;
 bool Database::gDriversRegistered = false;
 
 // smallest schema version supported
-static unsigned long const MIN_SCHEMA_VERSION = 11;
+static unsigned long const MIN_SCHEMA_VERSION = 12;
 static unsigned long const SCHEMA_VERSION = 13;
 
 // These should always match our compiled version precisely, since we are
@@ -209,42 +209,6 @@ Database::applySchemaUpgrade(unsigned long vers)
     soci::transaction tx(mSession);
     switch (vers)
     {
-    case 12:
-        if (!isSqlite())
-        {
-            // Set column collations to "C" if postgres; sqlite doesn't support
-            // altering them at all (and the defaults are correct anyways).
-            mSession << "ALTER TABLE accounts "
-                     << "ALTER COLUMN accountid "
-                     << "TYPE VARCHAR(56) COLLATE \"C\"";
-
-            mSession << "ALTER TABLE accountdata "
-                     << "ALTER COLUMN accountid "
-                     << "TYPE VARCHAR(56) COLLATE \"C\", "
-                     << "ALTER COLUMN dataname "
-                     << "TYPE VARCHAR(88) COLLATE \"C\"";
-
-            mSession << "ALTER TABLE offers "
-                     << "ALTER COLUMN sellerid "
-                     << "TYPE VARCHAR(56) COLLATE \"C\", "
-                     << "ALTER COLUMN buyingasset "
-                     << "TYPE TEXT COLLATE \"C\", "
-                     << "ALTER COLUMN sellingasset "
-                     << "TYPE TEXT COLLATE \"C\"";
-
-            mSession << "ALTER TABLE trustlines "
-                     << "ALTER COLUMN accountid "
-                     << "TYPE VARCHAR(56) COLLATE \"C\", "
-                     << "ALTER COLUMN issuer "
-                     << "TYPE VARCHAR(56) COLLATE \"C\", "
-                     << "ALTER COLUMN assetcode "
-                     << "TYPE VARCHAR(12) COLLATE \"C\"";
-        }
-
-        // With inflation disabled, it's not worth keeping
-        // the accountbalances index around.
-        mSession << "DROP INDEX IF EXISTS accountbalances";
-        break;
     case 13:
         if (!mApp.getConfig().MODE_USES_IN_MEMORY_LEDGER)
         {
