@@ -1345,15 +1345,10 @@ TEST_CASE("Introduce and fix gap without starting catchup",
     // Fill in the second gap. All buffered ledgers should be applied, but we
     // wait for another ledger to close to get in sync
     catchupSimulation.externalizeLedger(herder, nextLedger + 4);
-    REQUIRE(!lm.isSynced());
+    REQUIRE(lm.isSynced());
     REQUIRE(!cm.hasBufferedLedger());
     REQUIRE(!cm.isCatchupInitialized());
     REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 5);
-
-    // Externalize new ledger. Should be back in sync
-    catchupSimulation.externalizeLedger(herder, nextLedger + 6);
-    REQUIRE(lm.isSynced());
-    REQUIRE(lm.getLastClosedLedgerNum() == nextLedger + 6);
 }
 
 TEST_CASE("Receive trigger and checkpoint ledger out of order",

@@ -133,6 +133,8 @@ class HerderImpl : public Herder
 
     void ledgerClosed(bool synchronous);
 
+    void maybeTriggerNextLedger(bool synchronous);
+
     void startRebroadcastTimer();
     void rebroadcast();
     void broadcast(SCPEnvelope const& e);
