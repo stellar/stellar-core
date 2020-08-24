@@ -528,7 +528,6 @@ canCreateSignerWithoutSponsorship(LedgerHeader const& lh,
         return SponsorshipResult::TOO_MANY_SUBENTRIES;
     }
 
-    // TODO(jonjove): Compare against getMinBalance
     if (getAvailableBalance(lh, acc) < lh.baseReserve)
     {
         return SponsorshipResult::LOW_RESERVE;

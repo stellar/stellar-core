@@ -50,7 +50,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
     SECTION("entry is not sponsored")
     {
         // No-op
-        // TODO(jonjove): Consider shrinking minBal
         SECTION("account is not sponsored")
         {
             SECTION("account")
