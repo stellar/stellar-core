@@ -11,6 +11,7 @@
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/test/SponsorshipTestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -416,9 +417,12 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
         SECTION("one-time signer removal")
         {
             auto acc = root.create("A", 3 * reserve + 3 * fee);
-            for_versions_from(13, *app, [&] {
+            auto sponsoring = root.create("sponsoring", 3 * reserve);
+
+            auto signerTest = [&](bool isFbSignerSponsored) {
                 auto fbXDR = feeBumpUnsigned(acc, root, root, 2 * fee, fee, 1);
                 ++fbXDR.feeBump().tx.innerTx.v1().tx.seqNum;
+
                 auto fb = TransactionFrameBase::makeTransactionFromWire(
                     app->getNetworkID(), fbXDR);
 
@@ -433,7 +437,30 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 fbSigner.preAuthTx() = sha256(xdr::xdr_to_opaque(
                     app->getNetworkID(), ENVELOPE_TYPE_TX_FEE_BUMP,
                     fbXDR.feeBump().tx));
-                acc.setOptions(setSigner(Signer{fbSigner, 1}));
+
+                if (isFbSignerSponsored)
+                {
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), acc,
+                        {sponsoring.op(sponsorFutureReserves(acc)),
+                         acc.op(setOptions(setSigner(Signer{fbSigner, 1}))),
+                         acc.op(confirmAndClearSponsor())},
+                        {sponsoring});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+
+                    checkSponsorship(ltx, acc, fbSigner, 2,
+                                     &sponsoring.getPublicKey());
+                    ltx.commit();
+                }
+                else
+                {
+                    acc.setOptions(setSigner(Signer{fbSigner, 1}));
+                }
 
                 {
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -445,13 +472,19 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                     TransactionMeta meta(2);
                     REQUIRE(fb->apply(*app, ltx, meta));
                     REQUIRE(fb->getResultCode() == txFEE_BUMP_INNER_SUCCESS);
-                    REQUIRE(meta.v2().txChangesBefore.size() == 4);
+                    REQUIRE(meta.v2().txChangesBefore.size() ==
+                            (isFbSignerSponsored ? 6 : 4));
                     for (auto const& change : meta.v2().txChangesBefore)
                     {
                         if (change.type() == LEDGER_ENTRY_STATE)
                         {
                             auto const& ae = change.state().data.account();
-                            REQUIRE(ae.signers.size() == 1);
+                            // The sponsoring account doesn't have any signers,
+                            // but the account can still change due to
+                            // sponsorship
+                            REQUIRE(
+                                (ae.accountID == sponsoring.getPublicKey() ||
+                                 ae.signers.size() == 1));
                         }
                         else if (change.type() == LEDGER_ENTRY_UPDATED)
                         {
@@ -459,8 +492,28 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                             REQUIRE(ae.signers.empty());
                         }
                     }
+                    ltx.commit();
                 }
-            });
+
+                REQUIRE(getAccountSigners(root, *app).size() == 0);
+                REQUIRE(getAccountSigners(acc, *app).size() == 0);
+
+                if (isFbSignerSponsored)
+                {
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    checkSponsorship(ltx, acc, 0, nullptr, 0, 2, 0, 0);
+                    checkSponsorship(ltx, sponsoring, 0, nullptr, 0, 2, 0, 0);
+                }
+            };
+
+            SECTION("not sponsored")
+            {
+                for_versions_from(13, *app, [&] { signerTest(false); });
+            }
+            SECTION("sponsored")
+            {
+                for_versions_from(14, *app, [&] { signerTest(true); });
+            }
         }
     }
 }
