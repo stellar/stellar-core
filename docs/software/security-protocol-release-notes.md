@@ -53,6 +53,19 @@ It then follows that:
 
 # List of releases
 
+## v14.0.0 (2020-08-20)
+
+* `Ledger` - protocol - CAP0023 - Two-Part Payments with ClaimableBalanceEntry
+* `Ledger` - protocol - CAP0033 - Sponsored Reserve
+
+## v13.0.0 (2020-04-29)
+
+* `Ledger` - protocol - CAP0015 - Fee-Bump Transactions
+* `Ledger` - protocol - CAP0018 - Fine-Grained Control of Authorization (eg. AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG)
+* `Ledger` - protocol - CAP0027 - First-class multiplexed accounts
+* `Ledger` - protocol - CAP0028 - Clear pre-auth transaction signer on failed transactions
+* `Ledger` - protocol - CAP0030 - Remove NO_ISSUER Operation Results
+
 ## v12.1.0 (2019-10-24)
 
 * `SCP` - protocol - added `CRITICAL` quality to quorum config generator
