@@ -184,23 +184,54 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
     for (auto const& le : oldEntries)
     {
         LedgerEntry newEntry = le;
+        if (newEntry.ext.v() == 1 && newEntry.ext.v1().sponsoringID)
+        {
+            mutateScaledAccountID(*newEntry.ext.v1().sponsoringID, partition);
+        }
 
         switch (le.data.type())
         {
         case ACCOUNT:
-            mutateScaledAccountID(newEntry.data.account().accountID, partition);
-            newEntry.data.account().signers.clear();
-            for (auto const& signer : le.data.account().signers)
+        {
+            auto& ae = newEntry.data.account();
+            mutateScaledAccountID(ae.accountID, partition);
+            ae.signers.clear();
+
+            if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
             {
+                ae.ext.v1().ext.v2().signerSponsoringIDs.clear();
+            }
+
+            for (size_t i = 0; i < le.data.account().signers.size(); ++i)
+            {
+                auto const& signer = le.data.account().signers[i];
                 if (signer.key.type() == SIGNER_KEY_TYPE_ED25519)
                 {
-                    newEntry.data.account().signers.emplace_back(
+                    ae.signers.emplace_back(
                         generateScaledEd25519Signer(signer, partition),
                         signer.weight);
+
+                    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+                    {
+                        // pull the id from le
+                        auto idToScale = le.data.account()
+                                             .ext.v1()
+                                             .ext.v2()
+                                             .signerSponsoringIDs[i];
+                        if (idToScale)
+                        {
+                            mutateScaledAccountID(*idToScale, partition);
+                        }
+
+                        ae.ext.v1().ext.v2().signerSponsoringIDs.emplace_back(
+                            idToScale);
+                    }
                 }
             }
+
             InvariantTestUtils::normalizeSigners(newEntry.data.account());
             break;
+        }
         case TRUSTLINE:
             mutateScaledAccountID(newEntry.data.trustLine().accountID,
                                   partition);
