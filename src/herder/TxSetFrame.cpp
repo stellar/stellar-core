@@ -179,6 +179,18 @@ struct SurgeCompare
         // compare fee/numOps between top1 and top2
         // getNumOperations >= 1 because SurgeCompare can only be used on
         // valid transactions
+        //
+        // Let f1, f2 be the two fee bids, and let n1, n2 be the two
+        // operation counts. We want to calculate the boolean comparison
+        // "f1 / n1 < f2 / n2" but, since these are uint128s, we want to
+        // avoid the truncating division or use of floating point.
+        //
+        // Therefore we multiply both sides by n1 * n2, and cancel:
+        //
+        //               f1 / n1 < f2 / n2
+        //  == f1 * n1 * n2 / n1 < f2 * n1 * n2 / n2
+        //  == f1 *      n2      < f2 * n1
+
         auto v1 = bigMultiply(top1->getFeeBid(), top2->getNumOperations());
         auto v2 = bigMultiply(top2->getFeeBid(), top1->getNumOperations());
         if (v1 < v2)
