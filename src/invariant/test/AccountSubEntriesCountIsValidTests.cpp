@@ -27,9 +27,15 @@ generateRandomAccountWithNoSubEntries(uint32_t ledgerSeq)
     le.lastModifiedLedgerSeq = ledgerSeq;
     le.data.type(ACCOUNT);
     le.data.account() = LedgerTestUtils::generateValidAccountEntry(5);
+    auto& ae = le.data.account();
 
-    le.data.account().signers.clear();
-    le.data.account().numSubEntries = 0;
+    ae.signers.clear();
+    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    {
+        ae.ext.v1().ext.v2().signerSponsoringIDs.clear();
+    }
+
+    ae.numSubEntries = 0;
     return le;
 }
 
@@ -158,6 +164,12 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
     if (addSigner)
     {
         acc.signers.push_back(validSignerGenerator());
+        if (acc.ext.v() == 1 && acc.ext.v1().ext.v() == 2)
+        {
+            acc.ext.v1().ext.v2().signerSponsoringIDs.push_back(
+                autocheck::generator<SponsorshipDescriptor>()(5));
+        }
+
         updateAccountSubEntries(app, le, lePrev, 1, {});
     }
     else
@@ -225,7 +237,15 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     {
         std::uniform_int_distribution<uint32_t> dist(
             0, uint32_t(acc.signers.size()) - 1);
-        acc.signers.erase(acc.signers.begin() + dist(gRandomEngine));
+
+        auto pos = dist(gRandomEngine);
+        acc.signers.erase(acc.signers.begin() + pos);
+        if (acc.ext.v() == 1 && acc.ext.v1().ext.v() == 2)
+        {
+            auto& sponsoringIDs = acc.ext.v1().ext.v2().signerSponsoringIDs;
+            sponsoringIDs.erase(sponsoringIDs.begin() + pos);
+        }
+
         updateAccountSubEntries(app, le, lePrev, -1, {});
     }
     else

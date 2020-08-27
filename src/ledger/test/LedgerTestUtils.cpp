@@ -138,8 +138,34 @@ makeValid(AccountEntry& a)
         a.ext.v1().liabilities.buying = std::abs(a.ext.v1().liabilities.buying);
         a.ext.v1().liabilities.selling =
             std::abs(a.ext.v1().liabilities.selling);
-        // TODO(jonjove): Make tests support v2
-        a.ext.v1().ext.v(0);
+
+        if (a.ext.v1().ext.v() == 2)
+        {
+            auto& extV2 = a.ext.v1().ext.v2();
+
+            int64_t effEntries = 2LL;
+            effEntries += a.numSubEntries;
+            effEntries += extV2.numSponsoring;
+            effEntries -= extV2.numSponsored;
+            if (effEntries < 0)
+            {
+                // This condition implies (in arbitrary precision)
+                //      2 + numSubentries + numSponsoring - numSponsored < 0
+                // which can be rearranged as
+                //      numSponsored > 2 + numSubentries + numSponsoring .
+                // Substituting this inequality yields
+                //      2 + numSubentries + numSponsored
+                //          > 4 + 2 * numSubentries + numSponsoring
+                //          > numSponsoring
+                // which can be rearranged as
+                //      2 + numSubentries + numSponsored - numSponsoring > 0 .
+                // In summary, swapping numSponsored and numSponsoring fixes the
+                // account state.
+                std::swap(extV2.numSponsored, extV2.numSponsoring);
+            }
+
+            extV2.signerSponsoringIDs.resize(a.signers.size());
+        }
     }
 }
 
