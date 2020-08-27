@@ -577,7 +577,10 @@ runCatchup(CommandLineArgs const& args)
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
-            config.setNoListen();
+            // Don't call config.setNoListen() here as we might want to
+            // access the /info HTTP endpoint during catchup.
+            config.RUN_STANDALONE = true;
+            config.MANUAL_CLOSE = true;
             config.DISABLE_BUCKET_GC = disableBucketGC;
 
             if (config.AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
