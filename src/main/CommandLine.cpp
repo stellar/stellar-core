@@ -274,6 +274,19 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
+void
+maybeEnableInMemoryLedgerMode(Config& config, bool inMemory)
+{
+    // Adjust configs for in-memory-replay mode
+    config.DATABASE = SecretValue{"sqlite3://:memory:"};
+    config.MODE_STORES_HISTORY = false;
+    config.MODE_USES_IN_MEMORY_LEDGER = true;
+    config.MODE_ENABLES_BUCKETLIST = true;
+    // And don't bother fsyncing buckets without a DB,
+    // they're temporary anyways.
+    config.DISABLE_XDR_FSYNC = true;
+}
+
 clara::Opt
 inMemoryParser(bool& inMemory)
 {
@@ -603,18 +616,7 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
             }
 
-            if (inMemory || replayInMemory)
-            {
-                // Adjust configs for in-memory-replay mode
-                config.DATABASE = SecretValue{"sqlite3://:memory:"};
-                config.MODE_STORES_HISTORY = false;
-                config.MODE_USES_IN_MEMORY_LEDGER = true;
-                config.MODE_ENABLES_BUCKETLIST = true;
-                // And don't bother fsyncing buckets without a DB,
-                // they're temporary anyways.
-                config.DISABLE_XDR_FSYNC = true;
-            }
-
+            maybeEnableInMemoryLedgerMode(config, (inMemory || replayInMemory));
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
@@ -953,6 +955,7 @@ run(CommandLineArgs const& args)
     auto disableBucketGC = false;
     uint32_t simulateSleepPerOp = 0;
     std::string stream;
+    bool inMemory = false;
     bool waitForConsensus = false;
 
     auto simulateParser = [](uint32_t& simulateSleepPerOp) {
@@ -966,7 +969,7 @@ run(CommandLineArgs const& args)
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
          simulateParser(simulateSleepPerOp), metadataOutputStreamParser(stream),
-         waitForConsensusParser(waitForConsensus)},
+         inMemoryParser(inMemory), waitForConsensusParser(waitForConsensus)},
         [&] {
             Config cfg;
             try
@@ -983,6 +986,7 @@ run(CommandLineArgs const& args)
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
+                maybeEnableInMemoryLedgerMode(cfg, inMemory);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
