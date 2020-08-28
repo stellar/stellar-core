@@ -6,6 +6,7 @@
 
 #include "util/asio.h"
 
+#include <fstream>
 #include <functional>
 #include <string>
 #include <vector>

@@ -7,6 +7,7 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "crypto/ShortHash.h"
 #include "crypto/StrKey.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"

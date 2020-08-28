@@ -13,6 +13,7 @@
 #include "util/Math.h"
 #include "xdrpp/marshal.h"
 #include <fmt/format.h>
+#include <lib/json/json.h>
 #include <xdrpp/autocheck.h>
 
 using namespace stellar;

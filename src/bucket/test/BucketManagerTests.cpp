@@ -16,6 +16,7 @@
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/BucketTests.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/test/HistoryTestsUtils.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"

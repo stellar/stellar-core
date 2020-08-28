@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <lib/json/json.h>
+#include <sstream>
 
 namespace stellar
 {

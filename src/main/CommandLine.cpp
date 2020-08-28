@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandLine.h"
+#include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
 #include "herder/Herder.h"
 #include "history/HistoryArchiveManager.h"

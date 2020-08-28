@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "lib/catch.hpp"
+#include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "transactions/TransactionUtils.h"
