@@ -274,6 +274,13 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
+clara::Opt
+inMemoryParser(bool& inMemory)
+{
+    return clara::Opt{inMemory}["--in-memory"](
+        "store working ledger in memory rather than database");
+};
+
 int
 runWithHelp(CommandLineArgs const& args,
             std::vector<ParserWithValidation> parsers, std::function<int()> f)
@@ -517,6 +524,7 @@ runCatchup(CommandLineArgs const& args)
     std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
     bool replayInMemory = false;
+    bool inMemory = false;
     std::string stream;
 
     auto validateCatchupString = [&] {
@@ -564,7 +572,7 @@ runCatchup(CommandLineArgs const& args)
 
     auto replayInMemoryParser = [](bool& replayInMemory) {
         return clara::Opt{replayInMemory}["--replay-in-memory"](
-            "don't use a database, just replay ledgers in memory");
+            "deprecated: use --in-memory flag, common to 'catchup' and 'run'");
     };
 
     return runWithHelp(
@@ -574,7 +582,7 @@ runCatchup(CommandLineArgs const& args)
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
-         replayInMemoryParser(replayInMemory),
+         replayInMemoryParser(replayInMemory), inMemoryParser(inMemory),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -595,7 +603,7 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
             }
 
-            if (replayInMemory)
+            if (inMemory || replayInMemory)
             {
                 // Adjust configs for in-memory-replay mode
                 config.DATABASE = SecretValue{"sqlite3://:memory:"};
