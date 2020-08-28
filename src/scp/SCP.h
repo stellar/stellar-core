@@ -94,6 +94,10 @@ class SCP
     // returns the latest messages sent for the given slot
     std::vector<SCPEnvelope> getLatestMessagesSend(uint64 slotIndex);
 
+    // Emit latest saved envelope for slotIndex if it is validated
+    // and has not been emitted yet
+    void sendExternalizeForSlot(uint64 slotIndex);
+
     // forces the state to match the one in the envelope
     // this is used when rebuilding the state after a crash for example
     void setStateFromEnvelope(uint64 slotIndex, SCPEnvelopeWrapperPtr e);
@@ -127,6 +131,10 @@ class SCP
     std::string envToStr(SCPEnvelope const& envelope,
                          bool fullKeys = false) const;
     std::string envToStr(SCPStatement const& st, bool fullKeys = false) const;
+
+    // iterates through slots up to and including slotIndex, marking them as
+    // validated
+    void setValidatedUpToIndex(uint64 slotIndex);
 
   protected:
     std::shared_ptr<LocalNode> mLocalNode;

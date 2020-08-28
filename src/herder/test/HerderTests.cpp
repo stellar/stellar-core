@@ -1964,6 +1964,21 @@ TEST_CASE("values externalized out of order", "[herder]")
             }
         }
 
+        // Ensure C sent EXTERNALIZE messages for buffered ledgers it closed
+        for (auto const& ledger : ledgers)
+        {
+            bool found = false;
+            for (auto const& msg :
+                 herderC.getSCP().getLatestMessagesSend(ledger))
+            {
+                if (msg.statement.pledges.type() == SCP_ST_EXTERNALIZE)
+                {
+                    found = true;
+                }
+            }
+            REQUIRE(found);
+        }
+
         // As we're back in sync now, ensure Herder and LM are consistent with
         // each other
         auto lcl = lmC.getLastClosedLedgerNum();

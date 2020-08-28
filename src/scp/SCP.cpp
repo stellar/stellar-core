@@ -258,6 +258,16 @@ SCP::getLatestMessage(NodeID const& id)
     return nullptr;
 }
 
+void
+SCP::sendExternalizeForSlot(uint64 slotIndex)
+{
+    auto it = mKnownSlots.find(slotIndex);
+    if (it != mKnownSlots.end())
+    {
+        it->second->sendExternalizeMessage();
+    }
+}
+
 std::vector<SCPEnvelope>
 SCP::getExternalizingState(uint64 slotIndex)
 {
@@ -383,5 +393,18 @@ SCP::envToStr(SCPStatement const& st, bool fullKeys) const
 
     oss << " }";
     return oss.str();
+}
+
+void
+SCP::setValidatedUpToIndex(uint64 slotIndex)
+{
+    for (auto const& slot : mKnownSlots)
+    {
+        if (slot.first <= slotIndex && slot.second &&
+            !slot.second->isFullyValidated())
+        {
+            slot.second->setFullyValidated(true);
+        }
+    }
 }
 }

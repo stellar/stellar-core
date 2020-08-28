@@ -154,6 +154,9 @@ class BallotProtocol
     // returns all values referenced by a statement
     static std::set<Value> getStatementValues(SCPStatement const& st);
 
+    // Send latest envelope if phase is EXTERNALIZE and slot is fully validated
+    void emitExternalizeMessage();
+
   private:
     // attempts to make progress using the latest statement as a hint
     // calls into the various attempt* methods, emits message

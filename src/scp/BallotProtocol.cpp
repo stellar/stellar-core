@@ -1997,6 +1997,18 @@ BallotProtocol::validateValues(SCPStatement const& st)
 }
 
 void
+BallotProtocol::emitExternalizeMessage()
+{
+    if (mPhase == SCP_PHASE_EXTERNALIZE)
+    {
+        // sendLatestEnvelope ensures slot is validated
+        // and no-ops if last envelope has already been
+        // emitted
+        sendLatestEnvelope();
+    }
+}
+
+void
 BallotProtocol::sendLatestEnvelope()
 {
     ZoneScoped;

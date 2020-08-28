@@ -57,6 +57,15 @@ Slot::getLatestMessagesSend() const
 }
 
 void
+Slot::sendExternalizeMessage()
+{
+    if (mFullyValidated)
+    {
+        mBallotProtocol.emitExternalizeMessage();
+    }
+}
+
+void
 Slot::setStateFromEnvelope(SCPEnvelopeWrapperPtr env)
 {
     auto& e = env->getEnvelope();

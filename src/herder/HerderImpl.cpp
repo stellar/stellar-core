@@ -208,6 +208,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
     ZoneScoped;
     const int DUMP_SCP_TIMEOUT_SECONDS = 20;
+    const uint32_t MAX_EXTERNALIZE_MESSAGES_TO_EMIT = 5;
+
     // SCPDriver always updates tracking for latest slots
     bool isLatestSlot = slotIndex == getCurrentLedgerSeq();
 
@@ -264,9 +266,28 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     }
     else
     {
+        // Remember old LCL in case it changes
+        auto const lcl = mLedgerManager.getLastClosedLedgerNum();
+
         // This may trigger getting back in sync (buffered ledgers
         // application)
         processExternalized(slotIndex, value);
+
+        // If LM closed some ledgers, those are considered "validated" now
+        auto const newLcl = mLedgerManager.getLastClosedLedgerNum();
+        if (lcl != newLcl)
+        {
+            // First, set all slots processed to valid
+            getSCP().setValidatedUpToIndex(newLcl);
+
+            // Second, emit a few recent EXTERNALIZE messages
+            uint32_t limit =
+                std::max(newLcl - MAX_EXTERNALIZE_MESSAGES_TO_EMIT, lcl);
+            for (uint32_t ledger = limit + 1; ledger <= newLcl; ledger++)
+            {
+                getSCP().sendExternalizeForSlot(ledger);
+            }
+        }
 
         // Any ledgers processed by Herder must have been buffered in LM.
         // If LM applied them all, Herder and LM must now be consistent with
