@@ -275,7 +275,9 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
 }
 
 void
-maybeEnableInMemoryLedgerMode(Config& config, bool inMemory)
+maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
+                              uint32_t startAtLedger,
+                              std::string const& startAtHash)
 {
     // Adjust configs for in-memory-replay mode
     config.DATABASE = SecretValue{"sqlite3://:memory:"};
@@ -292,6 +294,20 @@ inMemoryParser(bool& inMemory)
 {
     return clara::Opt{inMemory}["--in-memory"](
         "store working ledger in memory rather than database");
+};
+
+clara::Opt
+startAtLedgerParser(uint32_t& startAtLedger)
+{
+    return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
+        "start in-memory run with replay from historical ledger number");
+};
+
+clara::Opt
+startAtHashParser(std::string& startAtHash)
+{
+    return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
+        "start in-memory run with replay from historical ledger hash");
 };
 
 int
@@ -538,6 +554,8 @@ runCatchup(CommandLineArgs const& args)
     bool completeValidation = false;
     bool replayInMemory = false;
     bool inMemory = false;
+    uint32_t startAtLedger = 0;
+    std::string startAtHash;
     std::string stream;
 
     auto validateCatchupString = [&] {
@@ -596,6 +614,7 @@ runCatchup(CommandLineArgs const& args)
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
          replayInMemoryParser(replayInMemory), inMemoryParser(inMemory),
+         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -616,7 +635,8 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
             }
 
-            maybeEnableInMemoryLedgerMode(config, (inMemory || replayInMemory));
+            maybeEnableInMemoryLedgerMode(config, (inMemory || replayInMemory),
+                                          startAtLedger, startAtHash);
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
@@ -957,6 +977,8 @@ run(CommandLineArgs const& args)
     std::string stream;
     bool inMemory = false;
     bool waitForConsensus = false;
+    uint32_t startAtLedger = 0;
+    std::string startAtHash;
 
     auto simulateParser = [](uint32_t& simulateSleepPerOp) {
         return clara::Opt{simulateSleepPerOp,
@@ -969,7 +991,8 @@ run(CommandLineArgs const& args)
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
          simulateParser(simulateSleepPerOp), metadataOutputStreamParser(stream),
-         inMemoryParser(inMemory), waitForConsensusParser(waitForConsensus)},
+         inMemoryParser(inMemory), waitForConsensusParser(waitForConsensus),
+         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
         [&] {
             Config cfg;
             try
@@ -986,7 +1009,8 @@ run(CommandLineArgs const& args)
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
-                maybeEnableInMemoryLedgerMode(cfg, inMemory);
+                maybeEnableInMemoryLedgerMode(cfg, inMemory, startAtLedger,
+                                              startAtHash);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
