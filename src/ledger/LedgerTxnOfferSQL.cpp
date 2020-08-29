@@ -698,7 +698,17 @@ LedgerTxnRoot::Impl::dropOffers()
            "PRIMARY KEY      (offerid)"
            ");";
     mDatabase.getSession() << "CREATE INDEX bestofferindex ON offers "
-                              "(sellingasset,buyingasset,price);";
+                              "(sellingasset,buyingasset,price,offerid);";
+    if (!mDatabase.isSqlite())
+    {
+        mDatabase.getSession() << "ALTER TABLE offers "
+                               << "ALTER COLUMN sellerid "
+                               << "TYPE VARCHAR(56) COLLATE \"C\", "
+                               << "ALTER COLUMN buyingasset "
+                               << "TYPE TEXT COLLATE \"C\", "
+                               << "ALTER COLUMN sellingasset "
+                               << "TYPE TEXT COLLATE \"C\"";
+    }
 }
 
 class BulkLoadOffersOperation

@@ -484,6 +484,12 @@ LedgerTxnRoot::Impl::dropAccounts()
            "signers            TEXT,"
            "lastmodified       INT          NOT NULL"
            ");";
+    if (!mDatabase.isSqlite())
+    {
+        mDatabase.getSession() << "ALTER TABLE accounts "
+                               << "ALTER COLUMN accountid "
+                               << "TYPE VARCHAR(56) COLLATE \"C\"";
+    }
 }
 
 class BulkLoadAccountsOperation
