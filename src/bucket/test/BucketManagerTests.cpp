@@ -574,11 +574,11 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
 
     for (auto const& bmr : bmRefBuckets)
     {
-        CLOG(DEBUG, "Bucket") << "bucketmanager ref: " << bmr;
+        CLOG(DEBUG, "Bucket") << "bucketmanager ref: " << binToHex(bmr);
     }
     for (auto const& bmd : bmDirBuckets)
     {
-        CLOG(DEBUG, "Bucket") << "bucketmanager dir: " << bmd;
+        CLOG(DEBUG, "Bucket") << "bucketmanager dir: " << binToHex(bmd);
     }
     REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
 }
