@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/Herder.h"
+#include "herder/PendingEnvelopes.h"
 #include "herder/TxSetFrame.h"
 #include "scp/SCPDriver.h"
 #include "xdr/Stellar-ledger.h"
@@ -43,8 +44,7 @@ class HerderSCPDriver : public SCPDriver
     };
 
     HerderSCPDriver(Application& app, HerderImpl& herder,
-                    Upgrades const& upgrades,
-                    PendingEnvelopes& pendingEnvelopes);
+                    Upgrades const& upgrades);
     ~HerderSCPDriver();
 
     void bootstrap();
@@ -164,13 +164,15 @@ class HerderSCPDriver : public SCPDriver
     // semantics change?
     bool curProtocolPreservesTxSetCloseTimeAffinity() const;
 
+    PendingEnvelopes& getPendingEnvelopes();
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
     LedgerManager& mLedgerManager;
     Upgrades const& mUpgrades;
-    PendingEnvelopes& mPendingEnvelopes;
     SCP mSCP;
+    PendingEnvelopes mPendingEnvelopes;
 
     static uint32_t const FIRST_PROTOCOL_WITH_TXSET_CLOSETIME_AFFINITY;
 
@@ -245,7 +247,7 @@ class HerderSCPDriver : public SCPDriver
 
     SCPDriver::ValidationLevel validateValueHelper(uint64_t slotIndex,
                                                    StellarValue const& sv,
-                                                   bool nomination) const;
+                                                   bool nomination);
 
     void logQuorumInformation(uint64_t index);
 

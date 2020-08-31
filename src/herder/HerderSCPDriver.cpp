@@ -53,15 +53,14 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
-                                 Upgrades const& upgrades,
-                                 PendingEnvelopes& pendingEnvelopes)
+                                 Upgrades const& upgrades)
     : mApp{app}
     , mHerder{herder}
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
-    , mPendingEnvelopes{pendingEnvelopes}
     , mSCP{*this, mApp.getConfig().NODE_SEED.getPublicKey(),
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET}
+    , mPendingEnvelopes{app, herder}
     , mSCPMetrics{mApp}
     , mNominateTimeout{mApp.getMetrics().NewHistogram(
           {"scp", "timeout", "nominate"})}
@@ -205,7 +204,7 @@ HerderSCPDriver::checkCloseTime(uint64_t slotIndex, uint64_t lastCloseTime,
 
 SCPDriver::ValidationLevel
 HerderSCPDriver::validateValueHelper(uint64_t slotIndex, StellarValue const& b,
-                                     bool nomination) const
+                                     bool nomination)
 {
     uint64_t lastCloseTime;
     ZoneScoped;
@@ -1119,5 +1118,11 @@ HerderSCPDriver::wrapStellarValue(StellarValue const& sv)
     auto val = xdr::xdr_to_opaque(sv);
     auto res = std::make_shared<SCPHerderValueWrapper>(sv, val, mHerder);
     return res;
+}
+
+PendingEnvelopes&
+HerderSCPDriver::getPendingEnvelopes()
+{
+    return mPendingEnvelopes;
 }
 }

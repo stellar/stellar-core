@@ -146,9 +146,9 @@ class HerderImpl : public Herder
     void
     updateTransactionQueue(std::vector<TransactionFrameBasePtr> const& applied);
 
-    PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
+    PendingEnvelopes& mPendingEnvelopes;
 
     void herderOutOfSync();
 
