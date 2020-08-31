@@ -332,6 +332,11 @@ AC_ARG_ENABLE(tracy-capture,
         [Enable 'tracy' profiler/tracer capture program]))
 AM_CONDITIONAL(USE_TRACY_CAPTURE, [test x$enable_tracy_capture = xyes])
 
+AC_ARG_ENABLE(easylogging,
+    AS_HELP_STRING([--disable-easylogging],
+        [Disable easylogging]))
+AM_CONDITIONAL(USE_EASYLOGGING, [test x$enable_easylogging != xno])
+
 # Need this to pass through ccache for xdrpp, libsodium
 esc() {
     out=

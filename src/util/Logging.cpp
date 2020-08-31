@@ -2,8 +2,141 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#ifndef USE_EASYLOGGING
+
 #include "util/Logging.h"
+#include "util/types.h"
+
+namespace stellar
+{
+
+std::array<std::string const, 14> const Logging::kPartitionNames = {
+    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",   "Ledger",
+    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant", "Perf"};
+
+el::Level Logging::mLogLevel = el::Level::INFO;
+
+// Right now this is hard-coded to log messages at least as important as INFO
+CoutLogger::CoutLogger(el::Level l) : mShouldLog(l <= Logging::getLogLevel(""))
+{
+}
+
+CoutLogger::~CoutLogger()
+{
+    if (mShouldLog)
+    {
+        std::cout << std::endl;
+    }
+}
+
+void
+Logging::init()
+{
+}
+
+void
+Logging::setFmt(std::string const& peerID, bool timestamps)
+{
+}
+
+void
+Logging::setLoggingToFile(std::string const& filename)
+{
+}
+
+void
+Logging::setLogLevel(el::Level level, const char* partition)
+{
+    mLogLevel = level;
+}
+
+el::Level
+Logging::getLLfromString(std::string const& levelName)
+{
+    if (iequals(levelName, "fatal"))
+    {
+        return el::Level::FATAL;
+    }
+
+    if (iequals(levelName, "error"))
+    {
+        return el::Level::ERROR;
+    }
+
+    if (iequals(levelName, "warning"))
+    {
+        return el::Level::WARNING;
+    }
+
+    if (iequals(levelName, "debug"))
+    {
+        return el::Level::DEBUG;
+    }
+
+    if (iequals(levelName, "trace"))
+    {
+        return el::Level::TRACE;
+    }
+
+    return el::Level::INFO;
+}
+
+el::Level
+Logging::getLogLevel(std::string const& partition)
+{
+    return mLogLevel;
+}
+
+std::string
+Logging::getStringFromLL(el::Level level)
+{
+    switch (level)
+    {
+    case el::Level::FATAL:
+        return "Fatal";
+    case el::Level::ERROR:
+        return "Error";
+    case el::Level::WARNING:
+        return "Warning";
+    case el::Level::INFO:
+        return "Info";
+    case el::Level::DEBUG:
+        return "Debug";
+    case el::Level::TRACE:
+        return "Trace";
+    }
+    return "????";
+}
+
+bool
+Logging::logDebug(std::string const& partition)
+{
+    return mLogLevel <= el::Level::DEBUG;
+}
+
+bool
+Logging::logTrace(std::string const& partition)
+{
+    return mLogLevel <= el::Level::TRACE;
+}
+
+void
+Logging::rotate()
+{
+}
+
+// throws if partition name is not recognized
+std::string
+Logging::normalizePartition(std::string const& partition)
+{
+    return partition;
+}
+}
+
+#else // USE_EASYLOGGING defined
+
 #include "main/Application.h"
+#include "util/Logging.h"
 #include "util/types.h"
 #include <list>
 
@@ -319,3 +452,5 @@ Logging::normalizePartition(std::string const& partition)
     throw std::invalid_argument("not a valid partition");
 }
 }
+
+#endif // USE_EASYLOGGING
