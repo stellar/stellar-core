@@ -14,12 +14,15 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/SignatureUtils.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
+
+#include <algorithm>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -265,6 +268,32 @@ TEST_CASE("set options", "[tx][setoptions]")
             });
         }
 
+        SECTION("too many signers")
+        {
+            for_all_versions(*app, [&]() {
+                for (size_t i = 0; i <= MAX_SIGNERS; ++i)
+                {
+                    Signer signer;
+                    {
+                        auto sk = SecretKey::pseudoRandomForTesting();
+                        auto const& pk = sk.getPublicKey();
+                        signer.key = KeyUtils::convertKey<SignerKey>(pk);
+                        signer.weight = 1;
+                    }
+
+                    if (i < MAX_SIGNERS)
+                    {
+                        root.setOptions(setSigner(signer));
+                    }
+                    else
+                    {
+                        REQUIRE_THROWS_AS(root.setOptions(setSigner(signer)),
+                                          ex_SET_OPTIONS_TOO_MANY_SIGNERS);
+                    }
+                }
+            });
+        }
+
         SECTION("sponsorship")
         {
             auto const minBalance0 =
@@ -294,6 +323,212 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             tooManySponsoring(*app, a1, a1.op(setOptions(setSigner(signer1))),
                               a1.op(setOptions(setSigner(signer2))));
+        }
+
+        SECTION("delete signer that does not exist with sponsorships")
+        {
+            for_versions_from(14, *app, [&]() {
+                auto s2 = getAccount("S2");
+                auto s3 = getAccount("S3");
+
+                auto const minBalance1 =
+                    app->getLedgerManager().getLastMinBalance(1);
+                auto acc1 = root.create("a1", minBalance1);
+
+                AccountEntryExtensionV2 extV2;
+                {
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(sponsorFutureReserves(acc1)),
+                         acc1.op(setOptions(setSigner(makeSigner(s1, 1)))),
+                         acc1.op(confirmAndClearSponsor()),
+                         acc1.op(setOptions(setSigner(makeSigner(s2, 1))))},
+                        {acc1.getSecretKey()});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+
+                    checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
+                                     0, 1);
+                    auto ltxe = stellar::loadAccount(ltx, acc1.getPublicKey());
+                    auto const& ae = ltxe.current().data.account();
+                    extV2 = ae.ext.v1().ext.v2();
+
+                    REQUIRE(ae.signers.size() == 2);
+                    REQUIRE(extV2.signerSponsoringIDs.size() == 2);
+                    if (makeSigner(s1, 1).key < makeSigner(s2, 1).key)
+                    {
+                        REQUIRE(ae.signers[0] == makeSigner(s1, 1));
+                        REQUIRE(ae.signers[1] == makeSigner(s2, 1));
+                        REQUIRE(*extV2.signerSponsoringIDs[0] ==
+                                root.getPublicKey());
+                        REQUIRE(!extV2.signerSponsoringIDs[1]);
+                    }
+                    else
+                    {
+                        REQUIRE(ae.signers[0] == makeSigner(s2, 1));
+                        REQUIRE(ae.signers[1] == makeSigner(s1, 1));
+                        REQUIRE(!extV2.signerSponsoringIDs[0]);
+                        REQUIRE(*extV2.signerSponsoringIDs[1] ==
+                                root.getPublicKey());
+                    }
+
+                    ltx.commit();
+                }
+
+                {
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {acc1.op(setOptions(setSigner(makeSigner(s3, 0))))},
+                        {acc1.getSecretKey()});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+
+                    checkSponsorship(ltx, acc1.getPublicKey(), 0, nullptr, 2, 2,
+                                     0, 1);
+                    auto ltxe = stellar::loadAccount(ltx, acc1.getPublicKey());
+                    REQUIRE(extV2 ==
+                            ltxe.current().data.account().ext.v1().ext.v2());
+                    ltx.commit();
+                }
+            });
+        }
+
+        SECTION("add and remove many signers, some with sponsorships")
+        {
+            auto const minBal1 = app->getLedgerManager().getLastMinBalance(1);
+
+            typedef std::pair<Signer, std::shared_ptr<TestAccount>>
+                SignerAndSponsor;
+            std::vector<SignerAndSponsor> signers;
+
+            auto checkSigners = [&]() {
+                auto sortedSigners = signers;
+                std::sort(sortedSigners.begin(), sortedSigners.end(),
+                          [](auto const& lhs, auto const& rhs) {
+                              return lhs.first.key < rhs.first.key;
+                          });
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                auto rootAcc = stellar::loadAccount(ltx, root.getPublicKey());
+                auto const& ae = rootAcc.current().data.account();
+
+                REQUIRE(ae.signers.size() == sortedSigners.size());
+                if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+                {
+                    auto const& extV2 = ae.ext.v1().ext.v2();
+                    REQUIRE(extV2.signerSponsoringIDs.size() ==
+                            sortedSigners.size());
+                    for (size_t i = 0; i < sortedSigners.size(); ++i)
+                    {
+                        REQUIRE(ae.signers[i] == sortedSigners[i].first);
+                        if (extV2.signerSponsoringIDs[i])
+                        {
+                            REQUIRE(sortedSigners[i].second);
+                            REQUIRE(*extV2.signerSponsoringIDs[i] ==
+                                    sortedSigners[i].second->getPublicKey());
+                        }
+                        else
+                        {
+                            REQUIRE(!sortedSigners[i].second);
+                        }
+                    }
+                }
+                else
+                {
+                    REQUIRE(
+                        std::all_of(sortedSigners.begin(), sortedSigners.end(),
+                                    [](auto const& s) { return !s.second; }));
+                }
+            };
+
+            auto addSigner = [&]() {
+                Signer signer;
+                {
+                    auto sk = SecretKey::pseudoRandomForTesting();
+                    auto const& pk = sk.getPublicKey();
+                    signer.key = KeyUtils::convertKey<SignerKey>(pk);
+                    signer.weight = 1;
+                }
+
+                std::vector<Operation> ops;
+                std::vector<SecretKey> keys;
+                ops.emplace_back(root.op(setOptions(setSigner(signer))));
+
+                std::uniform_int_distribution<size_t> dist(0, 1);
+                if (dist(gRandomEngine))
+                {
+                    auto sk = SecretKey::pseudoRandomForTesting();
+                    keys.emplace_back(sk);
+
+                    auto sponsor =
+                        std::make_shared<TestAccount>(root.create(sk, minBal1));
+                    signers.push_back({signer, sponsor});
+
+                    ops.insert(ops.begin(),
+                               sponsor->op(sponsorFutureReserves(root)));
+                    ops.emplace_back(root.op(confirmAndClearSponsor()));
+                }
+                else
+                {
+                    signers.push_back({signer, nullptr});
+                }
+
+                auto tx = transactionFrameFromOps(app->getNetworkID(), root,
+                                                  ops, keys);
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(tx->apply(*app, ltx, txm));
+                ltx.commit();
+
+                checkSigners();
+            };
+
+            auto removeSigner = [&]() {
+                REQUIRE(!signers.empty());
+                auto signer = signers.back().first;
+                signer.weight = 0;
+                root.setOptions(setSigner(signer));
+
+                signers.pop_back();
+                checkSigners();
+            };
+
+            for_versions_from(14, *app, [&]() {
+                std::uniform_int_distribution<size_t> dist(0, 2);
+
+                // 67% change to add, 33% chance to remove
+                while (signers.size() < MAX_SIGNERS)
+                {
+                    if (dist(gRandomEngine))
+                    {
+                        addSigner();
+                    }
+                    else if (!signers.empty())
+                    {
+                        removeSigner();
+                    }
+                }
+
+                // 33% change to add, 67% chance to remove
+                while (!signers.empty())
+                {
+                    if (dist(gRandomEngine))
+                    {
+                        removeSigner();
+                    }
+                    else if (signers.size() < MAX_SIGNERS)
+                    {
+                        addSigner();
+                    }
+                }
+            });
         }
     }
 
