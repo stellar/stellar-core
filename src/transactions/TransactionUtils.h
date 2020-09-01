@@ -175,4 +175,6 @@ bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
+
+bool hasAccountEntryExtV2(AccountEntry const& ae);
 }

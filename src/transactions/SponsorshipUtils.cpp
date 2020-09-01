@@ -97,7 +97,7 @@ uint32_t
 getNumSponsored(LedgerEntry const& le)
 {
     auto const& ae = le.data.account();
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         return ae.ext.v1().ext.v2().numSponsored;
     }
@@ -108,7 +108,7 @@ uint32_t
 getNumSponsoring(LedgerEntry const& le)
 {
     auto const& ae = le.data.account();
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         return ae.ext.v1().ext.v2().numSponsoring;
     }
@@ -126,7 +126,7 @@ isSignerSponsored(std::vector<Signer>::const_iterator const& signerIt,
         return IsSignerSponsoredResult::DOES_NOT_EXIST;
     }
 
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         auto const& extV2 = ae.ext.v1().ext.v2();
         size_t n = signerIt - ae.signers.begin();
@@ -655,7 +655,7 @@ removeSignerWithoutSponsorship(
 {
     auto& ae = acc.data.account();
     --ae.numSubEntries;
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         size_t n = signerIt - ae.signers.begin();
         auto& extV2 = ae.ext.v1().ext.v2();
@@ -820,7 +820,7 @@ removeSignerWithPossibleSponsorship(
 {
     AccountID const* sponsoringID = nullptr;
     auto const& ae = acc.current().data.account();
-    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+    if (hasAccountEntryExtV2(ae))
     {
         size_t n = signerIt - ae.signers.begin();
         auto const& extV2 = ae.ext.v1().ext.v2();

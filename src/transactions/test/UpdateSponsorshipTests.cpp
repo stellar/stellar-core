@@ -185,26 +185,65 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
             SECTION("signer")
             {
-                auto cur1 = makeAsset(root, "CUR1");
-                auto a1 = root.create("a1", minBal(2));
-                auto signer = makeSigner(getAccount("S1"), 1);
-                a1.setOptions(setSigner(signer));
-                auto tx = transactionFrameFromOps(
-                    app->getNetworkID(), a1,
-                    {root.op(sponsorFutureReserves(a1)),
-                     a1.op(updateSponsorship(a1, signer.key)),
-                     a1.op(confirmAndClearSponsor())},
-                    {root});
+                auto sponsorSigner = [&](bool hasSponsoredEntry) {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto a1 = root.create("a1", minBal(2));
+                    auto signer = makeSigner(getAccount("S1"), 1);
+                    a1.setOptions(setSigner(signer));
 
-                LedgerTxn ltx(app->getLedgerTxnRoot());
-                TransactionMeta txm(2);
-                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
-                REQUIRE(tx->apply(*app, ltx, txm));
+                    // adding a sponsored entry before sponsoring the signer
+                    // will guarantee that the account is a V2 extension
+                    if (hasSponsoredEntry)
+                    {
+                        auto tx = transactionFrameFromOps(
+                            app->getNetworkID(), root,
+                            {root.op(sponsorFutureReserves(a1)),
+                             a1.op(changeTrust(cur1, 1000)),
+                             a1.op(confirmAndClearSponsor())},
+                            {a1});
 
-                checkSponsorship(ltx, a1, signer.key, 2, &root.getPublicKey());
-                checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
-                checkSponsorship(ltx, root, 0, nullptr, 0, 2, 1, 0);
-                ltx.commit();
+                        LedgerTxn ltx(app->getLedgerTxnRoot());
+                        TransactionMeta txm(2);
+                        REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                        REQUIRE(tx->apply(*app, ltx, txm));
+                        ltx.commit();
+                    }
+
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), a1,
+                        {root.op(sponsorFutureReserves(a1)),
+                         a1.op(updateSponsorship(a1, signer.key)),
+                         a1.op(confirmAndClearSponsor())},
+                        {root});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm));
+
+                    checkSponsorship(ltx, a1, signer.key, 2,
+                                     &root.getPublicKey());
+                    if (hasSponsoredEntry)
+                    {
+                        checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 2);
+                        checkSponsorship(ltx, root, 0, nullptr, 0, 2, 2, 0);
+                    }
+                    else
+                    {
+                        checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
+                        checkSponsorship(ltx, root, 0, nullptr, 0, 2, 1, 0);
+                    }
+                    ltx.commit();
+                };
+
+                SECTION("Account has sponsored entry")
+                {
+                    sponsorSigner(true);
+                }
+                SECTION("Signer is the only sponsorship")
+                {
+                    sponsorSigner(false);
+                }
             }
 
             SECTION("claimable balances")
@@ -576,6 +615,299 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             tooManySponsoring(
                 *app, a1, a1.op(updateSponsorship(claimableBalanceKey(id1))),
                 a1.op(updateSponsorship(claimableBalanceKey(id2))));
+        }
+    }
+
+    SECTION("failure tests")
+    {
+        SECTION("does not exist")
+        {
+            auto a1 = root.create("a1", minBal(1));
+            auto cur1 = makeAsset(root, "CUR1");
+
+            SECTION("entry")
+            {
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), a1,
+                    {a1.op(updateSponsorship(trustlineKey(a1, cur1)))}, {});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!tx->apply(*app, ltx, txm));
+
+                REQUIRE(getUpdateSponsorshipResultCode(tx, 0) ==
+                        REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+
+                checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
+                checkSponsorship(ltx, root, 0, nullptr, 0, 0, 0, 0);
+            }
+
+            SECTION("signer")
+            {
+                auto s1 = getAccount("S1");
+                auto signer = makeSigner(s1, 1);
+
+                // signer with unknown account
+                auto tx = transactionFrameFromOps(
+                    app->getNetworkID(), a1,
+                    {a1.op(updateSponsorship(s1.getPublicKey(), signer.key))},
+                    {});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!tx->apply(*app, ltx, txm));
+
+                REQUIRE(getUpdateSponsorshipResultCode(tx, 0) ==
+                        REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+
+                // known account, but unknown signer
+                auto tx2 = transactionFrameFromOps(
+                    app->getNetworkID(), a1,
+                    {a1.op(updateSponsorship(a1, signer.key))}, {});
+
+                TransactionMeta txm2(2);
+                REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!tx2->apply(*app, ltx, txm));
+
+                REQUIRE(getUpdateSponsorshipResultCode(tx2, 0) ==
+                        REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+
+                checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
+                checkSponsorship(ltx, root, 0, nullptr, 0, 0, 0, 0);
+            }
+        }
+        SECTION("not sponsor")
+        {
+            auto cur1 = makeAsset(root, "CUR1");
+            auto a1 = root.create("a1", minBal(2));
+            auto a2 = root.create("a2", minBal(1));
+
+            auto s1 = getAccount("S1");
+            auto signer = makeSigner(s1, 1);
+
+            auto notSponsorTest = [&](bool isSponsored, bool entryTest) {
+                if (isSponsored)
+                {
+                    Operation op = entryTest
+                                       ? a1.op(changeTrust(cur1, 1000))
+                                       : a1.op(setOptions(setSigner(signer)));
+
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(sponsorFutureReserves(a1)), op,
+                         a1.op(confirmAndClearSponsor())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx->apply(*app, ltx, txm1));
+                    checkSponsorship(ltx, a1, 0, &root.getPublicKey(), 1, 2, 0,
+                                     1);
+                    ltx.commit();
+                }
+                else
+                {
+                    if (entryTest)
+                    {
+                        a1.changeTrust(cur1, 1000);
+                    }
+                    else
+                    {
+                        a1.setOptions(setSigner(signer));
+                    }
+                }
+
+                Operation op =
+                    entryTest ? a2.op(updateSponsorship(trustlineKey(a1, cur1)))
+                              : a2.op(updateSponsorship(a1, signer.key));
+
+                auto tx =
+                    transactionFrameFromOps(app->getNetworkID(), a2, {op}, {});
+
+                LedgerTxn ltx(app->getLedgerTxnRoot());
+                TransactionMeta txm1(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!tx->apply(*app, ltx, txm1));
+
+                REQUIRE(getUpdateSponsorshipResultCode(tx, 0) ==
+                        REVOKE_SPONSORSHIP_NOT_SPONSOR);
+
+                if (isSponsored)
+                {
+                    // remove sponsorship, so we can hit the NOT_SPONSOR case
+                    // for a V1 ledger entry without a sponsoringID
+                    Operation opRemoveSponsorship =
+                        entryTest
+                            ? root.op(updateSponsorship(trustlineKey(a1, cur1)))
+                            : root.op(updateSponsorship(a1, signer.key));
+
+                    auto tx2 = transactionFrameFromOps(
+                        app->getNetworkID(), root, {opRemoveSponsorship}, {});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx2->apply(*app, ltx, txm2));
+                    checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
+
+                    auto tx3 = transactionFrameFromOps(app->getNetworkID(), a2,
+                                                       {op}, {});
+
+                    TransactionMeta txm3(2);
+                    REQUIRE(tx3->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!tx3->apply(*app, ltx, txm3));
+
+                    REQUIRE(getUpdateSponsorshipResultCode(tx3, 0) ==
+                            REVOKE_SPONSORSHIP_NOT_SPONSOR);
+                }
+            };
+
+            SECTION("entry is sponsored. transfer using wrong sponsoring "
+                    "account")
+            {
+                notSponsorTest(true, true);
+            }
+            SECTION("entry is not sponsored. transfer from wrong source "
+                    "account")
+            {
+                notSponsorTest(false, true);
+            }
+            SECTION("signer is sponsored. transfer using wrong sponsoring "
+                    "account")
+            {
+                notSponsorTest(true, false);
+            }
+            SECTION("signer is not sponsored. transfer from wrong source "
+                    "account")
+            {
+                notSponsorTest(false, false);
+            }
+        }
+        SECTION("low reserve")
+        {
+            auto s1 = getAccount("S1");
+            auto signer = makeSigner(s1, 1);
+
+            auto lowReserveTest = [&](bool entryTest) {
+                SECTION("transfer sponsorship")
+                {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto a1 = root.create("a1", minBal(0));
+                    auto a2 = root.create("a2", minBal(0));
+
+                    Operation middleOpTx1 =
+                        entryTest ? a1.op(changeTrust(cur1, 1000))
+                                  : a1.op(setOptions(setSigner(signer)));
+                    auto tx1 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(sponsorFutureReserves(a1)), middleOpTx1,
+                         a1.op(confirmAndClearSponsor())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx1->apply(*app, ltx, txm1));
+
+                    Operation middleOpTx2 =
+                        entryTest
+                            ? root.op(updateSponsorship(trustlineKey(a1, cur1)))
+                            : root.op(updateSponsorship(a1, signer.key));
+
+                    auto tx2 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {a2.op(sponsorFutureReserves(root)), middleOpTx2,
+                         root.op(confirmAndClearSponsor())},
+                        {a2});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!tx2->apply(*app, ltx, txm2));
+
+                    REQUIRE(getUpdateSponsorshipResultCode(tx2, 1) ==
+                            REVOKE_SPONSORSHIP_LOW_RESERVE);
+                }
+                SECTION("remove sponsorship")
+                {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto a1 = root.create("a1", minBal(0));
+                    auto a2 = root.create("a2", minBal(0));
+
+                    Operation middleOpTx1 =
+                        entryTest ? a1.op(changeTrust(cur1, 1000))
+                                  : a1.op(setOptions(setSigner(signer)));
+                    auto tx1 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(sponsorFutureReserves(a1)), middleOpTx1,
+                         a1.op(confirmAndClearSponsor())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx1->apply(*app, ltx, txm1));
+
+                    Operation opTx2 =
+                        entryTest
+                            ? root.op(updateSponsorship(trustlineKey(a1, cur1)))
+                            : root.op(updateSponsorship(a1, signer.key));
+
+                    auto tx2 = transactionFrameFromOps(app->getNetworkID(),
+                                                       root, {opTx2}, {});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!tx2->apply(*app, ltx, txm2));
+
+                    REQUIRE(getUpdateSponsorshipResultCode(tx2, 0) ==
+                            REVOKE_SPONSORSHIP_LOW_RESERVE);
+                }
+                SECTION("establish sponsorship")
+                {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto a1 = root.create("a1", minBal(2));
+                    auto a2 = root.create("a2", minBal(0));
+
+                    if (entryTest)
+                    {
+                        a1.changeTrust(cur1, 1000);
+                    }
+                    else
+                    {
+                        a1.setOptions(setSigner(signer));
+                    }
+
+                    Operation middleOp =
+                        entryTest
+                            ? a1.op(updateSponsorship(trustlineKey(a1, cur1)))
+                            : a1.op(updateSponsorship(a1, signer.key));
+
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {a2.op(sponsorFutureReserves(a1)), middleOp,
+                         a1.op(confirmAndClearSponsor())},
+                        {a1, a2});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!tx->apply(*app, ltx, txm));
+
+                    REQUIRE(getUpdateSponsorshipResultCode(tx, 1) ==
+                            REVOKE_SPONSORSHIP_LOW_RESERVE);
+                }
+            };
+
+            SECTION("entry")
+            {
+                lowReserveTest(true);
+            }
+            SECTION("signer")
+            {
+                lowReserveTest(false);
+            }
         }
     }
 }
