@@ -5,6 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
+#include "util/optional.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-types.h"
 #include <lib/json/json.h>
 #include <memory>
@@ -240,9 +242,14 @@ class Application
     // returns.
     virtual void joinAllThreads() = 0;
 
-    // If config.MANUAL_MODE=true, force the current ledger to close and return
+    // If config.MANUAL_CLOSE=true, force the current ledger to close and return
     // true. Otherwise return false. This method exists only for testing.
-    virtual bool manualClose() = 0;
+    //
+    // Non-default parameters may be specified only if additionally
+    // config.RUN_STANDALONE=true.
+    virtual std::string
+    manualClose(optional<uint32_t> const& manualLedgerSeq,
+                optional<TimePoint> const& manualCloseTime) = 0;
 
 #ifdef BUILD_TESTS
     // If config.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true, generate some load

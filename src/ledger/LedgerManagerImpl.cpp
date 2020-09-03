@@ -761,6 +761,18 @@ LedgerManagerImpl::setLastClosedLedger(
 }
 
 void
+LedgerManagerImpl::manuallyAdvanceLedgerHeader(LedgerHeader const& header)
+{
+    if (!mApp.getConfig().MANUAL_CLOSE || !mApp.getConfig().RUN_STANDALONE)
+    {
+        throw std::logic_error(
+            "May only manually advance ledger header sequence number with "
+            "MANUAL_CLOSE and RUN_STANDALONE");
+    }
+    advanceLedgerPointers(header, false);
+}
+
+void
 LedgerManagerImpl::setupLedgerCloseMetaStream()
 {
     if (mMetaStream)
@@ -794,12 +806,17 @@ LedgerManagerImpl::setupLedgerCloseMetaStream()
 }
 
 void
-LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header)
+LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
+                                         bool debugLog)
 {
     auto ledgerHash = sha256(xdr::xdr_to_opaque(header));
-    CLOG(DEBUG, "Ledger") << "Advancing LCL: "
-                          << ledgerAbbrev(mLastClosedLedger) << " -> "
-                          << ledgerAbbrev(header, ledgerHash);
+
+    if (debugLog)
+    {
+        CLOG(DEBUG, "Ledger")
+            << "Advancing LCL: " << ledgerAbbrev(mLastClosedLedger) << " -> "
+            << ledgerAbbrev(header, ledgerHash);
+    }
 
     mLastClosedLedger.hash = ledgerHash;
     mLastClosedLedger.header = header;

@@ -164,22 +164,6 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "<p>Have fun!</p>";
 }
 
-void
-CommandHandler::manualClose(std::string const& params, std::string& retStr)
-{
-    if (mApp.manualClose())
-    {
-        retStr = "Triggering a new consensus round";
-    }
-    else
-    {
-        retStr = "Set MANUAL_CLOSE=true in the stellar-core.cfg if you want to "
-                 "close every ledger manually. Otherwise, run stellar-core "
-                 "with --wait-for-consensus flag to close ledger once and "
-                 "trigger consensus. Ensure NODE_IS_VALIDATOR is set to true.";
-    }
-}
-
 template <typename T>
 optional<T>
 maybeParseParam(std::map<std::string, std::string> const& map,
@@ -217,6 +201,28 @@ parseParam(std::map<std::string, std::string> const& map,
         throw std::runtime_error(errorMsg);
     }
     return val;
+}
+
+void
+CommandHandler::manualClose(std::string const& params, std::string& retStr)
+{
+    ZoneScoped;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    if (!retMap.empty() && !mApp.getConfig().RUN_STANDALONE)
+    {
+        throw std::invalid_argument(
+            "The 'manualclose' command accepts parameters only if the "
+            "configuration includes RUN_STANDALONE=true.");
+    }
+
+    uint32_t ledgerSeq;
+    auto manualLedgerSeq = maybeParseParam(retMap, "ledgerSeq", ledgerSeq);
+    TimePoint closeTime;
+    auto manualCloseTime = maybeParseParam(retMap, "closeTime", closeTime);
+
+    retStr = mApp.manualClose(manualLedgerSeq, manualCloseTime);
 }
 
 void
