@@ -179,12 +179,7 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
         auto account = LedgerTestUtils::generateValidAccountEntry();
         account.accountID = oe.sellerID;
 
-        int64_t minBalance = 0;
-        {
-            LedgerTxn ltx(app.getLedgerTxnRoot());
-            minBalance =
-                getMinBalance(ltx.loadHeader().current(), account) + oe.amount;
-        }
+        auto minBalance = getMinBalance(app, account) + oe.amount;
         account.balance = excess ? std::min(account.balance, minBalance - 1)
                                  : std::max(account.balance, minBalance);
 
@@ -215,7 +210,8 @@ generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
 }
 
 static LedgerEntry
-generateBuyingLiabilities(LedgerEntry offer, bool excess, uint32_t authorized)
+generateBuyingLiabilities(Application& app, LedgerEntry offer, bool excess,
+                          uint32_t authorized)
 {
     auto const& oe = offer.data.offer();
 
@@ -226,9 +222,22 @@ generateBuyingLiabilities(LedgerEntry offer, bool excess, uint32_t authorized)
     {
         auto account = LedgerTestUtils::generateValidAccountEntry();
         account.accountID = oe.sellerID;
+
+        auto minBalance = getMinBalance(app, account);
         auto maxBalance = INT64_MAX - oe.amount;
-        account.balance = excess ? std::max(account.balance, maxBalance + 1)
-                                 : std::min(account.balance, maxBalance);
+
+        // There is a possible issue here where minBalance can be greater than
+        // maxBalance, which would cause the test to fail. For this to happen,
+        // oe.amount would need to be greater than INT64_MAX -
+        // (numSponsoring * baseReserve (UINT32_MAX * 100000000 in the largest
+        // case) - numSponsored * baseReserve + numSubEntries). This isn't an
+        // issue now since the order sizes passed to this function at the moment
+        // are < 1000, but it's something to keep in mind.
+
+        account.balance =
+            excess
+                ? std::max(account.balance, maxBalance + 1)
+                : std::min(std::max(account.balance, minBalance), maxBalance);
 
         account.ext.v(1);
         account.ext.v1().liabilities = Liabilities{oe.amount, 0};
@@ -276,7 +285,8 @@ TEST_CASE("Create account then increase liabilities without changing balance",
     auto selling =
         generateSellingLiabilities(*app, offer, true, AUTHORIZED_FLAG);
     ++selling.data.account().balance;
-    auto buying = generateBuyingLiabilities(offer, false, AUTHORIZED_FLAG);
+    auto buying =
+        generateBuyingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
     std::vector<LedgerEntry> entries{offer, selling, buying};
     auto updates = makeUpdateList(entries, nullptr);
     REQUIRE(store(*app, updates));
@@ -346,7 +356,7 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
             auto selling =
                 generateSellingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
             auto buying =
-                generateBuyingLiabilities(offer, false, AUTHORIZED_FLAG);
+                generateBuyingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
             std::vector<LedgerEntry> entries{offer, selling, buying};
             auto updates = makeUpdateList(entries, nullptr);
             REQUIRE(store(*app, updates));
@@ -357,7 +367,7 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
             auto selling2 = generateSellingLiabilities(*app, offer2, false,
                                                        AUTHORIZED_FLAG);
             auto buying2 =
-                generateBuyingLiabilities(offer2, false, AUTHORIZED_FLAG);
+                generateBuyingLiabilities(*app, offer2, false, AUTHORIZED_FLAG);
             std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
             auto updates2 = makeUpdateList(entries2, entries);
             REQUIRE(store(*app, updates2));
@@ -375,8 +385,8 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
                 auto offer = generateOffer(curA, curB, 100, Price{1, 1});
                 auto selling = generateSellingLiabilities(
                     *app, offer, excessSelling, authorizedSelling);
-                auto buying = generateBuyingLiabilities(offer, excessBuying,
-                                                        authorizedBuying);
+                auto buying = generateBuyingLiabilities(
+                    *app, offer, excessBuying, authorizedBuying);
                 std::vector<LedgerEntry> entries{offer, selling, buying};
                 auto updates = makeUpdateList(entries, nullptr);
                 REQUIRE(!store(*app, updates));
@@ -417,7 +427,7 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
             auto selling =
                 generateSellingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
             auto buying =
-                generateBuyingLiabilities(offer, false, AUTHORIZED_FLAG);
+                generateBuyingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
             std::vector<LedgerEntry> entries{offer, selling, buying};
             auto updates = makeUpdateList(entries, nullptr);
             REQUIRE(store(*app, updates));
@@ -429,8 +439,8 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
                 offer2.data.offer().offerID = offer.data.offer().offerID;
                 auto selling2 = generateSellingLiabilities(
                     *app, offer, excessSelling, authorizedSelling);
-                auto buying2 = generateBuyingLiabilities(offer, excessBuying,
-                                                         authorizedBuying);
+                auto buying2 = generateBuyingLiabilities(
+                    *app, offer, excessBuying, authorizedBuying);
                 std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
                 auto updates2 = makeUpdateList(entries2, entries);
                 REQUIRE(!store(*app, updates2));
@@ -469,7 +479,8 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
         auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
         auto selling =
             generateSellingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
-        auto buying = generateBuyingLiabilities(offer, false, AUTHORIZED_FLAG);
+        auto buying =
+            generateBuyingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
         std::vector<LedgerEntry> entries{offer, selling, buying};
         auto updates = makeUpdateList(entries, nullptr);
         REQUIRE(store(*app, updates));
@@ -481,7 +492,7 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
         }
         SECTION("buying auth")
         {
-            auto buying2 = generateBuyingLiabilities(offer, false, 0);
+            auto buying2 = generateBuyingLiabilities(*app, offer, false, 0);
             REQUIRE(!store(*app, makeUpdateList({buying2}, {buying})));
         }
     }
@@ -490,7 +501,7 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
     {
         auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
         auto selling = generateSellingLiabilities(*app, offer, false, true);
-        auto buying = generateBuyingLiabilities(offer, false, true);
+        auto buying = generateBuyingLiabilities(*app, offer, false, true);
         std::vector<LedgerEntry> entries{offer, selling, buying};
         auto updates = makeUpdateList(entries, nullptr);
         REQUIRE(store(*app, updates));
@@ -508,7 +519,7 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
         SECTION("buying auth")
         {
             auto buying2 = generateBuyingLiabilities(
-                offer2, false, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
+                *app, offer2, false, AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG);
             REQUIRE(!store(*app, makeUpdateList({buying2}, {buying})));
         }
     }
