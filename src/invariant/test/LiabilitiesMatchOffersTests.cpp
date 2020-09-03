@@ -26,8 +26,7 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
 {
     auto& account = le.data.account();
 
-    auto minBalance =
-        app.getLedgerManager().getLastMinBalance(account.numSubEntries);
+    auto minBalance = getMinBalance(app, account);
 
     int64_t lbound = 0;
     int64_t ubound = std::numeric_limits<int64_t>::max();
