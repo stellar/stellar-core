@@ -164,29 +164,21 @@ xdr_printer(MuxedAccount const& muxedAccount)
 
 template <typename T>
 void
-dumpstream(XDRInputFileStream& in, bool json)
+dumpstream(XDRInputFileStream& in, bool compact)
 {
     T tmp;
-    if (json)
+    cereal::JSONOutputArchive archive(
+        std::cout, compact ? cereal::JSONOutputArchive::Options::NoIndent()
+                           : cereal::JSONOutputArchive::Options::Default());
+    archive.makeArray();
+    while (in && in.readOne(tmp))
     {
-        cereal::JSONOutputArchive archive(std::cout);
-        archive.makeArray();
-        while (in && in.readOne(tmp))
-        {
-            archive(tmp);
-        }
-    }
-    else
-    {
-        while (in && in.readOne(tmp))
-        {
-            std::cout << xdr::xdr_to_string(tmp) << std::endl;
-        }
+        archive(tmp);
     }
 }
 
 void
-dumpXdrStream(std::string const& filename, bool json)
+dumpXdrStream(std::string const& filename, bool compact)
 {
     std::regex rx(
         ".*(ledger|bucket|transactions|results|scp)-[[:xdigit:]]+\\.xdr");
@@ -198,24 +190,24 @@ dumpXdrStream(std::string const& filename, bool json)
 
         if (sm[1] == "ledger")
         {
-            dumpstream<LedgerHeaderHistoryEntry>(in, json);
+            dumpstream<LedgerHeaderHistoryEntry>(in, compact);
         }
         else if (sm[1] == "bucket")
         {
-            dumpstream<BucketEntry>(in, json);
+            dumpstream<BucketEntry>(in, compact);
         }
         else if (sm[1] == "transactions")
         {
-            dumpstream<TransactionHistoryEntry>(in, json);
+            dumpstream<TransactionHistoryEntry>(in, compact);
         }
         else if (sm[1] == "results")
         {
-            dumpstream<TransactionHistoryResultEntry>(in, json);
+            dumpstream<TransactionHistoryResultEntry>(in, compact);
         }
         else
         {
             assert(sm[1] == "scp");
-            dumpstream<SCPHistoryEntry>(in, json);
+            dumpstream<SCPHistoryEntry>(in, compact);
         }
     }
     else
@@ -256,20 +248,23 @@ readFile(const std::string& filename, bool base64 = false)
 
 template <typename T>
 void
-printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc)
+printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
 {
     T tmp;
     xdr::xdr_from_opaque(o, tmp);
-    cereal::JSONOutputArchive archive(std::cout);
-    archive(tmp);
+    cereal::JSONOutputArchive ar(
+        std::cout, compact ? cereal::JSONOutputArchive::Options::NoIndent()
+                           : cereal::JSONOutputArchive::Options::Default());
+    ar(tmp);
 }
 
 void
-printXdr(std::string const& filename, std::string const& filetype, bool base64)
+printXdr(std::string const& filename, std::string const& filetype, bool base64,
+         bool compact)
 {
 // need to use this pattern as there is no good way to get a human readable
 // type name from a type
-#define PRINTONEXDR(T) std::bind(printOneXdr<T>, _1, #T)
+#define PRINTONEXDR(T) std::bind(printOneXdr<T>, _1, #T, compact)
     auto dumpMap =
         std::map<std::string, std::function<void(xdr::opaque_vec<> const&)>>{
             {"ledgerheader", PRINTONEXDR(LedgerHeader)},

@@ -201,6 +201,12 @@ metricsParser(std::vector<std::string>& value)
 }
 
 clara::Opt
+compactParser(bool& compact)
+{
+    return clara::Opt{compact}["--compact"]("no indent");
+}
+
+clara::Opt
 base64Parser(bool& base64)
 {
     return clara::Opt{base64}["--base64"]("use base64");
@@ -853,13 +859,13 @@ int
 runDumpXDR(CommandLineArgs const& args)
 {
     std::string xdr;
-    bool json = false;
-    auto jsonOption = clara::Opt{json}["--json"]("dump json");
+    bool compact = false;
 
-    return runWithHelp(args, {jsonOption, fileNameParser(xdr)}, [&] {
-        dumpXdrStream(xdr, json);
-        return 0;
-    });
+    return runWithHelp(args, {compactParser(compact), fileNameParser(xdr)},
+                       [&] {
+                           dumpXdrStream(xdr, compact);
+                           return 0;
+                       });
 }
 
 int
@@ -976,15 +982,18 @@ runPrintXdr(CommandLineArgs const& args)
     std::string xdr;
     std::string fileType{"auto"};
     auto base64 = false;
+    auto compact = false;
 
     auto fileTypeOpt = clara::Opt(fileType, "FILE-TYPE")["--filetype"](
         "[auto|ledgerheader|meta|result|resultpair|tx|txfee]");
 
-    return runWithHelp(
-        args, {fileNameParser(xdr), fileTypeOpt, base64Parser(base64)}, [&] {
-            printXdr(xdr, fileType, base64);
-            return 0;
-        });
+    return runWithHelp(args,
+                       {fileNameParser(xdr), fileTypeOpt, base64Parser(base64),
+                        compactParser(compact)},
+                       [&] {
+                           printXdr(xdr, fileType, base64, compact);
+                           return 0;
+                       });
 }
 
 int
