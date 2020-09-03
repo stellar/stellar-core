@@ -24,11 +24,11 @@ class QuorumTracker : public NonMovableOrCopyable
     using QuorumMap = std::unordered_map<NodeID, SCPQuorumSetPtr>;
 
   private:
-    SCP& mSCP;
+    NodeID const mLocalNodeID;
     QuorumMap mQuorum;
 
   public:
-    QuorumTracker(SCP& scp);
+    QuorumTracker(NodeID const& localNodeID);
 
     // returns true if id is in transitive quorum for sure
     bool isNodeDefinitelyInQuorum(NodeID const& id);

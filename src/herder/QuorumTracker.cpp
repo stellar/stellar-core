@@ -8,7 +8,8 @@
 
 namespace stellar
 {
-QuorumTracker::QuorumTracker(SCP& scp) : mSCP(scp)
+QuorumTracker::QuorumTracker(NodeID const& localNodeID)
+    : mLocalNodeID(localNodeID)
 {
 }
 
@@ -49,9 +50,8 @@ QuorumTracker::rebuild(std::function<SCPQuorumSetPtr(NodeID const&)> lookup)
 {
     ZoneScoped;
     mQuorum.clear();
-    auto local = mSCP.getLocalNode();
     std::set<NodeID> backlog;
-    backlog.insert(local->getNodeID());
+    backlog.insert(mLocalNodeID);
     while (!backlog.empty())
     {
         auto n = *backlog.begin();

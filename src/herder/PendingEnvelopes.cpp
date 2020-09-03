@@ -33,7 +33,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
     , mRebuildQuorum(true)
-    , mQuorumTracker(mHerder.getSCP())
+    , mQuorumTracker(mApp.getConfig().NODE_SEED.getPublicKey())
     , mProcessedCount(
           app.getMetrics().NewCounter({"scp", "pending", "processed"}))
     , mDiscardedCount(
