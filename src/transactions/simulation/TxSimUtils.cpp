@@ -110,6 +110,45 @@ generateScaledOfferID(OperationResult const& result, uint32_t partition)
     return generateScaledOfferID(offerID, partition);
 }
 
+Hash
+generateScaledClaimableBalanceID(OperationResult const& result,
+                                 uint32_t partition)
+{
+    if (result.code() != opINNER)
+    {
+        // This will produce txINTERNAL_ERROR on apply
+        throw std::runtime_error(
+            "generateScaledOfferID: invalid OperationResult");
+    }
+
+    if (result.tr().type() != CREATE_CLAIMABLE_BALANCE)
+    {
+        throw std::runtime_error(
+            "Invalid OperationResult: must be CREATE_CLAIMABLE_BALANCE");
+    }
+
+    auto const& balanceID =
+        result.tr().createClaimableBalanceResult().balanceID().v0();
+    return generateScaledClaimableBalanceID(balanceID, partition);
+}
+
+Hash
+generateScaledClaimableBalanceID(Hash const& balanceID, uint32_t partition)
+{
+    auto scaledID = balanceID;
+
+    // XOR balanceID and partition
+    auto i = scaledID.size() - 1;
+    while (partition > 0 && i >= 0)
+    {
+        scaledID[i] ^= (partition & 0xFF);
+        partition >>= 8;
+        --i;
+    }
+
+    return scaledID;
+}
+
 SignerKey
 generateScaledEd25519Signer(Signer const& signer, uint32_t partition)
 {
@@ -145,23 +184,54 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
     for (auto const& le : oldEntries)
     {
         LedgerEntry newEntry = le;
+        if (newEntry.ext.v() == 1 && newEntry.ext.v1().sponsoringID)
+        {
+            mutateScaledAccountID(*newEntry.ext.v1().sponsoringID, partition);
+        }
 
         switch (le.data.type())
         {
         case ACCOUNT:
-            mutateScaledAccountID(newEntry.data.account().accountID, partition);
-            newEntry.data.account().signers.clear();
-            for (auto const& signer : le.data.account().signers)
+        {
+            auto& ae = newEntry.data.account();
+            mutateScaledAccountID(ae.accountID, partition);
+            ae.signers.clear();
+
+            if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
             {
+                ae.ext.v1().ext.v2().signerSponsoringIDs.clear();
+            }
+
+            for (size_t i = 0; i < le.data.account().signers.size(); ++i)
+            {
+                auto const& signer = le.data.account().signers[i];
                 if (signer.key.type() == SIGNER_KEY_TYPE_ED25519)
                 {
-                    newEntry.data.account().signers.emplace_back(
+                    ae.signers.emplace_back(
                         generateScaledEd25519Signer(signer, partition),
                         signer.weight);
+
+                    if (ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2)
+                    {
+                        // pull the id from le
+                        auto idToScale = le.data.account()
+                                             .ext.v1()
+                                             .ext.v2()
+                                             .signerSponsoringIDs[i];
+                        if (idToScale)
+                        {
+                            mutateScaledAccountID(*idToScale, partition);
+                        }
+
+                        ae.ext.v1().ext.v2().signerSponsoringIDs.emplace_back(
+                            idToScale);
+                    }
                 }
             }
+
             InvariantTestUtils::normalizeSigners(newEntry.data.account());
             break;
+        }
         case TRUSTLINE:
             mutateScaledAccountID(newEntry.data.trustLine().accountID,
                                   partition);
@@ -177,6 +247,20 @@ generateScaledLiveEntries(std::vector<LedgerEntry>& entries,
             replaceIssuer(newEntry.data.offer().buying, partition);
             replaceIssuer(newEntry.data.offer().selling, partition);
             break;
+        case CLAIMABLE_BALANCE:
+        {
+            replaceIssuer(newEntry.data.claimableBalance().asset, partition);
+            newEntry.data.claimableBalance().balanceID.v0() =
+                generateScaledClaimableBalanceID(
+                    newEntry.data.claimableBalance().balanceID.v0(), partition);
+
+            auto& claimants = newEntry.data.claimableBalance().claimants;
+            for (auto& claimant : claimants)
+            {
+                mutateScaledAccountID(claimant.v0().destination, partition);
+            }
+            break;
+        }
         default:
             abort();
         }
@@ -209,6 +293,11 @@ generateScaledDeadEntries(std::vector<LedgerKey>& dead,
             mutateScaledAccountID(newKey.offer().sellerID, partition);
             newKey.offer().offerID =
                 generateScaledOfferID(lk.offer().offerID, partition);
+            break;
+        case CLAIMABLE_BALANCE:
+            newKey.claimableBalance().balanceID.v0() =
+                generateScaledClaimableBalanceID(
+                    newKey.claimableBalance().balanceID.v0(), partition);
             break;
         default:
             abort();
@@ -293,6 +382,22 @@ mutateScaledOperation(Operation& op, uint32_t partition)
             op.body.manageBuyOfferOp().offerID, partition);
         replaceIssuer(op.body.manageBuyOfferOp().selling, partition);
         replaceIssuer(op.body.manageBuyOfferOp().buying, partition);
+        break;
+    case CREATE_CLAIMABLE_BALANCE:
+    {
+        auto& claimants = op.body.createClaimableBalanceOp().claimants;
+        for (auto& claimant : claimants)
+        {
+            mutateScaledAccountID(claimant.v0().destination, partition);
+        }
+
+        replaceIssuer(op.body.createClaimableBalanceOp().asset, partition);
+        break;
+    }
+    case CLAIM_CLAIMABLE_BALANCE:
+        op.body.claimClaimableBalanceOp().balanceID.v0() =
+            generateScaledClaimableBalanceID(
+                op.body.claimClaimableBalanceOp().balanceID.v0(), partition);
         break;
     case INFLATION:
     case MANAGE_DATA:

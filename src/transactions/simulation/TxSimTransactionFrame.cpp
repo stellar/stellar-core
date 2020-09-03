@@ -7,6 +7,7 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "transactions/simulation/TxSimCreateClaimableBalanceOpFrame.h"
 #include "transactions/simulation/TxSimCreatePassiveSellOfferOpFrame.h"
 #include "transactions/simulation/TxSimManageBuyOfferOpFrame.h"
 #include "transactions/simulation/TxSimManageSellOfferOpFrame.h"
@@ -53,6 +54,10 @@ TxSimTransactionFrame::makeOperation(Operation const& op, OperationResult& res,
     case CREATE_PASSIVE_SELL_OFFER:
         return std::make_shared<TxSimCreatePassiveSellOfferOpFrame>(
             op, res, *this, resultFromArchive, mCount);
+    case CREATE_CLAIMABLE_BALANCE:
+        return std::make_shared<TxSimCreateClaimableBalanceOpFrame>(
+            op, res, *this, static_cast<uint32_t>(index), resultFromArchive,
+            mCount);
     default:
         return OperationFrame::makeHelper(op, res, *this,
                                           static_cast<uint32_t>(index));
