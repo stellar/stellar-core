@@ -6,6 +6,7 @@
 #include <iostream>
 #include <istream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include "util/Logging.h"
 

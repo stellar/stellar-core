@@ -7,7 +7,6 @@
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
 #include "overlay/StellarXDR.h"
-#include "test/TestPrinter.h"
 #include "util/optional.h"
 
 namespace stellar

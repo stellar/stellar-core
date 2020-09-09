@@ -16,6 +16,7 @@
 #include "bucket/BucketManager.h"
 #include "bucket/BucketOutputIterator.h"
 #include "bucket/BucketTests.h"
+#include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"

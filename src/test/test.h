@@ -6,7 +6,6 @@
 
 #include "main/CommandLine.h"
 #include "main/Config.h"
-#include "test/TestPrinter.h"
 #include "util/Logging.h"
 
 namespace stellar

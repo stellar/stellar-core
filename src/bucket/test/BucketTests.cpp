@@ -14,6 +14,8 @@
 #include "bucket/BucketTests.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
+#include "bucket/BucketManager.h"
+#include "bucket/BucketOutputIterator.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"

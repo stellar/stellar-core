@@ -16,6 +16,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <functional>
+#include <sstream>
 
 namespace stellar
 {

@@ -19,6 +19,7 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
 #include "util/Logging.h"
+#include "util/Math.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
 

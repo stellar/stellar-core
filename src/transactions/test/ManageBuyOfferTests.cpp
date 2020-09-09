@@ -6,6 +6,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/TrustLineWrapper.h"
+#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestAccount.h"
