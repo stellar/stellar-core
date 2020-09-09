@@ -336,6 +336,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrameBase.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.cpp" />
@@ -683,6 +684,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrameBase.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictReceiveOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PathPaymentStrictSendOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\simulation\TxSimCreatePassiveSellOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\simulation\TxSimFeeBumpTransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\simulation\TxSimGenerateBucketsWork.h" />
