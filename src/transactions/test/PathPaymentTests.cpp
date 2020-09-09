@@ -4342,10 +4342,6 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("crossed sponsored offers")
     {
-        auto issuer = root.create("issuer", minBalance2 * 10);
-        auto idr = issuer.asset("IDR");
-        auto usd = issuer.asset("USD");
-
         auto doUpdateSponsorship = [&](TestAccount& source, int64_t offerID,
                                        TestAccount& sponsor) {
             auto tx = transactionFrameFromOps(
@@ -4369,8 +4365,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto acc = root.create(seed, initBalance);
             acc.changeTrust(usd, INT64_MAX);
             acc.changeTrust(idr, INT64_MAX);
-            issuer.pay(acc, usd, 1000);
-            issuer.pay(acc, idr, 1000);
+            gateway2.pay(acc, usd, 1000);
+            gateway.pay(acc, idr, 1000);
             return acc;
         };
 

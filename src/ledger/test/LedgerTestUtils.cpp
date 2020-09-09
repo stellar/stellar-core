@@ -164,7 +164,8 @@ makeValid(AccountEntry& a)
                 std::swap(extV2.numSponsored, extV2.numSponsoring);
             }
 
-            extV2.signerSponsoringIDs.resize(a.signers.size());
+            extV2.signerSponsoringIDs.resize(
+                static_cast<uint32_t>(a.signers.size()));
         }
     }
 }
