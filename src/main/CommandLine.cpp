@@ -274,11 +274,24 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
-void
+optional<CatchupConfiguration>
 maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
                               uint32_t startAtLedger,
                               std::string const& startAtHash)
 {
+    if (!inMemory)
+    {
+        if (startAtLedger != 0)
+        {
+            throw std::runtime_error("--start-at-ledger requires --in-memory");
+        }
+        if (!startAtHash.empty())
+        {
+            throw std::runtime_error("--start-at-hash requires --in-memory");
+        }
+        return nullptr;
+    }
+
     // Adjust configs for in-memory-replay mode
     config.DATABASE = SecretValue{"sqlite3://:memory:"};
     config.MODE_STORES_HISTORY = false;
@@ -287,6 +300,26 @@ maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
     // And don't bother fsyncing buckets without a DB,
     // they're temporary anyways.
     config.DISABLE_XDR_FSYNC = true;
+
+    if (startAtLedger != 0 && startAtHash.empty())
+    {
+        throw std::runtime_error("--start-at-ledger requires --start-at-hash");
+    }
+    else if (startAtLedger == 0 && !startAtHash.empty())
+    {
+        throw std::runtime_error("--start-at-hash requires --start-at-ledger");
+    }
+    else if (startAtLedger != 0 && !startAtHash.empty())
+    {
+        config.MODE_AUTO_STARTS_OVERLAY = false;
+        LedgerNumHashPair pair;
+        pair.first = startAtLedger;
+        pair.second = make_optional<Hash>(hexToBin256(startAtHash));
+        uint32_t count = 0;
+        auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
+        return make_optional<CatchupConfiguration>(pair, count, mode);
+    }
+    return nullptr;
 }
 
 clara::Opt
@@ -995,6 +1028,7 @@ run(CommandLineArgs const& args)
          startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
         [&] {
             Config cfg;
+            optional<CatchupConfiguration> cc;
             try
             {
                 cfg = configOption.getConfig();
@@ -1009,8 +1043,8 @@ run(CommandLineArgs const& args)
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
-                maybeEnableInMemoryLedgerMode(cfg, inMemory, startAtLedger,
-                                              startAtHash);
+                cc = maybeEnableInMemoryLedgerMode(cfg, inMemory, startAtLedger,
+                                                   startAtHash);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
@@ -1021,9 +1055,10 @@ run(CommandLineArgs const& args)
                 LOG(FATAL) << REPORT_INTERNAL_BUG;
                 return 1;
             }
+
             // run outside of catch block so that we properly
             // capture crashes
-            return runWithConfig(cfg);
+            return runWithConfig(cfg, cc);
         });
 }
 

@@ -17,6 +17,7 @@
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/StellarCoreVersion.h"
+#include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "work/WorkScheduler.h"
 
@@ -27,7 +28,7 @@ namespace stellar
 {
 
 int
-runWithConfig(Config cfg)
+runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
 {
     if (cfg.MANUAL_CLOSE)
     {
@@ -56,7 +57,27 @@ runWithConfig(Config cfg)
                          << "(for testing only)";
         }
 
-        app->start();
+        if (cc)
+        {
+            Json::Value catchupInfo;
+            std::shared_ptr<HistoryArchive> archive;
+            auto const& ham = app->getHistoryArchiveManager();
+            archive = ham.selectRandomReadableHistoryArchive();
+            int res = catchup(app, *cc, catchupInfo, archive);
+            if (res != 0)
+            {
+                return res;
+            }
+        }
+        else
+        {
+            app->start();
+        }
+
+        if (!cfg.MODE_AUTO_STARTS_OVERLAY)
+        {
+            app->getOverlayManager().start();
+        }
 
         app->applyCfgCommands();
     }
