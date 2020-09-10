@@ -176,5 +176,12 @@ normalizeSigners(AccountEntry& acc)
             sortedSignerSponsoringIDs);
     }
 }
+
+int64_t
+getMinBalance(Application& app, AccountEntry const& acc)
+{
+    LedgerTxn ltx(app.getLedgerTxnRoot());
+    return getMinBalance(ltx.loadHeader().current(), acc);
+}
 }
 }

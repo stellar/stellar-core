@@ -37,5 +37,7 @@ UpdateList makeUpdateList(std::nullptr_t current,
                           std::vector<LedgerEntry> const& previous);
 
 void normalizeSigners(AccountEntry& acc);
+
+int64_t getMinBalance(Application& app, AccountEntry const& acc);
 }
 }
