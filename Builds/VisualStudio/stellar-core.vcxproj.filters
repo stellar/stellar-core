@@ -1122,6 +1122,9 @@
     <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.cpp">
+      <Filter>transactions\simulation</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1939,6 +1942,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h">
       <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.h">
+      <Filter>transactions\simulation</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

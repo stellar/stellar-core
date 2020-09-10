@@ -155,7 +155,8 @@ computeMultiplier(LedgerEntry const& le)
     }
     else if (type == CLAIMABLE_BALANCE)
     {
-        return le.data.claimableBalance().claimants.size();
+        return static_cast<uint32_t>(
+            le.data.claimableBalance().claimants.size());
     }
 
     return 1;
