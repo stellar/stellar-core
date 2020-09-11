@@ -25,7 +25,7 @@ Command options can only by placed after command.
   configuration and it will perform bucket application on such a checkpoint
   that at least LEDGER-COUNT entries are present in history table afterwards.
   For instances that already have some history entries, all ledgers since last
-  closed ledger will be replayed.
+  closed ledger will be replayed.<br>
   Option **--trusted-checkpoint-hashes <FILE-NAME>** checks the destination
   ledger hash against the provided reference list of trusted hashes. See the
   command verify-checkpoints for details.
@@ -59,20 +59,27 @@ Command options can only by placed after command.
   instance
 * **print-xdr <FILE-NAME>**:  Pretty-print a binary file containing an XDR
   object. If FILE-NAME is "-", the XDR object is read from standard input.<br>
-  Option --filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
+  Option **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
   controls type used for printing (default: auto).<br>
-  Option --base64 alters the behavior to work on base64-encoded XDR rather than
+  Option **--base64** alters the behavior to work on base64-encoded XDR rather than
   raw XDR.
 * **publish**: Execute publish of all items remaining in publish queue without
   connecting to network. May not publish last checkpoint if last closed ledger
   is on checkpoint boundary.
 * **report-last-history-checkpoint**: Download and report last history
   checkpoint from a history archive.
-* **run**: Runs stellar-core service. Option --wait-for-consensus lets validators
-  wait to hear from the network before participating in consensus.
+* **run**: Runs stellar-core service.<br>
+  Option **--wait-for-consensus** lets validators wait to hear from the network
+  before participating in consensus.<br>
+  Option **--in-memory** stores the current ledger in memory rather than a
+  database.<br>
+  Option **--start-at-ledger <N>** starts **--in-memory** mode with a catchup to
+  ledger **N** then replays to the current state of the network.<br>
+  Option **--start-at-hash <HASH>** provides a (mandatory) hash for the ledger
+  **N** specified by the **--start-at-ledger** option.
 * **sec-to-pub**:  Reads a secret key on standard input and outputs the
   corresponding public key.  Both keys are in Stellar's standard
-  base-32 ASCII format. 
+  base-32 ASCII format.
 * **sign-transaction <FILE-NAME>**:  Add a digital signature to a transaction
   envelope stored in binary format in <FILE-NAME>, and send the result to
   standard output (which should be redirected to a file or piped through a tool
