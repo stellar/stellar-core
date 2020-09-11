@@ -8,7 +8,8 @@
 #include "util/Logging.h"
 
 #include <cassert>
-#include <errno.h>
+#include <cerrno>
+#include <cstring>
 
 namespace stellar
 {
