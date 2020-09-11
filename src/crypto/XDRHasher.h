@@ -26,6 +26,15 @@ template <typename Derived> struct XDRHasher
     void
     queueOrHash(unsigned char const* u, size_t sz)
     {
+        if (u == nullptr)
+        {
+            if (sz != 0)
+            {
+                throw std::invalid_argument(
+                    "nullptr input with nonzero length");
+            }
+            return;
+        }
         if (sz > available())
         {
             flush();
@@ -69,16 +78,19 @@ template <typename Derived> struct XDRHasher
     typename std::enable_if<xdr::xdr_traits<T>::is_bytes>::type
     operator()(const T& t)
     {
+        size_t len = t.size();
         if (xdr::xdr_traits<T>::variable_nelem)
         {
-            (*this)(static_cast<uint32_t>(t.size()));
+            (*this)(static_cast<uint32_t>(len));
         }
-        size_t len = t.size();
-        queueOrHash(reinterpret_cast<unsigned char const*>(t.data()), len);
-        if (len & 3)
+        if (len != 0)
         {
-            static unsigned char const pad[3] = {0};
-            queueOrHash(pad, 4 - (len & 3));
+            queueOrHash(reinterpret_cast<unsigned char const*>(t.data()), len);
+            if (len & 3)
+            {
+                static unsigned char const pad[3] = {0};
+                queueOrHash(pad, 4 - (len & 3));
+            }
         }
     }
 

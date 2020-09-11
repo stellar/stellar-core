@@ -41,10 +41,13 @@ std::vector<uint8_t>
 hexToBin(std::string const& hex)
 {
     std::vector<uint8_t> bin(hex.size() / 2, 0);
-    if (sodium_hex2bin(bin.data(), bin.size(), hex.data(), hex.size(), NULL,
-                       NULL, NULL) != 0)
+    if (!hex.empty())
     {
-        throw std::runtime_error("error in stellar::hexToBin(std::string)");
+        if (sodium_hex2bin(bin.data(), bin.size(), hex.data(), hex.size(), NULL,
+                           NULL, NULL) != 0)
+        {
+            throw std::runtime_error("error in stellar::hexToBin(std::string)");
+        }
     }
     return bin;
 }
