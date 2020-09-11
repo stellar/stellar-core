@@ -64,24 +64,6 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
     return {};
 }
 
-template <typename IterType>
-std::string
-LedgerEntryIsValid::check(IterType iter, IterType const& end,
-                          uint32_t ledgerSeq, uint32 version) const
-{
-    for (; iter != end; ++iter)
-    {
-        auto s = checkIsValid(iter->current->mEntry, ledgerSeq, version);
-        if (!s.empty())
-        {
-            s += ": ";
-            s += xdr::xdr_to_string(iter->current->mEntry);
-            return s;
-        }
-    }
-    return {};
-}
-
 std::string
 LedgerEntryIsValid::checkIsValid(
     GeneralizedLedgerEntry const& le,

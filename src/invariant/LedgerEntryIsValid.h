@@ -33,10 +33,6 @@ class LedgerEntryIsValid : public Invariant
                           LedgerTxnDelta const& ltxDelta) override;
 
   private:
-    template <typename IterType>
-    std::string check(IterType iter, IterType const& end, uint32_t ledgerSeq,
-                      uint32 version) const;
-
     std::string checkIsValid(
         GeneralizedLedgerEntry const& le,
         std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious,
