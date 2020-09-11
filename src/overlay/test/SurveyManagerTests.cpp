@@ -206,3 +206,131 @@ TEST_CASE("topology survey", "[overlay][survey][topology]")
 
     simulation->stopAllNodes();
 }
+
+TEST_CASE("survey request process order", "[overlay][survey][topology]")
+{
+    // An arbitrary number reasonably larger than MAX_REQUEST_LIMIT_PER_LEDGER.
+    int numberOfNodes = 20;
+
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    std::vector<Config> configList;
+    std::vector<PublicKey> keyList;
+    std::vector<std::string> keyStrList;
+    std::map<std::string, int> keyToIndex;
+    for (int i = 0; i < numberOfNodes; i++)
+    {
+        auto cfg = simulation->newConfig();
+        configList.emplace_back(cfg);
+
+        keyList.emplace_back(cfg.NODE_SEED.getPublicKey());
+        keyStrList.emplace_back(cfg.NODE_SEED.getStrKeyPublic());
+        keyToIndex[cfg.NODE_SEED.getStrKeyPublic()] = i;
+    }
+
+    // Construct a highly connected network with numberOfNodes nodes.
+    for (int i = 0; i < numberOfNodes; i++)
+    {
+        configList[0].SURVEYOR_KEYS.emplace(keyList[i]);
+    }
+
+    SCPQuorumSet qSet;
+    for (int i = 0; i < numberOfNodes; i++)
+    {
+        qSet.validators.push_back(keyList[i]);
+    }
+    qSet.threshold = 2 * numberOfNodes / 3;
+
+    for (int i = 0; i < numberOfNodes; i++)
+    {
+        auto const& cfg = configList[i];
+        simulation->addNode(cfg.NODE_SEED, qSet, &cfg);
+    }
+
+    for (int i = 0; i < numberOfNodes; i++)
+    {
+        for (int j = i + 1; j < numberOfNodes; j++)
+        {
+            simulation->addConnection(keyList[i], keyList[j]);
+        }
+    }
+
+    simulation->startAllNodes();
+
+    // wait for ledgers to close so nodes get the updated transitive quorum
+    int nLedgers = 1;
+    simulation->crankUntil(
+        [&simulation, nLedgers]() {
+            return simulation->haveAllExternalized(nLedgers + 1, 1);
+        },
+        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+
+    REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 1));
+
+    auto getResults = [&](NodeID const& nodeID) {
+        simulation->crankForAtLeast(std::chrono::seconds(1), false);
+        auto strResult =
+            simulation->getNode(nodeID)->getCommandHandler().manualCmd(
+                "getsurveyresult");
+
+        Json::Value result;
+        Json::Reader reader;
+        REQUIRE(reader.parse(strResult, result));
+        return result;
+    };
+
+    auto sendRequest = [&](PublicKey const& surveyor,
+                           PublicKey const& surveyed) {
+        std::string topologyCmd = "surveytopology?duration=100&node=";
+        simulation->getNode(surveyor)->getCommandHandler().manualCmd(
+            topologyCmd + KeyUtils::toStrKey(surveyed));
+    };
+
+    auto crankForSurvey = [&]() {
+        simulation->crankForAtLeast(
+            configList[0].getExpectedLedgerCloseTime() *
+                SurveyManager::SURVEY_THROTTLE_TIMEOUT_MULT,
+            false);
+    };
+
+    SECTION("request processed fifo")
+    {
+        // Request node 0 to survey 1, 2, ..., (numberOfNodes - 1),
+        // and the requests should be processed in that order.
+        for (int i = 1; i < numberOfNodes; i++)
+        {
+            sendRequest(keyList[0], keyList[i]);
+        }
+
+        for (int t = 0; t < 2; t++)
+        {
+            auto result = getResults(keyList[0]);
+            std::set<int> backlog;
+
+            // Check if all the indices of processed requests
+            // are smaller than all the indices of requests
+            // that haven't been processed.
+            int largestProcessed = -1;
+            int smallestInBacklog = numberOfNodes;
+            for (auto const& key : result["backlog"])
+            {
+                int index = keyToIndex[key.asString()];
+                backlog.insert(index);
+                smallestInBacklog = std::min(smallestInBacklog, index);
+            }
+            for (int i = numberOfNodes - 1; i >= 0; i--)
+            {
+                if (backlog.find(i) == backlog.end())
+                {
+                    largestProcessed = i;
+                    break;
+                }
+            }
+            REQUIRE(largestProcessed < smallestInBacklog);
+            crankForSurvey();
+        }
+    }
+    simulation->stopAllNodes();
+}

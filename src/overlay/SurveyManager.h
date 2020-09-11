@@ -77,6 +77,7 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     SurveyMessageLimiter mMessageLimiter;
 
     std::unordered_set<NodeID> mPeersToSurvey;
+    std::queue<NodeID> mPeersToSurveyQueue;
 
     std::chrono::seconds const SURVEY_THROTTLE_TIMEOUT_SEC;
 
