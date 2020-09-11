@@ -86,6 +86,14 @@ cereal_override(cereal::JSONOutputArchive& ar, const stellar::Asset& s,
 }
 
 template <typename T>
+typename std::enable_if<xdr::xdr_traits<T>::is_enum>::type
+cereal_override(cereal::JSONOutputArchive& ar, const T& t, const char* field)
+{
+    std::string name = xdr::xdr_traits<T>::enum_name(t);
+    xdr::archive(ar, name, field);
+}
+
+template <typename T>
 void
 cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
                 const char* field)
