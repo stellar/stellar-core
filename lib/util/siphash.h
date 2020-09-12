@@ -11,6 +11,7 @@
 class SipHash24
 {
   private:
+    // The next byte within m, from LSB to MSB, that update() will write to.
     int m_idx;
     uint64_t v0, v1, v2, v3, m;
     unsigned char input_len;
@@ -69,6 +70,9 @@ class SipHash24
     void
     update(uint8_t const* data, size_t len)
     {
+        // If we're starting at the LSB of m (m_idx == 0)
+        // then we can do an early word-at-a-time loop
+        // until we get to the remainder.
         uint8_t const* end = data + len;
         if (m_idx == 0)
         {
@@ -80,6 +84,7 @@ class SipHash24
                 digest_block();
             }
         }
+        // Then at the remainder we go byte-at-a-time.
         for (; data != end; ++data)
         {
             input_len++;
