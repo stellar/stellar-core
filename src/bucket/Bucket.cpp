@@ -189,7 +189,7 @@ countShadowedEntryType(MergeCounters& mc, BucketEntry const& e)
     }
 }
 
-inline void
+void
 Bucket::checkProtocolLegality(BucketEntry const& entry,
                               uint32_t protocolVersion)
 {
