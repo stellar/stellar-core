@@ -2457,63 +2457,105 @@ LedgerTxnRoot::Impl::getAllOffers()
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling)
 {
-    return mImpl->getBestOffer(buying, selling);
-}
-
-std::shared_ptr<LedgerEntry const>
-LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling)
-{
-    ZoneScoped;
-    // Note: Elements of mBestOffersCache are properly sorted lists of the best
-    // offers for a certain asset pair. This function maintaints the invariant
-    // that the lists of best offers remain properly sorted. The sort order is
-    // that determined by loadBestOffers and isBetterOffer (both induce the same
-    // order).
-    auto cached = getFromBestOffersCache(buying, selling);
-    auto& offers = cached->bestOffers;
-
-    if (offers.empty() && !cached->allLoaded)
-    {
-        size_t const BATCH_SIZE = MIN_BEST_OFFERS_BATCH_SIZE;
-        auto newOfferIter = loadBestOffers(offers, buying, selling, BATCH_SIZE);
-        cached->allLoaded =
-            static_cast<size_t>(std::distance(newOfferIter, offers.cend())) <
-            BATCH_SIZE;
-    }
-
-    if (!offers.empty())
-    {
-        auto res = std::make_shared<LedgerEntry const>(offers.front());
-        putInEntryCache(LedgerEntryKey(*res), res, LoadType::IMMEDIATE);
-        return res;
-    }
-    return nullptr;
+    return mImpl->getBestOffer(buying, selling, nullptr);
 }
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
                             OfferDescriptor const& worseThan)
 {
-    return mImpl->getBestOffer(buying, selling, worseThan);
+    return mImpl->getBestOffer(buying, selling, &worseThan);
 }
 
-static std::shared_ptr<LedgerEntry const>
+static std::deque<LedgerEntry>::const_iterator
 findIncludedOffer(std::deque<LedgerEntry>::const_iterator iter,
                   std::deque<LedgerEntry>::const_iterator const& end,
-                  OfferDescriptor const& worseThan)
+                  OfferDescriptor const* worseThan)
 {
-    iter = std::upper_bound(
-        iter, end, worseThan,
-        static_cast<bool (*)(OfferDescriptor const&, LedgerEntry const&)>(
-            isBetterOffer));
-    return (iter == end) ? nullptr : std::make_shared<LedgerEntry const>(*iter);
+    if (worseThan)
+    {
+        iter = std::upper_bound(
+            iter, end, *worseThan,
+            static_cast<bool (*)(OfferDescriptor const&, LedgerEntry const&)>(
+                isBetterOffer));
+    }
+    return iter;
+}
+
+std::deque<LedgerEntry>::const_iterator
+LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
+                                                 Asset const& buying,
+                                                 Asset const& selling)
+{
+    auto& offers = cached->bestOffers;
+    if (cached->allLoaded)
+    {
+        return offers.cend();
+    }
+
+    size_t const BATCH_SIZE =
+        std::min(MAX_BEST_OFFERS_BATCH_SIZE,
+                 std::max(MIN_BEST_OFFERS_BATCH_SIZE, offers.size()));
+
+    std::deque<LedgerEntry>::const_iterator iter;
+    try
+    {
+        if (offers.empty())
+        {
+            iter = loadBestOffers(offers, buying, selling, BATCH_SIZE);
+        }
+        else
+        {
+            auto const& oe = offers.back().data.offer();
+            iter = loadBestOffers(offers, buying, selling,
+                                  {oe.price, oe.offerID}, BATCH_SIZE);
+        }
+    }
+    catch (std::exception& e)
+    {
+        printErrorAndAbort(
+            "fatal error when getting best offer from LedgerTxnRoot: ",
+            e.what());
+    }
+    catch (...)
+    {
+        printErrorAndAbort("unknown fatal error when getting best offer "
+                           "from LedgerTxnRoot");
+    }
+
+    cached->allLoaded =
+        static_cast<size_t>(std::distance(iter, offers.cend())) < BATCH_SIZE;
+    return iter;
+}
+
+void
+LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
+    std::deque<LedgerEntry>::const_iterator iter,
+    std::deque<LedgerEntry>::const_iterator const& end)
+{
+    std::unordered_set<LedgerKey> toPrefetch;
+    for (; iter != end; ++iter)
+    {
+        auto const& oe = iter->data.offer();
+        toPrefetch.emplace(accountKey(oe.sellerID));
+        if (oe.buying.type() != ASSET_TYPE_NATIVE)
+        {
+            toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
+        }
+        if (oe.selling.type() != ASSET_TYPE_NATIVE)
+        {
+            toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
+        }
+    }
+    prefetch(toPrefetch);
 }
 
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
-                                  OfferDescriptor const& worseThan)
+                                  OfferDescriptor const* worseThan)
 {
     ZoneScoped;
+
     // Note: Elements of mBestOffersCache are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
     // that the lists of best offers remain properly sorted. The sort order is
@@ -2522,59 +2564,38 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     auto cached = getFromBestOffersCache(buying, selling);
     auto& offers = cached->bestOffers;
 
-    auto res = findIncludedOffer(offers.cbegin(), offers.cend(), worseThan);
-
-    while (!res && !cached->allLoaded)
+    // Batch-load best offers until an offer worse than *worseThan is found
+    // (or until any offer is found if !worseThan)
+    size_t initialBestOffersSize = offers.size();
+    auto iter = findIncludedOffer(offers.cbegin(), offers.cend(), worseThan);
+    while (iter == offers.cend() && !cached->allLoaded)
     {
-        size_t const BATCH_SIZE =
-            std::min(MAX_BEST_OFFERS_BATCH_SIZE,
-                     std::max(MIN_BEST_OFFERS_BATCH_SIZE, offers.size()));
-
-        std::deque<LedgerEntry>::const_iterator newOfferIter;
-        try
-        {
-            newOfferIter =
-                loadBestOffers(offers, buying, selling, worseThan, BATCH_SIZE);
-        }
-        catch (std::exception& e)
-        {
-            printErrorAndAbort(
-                "fatal error when getting best offer from LedgerTxnRoot: ",
-                e.what());
-        }
-        catch (...)
-        {
-            printErrorAndAbort("unknown fatal error when getting best offer "
-                               "from LedgerTxnRoot");
-        }
-
-        std::unordered_set<LedgerKey> toPrefetch;
-        for (auto iter = newOfferIter; iter != offers.cend(); ++iter)
-        {
-            putInEntryCache(LedgerEntryKey(*iter),
-                            std::make_shared<LedgerEntry const>(*iter),
-                            LoadType::IMMEDIATE);
-
-            auto const& oe = iter->data.offer();
-            toPrefetch.emplace(accountKey(oe.sellerID));
-            if (oe.buying.type() != ASSET_TYPE_NATIVE)
-            {
-                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.buying));
-            }
-            if (oe.selling.type() != ASSET_TYPE_NATIVE)
-            {
-                toPrefetch.emplace(trustlineKey(oe.sellerID, oe.selling));
-            }
-        }
-        prefetch(toPrefetch);
-
-        cached->allLoaded =
-            static_cast<size_t>(std::distance(newOfferIter, offers.cend())) <
-            BATCH_SIZE;
-        res = findIncludedOffer(newOfferIter, offers.cend(), worseThan);
+        iter = loadNextBestOffersIntoCache(cached, buying, selling);
+        iter = findIncludedOffer(iter, offers.cend(), worseThan);
     }
 
-    return res;
+    // Populate entry cache with upcoming best offers and prefetch associated
+    // accounts and trust lines
+    if (offers.size() != initialBestOffersSize)
+    {
+        // At this point, we know that new offers were loaded. But new offers
+        // will only be loaded if there were no offers worse than *worseThan
+        // in the original list (or if the original list was empty if
+        // !worseThan). In that case, iter must point into the newly loaded
+        // offers so we will never try to prefetch the offers that had been
+        // previously loaded.
+        populateEntryCacheFromBestOffers(iter, offers.cend());
+    }
+
+    if (iter != offers.cend())
+    {
+        assert(!worseThan || isBetterOffer(*worseThan, *iter));
+        putInEntryCache(LedgerEntryKey(*iter),
+                        std::make_shared<LedgerEntry const>(*iter),
+                        LoadType::IMMEDIATE);
+        return std::make_shared<LedgerEntry const>(*iter);
+    }
+    return nullptr;
 }
 
 std::unordered_map<LedgerKey, LedgerEntry>

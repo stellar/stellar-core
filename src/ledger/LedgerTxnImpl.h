@@ -770,6 +770,13 @@ class LedgerTxnRoot::Impl
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadClaimableBalance(std::unordered_set<LedgerKey> const& keys) const;
 
+    std::deque<LedgerEntry>::const_iterator
+    loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
+                                Asset const& buying, Asset const& selling);
+    void populateEntryCacheFromBestOffers(
+        std::deque<LedgerEntry>::const_iterator iter,
+        std::deque<LedgerEntry>::const_iterator const& end);
+
   public:
     // Constructor has the strong exception safety guarantee
     Impl(Database& db, size_t entryCacheSize, size_t bestOfferCacheSize,
@@ -817,11 +824,9 @@ class LedgerTxnRoot::Impl
     //   cleared
     // - the best offers cache may be, but is not guaranteed to be, modified or
     //   even cleared
-    std::shared_ptr<LedgerEntry const> getBestOffer(Asset const& buying,
-                                                    Asset const& selling);
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
-                 OfferDescriptor const& worseThan);
+                 OfferDescriptor const* worseThan);
 
     // getOffersByAccountAndAsset has the basic exception safety guarantee. If
     // it throws an exception, then
