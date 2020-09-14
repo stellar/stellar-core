@@ -169,7 +169,7 @@ LedgerEntryIsValid::checkIsValid(TrustLineEntry const& tl, uint32 version) const
     }
     if (tl.limit <= 0)
     {
-        return fmt::format("TrustLine balance ({}) is not positive", tl.limit);
+        return fmt::format("TrustLine limit ({}) is not positive", tl.limit);
     }
     if (tl.balance > tl.limit)
     {
