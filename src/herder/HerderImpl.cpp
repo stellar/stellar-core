@@ -1187,9 +1187,15 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     ret["node"] = mApp.getConfig().toStrKey(id, fullKeys);
     ret["qset"] = getSCP().getJsonQuorumInfo(id, summary, fullKeys, index);
     bool isSelf = id == mApp.getConfig().NODE_SEED.getPublicKey();
-    if (isSelf && mLastQuorumMapIntersectionState.hasAnyResults())
+    if (isSelf)
     {
-        ret["transitive"] = getJsonTransitiveQuorumIntersectionInfo(fullKeys);
+        ret["qset"]["lag_ms"] =
+            getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
+        if (mLastQuorumMapIntersectionState.hasAnyResults())
+        {
+            ret["transitive"] =
+                getJsonTransitiveQuorumIntersectionInfo(fullKeys);
+        }
     }
     return ret;
 }
