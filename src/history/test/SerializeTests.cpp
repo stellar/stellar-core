@@ -29,6 +29,10 @@ TEST_CASE("Serialization round trip", "[history]")
             HistoryArchiveState has;
             has.fromString(fromFile);
             REQUIRE(fromFile == has.toString());
+
+            HistoryArchiveState hasLoad;
+            hasLoad.load(fnPath);
+            REQUIRE(fromFile == hasLoad.toString());
         }
     }
 }
