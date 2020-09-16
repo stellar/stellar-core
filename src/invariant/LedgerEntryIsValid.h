@@ -33,19 +33,18 @@ class LedgerEntryIsValid : public Invariant
                           LedgerTxnDelta const& ltxDelta) override;
 
   private:
-    template <typename IterType>
-    std::string check(IterType iter, IterType const& end, uint32_t ledgerSeq,
-                      uint32 version) const;
-
-    std::string checkIsValid(GeneralizedLedgerEntry const& le,
+    std::string checkIsValid(
+        GeneralizedLedgerEntry const& le,
+        std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious,
+        uint32_t ledgerSeq, uint32 version) const;
+    std::string checkIsValid(LedgerEntry const& le, LedgerEntry const* previous,
                              uint32_t ledgerSeq, uint32 version) const;
-    std::string checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq,
-                             uint32 version) const;
     std::string checkIsValid(AccountEntry const& ae, uint32 version) const;
     std::string checkIsValid(TrustLineEntry const& tl, uint32 version) const;
     std::string checkIsValid(OfferEntry const& oe, uint32 version) const;
     std::string checkIsValid(DataEntry const& de, uint32 version) const;
-    std::string checkIsValid(LedgerEntry const& le, uint32 version) const;
+    std::string checkIsValid(LedgerEntry const& le, LedgerEntry const* previous,
+                             uint32 version) const;
 
     bool validatePredicate(ClaimPredicate const& pred, uint32_t depth) const;
 };
