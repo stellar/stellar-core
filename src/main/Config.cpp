@@ -253,7 +253,7 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
 
 void
 Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
-                 int level)
+                 uint32 level)
 {
     if (!group)
     {

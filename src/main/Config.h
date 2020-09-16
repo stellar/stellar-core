@@ -55,7 +55,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
-                  int level);
+                  uint32 level);
 
     void processConfig(std::shared_ptr<cpptoml::table>);
 
