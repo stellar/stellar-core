@@ -16,6 +16,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <functional>
+#include <numeric>
 #include <sstream>
 
 namespace stellar
@@ -1977,23 +1978,19 @@ BallotProtocol::validateValues(SCPStatement const& st)
         // This shouldn't happen
         return SCPDriver::kInvalidValue;
     }
-    SCPDriver::ValidationLevel res = SCPDriver::kFullyValidatedValue;
-    for (auto const& v : values)
-    {
-        auto tr =
-            mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v, false);
-        if (tr != SCPDriver::kFullyValidatedValue)
-        {
-            if (tr == SCPDriver::kInvalidValue)
+
+    SCPDriver::ValidationLevel res = std::accumulate(
+        values.begin(), values.end(), SCPDriver::kFullyValidatedValue,
+        [&](SCPDriver::ValidationLevel lv, stellar::Value const& v) {
+            if (lv > SCPDriver::kInvalidValue)
             {
-                res = SCPDriver::kInvalidValue;
+                auto tr = mSlot.getSCPDriver().validateValue(
+                    mSlot.getSlotIndex(), v, false);
+                lv = std::min(tr, lv);
             }
-            else
-            {
-                res = SCPDriver::kMaybeValidValue;
-            }
-        }
-    }
+            return lv;
+        });
+
     return res;
 }
 
