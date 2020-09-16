@@ -318,10 +318,11 @@ HerderImpl::broadcast(SCPEnvelope const& e)
 void
 HerderImpl::startRebroadcastTimer()
 {
-    if (mApp.getConfig().RUN_STANDALONE)
+    if (mApp.getConfig().MANUAL_CLOSE && mApp.getConfig().RUN_STANDALONE)
     {
         return;
     }
+
     mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
     mRebroadcastTimer.async_wait(std::bind(&HerderImpl::rebroadcast, this),
