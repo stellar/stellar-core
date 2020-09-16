@@ -684,7 +684,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "HTTP_PORT")
             {
-                HTTP_PORT = readInt<unsigned short>(item, 1);
+                HTTP_PORT = readInt<unsigned short>(item);
             }
             else if (item.first == "HTTP_MAX_CLIENT")
             {
