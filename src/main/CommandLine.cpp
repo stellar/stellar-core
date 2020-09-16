@@ -518,6 +518,7 @@ runCatchup(CommandLineArgs const& args)
     bool completeValidation = false;
     bool replayInMemory = false;
     std::string stream;
+    bool enableHttp = false;
 
     auto validateCatchupString = [&] {
         try
@@ -567,6 +568,11 @@ runCatchup(CommandLineArgs const& args)
             "don't use a database, just replay ledgers in memory");
     };
 
+    auto enableHttpParser = [](bool& enableHttp) {
+        return clara::Opt{enableHttp}["--enable-http"](
+            "activates the http command port for the duration of the command");
+    };
+
     return runWithHelp(
         args,
         {configurationParser(configOption), catchupStringParser,
@@ -575,11 +581,13 @@ runCatchup(CommandLineArgs const& args)
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
          replayInMemoryParser(replayInMemory),
-         metadataOutputStreamParser(stream)},
+         metadataOutputStreamParser(stream), enableHttpParser(enableHttp)},
         [&] {
             auto config = configOption.getConfig();
-            // Don't call config.setNoListen() here as we might want to
-            // access the /info HTTP endpoint during catchup.
+            if (!enableHttp)
+            {
+                config.setNoListen();
+            }
             config.RUN_STANDALONE = true;
             config.MANUAL_CLOSE = true;
             config.DISABLE_BUCKET_GC = disableBucketGC;
