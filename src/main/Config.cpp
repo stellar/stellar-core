@@ -26,7 +26,6 @@
 namespace stellar
 {
 const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 14;
-const uint32 Config::MAXIMUM_QUORUM_NESTING_LEVEL = 4;
 
 // Options that must only be used for testing
 static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
@@ -261,7 +260,7 @@ Config::loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
         throw std::invalid_argument("invalid entry in quorum set definition");
     }
 
-    if (level > Config::MAXIMUM_QUORUM_NESTING_LEVEL)
+    if (level > MAXIMUM_QUORUM_NESTING_LEVEL)
     {
         throw std::invalid_argument("too many levels in quorum set");
     }
