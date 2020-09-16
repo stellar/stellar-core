@@ -215,6 +215,11 @@ class Config : public std::enable_shared_from_this<Config>
     // it is halted.
     bool MODE_DOES_CATCHUP;
 
+    // A config parameter that controls whether the application starts the
+    // overlay on startup, or waits for a later startup after performing some
+    // other pre-overlay-start operations (eg. offline catchup).
+    bool MODE_AUTO_STARTS_OVERLAY;
+
     // A config to allow connections to localhost
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;

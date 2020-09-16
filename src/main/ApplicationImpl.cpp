@@ -449,7 +449,10 @@ ApplicationImpl::start()
             ExternalQueue ps(*this);
             ps.setInitialCursors(mConfig.KNOWN_CURSORS);
             mMaintainer->start();
-            mOverlayManager->start();
+            if (mConfig.MODE_AUTO_STARTS_OVERLAY)
+            {
+                mOverlayManager->start();
+            }
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
             {

@@ -274,6 +274,75 @@ maybeSetMetadataOutputStream(Config& cfg, std::string const& stream)
     }
 }
 
+optional<CatchupConfiguration>
+maybeEnableInMemoryLedgerMode(Config& config, bool inMemory,
+                              uint32_t startAtLedger,
+                              std::string const& startAtHash)
+{
+    if (!inMemory)
+    {
+        if (startAtLedger != 0)
+        {
+            throw std::runtime_error("--start-at-ledger requires --in-memory");
+        }
+        if (!startAtHash.empty())
+        {
+            throw std::runtime_error("--start-at-hash requires --in-memory");
+        }
+        return nullptr;
+    }
+
+    // Adjust configs for in-memory-replay mode
+    config.DATABASE = SecretValue{"sqlite3://:memory:"};
+    config.MODE_STORES_HISTORY = false;
+    config.MODE_USES_IN_MEMORY_LEDGER = true;
+    config.MODE_ENABLES_BUCKETLIST = true;
+    // And don't bother fsyncing buckets without a DB,
+    // they're temporary anyways.
+    config.DISABLE_XDR_FSYNC = true;
+
+    if (startAtLedger != 0 && startAtHash.empty())
+    {
+        throw std::runtime_error("--start-at-ledger requires --start-at-hash");
+    }
+    else if (startAtLedger == 0 && !startAtHash.empty())
+    {
+        throw std::runtime_error("--start-at-hash requires --start-at-ledger");
+    }
+    else if (startAtLedger != 0 && !startAtHash.empty())
+    {
+        config.MODE_AUTO_STARTS_OVERLAY = false;
+        LedgerNumHashPair pair;
+        pair.first = startAtLedger;
+        pair.second = make_optional<Hash>(hexToBin256(startAtHash));
+        uint32_t count = 0;
+        auto mode = CatchupConfiguration::Mode::OFFLINE_COMPLETE;
+        return make_optional<CatchupConfiguration>(pair, count, mode);
+    }
+    return nullptr;
+}
+
+clara::Opt
+inMemoryParser(bool& inMemory)
+{
+    return clara::Opt{inMemory}["--in-memory"](
+        "store working ledger in memory rather than database");
+};
+
+clara::Opt
+startAtLedgerParser(uint32_t& startAtLedger)
+{
+    return clara::Opt{startAtLedger, "LEDGER"}["--start-at-ledger"](
+        "start in-memory run with replay from historical ledger number");
+};
+
+clara::Opt
+startAtHashParser(std::string& startAtHash)
+{
+    return clara::Opt{startAtHash, "HASH"}["--start-at-hash"](
+        "start in-memory run with replay from historical ledger hash");
+};
+
 int
 runWithHelp(CommandLineArgs const& args,
             std::vector<ParserWithValidation> parsers, std::function<int()> f)
@@ -517,6 +586,9 @@ runCatchup(CommandLineArgs const& args)
     std::string trustedCheckpointHashesFile;
     bool completeValidation = false;
     bool replayInMemory = false;
+    bool inMemory = false;
+    uint32_t startAtLedger = 0;
+    std::string startAtHash;
     std::string stream;
 
     auto validateCatchupString = [&] {
@@ -564,7 +636,7 @@ runCatchup(CommandLineArgs const& args)
 
     auto replayInMemoryParser = [](bool& replayInMemory) {
         return clara::Opt{replayInMemory}["--replay-in-memory"](
-            "don't use a database, just replay ledgers in memory");
+            "deprecated: use --in-memory flag, common to 'catchup' and 'run'");
     };
 
     return runWithHelp(
@@ -574,7 +646,8 @@ runCatchup(CommandLineArgs const& args)
          trustedCheckpointHashesParser(trustedCheckpointHashesFile),
          outputFileParser(outputFile), disableBucketGCParser(disableBucketGC),
          validationParser(completeValidation),
-         replayInMemoryParser(replayInMemory),
+         replayInMemoryParser(replayInMemory), inMemoryParser(inMemory),
+         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash),
          metadataOutputStreamParser(stream)},
         [&] {
             auto config = configOption.getConfig();
@@ -595,18 +668,8 @@ runCatchup(CommandLineArgs const& args)
                 config.AUTOMATIC_MAINTENANCE_COUNT = 1000000;
             }
 
-            if (replayInMemory)
-            {
-                // Adjust configs for in-memory-replay mode
-                config.DATABASE = SecretValue{"sqlite3://:memory:"};
-                config.MODE_STORES_HISTORY = false;
-                config.MODE_USES_IN_MEMORY_LEDGER = true;
-                config.MODE_ENABLES_BUCKETLIST = true;
-                // And don't bother fsyncing buckets without a DB,
-                // they're temporary anyways.
-                config.DISABLE_XDR_FSYNC = true;
-            }
-
+            maybeEnableInMemoryLedgerMode(config, (inMemory || replayInMemory),
+                                          startAtLedger, startAtHash);
             maybeSetMetadataOutputStream(config, stream);
 
             VirtualClock clock(VirtualClock::REAL_TIME);
@@ -945,7 +1008,10 @@ run(CommandLineArgs const& args)
     auto disableBucketGC = false;
     uint32_t simulateSleepPerOp = 0;
     std::string stream;
+    bool inMemory = false;
     bool waitForConsensus = false;
+    uint32_t startAtLedger = 0;
+    std::string startAtHash;
 
     auto simulateParser = [](uint32_t& simulateSleepPerOp) {
         return clara::Opt{simulateSleepPerOp,
@@ -958,9 +1024,11 @@ run(CommandLineArgs const& args)
         {configurationParser(configOption),
          disableBucketGCParser(disableBucketGC),
          simulateParser(simulateSleepPerOp), metadataOutputStreamParser(stream),
-         waitForConsensusParser(waitForConsensus)},
+         inMemoryParser(inMemory), waitForConsensusParser(waitForConsensus),
+         startAtLedgerParser(startAtLedger), startAtHashParser(startAtHash)},
         [&] {
             Config cfg;
+            optional<CatchupConfiguration> cc;
             try
             {
                 cfg = configOption.getConfig();
@@ -975,6 +1043,8 @@ run(CommandLineArgs const& args)
                     cfg.PREFETCH_BATCH_SIZE = 0;
                 }
 
+                cc = maybeEnableInMemoryLedgerMode(cfg, inMemory, startAtLedger,
+                                                   startAtHash);
                 maybeSetMetadataOutputStream(cfg, stream);
                 cfg.FORCE_SCP =
                     cfg.NODE_IS_VALIDATOR ? !waitForConsensus : false;
@@ -985,9 +1055,10 @@ run(CommandLineArgs const& args)
                 LOG(FATAL) << REPORT_INTERNAL_BUG;
                 return 1;
             }
+
             // run outside of catch block so that we properly
             // capture crashes
-            return runWithConfig(cfg);
+            return runWithConfig(cfg, cc);
         });
 }
 
