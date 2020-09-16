@@ -415,7 +415,8 @@ TEST_CASE("bucketmanager reattach to finished merge", "[bucket][bucketmanager]")
         REQUIRE(bl.getLevel(level).getNext().isMerging());
 
         // Serialize HAS.
-        HistoryArchiveState has(ledger, bl);
+        HistoryArchiveState has(ledger, bl,
+                                app->getConfig().NETWORK_PASSPHRASE);
         std::string serialHas = has.toString();
 
         // Simulate level committing (and the FutureBucket clearing),
@@ -490,7 +491,8 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
 
             bm.forgetUnreferencedBuckets();
 
-            HistoryArchiveState has(ledger, bl);
+            HistoryArchiveState has(ledger, bl,
+                                    app->getConfig().NETWORK_PASSPHRASE);
             std::string serialHas = has.toString();
 
             // Deserialize and reactivate levels of HAS. Races with the merge
@@ -1471,7 +1473,7 @@ TEST_CASE("bucket persistence over app restart",
             REQUIRE(hexAbbrev(Blh1) == hexAbbrev(bl.getHash()));
 
             // Confirm that there are merges-in-progress in this checkpoint.
-            HistoryArchiveState has(i, bl);
+            HistoryArchiveState has(i, bl, app->getConfig().NETWORK_PASSPHRASE);
             REQUIRE(!has.futuresAllResolved());
         }
 
@@ -1494,7 +1496,7 @@ TEST_CASE("bucket persistence over app restart",
             uint32_t i = pause;
 
             // Confirm that merges-in-progress were restarted.
-            HistoryArchiveState has(i, bl);
+            HistoryArchiveState has(i, bl, app->getConfig().NETWORK_PASSPHRASE);
             REQUIRE(!has.futuresAllResolved());
 
             while (i < 100)

@@ -171,6 +171,7 @@ they are a JSON serialization of the data structure called
 
   - `version`: number identifying the file format version
   - `server`: an optional debugging string identifying the software that wrote the file
+  - `networkPassphrase`: an optional string identifying the networkPassphrase
   - `currentLedger`: a number denoting the ledger this file describes the state of
   - `currentBuckets`: an array containing an encoding of the [bucket list](/src/bucket/BucketList.h) for this ledger
 

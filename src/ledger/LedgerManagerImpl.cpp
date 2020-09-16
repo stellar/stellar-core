@@ -1022,7 +1022,8 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
     }
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
-    HistoryArchiveState has(header.ledgerSeq, bl);
+    HistoryArchiveState has(header.ledgerSeq, bl,
+                            mApp.getConfig().NETWORK_PASSPHRASE);
 
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());

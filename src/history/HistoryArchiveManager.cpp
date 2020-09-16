@@ -186,6 +186,7 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
     HistoryArchiveState has;
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
     has.resolveAllFutures();
+    has.networkPassphrase = mApp.getConfig().NETWORK_PASSPHRASE;
 
     auto putHas = ws.executeWork<PutHistoryArchiveStateWork>(has, archive);
     if (putHas->getState() == BasicWork::State::WORK_SUCCESS)
