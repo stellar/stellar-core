@@ -55,7 +55,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     void validateConfig(ValidationThresholdLevels thresholdLevel);
     void loadQset(std::shared_ptr<cpptoml::table> group, SCPQuorumSet& qset,
-                  int level);
+                  uint32 level);
 
     void processConfig(std::shared_ptr<cpptoml::table>);
 
@@ -102,8 +102,6 @@ class Config : public std::enable_shared_from_this<Config>
 
   public:
     static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
-    // level = 0 when there is no nesting.
-    static const uint32 MAXIMUM_QUORUM_NESTING_LEVEL;
 
     typedef std::shared_ptr<Config> pointer;
 

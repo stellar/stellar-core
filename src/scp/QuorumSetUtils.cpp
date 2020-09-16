@@ -4,7 +4,6 @@
 
 #include "QuorumSetUtils.h"
 
-#include "main/Config.h"
 #include "util/XDROperators.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
@@ -14,6 +13,7 @@
 
 namespace stellar
 {
+uint32 const MAXIMUM_QUORUM_NESTING_LEVEL = 4;
 
 namespace
 {
@@ -47,7 +47,7 @@ QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
 bool
 QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth)
 {
-    if (depth > Config::MAXIMUM_QUORUM_NESTING_LEVEL)
+    if (depth > MAXIMUM_QUORUM_NESTING_LEVEL)
         return false;
 
     if (qSet.threshold < 1)

@@ -6,6 +6,7 @@
 #include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
+#include "scp/QuorumSetUtils.h"
 #include "test/test.h"
 #include <fmt/format.h>
 
@@ -427,7 +428,7 @@ VALIDATORS=[
         {
             Config c;
             std::stringstream ss(configNesting);
-            if (nestingLevel <= Config::MAXIMUM_QUORUM_NESTING_LEVEL)
+            if (nestingLevel <= MAXIMUM_QUORUM_NESTING_LEVEL)
             {
                 REQUIRE_NOTHROW(c.load(ss));
             }
