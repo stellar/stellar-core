@@ -30,6 +30,8 @@ namespace stellar
 int
 runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
 {
+    VirtualClock::Mode clockMode = VirtualClock::REAL_TIME;
+
     if (cfg.MANUAL_CLOSE)
     {
         if (!cfg.NODE_IS_VALIDATOR)
@@ -38,10 +40,27 @@ runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
                           "NODE_IS_VALIDATOR to be set";
             return 1;
         }
+        if (cfg.RUN_STANDALONE)
+        {
+            clockMode = VirtualClock::VIRTUAL_TIME;
+            if (cfg.AUTOMATIC_MAINTENANCE_COUNT != 0 ||
+                cfg.AUTOMATIC_MAINTENANCE_PERIOD.count() != 0)
+            {
+                LOG(WARNING)
+                    << "Using MANUAL_CLOSE and RUN_STANDALONE together "
+                       "induces virtual time, which requires automatic "
+                       "maintenance to be disabled.  "
+                       "AUTOMATIC_MAINTENANCE_COUNT and "
+                       "AUTOMATIC_MAINTENANCE_PERIOD are being overridden to "
+                       "0.";
+                cfg.AUTOMATIC_MAINTENANCE_COUNT = 0;
+                cfg.AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{0};
+            }
+        }
     }
 
     LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
-    VirtualClock clock(VirtualClock::REAL_TIME);
+    VirtualClock clock(clockMode);
     Application::pointer app;
     try
     {

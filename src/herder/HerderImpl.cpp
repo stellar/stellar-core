@@ -318,6 +318,11 @@ HerderImpl::broadcast(SCPEnvelope const& e)
 void
 HerderImpl::startRebroadcastTimer()
 {
+    if (mApp.getConfig().MANUAL_CLOSE && mApp.getConfig().RUN_STANDALONE)
+    {
+        return;
+    }
+
     mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
 
     mRebroadcastTimer.async_wait(std::bind(&HerderImpl::rebroadcast, this),
@@ -1082,6 +1087,13 @@ std::string
 HerderImpl::getUpgradesJson()
 {
     return mUpgrades.getParameters().toJson();
+}
+
+void
+HerderImpl::forceSCPStateIntoSyncWithLastClosedLedger()
+{
+    auto const& header = mLedgerManager.getLastClosedLedgerHeader().header;
+    mHerderSCPDriver.restoreSCPState(header.ledgerSeq, header.scpValue);
 }
 
 bool

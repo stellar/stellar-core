@@ -91,6 +91,8 @@ class HerderImpl : public Herder
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
 
+    void forceSCPStateIntoSyncWithLastClosedLedger() override;
+
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
     Json::Value getJsonInfo(size_t limit, bool fullKeys = false) override;

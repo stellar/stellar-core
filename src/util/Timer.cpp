@@ -264,7 +264,7 @@ VirtualClock::setCurrentVirtualTime(time_point t)
 {
     assert(mMode == VIRTUAL_TIME);
     // Maintain monotonicity in VIRTUAL_TIME mode.
-    assert(t >= mVirtualNow);
+    releaseAssert(t >= mVirtualNow);
     mVirtualNow = t;
 }
 

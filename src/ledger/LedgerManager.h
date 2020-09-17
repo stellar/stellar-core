@@ -158,6 +158,8 @@ class LedgerManager
     virtual void
     setLastClosedLedger(LedgerHeaderHistoryEntry const& lastClosed) = 0;
 
+    virtual void manuallyAdvanceLedgerHeader(LedgerHeader const& header) = 0;
+
     virtual ~LedgerManager()
     {
     }
