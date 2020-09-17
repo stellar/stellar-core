@@ -7,6 +7,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/Decoder.h"
 #include "util/Fs.h"
+#include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
@@ -38,78 +39,6 @@ extern "C" {
 
 using namespace std::placeholders;
 
-template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_array<N>& s,
-                const char* field)
-{
-    xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
-                 field);
-}
-
-// We still need one explicit composite-container override because cereal
-// appears to process arrays-of-arrays internally, without calling back through
-// an NVP adaptor.
-template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar,
-                const xdr::xarray<stellar::Hash, N>& s, const char* field)
-{
-    std::vector<std::string> tmp;
-    for (auto const& h : s)
-    {
-        tmp.emplace_back(
-            stellar::binToHex(stellar::ByteSlice(h.data(), h.size())));
-    }
-    xdr::archive(ar, tmp, field);
-}
-
-template <uint32_t N>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_vec<N>& s,
-                const char* field)
-{
-    xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
-                 field);
-}
-void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
-                const char* field)
-{
-    xdr::archive(ar, stellar::KeyUtils::toStrKey<stellar::PublicKey>(s), field);
-}
-void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::Asset& s,
-                const char* field)
-{
-    xdr::archive(ar, stellar::assetToString(s), field);
-}
-
-template <typename T>
-void
-cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
-                const char* field)
-{
-    // We tolerate a little information-loss here collapsing *T into T for
-    // the non-null case, and use JSON 'null' for the null case. This reads
-    // much better than the thing JSONOutputArchive does with PtrWrapper.
-    if (t)
-    {
-        xdr::archive(ar, *t, field);
-    }
-    else
-    {
-        ar.setNextName(field);
-        ar.writeName();
-        ar.saveValue(nullptr);
-    }
-}
-
-// This has to be included _after_ the cereal_override overloads above,
-// otherwise some interplay of name lookup and visibility during the
-// enable_if call in the cereal adaptor fails to find them.
-#include <xdrpp/cereal.h>
-
 namespace stellar
 {
 
@@ -138,29 +67,21 @@ xdr_printer(MuxedAccount const& muxedAccount)
 
 template <typename T>
 void
-dumpstream(XDRInputFileStream& in, bool json)
+dumpstream(XDRInputFileStream& in, bool compact)
 {
     T tmp;
-    if (json)
+    cereal::JSONOutputArchive archive(
+        std::cout, compact ? cereal::JSONOutputArchive::Options::NoIndent()
+                           : cereal::JSONOutputArchive::Options::Default());
+    archive.makeArray();
+    while (in && in.readOne(tmp))
     {
-        cereal::JSONOutputArchive archive(std::cout);
-        archive.makeArray();
-        while (in && in.readOne(tmp))
-        {
-            archive(tmp);
-        }
-    }
-    else
-    {
-        while (in && in.readOne(tmp))
-        {
-            std::cout << xdr::xdr_to_string(tmp) << std::endl;
-        }
+        archive(tmp);
     }
 }
 
 void
-dumpXdrStream(std::string const& filename, bool json)
+dumpXdrStream(std::string const& filename, bool compact)
 {
     std::regex rx(
         ".*(ledger|bucket|transactions|results|scp)-[[:xdigit:]]+\\.xdr");
@@ -172,24 +93,24 @@ dumpXdrStream(std::string const& filename, bool json)
 
         if (sm[1] == "ledger")
         {
-            dumpstream<LedgerHeaderHistoryEntry>(in, json);
+            dumpstream<LedgerHeaderHistoryEntry>(in, compact);
         }
         else if (sm[1] == "bucket")
         {
-            dumpstream<BucketEntry>(in, json);
+            dumpstream<BucketEntry>(in, compact);
         }
         else if (sm[1] == "transactions")
         {
-            dumpstream<TransactionHistoryEntry>(in, json);
+            dumpstream<TransactionHistoryEntry>(in, compact);
         }
         else if (sm[1] == "results")
         {
-            dumpstream<TransactionHistoryResultEntry>(in, json);
+            dumpstream<TransactionHistoryResultEntry>(in, compact);
         }
         else
         {
             assert(sm[1] == "scp");
-            dumpstream<SCPHistoryEntry>(in, json);
+            dumpstream<SCPHistoryEntry>(in, compact);
         }
     }
     else
@@ -230,19 +151,23 @@ readFile(const std::string& filename, bool base64 = false)
 
 template <typename T>
 void
-printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc)
+printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
 {
     T tmp;
     xdr::xdr_from_opaque(o, tmp);
-    std::cout << xdr::xdr_to_string(tmp, desc.c_str()) << std::endl;
+    cereal::JSONOutputArchive ar(
+        std::cout, compact ? cereal::JSONOutputArchive::Options::NoIndent()
+                           : cereal::JSONOutputArchive::Options::Default());
+    ar(tmp);
 }
 
 void
-printXdr(std::string const& filename, std::string const& filetype, bool base64)
+printXdr(std::string const& filename, std::string const& filetype, bool base64,
+         bool compact)
 {
 // need to use this pattern as there is no good way to get a human readable
 // type name from a type
-#define PRINTONEXDR(T) std::bind(printOneXdr<T>, _1, #T)
+#define PRINTONEXDR(T) std::bind(printOneXdr<T>, _1, #T, compact)
     auto dumpMap =
         std::map<std::string, std::function<void(xdr::opaque_vec<> const&)>>{
             {"ledgerheader", PRINTONEXDR(LedgerHeader)},
