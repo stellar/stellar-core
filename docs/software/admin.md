@@ -544,6 +544,7 @@ After observing consensus, a new field `quorum` will be set with information on 
             "disagree" : 0,
             "fail_at" : 3,
             "hash" : "980a24",
+            "lag_ms" : 430,
             "missing" : 0,
             "phase" : "EXTERNALIZE"
          },
@@ -638,6 +639,7 @@ The output will look something like
             "disagree" : 0,
             "fail_at" : 2,
             "hash" : "d5c247",
+            "lag_ms" : 430,
             "ledger" : 24311579,
             "missing" : 1,
             "phase" : "EXTERNALIZE"
@@ -805,7 +807,7 @@ The output looks something like:
 
 ```json
 {
-   "node" : "GCTSFJ36M7ZMTSX7ZKG6VJKPIDBDA26IEWRGV65DVX7YVVLBPE5ZWMIO",
+   "node" : "GCTSF",
    "qset" : {
       "agree" : 6,
       "delayed" : null,
@@ -813,6 +815,15 @@ The output looks something like:
       "fail_at" : 2,
       "fail_with" : [ "sdf_watcher1", "sdf_watcher2" ],
       "hash" : "d5c247",
+      "lag_ms" : {
+         "sdf_watcher1" : 192,
+         "sdf_watcher2" : 215,
+         "sdf_watcher3" : 79,
+         "stronghold1" : 321,
+         "eno" : 266,
+         "tempo.eu.com" : 225,
+         "satoshipay" : 249,
+      },
       "ledger" : 24311847,
       "missing" : [ "stronghold1" ],
       "phase" : "EXTERNALIZE",
@@ -831,7 +842,7 @@ The output looks something like:
    },
    "transitive" : {
       "critical": [
-         [ "GDM7M262ZJJPV4BZ5SLGYYUTJGIGM25ID2XGKI3M6IDN6QLSTWQKTXQM" ]
+         [ "GDM7M" ]
       ],
       "intersection" : true,
       "last_check_ledger" : 24311536,

@@ -932,6 +932,52 @@ HerderSCPDriver::getPrepareStart(uint64_t slotIndex)
     return res;
 }
 
+Json::Value
+HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
+{
+    Json::Value ret;
+    double totalLag = 0;
+    int numNodes = 0;
+
+    auto qSet = getSCP().getLocalQuorumSet();
+    LocalNode::forAllNodes(qSet, [&](NodeID const& n) {
+        auto lag = getExternalizeLag(n);
+        if (lag > 0)
+        {
+            if (!summary)
+            {
+                ret[toStrKey(n, fullKeys)] = static_cast<Json::UInt64>(lag);
+            }
+            else
+            {
+                totalLag += lag;
+                numNodes++;
+            }
+        }
+    });
+
+    if (summary && numNodes > 0)
+    {
+        double avgLag = totalLag / numNodes;
+        ret = static_cast<Json::UInt64>(avgLag);
+    }
+
+    return ret;
+}
+
+double
+HerderSCPDriver::getExternalizeLag(NodeID const& id) const
+{
+    auto n = mQSetLag.find(id);
+
+    if (n == mQSetLag.end())
+    {
+        return 0.0;
+    }
+
+    return n->second.GetSnapshot().get75thPercentile();
+}
+
 void
 HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
 {
@@ -976,11 +1022,22 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
                 make_optional<VirtualClock::time_point>(now);
         }
     }
-    else if (timing.mSelfExternalize)
+    else
     {
-        recordLogTiming(*timing.mSelfExternalize, now,
-                        mSCPMetrics.mExternalizeDelay,
-                        fmt::format("externalize delay ({})",
+        // Record externalize delay
+        if (timing.mSelfExternalize)
+        {
+            recordLogTiming(*timing.mSelfExternalize, now,
+                            mSCPMetrics.mExternalizeDelay,
+                            fmt::format("externalize delay ({})",
+                                        mApp.getConfig().toShortString(id)),
+                            std::chrono::nanoseconds::zero(), slotIndex);
+        }
+
+        // Record lag for other nodes
+        auto& lag = mQSetLag[id];
+        recordLogTiming(*timing.mFirstExternalize, now, lag,
+                        fmt::format("externalize lag ({})",
                                     mApp.getConfig().toShortString(id)),
                         std::chrono::nanoseconds::zero(), slotIndex);
     }
