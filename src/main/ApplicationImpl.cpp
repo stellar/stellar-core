@@ -633,7 +633,8 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
     auto const startLedgerSeq = getLedgerManager().getLastClosedLedgerNum();
 
     // The "scphistory" stores ledger sequence numbers as INTs.
-    if (startLedgerSeq >= std::numeric_limits<int32_t>::max())
+    if (startLedgerSeq >=
+        static_cast<uint32>(std::numeric_limits<int32_t>::max()))
     {
         throw std::invalid_argument(fmt::format(
             FMT_STRING(
@@ -645,7 +646,8 @@ ApplicationImpl::targetManualCloseLedgerSeqNum(
 
     if (explicitlyProvidedSeqNum)
     {
-        if (*explicitlyProvidedSeqNum > std::numeric_limits<int32_t>::max())
+        if (*explicitlyProvidedSeqNum >
+            static_cast<uint32>(std::numeric_limits<int32_t>::max()))
         {
             // The "scphistory" stores ledger sequence numbers as INTs.
             throw std::invalid_argument(fmt::format(

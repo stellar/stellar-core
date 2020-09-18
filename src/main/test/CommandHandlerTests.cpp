@@ -322,7 +322,8 @@ TEST_CASE("manualclose", "[commandhandler]")
             REQUIRE(lastLedgerNum() == curLedgerSeq + 1);
             REQUIRE(lastCloseTime() == expectedNewCloseTime);
             REQUIRE(lastCloseTime() ==
-                    VirtualClock::to_time_t(app->getClock().system_now()));
+                    static_cast<TimePoint>(
+                        VirtualClock::to_time_t(app->getClock().system_now())));
         }
     }
 
@@ -331,11 +332,11 @@ TEST_CASE("manualclose", "[commandhandler]")
     {
         std::string retStr;
         REQUIRE(lastLedgerNum() == LedgerManager::GENESIS_LEDGER_SEQ);
-        submitClose(make_optional<uint32_t>(static_cast<uint32_t>(
-                        std::numeric_limits<int32_t>::max())),
-                    noCloseTime, retStr);
+        auto maxLedgerNum =
+            static_cast<uint32_t>(std::numeric_limits<int32_t>::max());
+        submitClose(make_optional<uint32_t>(maxLedgerNum), noCloseTime, retStr);
         CAPTURE(retStr);
-        REQUIRE(lastLedgerNum() == std::numeric_limits<int32_t>::max());
+        REQUIRE(lastLedgerNum() == maxLedgerNum);
     }
 
     SECTION("manual close sequence number parameter that overflows int32_t is "
