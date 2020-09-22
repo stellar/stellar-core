@@ -23,6 +23,7 @@ TEST_CASE("Serialization round trip", "[history]")
         SECTION("Serialize " + testFilePath)
         {
             std::ifstream in(testFilePath);
+            REQUIRE(in);
             in.exceptions(std::ios::badbit);
             std::string hasString((std::istreambuf_iterator<char>(in)),
                                   std::istreambuf_iterator<char>());

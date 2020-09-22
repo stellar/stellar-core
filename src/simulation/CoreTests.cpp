@@ -440,9 +440,9 @@ class ScaleReporter
         : mColumns(columns)
         , mFilename(fmt::format("{:s}-{:d}.csv", join(columns, "-vs-"),
                                 std::time(nullptr)))
-        , mOut(mFilename)
     {
         mOut.exceptions(std::ios::failbit | std::ios::badbit);
+        mOut.open(mFilename);
         LOG(INFO) << "Opened " << mFilename << " for writing";
         mOut << join(columns, ",") << std::endl;
     }

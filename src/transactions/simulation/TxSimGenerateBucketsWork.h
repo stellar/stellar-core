@@ -68,8 +68,6 @@ class TxSimGenerateBucketsWork : public BasicWork
     {
         return true;
     }
-
-    void onSuccess() override;
 };
 }
 }

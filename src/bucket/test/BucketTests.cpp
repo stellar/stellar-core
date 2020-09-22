@@ -38,6 +38,7 @@ fileSize(std::string const& name)
 {
     assert(fs::exists(name));
     std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
+    REQUIRE(!!in);
     in.exceptions(std::ios::badbit);
     return in.tellg();
 }

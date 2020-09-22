@@ -555,9 +555,10 @@ Config::load(std::string const& filename)
         else
         {
             std::ifstream ifs(filename);
-            if (!ifs.is_open())
+            if (!ifs)
             {
-                throw std::runtime_error("could not open file");
+                throw std::runtime_error(
+                    fmt::format("Error opening file {}", filename));
             }
             ifs.exceptions(std::ios::badbit);
             load(ifs);
