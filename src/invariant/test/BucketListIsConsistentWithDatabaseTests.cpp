@@ -182,7 +182,9 @@ struct BucketListGenerator
                 auto b = out.getBucket(bmApply);
             }
         }
-        return HistoryArchiveState(mLedgerSeq, blGenerate);
+        return HistoryArchiveState(
+            mLedgerSeq, blGenerate,
+            mAppGenerate->getConfig().NETWORK_PASSPHRASE);
     }
 };
 

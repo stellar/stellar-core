@@ -21,7 +21,8 @@ stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 TESTDATA_DIR = testdata
 TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg \
              $(TESTDATA_DIR)/stellar-core_testnet.cfg $(TESTDATA_DIR)/stellar-core_testnet_legacy.cfg \
-	     $(TESTDATA_DIR)/stellar-history.testnet.6714239.json $(TESTDATA_DIR)/stellar-history.livenet.15686975.json $(TESTDATA_DIR)/stellar-core_example_validators.cfg
+	     $(TESTDATA_DIR)/stellar-history.testnet.6714239.json $(TESTDATA_DIR)/stellar-history.livenet.15686975.json $(TESTDATA_DIR)/stellar-core_example_validators.cfg \
+	     $(TESTDATA_DIR)/stellar-history.testnet.6714239.networkPassphrase.json
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp $(TEST_FILES)
 

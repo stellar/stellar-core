@@ -368,8 +368,11 @@ HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
 }
 
 HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
-                                         BucketList const& buckets)
-    : server(STELLAR_CORE_VERSION), currentLedger(ledgerSeq)
+                                         BucketList const& buckets,
+                                         std::string const& passphrase)
+    : server(STELLAR_CORE_VERSION)
+    , networkPassphrase(passphrase)
+    , currentLedger(ledgerSeq)
 {
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {

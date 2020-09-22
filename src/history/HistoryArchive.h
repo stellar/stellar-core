@@ -64,12 +64,14 @@ struct HistoryArchiveState
 
     unsigned version{HISTORY_ARCHIVE_STATE_VERSION};
     std::string server;
+    std::string networkPassphrase;
     uint32_t currentLedger{0};
     std::vector<HistoryStateBucket> currentBuckets;
 
     HistoryArchiveState();
 
-    HistoryArchiveState(uint32_t ledgerSeq, BucketList const& buckets);
+    HistoryArchiveState(uint32_t ledgerSeq, BucketList const& buckets,
+                        std::string const& networkPassphrase);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();
@@ -96,16 +98,29 @@ struct HistoryArchiveState
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger),
-           CEREAL_NVP(currentBuckets));
+        ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger));
+        try
+        {
+            ar(CEREAL_NVP(networkPassphrase));
+        }
+        catch (cereal::Exception)
+        {
+            // networkPassphrase wasn't parsed.
+            // This is expected when the input file does not contain it.
+        }
+        ar(CEREAL_NVP(currentBuckets));
     }
 
     template <class Archive>
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger),
-           CEREAL_NVP(currentBuckets));
+        ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger));
+        if (!networkPassphrase.empty())
+        {
+            ar(CEREAL_NVP(networkPassphrase));
+        }
+        ar(CEREAL_NVP(currentBuckets));
     }
 
     // Return true if all futures are in FB_CLEAR state
