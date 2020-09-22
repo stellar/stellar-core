@@ -21,7 +21,8 @@ namespace
 class QuorumSetSanityChecker
 {
   public:
-    explicit QuorumSetSanityChecker(SCPQuorumSet const& qSet, bool extraChecks);
+    explicit QuorumSetSanityChecker(SCPQuorumSet const& qSet, bool extraChecks,
+                                    char const*& errString);
     bool
     isSane() const
     {
@@ -34,24 +35,39 @@ class QuorumSetSanityChecker
     bool mIsSane;
     size_t mCount{0};
 
-    bool checkSanity(SCPQuorumSet const& qSet, uint32 depth);
+    bool checkSanity(SCPQuorumSet const& qSet, uint32 depth,
+                     char const*& errString);
 };
 
 QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
-                                               bool extraChecks)
+                                               bool extraChecks,
+                                               char const*& errString)
     : mExtraChecks{extraChecks}
 {
-    mIsSane = checkSanity(qSet, 0) && mCount >= 1 && mCount <= 1000;
+    mIsSane = checkSanity(qSet, 0, errString);
+    if (mIsSane && (mCount < 1 || mCount > 1000))
+    {
+        mIsSane = false;
+        errString =
+            "Total number of nodes in a quorum must be within 1 and 1000";
+    }
 }
 
 bool
-QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth)
+QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth,
+                                    char const*& errString)
 {
     if (depth > MAXIMUM_QUORUM_NESTING_LEVEL)
+    {
+        errString = "Maximum quorum nesting level exceeded";
         return false;
+    }
 
     if (qSet.threshold < 1)
+    {
+        errString = "Threshold must be greater than 0";
         return false;
+    }
 
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
@@ -61,11 +77,17 @@ QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth)
     mCount += v.size();
 
     if (qSet.threshold > totEntries)
+    {
+        errString = "Threshold exceeds total number of entries";
         return false;
+    }
 
     // threshold is within the proper range
     if (mExtraChecks && qSet.threshold < vBlockingSize)
+    {
+        errString = "Threshold is lower than the v-blocking size (< 51%).";
         return false;
+    }
 
     for (auto const& n : v)
     {
@@ -73,13 +95,14 @@ QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth)
         if (!r.second)
         {
             // n was already present
+            errString = "Duplicate node found in quorum configuration";
             return false;
         }
     }
 
     for (auto const& iSet : i)
     {
-        if (!checkSanity(iSet, depth + 1))
+        if (!checkSanity(iSet, depth + 1, errString))
         {
             return false;
         }
@@ -90,9 +113,10 @@ QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, uint32 depth)
 }
 
 bool
-isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
+isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks,
+                char const*& errString)
 {
-    QuorumSetSanityChecker checker{qSet, extraChecks};
+    QuorumSetSanityChecker checker{qSet, extraChecks, errString};
     return checker.isSane();
 }
 

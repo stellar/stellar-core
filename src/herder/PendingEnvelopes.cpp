@@ -92,7 +92,8 @@ PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
 {
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(qSetHash);
     SCPQuorumSetPtr res;
-    assert(isQuorumSetSane(qSet, false));
+    const char* errString = nullptr;
+    assert(isQuorumSetSane(qSet, false, errString));
     res = getKnownQSet(qSetHash, true);
     if (!res)
     {
@@ -123,7 +124,8 @@ PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
         return false;
     }
 
-    bool res = isQuorumSetSane(q, false);
+    const char* errString = nullptr;
+    bool res = isQuorumSetSane(q, false, errString);
     if (res)
     {
         addSCPQuorumSet(hash, q);
