@@ -124,12 +124,10 @@ TxSimGenerateBucketsWork::onRun()
         mTimer->async_wait(wakeSelfUpCallback(), &VirtualTimer::onFailureNoop);
         return BasicWork::State::WORK_WAITING;
     }
-    else
+
+    if (!mIntermediateBuckets.empty())
     {
-        if (!mIntermediateBuckets.empty())
-        {
-            processGeneratedBucket();
-        }
+        processGeneratedBucket();
 
         if (mLevel < BucketList::kNumLevels - 1)
         {
@@ -152,14 +150,9 @@ TxSimGenerateBucketsWork::onRun()
         auto bucketHash = mIsCurr ? currentLevel.curr : currentLevel.snap;
         auto bucket =
             mApp.getBucketManager().getBucketByHash(hexToBin256(bucketHash));
-        Hash emptyHash;
-        if (bucket->getHash() != emptyHash)
-        {
-            CLOG(INFO, "History")
-                << "Simulating " << (mIsCurr ? "curr" : "snap")
-                << " bucketlist level: " << mLevel;
-            startBucketGeneration(bucket);
-        }
+        CLOG(INFO, "History") << "Simulating " << (mIsCurr ? "curr" : "snap")
+                              << " bucketlist level: " << mLevel;
+        startBucketGeneration(bucket);
     }
     catch (std::runtime_error const& e)
     {
