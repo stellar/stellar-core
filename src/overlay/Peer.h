@@ -27,9 +27,27 @@ class Application;
 class LoopbackPeer;
 struct OverlayMetrics;
 
-/*
- * Another peer out there that we are connected to
- */
+// Peer class represents a connected peer (either inbound or outbound)
+//
+// Connection steps:
+//   A initiates a TCP connection to B
+//   Once the connection is established, A sends HELLO(CertA,NonceA)
+//     HELLO message includes A's listening port and ledger information
+//   B now has IP and listening port of A, sends HELLO(CertB,NonceB) back
+//   A sends AUTH(signed([seq=0], keyAB))
+//     Peers use `seq` counter to prevent message replays
+//   B verifies A's AUTH message and does the following:
+//     sends AUTH(signed([seq=0], keyBA)) back
+//     sends a list of other peers to try
+//     maybe disconnects (if no connection slots are available)
+//
+// keyAB and keyBA are per-connection HMAC keys derived from non-interactive
+// ECDH on random curve25519 keys conveyed in CertA and CertB (certs signed by
+// Node Ed25519 keys) the result of which is then fed through HKDF with the
+// per-connection nonces. See PeerAuth.h.
+//
+// If any verify step fails, the peer disconnects immediately.
+
 class Peer : public std::enable_shared_from_this<Peer>,
              public NonMovableOrCopyable
 {
