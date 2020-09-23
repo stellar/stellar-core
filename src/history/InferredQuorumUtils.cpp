@@ -86,8 +86,9 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile,
     }
     else
     {
-        std::ofstream out(filename);
+        std::ofstream out;
         out.exceptions(std::ios::failbit | std::ios::badbit);
+        out.open(filename);
         iq.writeQuorumGraph(cfg2, out);
         LOG(INFO) << "*";
         LOG(INFO) << "* Wrote quorum graph to " << filename;

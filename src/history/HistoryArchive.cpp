@@ -108,8 +108,9 @@ void
 HistoryArchiveState::save(std::string const& outFile) const
 {
     ZoneScoped;
-    std::ofstream out(outFile);
+    std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
+    out.open(outFile);
     cereal::JSONOutputArchive ar(out);
     serialize(ar);
 }
@@ -134,6 +135,10 @@ HistoryArchiveState::load(std::string const& inFile)
 {
     ZoneScoped;
     std::ifstream in(inFile);
+    if (!in)
+    {
+        throw std::runtime_error(fmt::format("Error opening file {}", inFile));
+    }
     in.exceptions(std::ios::badbit);
     cereal::JSONInputArchive ar(in);
     serialize(ar);

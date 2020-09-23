@@ -11,6 +11,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "history/HistoryArchive.h"
+#include "main/ErrorMessages.h"
 #include "src/transactions/simulation/TxSimUtils.h"
 
 namespace stellar
@@ -138,7 +139,19 @@ TxSimGenerateBucketsWork::onRun()
         }
         else
         {
-            return State::WORK_SUCCESS;
+            try
+            {
+                // Persist HAS file to avoid re-generating same buckets
+                getGeneratedHAS().save("simulate-" +
+                                       HistoryArchiveState::baseName());
+                return State::WORK_SUCCESS;
+            }
+            catch (std::exception const& e)
+            {
+                CLOG(ERROR, "History") << "Error saving HAS file: " << e.what();
+                CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+                return State::WORK_FAILURE;
+            }
         }
 
         mIsCurr = !mIsCurr;
@@ -253,13 +266,6 @@ TxSimGenerateBucketsWork::startBucketGeneration(
     }
 
     checkOrStartMerges();
-}
-
-void
-TxSimGenerateBucketsWork::onSuccess()
-{
-    // Persist HAS file to avoid re-generating same buckets
-    getGeneratedHAS().save("simulate-" + HistoryArchiveState::baseName());
 }
 }
 }

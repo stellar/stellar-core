@@ -85,8 +85,9 @@ TEST_CASE("HistoryManager compress", "[history]")
     HistoryManager& hm = catchupSimulation.getApp().getHistoryManager();
     std::string fname = hm.localFilename("compressme");
     {
-        std::ofstream out(fname, std::ofstream::binary);
+        std::ofstream out;
         out.exceptions(std::ios::failbit | std::ios::badbit);
+        out.open(fname, std::ofstream::binary);
         out.write(s.data(), s.size());
     }
     std::string compressed = fname + ".gz";
