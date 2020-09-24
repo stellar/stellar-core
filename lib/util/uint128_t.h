@@ -236,12 +236,12 @@ class uint128_t{
         bool operator||(const uint128_t & rhs) const;
 
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
-        bool operator&&(const T & rhs){
+        bool operator&&(const T & rhs) const{
             return static_cast <bool> (*this && rhs);
         }
 
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
-        bool operator||(const T & rhs){
+        bool operator||(const T & rhs) const{
             return static_cast <bool> (*this || rhs);
         }
 
