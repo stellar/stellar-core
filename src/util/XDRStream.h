@@ -123,7 +123,7 @@ class XDRInputFileStream
     }
 };
 
-// XDROutputStream needs access to a file descriptor to do fsync, so we use
+// XDROutputFileStream needs access to a file descriptor to do fsync, so we use
 // asio's synchronous stream types here rather than fstreams.
 class XDROutputFileStream
 {
