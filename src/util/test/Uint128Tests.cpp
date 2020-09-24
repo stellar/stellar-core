@@ -22,7 +22,7 @@ const uint64_t full = std::numeric_limits<uint64_t>::max();
 uint128_t
 fromNative(unsigned __int128 x)
 {
-    return uint128_t(x >> 64, x & full);
+    return uint128_t(uint64_t(x >> 64), uint64_t(x & full));
 }
 
 unsigned __int128
