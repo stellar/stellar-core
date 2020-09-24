@@ -117,6 +117,17 @@ class TestNominationSCP : public SCPDriver
         static Value const emptyValue{};
         return emptyValue;
     }
+
+    Hash
+    getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
+    {
+        SHA256 hasher;
+        for (auto const& v : vals)
+        {
+            hasher.add(v);
+        }
+        return hasher.finish();
+    }
 };
 
 class NominationTestHandler : public NominationProtocol

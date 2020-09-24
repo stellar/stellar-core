@@ -25,14 +25,15 @@ LocalNode::LocalNode(NodeID const& nodeID, bool isValidator,
     : mNodeID(nodeID), mIsValidator(isValidator), mQSet(qSet), mSCP(scp)
 {
     normalizeQSet(mQSet);
-    mQSetHash = sha256(xdr::xdr_to_opaque(mQSet));
+    auto const& scpDriver = mSCP->getDriver();
+    mQSetHash = scpDriver.getHashOf({xdr::xdr_to_opaque(mQSet)});
 
     CLOG(INFO, "SCP") << "LocalNode::LocalNode"
                       << "@" << KeyUtils::toShortString(mNodeID)
                       << " qSet: " << hexAbbrev(mQSetHash);
 
     mSingleQSet = std::make_shared<SCPQuorumSet>(buildSingletonQSet(mNodeID));
-    gSingleQSetHash = sha256(xdr::xdr_to_opaque(*mSingleQSet));
+    gSingleQSetHash = scpDriver.getHashOf({xdr::xdr_to_opaque(*mSingleQSet)});
 }
 
 SCPQuorumSet
@@ -48,7 +49,7 @@ void
 LocalNode::updateQuorumSet(SCPQuorumSet const& qSet)
 {
     ZoneScoped;
-    mQSetHash = sha256(xdr::xdr_to_opaque(qSet));
+    mQSetHash = mSCP->getDriver().getHashOf({xdr::xdr_to_opaque(qSet)});
     mQSet = qSet;
 }
 
