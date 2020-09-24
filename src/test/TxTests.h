@@ -72,6 +72,11 @@ void validateTxResults(TransactionFramePtr const& tx, Application& app,
                        TransactionResult const& applyResult = {});
 
 TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs = {},
+              bool skipValid = false);
+
+TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs = {},
               bool skipValid = false);

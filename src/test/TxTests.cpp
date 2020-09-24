@@ -398,6 +398,14 @@ TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFrameBasePtr> const& txs, bool skipValid)
 {
+    return closeLedgerOn(app, ledgerSeq, getTestDate(day, month, year), txs,
+                         skipValid);
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, time_t closeTime,
+              std::vector<TransactionFrameBasePtr> const& txs, bool skipValid)
+{
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
 
@@ -412,8 +420,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
         REQUIRE(txSet->checkValid(app, 0, 0));
     }
 
-    StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
-                    emptyUpgradeSteps, STELLAR_VALUE_BASIC);
+    StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps,
+                    STELLAR_VALUE_BASIC);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
