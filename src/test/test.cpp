@@ -5,6 +5,7 @@
 #define CATCH_CONFIG_RUNNER
 
 #include "util/asio.h"
+#include <autocheck/autocheck.hpp>
 
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnHeader.h"
@@ -56,6 +57,7 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
         srand(sCommandLineSeed);
         gRandomEngine.seed(sCommandLineSeed);
         Catch::rng().seed(sCommandLineSeed);
+        autocheck::rng().seed(sCommandLineSeed);
     }
     virtual void
     testCaseStarting(Catch::TestCaseInfo const& testInfo) override
