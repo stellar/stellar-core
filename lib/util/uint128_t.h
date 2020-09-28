@@ -124,7 +124,11 @@ class uint128_t{
         {
             if (std::is_signed<T>::value) {
                 if (rhs < 0) {
+#ifdef ALLOW_UINT128_FROM_NEGATIVE_NUMBERS
                     UPPER = -1;
+#else
+                    throw std::invalid_argument("uint128_t initialized from negative number");
+#endif
                 }
             }
         }
@@ -137,7 +141,14 @@ class uint128_t{
 #ifdef __LITTLE_ENDIAN__
             : LOWER(lower_rhs), UPPER(upper_rhs)
 #endif
-        {}
+        {
+#ifndef ALLOW_UINT128_FROM_NEGATIVE_NUMBERS
+            if ((std::is_signed<S>::value && upper_rhs < 0) ||
+                (std::is_signed<T>::value && lower_rhs < 0)) {
+                throw std::invalid_argument("uint128_t initialized from negative number");
+            }
+#endif
+        }
 
         //  RHS input args only
 
@@ -151,7 +162,11 @@ class uint128_t{
 
             if (std::is_signed<T>::value) {
                 if (rhs < 0) {
+#ifdef ALLOW_UINT128_FROM_NEGATIVE_NUMBERS
                     UPPER = -1;
+#else
+                    throw std::invalid_argument("uint128_t assigned from negative number");
+#endif
                 }
             }
 

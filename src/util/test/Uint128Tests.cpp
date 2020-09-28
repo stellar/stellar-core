@@ -135,16 +135,12 @@ TEST_CASE("uint128_t carry tests with negative arg")
         SECTION("bad carry lower")
         {
             uint128_t x(0, 100);
-            x += -1;
-            REQUIRE(x.lower() == 99);
-            REQUIRE(x.upper() == 0);
+            REQUIRE_THROWS_AS(x += -1, std::invalid_argument);
         }
         SECTION("bad carry upper")
         {
             uint128_t x(2, 0);
-            x += -1;
-            REQUIRE(x.lower() == UINT64_MAX);
-            REQUIRE(x.upper() == 1);
+            REQUIRE_THROWS_AS(x += -1, std::invalid_argument);
         }
     }
     SECTION("subtraction")
@@ -152,16 +148,12 @@ TEST_CASE("uint128_t carry tests with negative arg")
         SECTION("bad carry lower")
         {
             uint128_t x(0, 100);
-            x -= -1;
-            REQUIRE(x.lower() == 101);
-            REQUIRE(x.upper() == 0);
+            REQUIRE_THROWS_AS(x -= -1, std::invalid_argument);
         }
         SECTION("bad carry upper")
         {
             uint128_t x(1, UINT64_MAX);
-            x -= -1;
-            REQUIRE(x.lower() == 0);
-            REQUIRE(x.upper() == 2);
+            REQUIRE_THROWS_AS(x -= -1, std::invalid_argument);
         }
     }
 }
