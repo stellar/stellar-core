@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/GeneralizedLedgerEntry.h"
-#include "util/XDROperators.h"
+#include "util/XDRCereal.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
 
@@ -288,10 +288,10 @@ GeneralizedLedgerKey::toString() const
         return xdr::xdr_to_string(ledgerKey());
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {}\n}}\n",
-                           xdr_printer(sponsorshipKey().sponsoredID));
+                           xdr_to_string(sponsorshipKey().sponsoredID));
     case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
         return fmt::format("{{\n  sponsoringID = {}\n}}\n",
-                           xdr_printer(sponsorshipCounterKey().sponsoringID));
+                           xdr_to_string(sponsorshipCounterKey().sponsoringID));
     default:
         abort();
     }
@@ -568,12 +568,12 @@ GeneralizedLedgerEntry::toString() const
         return xdr::xdr_to_string(ledgerEntry());
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {},\n  sponsoringID = {}\n}}\n",
-                           xdr_printer(sponsorshipEntry().sponsoredID),
-                           xdr_printer(sponsorshipEntry().sponsoringID));
+                           xdr_to_string(sponsorshipEntry().sponsoredID),
+                           xdr_to_string(sponsorshipEntry().sponsoringID));
     case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
         return fmt::format(
             "{{\n  sponsoringID = {},\n  numSponsoring = {}\n}}\n",
-            xdr_printer(sponsorshipCounterEntry().sponsoringID),
+            xdr_to_string(sponsorshipCounterEntry().sponsoringID),
             sponsorshipCounterEntry().numSponsoring);
     default:
         abort();
