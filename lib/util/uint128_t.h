@@ -29,6 +29,18 @@ a bug in operator*.
 
 Thanks to François Dessenne for convincing me
 to do a general rewrite of this class.
+
+when defining UNSAFE_UINT128_OPS additional behaviors are enabled.
+
+for example:
+// implicit typecast Operators,
+// short for (short)uint128_t(y).lower()
+// or (char)uint128_t(y)
+char x = uint128_t(y);
+
+// arithmetic operators with short type as lhs,
+// short for 2 * uint128_t(y).lower()
+auto x = 2 * uint128_t(y);
 */
 
 #ifndef __UINT128_T__
@@ -77,6 +89,12 @@ namespace std {  // This is probably not a good idea
     template <> struct is_integral   <uint128_t> : std::true_type {};
     template <> struct is_unsigned   <uint128_t> : std::true_type {};
 }
+
+#ifdef UNSAFE_UINT128_OPS
+#define IMPLICIT_UNSAFE_UINT128_OPS
+#else
+#define IMPLICIT_UNSAFE_UINT128_OPS explicit
+#endif
 
 class uint128_t{
     private:
@@ -142,11 +160,11 @@ class uint128_t{
         }
 
         // Typecast Operators
-        operator bool() const;
-        operator uint8_t() const;
-        operator uint16_t() const;
-        operator uint32_t() const;
-        operator uint64_t() const;
+        IMPLICIT_UNSAFE_UINT128_OPS operator bool() const;
+        IMPLICIT_UNSAFE_UINT128_OPS operator uint8_t() const;
+        IMPLICIT_UNSAFE_UINT128_OPS operator uint16_t() const;
+        IMPLICIT_UNSAFE_UINT128_OPS operator uint32_t() const;
+        IMPLICIT_UNSAFE_UINT128_OPS operator uint64_t() const;
 
         // Bitwise Operators
         uint128_t operator&(const uint128_t & rhs) const;
@@ -286,46 +304,68 @@ class uint128_t{
 
         // Arithmetic Operators
         uint128_t operator+(const uint128_t & rhs) const;
+        uint128_t & operator+=(const uint128_t & rhs);
+        uint128_t operator-(const uint128_t & rhs) const;
+        uint128_t & operator-=(const uint128_t & rhs);
+        uint128_t operator*(const uint128_t & rhs) const;
+        uint128_t & operator*=(const uint128_t & rhs);
+        uint128_t operator/(const uint128_t & rhs) const;
+        uint128_t & operator/=(const uint128_t & rhs);
+        uint128_t operator%(const uint128_t & rhs) const;
+        uint128_t & operator%=(const uint128_t & rhs);
 
+#ifdef UNSAFE_UINT128_OPS
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
         uint128_t operator+(const T & rhs) const{
             return *this + uint128_t(rhs);
         }
-
-        uint128_t & operator+=(const uint128_t & rhs);
 
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
         uint128_t & operator+=(const T & rhs){
             return *this += uint128_t(rhs);
         }
 
-        uint128_t operator-(const uint128_t & rhs) const;
-
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
         uint128_t operator-(const T & rhs) const{
             return *this - uint128_t(rhs);
         }
-
-        uint128_t & operator-=(const uint128_t & rhs);
 
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
         uint128_t & operator-=(const T & rhs){
             return *this = *this - uint128_t(rhs);
         }
 
-        uint128_t operator*(const uint128_t & rhs) const;
 
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
         uint128_t operator*(const T & rhs) const{
             return *this * uint128_t(rhs);
         }
 
-        uint128_t & operator*=(const uint128_t & rhs);
-
         template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
         uint128_t & operator*=(const T & rhs){
             return *this = *this * uint128_t(rhs);
         }
+
+        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
+        uint128_t operator/(const T & rhs) const{
+            return *this / uint128_t(rhs);
+        }
+
+        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
+        uint128_t & operator/=(const T & rhs){
+            return *this = *this / uint128_t(rhs);
+        }
+
+        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
+        uint128_t operator%(const T & rhs) const{
+            return *this % uint128_t(rhs);
+        }
+
+        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
+        uint128_t & operator%=(const T & rhs){
+            return *this = *this % uint128_t(rhs);
+        }
+#endif
 
     private:
         std::pair <uint128_t, uint128_t> divmod(const uint128_t & lhs, const uint128_t & rhs) const;
@@ -336,33 +376,6 @@ class uint128_t{
         void _init_oct(const char *s);
 
     public:
-        uint128_t operator/(const uint128_t & rhs) const;
-
-        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
-        uint128_t operator/(const T & rhs) const{
-            return *this / uint128_t(rhs);
-        }
-
-        uint128_t & operator/=(const uint128_t & rhs);
-
-        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
-        uint128_t & operator/=(const T & rhs){
-            return *this = *this / uint128_t(rhs);
-        }
-
-        uint128_t operator%(const uint128_t & rhs) const;
-
-        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
-        uint128_t operator%(const T & rhs) const{
-            return *this % uint128_t(rhs);
-        }
-
-        uint128_t & operator%=(const uint128_t & rhs);
-
-        template <typename T, typename = typename std::enable_if<std::is_integral<T>::value, T>::type >
-        uint128_t & operator%=(const T & rhs){
-            return *this = *this % uint128_t(rhs);
-        }
 
         // Increment Operator
         uint128_t & operator++();
