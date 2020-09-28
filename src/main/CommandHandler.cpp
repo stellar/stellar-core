@@ -90,10 +90,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         addRoute("quorum", &CommandHandler::quorum);
         addRoute("scp", &CommandHandler::scpInfo);
         addRoute("stopsurvey", &CommandHandler::stopSurvey);
-#ifndef BUILD_TESTS
         addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
         addRoute("surveytopology", &CommandHandler::surveyTopology);
-#endif
         addRoute("unban", &CommandHandler::unban);
     }
 
@@ -110,8 +108,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("generateload", &CommandHandler::generateLoad);
     addRoute("testacc", &CommandHandler::testAcc);
     addRoute("testtx", &CommandHandler::testTx);
-    addRoute("getsurveyresult", &CommandHandler::getSurveyResult);
-    addRoute("surveytopology", &CommandHandler::surveyTopology);
 #endif
 }
 
