@@ -5,7 +5,6 @@
 #include "ledger/GeneralizedLedgerEntry.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
-#include "xdrpp/printer.h"
 
 #include <fmt/format.h>
 
@@ -285,7 +284,7 @@ GeneralizedLedgerKey::toString() const
     switch (mType)
     {
     case GeneralizedLedgerEntryType::LEDGER_ENTRY:
-        return xdr::xdr_to_string(ledgerKey());
+        return xdr_to_string(ledgerKey());
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {}\n}}\n",
                            xdr_to_string(sponsorshipKey().sponsoredID));
@@ -565,7 +564,7 @@ GeneralizedLedgerEntry::toString() const
     switch (mType)
     {
     case GeneralizedLedgerEntryType::LEDGER_ENTRY:
-        return xdr::xdr_to_string(ledgerEntry());
+        return xdr_to_string(ledgerEntry());
     case GeneralizedLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {},\n  sponsoringID = {}\n}}\n",
                            xdr_to_string(sponsorshipEntry().sponsoredID),

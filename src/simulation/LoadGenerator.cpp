@@ -15,13 +15,13 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
+#include "util/XDRCereal.h"
 #include "util/numeric.h"
 #include "util/types.h"
 
 #include "database/Database.h"
 
 #include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -652,8 +652,8 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     {
         CLOG(INFO, "LoadGen")
             << "tx rejected '" << TX_STATUS_STRING[static_cast<int>(status)]
-            << "': " << xdr::xdr_to_string(txf->getEnvelope()) << " ===> "
-            << xdr::xdr_to_string(txf->getResult());
+            << "': " << xdr_to_string(txf->getEnvelope()) << " ===> "
+            << xdr_to_string(txf->getResult());
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             code = txf->getResultCode();

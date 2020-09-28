@@ -17,14 +17,13 @@
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <algorithm>
 #include <list>
 #include <numeric>
-
-#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -319,7 +318,7 @@ TxSetFrame::checkOrTrim(Application& app,
                     CLOG(DEBUG, "Herder")
                         << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                         << " tx invalid lastSeq:" << lastSeq
-                        << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
+                        << " tx: " << xdr_to_string(tx->getEnvelope())
                         << " result: " << tx->getResultCode();
                     return false;
                 }
@@ -360,7 +359,7 @@ TxSetFrame::checkOrTrim(Application& app,
                     CLOG(DEBUG, "Herder")
                         << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                         << " account can't pay fee tx: "
-                        << xdr::xdr_to_string(tx->getEnvelope());
+                        << xdr_to_string(tx->getEnvelope());
                     return false;
                 }
                 while (iter != kv.second.end())

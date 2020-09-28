@@ -25,8 +25,8 @@
 #include "transactions/TransactionUtils.h"
 #include "transactions/UpdateSponsorshipOpFrame.h"
 #include "util/Logging.h"
+#include "util/XDRCereal.h"
 #include <Tracy.hpp>
-#include <xdrpp/printer.h>
 
 namespace stellar
 {
@@ -117,7 +117,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     bool res;
     if (Logging::logTrace("Tx"))
     {
-        CLOG(TRACE, "Tx") << "Operation: " << xdr::xdr_to_string(mOperation);
+        CLOG(TRACE, "Tx") << "Operation: " << xdr_to_string(mOperation);
     }
     res = checkValid(signatureChecker, ltx, true);
     if (res)
@@ -125,8 +125,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
         res = doApply(ltx);
         if (Logging::logTrace("Tx"))
         {
-            CLOG(TRACE, "Tx")
-                << "Operation result: " << xdr::xdr_to_string(mResult);
+            CLOG(TRACE, "Tx") << "Operation result: " << xdr_to_string(mResult);
         }
     }
 

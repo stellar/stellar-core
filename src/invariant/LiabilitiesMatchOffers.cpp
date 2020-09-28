@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "transactions/OfferExchange.h"
 #include "transactions/TransactionUtils.h"
+#include "util/XDRCereal.h"
 #include "util/types.h"
 #include "xdrpp/printer.h"
 #include <fmt/format.h>
@@ -99,7 +100,7 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
                 {
                     return fmt::format(
                         "Liabilities increased on unauthorized trust line {}",
-                        xdr::xdr_to_string(trust));
+                        xdr_to_string(trust));
                 }
             }
             else
@@ -109,7 +110,7 @@ checkAuthorized(LedgerEntry const* current, LedgerEntry const* previous)
                 {
                     return fmt::format(
                         "Unauthorized trust line has liabilities {}",
-                        xdr::xdr_to_string(trust));
+                        xdr_to_string(trust));
                 }
             }
         }
@@ -258,7 +259,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
             {
                 return fmt::format(
                     "Balance not compatible with liabilities for account {}",
-                    xdr::xdr_to_string(account));
+                    xdr_to_string(account));
             }
         }
     }
@@ -276,7 +277,7 @@ checkBalanceAndLimit(LedgerHeader const& header, LedgerEntry const* current,
         {
             return fmt::format(
                 "Balance not compatible with liabilities for trustline {}",
-                xdr::xdr_to_string(trust));
+                xdr_to_string(trust));
         }
     }
     return {};
@@ -349,8 +350,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                         "change in total buying liabilities of "
                         "offers by {} for account {} in asset {}",
                         assetLiabilities.second.buying,
-                        xdr::xdr_to_string(accLiabilities.first),
-                        xdr::xdr_to_string(assetLiabilities.first));
+                        xdr_to_string(accLiabilities.first),
+                        xdr_to_string(assetLiabilities.first));
                 }
                 else if (assetLiabilities.second.selling != 0)
                 {
@@ -359,8 +360,8 @@ LiabilitiesMatchOffers::checkOnOperationApply(Operation const& operation,
                         "change in total selling liabilities of "
                         "offers by {} for account {} in asset {}",
                         assetLiabilities.second.selling,
-                        xdr::xdr_to_string(accLiabilities.first),
-                        xdr::xdr_to_string(assetLiabilities.first));
+                        xdr_to_string(accLiabilities.first),
+                        xdr_to_string(assetLiabilities.first));
                 }
             }
         }

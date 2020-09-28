@@ -13,7 +13,7 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Logging.h"
-#include "xdrpp/printer.h"
+#include "util/XDRCereal.h"
 #include <fmt/format.h>
 
 #include "medida/counter.h"
@@ -117,7 +117,7 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
 
         auto message = fmt::format(
             R"(Invariant "{}" does not hold on operation: {}{}{})",
-            invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
+            invariant->getName(), result, "\n", xdr_to_string(operation));
         onInvariantFailure(invariant, message,
                            ltxDelta.header.current.ledgerSeq);
     }

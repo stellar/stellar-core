@@ -5,6 +5,7 @@
 #include "test/TestPrinter.h"
 #include "catchup/CatchupRange.h"
 #include "test/TestMarket.h"
+#include "util/XDRCereal.h"
 #include <fmt/format.h>
 
 namespace Catch
@@ -14,8 +15,8 @@ StringMaker<stellar::OfferState>::convert(stellar::OfferState const& os)
 {
     return fmt::format(
         "selling: {}, buying: {}, price: {}, amount: {}, type: {}",
-        xdr::xdr_to_string(os.selling), xdr::xdr_to_string(os.buying),
-        xdr::xdr_to_string(os.price), os.amount,
+        xdr_to_string(os.selling), xdr_to_string(os.buying),
+        xdr_to_string(os.price), os.amount,
         os.type == stellar::OfferType::PASSIVE ? "passive" : "active");
 }
 

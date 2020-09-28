@@ -31,6 +31,7 @@
 #include "util/GlobalChecks.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include <fmt/format.h>
 
@@ -566,7 +567,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             << ", LCL is " << ledgerAbbrev(getLastClosedLedgerHeader());
 
         CLOG(ERROR, "Ledger")
-            << "Full LCL: " << xdr::xdr_to_string(getLastClosedLedgerHeader());
+            << "Full LCL: " << xdr_to_string(getLastClosedLedgerHeader());
         CLOG(ERROR, "Ledger") << POSSIBLY_CORRUPTED_LOCAL_DATA;
 
         throw std::runtime_error("txset mismatch");
@@ -634,7 +635,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         case Upgrades::UpgradeValidity::INVALID:
             throw std::runtime_error(
                 fmt::format(FMT_STRING("Invalid upgrade at index {}: {}"), i,
-                            xdr::xdr_to_string(lupgrade)));
+                            xdr_to_string(lupgrade)));
         }
 
         try
