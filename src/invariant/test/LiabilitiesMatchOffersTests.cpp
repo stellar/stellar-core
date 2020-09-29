@@ -284,7 +284,11 @@ TEST_CASE("Create account then increase liabilities without changing balance",
     auto offer = generateOffer(native, cur1, 100, Price{1, 1});
     auto selling =
         generateSellingLiabilities(*app, offer, true, AUTHORIZED_FLAG);
-    ++selling.data.account().balance;
+
+    // we want to set the balance to the absolute minimum balance required.
+    selling.data.account().balance =
+        getMinBalance(*app, selling.data.account()) + offer.data.offer().amount;
+
     auto buying =
         generateBuyingLiabilities(*app, offer, false, AUTHORIZED_FLAG);
     std::vector<LedgerEntry> entries{offer, selling, buying};
