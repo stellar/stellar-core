@@ -14,7 +14,7 @@
 namespace stellar
 {
 
-std::default_random_engine gRandomEngine;
+stellar_default_random_engine gRandomEngine;
 std::uniform_real_distribution<double> uniformFractionDistribution(0.0, 1.0);
 
 double
