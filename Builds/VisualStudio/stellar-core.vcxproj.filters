@@ -345,6 +345,9 @@
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\invariant\SponsorshipCountIsValid.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\numeric.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -664,6 +667,9 @@
       <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\test\LiabilitiesMatchOffersTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\test\SponsorshipCountIsValidTests.cpp">
       <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\test\LedgerHeaderTests.cpp">
@@ -1344,6 +1350,9 @@
       <Filter>invariant</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\SponsorshipCountIsValid.h">
       <Filter>invariant</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\LogSlowExecution.h">
