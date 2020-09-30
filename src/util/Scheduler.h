@@ -12,6 +12,7 @@
 #include <queue>
 #include <set>
 #include <string>
+#include <unordered_map>
 
 // This class implements a multi-queue scheduler for "actions" (deferred-work
 // callbacks that some subsystem wants to run "soon" on the main thread),
@@ -219,6 +220,8 @@ class Scheduler
     {
         return mSize;
     }
+
+    std::unordered_map<std::string, size_t> queueSizes() const;
 
     std::chrono::nanoseconds
     maxTotalService() const

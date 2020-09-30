@@ -429,6 +429,24 @@ TCPPeer::noteFullyReadBody(size_t nbytes)
     receivedBytes(nbytes, true);
 }
 
+size_t
+TCPPeer::getWriteQueueSize() const
+{
+    return mWriteQueue.size();
+}
+
+size_t
+TCPPeer::getWriteQueueSizeBytes() const
+{
+    size_t total = 0;
+    for (auto const& q : mWriteQueue)
+    {
+        total += q.mMessage->raw_size();
+    }
+
+    return total;
+}
+
 void
 TCPPeer::startRead()
 {

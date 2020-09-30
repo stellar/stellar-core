@@ -196,6 +196,7 @@ class VirtualClock
                     Scheduler::ActionType type);
 
     size_t getActionQueueSize() const;
+    std::unordered_map<std::string, size_t> getActionQueueSizes() const;
     bool actionQueueIsOverloaded() const;
 };
 

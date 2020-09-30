@@ -283,6 +283,18 @@ class Peer : public std::enable_shared_from_this<Peer>,
     std::string toString();
     virtual std::string getIP() const = 0;
 
+    virtual size_t
+    getWriteQueueSize() const
+    {
+        return 0;
+    }
+
+    virtual size_t
+    getWriteQueueSizeBytes() const
+    {
+        return 0;
+    }
+
     // These exist mostly to be overridden in TCPPeer and callable via
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(asio::error_code const& ec);
