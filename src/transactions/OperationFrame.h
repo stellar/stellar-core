@@ -51,6 +51,10 @@ class OperationFrame
     LedgerTxnEntry loadSourceAccount(AbstractLedgerTxn& ltx,
                                      LedgerTxnHeader const& header);
 
+    // given an operation, gives a default value representing "success" for the
+    // result
+    void resetResultSuccess();
+
   public:
     static std::shared_ptr<OperationFrame>
     makeHelper(Operation const& op, OperationResult& res,
