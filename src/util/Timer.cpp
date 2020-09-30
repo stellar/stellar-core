@@ -415,6 +415,12 @@ VirtualClock::getActionQueueSize() const
     return mActionScheduler->size();
 }
 
+std::unordered_map<std::string, size_t>
+VirtualClock::getActionQueueSizes() const
+{
+    return mActionScheduler->queueSizes();
+}
+
 bool
 VirtualClock::actionQueueIsOverloaded() const
 {

@@ -877,6 +877,20 @@ ApplicationImpl::syncOwnMetrics()
     TracyPlot("process.action.queue", qsize);
     mMetrics->NewCounter({"process", "action", "overloaded"})
         .set_count(static_cast<int64_t>(getClock().actionQueueIsOverloaded()));
+
+    for (auto const& q : getClock().getActionQueueSizes())
+    {
+        mMetrics->NewCounter({"scheduler", "queue", q.first})
+            .set_count(static_cast<int64_t>(q.second));
+    }
+
+    size_t queueBytes = 0;
+    for (auto const& p : getOverlayManager().getAuthenticatedPeers())
+    {
+        queueBytes += p.second->getWriteQueueSizeBytes();
+    }
+    mMetrics->NewCounter({"overlay", "write-queue", "bytes"})
+        .set_count(static_cast<int64_t>(queueBytes));
 }
 
 void
