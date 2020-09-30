@@ -66,6 +66,12 @@ TransactionFrame::getFullHash() const
 Hash const&
 TransactionFrame::getContentsHash() const
 {
+#ifdef _DEBUG
+    // force recompute
+    Hash oldHash;
+    std::swap(mContentsHash, oldHash);
+#endif
+
     if (isZero(mContentsHash))
     {
         if (mEnvelope.type() == ENVELOPE_TYPE_TX_V0)
@@ -79,6 +85,9 @@ TransactionFrame::getContentsHash() const
                 mNetworkID, ENVELOPE_TYPE_TX, mEnvelope.v1().tx));
         }
     }
+#ifdef _DEBUG
+    assert(isZero(oldHash) || (oldHash == mContentsHash));
+#endif
     return (mContentsHash);
 }
 
