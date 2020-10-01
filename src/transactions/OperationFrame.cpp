@@ -106,6 +106,7 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
                                TransactionFrame& parentTx)
     : mOperation(op), mParentTx(parentTx), mResult(res)
 {
+    resetResultSuccess();
 }
 
 bool
@@ -229,8 +230,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker,
         }
     }
 
-    mResult.code(opINNER);
-    mResult.tr().type(mOperation.body.type());
+    resetResultSuccess();
 
     return doCheckValid(ledgerVersion);
 }
@@ -241,6 +241,13 @@ OperationFrame::loadSourceAccount(AbstractLedgerTxn& ltx,
 {
     ZoneScoped;
     return mParentTx.loadAccount(ltx, header, getSourceID());
+}
+
+void
+OperationFrame::resetResultSuccess()
+{
+    mResult.code(opINNER);
+    mResult.tr().type(mOperation.body.type());
 }
 
 void
