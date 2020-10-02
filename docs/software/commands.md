@@ -84,7 +84,7 @@ Command options can only by placed after command.
   envelope stored in binary format in <FILE-NAME>, and send the result to
   standard output (which should be redirected to a file or piped through a tool
   such as `base64`).  The private signing key is read from standard input,
-  unless <FILE-NAME> is "-" in which case the transaction envelope is read from
+  unless <FILE-NAME> is "/dev/stdin" in which case the transaction envelope is read from
   standard input and the signing key is read from `/dev/tty`.  In either event,
   if the signing key appears to be coming from a terminal, stellar-core
   disables echo. Note that if you do not have a STELLAR_NETWORK_ID environment
