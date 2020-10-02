@@ -132,7 +132,7 @@ readFile(const std::string& filename, bool base64 = false)
 {
     using namespace std;
     ostringstream input;
-    if (filename == "-" || filename.empty())
+    if (filename == Config::STDIN_SPECIAL_NAME || filename.empty())
         input << cin.rdbuf();
     else
     {

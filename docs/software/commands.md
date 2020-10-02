@@ -58,7 +58,7 @@ Command options can only by placed after command.
 * **offline-info**: Returns an output similar to `--c info` for an offline
   instance
 * **print-xdr <FILE-NAME>**:  Pretty-print a binary file containing an XDR
-  object. If FILE-NAME is "-", the XDR object is read from standard input.<br>
+  object. If FILE-NAME is "/dev/stdin", the XDR object is read from standard input.<br>
   Option **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
   controls type used for printing (default: auto).<br>
   Option **--base64** alters the behavior to work on base64-encoded XDR rather than
