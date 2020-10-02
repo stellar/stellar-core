@@ -8,7 +8,7 @@ stellar-core can be controlled via the following commands.
 ## Common options
 Common options can be placed at any place in the command line.
 
-* **--conf <FILE-NAME>**: Specify a config file to use. You can use '-' and
+* **--conf <FILE-NAME>**: Specify a config file to use. You can use '/dev/stdin' and
   provide the config file via STDIN. *default 'stellar-core.cfg'*
 * **--ll <LEVEL>**: Set the log level. It is redundant with `http-command ll`
   but we need this form if you want to change the log level during test runs.

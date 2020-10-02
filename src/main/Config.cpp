@@ -537,7 +537,7 @@ Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
 void
 Config::load(std::string const& filename)
 {
-    if (filename != "-" && !fs::exists(filename))
+    if (filename != Config::STDIN_SPECIAL_NAME && !fs::exists(filename))
     {
         std::string s;
         s = "No config file ";
@@ -548,7 +548,7 @@ Config::load(std::string const& filename)
     LOG(DEBUG) << "Loading config from: " << filename;
     try
     {
-        if (filename == "-")
+        if (filename == Config::STDIN_SPECIAL_NAME)
         {
             load(std::cin);
         }

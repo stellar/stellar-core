@@ -254,8 +254,9 @@ configurationParser(CommandLine::ConfigOption& configOption)
     return logLevelParser(configOption.mLogLevel) |
            metricsParser(configOption.mMetrics) |
            clara::Opt{configOption.mConfigFile, "FILE-NAME"}["--conf"](
-               "specify a config file ('-' for STDIN, "
-               "default 'stellar-core.cfg')");
+               fmt::format("specify a config file ('{0}' for STDIN, default "
+                           "'stellar-core.cfg')",
+                           Config::STDIN_SPECIAL_NAME));
 }
 
 clara::Opt
