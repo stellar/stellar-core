@@ -1557,7 +1557,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, start + 1000);
                         setMaxTime(txFrame, start + 10000);
 
-                        closeLedgerOn(*app, 3, 1, 7, 2014);
+                        closeLedgerOn(*app, 3, start + 1);
                         applyCheck(txFrame, *app);
 
                         REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
@@ -1572,7 +1572,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         getSignatures(txFrame).clear();
                         txFrame->addSignature(root);
 
-                        closeLedgerOn(*app, 3, 2, 7, 2014);
+                        closeLedgerOn(*app, 3, start + 1);
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txSUCCESS);
                     }
@@ -1584,7 +1584,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         setMinTime(txFrame, 1000);
                         setMaxTime(txFrame, start);
 
-                        closeLedgerOn(*app, 3, 3, 7, 2014);
+                        closeLedgerOn(*app, 3, start + 1);
                         applyCheck(txFrame, *app);
                         REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                     }
@@ -1596,11 +1596,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         setMaxTime(txFrame, 0);
 
-                        closeLedgerOn(*app, 3, 1, 1, 2020);
+                        TimePoint lastClose = getTestDate(1, 1, 2020);
+                        closeLedgerOn(*app, 3, lastClose);
 
-                        auto const lastClose = app->getLedgerManager()
-                                                   .getLastClosedLedgerHeader()
-                                                   .header.scpValue.closeTime;
                         TimePoint const nextOffset = 2;
                         auto const nextClose = lastClose + nextOffset;
 

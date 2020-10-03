@@ -7,8 +7,11 @@
 BASE_INSTANCE="$1"
 TESTS="$2"
 
+STELLAR_CORE_DEFAULT_TEST_PARAMS="--ll fatal -w NoTests -a -r simple"
 if [[ "$ALL_VERSIONS" != "" ]]; then
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE --all-versions -w NoTests -a -r simple "$TESTS" 2> /dev/null
-else
-    ./stellar-core test --ll fatal --base-instance $BASE_INSTANCE -w NoTests -a -r simple "$TESTS" 2> /dev/null
+    STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --all-versions"
 fi
+
+: ${STELLAR_CORE_TEST_PARAMS=$STELLAR_CORE_DEFAULT_TEST_PARAMS}
+
+./stellar-core test $STELLAR_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "$TESTS" 2> /dev/null

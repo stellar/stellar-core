@@ -78,7 +78,8 @@ compile_commands.json
 /scripts/*.json
 
 # test output
-/stellar-core-test-*
+stellar-core-test-*
+test-partitions.*
 /fuzz-findings/
 /my-history/
 
