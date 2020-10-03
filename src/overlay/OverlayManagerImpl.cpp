@@ -532,42 +532,49 @@ OverlayManagerImpl::tick()
     }
 
     auto availablePendingSlots = availableOutboundPendingSlots();
-    auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
-    auto nonPreferredCount = nonPreferredAuthenticatedCount();
-
-    // if all of our outbound peers are preferred, we don't need to try any
-    // longer
-    if (availableAuthenticatedSlots > 0 || nonPreferredCount > 0)
+    if (availablePendingSlots == 0)
     {
-        // try to replace all connections with preferred peers
-        auto pendingUsedByPreferred = connectTo(
-            mApp.getConfig().TARGET_PEER_CONNECTIONS, PeerType::PREFERRED);
+        // Exit early: no pending slots available
+        return;
+    }
+
+    auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
+    bool allOutboundArePreferred = nonPreferredAuthenticatedCount() == 0;
+
+    // First, attempt to replace all connections with preferred peers
+    if (!allOutboundArePreferred)
+    {
+        auto preferredToConnect = std::min(
+            availablePendingSlots,
+            static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS));
+        auto pendingUsedByPreferred =
+            connectTo(preferredToConnect, PeerType::PREFERRED);
 
         assert(pendingUsedByPreferred <= availablePendingSlots);
         availablePendingSlots -= pendingUsedByPreferred;
-
-        // connect to non-preferred candidates from the database when
-        // PREFERRED_PEER_ONLY is set and we connect to a non preferred_peer we
-        // just end up dropping & backing off it during handshake (this allows
-        // for preferred_peers to work for both ip based and key based preferred
-        // mode)
-        if (availablePendingSlots > 0 && availableAuthenticatedSlots > 0)
-        {
-            // try to leave at least some pending slots for peer promotion
-            constexpr const auto RESERVED_FOR_PROMOTION = 1;
-            auto outboundToConnect =
-                availablePendingSlots > RESERVED_FOR_PROMOTION
-                    ? std::min(availablePendingSlots - RESERVED_FOR_PROMOTION,
-                               availableAuthenticatedSlots)
-                    : RESERVED_FOR_PROMOTION;
-            auto pendingUsedByOutbound =
-                connectTo(outboundToConnect, PeerType::OUTBOUND);
-            assert(pendingUsedByOutbound <= availablePendingSlots);
-            availablePendingSlots -= pendingUsedByOutbound;
-        }
     }
 
-    // try to promote some peers from inbound to outbound state
+    // Second, if there is capacity for pending and authenticated outbound
+    // connections, connect to more peers. Note: connect even if
+    // PREFERRED_PEER_ONLY is set, to support key-based preferred peers mode
+    // (see PREFERRED_PEER_KEYS). When PREFERRED_PEER_ONLY is set and we connect
+    // to a non-preferred peer, drop it and backoff during handshake.
+    if (availablePendingSlots > 0 && availableAuthenticatedSlots > 0)
+    {
+        // try to leave at least some pending slots for peer promotion
+        constexpr const auto RESERVED_FOR_PROMOTION = 1;
+        auto outboundToConnect =
+            availablePendingSlots > RESERVED_FOR_PROMOTION
+                ? std::min(availablePendingSlots - RESERVED_FOR_PROMOTION,
+                           availableAuthenticatedSlots)
+                : availablePendingSlots;
+        auto pendingUsedByOutbound =
+            connectTo(outboundToConnect, PeerType::OUTBOUND);
+        assert(pendingUsedByOutbound <= availablePendingSlots);
+        availablePendingSlots -= pendingUsedByOutbound;
+    }
+
+    // Finally, attempt to promote some inbound connections to outbound
     if (availablePendingSlots > 0)
     {
         connectTo(availablePendingSlots, PeerType::INBOUND);
@@ -686,7 +693,8 @@ OverlayManagerImpl::addInboundConnection(Peer::pointer peer)
                    Peer::DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
-    CLOG(DEBUG, "Overlay") << "New connected peer " << peer->toString() << " @"
+    CLOG(DEBUG, "Overlay") << "New (inbound) connected peer "
+                           << peer->toString() << " @"
                            << mApp.getConfig().PEER_PORT;
     mInboundPeers.mConnectionsEstablished.Mark();
     mInboundPeers.mPending.push_back(peer);
@@ -729,7 +737,8 @@ OverlayManagerImpl::addOutboundConnection(Peer::pointer peer)
                    Peer::DropMode::IGNORE_WRITE_QUEUE);
         return false;
     }
-    CLOG(DEBUG, "Overlay") << "New connected peer " << peer->toString() << " @"
+    CLOG(DEBUG, "Overlay") << "New (outbound) connected peer "
+                           << peer->toString() << " @"
                            << mApp.getConfig().PEER_PORT;
     mOutboundPeers.mConnectionsEstablished.Mark();
     mOutboundPeers.mPending.push_back(peer);
