@@ -471,7 +471,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
 }
 
 uint32_t
-HerderImpl::getMinLedgerSeqToRemember()
+HerderImpl::getMinLedgerSeqToRemember() const
 {
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
     auto currSlot = getCurrentLedgerSeq();
@@ -913,6 +913,10 @@ HerderImpl::getMinLedgerSeqToAskPeers() const
     {
         low = LedgerManager::GENESIS_LEDGER_SEQ;
     }
+
+    // do not ask for slots we'd be dropping anyways
+    auto herderLow = getMinLedgerSeqToRemember();
+    low = std::max<uint32>(low, herderLow);
 
     return low;
 }
