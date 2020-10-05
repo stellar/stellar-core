@@ -37,6 +37,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include <algorithm>
 #include <ctime>
 #include <fmt/format.h>
 
@@ -900,7 +901,10 @@ HerderImpl::getMinLedgerSeqToAskPeers() const
     // we ask for messages older than lcl in case they have SCP
     // messages needed by other peers
     auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-    auto maxSlots = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
+
+    auto maxSlots = std::min<uint32>(mApp.getConfig().MAX_SLOTS_TO_REMEMBER,
+                                     SCP_EXTRA_LOOKBACK_LEDGERS);
+
     if (low > maxSlots)
     {
         low -= maxSlots;

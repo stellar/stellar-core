@@ -58,6 +58,10 @@ class Herder
 
     static std::unique_ptr<Herder> create(Application& app);
 
+    // number of additional ledgers we retrieve from peers before our own lcl,
+    // this is to help recover potential missing SCP messages for other nodes
+    static uint32 const SCP_EXTRA_LOOKBACK_LEDGERS;
+
     enum State
     {
         HERDER_SYNCING_STATE,
