@@ -1216,20 +1216,7 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    // ask for SCP state if not synced
-    // this requests data for slots lcl-window ... latest consensus (if
-    // possible) we need to ask for older slots in case other peers need
-    // messages we didn't need ourself
-    auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-    auto maxSlots = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    if (low > maxSlots)
-    {
-        low -= maxSlots;
-    }
-    else
-    {
-        low = 1;
-    }
+    auto low = mApp.getHerder().getMinLedgerSeqToAskPeers();
     sendGetScpState(low);
 }
 

@@ -80,6 +80,7 @@ class HerderImpl : public Herder
     void processSCPQueue();
 
     uint32_t getCurrentLedgerSeq() const override;
+    uint32 getMinLedgerSeqToAskPeers() const override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
