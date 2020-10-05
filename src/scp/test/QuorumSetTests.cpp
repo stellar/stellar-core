@@ -39,13 +39,14 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     auto check = [&](SCPQuorumSet const& qSetCheck, bool expected,
                      SCPQuorumSet const& expectedSelfQSet) {
         // first, without normalization
-        REQUIRE(expected == isQuorumSetSane(qSetCheck, false));
+        char const* errString;
+        REQUIRE(expected == isQuorumSetSane(qSetCheck, false, errString));
 
         // secondary test: attempts to build local node with the set
         // (this normalizes the set)
         auto normalizedQSet = qSetCheck;
         normalizeQSet(normalizedQSet);
-        auto selfIsSane = isQuorumSetSane(qSetCheck, false);
+        auto selfIsSane = isQuorumSetSane(qSetCheck, false, errString);
 
         REQUIRE(expected == selfIsSane);
         REQUIRE(expectedSelfQSet == normalizedQSet);
