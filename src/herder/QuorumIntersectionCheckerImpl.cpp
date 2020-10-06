@@ -182,7 +182,7 @@ MinQuorumEnumerator::pickSplitNode() const
 size_t
 MinQuorumEnumerator::maxCommit() const
 {
-    return (mScanSCC.count() / 2) + 1;
+    return mScanSCC.count() / 2;
 }
 
 MinQuorumEnumerator::MinQuorumEnumerator(
