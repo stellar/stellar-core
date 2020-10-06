@@ -444,6 +444,7 @@ OverlayManagerImpl::resolvePeers(std::vector<string> const& peers)
 {
     ZoneScoped;
     std::vector<PeerBareAddress> addresses;
+    addresses.reserve(peers.size());
     for (auto const& peer : peers)
     {
         try
@@ -860,7 +861,9 @@ OverlayManagerImpl::isPreferred(Peer* peer) const
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
-    auto result = std::vector<Peer::pointer>{};
+    std::vector<Peer::pointer> result;
+    result.reserve(mInboundPeers.mAuthenticated.size() +
+                   mOutboundPeers.mAuthenticated.size());
     extractPeersFromMap(mInboundPeers.mAuthenticated, result);
     extractPeersFromMap(mOutboundPeers.mAuthenticated, result);
     shufflePeerList(result);
@@ -870,7 +873,8 @@ OverlayManagerImpl::getRandomAuthenticatedPeers()
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomInboundAuthenticatedPeers()
 {
-    auto result = std::vector<Peer::pointer>{};
+    std::vector<Peer::pointer> result;
+    result.reserve(mInboundPeers.mAuthenticated.size());
     extractPeersFromMap(mInboundPeers.mAuthenticated, result);
     shufflePeerList(result);
     return result;
@@ -879,7 +883,8 @@ OverlayManagerImpl::getRandomInboundAuthenticatedPeers()
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomOutboundAuthenticatedPeers()
 {
-    auto result = std::vector<Peer::pointer>{};
+    std::vector<Peer::pointer> result;
+    result.reserve(mOutboundPeers.mAuthenticated.size());
     extractPeersFromMap(mOutboundPeers.mAuthenticated, result);
     shufflePeerList(result);
     return result;
