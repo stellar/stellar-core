@@ -37,6 +37,7 @@
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
+#include <algorithm>
 #include <ctime>
 #include <fmt/format.h>
 
@@ -470,7 +471,7 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
 }
 
 uint32_t
-HerderImpl::getMinLedgerSeqToRemember()
+HerderImpl::getMinLedgerSeqToRemember() const
 {
     auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
     auto currSlot = getCurrentLedgerSeq();
@@ -890,6 +891,34 @@ HerderImpl::getCurrentLedgerSeq() const
             mHerderSCPDriver.lastTrackingSCP()->mConsensusIndex);
     }
     return res;
+}
+
+uint32
+HerderImpl::getMinLedgerSeqToAskPeers() const
+{
+    // computes the smallest ledger for which we *think* we need more SCP
+    // messages
+    // we ask for messages older than lcl in case they have SCP
+    // messages needed by other peers
+    auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
+
+    auto maxSlots = std::min<uint32>(mApp.getConfig().MAX_SLOTS_TO_REMEMBER,
+                                     SCP_EXTRA_LOOKBACK_LEDGERS);
+
+    if (low > maxSlots)
+    {
+        low -= maxSlots;
+    }
+    else
+    {
+        low = LedgerManager::GENESIS_LEDGER_SEQ;
+    }
+
+    // do not ask for slots we'd be dropping anyways
+    auto herderLow = getMinLedgerSeqToRemember();
+    low = std::max<uint32>(low, herderLow);
+
+    return low;
 }
 
 SequenceNumber
@@ -1715,16 +1744,8 @@ HerderImpl::getMoreSCPState()
 {
     ZoneScoped;
     int const NB_PEERS_TO_ASK = 2;
-    auto low = mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
-    auto maxSlotsToRemember = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    if (low > maxSlotsToRemember)
-    {
-        low -= maxSlotsToRemember;
-    }
-    else
-    {
-        low = 1;
-    }
+
+    auto low = getMinLedgerSeqToAskPeers();
 
     // ask a few random peers their SCP messages
     auto r = mApp.getOverlayManager().getRandomAuthenticatedPeers();

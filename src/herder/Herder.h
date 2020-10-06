@@ -58,6 +58,10 @@ class Herder
 
     static std::unique_ptr<Herder> create(Application& app);
 
+    // number of additional ledgers we retrieve from peers before our own lcl,
+    // this is to help recover potential missing SCP messages for other nodes
+    static uint32 const SCP_EXTRA_LOOKBACK_LEDGERS;
+
     enum State
     {
         HERDER_SYNCING_STATE,
@@ -120,6 +124,9 @@ class Herder
     // returns the latest known ledger seq using consensus information
     // and local state
     virtual uint32_t getCurrentLedgerSeq() const = 0;
+
+    // return the smallest ledger number we need messages for when asking peers
+    virtual uint32 getMinLedgerSeqToAskPeers() const = 0;
 
     // Return the maximum sequence number for any tx (or 0 if none) from a given
     // sender in the pending or recent tx sets.
