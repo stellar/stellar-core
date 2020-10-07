@@ -32,6 +32,17 @@ namespace stellar
 uint32_t const HerderSCPDriver::FIRST_PROTOCOL_WITH_TXSET_CLOSETIME_AFFINITY =
     14;
 
+Hash
+HerderSCPDriver::getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const
+{
+    SHA256 hasher;
+    for (auto const& v : vals)
+    {
+        hasher.add(v);
+    }
+    return hasher.finish();
+}
+
 HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
     : mEnvelopeSign(
           app.getMetrics().NewMeter({"scp", "envelope", "sign"}, "envelope"))

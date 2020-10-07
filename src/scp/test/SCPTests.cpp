@@ -158,6 +158,17 @@ class TestSCP : public SCPDriver
     std::set<Value> mExpectedCandidates;
     Value mCompositeValue;
 
+    Hash
+    getHashOf(std::vector<xdr::opaque_vec<>> const& vals) const override
+    {
+        SHA256 hasher;
+        for (auto const& v : vals)
+        {
+            hasher.add(v);
+        }
+        return hasher.finish();
+    }
+
     // override the internal hashing scheme in order to make tests
     // more predictable.
     uint64
