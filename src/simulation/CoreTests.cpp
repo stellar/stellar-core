@@ -103,6 +103,37 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3][acceptance]")
     LOG(DEBUG) << "done with core3 test";
 }
 
+TEST_CASE("assymetric topology report cost", "[simulation][!hide]")
+{
+    // Ensure we close enough ledgers to start purging slots
+    // (which is when cost gets reported)
+    const int nLedgers = 20;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation =
+        Topologies::assymetric(Simulation::OVER_LOOPBACK, networkID);
+    simulation->startAllNodes();
+
+    simulation->crankUntil(
+        [&]() { return simulation->haveAllExternalized(nLedgers + 2, 4); },
+        10 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+
+    REQUIRE(simulation->haveAllExternalized(nLedgers, 4));
+
+    auto checkNode = SecretKey::fromSeed(sha256("TIER_1_NODE_SEED_0"));
+    auto app = simulation->getNode(checkNode.getPublicKey());
+
+    auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+
+    LOG(WARNING) << "Cost information for recent ledgers:";
+    for (auto count = lcl; count > lcl - 5; count--)
+    {
+        auto qinfo = app->getHerder().getJsonQuorumInfo(
+            checkNode.getPublicKey(), false, false, count);
+        LOG(WARNING) << qinfo["qset"]["cost"].toStyledString();
+    }
+}
+
 TEST_CASE("core topology 4 ledgers at scales 2 to 4",
           "[simulation][acceptance]")
 {

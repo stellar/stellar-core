@@ -370,4 +370,57 @@ Topologies::customA(Simulation::Mode mode, Hash const& networkID,
     }
     return s;
 }
+
+Simulation::pointer
+Topologies::assymetric(Simulation::Mode mode, Hash const& networkID,
+                       Simulation::ConfigGen confGen, int connections,
+                       Simulation::QuorumSetAdjuster qSetAdjust)
+{
+
+    Simulation::pointer s =
+        Topologies::core(10, 0.7, mode, networkID, confGen, qSetAdjust);
+    auto node = s->getNodes()[0];
+
+    enum kIDs
+    {
+        A = 0,
+        B,
+        C,
+        D,
+    };
+
+    vector<SecretKey> keys;
+    for (int i = 0; i < 4; i++)
+    {
+        keys.push_back(
+            SecretKey::fromSeed(sha256("TIER_1_NODE_SEED_" + to_string(i))));
+    }
+    keys.push_back(node->getConfig().NODE_SEED);
+
+    // A,B,C,D have the same qset, with all validators
+    {
+        SCPQuorumSet q;
+        q.threshold = 5;
+        for (auto& k : keys)
+        {
+            q.validators.emplace_back(k.getPublicKey());
+        }
+        s->addNode(keys[A], q);
+        s->addNode(keys[B], q);
+        s->addNode(keys[C], q);
+        s->addNode(keys[D], q);
+    }
+
+    // create connections between nodes
+    for (int i = 0; i < static_cast<int>(keys.size()); i++)
+    {
+        auto from = keys[i].getPublicKey();
+        for (int j = 1; j <= connections; j++)
+        {
+            s->addPendingConnection(from,
+                                    keys[(i + j) % keys.size()].getPublicKey());
+        }
+    }
+    return s;
+}
 }
