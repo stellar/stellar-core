@@ -1298,6 +1298,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
                         {
                             next.emplace_back(n);
                         }
+                        return true;
                     });
                 }
                 auto latest = getSCP().getLatestMessage(id);

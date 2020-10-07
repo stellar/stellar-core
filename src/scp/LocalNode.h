@@ -45,9 +45,9 @@ class LocalNode
     // returns the quorum set {{X}}
     static SCPQuorumSetPtr getSingletonQSet(NodeID const& nodeID);
 
-    // runs proc over all nodes contained in qset
-    static void forAllNodes(SCPQuorumSet const& qset,
-                            std::function<void(NodeID const&)> proc);
+    // runs proc over all nodes contained in qset, but fast fails if proc fails
+    static bool forAllNodes(SCPQuorumSet const& qset,
+                            std::function<bool(NodeID const&)> proc);
 
     // returns the weight of the node within the qset
     // normalized between 0-UINT64_MAX

@@ -965,6 +965,7 @@ HerderSCPDriver::getQsetLagInfo(bool summary, bool fullKeys)
                 numNodes++;
             }
         }
+        return true;
     });
 
     if (summary && numNodes > 0)
