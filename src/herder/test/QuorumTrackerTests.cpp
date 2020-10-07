@@ -188,7 +188,7 @@ testQuorumTracker(uint32 protocolVersion)
     }
 }
 
-TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
+TEST_CASE("quorum tracker", "[quorum][herder]")
 {
     SECTION("pre-CAP-0034 protocol")
     {
@@ -197,5 +197,176 @@ TEST_CASE("quorum tracker", "[quorum][herder][acceptance]")
     SECTION("post-CAP-0034 protocol")
     {
         testQuorumTracker(14);
+    }
+}
+
+TEST_CASE("quorum tracker closest validators", "[quorum][herder]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE));
+
+    std::vector<PublicKey> otherKeys;
+    int const kKeysCount = 7;
+    otherKeys.push_back(cfg.NODE_SEED.getPublicKey());
+    int self = 0;
+    for (int i = self + 1; i < kKeysCount; i++)
+    {
+        otherKeys.emplace_back(
+            SecretKey::pseudoRandomForTesting().getPublicKey());
+    }
+
+    auto makeQset = [&](std::vector<int> const& validatorIndexes,
+                        int selfIndex) {
+        SCPQuorumSet q;
+        q.threshold = validatorIndexes.size() + 1;
+        std::transform(validatorIndexes.begin(), validatorIndexes.end(),
+                       std::back_inserter(q.validators),
+                       [&](int i) { return otherKeys[i]; });
+        q.validators.push_back(otherKeys[self]);
+        return std::make_shared<SCPQuorumSet>(q);
+    };
+
+    auto selfQSet = makeQset({2, 1}, self);
+    cfg.QUORUM_SET = *selfQSet;
+
+    auto clock = std::make_shared<VirtualClock>();
+    Application::pointer app = createTestApplication(*clock, cfg);
+    app->start();
+
+    auto* herder = static_cast<HerderImpl*>(&app->getHerder());
+    auto const localNodeID = herder->getSCP().getLocalNodeID();
+    QuorumTracker qt(localNodeID);
+
+    auto lookup = [&](NodeID const& node) -> SCPQuorumSetPtr {
+        if (node == localNodeID)
+        {
+            return selfQSet;
+        }
+        auto it = std::find(otherKeys.begin(), otherKeys.end(), node);
+        auto idx = std::distance(otherKeys.begin(), it);
+        switch (idx)
+        {
+        case 0:
+            return selfQSet;
+        case 1:
+            return makeQset({self, 2, 4, 5}, 1);
+        case 2:
+            return makeQset({self, 1, 5}, 2);
+        case 5:
+            return makeQset({1, 3, 4}, 5);
+        case 4:
+            return makeQset({2}, 4);
+        case 3:
+        case 6:
+            return std::make_shared<SCPQuorumSet>();
+        default:
+            abort();
+        }
+    };
+
+    auto checkRes = [&](NodeID const& key, std::set<NodeID> const& otherKeys,
+                        bool notFound = false) {
+        auto hasValidators = qt.isNodeDefinitelyInQuorum(key);
+        if (notFound)
+        {
+            REQUIRE(!hasValidators);
+        }
+        else
+        {
+            REQUIRE(hasValidators);
+            REQUIRE(otherKeys == qt.findClosestValidators(key));
+        }
+    };
+
+    auto validateRebuildResult = [&]() {
+        checkRes(otherKeys[1], std::set<NodeID>{otherKeys[1]});
+        checkRes(otherKeys[2], std::set<NodeID>{otherKeys[2]});
+
+        checkRes(otherKeys[3], std::set<NodeID>{otherKeys[1], otherKeys[2]});
+        checkRes(otherKeys[4], std::set<NodeID>{otherKeys[1]});
+        checkRes(otherKeys[5], std::set<NodeID>{otherKeys[1], otherKeys[2]});
+
+        // No path for node 6
+        checkRes(otherKeys[6], {}, true);
+    };
+
+    // Rebuilding quorum map from scratch yields optimal distances
+    SECTION("rebuild")
+    {
+        qt.rebuild(lookup);
+        validateRebuildResult();
+    }
+    // Incrementally expand quorum map: depending on the order of expansion,
+    // intermediate "closest validators" might be suboptimal.
+    // If finished successfully, result must be identical to
+    // rebuilding from scratch (thus yielding optimal distances)
+    SECTION("expand")
+    {
+        // Rebuild only knowing about "self"
+        qt.rebuild([&](NodeID const& node) -> SCPQuorumSetPtr {
+            if (node == cfg.NODE_SEED.getPublicKey())
+            {
+                return selfQSet;
+            }
+            else
+            {
+                return nullptr;
+            }
+        });
+        checkRes(otherKeys[1], std::set<NodeID>{otherKeys[1]});
+        checkRes(otherKeys[2], std::set<NodeID>{otherKeys[2]});
+        checkRes(otherKeys[3], {}, true);
+        checkRes(otherKeys[4], {}, true);
+        checkRes(otherKeys[5], {}, true);
+        checkRes(otherKeys[6], {}, true);
+
+        SECTION("cannot expand some")
+        {
+            // Now expand qSets for 2 and 5
+            REQUIRE(qt.expand(otherKeys[2], lookup(otherKeys[2])));
+            REQUIRE(qt.expand(otherKeys[5], lookup(otherKeys[5])));
+
+            // Distances are not optimal yet because some parts of
+            // the quorum are unknown
+            checkRes(otherKeys[1], std::set<NodeID>{otherKeys[1]});
+            checkRes(otherKeys[2], std::set<NodeID>{otherKeys[2]});
+
+            // "2" is associated with "3" (shortest path not discovered yet)
+            checkRes(otherKeys[3], std::set<NodeID>{otherKeys[2]});
+            // "2" is associated with "4" (shortest path not discovered yet)
+            checkRes(otherKeys[4], std::set<NodeID>{otherKeys[2]});
+            checkRes(otherKeys[5], std::set<NodeID>{otherKeys[2]});
+            checkRes(otherKeys[6], {}, true);
+
+            // Now learn about more qSets, but `expand` should return false
+            // because closest validators for 3 could not be updated
+            REQUIRE_FALSE(qt.expand(otherKeys[1], lookup(otherKeys[1])));
+
+            checkRes(otherKeys[1], std::set<NodeID>{otherKeys[1]});
+            checkRes(otherKeys[2], std::set<NodeID>{otherKeys[2]});
+
+            checkRes(otherKeys[4], std::set<NodeID>{otherKeys[1]});
+
+            // 5, 3 failed to update
+            checkRes(otherKeys[3], std::set<NodeID>{otherKeys[2]});
+            checkRes(otherKeys[5], std::set<NodeID>{otherKeys[2]});
+            checkRes(otherKeys[6], {}, true);
+
+            // Ensure rebuild runs correctly after `expand` attempts
+            qt.rebuild(lookup);
+            validateRebuildResult();
+        }
+        SECTION("expand success")
+        {
+            // Even though distances are not expanded by shortest distance,
+            // still arrive at the same result as rebuild
+            // "0" and "4" are expanded first
+            REQUIRE(qt.expand(otherKeys[1], lookup(otherKeys[1])));
+            REQUIRE(qt.expand(otherKeys[4], lookup(otherKeys[4])));
+
+            // "1" and "5" are expanded next, success
+            REQUIRE(qt.expand(otherKeys[2], lookup(otherKeys[2])));
+            REQUIRE(qt.expand(otherKeys[5], lookup(otherKeys[5])));
+            validateRebuildResult();
+        }
     }
 }
