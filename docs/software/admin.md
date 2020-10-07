@@ -539,6 +539,7 @@ After observing consensus, a new field `quorum` will be set with information on 
       "quorum" : {
          "qset" : {
             "ledger" : 22267866,
+            "cost" : 20883268,
             "agree" : 5,
             "delayed" : 0,
             "disagree" : 0,
@@ -635,6 +636,7 @@ The output will look something like
       "quorum" : {
          "qset" : {
             "agree" : 6,
+            "cost" : 20883268,
             "delayed" : 0,
             "disagree" : 0,
             "fail_at" : 2,
@@ -810,6 +812,7 @@ The output looks something like:
    "node" : "GCTSF",
    "qset" : {
       "agree" : 6,
+      "cost" : 20883268,
       "delayed" : null,
       "disagree" : null,
       "fail_at" : 2,
