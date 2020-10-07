@@ -540,14 +540,16 @@ OverlayManagerImpl::tick()
     }
 
     auto availableAuthenticatedSlots = availableOutboundAuthenticatedSlots();
-    bool allOutboundArePreferred = nonPreferredAuthenticatedCount() == 0;
 
-    // First, attempt to replace all connections with preferred peers
-    if (!allOutboundArePreferred)
+    // First, connect to preferred peers
     {
-        auto preferredToConnect = std::min(
-            availablePendingSlots,
-            static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS));
+        // in that context, an available slot is either a free slot or a non
+        // preferred one
+        int preferredToConnect =
+            availableAuthenticatedSlots + nonPreferredAuthenticatedCount();
+        preferredToConnect =
+            std::min(availablePendingSlots, preferredToConnect);
+
         auto pendingUsedByPreferred =
             connectTo(preferredToConnect, PeerType::PREFERRED);
 
