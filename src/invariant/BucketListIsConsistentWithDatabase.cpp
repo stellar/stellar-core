@@ -11,7 +11,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "main/Application.h"
-#include "xdrpp/printer.h"
+#include "util/XDRCereal.h"
 #include <fmt/format.h>
 
 namespace stellar
@@ -25,7 +25,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     {
         std::string s{
             "Inconsistent state between objects (not found in database): "};
-        s += xdr::xdr_to_string(entry, "live");
+        s += xdr_to_string(entry, "live");
         return s;
     }
 
@@ -36,8 +36,8 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerEntry const& entry)
     else
     {
         std::string s{"Inconsistent state between objects: "};
-        s += xdr::xdr_to_string(fromDb.current(), "db");
-        s += xdr::xdr_to_string(entry, "live");
+        s += xdr_to_string(fromDb.current(), "db");
+        s += xdr_to_string(entry, "live");
         return s;
     }
 }
@@ -52,7 +52,7 @@ checkAgainstDatabase(AbstractLedgerTxn& ltx, LedgerKey const& key)
     }
 
     std::string s = "Entry with type DEADENTRY found in database ";
-    s += xdr::xdr_to_string(fromDb.current(), "db");
+    s += xdr_to_string(fromDb.current(), "db");
     return s;
 }
 
@@ -93,8 +93,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
             {
                 std::string s = "Bucket has out of order entries: ";
-                s += xdr::xdr_to_string(previousEntry, "previous");
-                s += xdr::xdr_to_string(e, "current");
+                s += xdr_to_string(previousEntry, "previous");
+                s += xdr_to_string(e, "current");
                 return s;
             }
             previousEntry = e;
@@ -108,7 +108,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                                          " bound for this bucket ({} < {}): ",
                                          e.liveEntry().lastModifiedLedgerSeq,
                                          oldestLedger);
-                    s += xdr::xdr_to_string(e.liveEntry(), "live");
+                    s += xdr_to_string(e.liveEntry(), "live");
                     return s;
                 }
                 if (e.liveEntry().lastModifiedLedgerSeq > newestLedger)
@@ -117,7 +117,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
                                          " bound for this bucket ({} > {}): ",
                                          e.liveEntry().lastModifiedLedgerSeq,
                                          newestLedger);
-                    s += xdr::xdr_to_string(e.liveEntry(), "live");
+                    s += xdr_to_string(e.liveEntry(), "live");
                     return s;
                 }
 

@@ -820,14 +820,13 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
     catch (std::exception& e)
     {
         CLOG(ERROR, "Tx") << "Exception while applying operations (txHash= "
-                          << xdr::xdr_to_string(getFullHash())
-                          << "): " << e.what();
+                          << xdr_to_string(getFullHash()) << "): " << e.what();
     }
     catch (...)
     {
         CLOG(ERROR, "Tx")
             << "Unknown exception while applying operations (txHash= "
-            << xdr::xdr_to_string(getFullHash()) << ")";
+            << xdr_to_string(getFullHash()) << ")";
     }
 
     // This is only reachable if an exception is thrown

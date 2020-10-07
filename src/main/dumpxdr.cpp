@@ -42,29 +42,6 @@ using namespace std::placeholders;
 namespace stellar
 {
 
-std::string
-xdr_printer(PublicKey const& pk)
-{
-    return KeyUtils::toStrKey<PublicKey>(pk);
-}
-
-std::string
-xdr_printer(MuxedAccount const& muxedAccount)
-{
-    switch (muxedAccount.type())
-    {
-    case KEY_TYPE_ED25519:
-        return KeyUtils::toStrKey(toAccountID(muxedAccount));
-    case KEY_TYPE_MUXED_ED25519:
-        return fmt::format("{{ id = {}, accountID = {} }}",
-                           muxedAccount.med25519().id,
-                           KeyUtils::toStrKey(toAccountID(muxedAccount)));
-    default:
-        // this would be a bug
-        abort();
-    }
-}
-
 template <typename T>
 void
 dumpstream(XDRInputFileStream& in, bool compact)
@@ -157,10 +134,7 @@ printOneXdr(xdr::opaque_vec<> const& o, std::string const& desc, bool compact)
 {
     T tmp;
     xdr::xdr_from_opaque(o, tmp);
-    cereal::JSONOutputArchive ar(
-        std::cout, compact ? cereal::JSONOutputArchive::Options::NoIndent()
-                           : cereal::JSONOutputArchive::Options::Default());
-    ar(tmp);
+    std::cout << xdr_to_string(tmp, desc, compact) << std::endl;
 }
 
 void

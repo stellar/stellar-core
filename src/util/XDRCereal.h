@@ -1,3 +1,7 @@
+// Copyright 2020 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #pragma once
 
 #ifdef _XDRPP_CEREAL_H_HEADER_INCLUDED_
@@ -47,43 +51,16 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_vec<N>& s,
     xdr::archive(ar, stellar::binToHex(stellar::ByteSlice(s.data(), s.size())),
                  field);
 }
-void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
-                const char* field)
-{
-    xdr::archive(ar, stellar::KeyUtils::toStrKey<stellar::PublicKey>(s), field);
-}
 
-void
-cereal_override(cereal::JSONOutputArchive& ar,
-                const stellar::MuxedAccount& muxedAccount, const char* field)
-{
-    switch (muxedAccount.type())
-    {
-    case stellar::KEY_TYPE_ED25519:
-        xdr::archive(ar, stellar::KeyUtils::toStrKey(toAccountID(muxedAccount)),
-                     field);
-        return;
-    case stellar::KEY_TYPE_MUXED_ED25519:
-        xdr::archive(
-            ar,
-            std::make_tuple(
-                cereal::make_nvp("id", muxedAccount.med25519().id),
-                cereal::make_nvp("accountID", stellar::KeyUtils::toStrKey(
-                                                  toAccountID(muxedAccount)))),
-            field);
-        return;
-    default:
-        // this would be a bug
-        abort();
-    }
-}
-void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::Asset& s,
-                const char* field)
-{
-    xdr::archive(ar, stellar::assetToString(s), field);
-}
+void cereal_override(cereal::JSONOutputArchive& ar, const stellar::PublicKey& s,
+                     const char* field);
+
+void cereal_override(cereal::JSONOutputArchive& ar,
+                     const stellar::MuxedAccount& muxedAccount,
+                     const char* field);
+
+void cereal_override(cereal::JSONOutputArchive& ar, const stellar::Asset& s,
+                     const char* field);
 
 template <typename T>
 typename std::enable_if<xdr::xdr_traits<T>::is_enum>::type
@@ -118,3 +95,29 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
 // otherwise some interplay of name lookup and visibility
 // during the enable_if call in the cereal adaptor fails to find them.
 #include <xdrpp/cereal.h>
+
+// If name is a nonempty string, the output string begins with it.
+// If compact = true, the output string will not contain any indentation.
+template <typename T>
+std::string
+xdr_to_string(const T& t, std::string const& name = "", bool compact = false)
+{
+    std::stringstream os;
+
+    // Archives are designed to be used in an RAII manner and are guaranteed to
+    // flush their contents only on destruction.
+    {
+        cereal::JSONOutputArchive ar(
+            os, compact ? cereal::JSONOutputArchive::Options::NoIndent()
+                        : cereal::JSONOutputArchive::Options::Default());
+        if (!name.empty())
+        {
+            ar(cereal::make_nvp(name, t));
+        }
+        else
+        {
+            ar(t);
+        }
+    }
+    return os.str();
+}

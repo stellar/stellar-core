@@ -26,9 +26,9 @@
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
+#include "util/XDRCereal.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
 
 #include "ExternalQueue.h"
 
@@ -944,8 +944,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             break;
         case TransactionQueue::AddResult::ADD_STATUS_ERROR:
             root["status"] = "error";
-            root["detail"] =
-                xdr::xdr_to_string(txFrame->getResult().result.code());
+            root["detail"] = xdr_to_string(txFrame->getResult().result.code());
             break;
         case TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER:
             root["status"] = "try_again_later";

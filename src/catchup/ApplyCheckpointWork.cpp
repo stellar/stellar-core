@@ -12,10 +12,10 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
-#include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/FileSystemException.h"
+#include "util/XDRCereal.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
@@ -259,11 +259,10 @@ ApplyCheckpointWork::onRun()
 
                 CLOG(DEBUG, "History")
                     << "LedgerManager LCL:\n"
-                    << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
+                    << xdr_to_string(lm.getLastClosedLedgerHeader());
 
-                CLOG(DEBUG, "History")
-                    << "Replay header:\n"
-                    << xdr::xdr_to_string(mHeaderHistoryEntry);
+                CLOG(DEBUG, "History") << "Replay header:\n"
+                                       << xdr_to_string(mHeaderHistoryEntry);
                 if (lm.getLastClosedLedgerHeader().hash !=
                     mHeaderHistoryEntry.hash)
                 {
