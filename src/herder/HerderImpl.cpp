@@ -1284,7 +1284,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
             std::string status;
             if (it != q.end())
             {
-                auto qSet = it->second;
+                auto qSet = it->second.mQuorumSet;
                 if (qSet)
                 {
                     if (!summary)
@@ -1377,13 +1377,14 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
 {
     ZoneScoped;
     SHA256 hasher;
-    std::map<NodeID, SCPQuorumSetPtr> ordered_map(qmap.begin(), qmap.end());
+    std::map<NodeID, QuorumTracker::NodeInfo> ordered_map(qmap.begin(),
+                                                          qmap.end());
     for (auto const& pair : ordered_map)
     {
         hasher.add(xdr::xdr_to_opaque(pair.first));
-        if (pair.second)
+        if (pair.second.mQuorumSet)
         {
-            hasher.add(xdr::xdr_to_opaque(*pair.second));
+            hasher.add(xdr::xdr_to_opaque(*(pair.second.mQuorumSet)));
         }
         else
         {
