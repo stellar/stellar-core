@@ -1125,6 +1125,9 @@
     <ClCompile Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.cpp">
       <Filter>transactions\simulation</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\XDRCereal.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1945,6 +1948,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\simulation\TxSimCreateClaimableBalanceOpFrame.h">
       <Filter>transactions\simulation</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\XDRCereal.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
