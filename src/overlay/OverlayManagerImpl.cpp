@@ -29,29 +29,6 @@
 #include <algorithm>
 #include <random>
 
-/*
-
-Connection process:
-A wants to connect to B
-A initiates a tcp connection to B
-connection is established
-A sends HELLO(CertA,NonceA) to B
-B now has IP and listening port of A, sends HELLO(CertB,NonceB) back
-A sends AUTH(signed([0],keyAB))
-B verifies and either:
-    sends AUTH(signed([0],keyBA)) back or
-    disconnects, if it's full, optionally sending a list of other peers to try
-first
-
-keyAB and keyBA are per-connection HMAC keys derived from non-interactive
-ECDH on random curve25519 keys conveyed in CertA and CertB (certs signed by
-Node Ed25519 keys) the result of which is then fed through HKDF with the
-per-connection nonces. See PeerAuth.h.
-
-If any verify step fails, the peer disconnects immediately.
-
-*/
-
 namespace stellar
 {
 
