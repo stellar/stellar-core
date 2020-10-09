@@ -402,12 +402,14 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp" />
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp" />
+    <ClCompile Include="..\..\src\invariant\SponsorshipCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\test\AccountSubEntriesCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\BucketListIsConsistentWithDatabaseTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\ConservationOfLumensTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\InvariantTests.cpp" />
     <ClCompile Include="..\..\src\invariant\test\InvariantTestUtils.cpp" />
     <ClCompile Include="..\..\src\invariant\test\LiabilitiesMatchOffersTests.cpp" />
+    <ClCompile Include="..\..\src\invariant\test\SponsorshipCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp" />
@@ -747,6 +749,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h" />
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h" />
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
+    <ClInclude Include="..\..\src\invariant\SponsorshipCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\test\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\LedgerHashUtils.h" />

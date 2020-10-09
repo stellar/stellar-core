@@ -91,6 +91,11 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
                            le.lastModifiedLedgerSeq, ledgerSeq);
     }
 
+    if (version < 14 && le.ext.v() == 1)
+    {
+        return "LedgerEntry has v1 extension before protocol version 14";
+    }
+
     switch (le.data.type())
     {
     case ACCOUNT:
@@ -147,6 +152,19 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
                          }))
         {
             return "Account signers have invalid weights";
+        }
+    }
+
+    if (hasAccountEntryExtV2(ae))
+    {
+        if (version < 14)
+        {
+            return "Account has v2 extension before protocol version 14";
+        }
+        auto const& extV2 = ae.ext.v1().ext.v2();
+        if (ae.signers.size() != extV2.signerSponsoringIDs.size())
+        {
+            return "Account signers not paired with signerSponsoringIDs";
         }
     }
     return {};

@@ -225,6 +225,14 @@ makeValid(ClaimableBalanceEntry& c)
     c.amount = std::abs(c.amount);
     clampLow<int64>(1, c.amount);
 
+    // It is not valid for claimants to be empty, so if this occurs we default
+    // to a single claimant for the zero account with
+    // CLAIM_PREDICATE_UNCONDITIONAL.
+    if (c.claimants.empty())
+    {
+        c.claimants.resize(1);
+    }
+
     c.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(c.asset.alphaNum4().assetCode, "CAD");
 }
