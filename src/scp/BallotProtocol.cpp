@@ -2123,6 +2123,7 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
                 n_disagree++;
             }
         }
+        return true;
     });
     if (summary)
     {

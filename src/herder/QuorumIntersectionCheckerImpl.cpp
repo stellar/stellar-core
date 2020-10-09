@@ -652,7 +652,7 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
 
     for (auto const& pair : qmap)
     {
-        if (pair.second)
+        if (pair.second.mQuorumSet)
         {
             size_t n = mBitNumPubKeys.size();
             mPubKeyBitNums.insert(std::make_pair(pair.first, n));
@@ -667,13 +667,13 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
 
     for (auto const& pair : qmap)
     {
-        if (pair.second)
+        if (pair.second.mQuorumSet)
         {
             auto i = mPubKeyBitNums.find(pair.first);
             assert(i != mPubKeyBitNums.end());
             auto nodeNum = i->second;
             assert(nodeNum == mGraph.size());
-            auto qb = convertSCPQuorumSet(*pair.second);
+            auto qb = convertSCPQuorumSet(*(pair.second.mQuorumSet));
             qb.log();
             mGraph.emplace_back(qb);
         }
@@ -888,9 +888,9 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
 
     for (auto const& k : qmap)
     {
-        if (k.second)
+        if (k.second.mQuorumSet)
         {
-            findCriticalityCandidates(*(k.second), candidates, true);
+            findCriticalityCandidates(*(k.second.mQuorumSet), candidates, true);
         }
     }
 
@@ -917,8 +917,8 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         {
             for (auto const& d : qmap)
             {
-                if (group.find(d.first) == group.end() && d.second &&
-                    pointsToCandidate(*d.second, candidate))
+                if (group.find(d.first) == group.end() && d.second.mQuorumSet &&
+                    pointsToCandidate(*(d.second.mQuorumSet), candidate))
                 {
                     pointsToGroup.insert(d.first);
                 }
@@ -937,7 +937,7 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         // Install the fickle qset in every member of the group.
         for (auto const& candidate : group)
         {
-            test_qmap[candidate] = fickleQSet;
+            test_qmap[candidate] = QuorumTracker::NodeInfo{fickleQSet, 0};
         }
 
         // Check to see if this modified config is vulnerable to splitting.

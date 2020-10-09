@@ -32,6 +32,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mQuorumSetFetcher(app, [](Peer::pointer peer,
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
+    , mValueSizeCache(TXSET_CACHE_SIZE + QSET_CACHE_SIZE)
     , mRebuildQuorum(true)
     , mQuorumTracker(mApp.getConfig().NODE_SEED.getPublicKey())
     , mProcessedCount(
@@ -447,16 +448,89 @@ PendingEnvelopes::clearQSetCache()
 #endif
 
 void
+PendingEnvelopes::recordReceivedCost(SCPEnvelope const& env)
+{
+    ZoneScoped;
+
+    if (!mQuorumTracker.isNodeDefinitelyInQuorum(env.statement.nodeID))
+    {
+        return;
+    }
+
+    // Record cost received from this validator
+    size_t totalReceivedBytes = 0;
+    totalReceivedBytes += xdr::xdr_argpack_size(env);
+
+    for (auto const& v : getStellarValues(env.statement))
+    {
+        size_t txSetSize = 0;
+        if (mValueSizeCache.exists(v.txSetHash))
+        {
+            txSetSize = mValueSizeCache.get(v.txSetHash);
+        }
+        else
+        {
+            auto txSetPtr = getTxSet(v.txSetHash);
+            if (txSetPtr)
+            {
+                TransactionSet txSet;
+                txSetPtr->toXDR(txSet);
+                txSetSize = xdr::xdr_argpack_size(txSet);
+                mValueSizeCache.put(v.txSetHash, txSetSize);
+            }
+        }
+
+        totalReceivedBytes += txSetSize;
+    }
+
+    auto qSetHash = Slot::getCompanionQuorumSetHashFromStatement(env.statement);
+    size_t qSetSize = 0;
+
+    if (mValueSizeCache.exists(qSetHash))
+    {
+        qSetSize = mValueSizeCache.get(qSetHash);
+    }
+    else
+    {
+        auto qSetPtr = getQSet(qSetHash);
+        if (qSetPtr)
+        {
+            qSetSize = xdr::xdr_argpack_size(*qSetPtr);
+            mValueSizeCache.put(qSetHash, qSetSize);
+        }
+    }
+
+    totalReceivedBytes += qSetSize;
+
+    if (totalReceivedBytes > 0)
+    {
+        auto const& tracked =
+            mQuorumTracker.findClosestValidators(env.statement.nodeID);
+        auto& cost = mEnvelopes[env.statement.slotIndex].mReceivedCost;
+        for (auto& t : tracked)
+        {
+            cost[t] += totalReceivedBytes;
+        }
+    }
+}
+
+void
 PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 {
     ZoneScoped;
+    auto slot = envelope.statement.slotIndex;
     if (Logging::logTrace("Herder"))
     {
-        CLOG(TRACE, "Herder") << "Envelope ready "
-                              << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                              << " i:" << envelope.statement.slotIndex
-                              << " t:" << envelope.statement.pledges.type();
+        CLOG(TRACE, "Herder")
+            << "Envelope ready "
+            << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope))) << " i:" << slot
+            << " t:" << envelope.statement.pledges.type();
     }
+
+    // envelope has been fetched completely, but SCP has not done
+    // any validation on values yet. Regardless, record cost of this
+    // envelope.
+    recordReceivedCost(envelope);
 
     StellarMessage msg;
     msg.type(SCP_MESSAGE);
@@ -464,7 +538,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     mApp.getOverlayManager().broadcastMessage(msg);
 
     auto envW = mHerder.getHerderSCPDriver().wrapEnvelope(envelope);
-    mEnvelopes[envelope.statement.slotIndex].mReadyEnvelopes.push_back(envW);
+    mEnvelopes[slot].mReadyEnvelopes.push_back(envW);
 }
 
 bool
@@ -616,6 +690,17 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
     {
         slotIndex -= maxSlots;
 
+        // Before we purge a slot, check if any envelopes are still in
+        // "fetching" mode and attempt to record cost
+        auto it = mEnvelopes.find(slotIndex);
+        if (it != mEnvelopes.end())
+        {
+            for (auto const& env : it->second.mFetchingEnvelopes)
+            {
+                recordReceivedCost(env.first);
+            }
+        }
+
         mEnvelopes.erase(slotIndex);
 
         mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
@@ -752,5 +837,16 @@ PendingEnvelopes::envelopeProcessed(SCPEnvelope const& env)
         // could not expand quorum, queue up a rebuild
         mRebuildQuorum = true;
     }
+}
+
+std::unordered_map<NodeID, size_t>
+PendingEnvelopes::getCostPerValidator(uint64 slotIndex)
+{
+    auto found = mEnvelopes.find(slotIndex);
+    if (found != mEnvelopes.end())
+    {
+        return found->second.mReceivedCost;
+    }
+    return {};
 }
 }

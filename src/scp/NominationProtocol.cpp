@@ -242,6 +242,7 @@ NominationProtocol::updateRoundLeaders()
         {
             newRoundLeaders.insert(cur);
         }
+        return true;
     });
     // expand mRoundLeaders with the newly computed leaders
     mRoundLeaders.insert(newRoundLeaders.begin(), newRoundLeaders.end());

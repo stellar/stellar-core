@@ -250,6 +250,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         auto minSlotToRemember = getMinLedgerSeqToRemember();
         if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
         {
+            // report any outliers for the most recent slot to purge
+            if (mLedgerManager.isSynced())
+            {
+                getHerderSCPDriver().reportCostOutliersForSlot(
+                    minSlotToRemember - 1, true);
+            }
             getHerderSCPDriver().purgeSlots(minSlotToRemember);
             mPendingEnvelopes.eraseBelow(minSlotToRemember);
         }
@@ -1227,16 +1233,20 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
     Json::Value ret;
     ret["node"] = mApp.getConfig().toStrKey(id, fullKeys);
     ret["qset"] = getSCP().getJsonQuorumInfo(id, summary, fullKeys, index);
+
     bool isSelf = id == mApp.getConfig().NODE_SEED.getPublicKey();
     if (isSelf)
     {
-        ret["qset"]["lag_ms"] =
-            getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
         if (mLastQuorumMapIntersectionState.hasAnyResults())
         {
             ret["transitive"] =
                 getJsonTransitiveQuorumIntersectionInfo(fullKeys);
         }
+
+        ret["qset"]["lag_ms"] =
+            getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
+        ret["qset"]["cost"] =
+            mHerderSCPDriver.getJsonValidatorCost(summary, fullKeys, index);
     }
     return ret;
 }
@@ -1284,7 +1294,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
             std::string status;
             if (it != q.end())
             {
-                auto qSet = it->second;
+                auto qSet = it->second.mQuorumSet;
                 if (qSet)
                 {
                     if (!summary)
@@ -1298,6 +1308,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
                         {
                             next.emplace_back(n);
                         }
+                        return true;
                     });
                 }
                 auto latest = getSCP().getLatestMessage(id);
@@ -1376,13 +1387,14 @@ getQmapHash(QuorumTracker::QuorumMap const& qmap)
 {
     ZoneScoped;
     SHA256 hasher;
-    std::map<NodeID, SCPQuorumSetPtr> ordered_map(qmap.begin(), qmap.end());
+    std::map<NodeID, QuorumTracker::NodeInfo> ordered_map(qmap.begin(),
+                                                          qmap.end());
     for (auto const& pair : ordered_map)
     {
         hasher.add(xdr::xdr_to_opaque(pair.first));
-        if (pair.second)
+        if (pair.second.mQuorumSet)
         {
-            hasher.add(xdr::xdr_to_opaque(*pair.second));
+            hasher.add(xdr::xdr_to_opaque(*(pair.second.mQuorumSet)));
         }
         else
         {
@@ -1733,6 +1745,13 @@ HerderImpl::herderOutOfSync()
 
     mSCPMetrics.mLostSync.Mark();
     mHerderSCPDriver.lostSync();
+
+    auto trackingData = mHerderSCPDriver.lastTrackingSCP();
+    if (trackingData)
+    {
+        mHerderSCPDriver.reportCostOutliersForSlot(
+            trackingData->mConsensusIndex, false);
+    }
 
     getMoreSCPState();
 

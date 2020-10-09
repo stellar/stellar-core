@@ -71,18 +71,25 @@ LocalNode::getSingletonQSet(NodeID const& nodeID)
     return std::make_shared<SCPQuorumSet>(buildSingletonQSet(nodeID));
 }
 
-void
+bool
 LocalNode::forAllNodes(SCPQuorumSet const& qset,
-                       std::function<void(NodeID const&)> proc)
+                       std::function<bool(NodeID const&)> proc)
 {
     for (auto const& n : qset.validators)
     {
-        proc(n);
+        if (!proc(n))
+        {
+            return false;
+        }
     }
     for (auto const& q : qset.innerSets)
     {
-        forAllNodes(q, proc);
+        if (!forAllNodes(q, proc))
+        {
+            return false;
+        }
     }
+    return true;
 }
 
 uint64

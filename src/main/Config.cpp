@@ -1192,8 +1192,10 @@ void
 Config::validateConfig(ValidationThresholdLevels thresholdLevel)
 {
     std::set<NodeID> nodes;
-    LocalNode::forAllNodes(QUORUM_SET,
-                           [&](NodeID const& n) { nodes.insert(n); });
+    LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n) {
+        nodes.insert(n);
+        return true;
+    });
 
     if (nodes.empty())
     {

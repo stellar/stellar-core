@@ -6,11 +6,16 @@
 
 #include <cstdlib>
 #include <random>
+#include <set>
 #include <stdexcept>
 
 namespace stellar
 {
 double rand_fraction();
+
+std::set<double> k_means(std::vector<double> const& points, uint32_t k);
+
+double closest_cluster(double p, std::set<double> const& centers);
 
 bool rand_flip();
 

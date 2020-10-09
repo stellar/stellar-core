@@ -593,6 +593,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\test\BigDivideTests.cpp" />
     <ClCompile Include="..\..\src\util\test\DecoderTests.cpp" />
     <ClCompile Include="..\..\src\util\test\FsTests.cpp" />
+    <ClCompile Include="..\..\src\util\test\MathTests.cpp" />
     <ClCompile Include="..\..\src\util\test\StatusManagerTest.cpp" />
     <ClCompile Include="..\..\src\util\test\TimerTests.cpp" />
     <ClCompile Include="..\..\src\util\test\Uint128Tests.cpp" />

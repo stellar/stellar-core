@@ -34,6 +34,14 @@ struct SlotEnvelopes
 
     // list of ready envelopes that haven't been sent to SCP yet
     std::vector<SCPEnvelopeWrapperPtr> mReadyEnvelopes;
+
+    // track cost per validator in local qset
+    // cost includes sizes of:
+    //   * envelopes
+    //   * txsets `NodeID` introduces either itself or via its
+    //     quorum (our transitive quorum)
+    //   * qsets
+    std::unordered_map<NodeID, size_t> mReceivedCost;
 };
 
 class PendingEnvelopes
@@ -57,6 +65,9 @@ class PendingEnvelopes
     RandomEvictionCache<Hash, TxSetFramCacheItem> mTxSetCache;
     // weak references to all known txsets
     std::unordered_map<Hash, std::weak_ptr<TxSetFrame>> mKnownTxSets;
+
+    // keep track of txset/qset hash -> size pairs for quick access
+    RandomEvictionCache<Hash, size_t> mValueSizeCache;
 
     bool mRebuildQuorum;
     QuorumTracker mQuorumTracker;
@@ -93,6 +104,8 @@ class PendingEnvelopes
     TxSetFramePtr getKnownTxSet(Hash const& hash, uint64 slot, bool touch);
 
     void cleanKnownData();
+
+    void recordReceivedCost(SCPEnvelope const& env);
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
@@ -174,7 +187,9 @@ class PendingEnvelopes
     void rebuildQuorumTrackerState();
     QuorumTracker::QuorumMap const& getCurrentlyTrackedQuorum() const;
 
-    // updates internal state when an envelope was succesfuly processed
+    // updates internal state when an envelope was successfully processed
     void envelopeProcessed(SCPEnvelope const& env);
+
+    std::unordered_map<NodeID, size_t> getCostPerValidator(uint64 slotIndex);
 };
 }

@@ -723,6 +723,9 @@
     <ClCompile Include="..\..\src\util\test\FsTests.cpp">
       <Filter>util\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\test\MathTests.cpp">
+      <Filter>util\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\test\StatusManagerTest.cpp">
       <Filter>util\tests</Filter>
     </ClCompile>
