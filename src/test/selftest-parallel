@@ -37,7 +37,7 @@ perl -e '
          my $num_partitions = $ARGV[0];
          my $test_spec = $ARGV[1];
          my $test_partitions_dir = $ARGV[2];
-         my @all_tests = shuffle `./stellar-core test --ll FATAL --list-test-names-only $test_spec`;
+         my @all_tests = shuffle `./stellar-core test --ll FATAL --list-test-names-only "$test_spec"`;
          for (my $p = 0; $p < $num_partitions; $p++) {
              open(my $out, ">", "$test_partitions_dir/test-partition-$p.txt");
              for (my $i = $p; $i < @all_tests; $i+=$num_partitions) {
