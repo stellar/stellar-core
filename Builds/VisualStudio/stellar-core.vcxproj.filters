@@ -1092,37 +1092,37 @@
     <ClCompile Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\ConfirmAndClearSponsorOpFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SponsorFutureReservesOpFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\SponsorshipUtils.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\UpdateSponsorshipOpFrame.cpp">
+    <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\ClaimableBalanceTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\test\ConfirmAndClearSponsorTests.cpp">
+    <ClCompile Include="..\..\src\transactions\test\EndSponsoringFutureReservesTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\CreateAccountTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\test\SponsorFutureReservesTests.cpp">
+    <ClCompile Include="..\..\src\transactions\test\BeginSponsoringFutureReservesTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\SponsorshipTestUtils.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\test\UpdateSponsorshipTests.cpp">
+    <ClCompile Include="..\..\src\transactions\test\RevokeSponsorshipTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp">
@@ -1937,19 +1937,19 @@
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\ConfirmAndClearSponsorOpFrame.h">
+    <ClInclude Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\SponsorFutureReservesOpFrame.h">
+    <ClInclude Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\SponsorshipUtils.h">
       <Filter>transactions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\transactions\UpdateSponsorshipOpFrame.h">
+    <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\test\SponsorshipTestUtils.h">
