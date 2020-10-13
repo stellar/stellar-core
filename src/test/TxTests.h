@@ -192,7 +192,7 @@ SetOptionsArguments setInflationDestination(AccountID inflationDest);
 SetOptionsArguments setHomeDomain(std::string const& homeDomain);
 
 Operation beginSponsoringFutureReserves(PublicKey const& sponsoredID);
-Operation confirmAndClearSponsor();
+Operation endSponsoringFutureReserves();
 Operation revokeSponsorship(LedgerKey const& key);
 Operation revokeSponsorship(AccountID const& accID, SignerKey const& key);
 

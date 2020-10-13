@@ -178,7 +178,7 @@ TEST_CASE("create account", "[tx][createaccount]")
                 app->getNetworkID(), root,
                 {root.op(beginSponsoringFutureReserves(a1)),
                  root.op(createAccount(a1, 0)),
-                 a1.op(confirmAndClearSponsor())},
+                 a1.op(endSponsoringFutureReserves())},
                 {key});
 
             {

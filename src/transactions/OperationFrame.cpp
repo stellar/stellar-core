@@ -93,7 +93,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<BeginSponsoringFutureReservesOpFrame>(op, res,
                                                                       tx);
     case END_SPONSORING_FUTURE_RESERVES:
-        return std::make_shared<ConfirmAndClearSponsorOpFrame>(op, res, tx);
+        return std::make_shared<EndSponsoringFutureReservesOpFrame>(op, res,
+                                                                    tx);
     case REVOKE_SPONSORSHIP:
         return std::make_shared<RevokeSponsorshipOpFrame>(op, res, tx);
     default:

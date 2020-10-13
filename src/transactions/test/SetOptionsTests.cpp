@@ -342,7 +342,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                         app->getNetworkID(), root,
                         {root.op(beginSponsoringFutureReserves(acc1)),
                          acc1.op(setOptions(setSigner(makeSigner(s1, 1)))),
-                         acc1.op(confirmAndClearSponsor()),
+                         acc1.op(endSponsoringFutureReserves()),
                          acc1.op(setOptions(setSigner(makeSigner(s2, 1))))},
                         {acc1.getSecretKey()});
 
@@ -474,7 +474,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                     ops.insert(
                         ops.begin(),
                         sponsor->op(beginSponsoringFutureReserves(root)));
-                    ops.emplace_back(root.op(confirmAndClearSponsor()));
+                    ops.emplace_back(root.op(endSponsoringFutureReserves()));
                 }
                 else
                 {

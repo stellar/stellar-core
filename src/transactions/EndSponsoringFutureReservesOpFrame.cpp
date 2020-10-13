@@ -10,21 +10,21 @@
 namespace stellar
 {
 
-ConfirmAndClearSponsorOpFrame::ConfirmAndClearSponsorOpFrame(
+EndSponsoringFutureReservesOpFrame::EndSponsoringFutureReservesOpFrame(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
 {
 }
 
 bool
-ConfirmAndClearSponsorOpFrame::isVersionSupported(
+EndSponsoringFutureReservesOpFrame::isVersionSupported(
     uint32_t protocolVersion) const
 {
     return protocolVersion >= 14;
 }
 
 bool
-ConfirmAndClearSponsorOpFrame::doApply(AbstractLedgerTxn& ltx)
+EndSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     auto sponsorship = loadSponsorship(ltx, getSourceID());
     if (!sponsorship)
@@ -60,7 +60,7 @@ ConfirmAndClearSponsorOpFrame::doApply(AbstractLedgerTxn& ltx)
 }
 
 bool
-ConfirmAndClearSponsorOpFrame::doCheckValid(uint32_t ledgerVersion)
+EndSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
     return true;
 }

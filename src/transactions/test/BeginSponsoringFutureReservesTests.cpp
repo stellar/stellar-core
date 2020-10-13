@@ -124,8 +124,8 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
                 app->getNetworkID(), root,
                 {root.op(beginSponsoringFutureReserves(a1)),
                  a1.op(beginSponsoringFutureReserves(a2)),
-                 a2.op(confirmAndClearSponsor()),
-                 a1.op(confirmAndClearSponsor())},
+                 a2.op(endSponsoringFutureReserves()),
+                 a1.op(endSponsoringFutureReserves())},
                 {a1, a2});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -151,8 +151,8 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
                 app->getNetworkID(), root,
                 {a1.op(beginSponsoringFutureReserves(a2)),
                  root.op(beginSponsoringFutureReserves(a1)),
-                 a2.op(confirmAndClearSponsor()),
-                 a1.op(confirmAndClearSponsor())},
+                 a2.op(endSponsoringFutureReserves()),
+                 a1.op(endSponsoringFutureReserves())},
                 {a1, a2});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -176,7 +176,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), root,
                 {root.op(beginSponsoringFutureReserves(a1)),
-                 a1.op(confirmAndClearSponsor())},
+                 a1.op(endSponsoringFutureReserves())},
                 {a1});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -198,11 +198,12 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
 
         // creating the sponsored trustline first will make sure the account is
         // usign a V2 extension before the first signer is added
-        auto tx1 = transactionFrameFromOps(
-            app->getNetworkID(), root,
-            {root.op(beginSponsoringFutureReserves(a1)),
-             a1.op(changeTrust(cur1, 1000)), a1.op(confirmAndClearSponsor())},
-            {a1});
+        auto tx1 =
+            transactionFrameFromOps(app->getNetworkID(), root,
+                                    {root.op(beginSponsoringFutureReserves(a1)),
+                                     a1.op(changeTrust(cur1, 1000)),
+                                     a1.op(endSponsoringFutureReserves())},
+                                    {a1});
 
         LedgerTxn ltx(app->getLedgerTxnRoot());
         TransactionMeta txm1(2);
@@ -215,7 +216,7 @@ TEST_CASE("sponsor future reserves", "[tx][sponsorship]")
             transactionFrameFromOps(app->getNetworkID(), root,
                                     {root.op(beginSponsoringFutureReserves(a1)),
                                      a1.op(setOptions(setSigner(signer))),
-                                     a1.op(confirmAndClearSponsor())},
+                                     a1.op(endSponsoringFutureReserves())},
                                     {a1});
 
         TransactionMeta txm2(2);

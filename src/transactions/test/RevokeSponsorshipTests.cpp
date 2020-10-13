@@ -147,7 +147,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), a1,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(revokeSponsorship(accountKey(a1))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {root});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -168,7 +168,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), a1,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(revokeSponsorship(trustlineKey(a1, cur1))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {root});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -199,7 +199,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                             app->getNetworkID(), root,
                             {root.op(beginSponsoringFutureReserves(a1)),
                              a1.op(changeTrust(cur1, 1000)),
-                             a1.op(confirmAndClearSponsor())},
+                             a1.op(endSponsoringFutureReserves())},
                             {a1});
 
                         LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -213,7 +213,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                         app->getNetworkID(), a1,
                         {root.op(beginSponsoringFutureReserves(a1)),
                          a1.op(revokeSponsorship(a1, signer.key)),
-                         a1.op(confirmAndClearSponsor())},
+                         a1.op(endSponsoringFutureReserves())},
                         {root});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -258,7 +258,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), a1,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(revokeSponsorship(claimableBalanceKey(balanceID))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {root});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -287,7 +287,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      root.op(createAccount(a1, minBal(2))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {key});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -320,7 +320,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(changeTrust(cur1, 1000)),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -351,7 +351,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(setOptions(setSigner(signer))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -383,7 +383,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(
                          createClaimableBalance(native, 1, {getClaimant(a1)})),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -430,7 +430,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      root.op(createAccount(a1, minBal(2))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {key});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -442,7 +442,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(accountKey(a1.getPublicKey()))),
-                     root.op(confirmAndClearSponsor())},
+                     root.op(endSponsoringFutureReserves())},
                     {a2});
 
                 TransactionMeta txm2(2);
@@ -464,7 +464,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(changeTrust(cur1, 1000)),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -476,7 +476,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(trustlineKey(a1, cur1))),
-                     root.op(confirmAndClearSponsor())},
+                     root.op(endSponsoringFutureReserves())},
                     {a2});
 
                 TransactionMeta txm2(2);
@@ -501,7 +501,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(setOptions(setSigner(signer))),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -512,7 +512,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(a1, signer.key)),
-                     root.op(confirmAndClearSponsor())},
+                     root.op(endSponsoringFutureReserves())},
                     {a2});
 
                 TransactionMeta txm2(2);
@@ -537,7 +537,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(
                          createClaimableBalance(native, 1, {getClaimant(a1)})),
-                     a1.op(confirmAndClearSponsor())},
+                     a1.op(endSponsoringFutureReserves())},
                     {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -555,7 +555,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     app->getNetworkID(), root,
                     {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(claimableBalanceKey(balanceID))),
-                     root.op(confirmAndClearSponsor())},
+                     root.op(endSponsoringFutureReserves())},
                     {a2});
 
                 TransactionMeta txm2(2);
@@ -697,7 +697,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), root,
                         {root.op(beginSponsoringFutureReserves(a1)), op,
-                         a1.op(confirmAndClearSponsor())},
+                         a1.op(endSponsoringFutureReserves())},
                         {a1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -803,7 +803,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     auto tx1 = transactionFrameFromOps(
                         app->getNetworkID(), root,
                         {root.op(beginSponsoringFutureReserves(a1)),
-                         middleOpTx1, a1.op(confirmAndClearSponsor())},
+                         middleOpTx1, a1.op(endSponsoringFutureReserves())},
                         {a1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -819,7 +819,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), root,
                         {a2.op(beginSponsoringFutureReserves(root)),
-                         middleOpTx2, root.op(confirmAndClearSponsor())},
+                         middleOpTx2, root.op(endSponsoringFutureReserves())},
                         {a2});
 
                     TransactionMeta txm2(2);
@@ -841,7 +841,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     auto tx1 = transactionFrameFromOps(
                         app->getNetworkID(), root,
                         {root.op(beginSponsoringFutureReserves(a1)),
-                         middleOpTx1, a1.op(confirmAndClearSponsor())},
+                         middleOpTx1, a1.op(endSponsoringFutureReserves())},
                         {a1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -887,7 +887,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), root,
                         {a2.op(beginSponsoringFutureReserves(a1)), middleOp,
-                         a1.op(confirmAndClearSponsor())},
+                         a1.op(endSponsoringFutureReserves())},
                         {a1, a2});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());

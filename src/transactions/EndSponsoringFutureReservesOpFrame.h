@@ -9,7 +9,7 @@
 namespace stellar
 {
 
-class ConfirmAndClearSponsorOpFrame : public OperationFrame
+class EndSponsoringFutureReservesOpFrame : public OperationFrame
 {
     bool isVersionSupported(uint32_t protocolVersion) const override;
 
@@ -20,8 +20,9 @@ class ConfirmAndClearSponsorOpFrame : public OperationFrame
     }
 
   public:
-    ConfirmAndClearSponsorOpFrame(Operation const& op, OperationResult& res,
-                                  TransactionFrame& parentTx);
+    EndSponsoringFutureReservesOpFrame(Operation const& op,
+                                       OperationResult& res,
+                                       TransactionFrame& parentTx);
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;

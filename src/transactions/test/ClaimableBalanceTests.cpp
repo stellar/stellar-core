@@ -170,7 +170,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             app.getNetworkID(), root,
             {root.op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(createClaimableBalance(asset, amount, claimants)),
-             createAcc.op(confirmAndClearSponsor())},
+             createAcc.op(endSponsoringFutureReserves())},
             {createAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -229,7 +229,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             app.getNetworkID(), root,
             {root.op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(revokeSponsorship(claimableBalanceKey(balanceID))),
-             createAcc.op(confirmAndClearSponsor())},
+             createAcc.op(endSponsoringFutureReserves())},
             {createAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -250,7 +250,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
             app.getNetworkID(), root,
             {root.op(beginSponsoringFutureReserves(claimAcc)),
              claimAcc.op(claimClaimableBalance(balanceID)),
-             claimAcc.op(confirmAndClearSponsor())},
+             claimAcc.op(endSponsoringFutureReserves())},
             {claimAcc});
 
         LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -1162,7 +1162,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 app->getNetworkID(), root,
                 {root.op(beginSponsoringFutureReserves(acc1)),
                  acc1.op(createClaimableBalance(native, 1, validClaimants)),
-                 acc1.op(confirmAndClearSponsor())},
+                 acc1.op(endSponsoringFutureReserves())},
                 {acc1});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());

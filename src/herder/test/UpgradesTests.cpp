@@ -1912,8 +1912,8 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                             offerKey(a1, offer.key.offerID))));
                     }
                 }
-                opsA1.emplace_back(a2.op(confirmAndClearSponsor()));
-                opsA2.emplace_back(a1.op(confirmAndClearSponsor()));
+                opsA1.emplace_back(a2.op(endSponsoringFutureReserves()));
+                opsA2.emplace_back(a1.op(endSponsoringFutureReserves()));
 
                 // submit tx to update sponsorship
                 submitTx(transactionFrameFromOps(app->getNetworkID(), a1, opsA1,
@@ -1992,8 +1992,10 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                 ops.emplace_back(sponsoredAcc2.op(revokeSponsorship(
                     offerKey(sponsoredAcc2, offers.back().key.offerID))));
 
-                ops.emplace_back(sponsoredAcc.op(confirmAndClearSponsor()));
-                ops.emplace_back(sponsoredAcc2.op(confirmAndClearSponsor()));
+                ops.emplace_back(
+                    sponsoredAcc.op(endSponsoringFutureReserves()));
+                ops.emplace_back(
+                    sponsoredAcc2.op(endSponsoringFutureReserves()));
 
                 // submit tx to update sponsorship
                 submitTx(transactionFrameFromOps(

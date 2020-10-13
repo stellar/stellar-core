@@ -1164,7 +1164,7 @@ beginSponsoringFutureReserves(PublicKey const& sponsoredID)
 }
 
 Operation
-confirmAndClearSponsor()
+endSponsoringFutureReserves()
 {
     Operation op;
     op.body.type(END_SPONSORING_FUTURE_RESERVES);

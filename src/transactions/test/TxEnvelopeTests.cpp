@@ -1053,7 +1053,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 app->getNetworkID(), a2,
                                 {a2.op(beginSponsoringFutureReserves(a1)),
                                  a1.op(setOptions(setSigner(sk1))),
-                                 a1.op(confirmAndClearSponsor())},
+                                 a1.op(endSponsoringFutureReserves())},
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -1071,7 +1071,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 {root.op(beginSponsoringFutureReserves(a1)),
                                  a1.op(setOptions(setSigner(signer1))),
                                  a1.op(setOptions(setSigner(signer2))),
-                                 a1.op(confirmAndClearSponsor())},
+                                 a1.op(endSponsoringFutureReserves())},
                                 {a1});
                             {
                                 LedgerTxn ltx(app->getLedgerTxnRoot());

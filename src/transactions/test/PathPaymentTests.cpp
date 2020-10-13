@@ -4348,7 +4348,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 app->getNetworkID(), source,
                 {sponsor.op(beginSponsoringFutureReserves(source)),
                  source.op(revokeSponsorship(offerKey(source, offerID))),
-                 source.op(confirmAndClearSponsor())},
+                 source.op(endSponsoringFutureReserves())},
                 {sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -4740,7 +4740,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     app->getNetworkID(), root,
                     {payor.op(beginSponsoringFutureReserves(mm)),
                      mm.op(manageOffer(0, usd, xlm, Price{1, 1}, 10000)),
-                     mm.op(confirmAndClearSponsor())},
+                     mm.op(endSponsoringFutureReserves())},
                     {payor, mm});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());

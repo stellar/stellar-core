@@ -2989,7 +2989,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 app->getNetworkID(), source,
                 {sponsor.op(beginSponsoringFutureReserves(source)),
                  source.op(revokeSponsorship(offerKey(source, offerID))),
-                 source.op(confirmAndClearSponsor())},
+                 source.op(endSponsoringFutureReserves())},
                 {sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -3026,7 +3026,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 {sponsor->op(beginSponsoringFutureReserves(acc)),
                  acc.op(manageOffer(0, state.selling, state.buying, state.price,
                                     state.amount)),
-                 acc.op(confirmAndClearSponsor())},
+                 acc.op(endSponsoringFutureReserves())},
                 {*sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -3750,7 +3750,7 @@ TEST_CASE("create offer", "[tx][offers]")
              acc1.op(manageOffer(0, usd, xlm, Price{1, 1}, 100)),
              acc1.op(manageOffer(0, xlm, usd, Price{2, 1}, 100)),
              acc1.op(manageOffer(0, idr, xlm, Price{1, 1}, 100)),
-             acc1.op(confirmAndClearSponsor())},
+             acc1.op(endSponsoringFutureReserves())},
             {sponsor});
 
         uint64_t offerIdUsdXlm = 0;
