@@ -168,7 +168,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     {
         auto tx = transactionFrameFromOps(
             app.getNetworkID(), root,
-            {root.op(sponsorFutureReserves(createAcc)),
+            {root.op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(createClaimableBalance(asset, amount, claimants)),
              createAcc.op(confirmAndClearSponsor())},
             {createAcc});
@@ -227,7 +227,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         // We need to transfer the sponsorship before we can merge
         auto tx = transactionFrameFromOps(
             app.getNetworkID(), root,
-            {root.op(sponsorFutureReserves(createAcc)),
+            {root.op(beginSponsoringFutureReserves(createAcc)),
              createAcc.op(revokeSponsorship(claimableBalanceKey(balanceID))),
              createAcc.op(confirmAndClearSponsor())},
             {createAcc});
@@ -248,7 +248,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
     {
         auto tx = transactionFrameFromOps(
             app.getNetworkID(), root,
-            {root.op(sponsorFutureReserves(claimAcc)),
+            {root.op(beginSponsoringFutureReserves(claimAcc)),
              claimAcc.op(claimClaimableBalance(balanceID)),
              claimAcc.op(confirmAndClearSponsor())},
             {claimAcc});
@@ -1160,7 +1160,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
         {
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), root,
-                {root.op(sponsorFutureReserves(acc1)),
+                {root.op(beginSponsoringFutureReserves(acc1)),
                  acc1.op(createClaimableBalance(native, 1, validClaimants)),
                  acc1.op(confirmAndClearSponsor())},
                 {acc1});

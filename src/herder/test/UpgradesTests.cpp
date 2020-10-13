@@ -1896,9 +1896,9 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             if (flipSponsorship)
             {
                 std::vector<Operation> opsA1 = {
-                    a1.op(sponsorFutureReserves(a2))};
+                    a1.op(beginSponsoringFutureReserves(a2))};
                 std::vector<Operation> opsA2 = {
-                    a2.op(sponsorFutureReserves(a1))};
+                    a2.op(beginSponsoringFutureReserves(a1))};
                 for (auto const& offer : offers)
                 {
                     if (offer.key.sellerID == a2.getPublicKey())
@@ -1975,8 +1975,10 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                 // prepare ops to transfer sponsorship of all sponsoredAcc
                 // offers and one offer from sponsoredAcc2 to sponsoringAcc
                 std::vector<Operation> ops = {
-                    sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc)),
-                    sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc2))};
+                    sponsoringAcc.op(
+                        beginSponsoringFutureReserves(sponsoredAcc)),
+                    sponsoringAcc.op(
+                        beginSponsoringFutureReserves(sponsoredAcc2))};
                 for (auto const& offer : offers)
                 {
                     if (offer.key.sellerID == sponsoredAcc.getPublicKey())

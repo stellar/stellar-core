@@ -90,7 +90,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     case CLAIM_CLAIMABLE_BALANCE:
         return std::make_shared<ClaimClaimableBalanceOpFrame>(op, res, tx);
     case BEGIN_SPONSORING_FUTURE_RESERVES:
-        return std::make_shared<SponsorFutureReservesOpFrame>(op, res, tx);
+        return std::make_shared<BeginSponsoringFutureReservesOpFrame>(op, res,
+                                                                      tx);
     case END_SPONSORING_FUTURE_RESERVES:
         return std::make_shared<ConfirmAndClearSponsorOpFrame>(op, res, tx);
     case REVOKE_SPONSORSHIP:

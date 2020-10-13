@@ -4346,7 +4346,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                        TestAccount& sponsor) {
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), source,
-                {sponsor.op(sponsorFutureReserves(source)),
+                {sponsor.op(beginSponsoringFutureReserves(source)),
                  source.op(revokeSponsorship(offerKey(source, offerID))),
                  source.op(confirmAndClearSponsor())},
                 {sponsor});
@@ -4738,7 +4738,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             {
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {payor.op(sponsorFutureReserves(mm)),
+                    {payor.op(beginSponsoringFutureReserves(mm)),
                      mm.op(manageOffer(0, usd, xlm, Price{1, 1}, 10000)),
                      mm.op(confirmAndClearSponsor())},
                     {payor, mm});

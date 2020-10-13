@@ -1051,7 +1051,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             // are sponsored by root
                             auto insideSignerTx = transactionFrameFromOps(
                                 app->getNetworkID(), a2,
-                                {a2.op(sponsorFutureReserves(a1)),
+                                {a2.op(beginSponsoringFutureReserves(a1)),
                                  a1.op(setOptions(setSigner(sk1))),
                                  a1.op(confirmAndClearSponsor())},
                                 {a1});
@@ -1068,7 +1068,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                             auto outsideSignerTx = transactionFrameFromOps(
                                 app->getNetworkID(), root,
-                                {root.op(sponsorFutureReserves(a1)),
+                                {root.op(beginSponsoringFutureReserves(a1)),
                                  a1.op(setOptions(setSigner(signer1))),
                                  a1.op(setOptions(setSigner(signer2))),
                                  a1.op(confirmAndClearSponsor())},

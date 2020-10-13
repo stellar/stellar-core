@@ -679,7 +679,7 @@ TEST_CASE("merge", "[tx][merge]")
                 auto signer = makeSigner(getAccount("S1"), 1);
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), dest,
-                    {sponsoringAcc.op(sponsorFutureReserves(dest)),
+                    {sponsoringAcc.op(beginSponsoringFutureReserves(dest)),
                      dest.op(setOptions(setSigner(signer))),
                      dest.op(confirmAndClearSponsor())},
                     {sponsoringAcc});
@@ -717,7 +717,7 @@ TEST_CASE("merge", "[tx][merge]")
                 TestAccount acc1(*app, key);
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), sponsoringAcc,
-                    {sponsoringAcc.op(sponsorFutureReserves(acc1)),
+                    {sponsoringAcc.op(beginSponsoringFutureReserves(acc1)),
                      sponsoringAcc.op(createAccount(acc1, txfee * 4)),
                      acc1.op(confirmAndClearSponsor())},
                     {key});
@@ -768,7 +768,7 @@ TEST_CASE("merge", "[tx][merge]")
                 {
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), a1,
-                        {a1.op(sponsorFutureReserves(b1)),
+                        {a1.op(beginSponsoringFutureReserves(b1)),
                          a1.op(accountMerge(b1)),
                          b1.op(confirmAndClearSponsor())},
                         {b1});
@@ -789,7 +789,7 @@ TEST_CASE("merge", "[tx][merge]")
                     auto cur1 = makeAsset(root, "CUR1");
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), a1,
-                        {sponsoringAcc.op(sponsorFutureReserves(a1)),
+                        {sponsoringAcc.op(beginSponsoringFutureReserves(a1)),
                          a1.op(changeTrust(cur1, 1000)),
                          a1.op(confirmAndClearSponsor())},
                         {sponsoringAcc});

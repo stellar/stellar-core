@@ -9,7 +9,7 @@
 namespace stellar
 {
 
-class SponsorFutureReservesOpFrame : public OperationFrame
+class BeginSponsoringFutureReservesOpFrame : public OperationFrame
 {
     bool isVersionSupported(uint32_t protocolVersion) const override;
 
@@ -18,14 +18,15 @@ class SponsorFutureReservesOpFrame : public OperationFrame
     {
         return mResult.tr().beginSponsoringFutureReservesResult();
     }
-    BeginSponsoringFutureReservesOp const& mSponsorFutureReservesOp;
+    BeginSponsoringFutureReservesOp const& mBeginSponsoringFutureReservesOp;
 
     void createSponsorship(AbstractLedgerTxn& ltx);
     void createSponsorshipCounter(AbstractLedgerTxn& ltx);
 
   public:
-    SponsorFutureReservesOpFrame(Operation const& op, OperationResult& res,
-                                 TransactionFrame& parentTx);
+    BeginSponsoringFutureReservesOpFrame(Operation const& op,
+                                         OperationResult& res,
+                                         TransactionFrame& parentTx);
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;

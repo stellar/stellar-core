@@ -145,7 +145,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), a1,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(revokeSponsorship(accountKey(a1))),
                      a1.op(confirmAndClearSponsor())},
                     {root});
@@ -166,7 +166,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 a1.changeTrust(cur1, 1000);
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), a1,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(revokeSponsorship(trustlineKey(a1, cur1))),
                      a1.op(confirmAndClearSponsor())},
                     {root});
@@ -197,7 +197,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     {
                         auto tx = transactionFrameFromOps(
                             app->getNetworkID(), root,
-                            {root.op(sponsorFutureReserves(a1)),
+                            {root.op(beginSponsoringFutureReserves(a1)),
                              a1.op(changeTrust(cur1, 1000)),
                              a1.op(confirmAndClearSponsor())},
                             {a1});
@@ -211,7 +211,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), a1,
-                        {root.op(sponsorFutureReserves(a1)),
+                        {root.op(beginSponsoringFutureReserves(a1)),
                          a1.op(revokeSponsorship(a1, signer.key)),
                          a1.op(confirmAndClearSponsor())},
                         {root});
@@ -256,7 +256,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), a1,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(revokeSponsorship(claimableBalanceKey(balanceID))),
                      a1.op(confirmAndClearSponsor())},
                     {root});
@@ -285,7 +285,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 TestAccount a1(*app, key);
                 auto tx1 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      root.op(createAccount(a1, minBal(2))),
                      a1.op(confirmAndClearSponsor())},
                     {key});
@@ -316,12 +316,12 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto cur1 = makeAsset(root, "CUR1");
                 auto a1 = root.create("a1", minBal(1));
 
-                auto tx1 =
-                    transactionFrameFromOps(app->getNetworkID(), root,
-                                            {root.op(sponsorFutureReserves(a1)),
-                                             a1.op(changeTrust(cur1, 1000)),
-                                             a1.op(confirmAndClearSponsor())},
-                                            {a1});
+                auto tx1 = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(a1)),
+                     a1.op(changeTrust(cur1, 1000)),
+                     a1.op(confirmAndClearSponsor())},
+                    {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMeta txm1(2);
@@ -349,7 +349,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto signer = makeSigner(getAccount("S1"), 1);
                 auto tx1 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(setOptions(setSigner(signer))),
                      a1.op(confirmAndClearSponsor())},
                     {a1});
@@ -378,13 +378,13 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto native = makeNativeAsset();
                 auto a1 = root.create("a1", minBal(2));
 
-                auto tx1 =
-                    transactionFrameFromOps(app->getNetworkID(), root,
-                                            {root.op(sponsorFutureReserves(a1)),
-                                             a1.op(createClaimableBalance(
-                                                 native, 1, {getClaimant(a1)})),
-                                             a1.op(confirmAndClearSponsor())},
-                                            {a1});
+                auto tx1 = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(a1)),
+                     a1.op(
+                         createClaimableBalance(native, 1, {getClaimant(a1)})),
+                     a1.op(confirmAndClearSponsor())},
+                    {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMeta txm1(2);
@@ -428,7 +428,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 auto tx1 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      root.op(createAccount(a1, minBal(2))),
                      a1.op(confirmAndClearSponsor())},
                     {key});
@@ -440,7 +440,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 auto tx2 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {a2.op(sponsorFutureReserves(root)),
+                    {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(accountKey(a1.getPublicKey()))),
                      root.op(confirmAndClearSponsor())},
                     {a2});
@@ -460,12 +460,12 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto a1 = root.create("a1", minBal(0));
                 auto a2 = root.create("a2", minBal(2));
 
-                auto tx1 =
-                    transactionFrameFromOps(app->getNetworkID(), root,
-                                            {root.op(sponsorFutureReserves(a1)),
-                                             a1.op(changeTrust(cur1, 1000)),
-                                             a1.op(confirmAndClearSponsor())},
-                                            {a1});
+                auto tx1 = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(a1)),
+                     a1.op(changeTrust(cur1, 1000)),
+                     a1.op(confirmAndClearSponsor())},
+                    {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMeta txm1(2);
@@ -474,7 +474,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 auto tx2 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {a2.op(sponsorFutureReserves(root)),
+                    {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(trustlineKey(a1, cur1))),
                      root.op(confirmAndClearSponsor())},
                     {a2});
@@ -499,7 +499,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto signer = makeSigner(getAccount("S1"), 1);
                 auto tx1 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(a1)),
+                    {root.op(beginSponsoringFutureReserves(a1)),
                      a1.op(setOptions(setSigner(signer))),
                      a1.op(confirmAndClearSponsor())},
                     {a1});
@@ -510,7 +510,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 REQUIRE(tx1->apply(*app, ltx, txm1));
                 auto tx2 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {a2.op(sponsorFutureReserves(root)),
+                    {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(a1, signer.key)),
                      root.op(confirmAndClearSponsor())},
                     {a2});
@@ -532,13 +532,13 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto a1 = root.create("a1", minBal(2));
                 auto a2 = root.create("a2", minBal(2));
 
-                auto tx1 =
-                    transactionFrameFromOps(app->getNetworkID(), root,
-                                            {root.op(sponsorFutureReserves(a1)),
-                                             a1.op(createClaimableBalance(
-                                                 native, 1, {getClaimant(a1)})),
-                                             a1.op(confirmAndClearSponsor())},
-                                            {a1});
+                auto tx1 = transactionFrameFromOps(
+                    app->getNetworkID(), root,
+                    {root.op(beginSponsoringFutureReserves(a1)),
+                     a1.op(
+                         createClaimableBalance(native, 1, {getClaimant(a1)})),
+                     a1.op(confirmAndClearSponsor())},
+                    {a1});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
                 TransactionMeta txm1(2);
@@ -553,7 +553,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 auto tx2 = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {a2.op(sponsorFutureReserves(root)),
+                    {a2.op(beginSponsoringFutureReserves(root)),
                      root.op(revokeSponsorship(claimableBalanceKey(balanceID))),
                      root.op(confirmAndClearSponsor())},
                     {a2});
@@ -696,7 +696,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), root,
-                        {root.op(sponsorFutureReserves(a1)), op,
+                        {root.op(beginSponsoringFutureReserves(a1)), op,
                          a1.op(confirmAndClearSponsor())},
                         {a1});
 
@@ -802,8 +802,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                                   : a1.op(setOptions(setSigner(signer)));
                     auto tx1 = transactionFrameFromOps(
                         app->getNetworkID(), root,
-                        {root.op(sponsorFutureReserves(a1)), middleOpTx1,
-                         a1.op(confirmAndClearSponsor())},
+                        {root.op(beginSponsoringFutureReserves(a1)),
+                         middleOpTx1, a1.op(confirmAndClearSponsor())},
                         {a1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -818,8 +818,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     auto tx2 = transactionFrameFromOps(
                         app->getNetworkID(), root,
-                        {a2.op(sponsorFutureReserves(root)), middleOpTx2,
-                         root.op(confirmAndClearSponsor())},
+                        {a2.op(beginSponsoringFutureReserves(root)),
+                         middleOpTx2, root.op(confirmAndClearSponsor())},
                         {a2});
 
                     TransactionMeta txm2(2);
@@ -840,8 +840,8 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                                   : a1.op(setOptions(setSigner(signer)));
                     auto tx1 = transactionFrameFromOps(
                         app->getNetworkID(), root,
-                        {root.op(sponsorFutureReserves(a1)), middleOpTx1,
-                         a1.op(confirmAndClearSponsor())},
+                        {root.op(beginSponsoringFutureReserves(a1)),
+                         middleOpTx1, a1.op(confirmAndClearSponsor())},
                         {a1});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -886,7 +886,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), root,
-                        {a2.op(sponsorFutureReserves(a1)), middleOp,
+                        {a2.op(beginSponsoringFutureReserves(a1)), middleOp,
                          a1.op(confirmAndClearSponsor())},
                         {a1, a2});
 

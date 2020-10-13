@@ -128,7 +128,7 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
             auto root = TestAccount::createRoot(app);
             auto tx = transactionFrameFromOps(
                 app.getNetworkID(), root,
-                {sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc)),
+                {sponsoringAcc.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(op),
                  sponsoredAcc.op(confirmAndClearSponsor())},
                 {sponsoringAcc.getSecretKey(), sponsoredAcc.getSecretKey()});
@@ -168,7 +168,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
 
             auto tx = transactionFrameFromOps(
                 app.getNetworkID(), root,
-                {root.op(sponsorFutureReserves(sponsoredAcc)),
+                {root.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(opCreate),
                  sponsoredAcc.op(confirmAndClearSponsor())},
                 {sponsoredAcc.getSecretKey()});
@@ -177,7 +177,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                                {sponsoredAcc.getSecretKey()});
             auto tx3 = transactionFrameFromOps(
                 app.getNetworkID(), root,
-                {a2.op(sponsorFutureReserves(sponsoredAcc)),
+                {a2.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(opModify2),
                  sponsoredAcc.op(confirmAndClearSponsor())},
                 {a2.getSecretKey(), sponsoredAcc.getSecretKey()});
@@ -339,7 +339,7 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
             {
                 auto tx1 = transactionFrameFromOps(
                     app.getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(successfulOpAcc)),
+                    {root.op(beginSponsoringFutureReserves(successfulOpAcc)),
                      successfulOp,
                      successfulOpAcc.op(confirmAndClearSponsor())},
                     {successfulOpAcc});
@@ -354,7 +354,7 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
             {
                 auto tx2 = transactionFrameFromOps(
                     app.getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(failOpAcc)), failOp,
+                    {root.op(beginSponsoringFutureReserves(failOpAcc)), failOp,
                      failOpAcc.op(confirmAndClearSponsor())},
                     {failOpAcc});
 

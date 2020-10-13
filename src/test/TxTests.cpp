@@ -1155,7 +1155,7 @@ claimClaimableBalance(ClaimableBalanceID const& balanceID)
 }
 
 Operation
-sponsorFutureReserves(PublicKey const& sponsoredID)
+beginSponsoringFutureReserves(PublicKey const& sponsoredID)
 {
     Operation op;
     op.body.type(BEGIN_SPONSORING_FUTURE_RESERVES);

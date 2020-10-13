@@ -2987,7 +2987,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                        TestAccount& sponsor) {
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), source,
-                {sponsor.op(sponsorFutureReserves(source)),
+                {sponsor.op(beginSponsoringFutureReserves(source)),
                  source.op(revokeSponsorship(offerKey(source, offerID))),
                  source.op(confirmAndClearSponsor())},
                 {sponsor});
@@ -3023,7 +3023,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // This will not update the internal offerID tracker in market
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), acc,
-                {sponsor->op(sponsorFutureReserves(acc)),
+                {sponsor->op(beginSponsoringFutureReserves(acc)),
                  acc.op(manageOffer(0, state.selling, state.buying, state.price,
                                     state.amount)),
                  acc.op(confirmAndClearSponsor())},
@@ -3746,7 +3746,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto tx = transactionFrameFromOps(
             app->getNetworkID(), acc1,
-            {sponsor.op(sponsorFutureReserves(acc1)),
+            {sponsor.op(beginSponsoringFutureReserves(acc1)),
              acc1.op(manageOffer(0, usd, xlm, Price{1, 1}, 100)),
              acc1.op(manageOffer(0, xlm, usd, Price{2, 1}, 100)),
              acc1.op(manageOffer(0, idr, xlm, Price{1, 1}, 100)),

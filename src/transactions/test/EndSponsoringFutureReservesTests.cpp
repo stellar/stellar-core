@@ -74,5 +74,5 @@ TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
     }
 
     // END_SPONSORING_FUTURE_RESERVES success tested in
-    // SponsorFutureReservesTests
+    // BeginSponsoringFutureReservesTests
 }
