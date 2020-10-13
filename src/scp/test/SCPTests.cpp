@@ -2952,16 +2952,17 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
             REQUIRE(scp.mEnvs.size() == 0);
 
-            SCPEnvelope nom3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votesYK, emptyV);
             SCPEnvelope nom4 =
                 makeNominate(v4SecretKey, qSetHash, 0, votesXK, emptyV);
 
             // nothing happens with non top nodes
             scp.receiveEnvelope(nom2);
-            scp.receiveEnvelope(nom3);
+            // (note: don't receive anything from node3 - we want to pick
+            // another dead node)
             REQUIRE(scp.mEnvs.size() == 0);
 
+            // v1 is leader -> nominate the first value from its message
+            // that's "y"
             scp.receiveEnvelope(nom1);
             REQUIRE(scp.mEnvs.size() == 1);
             verifyNominate(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, votesY,
@@ -2970,19 +2971,24 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             scp.receiveEnvelope(nom4);
             REQUIRE(scp.mEnvs.size() == 1);
 
-            SECTION("timeout -> pick another value from v1")
-            {
-                scp.mExpectedCandidates.emplace(xValue);
-                scp.mCompositeValue = xValue;
+            // "timeout -> pick another value from v1"
+            scp.mExpectedCandidates.emplace(xValue);
+            scp.mCompositeValue = xValue;
 
-                // note: value passed in here should be ignored
-                REQUIRE(scp.nominate(0, kValue, true));
-                // picks up 'x' from v1 (as we already have 'y')
-                // which also happens to causes 'x' to be accepted
-                REQUIRE(scp.mEnvs.size() == 2);
-                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
-                               votesX);
-            }
+            // allows to pick another leader,
+            // pick another dead node v3 as to force picking up
+            // a new value from v1
+            scp.mPriorityLookup = [&](NodeID const& n) {
+                return (n == v3NodeID) ? 1000 : 1;
+            };
+
+            // note: value passed in here should be ignored
+            REQUIRE(scp.nominate(0, kValue, true));
+            // picks up 'x' from v1 (as we already have 'y')
+            // which also happens to causes 'x' to be accepted
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, votesXY,
+                           votesX);
         }
         SECTION("v1 dead, timeout")
         {
