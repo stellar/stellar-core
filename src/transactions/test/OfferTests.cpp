@@ -2983,12 +2983,12 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("crossed sponsored offers")
     {
-        auto doUpdateSponsorship = [&](TestAccount& source, int64_t offerID,
+        auto doRevokeSponsorship = [&](TestAccount& source, int64_t offerID,
                                        TestAccount& sponsor) {
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), source,
                 {sponsor.op(sponsorFutureReserves(source)),
-                 source.op(updateSponsorship(offerKey(source, offerID))),
+                 source.op(revokeSponsorship(offerKey(source, offerID))),
                  source.op(confirmAndClearSponsor())},
                 {sponsor});
 
@@ -3100,9 +3100,9 @@ TEST_CASE("create offer", "[tx][offers]")
                             })
                         .key;
 
-                doUpdateSponsorship(a1, o1.offerID, b);
-                doUpdateSponsorship(a1, o2.offerID, b);
-                doUpdateSponsorship(a2, o3.offerID, b);
+                doRevokeSponsorship(a1, o1.offerID, b);
+                doRevokeSponsorship(a1, o2.offerID, b);
+                doRevokeSponsorship(a2, o3.offerID, b);
 
                 SECTION("cross one offer partially")
                 {
@@ -3321,9 +3321,9 @@ TEST_CASE("create offer", "[tx][offers]")
                             })
                         .key;
 
-                doUpdateSponsorship(a1, o1.offerID, a2);
-                doUpdateSponsorship(a1, o2.offerID, a2);
-                doUpdateSponsorship(a2, o3.offerID, a1);
+                doRevokeSponsorship(a1, o1.offerID, a2);
+                doRevokeSponsorship(a1, o2.offerID, a2);
+                doRevokeSponsorship(a2, o3.offerID, a1);
 
                 SECTION("cross one offer partially")
                 {
@@ -3547,9 +3547,9 @@ TEST_CASE("create offer", "[tx][offers]")
                             })
                         .key;
 
-                doUpdateSponsorship(a1, o1.offerID, c);
-                doUpdateSponsorship(a1, o2.offerID, c);
-                doUpdateSponsorship(a2, o3.offerID, c);
+                doRevokeSponsorship(a1, o1.offerID, c);
+                doRevokeSponsorship(a1, o2.offerID, c);
+                doRevokeSponsorship(a2, o3.offerID, c);
 
                 SECTION("cross one offer partially")
                 {

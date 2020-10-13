@@ -1903,12 +1903,12 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                 {
                     if (offer.key.sellerID == a2.getPublicKey())
                     {
-                        opsA1.emplace_back(a2.op(updateSponsorship(
+                        opsA1.emplace_back(a2.op(revokeSponsorship(
                             offerKey(a2, offer.key.offerID))));
                     }
                     else
                     {
-                        opsA2.emplace_back(a1.op(updateSponsorship(
+                        opsA2.emplace_back(a1.op(revokeSponsorship(
                             offerKey(a1, offer.key.offerID))));
                     }
                 }
@@ -1981,13 +1981,13 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                 {
                     if (offer.key.sellerID == sponsoredAcc.getPublicKey())
                     {
-                        ops.emplace_back(sponsoredAcc.op(updateSponsorship(
+                        ops.emplace_back(sponsoredAcc.op(revokeSponsorship(
                             offerKey(sponsoredAcc, offer.key.offerID))));
                     }
                 }
 
                 // last offer in offers is for sponsoredAcc2
-                ops.emplace_back(sponsoredAcc2.op(updateSponsorship(
+                ops.emplace_back(sponsoredAcc2.op(revokeSponsorship(
                     offerKey(sponsoredAcc2, offers.back().key.offerID))));
 
                 ops.emplace_back(sponsoredAcc.op(confirmAndClearSponsor()));

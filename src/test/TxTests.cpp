@@ -1172,7 +1172,7 @@ confirmAndClearSponsor()
 }
 
 Operation
-updateSponsorship(LedgerKey const& key)
+revokeSponsorship(LedgerKey const& key)
 {
     Operation op;
     op.body.type(REVOKE_SPONSORSHIP);
@@ -1182,7 +1182,7 @@ updateSponsorship(LedgerKey const& key)
 }
 
 Operation
-updateSponsorship(AccountID const& accID, SignerKey const& key)
+revokeSponsorship(AccountID const& accID, SignerKey const& key)
 {
     Operation op;
     op.body.type(REVOKE_SPONSORSHIP);

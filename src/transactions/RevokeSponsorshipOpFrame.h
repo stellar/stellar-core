@@ -10,7 +10,7 @@ namespace stellar
 {
 enum class SponsorshipResult;
 
-class UpdateSponsorshipOpFrame : public OperationFrame
+class RevokeSponsorshipOpFrame : public OperationFrame
 {
     bool isVersionSupported(uint32_t protocolVersion) const override;
 
@@ -19,7 +19,7 @@ class UpdateSponsorshipOpFrame : public OperationFrame
     {
         return mResult.tr().revokeSponsorshipResult();
     }
-    RevokeSponsorshipOp const& mUpdateSponsorshipOp;
+    RevokeSponsorshipOp const& mRevokeSponsorshipOp;
 
     bool processSponsorshipResult(SponsorshipResult sr);
 
@@ -37,7 +37,7 @@ class UpdateSponsorshipOpFrame : public OperationFrame
                                       LedgerEntry& sponsoredAcc);
 
   public:
-    UpdateSponsorshipOpFrame(Operation const& op, OperationResult& res,
+    RevokeSponsorshipOpFrame(Operation const& op, OperationResult& res,
                              TransactionFrame& parentTx);
 
     bool doApply(AbstractLedgerTxn& ltx) override;

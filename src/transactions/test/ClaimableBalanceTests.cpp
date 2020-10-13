@@ -228,7 +228,7 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
         auto tx = transactionFrameFromOps(
             app.getNetworkID(), root,
             {root.op(sponsorFutureReserves(createAcc)),
-             createAcc.op(updateSponsorship(claimableBalanceKey(balanceID))),
+             createAcc.op(revokeSponsorship(claimableBalanceKey(balanceID))),
              createAcc.op(confirmAndClearSponsor())},
             {createAcc});
 
@@ -1176,7 +1176,7 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
             // try to remove sponsorship
             auto tx2 = transactionFrameFromOps(
                 app->getNetworkID(), root,
-                {root.op(updateSponsorship(claimableBalanceKey(balanceID)))},
+                {root.op(revokeSponsorship(claimableBalanceKey(balanceID)))},
                 {});
 
             TransactionMeta txm2(2);

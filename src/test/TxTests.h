@@ -193,8 +193,8 @@ SetOptionsArguments setHomeDomain(std::string const& homeDomain);
 
 Operation sponsorFutureReserves(PublicKey const& sponsoredID);
 Operation confirmAndClearSponsor();
-Operation updateSponsorship(LedgerKey const& key);
-Operation updateSponsorship(AccountID const& accID, SignerKey const& key);
+Operation revokeSponsorship(LedgerKey const& key);
+Operation revokeSponsorship(AccountID const& accID, SignerKey const& key);
 
 Asset makeNativeAsset();
 Asset makeInvalidAsset();

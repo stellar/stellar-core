@@ -94,7 +94,7 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     case END_SPONSORING_FUTURE_RESERVES:
         return std::make_shared<ConfirmAndClearSponsorOpFrame>(op, res, tx);
     case REVOKE_SPONSORSHIP:
-        return std::make_shared<UpdateSponsorshipOpFrame>(op, res, tx);
+        return std::make_shared<RevokeSponsorshipOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
