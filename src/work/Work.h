@@ -31,6 +31,10 @@ class Application;
  *  flatter structures for better efficiency; they can use WorkSequence
  *  if a long serial order needs to be enforced.
  */
+
+// Helper lambda that parent work can pass to children
+using OnFailureCallback = std::function<void()>;
+
 class Work : public BasicWork
 {
   public:

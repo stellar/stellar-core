@@ -13,14 +13,15 @@ namespace stellar
 {
 
 class HistoryArchive;
+class GetRemoteFileWork;
 
 class GetAndUnzipRemoteFileWork : public Work
 {
-    std::shared_ptr<BasicWork> mGetRemoteFileWork;
+    std::shared_ptr<GetRemoteFileWork> mGetRemoteFileWork;
     std::shared_ptr<BasicWork> mGunzipFileWork;
 
     FileTransferInfo mFt;
-    std::shared_ptr<HistoryArchive> mArchive;
+    std::shared_ptr<HistoryArchive> const mArchive;
 
     medida::Meter& mDownloadStart;
     medida::Meter& mDownloadSuccess;
@@ -37,6 +38,7 @@ class GetAndUnzipRemoteFileWork : public Work
         std::shared_ptr<HistoryArchive> archive = nullptr);
     ~GetAndUnzipRemoteFileWork() = default;
     std::string getStatus() const override;
+    std::shared_ptr<HistoryArchive> getArchive() const;
 
   protected:
     void doReset() override;
