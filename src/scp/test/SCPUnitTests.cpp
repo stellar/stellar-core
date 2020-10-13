@@ -301,16 +301,17 @@ TEST_CASE("nomination two nodes win stats", "[scp][!hide]")
     auto nominationLeaders = [&](int maxRounds, SCPQuorumSet qSetNode0,
                                  SCPQuorumSet qSetNode1) {
         TestNominationSCP nomSCP0(v0NodeID, qSetNode0);
-        Slot slot0(0, nomSCP0.mSCP);
-        NominationTestHandler nom0(slot0);
-
         TestNominationSCP nomSCP1(v1NodeID, qSetNode1);
-        Slot slot1(0, nomSCP1.mSCP);
-        NominationTestHandler nom1(slot1);
 
         int tot = 0;
         for (int g = 0; g < totalIter; g++)
         {
+            Slot slot0(0, nomSCP0.mSCP);
+            NominationTestHandler nom0(slot0);
+
+            Slot slot1(0, nomSCP1.mSCP);
+            NominationTestHandler nom1(slot1);
+
             Value v;
             v.emplace_back(uint8_t(g));
             nom0.setPreviousValue(v);
