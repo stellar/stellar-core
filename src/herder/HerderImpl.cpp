@@ -50,6 +50,7 @@ constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
 constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
+constexpr auto const OUT_OF_SYNC_RECOVERY_TIMER = std::chrono::seconds(10);
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -330,7 +331,7 @@ HerderImpl::startOutOfSyncTimer()
         return;
     }
 
-    mOutOfSyncTimer.expires_from_now(std::chrono::seconds(2));
+    mOutOfSyncTimer.expires_from_now(OUT_OF_SYNC_RECOVERY_TIMER);
 
     mOutOfSyncTimer.async_wait(
         [&]() {
