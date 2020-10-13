@@ -217,7 +217,7 @@ TEST_CASE("quorum tracker closest validators", "[quorum][herder]")
     auto makeQset = [&](std::vector<int> const& validatorIndexes,
                         int selfIndex) {
         SCPQuorumSet q;
-        q.threshold = validatorIndexes.size() + 1;
+        q.threshold = static_cast<uint32>(validatorIndexes.size()) + 1;
         std::transform(validatorIndexes.begin(), validatorIndexes.end(),
                        std::back_inserter(q.validators),
                        [&](int i) { return otherKeys[i]; });

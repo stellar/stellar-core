@@ -18,7 +18,7 @@ using namespace stellar::InvariantTestUtils;
 static int32_t
 getNumClaimants(LedgerEntry const& le)
 {
-    return le.data.claimableBalance().claimants.size();
+    return static_cast<int32_t>(le.data.claimableBalance().claimants.size());
 }
 
 TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
@@ -46,7 +46,8 @@ TEST_CASE("sponsorship invariant", "[invariant][sponsorshipcountisvalid]")
             extV2.numSponsoring = 0;
             extV2.numSponsored = 0;
             extV2.signerSponsoringIDs.clear();
-            extV2.signerSponsoringIDs.resize(ae.signers.size());
+            extV2.signerSponsoringIDs.resize(
+                static_cast<int32_t>(ae.signers.size()));
         }
     };
 

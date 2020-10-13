@@ -1188,7 +1188,8 @@ HerderSCPDriver::reportCostOutliersForSlot(int64_t slotIndex,
             Json::Value res;
             for (auto const& t : tracked)
             {
-                auto clusterToCompare = closest_cluster(t.second, clusters);
+                auto clusterToCompare =
+                    closest_cluster(static_cast<double>(t.second), clusters);
                 auto const smallestCluster = *(clusters.begin());
                 if (shouldReportCostOutlier(clusterToCompare, smallestCluster,
                                             OUTLIER_COST_RATIO_LIMIT))
