@@ -243,9 +243,12 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
             itemFetcher.recv(zero, timer);
 
-            while (clock.crank(false) > 0)
+            // crank for a while
+            constexpr auto elapsed = std::chrono::minutes(1);
+            auto const later = clock.now() + elapsed;
+            while (clock.crank(false) > 0 && clock.now() < later)
             {
-                std::this_thread::sleep_for(std::chrono::microseconds(1));
+                clock.sleep_for(std::chrono::milliseconds(500));
             }
 
             REQUIRE(asked.size() == 4);
