@@ -174,12 +174,12 @@ TEST_CASE("create account", "[tx][createaccount]")
         for_versions_from(14, *app, [&] {
             auto key = SecretKey::pseudoRandomForTesting();
             TestAccount a1(*app, key);
-            auto tx =
-                transactionFrameFromOps(app->getNetworkID(), root,
-                                        {root.op(sponsorFutureReserves(a1)),
-                                         root.op(createAccount(a1, 0)),
-                                         a1.op(confirmAndClearSponsor())},
-                                        {key});
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(beginSponsoringFutureReserves(a1)),
+                 root.op(createAccount(a1, 0)),
+                 a1.op(endSponsoringFutureReserves())},
+                {key});
 
             {
                 LedgerTxn ltx(app->getLedgerTxnRoot());

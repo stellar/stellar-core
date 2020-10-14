@@ -4,13 +4,14 @@
 
 #include "transactions/OperationFrame.h"
 #include "transactions/AllowTrustOpFrame.h"
+#include "transactions/BeginSponsoringFutureReservesOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/ClaimClaimableBalanceOpFrame.h"
-#include "transactions/ConfirmAndClearSponsorOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
+#include "transactions/EndSponsoringFutureReservesOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/ManageBuyOfferOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
@@ -19,11 +20,10 @@
 #include "transactions/PathPaymentStrictReceiveOpFrame.h"
 #include "transactions/PathPaymentStrictSendOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/RevokeSponsorshipOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
-#include "transactions/SponsorFutureReservesOpFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
-#include "transactions/UpdateSponsorshipOpFrame.h"
 #include "util/Logging.h"
 #include "util/XDRCereal.h"
 #include <Tracy.hpp>
@@ -90,11 +90,13 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
     case CLAIM_CLAIMABLE_BALANCE:
         return std::make_shared<ClaimClaimableBalanceOpFrame>(op, res, tx);
     case BEGIN_SPONSORING_FUTURE_RESERVES:
-        return std::make_shared<SponsorFutureReservesOpFrame>(op, res, tx);
+        return std::make_shared<BeginSponsoringFutureReservesOpFrame>(op, res,
+                                                                      tx);
     case END_SPONSORING_FUTURE_RESERVES:
-        return std::make_shared<ConfirmAndClearSponsorOpFrame>(op, res, tx);
+        return std::make_shared<EndSponsoringFutureReservesOpFrame>(op, res,
+                                                                    tx);
     case REVOKE_SPONSORSHIP:
-        return std::make_shared<UpdateSponsorshipOpFrame>(op, res, tx);
+        return std::make_shared<RevokeSponsorshipOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();

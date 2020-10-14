@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "transactions/SponsorFutureReservesOpFrame.h"
+#include "transactions/BeginSponsoringFutureReservesOpFrame.h"
 #include "ledger/GeneralizedLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -11,26 +11,27 @@
 namespace stellar
 {
 
-SponsorFutureReservesOpFrame::SponsorFutureReservesOpFrame(
+BeginSponsoringFutureReservesOpFrame::BeginSponsoringFutureReservesOpFrame(
     Operation const& op, OperationResult& res, TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
-    , mSponsorFutureReservesOp(
+    , mBeginSponsoringFutureReservesOp(
           mOperation.body.beginSponsoringFutureReservesOp())
 {
 }
 
 bool
-SponsorFutureReservesOpFrame::isVersionSupported(uint32_t protocolVersion) const
+BeginSponsoringFutureReservesOpFrame::isVersionSupported(
+    uint32_t protocolVersion) const
 {
     return protocolVersion >= 14;
 }
 
 void
-SponsorFutureReservesOpFrame::createSponsorship(AbstractLedgerTxn& ltx)
+BeginSponsoringFutureReservesOpFrame::createSponsorship(AbstractLedgerTxn& ltx)
 {
     GeneralizedLedgerEntry gle(GeneralizedLedgerEntryType::SPONSORSHIP);
     auto& se = gle.sponsorshipEntry();
-    se.sponsoredID = mSponsorFutureReservesOp.sponsoredID;
+    se.sponsoredID = mBeginSponsoringFutureReservesOp.sponsoredID;
     se.sponsoringID = getSourceID();
 
     auto res = ltx.create(gle);
@@ -41,7 +42,8 @@ SponsorFutureReservesOpFrame::createSponsorship(AbstractLedgerTxn& ltx)
 }
 
 void
-SponsorFutureReservesOpFrame::createSponsorshipCounter(AbstractLedgerTxn& ltx)
+BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
+    AbstractLedgerTxn& ltx)
 {
     GeneralizedLedgerEntry gle(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
     auto& sce = gle.sponsorshipCounterEntry();
@@ -56,9 +58,9 @@ SponsorFutureReservesOpFrame::createSponsorshipCounter(AbstractLedgerTxn& ltx)
 }
 
 bool
-SponsorFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
+BeginSponsoringFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
-    if (loadSponsorship(ltx, mSponsorFutureReservesOp.sponsoredID))
+    if (loadSponsorship(ltx, mBeginSponsoringFutureReservesOp.sponsoredID))
     {
         innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_ALREADY_SPONSORED);
         return false;
@@ -69,7 +71,8 @@ SponsorFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
         innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE);
         return false;
     }
-    if (loadSponsorshipCounter(ltx, mSponsorFutureReservesOp.sponsoredID))
+    if (loadSponsorshipCounter(ltx,
+                               mBeginSponsoringFutureReservesOp.sponsoredID))
     {
         innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE);
         return false;
@@ -92,9 +95,9 @@ SponsorFutureReservesOpFrame::doApply(AbstractLedgerTxn& ltx)
 }
 
 bool
-SponsorFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion)
+BeginSponsoringFutureReservesOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
-    if (mSponsorFutureReservesOp.sponsoredID == getSourceID())
+    if (mBeginSponsoringFutureReservesOp.sponsoredID == getSourceID())
     {
         innerResult().code(BEGIN_SPONSORING_FUTURE_RESERVES_MALFORMED);
         return false;

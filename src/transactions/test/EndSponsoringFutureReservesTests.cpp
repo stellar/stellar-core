@@ -24,7 +24,7 @@ getOperationResultCode(TransactionFrameBasePtr& tx, size_t i)
 }
 
 static EndSponsoringFutureReservesResultCode
-getConfirmAndClearSponsorResultCode(TransactionFrameBasePtr& tx, size_t i)
+getEndSponsoringFutureReservesResultCode(TransactionFrameBasePtr& tx, size_t i)
 {
     auto const& opRes = tx->getResult().result.results()[i];
     return opRes.tr().endSponsoringFutureReservesResult().code();
@@ -44,8 +44,8 @@ TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
         for_versions({13}, *app, [&] {
             auto a1 = root.create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root, {root.op(confirmAndClearSponsor())},
-                {});
+                app->getNetworkID(), root,
+                {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
@@ -59,8 +59,8 @@ TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
         for_versions_from(14, *app, [&] {
             auto a1 = root.create("a1", minBalance);
             auto tx = transactionFrameFromOps(
-                app->getNetworkID(), root, {root.op(confirmAndClearSponsor())},
-                {});
+                app->getNetworkID(), root,
+                {root.op(endSponsoringFutureReserves())}, {});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
             TransactionMeta txm(2);
@@ -68,11 +68,11 @@ TEST_CASE("confirm and clear sponsor", "[tx][sponsorship]")
             REQUIRE(!tx->apply(*app, ltx, txm));
 
             REQUIRE(tx->getResult().result.code() == txFAILED);
-            REQUIRE(getConfirmAndClearSponsorResultCode(tx, 0) ==
+            REQUIRE(getEndSponsoringFutureReservesResultCode(tx, 0) ==
                     END_SPONSORING_FUTURE_RESERVES_NOT_SPONSORED);
         });
     }
 
     // END_SPONSORING_FUTURE_RESERVES success tested in
-    // SponsorFutureReservesTests
+    // BeginSponsoringFutureReservesTests
 }

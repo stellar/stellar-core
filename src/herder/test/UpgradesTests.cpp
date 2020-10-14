@@ -1896,24 +1896,24 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             if (flipSponsorship)
             {
                 std::vector<Operation> opsA1 = {
-                    a1.op(sponsorFutureReserves(a2))};
+                    a1.op(beginSponsoringFutureReserves(a2))};
                 std::vector<Operation> opsA2 = {
-                    a2.op(sponsorFutureReserves(a1))};
+                    a2.op(beginSponsoringFutureReserves(a1))};
                 for (auto const& offer : offers)
                 {
                     if (offer.key.sellerID == a2.getPublicKey())
                     {
-                        opsA1.emplace_back(a2.op(updateSponsorship(
+                        opsA1.emplace_back(a2.op(revokeSponsorship(
                             offerKey(a2, offer.key.offerID))));
                     }
                     else
                     {
-                        opsA2.emplace_back(a1.op(updateSponsorship(
+                        opsA2.emplace_back(a1.op(revokeSponsorship(
                             offerKey(a1, offer.key.offerID))));
                     }
                 }
-                opsA1.emplace_back(a2.op(confirmAndClearSponsor()));
-                opsA2.emplace_back(a1.op(confirmAndClearSponsor()));
+                opsA1.emplace_back(a2.op(endSponsoringFutureReserves()));
+                opsA2.emplace_back(a1.op(endSponsoringFutureReserves()));
 
                 // submit tx to update sponsorship
                 submitTx(transactionFrameFromOps(app->getNetworkID(), a1, opsA1,
@@ -1975,23 +1975,27 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
                 // prepare ops to transfer sponsorship of all sponsoredAcc
                 // offers and one offer from sponsoredAcc2 to sponsoringAcc
                 std::vector<Operation> ops = {
-                    sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc)),
-                    sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc2))};
+                    sponsoringAcc.op(
+                        beginSponsoringFutureReserves(sponsoredAcc)),
+                    sponsoringAcc.op(
+                        beginSponsoringFutureReserves(sponsoredAcc2))};
                 for (auto const& offer : offers)
                 {
                     if (offer.key.sellerID == sponsoredAcc.getPublicKey())
                     {
-                        ops.emplace_back(sponsoredAcc.op(updateSponsorship(
+                        ops.emplace_back(sponsoredAcc.op(revokeSponsorship(
                             offerKey(sponsoredAcc, offer.key.offerID))));
                     }
                 }
 
                 // last offer in offers is for sponsoredAcc2
-                ops.emplace_back(sponsoredAcc2.op(updateSponsorship(
+                ops.emplace_back(sponsoredAcc2.op(revokeSponsorship(
                     offerKey(sponsoredAcc2, offers.back().key.offerID))));
 
-                ops.emplace_back(sponsoredAcc.op(confirmAndClearSponsor()));
-                ops.emplace_back(sponsoredAcc2.op(confirmAndClearSponsor()));
+                ops.emplace_back(
+                    sponsoredAcc.op(endSponsoringFutureReserves()));
+                ops.emplace_back(
+                    sponsoredAcc2.op(endSponsoringFutureReserves()));
 
                 // submit tx to update sponsorship
                 submitTx(transactionFrameFromOps(

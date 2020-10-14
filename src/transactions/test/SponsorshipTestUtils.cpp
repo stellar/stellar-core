@@ -128,9 +128,9 @@ createSponsoredEntryButSponsorHasInsufficientBalance(
             auto root = TestAccount::createRoot(app);
             auto tx = transactionFrameFromOps(
                 app.getNetworkID(), root,
-                {sponsoringAcc.op(sponsorFutureReserves(sponsoredAcc)),
+                {sponsoringAcc.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(op),
-                 sponsoredAcc.op(confirmAndClearSponsor())},
+                 sponsoredAcc.op(endSponsoringFutureReserves())},
                 {sponsoringAcc.getSecretKey(), sponsoredAcc.getSecretKey()});
 
             LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -149,7 +149,7 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                     Operation const& opModify1,
                                     Operation const& opModify2,
                                     Operation const& opRemove,
-                                    RevokeSponsorshipOp const& uso)
+                                    RevokeSponsorshipOp const& rso)
 {
     SECTION("create, modify, and remove sponsored entry")
     {
@@ -168,33 +168,33 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
 
             auto tx = transactionFrameFromOps(
                 app.getNetworkID(), root,
-                {root.op(sponsorFutureReserves(sponsoredAcc)),
+                {root.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(opCreate),
-                 sponsoredAcc.op(confirmAndClearSponsor())},
+                 sponsoredAcc.op(endSponsoringFutureReserves())},
                 {sponsoredAcc.getSecretKey()});
             auto tx2 = transactionFrameFromOps(app.getNetworkID(), root,
                                                {sponsoredAcc.op(opModify1)},
                                                {sponsoredAcc.getSecretKey()});
             auto tx3 = transactionFrameFromOps(
                 app.getNetworkID(), root,
-                {a2.op(sponsorFutureReserves(sponsoredAcc)),
+                {a2.op(beginSponsoringFutureReserves(sponsoredAcc)),
                  sponsoredAcc.op(opModify2),
-                 sponsoredAcc.op(confirmAndClearSponsor())},
+                 sponsoredAcc.op(endSponsoringFutureReserves())},
                 {a2.getSecretKey(), sponsoredAcc.getSecretKey()});
             auto tx4 = transactionFrameFromOps(app.getNetworkID(), root,
                                                {sponsoredAcc.op(opRemove)},
                                                {sponsoredAcc.getSecretKey()});
 
             auto check = [&](AbstractLedgerTxn& l) {
-                switch (uso.type())
+                switch (rso.type())
                 {
                 case REVOKE_SPONSORSHIP_LEDGER_ENTRY:
-                    checkSponsorship(l, uso.ledgerKey(), 1,
+                    checkSponsorship(l, rso.ledgerKey(), 1,
                                      &root.getPublicKey());
                     break;
                 case REVOKE_SPONSORSHIP_SIGNER:
-                    checkSponsorship(l, uso.signer().accountID,
-                                     uso.signer().signerKey, 2,
+                    checkSponsorship(l, rso.signer().accountID,
+                                     rso.signer().signerKey, 2,
                                      &root.getPublicKey());
                     break;
                 default:
@@ -251,9 +251,9 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                 REQUIRE(tx4->checkValid(ltx4, 0, 0, 0));
                 REQUIRE(tx4->apply(app, ltx4, txm4));
 
-                if (uso.type() == REVOKE_SPONSORSHIP_LEDGER_ENTRY)
+                if (rso.type() == REVOKE_SPONSORSHIP_LEDGER_ENTRY)
                 {
-                    REQUIRE(!ltx4.load(uso.ledgerKey()));
+                    REQUIRE(!ltx4.load(rso.ledgerKey()));
                 }
                 checkSponsorship(ltx4, sponsoredAcc, 0, nullptr, nse, 2, 0, 0);
                 checkSponsorship(ltx4, root, 0, nullptr, 0, 2, 0, 0);
@@ -271,10 +271,10 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                     Operation const& opRemove,
                                     LedgerKey const& lk)
 {
-    RevokeSponsorshipOp uso(REVOKE_SPONSORSHIP_LEDGER_ENTRY);
-    uso.ledgerKey() = lk;
+    RevokeSponsorshipOp rso(REVOKE_SPONSORSHIP_LEDGER_ENTRY);
+    rso.ledgerKey() = lk;
     createModifyAndRemoveSponsoredEntry(app, sponsoredAcc, opCreate, opModify1,
-                                        opModify2, opRemove, uso);
+                                        opModify2, opRemove, rso);
 }
 
 void
@@ -285,11 +285,11 @@ createModifyAndRemoveSponsoredEntry(Application& app, TestAccount& sponsoredAcc,
                                     Operation const& opRemove,
                                     SignerKey const& signerKey)
 {
-    RevokeSponsorshipOp uso(REVOKE_SPONSORSHIP_SIGNER);
-    uso.signer().accountID = sponsoredAcc;
-    uso.signer().signerKey = signerKey;
+    RevokeSponsorshipOp rso(REVOKE_SPONSORSHIP_SIGNER);
+    rso.signer().accountID = sponsoredAcc;
+    rso.signer().signerKey = signerKey;
     createModifyAndRemoveSponsoredEntry(app, sponsoredAcc, opCreate, opModify1,
-                                        opModify2, opRemove, uso);
+                                        opModify2, opRemove, rso);
 }
 
 void
@@ -339,9 +339,9 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
             {
                 auto tx1 = transactionFrameFromOps(
                     app.getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(successfulOpAcc)),
+                    {root.op(beginSponsoringFutureReserves(successfulOpAcc)),
                      successfulOp,
-                     successfulOpAcc.op(confirmAndClearSponsor())},
+                     successfulOpAcc.op(endSponsoringFutureReserves())},
                     {successfulOpAcc});
 
                 LedgerTxn ltx(app.getLedgerTxnRoot());
@@ -354,8 +354,8 @@ tooManySponsoring(Application& app, TestAccount& successfulOpAcc,
             {
                 auto tx2 = transactionFrameFromOps(
                     app.getNetworkID(), root,
-                    {root.op(sponsorFutureReserves(failOpAcc)), failOp,
-                     failOpAcc.op(confirmAndClearSponsor())},
+                    {root.op(beginSponsoringFutureReserves(failOpAcc)), failOp,
+                     failOpAcc.op(endSponsoringFutureReserves())},
                     {failOpAcc});
 
                 LedgerTxn ltx(app.getLedgerTxnRoot());

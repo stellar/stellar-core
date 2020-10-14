@@ -340,9 +340,9 @@ TEST_CASE("set options", "[tx][setoptions]")
                 {
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), root,
-                        {root.op(sponsorFutureReserves(acc1)),
+                        {root.op(beginSponsoringFutureReserves(acc1)),
                          acc1.op(setOptions(setSigner(makeSigner(s1, 1)))),
-                         acc1.op(confirmAndClearSponsor()),
+                         acc1.op(endSponsoringFutureReserves()),
                          acc1.op(setOptions(setSigner(makeSigner(s2, 1))))},
                         {acc1.getSecretKey()});
 
@@ -471,9 +471,10 @@ TEST_CASE("set options", "[tx][setoptions]")
                         std::make_shared<TestAccount>(root.create(sk, minBal1));
                     signers.push_back({signer, sponsor});
 
-                    ops.insert(ops.begin(),
-                               sponsor->op(sponsorFutureReserves(root)));
-                    ops.emplace_back(root.op(confirmAndClearSponsor()));
+                    ops.insert(
+                        ops.begin(),
+                        sponsor->op(beginSponsoringFutureReserves(root)));
+                    ops.emplace_back(root.op(endSponsoringFutureReserves()));
                 }
                 else
                 {

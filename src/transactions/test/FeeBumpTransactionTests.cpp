@@ -442,9 +442,9 @@ TEST_CASE("fee bump transactions", "[tx][feebump]")
                 {
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), acc,
-                        {sponsoring.op(sponsorFutureReserves(acc)),
+                        {sponsoring.op(beginSponsoringFutureReserves(acc)),
                          acc.op(setOptions(setSigner(Signer{fbSigner, 1}))),
-                         acc.op(confirmAndClearSponsor())},
+                         acc.op(endSponsoringFutureReserves())},
                         {sponsoring});
 
                     LedgerTxn ltx(app->getLedgerTxnRoot());

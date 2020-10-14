@@ -4342,13 +4342,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("crossed sponsored offers")
     {
-        auto doUpdateSponsorship = [&](TestAccount& source, int64_t offerID,
+        auto doRevokeSponsorship = [&](TestAccount& source, int64_t offerID,
                                        TestAccount& sponsor) {
             auto tx = transactionFrameFromOps(
                 app->getNetworkID(), source,
-                {sponsor.op(sponsorFutureReserves(source)),
-                 source.op(updateSponsorship(offerKey(source, offerID))),
-                 source.op(confirmAndClearSponsor())},
+                {sponsor.op(beginSponsoringFutureReserves(source)),
+                 source.op(revokeSponsorship(offerKey(source, offerID))),
+                 source.op(endSponsoringFutureReserves())},
                 {sponsor});
 
             LedgerTxn ltx(app->getLedgerTxnRoot());
@@ -4412,9 +4412,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                             })
                         .key;
 
-                doUpdateSponsorship(a1, o1.offerID, b);
-                doUpdateSponsorship(a1, o2.offerID, b);
-                doUpdateSponsorship(a2, o3.offerID, b);
+                doRevokeSponsorship(a1, o1.offerID, b);
+                doRevokeSponsorship(a1, o2.offerID, b);
+                doRevokeSponsorship(a2, o3.offerID, b);
 
                 SECTION("cross one offer partially")
                 {
@@ -4595,9 +4595,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                             })
                         .key;
 
-                doUpdateSponsorship(a1, o1.offerID, a2);
-                doUpdateSponsorship(a1, o2.offerID, a2);
-                doUpdateSponsorship(a2, o3.offerID, a1);
+                doRevokeSponsorship(a1, o1.offerID, a2);
+                doRevokeSponsorship(a1, o2.offerID, a2);
+                doRevokeSponsorship(a2, o3.offerID, a1);
 
                 SECTION("cross one offer partially")
                 {
@@ -4738,9 +4738,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             {
                 auto tx = transactionFrameFromOps(
                     app->getNetworkID(), root,
-                    {payor.op(sponsorFutureReserves(mm)),
+                    {payor.op(beginSponsoringFutureReserves(mm)),
                      mm.op(manageOffer(0, usd, xlm, Price{1, 1}, 10000)),
-                     mm.op(confirmAndClearSponsor())},
+                     mm.op(endSponsoringFutureReserves())},
                     {payor, mm});
 
                 LedgerTxn ltx(app->getLedgerTxnRoot());
