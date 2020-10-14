@@ -273,6 +273,7 @@ class CatchupSimulation
     void ensureOnlineCatchupPossible(uint32_t targetLedger,
                                      uint32_t bufferLedgers = 0);
 
+    std::vector<LedgerNumHashPair> getAllPublishedCheckpoints() const;
     LedgerNumHashPair getLastPublishedCheckpoint() const;
 
     Application::pointer createCatchupApplication(uint32_t count,

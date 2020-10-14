@@ -54,8 +54,9 @@ WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
 
 WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
     Application& app, LedgerNumHashPair rangeEnd, std::string const& outputFile,
-    std::shared_ptr<HistoryArchive> archive)
+    uint32_t nestedBatchSize, std::shared_ptr<HistoryArchive> archive)
     : BatchWork(app, "write-verified-checkpoint-hashes")
+    , mNestedBatchSize(nestedBatchSize)
     , mRangeEnd(rangeEnd)
     , mRangeEndPromise()
     , mRangeEndFuture(mRangeEndPromise.get_future().share())
@@ -97,7 +98,7 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
     auto const lclHe = mApp.getLedgerManager().getLastClosedLedgerHeader();
     LedgerNumHashPair const lcl(lclHe.header.ledgerSeq,
                                 make_optional<Hash>(lclHe.hash));
-    uint32_t const span = NESTED_DOWNLOAD_BATCH_SIZE * freq;
+    uint32_t const span = mNestedBatchSize * freq;
     uint32_t const last = mCurrCheckpoint;
     uint32_t const first =
         last <= span ? LedgerManager::GENESIS_LEDGER_SEQ
