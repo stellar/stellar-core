@@ -2928,9 +2928,6 @@ TEST_CASE("create offer", "[tx][offers]")
                     market.updateOffer(acc1, INT64_MAX,
                                        {usd, idr, Price{1, 1}, 1}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
-                REQUIRE_THROWS_AS(
-                    market.updateOffer(acc1, -1, {usd, idr, Price{1, 1}, 1}),
-                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
 
@@ -2950,9 +2947,6 @@ TEST_CASE("create offer", "[tx][offers]")
                 REQUIRE_THROWS_AS(
                     market.updateOffer(acc1, INT64_MAX,
                                        {usd, idr, Price{1, 1}, 0}),
-                    ex_MANAGE_SELL_OFFER_NOT_FOUND);
-                REQUIRE_THROWS_AS(
-                    market.updateOffer(acc1, -1, {usd, idr, Price{1, 1}, 0}),
                     ex_MANAGE_SELL_OFFER_NOT_FOUND);
             });
         }
@@ -3787,6 +3781,19 @@ TEST_CASE("create offer", "[tx][offers]")
             checkSponsorship(ltx, acc1, 0, &sponsor.getPublicKey(), 3, 2, 0, 1);
             checkSponsorship(ltx, sponsor, 0, nullptr, 0, 2, 1, 0);
         }
+    }
+
+    SECTION("negative offerID")
+    {
+        for_versions_to(14, *app, [&]() {
+            REQUIRE_THROWS_AS(issuer.manageOffer(-1, idr, usd, Price{1, 1}, 1),
+                              ex_MANAGE_SELL_OFFER_NOT_FOUND);
+        });
+
+        for_versions_from(15, *app, [&]() {
+            REQUIRE_THROWS_AS(issuer.manageOffer(-1, idr, usd, Price{1, 1}, 1),
+                              ex_MANAGE_SELL_OFFER_MALFORMED);
+        });
     }
 }
 

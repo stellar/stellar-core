@@ -334,6 +334,21 @@ TEST_CASE("manage buy offer failure modes", "[tx][offers]")
             }
         }
     });
+
+    SECTION("negative offerID")
+    {
+        for_versions({11, 12, 13, 14}, *app, [&]() {
+            REQUIRE_THROWS_AS(
+                issuer1.manageBuyOffer(-1, cur1, native, Price{1, 1}, 1),
+                ex_MANAGE_BUY_OFFER_NOT_FOUND);
+        });
+
+        for_versions_from(15, *app, [&]() {
+            REQUIRE_THROWS_AS(
+                issuer1.manageBuyOffer(-1, cur1, native, Price{1, 1}, 1),
+                ex_MANAGE_BUY_OFFER_MALFORMED);
+        });
+    }
 }
 
 TEST_CASE("manage buy offer liabilities", "[tx][offers]")
