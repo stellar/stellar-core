@@ -974,4 +974,54 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
         });
     }
+
+    SECTION("invalid input")
+    {
+        auto a1 = root.create("a1", minBal(5));
+        auto revoke = [&](LedgerKey const& ledgerKey) {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), a1, {a1.op(revokeSponsorship(ledgerKey))},
+                {});
+
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            uint32_t ledgerVersion = ltx.loadHeader().current().ledgerVersion;
+
+            if (ledgerVersion == 14)
+            {
+                TransactionMeta txm(2);
+                REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                REQUIRE(!tx->apply(*app, ltx, txm));
+
+                REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                        REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+            }
+            else
+            {
+                REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+            }
+        };
+
+        for_versions_from(14, *app, [&]() {
+            SECTION("invalid offer id")
+            {
+                SECTION("negative offer id")
+                {
+                    revoke(offerKey(a1, -1));
+                }
+            }
+            SECTION("invalid data name")
+            {
+                SECTION("empty data name")
+                {
+                    revoke(dataKey(a1, ""));
+                }
+                SECTION("control char in data name")
+                {
+                    std::string c;
+                    c.push_back('\n');
+                    revoke(dataKey(a1, c));
+                }
+            }
+        });
+    }
 }
