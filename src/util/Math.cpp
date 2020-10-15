@@ -7,6 +7,7 @@
 #include <Tracy.hpp>
 #include <algorithm>
 #include <cmath>
+#include <numeric>
 #include <set>
 #include <unordered_map>
 

@@ -50,6 +50,7 @@ constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
 constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
+constexpr auto const OUT_OF_SYNC_RECOVERY_TIMER = std::chrono::seconds(10);
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -81,7 +82,7 @@ HerderImpl::HerderImpl(Application& app)
     , mTrackingTimer(app)
     , mLastExternalize(app.getClock().now())
     , mTriggerTimer(app)
-    , mRebroadcastTimer(app)
+    , mOutOfSyncTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
@@ -140,7 +141,7 @@ void
 HerderImpl::shutdown()
 {
     mTrackingTimer.cancel();
-    mRebroadcastTimer.cancel();
+    mOutOfSyncTimer.cancel();
     mTriggerTimer.cancel();
     if (mLastQuorumMapIntersectionState.mRecalculating)
     {
@@ -286,21 +287,21 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 }
 
 void
-HerderImpl::rebroadcast()
+HerderImpl::outOfSyncRecovery()
 {
     ZoneScoped;
+
+    if (mHerderSCPDriver.trackingSCP())
+    {
+        return;
+    }
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
     {
         broadcast(e);
     }
 
-    if (!mHerderSCPDriver.trackingSCP())
-    {
-        getMoreSCPState();
-    }
-
-    startRebroadcastTimer();
+    getMoreSCPState();
 }
 
 void
@@ -323,17 +324,21 @@ HerderImpl::broadcast(SCPEnvelope const& e)
 }
 
 void
-HerderImpl::startRebroadcastTimer()
+HerderImpl::startOutOfSyncTimer()
 {
     if (mApp.getConfig().MANUAL_CLOSE && mApp.getConfig().RUN_STANDALONE)
     {
         return;
     }
 
-    mRebroadcastTimer.expires_from_now(std::chrono::seconds(2));
+    mOutOfSyncTimer.expires_from_now(OUT_OF_SYNC_RECOVERY_TIMER);
 
-    mRebroadcastTimer.async_wait(std::bind(&HerderImpl::rebroadcast, this),
-                                 &VirtualTimer::onFailureNoop);
+    mOutOfSyncTimer.async_wait(
+        [&]() {
+            outOfSyncRecovery();
+            startOutOfSyncTimer();
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -351,9 +356,6 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     persistSCPState(slotIndex);
 
     broadcast(envelope);
-
-    // this resets the re-broadcast timer
-    startRebroadcastTimer();
 }
 
 TransactionQueue::AddResult
@@ -1630,7 +1632,7 @@ HerderImpl::restoreSCPState()
         mPendingEnvelopes.rebuildQuorumTrackerState();
     }
 
-    startRebroadcastTimer();
+    startOutOfSyncTimer();
 }
 
 void
@@ -1678,6 +1680,8 @@ HerderImpl::trackingHeartBeat()
     {
         return;
     }
+
+    mOutOfSyncTimer.cancel();
 
     assert(mHerderSCPDriver.trackingSCP());
     mTrackingTimer.expires_from_now(
@@ -1753,7 +1757,7 @@ HerderImpl::herderOutOfSync()
             trackingData->mConsensusIndex, false);
     }
 
-    getMoreSCPState();
+    startOutOfSyncTimer();
 
     processSCPQueue();
 }

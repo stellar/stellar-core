@@ -138,8 +138,8 @@ class HerderImpl : public Herder
 
     void maybeTriggerNextLedger(bool synchronous);
 
-    void startRebroadcastTimer();
-    void rebroadcast();
+    void startOutOfSyncTimer();
+    void outOfSyncRecovery();
     void broadcast(SCPEnvelope const& e);
 
     void processSCPQueueUpToIndex(uint64 slotIndex);
@@ -184,7 +184,7 @@ class HerderImpl : public Herder
 
     VirtualTimer mTriggerTimer;
 
-    VirtualTimer mRebroadcastTimer;
+    VirtualTimer mOutOfSyncTimer;
 
     Application& mApp;
     LedgerManager& mLedgerManager;
