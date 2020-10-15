@@ -17,6 +17,7 @@
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/Thread.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
@@ -496,9 +497,7 @@ OverlayManagerImpl::tick()
 
     mLoad.maybeShedExcessLoad(mApp);
 
-    if (mResolvedPeers.valid() &&
-        mResolvedPeers.wait_for(std::chrono::nanoseconds(1)) ==
-            std::future_status::ready)
+    if (futureIsReady(mResolvedPeers))
     {
         CLOG(TRACE, "Overlay") << "Resolved peers are ready";
         auto res = mResolvedPeers.get();

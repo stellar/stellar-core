@@ -9,6 +9,8 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/FileSystemException.h"
+#include "util/GlobalChecks.h"
+#include "util/Thread.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -107,11 +109,6 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
           {"history", "verify-ledger-chain", "failure"}, "event"))
 {
-    if (trustedMaxLedger.valid())
-    {
-        assert(range.mCount == 0 ||
-               range.last() == (trustedMaxLedger.get()).first);
-    }
     // LCL should be at-or-after genesis and we should have a hash.
     assert(lastClosedLedger.first >= LedgerManager::GENESIS_LEDGER_SEQ);
     assert(lastClosedLedger.second);
@@ -310,9 +307,10 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // Instead, there _should_ be a value in the shared_future this work
         // object reads its initial trust from. If anything went wrong upstream
         // we shouldn't have even been run.
-        assert(mTrustedMaxLedger.valid());
+        releaseAssert(futureIsReady(mTrustedMaxLedger));
 
         incoming = mTrustedMaxLedger.get();
+        releaseAssert(incoming.first == curr.header.ledgerSeq);
         CLOG(INFO, "History")
             << (incoming.second ? "Verifying" : "Skipping verification for")
             << " ledger " << LedgerManager::ledgerAbbrev(curr)

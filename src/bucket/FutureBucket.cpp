@@ -17,6 +17,7 @@
 #include "main/ErrorMessages.h"
 #include "util/LogSlowExecution.h"
 #include "util/Logging.h"
+#include "util/Thread.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -235,8 +236,7 @@ FutureBucket::mergeComplete() const
         return true;
     }
 
-    auto status = mOutputBucketFuture.wait_for(std::chrono::nanoseconds(1));
-    return status == std::future_status::ready;
+    return futureIsReady(mOutputBucketFuture);
 }
 
 std::shared_ptr<Bucket>
