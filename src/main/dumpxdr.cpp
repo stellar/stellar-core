@@ -2,6 +2,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
 #include "crypto/StrKey.h"
+#include "main/Config.h"
 #include "transactions/SignatureUtils.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
@@ -108,7 +109,7 @@ readFile(const std::string& filename, bool base64 = false)
 {
     using namespace std;
     ostringstream input;
-    if (filename == "-" || filename.empty())
+    if (filename == Config::STDIN_SPECIAL_NAME || filename.empty())
         input << cin.rdbuf();
     else
     {
@@ -337,7 +338,8 @@ signtxn(std::string const& filename, std::string netId, bool base64)
             throw std::runtime_error("missing --netid argument or "
                                      "STELLAR_NETWORK_ID environment variable");
 
-        const bool txn_stdin = filename == "-" || filename.empty();
+        const bool txn_stdin =
+            filename == Config::STDIN_SPECIAL_NAME || filename.empty();
 
         if (!base64 && isatty(1))
             throw std::runtime_error(

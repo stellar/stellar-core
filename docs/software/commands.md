@@ -8,7 +8,7 @@ stellar-core can be controlled via the following commands.
 ## Common options
 Common options can be placed at any place in the command line.
 
-* **--conf <FILE-NAME>**: Specify a config file to use. You can use '-' and
+* **--conf <FILE-NAME>**: Specify a config file to use. You can use '/dev/stdin' and
   provide the config file via STDIN. *default 'stellar-core.cfg'*
 * **--ll <LEVEL>**: Set the log level. It is redundant with `http-command ll`
   but we need this form if you want to change the log level during test runs.
@@ -58,7 +58,7 @@ Command options can only by placed after command.
 * **offline-info**: Returns an output similar to `--c info` for an offline
   instance
 * **print-xdr <FILE-NAME>**:  Pretty-print a binary file containing an XDR
-  object. If FILE-NAME is "-", the XDR object is read from standard input.<br>
+  object. If FILE-NAME is "/dev/stdin", the XDR object is read from standard input.<br>
   Option **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**
   controls type used for printing (default: auto).<br>
   Option **--base64** alters the behavior to work on base64-encoded XDR rather than
@@ -84,7 +84,7 @@ Command options can only by placed after command.
   envelope stored in binary format in <FILE-NAME>, and send the result to
   standard output (which should be redirected to a file or piped through a tool
   such as `base64`).  The private signing key is read from standard input,
-  unless <FILE-NAME> is "-" in which case the transaction envelope is read from
+  unless <FILE-NAME> is "/dev/stdin" in which case the transaction envelope is read from
   standard input and the signing key is read from `/dev/tty`.  In either event,
   if the signing key appears to be coming from a terminal, stellar-core
   disables echo. Note that if you do not have a STELLAR_NETWORK_ID environment
