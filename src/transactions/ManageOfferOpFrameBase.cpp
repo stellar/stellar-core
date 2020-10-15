@@ -588,6 +588,12 @@ ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion)
         // Note: This was not invalid before version 3
     }
 
+    if (ledgerVersion >= 15 && mOfferID < 0)
+    {
+        setResultMalformed();
+        return false;
+    }
+
     return true;
 }
 
