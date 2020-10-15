@@ -930,4 +930,48 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 a1.op(revokeSponsorship(claimableBalanceKey(id2))));
         }
     }
+
+    SECTION("native trust line")
+    {
+        for_versions({14}, *app, [&]() {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(revokeSponsorship(trustlineKey(root, Asset{})))}, {});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        });
+
+        for_versions({15}, *app, [&]() {
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(revokeSponsorship(trustlineKey(root, Asset{})))}, {});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+        });
+    }
+
+    SECTION("issuer trust line")
+    {
+        for_versions({14}, *app, [&]() {
+            auto cur1 = makeAsset(root, "CUR1");
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(revokeSponsorship(trustlineKey(root, cur1)))}, {});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+        });
+
+        for_versions({15}, *app, [&]() {
+            auto cur1 = makeAsset(root, "CUR1");
+            auto tx = transactionFrameFromOps(
+                app->getNetworkID(), root,
+                {root.op(revokeSponsorship(trustlineKey(root, cur1)))}, {});
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            TransactionMeta txm(2);
+            REQUIRE(!tx->checkValid(ltx, 0, 0, 0));
+        });
+    }
 }
