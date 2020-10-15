@@ -9,6 +9,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "work/ConditionalWork.h"
 #include <Tracy.hpp>
@@ -155,7 +156,7 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
         mApp, "download-verify-ledger-" + checkpointStr, seq);
 
     mTmpDirs.emplace_back(workSeq, tmpDir);
-    assert(first >= 1);
+    releaseAssert(first >= 1);
     mCurrCheckpoint = std::max(LedgerManager::GENESIS_LEDGER_SEQ, first - 1);
     mPrevVerifyWork = currWork;
     return workSeq;
@@ -164,7 +165,7 @@ WriteVerifiedCheckpointHashesWork::yieldMoreWork()
 void
 WriteVerifiedCheckpointHashesWork::startOutputFile()
 {
-    assert(!mOutputFile);
+    releaseAssert(!mOutputFile);
     auto mode = std::ios::out | std::ios::trunc;
     mOutputFile = std::make_shared<std::ofstream>(mOutputFileName, mode);
     if (!*mOutputFile)

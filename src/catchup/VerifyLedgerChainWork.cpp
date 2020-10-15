@@ -65,7 +65,7 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
     // When max ledger in the checkpoint is reached, verify its hash against the
     // numerically-greater checkpoint (that we should have an incoming hash-link
     // from).
-    assert(ledger.header.ledgerSeq == verifiedAhead.first);
+    releaseAssert(ledger.header.ledgerSeq == verifiedAhead.first);
     auto trustedHash = verifiedAhead.second;
     if (!trustedHash)
     {
@@ -110,8 +110,8 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
           {"history", "verify-ledger-chain", "failure"}, "event"))
 {
     // LCL should be at-or-after genesis and we should have a hash.
-    assert(lastClosedLedger.first >= LedgerManager::GENESIS_LEDGER_SEQ);
-    assert(lastClosedLedger.second);
+    releaseAssert(lastClosedLedger.first >= LedgerManager::GENESIS_LEDGER_SEQ);
+    releaseAssert(lastClosedLedger.second);
 }
 
 std::string
@@ -301,8 +301,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     {
         // If so, there should be no "saved" incoming hash-link value from
         // a previous iteration.
-        assert(incoming.first == 0);
-        assert(incoming.second.get() == nullptr);
+        releaseAssert(incoming.first == 0);
+        releaseAssert(incoming.second.get() == nullptr);
 
         // Instead, there _should_ be a value in the shared_future this work
         // object reads its initial trust from. If anything went wrong upstream
@@ -322,8 +322,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // to this method and the `incoming` value we read out of
         // `mVerifiedAhead` should have content, because the previous call
         // should have saved something in `mVerifiedAhead`.
-        assert(incoming.second);
-        assert(incoming.first != 0);
+        releaseAssert(incoming.second);
+        releaseAssert(incoming.first != 0);
     }
 
     // In either case, the last ledger in the checkpoint needs to agree with the
@@ -332,7 +332,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     auto verifyTrustedHash = verifyLastLedgerInCheckpoint(curr, incoming);
     if (verifyTrustedHash != HistoryManager::VERIFY_STATUS_OK)
     {
-        assert(incoming.second);
+        releaseAssert(incoming.second);
         CLOG(ERROR, "History")
             << "Checkpoint does not agree with checkpoint ahead: "
             << "current " << LedgerManager::ledgerAbbrev(curr) << ", verified: "
@@ -464,7 +464,7 @@ VerifyLedgerChainWork::onRun()
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     default:
-        assert(false);
+        releaseAssert(false);
         throw std::runtime_error("unexpected VerifyLedgerChainWork state");
     }
 }
