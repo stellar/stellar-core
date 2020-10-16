@@ -5,10 +5,12 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/NonSociRelatedException.h"
 #include "ledger/test/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
@@ -1330,6 +1332,51 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
             REQUIRE(!ltx3.load(key));
             validate(ltx3, {});
         }
+
+        for_versions_from(15, *app, [&]() {
+            SECTION("invalid keys")
+            {
+                LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+                auto acc = txtest::getAccount("acc");
+                SECTION("native asset on trustline key")
+                {
+                    auto native = txtest::makeNativeAsset();
+                    REQUIRE_THROWS_AS(
+                        ltx1.load(trustlineKey(acc.getPublicKey(), native)),
+                        NonSociRelatedException);
+                }
+
+                SECTION("issuer on trustline key")
+                {
+                    auto usd = txtest::makeAsset(acc, "usd");
+                    REQUIRE_THROWS_AS(
+                        ltx1.load(trustlineKey(acc.getPublicKey(), usd)),
+                        NonSociRelatedException);
+                }
+
+                SECTION("load generated keys")
+                {
+                    for (int i = 0; i < 1000; ++i)
+                    {
+                        LedgerKey lk = autocheck::generator<LedgerKey>()(5);
+
+                        try
+                        {
+                            ltx1.load(lk);
+                        }
+                        catch (NonSociRelatedException&)
+                        {
+                            // this is fine
+                        }
+                        catch (std::exception)
+                        {
+                            REQUIRE(false);
+                        }
+                    }
+                }
+            }
+        });
     };
 
     SECTION("default")
