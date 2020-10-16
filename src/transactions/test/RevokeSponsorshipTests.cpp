@@ -582,56 +582,6 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             }
         }
 
-        SECTION("too many sponsoring")
-        {
-            auto native = makeNativeAsset();
-            auto a1 = root.create("a1", minBal(3));
-
-            SECTION("account")
-            {
-                auto a2 = root.create("a2", minBal(3));
-                tooManySponsoring(*app, a2, a1,
-                                  a2.op(revokeSponsorship(accountKey(a2))),
-                                  a1.op(revokeSponsorship(accountKey(a1))));
-            }
-
-            SECTION("signer")
-            {
-                auto signer1 = makeSigner(getAccount("S1"), 1);
-                auto signer2 = makeSigner(getAccount("S2"), 1);
-                a1.setOptions(setSigner(signer1));
-                a1.setOptions(setSigner(signer2));
-
-                tooManySponsoring(*app, a1,
-                                  a1.op(revokeSponsorship(a1, signer1.key)),
-                                  a1.op(revokeSponsorship(a1, signer2.key)));
-            }
-
-            SECTION("trustline")
-            {
-                auto cur1 = makeAsset(root, "CUR1");
-                auto cur2 = makeAsset(root, "CUR2");
-                a1.changeTrust(cur1, 1000);
-                a1.changeTrust(cur2, 1000);
-
-                tooManySponsoring(
-                    *app, a1, a1.op(revokeSponsorship(trustlineKey(a1, cur2))),
-                    a1.op(revokeSponsorship(trustlineKey(a1, cur1))));
-            }
-            SECTION("claimable balance")
-            {
-                auto id1 =
-                    a1.createClaimableBalance(native, 1, {getClaimant(a1)});
-                auto id2 =
-                    a1.createClaimableBalance(native, 1, {getClaimant(a1)});
-
-                tooManySponsoring(
-                    *app, a1,
-                    a1.op(revokeSponsorship(claimableBalanceKey(id1))),
-                    a1.op(revokeSponsorship(claimableBalanceKey(id2))));
-            }
-        }
-
         SECTION("failure tests")
         {
             SECTION("does not exist")
@@ -933,4 +883,51 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             }
         }
     });
+
+    SECTION("too many sponsoring")
+    {
+        auto native = makeNativeAsset();
+        auto a1 = root.create("a1", minBal(3));
+
+        SECTION("account")
+        {
+            auto a2 = root.create("a2", minBal(3));
+            tooManySponsoring(*app, a2, a1,
+                              a2.op(revokeSponsorship(accountKey(a2))),
+                              a1.op(revokeSponsorship(accountKey(a1))));
+        }
+
+        SECTION("signer")
+        {
+            auto signer1 = makeSigner(getAccount("S1"), 1);
+            auto signer2 = makeSigner(getAccount("S2"), 1);
+            a1.setOptions(setSigner(signer1));
+            a1.setOptions(setSigner(signer2));
+
+            tooManySponsoring(*app, a1,
+                              a1.op(revokeSponsorship(a1, signer1.key)),
+                              a1.op(revokeSponsorship(a1, signer2.key)));
+        }
+
+        SECTION("trustline")
+        {
+            auto cur1 = makeAsset(root, "CUR1");
+            auto cur2 = makeAsset(root, "CUR2");
+            a1.changeTrust(cur1, 1000);
+            a1.changeTrust(cur2, 1000);
+
+            tooManySponsoring(*app, a1,
+                              a1.op(revokeSponsorship(trustlineKey(a1, cur2))),
+                              a1.op(revokeSponsorship(trustlineKey(a1, cur1))));
+        }
+        SECTION("claimable balance")
+        {
+            auto id1 = a1.createClaimableBalance(native, 1, {getClaimant(a1)});
+            auto id2 = a1.createClaimableBalance(native, 1, {getClaimant(a1)});
+
+            tooManySponsoring(
+                *app, a1, a1.op(revokeSponsorship(claimableBalanceKey(id1))),
+                a1.op(revokeSponsorship(claimableBalanceKey(id2))));
+        }
+    }
 }
