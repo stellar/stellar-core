@@ -9,6 +9,8 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/FileSystemException.h"
+#include "util/GlobalChecks.h"
+#include "util/Thread.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
@@ -63,7 +65,7 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
     // When max ledger in the checkpoint is reached, verify its hash against the
     // numerically-greater checkpoint (that we should have an incoming hash-link
     // from).
-    assert(ledger.header.ledgerSeq == verifiedAhead.first);
+    releaseAssert(ledger.header.ledgerSeq == verifiedAhead.first);
     auto trustedHash = verifiedAhead.second;
     if (!trustedHash)
     {
@@ -107,14 +109,9 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
           {"history", "verify-ledger-chain", "failure"}, "event"))
 {
-    if (trustedMaxLedger.valid())
-    {
-        assert(range.mCount == 0 ||
-               range.last() == (trustedMaxLedger.get()).first);
-    }
     // LCL should be at-or-after genesis and we should have a hash.
-    assert(lastClosedLedger.first >= LedgerManager::GENESIS_LEDGER_SEQ);
-    assert(lastClosedLedger.second);
+    releaseAssert(lastClosedLedger.first >= LedgerManager::GENESIS_LEDGER_SEQ);
+    releaseAssert(lastClosedLedger.second);
 }
 
 std::string
@@ -304,15 +301,16 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     {
         // If so, there should be no "saved" incoming hash-link value from
         // a previous iteration.
-        assert(incoming.first == 0);
-        assert(incoming.second.get() == nullptr);
+        releaseAssert(incoming.first == 0);
+        releaseAssert(incoming.second.get() == nullptr);
 
         // Instead, there _should_ be a value in the shared_future this work
         // object reads its initial trust from. If anything went wrong upstream
         // we shouldn't have even been run.
-        assert(mTrustedMaxLedger.valid());
+        releaseAssert(futureIsReady(mTrustedMaxLedger));
 
         incoming = mTrustedMaxLedger.get();
+        releaseAssert(incoming.first == curr.header.ledgerSeq);
         CLOG(INFO, "History")
             << (incoming.second ? "Verifying" : "Skipping verification for")
             << " ledger " << LedgerManager::ledgerAbbrev(curr)
@@ -324,8 +322,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // to this method and the `incoming` value we read out of
         // `mVerifiedAhead` should have content, because the previous call
         // should have saved something in `mVerifiedAhead`.
-        assert(incoming.second);
-        assert(incoming.first != 0);
+        releaseAssert(incoming.second);
+        releaseAssert(incoming.first != 0);
     }
 
     // In either case, the last ledger in the checkpoint needs to agree with the
@@ -334,7 +332,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     auto verifyTrustedHash = verifyLastLedgerInCheckpoint(curr, incoming);
     if (verifyTrustedHash != HistoryManager::VERIFY_STATUS_OK)
     {
-        assert(incoming.second);
+        releaseAssert(incoming.second);
         CLOG(ERROR, "History")
             << "Checkpoint does not agree with checkpoint ahead: "
             << "current " << LedgerManager::ledgerAbbrev(curr) << ", verified: "
@@ -466,7 +464,7 @@ VerifyLedgerChainWork::onRun()
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     default:
-        assert(false);
+        releaseAssert(false);
         throw std::runtime_error("unexpected VerifyLedgerChainWork state");
     }
 }

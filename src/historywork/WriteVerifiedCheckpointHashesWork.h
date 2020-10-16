@@ -28,6 +28,7 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     WriteVerifiedCheckpointHashesWork(
         Application& app, LedgerNumHashPair rangeEnd,
         std::string const& outputFile,
+        uint32_t nestedBatchSize = NESTED_DOWNLOAD_BATCH_SIZE,
         std::shared_ptr<HistoryArchive> archive = nullptr);
     ~WriteVerifiedCheckpointHashesWork();
 
@@ -43,6 +44,9 @@ class WriteVerifiedCheckpointHashesWork : public BatchWork
     // latter busy we introduce an inner level of fully-parallelizable batching
     // of downloads. Empirically this seems to work well at a fixed size.
     static constexpr uint32_t NESTED_DOWNLOAD_BATCH_SIZE = 64;
+
+    // For testing purposes we'd like to be able to change this, however.
+    uint32_t const mNestedBatchSize;
 
     // We make a TmpDir for each inner WorkSequence we run, but delete them on
     // the end of each to free up disk space. Since the inner WorkSequences end

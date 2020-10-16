@@ -19,16 +19,22 @@ using namespace historytestutils;
 TEST_CASE("write verified checkpoint hashes", "[historywork]")
 {
     CatchupSimulation catchupSimulation{};
-    auto checkpointLedger = catchupSimulation.getLastCheckpointLedger(5);
-    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 5);
+    uint32_t nestedBatchSize = 4;
+    auto checkpointLedger =
+        catchupSimulation.getLastCheckpointLedger(5 * nestedBatchSize);
+    catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger,
+                                                  5 * nestedBatchSize);
 
-    auto pair = catchupSimulation.getLastPublishedCheckpoint();
+    std::vector<LedgerNumHashPair> pairs =
+        catchupSimulation.getAllPublishedCheckpoints();
+    LedgerNumHashPair pair = pairs.back();
     auto tmpDir = catchupSimulation.getApp().getTmpDirManager().tmpDir(
         "write-checkpoint-hashes-test");
     auto file = tmpDir.getName() + "/verified-ledgers.json";
     auto& wm = catchupSimulation.getApp().getWorkScheduler();
     {
-        auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(pair, file);
+        auto w = wm.executeWork<WriteVerifiedCheckpointHashesWork>(
+            pair, file, nestedBatchSize);
         REQUIRE(w->getState() == BasicWork::State::WORK_SUCCESS);
     }
     // Make sure w is destroyed.
@@ -38,7 +44,12 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
         catchupSimulation.getClock().crank();
     }
 
-    Hash h = WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
-        pair.first, file);
-    REQUIRE(h == *pair.second);
+    for (auto const& p : pairs)
+    {
+        LOG(DEBUG) << "Verified " << p.first << " with hash "
+                   << hexAbbrev(*p.second);
+        Hash h = WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
+            p.first, file);
+        REQUIRE(h == *p.second);
+    }
 }
