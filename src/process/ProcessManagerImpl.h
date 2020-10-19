@@ -26,7 +26,8 @@ class ProcessManagerImpl : public ProcessManager
     std::map<int, std::shared_ptr<ProcessExitEvent>> mProcesses;
 
     bool mIsShutdown{false};
-    size_t mMaxProcesses;
+    size_t const mMaxProcesses;
+    bool const mSyncFilesystemOnProcessExit;
     asio::io_context& mIOContext;
     // These are only used on POSIX, but they're harmless here.
     asio::signal_set mSigChild;

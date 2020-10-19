@@ -253,6 +253,20 @@ class Config : public std::enable_shared_from_this<Config>
     // you want to make that trade.
     bool DISABLE_XDR_FSYNC;
 
+    // If set to true, running a subprocess (typically: to get or decompress a
+    // data file from an archive) will not be followed by a sync(2) call to
+    // flush dirty pages and make filesystem changes durable. This in turn means
+    // that there may be a spike in dirty page memory pressure (which can cause
+    // a linux "oom-kill" in rare circumstances, such as running as a burstable
+    // job under kubernetes), and may also risk leaving corrupt data files on
+    // durable storage should there be an operating system crash or sudden power
+    // loss, which may in turn may cause a node to diverge or get stuck. This
+    // option only exists as an escape hatch if the local filesystem is so
+    // unusably slow that you prefer operating without durability guarantees. Do
+    // not set it to true unless you're very certain you want to make that
+    // trade.
+    bool DISABLE_SUBPROCESS_SYNC;
+
     // Number of most recent ledgers to remember. Defaults to 12, or
     // approximately ~1 min of network activity.
     uint32 MAX_SLOTS_TO_REMEMBER;
