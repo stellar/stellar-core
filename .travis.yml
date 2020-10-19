@@ -29,8 +29,16 @@ addons:
     - clang-format-5.0
     - perl
     - parallel
+    - gdb
+
+before_script:
+  - ulimit -c unlimited -S
 
 script: ./travis-build.sh
+
+after_failure:
+  - COREFILE=$(find . -maxdepth 1 -name "core*" | head -n 1)
+  - if [[ -f "$COREFILE" ]]; then gdb -c "$COREFILE" ./src/stellar-core -ex "thread apply all bt" -ex "set pagination 0" -batch; fi
 
 cache:
   directories:
