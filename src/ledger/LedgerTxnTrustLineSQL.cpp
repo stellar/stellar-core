@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/NonSociRelatedException.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -23,11 +24,11 @@ getTrustLineStrings(AccountID const& accountID, Asset const& asset,
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        throw std::runtime_error("XLM TrustLine?");
+        throw NonSociRelatedException("XLM TrustLine?");
     }
     else if (accountID == getIssuer(asset))
     {
-        throw std::runtime_error("TrustLine accountID is issuer");
+        throw NonSociRelatedException("TrustLine accountID is issuer");
     }
 
     accountIDStr = KeyUtils::toStrKey(accountID);
@@ -43,7 +44,7 @@ getTrustLineStrings(AccountID const& accountID, Asset const& asset,
     }
     else
     {
-        throw std::runtime_error("Unknown asset type");
+        throw NonSociRelatedException("Unknown asset type");
     }
 }
 

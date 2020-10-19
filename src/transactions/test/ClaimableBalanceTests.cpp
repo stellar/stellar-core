@@ -296,7 +296,8 @@ validateBalancesOnCreateAndClaim(TestAccount& createAcc, TestAccount& claimAcc,
 
 TEST_CASE("claimableBalance", "[tx][claimablebalance]")
 {
-    Config const& cfg = getTestConfig();
+    Config cfg = getTestConfig();
+    cfg.USE_CONFIG_FOR_GENESIS = false;
 
     VirtualClock clock;
     auto app = createTestApplication(clock, cfg);
@@ -1197,6 +1198,18 @@ TEST_CASE("claimableBalance", "[tx][claimablebalance]")
                 *app, acc1,
                 acc1.op(createClaimableBalance(native, 1, validClaimants)),
                 acc1.op(createClaimableBalance(native, 1, validClaimants)));
+        }
+
+        SECTION("source account is issuer")
+        {
+            auto eur = makeAsset(issuer, "EUR");
+
+            ClaimPredicate u;
+            u.type(CLAIM_PREDICATE_UNCONDITIONAL);
+
+            auto balanceID = issuer.createClaimableBalance(
+                eur, 100, {makeClaimant(issuer, u)});
+            issuer.claimClaimableBalance(balanceID);
         }
     });
 }

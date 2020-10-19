@@ -390,6 +390,53 @@ RevokeSponsorshipOpFrame::doApply(AbstractLedgerTxn& ltx)
 bool
 RevokeSponsorshipOpFrame::doCheckValid(uint32_t ledgerVersion)
 {
+    if (ledgerVersion <= 14)
+    {
+        return true;
+    }
+
+    if (mRevokeSponsorshipOp.type() == REVOKE_SPONSORSHIP_LEDGER_ENTRY)
+    {
+        auto const& lk = mRevokeSponsorshipOp.ledgerKey();
+        switch (lk.type())
+        {
+        case ACCOUNT:
+            break;
+        case TRUSTLINE:
+        {
+            auto const& tl = lk.trustLine();
+            if (!isAssetValid(tl.asset) ||
+                (tl.asset.type() == ASSET_TYPE_NATIVE) ||
+                (getIssuer(tl.asset) == tl.accountID))
+            {
+                innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                return false;
+            }
+            break;
+        }
+        case OFFER:
+            if (lk.offer().offerID <= 0)
+            {
+                innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                return false;
+            }
+            break;
+        case DATA:
+        {
+            auto const& name = lk.data().dataName;
+            if ((name.size() < 1) || !isString32Valid(name))
+            {
+                innerResult().code(REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+                return false;
+            }
+            break;
+        }
+        case CLAIMABLE_BALANCE:
+            break;
+        default:
+            abort();
+        }
+    }
     return true;
 }
 }

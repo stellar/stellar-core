@@ -11,6 +11,7 @@
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "ledger/NonSociRelatedException.h"
 #include "transactions/TransactionUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/XDROperators.h"
@@ -2726,6 +2727,17 @@ LedgerTxnRoot::Impl::getNewestVersion(GeneralizedLedgerKey const& gkey) const
         default:
             throw std::runtime_error("Unknown key type");
         }
+    }
+    catch (NonSociRelatedException& e)
+    {
+        if (getHeader().ledgerVersion <= 14)
+        {
+            printErrorAndAbort(
+                "fatal error when loading ledger entry from LedgerTxnRoot: ",
+                e.what());
+        }
+
+        throw;
     }
     catch (std::exception& e)
     {
