@@ -458,7 +458,7 @@ TEST_CASE("schema upgrade test", "[db]")
         auto& session = app.getDatabase().getSession();
         std::string accountIDStr, issuerStr, assetCodeStr;
         getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
-                            assetCodeStr);
+                            assetCodeStr, 15);
         int32_t assetType = tl.asset.type();
         bool const liabilitiesPresent = (tl.ext.v() >= 1);
         int64_t buyingLiabilities =

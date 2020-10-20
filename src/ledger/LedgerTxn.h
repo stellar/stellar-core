@@ -340,7 +340,7 @@ class WorstBestOfferIterator
 
 void getTrustLineStrings(AccountID const& accountID, Asset const& asset,
                          std::string& accountIDStr, std::string& issuerStr,
-                         std::string& assetCodeStr);
+                         std::string& assetCodeStr, uint32_t ledgerVersion);
 
 // An abstraction for an object that can be the parent of an AbstractLedgerTxn
 // (discussed below). Allows children to commit atomically to the parent. Has no
