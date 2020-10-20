@@ -10,7 +10,7 @@ if [[ -z "$TEMP_POSTGRES" ]]; then
     TEMP_POSTGRES=1
 fi
 
-STELLAR_CORE_DEFAULT_TEST_PARAMS="--ll fatal -w NoTests -a -r simple"
+STELLAR_CORE_DEFAULT_TEST_PARAMS="-w NoTests -a"
 if [[ "$ALL_VERSIONS" != "" ]]; then
     STELLAR_CORE_DEFAULT_TEST_PARAMS="$STELLAR_CORE_DEFAULT_TEST_PARAMS --all-versions"
 fi
@@ -101,4 +101,4 @@ else
     echo "PostgreSQL enabled for tests using existing database cluster"
 fi
 
-./stellar-core test $STELLAR_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "$TESTS" 2> /dev/null
+! gdb --batch -ex 'set print thread-events off' -ex 'run' -ex 'bt' -ex 'c' --args ./stellar-core test $STELLAR_CORE_TEST_PARAMS --base-instance $BASE_INSTANCE "LedgerTxn load"

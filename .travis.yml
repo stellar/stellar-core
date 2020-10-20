@@ -1,5 +1,4 @@
 language: cpp
-sudo: false
 dist: xenial
 
 compiler:
@@ -30,13 +29,30 @@ addons:
     - perl
     - parallel
     - gdb
+    - apport
+
+before_install:
+ # What is the current file size max for core files?
+ # It is usually 0, which means no core file will be dumped if there is a crash 
+ - ulimit -c
+ - ulimit -a -S
+ - ulimit -a -H
+ - cat /proc/sys/kernel/core_pattern
+ - cat /etc/default/apport
+ - service --status-all || true
+ - initctl list || true
 
 before_script:
-  - ulimit -c unlimited -S
+  - ulimit -c unlimited
 
-script: ./travis-build.sh
+script: 
+  - ulimit -c unlimited
+  - ./travis-build.sh
 
 after_failure:
+  - ulimit -c
+  - ulimit -a -S
+  - ulimit -a -H
   - COREFILE=$(find . -maxdepth 1 -name "core*" | head -n 1)
   - if [[ -f "$COREFILE" ]]; then gdb -c "$COREFILE" ./src/stellar-core -ex "thread apply all bt" -ex "set pagination 0" -batch; fi
 
