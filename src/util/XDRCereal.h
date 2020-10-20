@@ -19,6 +19,14 @@ using namespace std::placeholders;
 
 template <uint32_t N>
 void
+cereal_override(cereal::JSONOutputArchive& ar, const xdr::xstring<N>& s,
+                const char* field)
+{
+    xdr::archive(ar, static_cast<std::string const&>(s), field);
+}
+
+template <uint32_t N>
+void
 cereal_override(cereal::JSONOutputArchive& ar, const xdr::opaque_array<N>& s,
                 const char* field)
 {
