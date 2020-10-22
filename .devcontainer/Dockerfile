@@ -45,7 +45,7 @@ RUN sudo apt-get update \
     && sudo apt-get update
 
 # Install common compilation tools
-RUN sudo apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel
+RUN sudo apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
 
 # Update compiler tools
 RUN sudo apt-get -y install gcc-6 g++-6 cpp-6 libstdc++6

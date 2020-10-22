@@ -30,6 +30,7 @@ addons:
     - perl
     - parallel
     - gdb
+    - libunwind-dev
 
 before_script:
   - ulimit -c unlimited -S

@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandLine.h"
+#include "util/Backtrace.h"
 #include "util/Logging.h"
 
 #include "crypto/ShortHash.h"
@@ -30,6 +31,7 @@ main(int argc, char* const* argv)
 
     // Abort when out of memory
     std::set_new_handler(outOfMemory);
+    BacktraceManager btGuard;
 
     Logging::init();
     if (sodium_init() != 0)

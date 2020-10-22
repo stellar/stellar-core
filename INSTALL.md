@@ -43,6 +43,7 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 - 64-bit system
 - `clang-format-5.0` (for `make format` to work)
 - `perl`
+- `libunwind-dev`
 
 ### Ubuntu
 
@@ -72,7 +73,7 @@ After installing packages, head to [building with clang and libc++](#building-wi
 
 #### Installing packages
     # common packages
-    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel
+    sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
     # if using clang
     sudo apt-get install clang-5.0
     # clang with libstdc++

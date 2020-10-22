@@ -54,7 +54,7 @@ jobs:
             sudo apt-get -y install clang-5.0 llvm-5.0
           fi
       - name: install dependencies
-        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel
+        run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
       - name: Build
         run: |
           if test "${{ matrix.toolchain }}" = "gcc" ; then

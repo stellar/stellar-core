@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "GlobalChecks.h"
+#include "Backtrace.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -38,6 +39,7 @@ printErrorAndAbort(const char* s1)
 {
     std::fprintf(stderr, "%s\n", s1);
     std::fflush(stderr);
+    printCurrentBacktrace();
     dbgAbort();
     std::abort();
 }
@@ -47,6 +49,7 @@ printErrorAndAbort(const char* s1, const char* s2)
 {
     std::fprintf(stderr, "%s%s\n", s1, s2);
     std::fflush(stderr);
+    printCurrentBacktrace();
     dbgAbort();
     std::abort();
 }
@@ -56,6 +59,7 @@ printAssertFailureAndAbort(const char* s1, const char* file, int line)
 {
     std::fprintf(stderr, "%s at %s:%d\n", s1, file, line);
     std::fflush(stderr);
+    printCurrentBacktrace();
     dbgAbort();
     std::abort();
 }
@@ -65,6 +69,7 @@ printAssertFailureAndThrow(const char* s1, const char* file, int line)
 {
     std::fprintf(stderr, "%s at %s:%d\n", s1, file, line);
     std::fflush(stderr);
+    printCurrentBacktrace();
     throw std::runtime_error(s1);
 }
 }
