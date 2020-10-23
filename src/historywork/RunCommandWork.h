@@ -26,6 +26,7 @@ class RunCommandWork : public BasicWork
     bool mDone{false};
     asio::error_code mEc;
     virtual CommandInfo getCommand() = 0;
+    virtual std::vector<std::string> getFilesToFlush() const;
     std::weak_ptr<ProcessExitEvent> mExitEvent;
 
   public:

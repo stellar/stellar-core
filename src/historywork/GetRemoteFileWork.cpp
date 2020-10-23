@@ -38,6 +38,12 @@ GetRemoteFileWork::getCommand()
     return CommandInfo{cmdLine, std::string()};
 }
 
+std::vector<std::string>
+GetRemoteFileWork::getFilesToFlush() const
+{
+    return {mLocal};
+}
+
 void
 GetRemoteFileWork::onReset()
 {

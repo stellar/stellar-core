@@ -259,7 +259,6 @@ ProcessManagerImpl::tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe)
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
-    , mSyncFilesystemOnProcessExit(!app.getConfig().DISABLE_SUBPROCESS_SYNC)
     , mIOContext(app.getClock().getIOContext())
     , mSigChild(mIOContext)
     , mTmpDir(
@@ -516,7 +515,6 @@ ProcessManagerImpl::forceShutdown(ProcessExitEvent& pe)
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
-    , mSyncFilesystemOnProcessExit(!app.getConfig().DISABLE_SUBPROCESS_SYNC)
     , mIOContext(app.getClock().getIOContext())
     , mSigChild(mIOContext, SIGCHLD)
     , mTmpDir(
@@ -566,11 +564,6 @@ ProcessManagerImpl::handleSignalWait()
             const int pid = std::get<0>(pidStatus);
             const int status = std::get<1>(pidStatus);
             handleProcessTermination(pid, status);
-        }
-        if (mSyncFilesystemOnProcessExit)
-        {
-            // Sync filesystem changes caused by processes.
-            sync();
         }
     }
     startSignalWait();

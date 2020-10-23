@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "util/FileSystemException.h"
 #include "util/Logging.h"
+#include "util/finally.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -123,6 +124,16 @@ openFileToWrite(std::string const& path)
             path + std::string("\"): "));
     }
     return h;
+}
+
+void
+closeFile(native_handle_t h)
+{
+    if (::CloseHandle(h) == 0)
+    {
+        FileSystemException::failWithGetLastError(
+            std::string("fs::closeFile() failed on CloseHandle()"));
+    }
 }
 
 bool
@@ -300,6 +311,16 @@ openFileToWrite(std::string const& path)
     return fd;
 }
 
+void
+closeFile(native_handle_t fd)
+{
+    if (::close(fd) != 0)
+    {
+        FileSystemException::failWithErrno(
+            std::string("fs::closeFile() failed on close()"));
+    }
+}
+
 bool
 durableRename(std::string const& src, std::string const& dst,
               std::string const& dir)
@@ -443,6 +464,14 @@ findfiles(std::string const& path,
 }
 
 #endif
+
+void
+flushFileChanges(std::string const& path)
+{
+    native_handle_t handle = openFileToWrite(path);
+    auto guard = gsl::finally([handle]() { closeFile(handle); });
+    flushFileChanges(handle);
+}
 
 PathSplitter::PathSplitter(std::string path) : mPath{std::move(path)}, mPos{0}
 {

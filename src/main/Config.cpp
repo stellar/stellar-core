@@ -124,7 +124,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     UNSAFE_QUORUM = false;
     DISABLE_BUCKET_GC = false;
     DISABLE_XDR_FSYNC = false;
-    DISABLE_SUBPROCESS_SYNC = false;
+    DISABLE_SUBPROCESS_FSYNC = false;
     MAX_SLOTS_TO_REMEMBER = 12;
     METADATA_OUTPUT_STREAM = "";
 
@@ -708,9 +708,9 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 DISABLE_XDR_FSYNC = readBool(item);
             }
-            else if (item.first == "DISABLE_SUBPROCESS_SYNC")
+            else if (item.first == "DISABLE_SUBPROCESS_FSYNC")
             {
-                DISABLE_SUBPROCESS_SYNC = readBool(item);
+                DISABLE_SUBPROCESS_FSYNC = readBool(item);
             }
             else if (item.first == "METADATA_OUTPUT_STREAM")
             {

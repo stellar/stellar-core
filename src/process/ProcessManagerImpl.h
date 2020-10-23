@@ -27,7 +27,6 @@ class ProcessManagerImpl : public ProcessManager
 
     bool mIsShutdown{false};
     size_t const mMaxProcesses;
-    bool const mSyncFilesystemOnProcessExit;
     asio::io_context& mIOContext;
     // These are only used on POSIX, but they're harmless here.
     asio::signal_set mSigChild;

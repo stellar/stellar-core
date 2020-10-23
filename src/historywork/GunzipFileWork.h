@@ -12,8 +12,10 @@ namespace stellar
 class GunzipFileWork : public RunCommandWork
 {
     std::string const mFilenameGz;
+    std::string const mFilenameNoGz;
     bool const mKeepExisting;
     CommandInfo getCommand() override;
+    std::vector<std::string> getFilesToFlush() const override;
 
   public:
     GunzipFileWork(Application& app, std::string const& filenameGz,

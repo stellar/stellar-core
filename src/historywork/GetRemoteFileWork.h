@@ -18,6 +18,7 @@ class GetRemoteFileWork : public RunCommandWork
     std::shared_ptr<HistoryArchive> mArchive;
     std::shared_ptr<HistoryArchive> mCurrentArchive;
     CommandInfo getCommand() override;
+    std::vector<std::string> getFilesToFlush() const override;
 
   public:
     // Passing `nullptr` for the archive argument will cause the work to

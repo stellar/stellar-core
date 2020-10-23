@@ -5,6 +5,7 @@
 #include "historywork/RunCommandWork.h"
 #include "main/Application.h"
 #include "process/ProcessManager.h"
+#include "util/Fs.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -14,6 +15,12 @@ RunCommandWork::RunCommandWork(Application& app, std::string const& name,
                                size_t maxRetries)
     : BasicWork(app, name, maxRetries)
 {
+}
+
+std::vector<std::string>
+RunCommandWork::getFilesToFlush() const
+{
+    return {};
 }
 
 BasicWork::State
@@ -37,13 +44,21 @@ RunCommandWork::onRun()
             {
                 return State::WORK_FAILURE;
             }
-
+            std::vector<std::string> filesToFlush = getFilesToFlush();
+            if (mApp.getConfig().DISABLE_SUBPROCESS_FSYNC)
+            {
+                filesToFlush.clear();
+            }
             std::weak_ptr<RunCommandWork> weak(
                 std::static_pointer_cast<RunCommandWork>(shared_from_this()));
-            exit->async_wait([weak](asio::error_code const& ec) {
+            exit->async_wait([weak, filesToFlush](asio::error_code const& ec) {
                 auto self = weak.lock();
                 if (self)
                 {
+                    for (auto const& f : filesToFlush)
+                    {
+                        fs::flushFileChanges(f);
+                    }
                     self->mEc = ec;
                     self->mDone = true;
                     self->wakeUp();

@@ -46,6 +46,9 @@ void unlockFile(std::string const& path);
 // Call fsync() on POSIX or FlushFileBuffers() on Win32.
 void flushFileChanges(native_handle_t h);
 
+// Open a file by name, flushFileChanges on it, and close it again.
+void flushFileChanges(std::string const& path);
+
 // For completely preposterous reasons, on windows an asio "stream"
 // type wrapping a win32 HANDLE is always written-to using an OVERLAPPED
 // structure with offset zero, meaning that when you write to a
@@ -57,6 +60,9 @@ bool shouldUseRandomAccessHandle(std::string const& path);
 
 // Open a native handle (fd or HANDLE) for writing.
 native_handle_t openFileToWrite(std::string const& path);
+
+// Close a native handle (fd or HANDLE).
+void closeFile(native_handle_t);
 
 // On POSIX, do rename(src, dst) then open dir and fsync() it
 // too: a necessary second step for ensuring durability.

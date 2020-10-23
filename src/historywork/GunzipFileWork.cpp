@@ -5,6 +5,16 @@
 #include "historywork/GunzipFileWork.h"
 #include "util/Fs.h"
 
+namespace
+{
+std::string
+withoutGz(std::string const& withGz)
+{
+    stellar::fs::checkGzipSuffix(withGz);
+    return withGz.substr(0, withGz.size() - 3);
+}
+}
+
 namespace stellar
 {
 
@@ -12,9 +22,9 @@ GunzipFileWork::GunzipFileWork(Application& app, std::string const& filenameGz,
                                bool keepExisting, size_t maxRetries)
     : RunCommandWork(app, std::string("gunzip-file ") + filenameGz, maxRetries)
     , mFilenameGz(filenameGz)
+    , mFilenameNoGz(withoutGz(filenameGz))
     , mKeepExisting(keepExisting)
 {
-    fs::checkGzipSuffix(mFilenameGz);
 }
 
 CommandInfo
@@ -25,16 +35,21 @@ GunzipFileWork::getCommand()
     if (mKeepExisting)
     {
         cmdLine += "-c ";
-        outFile = mFilenameGz.substr(0, mFilenameGz.size() - 3);
+        outFile = mFilenameNoGz;
     }
     cmdLine += mFilenameGz;
     return CommandInfo{cmdLine, outFile};
 }
 
+std::vector<std::string>
+GunzipFileWork::getFilesToFlush() const
+{
+    return {mFilenameNoGz};
+}
+
 void
 GunzipFileWork::onReset()
 {
-    std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
-    std::remove(filenameNoGz.c_str());
+    std::remove(mFilenameNoGz.c_str());
 }
 }
