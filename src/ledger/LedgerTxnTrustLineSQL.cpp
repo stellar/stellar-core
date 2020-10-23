@@ -20,9 +20,13 @@ namespace stellar
 void
 getTrustLineStrings(AccountID const& accountID, Asset const& asset,
                     std::string& accountIDStr, std::string& issuerStr,
-                    std::string& assetCodeStr)
+                    std::string& assetCodeStr, uint32_t ledgerVersion)
 {
-    if (asset.type() == ASSET_TYPE_NATIVE)
+    if (ledgerVersion >= 15 && !isAssetValid(asset))
+    {
+        throw NonSociRelatedException("TrustLine asset is invalid");
+    }
+    else if (asset.type() == ASSET_TYPE_NATIVE)
     {
         throw NonSociRelatedException("XLM TrustLine?");
     }
@@ -54,7 +58,8 @@ LedgerTxnRoot::Impl::loadTrustLine(LedgerKey const& key) const
     ZoneScoped;
     std::string accountIDStr, issuerStr, assetStr;
     getTrustLineStrings(key.trustLine().accountID, key.trustLine().asset,
-                        accountIDStr, issuerStr, assetStr);
+                        accountIDStr, issuerStr, assetStr,
+                        mHeader->ledgerVersion);
 
     std::string extensionStr;
     soci::indicator extensionInd;
@@ -117,7 +122,8 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 
   public:
     BulkUpsertTrustLinesOperation(Database& DB,
-                                  std::vector<EntryIterator> const& entries)
+                                  std::vector<EntryIterator> const& entries,
+                                  uint32_t ledgerVersion)
         : mDB(DB)
     {
         mAccountIDs.reserve(entries.size());
@@ -142,7 +148,7 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
             auto const& tl = le.data.trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
-                                assetCodeStr);
+                                assetCodeStr, ledgerVersion);
 
             mAccountIDs.emplace_back(accountIDStr);
             mAssetTypes.emplace_back(
@@ -301,7 +307,8 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 
   public:
     BulkDeleteTrustLinesOperation(Database& DB, LedgerTxnConsistency cons,
-                                  std::vector<EntryIterator> const& entries)
+                                  std::vector<EntryIterator> const& entries,
+                                  uint32_t ledgerVersion)
         : mDB(DB), mCons(cons)
     {
         mAccountIDs.reserve(entries.size());
@@ -315,7 +322,7 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
             auto const& tl = e.key().ledgerKey().trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
-                                assetCodeStr);
+                                assetCodeStr, ledgerVersion);
             mAccountIDs.emplace_back(accountIDStr);
             mIssuers.emplace_back(issuerStr);
             mAssetCodes.emplace_back(assetCodeStr);
@@ -391,7 +398,8 @@ LedgerTxnRoot::Impl::bulkUpsertTrustLines(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkUpsertTrustLinesOperation op(mDatabase, entries);
+    BulkUpsertTrustLinesOperation op(mDatabase, entries,
+                                     mHeader->ledgerVersion);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
 
@@ -401,7 +409,8 @@ LedgerTxnRoot::Impl::bulkDeleteTrustLines(
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(entries.size()));
-    BulkDeleteTrustLinesOperation op(mDatabase, cons, entries);
+    BulkDeleteTrustLinesOperation op(mDatabase, cons, entries,
+                                     mHeader->ledgerVersion);
     mDatabase.doDatabaseTypeSpecificOperation(op);
 }
 

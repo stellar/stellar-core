@@ -16,6 +16,7 @@
 #include "util/Math.h"
 #include "util/XDROperators.h"
 #include <algorithm>
+#include <fmt/format.h>
 #include <functional>
 #include <map>
 #include <memory>
@@ -1332,6 +1333,114 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
             REQUIRE(!ltx3.load(key));
             validate(ltx3, {});
         }
+
+        for_versions_from(15, *app, [&]() {
+            SECTION("invalid keys")
+            {
+                LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+                auto acc = txtest::getAccount("acc");
+                auto acc2 = txtest::getAccount("acc2");
+
+                {
+                    auto native = txtest::makeNativeAsset();
+                    UNSCOPED_INFO("native asset on trustline key");
+                    REQUIRE_THROWS_AS(
+                        ltx1.load(trustlineKey(acc.getPublicKey(), native)),
+                        NonSociRelatedException);
+                }
+
+                {
+                    auto usd = txtest::makeAsset(acc, "usd");
+                    UNSCOPED_INFO("issuer on trustline key");
+                    REQUIRE_THROWS_AS(
+                        ltx1.load(trustlineKey(acc.getPublicKey(), usd)),
+                        NonSociRelatedException);
+                }
+
+                {
+                    std::string accountIDStr, issuerStr, assetCodeStr;
+                    auto loadTest = [&](Asset const& asset) {
+                        auto key = trustlineKey(acc2.getPublicKey(), asset);
+
+                        // verify that this doesn't throw before V15
+                        getTrustLineStrings(key.trustLine().accountID,
+                                            key.trustLine().asset, accountIDStr,
+                                            issuerStr, assetCodeStr, 14);
+
+                        REQUIRE_THROWS_AS(ltx1.load(key),
+                                          NonSociRelatedException);
+                    };
+
+                    {
+                        auto asset = txtest::makeAsset(acc, "\n");
+                        UNSCOPED_INFO("control char in asset name");
+                        loadTest(asset);
+                    }
+
+                    {
+                        std::string assetCode;
+                        assetCode.push_back(0);
+                        assetCode.push_back('a');
+                        auto asset = txtest::makeAsset(acc, assetCode);
+                        UNSCOPED_INFO("non-trailing zero in asset name");
+                        loadTest(asset);
+                    }
+
+                    {
+                        std::string assetCode;
+                        assetCode.push_back(0);
+                        auto asset = txtest::makeAsset(acc, assetCode);
+                        UNSCOPED_INFO("zero asset name");
+                        loadTest(asset);
+                    }
+
+                    {
+                        // start right after z(122), and go through some of the
+                        // extended ascii codes
+                        for (int i = 123; i < 140; ++i)
+                        {
+                            std::string assetCode;
+                            assetCode.push_back(i);
+                            auto asset = txtest::makeAsset(acc, assetCode);
+                            UNSCOPED_INFO(
+                                fmt::format("invalid ascii code={}", i));
+                            loadTest(asset);
+                        }
+                    }
+
+                    {
+                        Asset asset;
+                        asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+                        asset.alphaNum12().issuer = acc.getPublicKey();
+                        strToAssetCode(asset.alphaNum12().assetCode, "aaaa");
+                        UNSCOPED_INFO("AssetCode12 with less than 5 chars");
+                        loadTest(asset);
+                    }
+                }
+
+                SECTION("load generated keys")
+                {
+                    for (int i = 0; i < 1000; ++i)
+                    {
+                        LedgerKey lk = autocheck::generator<LedgerKey>()(5);
+
+                        try
+                        {
+                            ltx1.load(lk);
+                        }
+                        catch (NonSociRelatedException&)
+                        {
+                            // this is fine
+                        }
+                        catch (std::exception)
+                        {
+                            REQUIRE(false);
+                        }
+                    }
+                }
+            }
+        });
     };
 
     SECTION("default")
