@@ -11,6 +11,7 @@
 #include "transactions/TransactionFrameBase.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include <fmt/format.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -383,7 +384,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 SECTION("claimable balance")
                 {
                     auto native = makeNativeAsset();
-                    auto a1 = root.create("a1", minBal(2));
+                    auto a1 = root.create("a1", minBal(1));
 
                     auto tx1 = transactionFrameFromOps(
                         app->getNetworkID(), root,
@@ -502,7 +503,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
 
                 SECTION("signer")
                 {
-                    auto a1 = root.create("a1", minBal(1));
+                    auto a1 = root.create("a1", minBal(0));
                     auto a2 = root.create("a2", minBal(2));
 
                     auto signer = makeSigner(getAccount("S1"), 1);
@@ -539,7 +540,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 SECTION("claimable balances")
                 {
                     auto native = makeNativeAsset();
-                    auto a1 = root.create("a1", minBal(2));
+                    auto a1 = root.create("a1", minBal(0) + 1);
                     auto a2 = root.create("a2", minBal(2));
 
                     auto tx1 = transactionFrameFromOps(
@@ -577,6 +578,85 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                                      &a2.getPublicKey());
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
                     checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
+                    ltx.commit();
+                }
+
+                SECTION("data")
+                {
+                    DataValue value;
+                    std::string dataName = "test";
+                    auto a1 = root.create("a1", minBal(0));
+                    auto a2 = root.create("a2", minBal(2));
+
+                    auto tx1 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(beginSponsoringFutureReserves(a1)),
+                         a1.op(manageData(dataName, &value)),
+                         a1.op(endSponsoringFutureReserves())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx1->apply(*app, ltx, txm1));
+
+                    auto tx2 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {a2.op(beginSponsoringFutureReserves(root)),
+                         root.op(revokeSponsorship(dataKey(a1, dataName))),
+                         root.op(endSponsoringFutureReserves())},
+                        {a2});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx2->apply(*app, ltx, txm2));
+
+                    checkSponsorship(ltx, dataKey(a1, dataName), 1,
+                                     &a2.getPublicKey());
+                    checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
+                    checkSponsorship(ltx, root, 0, nullptr, 0, 2, 0, 0);
+                    ltx.commit();
+                }
+
+                SECTION("offer")
+                {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto native = makeNativeAsset();
+                    auto a1 = root.create("a1", minBal(3));
+                    auto a2 = root.create("a2", minBal(2));
+
+                    a1.changeTrust(cur1, INT64_MAX);
+
+                    auto tx1 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(beginSponsoringFutureReserves(a1)),
+                         a1.op(manageOffer(0, native, cur1, Price{1, 1}, 10)),
+                         a1.op(endSponsoringFutureReserves())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx1->apply(*app, ltx, txm1));
+
+                    auto offerID = ltx.loadHeader().current().idPool;
+                    auto tx2 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {a2.op(beginSponsoringFutureReserves(root)),
+                         root.op(revokeSponsorship(offerKey(a1, offerID))),
+                         root.op(endSponsoringFutureReserves())},
+                        {a2});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx2->apply(*app, ltx, txm2));
+
+                    checkSponsorship(ltx, offerKey(a1, offerID), 1,
+                                     &a2.getPublicKey());
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 1);
+                    checkSponsorship(ltx, a2, 0, nullptr, 0, 2, 1, 0);
+                    checkSponsorship(ltx, root, 0, nullptr, 0, 2, 0, 0);
                     ltx.commit();
                 }
             }
@@ -685,6 +765,79 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                     checkSponsorship(ltx, root, 0, nullptr, 0, 2, 0, 0);
                     ltx.commit();
                 }
+
+                SECTION("data")
+                {
+                    DataValue value;
+                    std::string dataName = "test";
+                    auto a1 = root.create("a1", minBal(1));
+
+                    auto tx1 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(beginSponsoringFutureReserves(a1)),
+                         a1.op(manageData(dataName, &value)),
+                         a1.op(endSponsoringFutureReserves())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx1->apply(*app, ltx, txm1));
+
+                    auto tx2 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {a1.op(beginSponsoringFutureReserves(root)),
+                         root.op(revokeSponsorship(dataKey(a1, dataName))),
+                         root.op(endSponsoringFutureReserves())},
+                        {a1});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx2->apply(*app, ltx, txm2));
+
+                    checkSponsorship(ltx, dataKey(a1, dataName), 1, nullptr);
+                    checkSponsorship(ltx, a1, 0, nullptr, 1, 2, 0, 0);
+                    checkSponsorship(ltx, root, 0, nullptr, 0, 2, 0, 0);
+                    ltx.commit();
+                }
+
+                SECTION("offer")
+                {
+                    auto cur1 = makeAsset(root, "CUR1");
+                    auto native = makeNativeAsset();
+                    auto a1 = root.create("a1", minBal(3));
+
+                    a1.changeTrust(cur1, INT64_MAX);
+
+                    auto tx1 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {root.op(beginSponsoringFutureReserves(a1)),
+                         a1.op(manageOffer(0, native, cur1, Price{1, 1}, 10)),
+                         a1.op(endSponsoringFutureReserves())},
+                        {a1});
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    TransactionMeta txm1(2);
+                    REQUIRE(tx1->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx1->apply(*app, ltx, txm1));
+
+                    auto offerID = ltx.loadHeader().current().idPool;
+                    auto tx2 = transactionFrameFromOps(
+                        app->getNetworkID(), root,
+                        {a1.op(beginSponsoringFutureReserves(root)),
+                         root.op(revokeSponsorship(offerKey(a1, offerID))),
+                         root.op(endSponsoringFutureReserves())},
+                        {a1});
+
+                    TransactionMeta txm2(2);
+                    REQUIRE(tx2->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(tx2->apply(*app, ltx, txm2));
+
+                    checkSponsorship(ltx, offerKey(a1, offerID), 1, nullptr);
+                    checkSponsorship(ltx, a1, 0, nullptr, 2, 2, 0, 0);
+                    checkSponsorship(ltx, root, 0, nullptr, 0, 2, 0, 0);
+                    ltx.commit();
+                }
             }
         }
 
@@ -695,7 +848,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                 auto a1 = root.create("a1", minBal(1));
                 auto cur1 = makeAsset(root, "CUR1");
 
-                SECTION("entry")
+                SECTION("trustline")
                 {
                     auto tx = transactionFrameFromOps(
                         app->getNetworkID(), a1,
@@ -710,6 +863,35 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
                             REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
 
                     checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
+                    checkSponsorship(ltx, root, 0, nullptr, 0, 0, 0, 0);
+                }
+
+                SECTION("use wrong account in offer key")
+                {
+                    auto native = makeNativeAsset();
+                    auto a2 = root.create("a2", minBal(3));
+
+                    a2.changeTrust(cur1, INT64_MAX);
+
+                    a2.manageOffer(0, native, cur1, Price{1, 1}, 10);
+
+                    LedgerTxn ltx(app->getLedgerTxnRoot());
+                    auto offerID = ltx.loadHeader().current().idPool;
+
+                    // put the wrong account on the offerKey
+                    auto tx = transactionFrameFromOps(
+                        app->getNetworkID(), a2,
+                        {a2.op(revokeSponsorship(offerKey(a1, offerID)))}, {});
+
+                    TransactionMeta txm(2);
+                    REQUIRE(tx->checkValid(ltx, 0, 0, 0));
+                    REQUIRE(!tx->apply(*app, ltx, txm));
+
+                    REQUIRE(getRevokeSponsorshipResultCode(tx, 0) ==
+                            REVOKE_SPONSORSHIP_DOES_NOT_EXIST);
+
+                    checkSponsorship(ltx, a1, 0, nullptr, 0, 0, 0, 0);
+                    checkSponsorship(ltx, a2, 0, nullptr, 2, 1, 0, 0);
                     checkSponsorship(ltx, root, 0, nullptr, 0, 0, 0, 0);
                 }
 
@@ -1107,27 +1289,37 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             }
         };
 
-        for_versions_from(14, *app, [&]() {
-            SECTION("invalid offer id")
-            {
-                SECTION("negative offer id")
+        SECTION("invalid offer and data keys")
+        {
+            for_versions_from(14, *app, [&]() {
+                SECTION("invalid offer id")
                 {
                     revoke(offerKey(a1, static_cast<uint64>(-1LL)));
                 }
-            }
-            SECTION("invalid data name")
-            {
-                SECTION("empty data name")
+                SECTION("invalid data name")
                 {
-                    revoke(dataKey(a1, ""));
+                    SECTION("empty data name")
+                    {
+                        revoke(dataKey(a1, ""));
+                    }
+                    SECTION("control char in data name")
+                    {
+                        revoke(dataKey(a1, "\n"));
+                    }
                 }
-                SECTION("control char in data name")
+            });
+        }
+
+        SECTION("invalid trustline keys")
+        {
+            auto a2 = root.create("a2", minBal(1));
+            for_versions_from(15, *app, [&]() {
+                auto invalidAssets = testutil::getInvalidAssets(a1);
+                for (auto const& asset : invalidAssets)
                 {
-                    std::string c;
-                    c.push_back('\n');
-                    revoke(dataKey(a1, c));
+                    revoke(trustlineKey(a2, asset));
                 }
-            }
-        });
+            });
+        }
     }
 }
