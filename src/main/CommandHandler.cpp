@@ -166,14 +166,15 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
 
 template <typename T>
 optional<T>
-maybeParseParam(std::map<std::string, std::string> const& map,
-                std::string const& key, T& defaultVal)
+parseOptionalParam(std::map<std::string, std::string> const& map,
+                   std::string const& key)
 {
     auto i = map.find(key);
     if (i != map.end())
     {
         std::stringstream str(i->second);
-        str >> defaultVal;
+        T val;
+        str >> val;
 
         // Throw an error if not all bytes were loaded into `val`
         if (str.fail() || !str.eof())
@@ -182,25 +183,45 @@ maybeParseParam(std::map<std::string, std::string> const& map,
                 fmt::format("Failed to parse '{}' argument", key);
             throw std::runtime_error(errorMsg);
         }
-        return make_optional<T>(defaultVal);
+        return make_optional<T>(val);
     }
 
     return nullopt<T>();
 }
 
+// If the key exists and the value successfully parses, return that value.
+// If the key doesn't exist, return defaultValue.
+// Otherwise, throws an error.
 template <typename T>
 T
-parseParam(std::map<std::string, std::string> const& map,
-           std::string const& key)
+parseOptionalParamOrDefault(std::map<std::string, std::string> const& map,
+                            std::string const& key, T const& defaultValue)
 {
-    T val;
-    auto res = maybeParseParam(map, key, val);
+    optional<T> res = parseOptionalParam<T>(map, key);
+    if (res)
+    {
+        return *res;
+    }
+    else
+    {
+        return defaultValue;
+    }
+}
+
+// Return a value only if the key exists and the value parses.
+// Otherwise, this throws an error.
+template <typename T>
+T
+parseRequiredParam(std::map<std::string, std::string> const& map,
+                   std::string const& key)
+{
+    auto res = parseOptionalParam<T>(map, key);
     if (!res)
     {
         std::string errorMsg = fmt::format("'{}' argument is required!", key);
         throw std::runtime_error(errorMsg);
     }
-    return val;
+    return *res;
 }
 
 void
@@ -217,10 +238,8 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
             "configuration includes RUN_STANDALONE=true.");
     }
 
-    uint32_t ledgerSeq;
-    auto manualLedgerSeq = maybeParseParam(retMap, "ledgerSeq", ledgerSeq);
-    TimePoint closeTime;
-    auto manualCloseTime = maybeParseParam(retMap, "closeTime", closeTime);
+    auto manualLedgerSeq = parseOptionalParam<uint32_t>(retMap, "ledgerSeq");
+    auto manualCloseTime = parseOptionalParam<TimePoint>(retMap, "closeTime");
 
     retStr = mApp.manualClose(manualLedgerSeq, manualCloseTime);
 }
@@ -455,16 +474,11 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         }
         p.mUpgradeTime = VirtualClock::tmToSystemPoint(tm);
 
-        uint32 baseFee;
-        uint32 baseReserve;
-        uint32 maxTxSize;
-        uint32 protocolVersion;
-
-        p.mBaseFee = maybeParseParam(retMap, "basefee", baseFee);
-        p.mBaseReserve = maybeParseParam(retMap, "basereserve", baseReserve);
-        p.mMaxTxSize = maybeParseParam(retMap, "maxtxsize", maxTxSize);
+        p.mBaseFee = parseOptionalParam<uint32>(retMap, "basefee");
+        p.mBaseReserve = parseOptionalParam<uint32>(retMap, "basereserve");
+        p.mMaxTxSize = parseOptionalParam<uint32>(retMap, "maxtxsize");
         p.mProtocolVersion =
-            maybeParseParam(retMap, "protocolversion", protocolVersion);
+            parseOptionalParam<uint32>(retMap, "protocolversion");
 
         mApp.getHerder().setUpgrades(p);
     }
@@ -522,8 +536,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     ZoneScoped;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
-    size_t lim = 2;
-    maybeParseParam(retMap, "limit", lim);
+    size_t lim = parseOptionalParamOrDefault<size_t>(retMap, "limit", 2);
 
     auto root = mApp.getHerder().getJsonInfo(lim, retMap["fullkeys"] == "true");
     retStr = root.toStyledString();
@@ -661,7 +674,7 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, map);
     std::string const& id = map["id"];
 
-    uint32 cursor = parseParam<uint32>(map, "cursor");
+    uint32 cursor = parseRequiredParam<uint32>(map, "cursor");
 
     if (!ExternalQueue::validateResourceID(id))
     {
@@ -712,8 +725,8 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, map);
     if (map["queue"] == "true")
     {
-        uint32_t count = 50000;
-        maybeParseParam(map, "count", count);
+        uint32_t count =
+            parseOptionalParamOrDefault<uint32_t>(map, "count", 50000);
 
         mApp.getMaintainer().performMaintenance(count);
         retStr = "Done";
@@ -731,8 +744,8 @@ CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
 
-    std::string domain;
-    maybeParseParam(map, "domain", domain);
+    std::string domain =
+        parseOptionalParamOrDefault<std::string>(map, "domain", "");
 
     mApp.clearMetrics(domain);
 
@@ -746,8 +759,9 @@ CommandHandler::surveyTopology(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> map;
     http::server::server::parseParams(params, map);
 
-    auto duration = std::chrono::seconds(parseParam<uint32>(map, "duration"));
-    auto idString = parseParam<std::string>(map, "node");
+    auto duration =
+        std::chrono::seconds(parseRequiredParam<uint32>(map, "duration"));
+    auto idString = parseRequiredParam<std::string>(map, "node");
     NodeID id = KeyUtils::fromStrKey<PublicKey>(idString);
 
     auto& surveyManager = mApp.getOverlayManager().getSurveyManager();
@@ -786,20 +800,12 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     ZoneScoped;
     if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
-        uint32_t nAccounts = 1000;
-        uint32_t nTxs = 0;
-        uint32_t txRate = 10;
-        uint32_t batchSize = 100; // Only for account creations
-        uint32_t offset = 0;
-        uint32_t spikeSize = 0;
-        uint32_t spikeIntervalInt = 0;
-        std::string mode = "create";
-
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
 
         bool isCreate;
-        maybeParseParam<std::string>(map, "mode", mode);
+        std::string mode =
+            parseOptionalParamOrDefault<std::string>(map, "mode", "create");
         if (mode == std::string("create"))
         {
             isCreate = true;
@@ -813,14 +819,20 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             throw std::runtime_error("Unknown mode.");
         }
 
-        maybeParseParam(map, "accounts", nAccounts);
-        maybeParseParam(map, "txs", nTxs);
-        maybeParseParam(map, "batchsize", batchSize);
-        maybeParseParam(map, "offset", offset);
-        maybeParseParam(map, "txrate", txRate);
-        maybeParseParam(map, "spikeinterval", spikeIntervalInt);
+        uint32_t nAccounts =
+            parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
+        uint32_t nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
+        uint32_t txRate =
+            parseOptionalParamOrDefault<uint32_t>(map, "batchsize", 10);
+        uint32_t batchSize = parseOptionalParamOrDefault<uint32_t>(
+            map, "offset", 100); // Only for account creations
+        uint32_t offset =
+            parseOptionalParamOrDefault<uint32_t>(map, "txrate", 0);
+        uint32_t spikeIntervalInt =
+            parseOptionalParamOrDefault<uint32_t>(map, "spikeinterval", 0);
         std::chrono::seconds spikeInterval(spikeIntervalInt);
-        maybeParseParam(map, "spikesize", spikeSize);
+        uint32_t spikeSize =
+            parseOptionalParamOrDefault<uint32_t>(map, "spikesize", 0);
 
         uint32_t numItems = isCreate ? nAccounts : nTxs;
         std::string itemType = isCreate ? "accounts" : "txs";
