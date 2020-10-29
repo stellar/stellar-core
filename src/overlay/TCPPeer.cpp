@@ -225,7 +225,7 @@ TCPPeer::shutdown()
                         << ec2.message();
                 }
             },
-            "TCPPeer: close");
+            std::string("TCPPeer: close ") + self->toString());
     });
 }
 

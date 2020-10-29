@@ -618,29 +618,30 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         fmt::format("Error RecvMessage T:{} cat:{} {} @{}", stellarMsg.type(),
                     cat, toString(), mApp.getConfig().PEER_PORT);
 
-    mApp.postOnMainThread([ err, weak, sm = StellarMessage(stellarMsg) ]() {
-        auto self = weak.lock();
-        if (self)
-        {
-            try
+    mApp.postOnMainThread(
+        [ err, weak, sm = StellarMessage(stellarMsg) ]() {
+            auto self = weak.lock();
+            if (self)
             {
-                self->recvRawMessage(sm);
+                try
+                {
+                    self->recvRawMessage(sm);
+                }
+                catch (CryptoError const& e)
+                {
+                    CLOG(ERROR, "Overlay") << fmt::format(
+                        "Dropping connection with {}: {}", err, e.what());
+                    self->drop("Bad crypto request",
+                               Peer::DropDirection::WE_DROPPED_REMOTE,
+                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+                }
             }
-            catch (CryptoError const& e)
+            else
             {
-                CLOG(ERROR, "Overlay") << fmt::format(
-                    "Dropping connection with {}: {}", err, e.what());
-                self->drop("Bad crypto request",
-                           Peer::DropDirection::WE_DROPPED_REMOTE,
-                           Peer::DropMode::IGNORE_WRITE_QUEUE);
+                CLOG(TRACE, "Overlay") << err;
             }
-        }
-        else
-        {
-            CLOG(TRACE, "Overlay") << err;
-        }
-    },
-                          fmt::format("{} recvMessage", cat), type);
+        },
+        fmt::format("{} recvMessage from {}", cat, toString()), type);
 }
 
 void
