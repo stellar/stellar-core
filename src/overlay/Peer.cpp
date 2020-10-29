@@ -570,7 +570,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    std::string cat;
+    char const* cat = nullptr;
     Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION;
     switch (stellarMsg.type())
     {
@@ -614,33 +614,38 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
 
     std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
-    std::string err =
-        fmt::format("Error RecvMessage T:{} cat:{} {} @{}", stellarMsg.type(),
-                    cat, toString(), mApp.getConfig().PEER_PORT);
-
-    mApp.postOnMainThread([ err, weak, sm = StellarMessage(stellarMsg) ]() {
-        auto self = weak.lock();
-        if (self)
-        {
-            try
+    mApp.postOnMainThread(
+        [
+            weak, sm = StellarMessage(stellarMsg), mtype = stellarMsg.type(),
+            cat, port = mApp.getConfig().PEER_PORT
+        ]() {
+            auto self = weak.lock();
+            if (self)
             {
-                self->recvRawMessage(sm);
+                try
+                {
+                    self->recvRawMessage(sm);
+                }
+                catch (CryptoError const& e)
+                {
+                    std::string err =
+                        fmt::format("Error RecvMessage T:{} cat:{} {} @{}",
+                                    mtype, cat, self->toString(), port);
+                    CLOG(ERROR, "Overlay") << fmt::format(
+                        "Dropping connection with {}: {}", err, e.what());
+                    self->drop("Bad crypto request",
+                               Peer::DropDirection::WE_DROPPED_REMOTE,
+                               Peer::DropMode::IGNORE_WRITE_QUEUE);
+                }
             }
-            catch (CryptoError const& e)
+            else
             {
-                CLOG(ERROR, "Overlay") << fmt::format(
-                    "Dropping connection with {}: {}", err, e.what());
-                self->drop("Bad crypto request",
-                           Peer::DropDirection::WE_DROPPED_REMOTE,
-                           Peer::DropMode::IGNORE_WRITE_QUEUE);
+                std::string err =
+                    fmt::format("Error RecvMessage T:{} cat:{}", mtype, cat);
+                CLOG(TRACE, "Overlay") << err;
             }
-        }
-        else
-        {
-            CLOG(TRACE, "Overlay") << err;
-        }
-    },
-                          fmt::format("{} recvMessage", cat), type);
+        },
+        fmt::format("{} recvMessage", cat), type);
 }
 
 void
