@@ -1106,7 +1106,7 @@ Peer::recvHello(Hello const& elo)
         CLOG(DEBUG, "Overlay")
             << "Protocol = [" << mRemoteOverlayMinVersion << ","
             << mRemoteOverlayVersion << "] expected: ["
-            << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << ","
+            << mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION << ","
             << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
         sendErrorAndDrop(ERR_CONF, "wrong protocol version", dropMode);
         return;
