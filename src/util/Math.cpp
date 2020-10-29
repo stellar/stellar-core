@@ -77,7 +77,8 @@ k_means(std::vector<double> const& points, uint32_t k)
         for (auto const& p : points)
         {
             auto closest = closest_cluster(p, centroids);
-            weights.emplace_back(std::pow(std::fabs(closest - p), 2));
+            auto weight = std::max<double>(1.0, std::pow(std::fabs(closest - p), 2));
+            weights.emplace_back(weight);
         }
 
         std::discrete_distribution<size_t> weightedDistribution(weights.begin(),

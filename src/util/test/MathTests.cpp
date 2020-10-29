@@ -70,6 +70,10 @@ TEST_CASE("k_means", "[kmeans][!hide]")
             {1010, 1010, 9, 10, 11, 24, 11999, 44, 45, 49, 58, 12000, 12001},
             {31.25, 1010.0, 12000.0});
     }
+    SECTION("same points")
+    {
+        checkClusters({1010, 1010, 1010}, {1010});
+    }
     SECTION("invalid configurations")
     {
         // k = 0
