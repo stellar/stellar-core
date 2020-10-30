@@ -13,6 +13,8 @@ OverlayMetrics::OverlayMetrics(Application& app)
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
     , mMessageWrite(
           app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
+    , mMessageDrop(
+          app.getMetrics().NewMeter({"overlay", "message", "drop"}, "message"))
     , mAsyncRead(
           app.getMetrics().NewMeter({"overlay", "async", "read"}, "call"))
     , mAsyncWrite(
