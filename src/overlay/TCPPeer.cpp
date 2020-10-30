@@ -576,6 +576,14 @@ TCPPeer::connected()
     startRead();
 }
 
+bool
+TCPPeer::sendQueueIsOverloaded() const
+{
+    auto now = mApp.getClock().now();
+    return (!mWriteQueue.empty() && (now - mWriteQueue.front().mEnqueuedTime) >
+                                        SCHEDULER_LATENCY_WINDOW);
+}
+
 void
 TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)

@@ -192,6 +192,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
     connected()
     {
     }
+    virtual bool
+    sendQueueIsOverloaded() const
+    {
+        return false;
+    }
 
     virtual AuthCert getAuthCert();
 

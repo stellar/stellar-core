@@ -405,6 +405,21 @@ Peer::sendMessage(StellarMessage const& msg, bool log)
             << mApp.getConfig().PEER_PORT;
     }
 
+    // There are really _two_ layers of queues, one in Scheduler for actions and
+    // one in Peer (and its subclasses) for outgoing writes. We enforce a
+    // similar load-shedding discipline here as in Scheduler: if there is more
+    // than the scheduler latency-window worth of material in the write queue,
+    // and we're being asked to add messages that are being generated _from_ a
+    // droppable action, we drop the message rather than enqueue it. This avoids
+    // growing our queues indefinitely.
+    if (mApp.getClock().currentSchedulerActionType() ==
+            Scheduler::ActionType::DROPPABLE_ACTION &&
+        sendQueueIsOverloaded())
+    {
+        getOverlayMetrics().mMessageDrop.Mark();
+        return;
+    }
+
     switch (msg.type())
     {
     case ERROR_MSG:
