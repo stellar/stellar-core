@@ -44,6 +44,7 @@ class TCPPeer : public Peer
 
     size_t getIncomingMsgLength();
     virtual void connected() override;
+    virtual bool sendQueueIsOverloaded() const override;
     void startRead();
 
     static constexpr size_t HDRSZ = 4;
