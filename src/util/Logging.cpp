@@ -158,6 +158,8 @@ std::array<std::string const, 14> const Logging::kPartitionNames = {
     "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant", "Perf"};
 
 el::Configurations Logging::gDefaultConf;
+bool Logging::gAnyDebug = false;
+bool Logging::gAnyTrace = false;
 
 template <typename T> class LockElObject : public NonMovableOrCopyable
 {
@@ -272,6 +274,11 @@ Logging::getLogLevel(std::string const& partition)
 bool
 Logging::logDebug(std::string const& partition)
 {
+    if (!gAnyDebug)
+    {
+        // Checking debug in a hot path can get surprisingly hot.
+        return false;
+    }
     auto lev = Logging::getLogLevel(partition);
     return lev == el::Level::Debug || lev == el::Level::Trace;
 }
@@ -279,6 +286,11 @@ Logging::logDebug(std::string const& partition)
 bool
 Logging::logTrace(std::string const& partition)
 {
+    if (!gAnyTrace)
+    {
+        // Checking trace in a hot path can get surprisingly hot.
+        return false;
+    }
     auto lev = Logging::getLogLevel(partition);
     return lev == el::Level::Trace;
 }
@@ -290,7 +302,10 @@ Logging::setLogLevel(el::Level level, const char* partition)
     el::Configurations config = gDefaultConf;
 
     if (level == el::Level::Debug)
+    {
+        gAnyDebug = true;
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
+    }
     else if (level == el::Level::Info)
     {
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
@@ -325,6 +340,11 @@ Logging::setLogLevel(el::Level level, const char* partition)
         config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Error, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Fatal, el::ConfigurationType::Enabled, "false");
+    }
+    else if (level == el::Level::Trace)
+    {
+        gAnyDebug = true;
+        gAnyTrace = true;
     }
 
     if (partition)
