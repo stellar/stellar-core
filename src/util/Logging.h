@@ -98,6 +98,8 @@ namespace stellar
 class Logging
 {
     static el::Configurations gDefaultConf;
+    static bool gAnyDebug;
+    static bool gAnyTrace;
 
   public:
     static void init();

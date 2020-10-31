@@ -459,8 +459,11 @@ TCPPeer::startRead()
 
     mIncomingHeader.clear();
 
-    CLOG(DEBUG, "Overlay") << "TCPPeer::startRead " << mSocket->in_avail()
-                           << " from " << toString();
+    if (Logging::logDebug("Overlay"))
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer::startRead " << mSocket->in_avail()
+                               << " from " << toString();
+    }
 
     mIncomingHeader.resize(HDRSZ);
 
