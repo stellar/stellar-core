@@ -53,7 +53,7 @@ class PeerBareAddress
         return mPort;
     }
 
-    std::string toString() const;
+    std::string const& toString() const;
 
     bool isPrivate() const;
     bool isLocalhost() const;
@@ -66,5 +66,6 @@ class PeerBareAddress
     Type mType;
     std::string mIP;
     unsigned short mPort;
+    std::string mStringValue;
 };
 }
