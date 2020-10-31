@@ -193,7 +193,7 @@ Peer::sendAuth()
     sendMessage(msg);
 }
 
-std::string
+std::string const&
 Peer::toString()
 {
     return mAddress.toString();

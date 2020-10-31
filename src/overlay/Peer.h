@@ -285,7 +285,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mPeerMetrics;
     }
 
-    std::string toString();
+    std::string const& toString();
     virtual std::string getIP() const = 0;
 
     virtual size_t
