@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/TCPPeer.h"
+#include "crypto/CryptoError.h"
 #include "crypto/Curve25519.h"
 #include "database/Database.h"
 #include "main/Application.h"
