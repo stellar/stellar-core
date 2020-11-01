@@ -81,6 +81,11 @@ struct OverlayStreamKey
     opaque key[32];
 };
 
+struct AEADInitHeader
+{
+    opaque header[24];
+};
+
 struct HmacSha256Mac
 {
     opaque mac[32];

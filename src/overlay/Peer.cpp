@@ -23,6 +23,7 @@
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyManager.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -456,14 +457,46 @@ Peer::sendMessage(StellarMessage const& msg, bool log)
     };
 
     AuthenticatedMessage amsg;
-    amsg.v0().message = msg;
-    if (msg.type() != HELLO && msg.type() != ERROR_MSG)
+    if (mRemoteOverlayVersion >= 16)
     {
-        ZoneNamedN(hmacZone, "message HMAC", true);
-        amsg.v0().sequence = mSendMacSeq;
-        amsg.v0().mac =
-            hmacSha256(mSendStreamKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
-        ++mSendMacSeq;
+        switch (msg.type())
+        {
+        case HELLO:
+        case ERROR_MSG:
+            amsg.v(0);
+            amsg.v0().message = msg;
+            break;
+        case AUTH:
+        {
+            ZoneNamedN(aeadZone1, "message AEAD", true);
+            amsg.v(1);
+            mSendSecStream.init(mSendStreamKey, amsg.v1().init);
+            mSendSecStream.encryptNext(xdr::xdr_to_opaque(msg),
+                                       amsg.v1().aeadMessage);
+            break;
+        }
+        default:
+        {
+            ZoneNamedN(aeadZone2, "message AEAD", true);
+            amsg.v(2);
+            mSendSecStream.encryptNext(xdr::xdr_to_opaque(msg),
+                                       amsg.v2().aeadMessage);
+            break;
+        }
+        }
+    }
+    else
+    {
+        amsg.v(0);
+        amsg.v0().message = msg;
+        if (msg.type() != HELLO && msg.type() != ERROR_MSG)
+        {
+            ZoneNamedN(hmacZone, "message HMAC", true);
+            amsg.v0().sequence = mSendMacSeq;
+            amsg.v0().mac = hmacSha256(mSendStreamKey,
+                                       xdr::xdr_to_opaque(mSendMacSeq, msg));
+            ++mSendMacSeq;
+        }
     }
     xdr::msg_ptr xdrBytes;
     {
@@ -538,28 +571,128 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         return;
     }
 
-    if (mState >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
+    try
     {
-        if (msg.v0().sequence != mRecvMacSeq)
+        switch (msg.v())
         {
-            ++mRecvMacSeq;
-            sendErrorAndDrop(ERR_AUTH, "unexpected auth sequence",
-                             DropMode::IGNORE_WRITE_QUEUE);
-            return;
-        }
 
-        if (!hmacSha256Verify(
-                msg.v0().mac, mRecvStreamKey,
-                xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
+        case 0:
         {
-            ++mRecvMacSeq;
-            sendErrorAndDrop(ERR_AUTH, "unexpected MAC",
-                             DropMode::IGNORE_WRITE_QUEUE);
-            return;
+            // Plaintext message, possibly HMAC-authenticated. Authenticate
+            // unless HELLO or ERROR which are always unauthenticated.
+            if (mState >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG &&
+                msg.v0().message.type() != HELLO)
+            {
+                //  Plaintext+HMAC auth is only legal pre overlay v16.
+                if (mRemoteOverlayVersion >= 16)
+                {
+                    sendErrorAndDrop(ERR_AUTH,
+                                     fmt::format("HMAC-authenticated message "
+                                                 "received in overlay v{}",
+                                                 mRemoteOverlayVersion),
+                                     DropMode::IGNORE_WRITE_QUEUE);
+                    return;
+                }
+                if (msg.v0().sequence != mRecvMacSeq)
+                {
+                    ++mRecvMacSeq;
+                    sendErrorAndDrop(ERR_AUTH, "unexpected auth sequence",
+                                     DropMode::IGNORE_WRITE_QUEUE);
+                    return;
+                }
+                if (!hmacSha256Verify(msg.v0().mac, mRecvStreamKey,
+                                      xdr::xdr_to_opaque(msg.v0().sequence,
+                                                         msg.v0().message)))
+                {
+                    ++mRecvMacSeq;
+                    sendErrorAndDrop(ERR_AUTH, "unexpected MAC",
+                                     DropMode::IGNORE_WRITE_QUEUE);
+                    return;
+                }
+                ++mRecvMacSeq;
+            }
+            recvMessage(msg.v0().message);
         }
-        ++mRecvMacSeq;
+        break;
+
+        case 1:
+        {
+            // AEAD+init ciphertext message, AEADInitHeader-carrying variant,
+            // just for AUTH. Used at-and-after overlay v16. Decrypt (and
+            // authenticate) only if in GOT_HELLO state.
+            if (mState != GOT_HELLO)
+            {
+                sendErrorAndDrop(
+                    ERR_AUTH,
+                    fmt::format("AEAD+init message received in state {}",
+                                mState),
+                    DropMode::IGNORE_WRITE_QUEUE);
+                return;
+            }
+            if (mRemoteOverlayVersion < 16)
+            {
+                sendErrorAndDrop(
+                    ERR_AUTH,
+                    fmt::format("AEAD+init message received in overlay v{}",
+                                mRemoteOverlayVersion),
+                    DropMode::IGNORE_WRITE_QUEUE);
+            }
+            mRecvSecStream.init(mRecvStreamKey, msg.v1().init);
+            mRecvSecStream.decryptNext(msg.v1().aeadMessage, mPlainTextBuf);
+            StellarMessage dmsg;
+            xdr::xdr_from_opaque(mPlainTextBuf, dmsg);
+            recvMessage(dmsg);
+        }
+        break;
+
+        case 2:
+        {
+            // AEAD ciphertext message, Used at-and-after overlay v16. Decrypt
+            // (and authenticate) only if in GOT_AUTH state.
+            if (mState != GOT_AUTH)
+            {
+                sendErrorAndDrop(
+                    ERR_AUTH,
+                    fmt::format("AEAD message received in state {}", mState),
+                    DropMode::IGNORE_WRITE_QUEUE);
+                return;
+            }
+            if (mRemoteOverlayVersion < 16)
+            {
+                sendErrorAndDrop(
+                    ERR_AUTH,
+                    fmt::format("AEAD message received in overlay v{}",
+                                mRemoteOverlayVersion),
+                    DropMode::IGNORE_WRITE_QUEUE);
+            }
+            mRecvSecStream.decryptNext(msg.v2().aeadMessage, mPlainTextBuf);
+            StellarMessage dmsg;
+            xdr::xdr_from_opaque(mPlainTextBuf, dmsg);
+            recvMessage(dmsg);
+        }
+        break;
+
+        default:
+            releaseAssert(false);
+            break;
+        }
     }
-    recvMessage(msg.v0().message);
+    catch (CryptoError& e)
+    {
+        CLOG(ERROR, "Overlay")
+            << "received message with bad authentication " << e.what();
+        drop("unexpected MAC", Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        return;
+    }
+    catch (xdr::xdr_runtime_error& e)
+    {
+        CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
+        drop("received corrupted message",
+             Peer::DropDirection::WE_DROPPED_REMOTE,
+             Peer::DropMode::IGNORE_WRITE_QUEUE);
+        return;
+    }
 }
 
 void
@@ -1072,7 +1205,6 @@ Peer::recvHello(Hello const& elo)
                                                   mRecvNonce, mRole);
     mRecvStreamKey = peerAuth.getReceivingStreamKey(elo.cert.pubkey, mSendNonce,
                                                     mRecvNonce, mRole);
-
     mState = GOT_HELLO;
 
     auto ip = getIP();
@@ -1186,20 +1318,14 @@ Peer::recvAuth(StellarMessage const& msg)
     ZoneScoped;
     if (mState != GOT_HELLO)
     {
-        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
-                         DropMode::IGNORE_WRITE_QUEUE);
-        return;
-    }
-
-    if (isAuthenticated())
-    {
-        sendErrorAndDrop(ERR_MISC, "out-of-order AUTH message",
-                         DropMode::IGNORE_WRITE_QUEUE);
+        sendErrorAndDrop(
+            ERR_MISC,
+            fmt::format("out-of-order AUTH message in state {}", mState),
+            DropMode::IGNORE_WRITE_QUEUE);
         return;
     }
 
     mState = GOT_AUTH;
-
     if (mRole == REMOTE_CALLED_US)
     {
         sendAuth();
