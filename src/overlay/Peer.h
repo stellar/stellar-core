@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
+#include "crypto/SecretStream.h"
 #include "database/Database.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
@@ -123,8 +124,15 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     OverlayStreamKey mSendStreamKey;
     OverlayStreamKey mRecvStreamKey;
+
+    // HMAC sequences for overlay v15 and below.
     uint64_t mSendMacSeq{0};
     uint64_t mRecvMacSeq{0};
+
+    // AEAD stream states for overlay v16 and above.
+    SecretStreamProducer mSendSecStream;
+    SecretStreamConsumer mRecvSecStream;
+    std::vector<uint8_t> mPlainTextBuf;
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayMinVersion;

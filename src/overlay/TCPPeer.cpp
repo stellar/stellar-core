@@ -683,8 +683,9 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
 
     if (mState != GOT_AUTH)
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
-                               << mState << " we called:" << mRole;
+        CLOG(DEBUG, "Overlay")
+            << "TCPPeer::drop " << toString() << " in state " << mState
+            << ", role:" << mRole << ", reason: " << reason;
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
