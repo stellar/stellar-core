@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/Curve25519.h"
+#include "crypto/CryptoError.h"
 #include "crypto/SHA.h"
 #include "util/HashOfHash.h"
 #include <Tracy.hpp>
