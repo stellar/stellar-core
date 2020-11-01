@@ -462,7 +462,7 @@ Peer::sendMessage(StellarMessage const& msg, bool log)
         ZoneNamedN(hmacZone, "message HMAC", true);
         amsg.v0().sequence = mSendMacSeq;
         amsg.v0().mac =
-            hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
+            hmacSha256(mSendStreamKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
         ++mSendMacSeq;
     }
     xdr::msg_ptr xdrBytes;
@@ -549,7 +549,7 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         }
 
         if (!hmacSha256Verify(
-                msg.v0().mac, mRecvMacKey,
+                msg.v0().mac, mRecvStreamKey,
                 xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
         {
             ++mRecvMacSeq;
@@ -1068,10 +1068,10 @@ Peer::recvHello(Hello const& elo)
     mRecvNonce = elo.nonce;
     mSendMacSeq = 0;
     mRecvMacSeq = 0;
-    mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
-                                            mRecvNonce, mRole);
-    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
-                                              mRecvNonce, mRole);
+    mSendStreamKey = peerAuth.getSendingStreamKey(elo.cert.pubkey, mSendNonce,
+                                                  mRecvNonce, mRole);
+    mRecvStreamKey = peerAuth.getReceivingStreamKey(elo.cert.pubkey, mSendNonce,
+                                                    mRecvNonce, mRole);
 
     mState = GOT_HELLO;
 

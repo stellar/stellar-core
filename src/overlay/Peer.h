@@ -121,8 +121,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint256 mSendNonce;
     uint256 mRecvNonce;
 
-    HmacSha256Key mSendMacKey;
-    HmacSha256Key mRecvMacKey;
+    OverlayStreamKey mSendStreamKey;
+    OverlayStreamKey mRecvStreamKey;
     uint64_t mSendMacSeq{0};
     uint64_t mRecvMacSeq{0};
 
