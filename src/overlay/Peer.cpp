@@ -5,6 +5,7 @@
 #include "overlay/Peer.h"
 
 #include "BanManager.h"
+#include "crypto/CryptoError.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
