@@ -73,7 +73,7 @@ SHA256::finish()
 
 // HMAC-SHA256
 HmacSha256Mac
-hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
+hmacSha256(OverlayStreamKey const& key, ByteSlice const& bin)
 {
     ZoneScoped;
     HmacSha256Mac out;
@@ -86,7 +86,7 @@ hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
 }
 
 bool
-hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
+hmacSha256Verify(HmacSha256Mac const& hmac, OverlayStreamKey const& key,
                  ByteSlice const& bin)
 {
     ZoneScoped;
@@ -95,26 +95,26 @@ hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
 }
 
 // Unsalted HKDF-extract(bytes) == HMAC(<zero>,bytes)
-HmacSha256Key
+OverlayStreamKey
 hkdfExtract(ByteSlice const& bin)
 {
     ZoneScoped;
-    HmacSha256Key zerosalt;
+    OverlayStreamKey zerosalt;
     auto mac = hmacSha256(zerosalt, bin);
-    HmacSha256Key key;
+    OverlayStreamKey key;
     key.key = mac.mac;
     return key;
 }
 
 // Single-step HKDF-expand(key,bytes) == HMAC(key,bytes|0x1)
-HmacSha256Key
-hkdfExpand(HmacSha256Key const& key, ByteSlice const& bin)
+OverlayStreamKey
+hkdfExpand(OverlayStreamKey const& key, ByteSlice const& bin)
 {
     ZoneScoped;
     std::vector<uint8_t> bytes(bin.begin(), bin.end());
     bytes.push_back(1);
     auto mac = hmacSha256(key, bytes);
-    HmacSha256Key out;
+    OverlayStreamKey out;
     out.key = mac.mac;
     return out;
 }

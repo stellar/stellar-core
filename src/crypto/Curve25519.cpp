@@ -47,7 +47,7 @@ clearCurve25519Keys(Curve25519Public& localPublic,
     sodium_memzero(localSecret.key.data(), localSecret.key.size());
 }
 
-HmacSha256Key
+OverlayStreamKey
 curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
                           Curve25519Public const& localPublic,
                           Curve25519Public const& remotePublic, bool localFirst)

@@ -71,8 +71,13 @@ struct Curve25519Public
     opaque key[32];
 };
 
-struct HmacSha256Key
+struct OverlayStreamKey
 {
+    // Key used for overlay message stream. Up to overlay v15 this is an
+    // HMAC-SHA256 key; at overlay v16 it is an XChaCha20-Poly1305 AEAD
+    // stream key. In both cases it's a 32-byte output from the same
+    // authenticated Curve25519 ECDH exchange -- it doesn't care what it's
+    // generating keys for.
     opaque key[32];
 };
 

@@ -71,7 +71,7 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
     return PubKeyUtils::verifySig(remoteNode, cert.sig, hash);
 }
 
-HmacSha256Key
+OverlayStreamKey
 PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
                        Peer::PeerRole role)
 {
@@ -87,10 +87,10 @@ PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
     return value;
 }
 
-HmacSha256Key
-PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
-                           uint256 const& localNonce,
-                           uint256 const& remoteNonce, Peer::PeerRole role)
+OverlayStreamKey
+PeerAuth::getSendingStreamKey(Curve25519Public const& remotePublic,
+                              uint256 const& localNonce,
+                              uint256 const& remoteNonce, Peer::PeerRole role)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
@@ -113,10 +113,10 @@ PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
     return hkdfExpand(k, buf);
 }
 
-HmacSha256Key
-PeerAuth::getReceivingMacKey(Curve25519Public const& remotePublic,
-                             uint256 const& localNonce,
-                             uint256 const& remoteNonce, Peer::PeerRole role)
+OverlayStreamKey
+PeerAuth::getReceivingStreamKey(Curve25519Public const& remotePublic,
+                                uint256 const& localNonce,
+                                uint256 const& remoteNonce, Peer::PeerRole role)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
