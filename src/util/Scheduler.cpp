@@ -171,6 +171,23 @@ Scheduler::Scheduler(VirtualClock& clock,
     setOverloaded(false);
 }
 
+std::unordered_map<std::string, size_t>
+Scheduler::queueSizes() const
+{
+    std::unordered_map<std::string, size_t> res;
+
+    for (auto const& q : mAllActionQueues)
+    {
+        auto emp = res.emplace(std::make_pair(q.first.first, q.second->size()));
+        // Already exists
+        if (!emp.second)
+        {
+            emp.first->second += q.second->size();
+        }
+    }
+    return res;
+}
+
 void
 Scheduler::trimSingleActionQueue(Qptr q, VirtualClock::time_point now)
 {
@@ -297,7 +314,9 @@ Scheduler::runOne()
             auto updateMaxTotalService = gsl::finally([&]() {
                 mMaxTotalService =
                     std::max(q->totalService(), mMaxTotalService);
+                mCurrentActionType = ActionType::NORMAL_ACTION;
             });
+            mCurrentActionType = q->type();
             q->runNext(mClock, minTotalService);
         }
         return 1;
@@ -321,6 +340,12 @@ Scheduler::getOverloadedDuration() const
         res = std::chrono::seconds{0};
     }
     return res;
+}
+
+Scheduler::ActionType
+Scheduler::currentActionType() const
+{
+    return mCurrentActionType;
 }
 
 #ifdef BUILD_TESTS

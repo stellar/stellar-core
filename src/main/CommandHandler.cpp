@@ -266,6 +266,10 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
                 peerNode["olver"] = (int)peer.second->getRemoteOverlayVersion();
                 peerNode["id"] =
                     mApp.getConfig().toStrKey(peer.first, fullKeys);
+                peerNode["write_queue_size"] =
+                    static_cast<Json::UInt64>(peer.second->getWriteQueueSize());
+                peerNode["write_queue_bytes"] = static_cast<Json::UInt64>(
+                    peer.second->getWriteQueueSizeBytes());
             }
         };
     addAuthenticatedPeers(

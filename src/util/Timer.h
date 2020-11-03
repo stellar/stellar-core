@@ -57,6 +57,8 @@ class VirtualClockEventCompare
                     std::shared_ptr<VirtualClockEvent> b);
 };
 
+extern const std::chrono::seconds SCHEDULER_LATENCY_WINDOW;
+
 class VirtualClock
 {
   public:
@@ -196,7 +198,9 @@ class VirtualClock
                     Scheduler::ActionType type);
 
     size_t getActionQueueSize() const;
+    std::unordered_map<std::string, size_t> getActionQueueSizes() const;
     bool actionQueueIsOverloaded() const;
+    Scheduler::ActionType currentSchedulerActionType() const;
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable

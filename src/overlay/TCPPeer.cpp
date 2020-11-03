@@ -150,10 +150,29 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         return;
     }
 
+    auto& clock = mApp.getClock();
+    auto now = clock.now();
+
+    // There are really _two_ layers of queues, one in Scheduler for actions and
+    // one here for outgoing writes. We enforce a similar load-shedding
+    // discipline here as in Scheduler: if there is more than the scheduler
+    // latency-window worth of material in the write queue, and we're being
+    // asked to add messages that are being generated _from_ a droppable action,
+    // we drop the message rather than enqueue it. This avoids growing our
+    // queues indefinitely.
+    if (clock.currentSchedulerActionType() ==
+            Scheduler::ActionType::DROPPABLE_ACTION &&
+        !mWriteQueue.empty() &&
+        (now - mWriteQueue.front().mEnqueuedTime) > SCHEDULER_LATENCY_WINDOW)
+    {
+        getOverlayMetrics().mMessageDrop.Mark();
+        return;
+    }
+
     assertThreadIsMain();
 
     TimestampedMessage msg;
-    msg.mEnqueuedTime = mApp.getClock().now();
+    msg.mEnqueuedTime = now;
     msg.mMessage = std::move(xdrBytes);
     mWriteQueue.emplace_back(std::move(msg));
 
@@ -225,7 +244,7 @@ TCPPeer::shutdown()
                         << ec2.message();
                 }
             },
-            "TCPPeer: close");
+            std::string("TCPPeer: close ") + self->toString());
     });
 }
 
@@ -427,6 +446,24 @@ void
 TCPPeer::noteFullyReadBody(size_t nbytes)
 {
     receivedBytes(nbytes, true);
+}
+
+size_t
+TCPPeer::getWriteQueueSize() const
+{
+    return mWriteQueue.size();
+}
+
+size_t
+TCPPeer::getWriteQueueSizeBytes() const
+{
+    size_t total = 0;
+    for (auto const& q : mWriteQueue)
+    {
+        total += q.mMessage->raw_size();
+    }
+
+    return total;
 }
 
 void

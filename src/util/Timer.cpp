@@ -18,9 +18,9 @@ namespace stellar
 using namespace std;
 
 static const uint32_t RECENT_CRANK_WINDOW = 1024;
-static const std::chrono::milliseconds CRANK_TIME_SLICE(500);
+static const std::chrono::milliseconds CRANK_TIME_SLICE(10);
 static const size_t CRANK_EVENT_SLICE = 100;
-static const std::chrono::seconds SCHEDULER_LATENCY_WINDOW(5);
+const std::chrono::seconds SCHEDULER_LATENCY_WINDOW(1);
 
 VirtualClock::VirtualClock(Mode mode)
     : mMode(mode)
@@ -415,10 +415,22 @@ VirtualClock::getActionQueueSize() const
     return mActionScheduler->size();
 }
 
+std::unordered_map<std::string, size_t>
+VirtualClock::getActionQueueSizes() const
+{
+    return mActionScheduler->queueSizes();
+}
+
 bool
 VirtualClock::actionQueueIsOverloaded() const
 {
     return mActionScheduler->getOverloadedDuration().count() != 0;
+}
+
+Scheduler::ActionType
+VirtualClock::currentSchedulerActionType() const
+{
+    return mActionScheduler->currentActionType();
 }
 
 void

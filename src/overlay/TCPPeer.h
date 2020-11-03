@@ -82,5 +82,8 @@ class TCPPeer : public Peer
                       DropMode dropMode) override;
 
     std::string getIP() const override;
+
+    size_t getWriteQueueSize() const override;
+    size_t getWriteQueueSizeBytes() const override;
 };
 }
