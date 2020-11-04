@@ -108,9 +108,13 @@ class SCP
                              std::function<bool(SCPEnvelope const&)> const& f,
                              bool forceSelf);
 
-    // iterates through slots, starting from ledgerSeq
+    // iterates through slots, starting from slot startIndex
     void processSlotsAscendingFrom(uint64 startIndex,
                                    std::function<bool(uint64)> const& f);
+
+    // iterates through slots, starting from slot startIndex
+    void processSlotsDescendingFrom(uint64 startIndex,
+                                    std::function<bool(uint64)> const& f);
 
     // returns the latest message from a node
     // or nullptr if not found

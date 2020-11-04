@@ -244,6 +244,21 @@ SCP::processSlotsAscendingFrom(uint64 startingSlot,
     }
 }
 
+void
+SCP::processSlotsDescendingFrom(uint64 startingSlot,
+                                std::function<bool(uint64)> const& f)
+{
+    auto iter = mKnownSlots.upper_bound(startingSlot);
+    while (iter != mKnownSlots.begin())
+    {
+        --iter;
+        if (!f(iter->first))
+        {
+            break;
+        }
+    }
+}
+
 SCPEnvelope const*
 SCP::getLatestMessage(NodeID const& id)
 {
