@@ -5,9 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 // This structure just exists to cache frequently-accessed, overlay-wide
-// (non-peer-specific) metrics. Some of these metrics are subsequently
-// tabulated at a per-peer level for purposes of identifying and
-// disconnecting overloading peers, see LoadManager for details.
+// (non-peer-specific) metrics.
 
 namespace medida
 {

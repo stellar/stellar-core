@@ -15,7 +15,6 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/PeerAuth.h"
@@ -126,7 +125,6 @@ Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
         return;
     }
 
-    LoadManager::PeerContext loadCtx(mApp, mPeerID);
     mLastRead = mApp.getClock().now();
     if (gotFullMessage)
     {
@@ -496,8 +494,6 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     {
         return;
     }
-
-    LoadManager::PeerContext loadCtx(mApp, mPeerID);
 
     try
     {
