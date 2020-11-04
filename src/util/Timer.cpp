@@ -392,7 +392,7 @@ VirtualClock::crank(bool block)
 
 void
 VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
-                         Scheduler::ActionType type)
+                         std::string&& peer, Scheduler::ActionType type)
 {
     std::lock_guard<std::recursive_mutex> lock(mDispatchingMutex);
     if (!mDispatching)
@@ -406,7 +406,8 @@ VirtualClock::postAction(std::function<void()>&& f, std::string&& name,
         mDispatching = true;
         asio::post(mIOContext, []() {});
     }
-    mActionScheduler->enqueue(std::move(name), std::move(f), type);
+    mActionScheduler->enqueue(std::move(name), std::move(peer), std::move(f),
+                              type);
 }
 
 size_t

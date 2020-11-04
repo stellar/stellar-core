@@ -222,6 +222,7 @@ class Application
 
     virtual void postOnMainThread(
         std::function<void()>&& f, std::string&& name,
+        std::string&& peer = std::string(Scheduler::PEER_CURRENT),
         Scheduler::ActionType type = Scheduler::ActionType::NORMAL_ACTION) = 0;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) = 0;

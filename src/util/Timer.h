@@ -195,7 +195,7 @@ class VirtualClock
     time_point next() const;
 
     void postAction(std::function<void()>&& f, std::string&& name,
-                    Scheduler::ActionType type);
+                    std::string&& peer, Scheduler::ActionType type);
 
     size_t getActionQueueSize() const;
     std::unordered_map<std::string, size_t> getActionQueueSizes() const;

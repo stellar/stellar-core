@@ -77,6 +77,7 @@ class ApplicationImpl : public Application
 
     virtual asio::io_context& getWorkerIOContext() override;
     virtual void postOnMainThread(std::function<void()>&& f, std::string&& name,
+                                  std::string&& peer,
                                   Scheduler::ActionType type) override;
     virtual void postOnBackgroundThread(std::function<void()>&& f,
                                         std::string jobName) override;

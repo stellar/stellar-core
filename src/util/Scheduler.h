@@ -109,6 +109,8 @@ class VirtualClock;
 class Scheduler
 {
   public:
+    static const std::string PEER_SELF;
+    static const std::string PEER_CURRENT;
     using Action = std::function<void()>;
     enum class ActionType
     {
@@ -206,11 +208,17 @@ class Scheduler
     // action is running. This can be retrieved through currentActionType().
     ActionType mCurrentActionType{ActionType::NORMAL_ACTION};
 
+    // Records the peer responsible for the currently-executing action, or else
+    // Scheduler::PEER_SELF if no action is running.
+    std::string mCurrentActionPeer{PEER_SELF};
+
   public:
     Scheduler(VirtualClock& clock, std::chrono::nanoseconds latencyWindow);
 
-    // Adds an action to the named ActionQueue with a given type.
-    void enqueue(std::string&& name, Action&& action, ActionType type);
+    // Adds an action to the named ActionQueue with a given type, assigning
+    // blame for the Action to the given peer.
+    void enqueue(std::string&& name, std::string&& peer, Action&& action,
+                 ActionType type);
 
     // Runs 0 or 1 action from the next ActionQueue in the queue-of-queues.
     size_t runOne();

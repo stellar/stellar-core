@@ -1036,6 +1036,7 @@ ApplicationImpl::getWorkerIOContext()
 
 void
 ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
+                                  std::string&& peer,
                                   Scheduler::ActionType type)
 {
     LogSlowExecution isSlow{name, LogSlowExecution::Mode::MANUAL,
@@ -1045,7 +1046,7 @@ ApplicationImpl::postOnMainThread(std::function<void()>&& f, std::string&& name,
             mPostOnMainThreadDelay.Update(isSlow.checkElapsedTime());
             f();
         },
-        std::move(name), type);
+        std::move(name), std::move(peer), type);
 }
 
 void

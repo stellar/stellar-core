@@ -790,7 +790,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                 CLOG(TRACE, "Overlay") << err;
             }
         },
-        fmt::format("{} recvMessage from {}", cat, toString()), type);
+        /*name=*/fmt::format("{} recvMessage from {}", cat, toString()),
+        /*peer=*/std::string(toString()), /*type=*/type);
 }
 
 void

@@ -12,15 +12,21 @@ namespace stellar
 {
 using nsecs = std::chrono::nanoseconds;
 
+const std::string Scheduler::PEER_SELF = "self";
+const std::string Scheduler::PEER_CURRENT = "current";
+
 class Scheduler::ActionQueue
     : public std::enable_shared_from_this<Scheduler::ActionQueue>
 {
     struct Element
     {
         Action mAction;
+        std::string mPeer;
         VirtualClock::time_point mEnqueueTime;
-        Element(VirtualClock& clock, Action&& action)
-            : mAction(std::move(action)), mEnqueueTime(clock.now())
+        Element(VirtualClock& clock, std::string&& peer, Action&& action)
+            : mAction(std::move(action))
+            , mPeer(std::move(peer))
+            , mEnqueueTime(clock.now())
         {
         }
     };
@@ -134,9 +140,9 @@ class Scheduler::ActionQueue
     }
 
     void
-    enqueue(VirtualClock& clock, Action&& action)
+    enqueue(VirtualClock& clock, std::string&& peer, Action&& action)
     {
-        auto elt = Element(clock, std::move(action));
+        auto elt = Element(clock, std::move(peer), std::move(action));
         mActions.emplace_back(std::move(elt));
     }
 
@@ -168,6 +174,7 @@ Scheduler::Scheduler(VirtualClock& clock,
     , mClock(clock)
     , mLatencyWindow(latencyWindow)
 {
+
     setOverloaded(false);
 }
 
@@ -226,7 +233,8 @@ Scheduler::setOverloaded(bool overloaded)
 }
 
 void
-Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
+Scheduler::enqueue(std::string&& name, std::string&& peer, Action&& action,
+                   ActionType type)
 {
     auto key = std::make_pair(name, type);
     auto qi = mAllActionQueues.find(key);
@@ -248,7 +256,10 @@ Scheduler::enqueue(std::string&& name, Action&& action, ActionType type)
         }
     }
     mStats.mActionsEnqueued++;
-    qi->second->enqueue(mClock, std::move(action));
+    qi->second->enqueue(mClock,
+                        (peer == PEER_CURRENT ? std::string(mCurrentActionPeer)
+                                              : std::move(peer)),
+                        std::move(action));
     mSize += 1;
 }
 
@@ -311,10 +322,12 @@ Scheduler::runOne()
             auto minTotalService = mMaxTotalService - mLatencyWindow;
             mSize -= 1;
             mStats.mActionsDequeued++;
+            std::string prevActionPeer = mCurrentActionPeer;
             auto updateMaxTotalService = gsl::finally([&]() {
                 mMaxTotalService =
                     std::max(q->totalService(), mMaxTotalService);
                 mCurrentActionType = ActionType::NORMAL_ACTION;
+                mCurrentActionPeer = prevActionPeer;
             });
             mCurrentActionType = q->type();
             q->runNext(mClock, minTotalService);
