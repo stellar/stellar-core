@@ -294,6 +294,27 @@ HerderImpl::outOfSyncRecovery()
     {
         return;
     }
+
+    // see if we can shed some data as to speed up recovery
+    uint32_t maxSlotsAhead = Herder::LEDGER_VALIDITY_BRACKET;
+    uint32 purgeSlot = 0;
+    getSCP().processSlotsDescendingFrom(
+        std::numeric_limits<uint64>::max(), [&](uint64 seq) {
+            if (getSCP().gotVBlocking(seq))
+            {
+                if (--maxSlotsAhead == 0)
+                {
+                    purgeSlot = static_cast<uint32>(seq);
+                }
+            }
+            return maxSlotsAhead != 0;
+        });
+    if (purgeSlot)
+    {
+        CLOG(INFO, "Herder") << "Purging slots older than " << purgeSlot;
+        getHerderSCPDriver().purgeSlots(purgeSlot);
+        mPendingEnvelopes.eraseBelow(purgeSlot);
+    }
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
     {
