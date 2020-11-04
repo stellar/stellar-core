@@ -866,13 +866,13 @@ HerderImpl::ledgerClosed(bool synchronous)
         }
         getHerderSCPDriver().purgeSlots(minSlotToRemember);
         mPendingEnvelopes.eraseBelow(minSlotToRemember);
+
+        auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+        mApp.getOverlayManager().clearLedgersBelow(minSlotToRemember,
+                                                   lastIndex);
     }
 
-    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-
     mPendingEnvelopes.slotClosed(lastIndex);
-
-    mApp.getOverlayManager().ledgerClosed(lastIndex);
 
     maybeTriggerNextLedger(synchronous);
 }
