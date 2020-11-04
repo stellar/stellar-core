@@ -174,6 +174,20 @@ SCP::isSlotFullyValidated(uint64 slotIndex)
     }
 }
 
+bool
+SCP::gotVBlocking(uint64 slotIndex)
+{
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
+        return slot->gotVBlocking();
+    }
+    else
+    {
+        return false;
+    }
+}
+
 size_t
 SCP::getKnownSlotsCount() const
 {

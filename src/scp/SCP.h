@@ -86,6 +86,9 @@ class SCP
     // returns the validation state of the given slot
     bool isSlotFullyValidated(uint64 slotIndex);
 
+    // returns if we received messages from a v-blocking set
+    bool gotVBlocking(uint64 slotIndex);
+
     // Helpers for monitoring and reporting the internal memory-usage of the SCP
     // protocol to system metric reporters.
     size_t getKnownSlotsCount() const;
