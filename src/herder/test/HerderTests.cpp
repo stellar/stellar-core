@@ -2483,15 +2483,7 @@ TEST_CASE("slot herder policy", "[herder]")
     }
     REQUIRE(herder.getState() == Herder::HERDER_TRACKING_STATE);
     REQUIRE(herder.getSCP().getKnownSlotsCount() == LIMIT);
-    auto const PARTIAL = LIMIT * 4;
 
-    // create a gap
-    auto newSeq = app->getLedgerManager().getLastClosedLedgerNum() + 2;
-    for (uint32 i = 0; i < PARTIAL; ++i)
-    {
-        auto prev = app->getLedgerManager().getLastClosedLedgerHeader().hash;
-        recvExternPeers(newSeq++, prev, false);
-    }
     auto oneSec = std::chrono::seconds(1);
     // let the node go out of sync, it should reach the desired state
     timeout = clock.now() + Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS + oneSec;
@@ -2500,19 +2492,31 @@ TEST_CASE("slot herder policy", "[herder]")
         clock.crank(false);
         REQUIRE(clock.now() < timeout);
     }
+
+    auto const PARTIAL = Herder::LEDGER_VALIDITY_BRACKET;
+    // create a gap
+    auto newSeq = app->getLedgerManager().getLastClosedLedgerNum() + 2;
+    for (uint32 i = 0; i < PARTIAL; ++i)
+    {
+        auto prev = app->getLedgerManager().getLastClosedLedgerHeader().hash;
+        // advance clock to ensure that ct is valid
+        clock.sleep_for(oneSec);
+        recvExternPeers(newSeq++, prev, false);
+    }
     REQUIRE(herder.getSCP().getKnownSlotsCount() == (LIMIT + PARTIAL));
 
     timeout = clock.now() + Herder::OUT_OF_SYNC_RECOVERY_TIMER + oneSec;
-    while (herder.getSCP().getKnownSlotsCount() != (2 * LIMIT + 1))
+    while (herder.getSCP().getKnownSlotsCount() !=
+           Herder::LEDGER_VALIDITY_BRACKET)
     {
-        clock.sleep_for(std::chrono::seconds(1));
+        clock.sleep_for(oneSec);
         clock.crank(false);
         REQUIRE(clock.now() < timeout);
     }
 
     Hash prevHash;
     // add a bunch more - not v-blocking
-    for (uint32 i = 0; i < PARTIAL; ++i)
+    for (uint32 i = 0; i < LIMIT; ++i)
     {
         recvExternalize(v1SecretKey, newSeq++, prevHash);
     }
@@ -2521,20 +2525,20 @@ TEST_CASE("slot herder policy", "[herder]")
         timeout = clock.now() + Herder::OUT_OF_SYNC_RECOVERY_TIMER + oneSec;
         while (clock.now() < timeout)
         {
-            clock.sleep_for(std::chrono::seconds(1));
+            clock.sleep_for(oneSec);
             clock.crank(false);
         }
     };
 
     waitForRecovery();
-    auto const FULLSLOTS = 2 * LIMIT + 1 + PARTIAL;
+    auto const FULLSLOTS = Herder::LEDGER_VALIDITY_BRACKET + LIMIT;
     REQUIRE(herder.getSCP().getKnownSlotsCount() == FULLSLOTS);
 
     // now inject a few more, policy should apply here, with
     // partial in between
     // lower slots getting dropped so the total number of slots in memory is
     // constant
-    auto cutOff = 2 * LIMIT;
+    auto cutOff = Herder::LEDGER_VALIDITY_BRACKET - 1;
     for (uint32 i = 0; i < cutOff; ++i)
     {
         recvExternPeers(newSeq++, prevHash, false);
@@ -2544,5 +2548,6 @@ TEST_CASE("slot herder policy", "[herder]")
     // adding one more, should get rid of the partial slots
     recvExternPeers(newSeq++, prevHash, false);
     waitForRecovery();
-    REQUIRE(herder.getSCP().getKnownSlotsCount() == (2 * LIMIT + 1));
+    REQUIRE(herder.getSCP().getKnownSlotsCount() ==
+            Herder::LEDGER_VALIDITY_BRACKET);
 }
