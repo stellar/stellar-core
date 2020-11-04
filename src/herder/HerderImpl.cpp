@@ -502,15 +502,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    if (!verifyEnvelope(envelope))
-    {
-        std::string txt("DISCARDED - bad envelope");
-        ZoneText(txt.c_str(), txt.size());
-        CLOG(TRACE, "Herder") << "Received bad envelope, discarding";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
-    }
-
     mSCPMetrics.mEnvelopeReceive.Mark();
+
+    // **** first perform checks that do NOT require signature verification
+    // this allows to fast fail messages that we'd throw away anyways
 
     uint32_t minLedgerSeq = getMinLedgerSeqToRemember();
     uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
@@ -563,6 +558,15 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
         std::string txt("DISCARDED - out of range");
         ZoneText(txt.c_str(), txt.size());
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
+    // **** from this point, we have to check signatures
+    if (!verifyEnvelope(envelope))
+    {
+        std::string txt("DISCARDED - bad envelope");
+        ZoneText(txt.c_str(), txt.size());
+        CLOG(TRACE, "Herder") << "Received bad envelope, discarding";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
