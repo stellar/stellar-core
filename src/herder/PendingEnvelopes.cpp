@@ -699,7 +699,7 @@ PendingEnvelopes::stopAllBelow(uint64 slotIndex)
 }
 
 void
-PendingEnvelopes::slotClosed(uint64 slotIndex)
+PendingEnvelopes::forceRebuildQuorum()
 {
     // force recomputing the transitive quorum
     mRebuildQuorum = true;

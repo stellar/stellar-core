@@ -176,7 +176,7 @@ class PendingEnvelopes
     // counts partially downloaded data towards the cost for that slot
     void stopAllBelow(uint64 slotIndex);
 
-    void slotClosed(uint64 slotIndex);
+    void forceRebuildQuorum();
 
     std::vector<uint64> readySlots();
 

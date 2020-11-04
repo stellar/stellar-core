@@ -872,9 +872,7 @@ HerderImpl::ledgerClosed(bool synchronous)
         mApp.getOverlayManager().clearLedgersBelow(minSlotToRemember,
                                                    lastIndex);
     }
-
-    mPendingEnvelopes.slotClosed(lastIndex);
-
+    mPendingEnvelopes.forceRebuildQuorum();
     maybeTriggerNextLedger(synchronous);
 }
 
