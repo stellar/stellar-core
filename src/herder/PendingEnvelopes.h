@@ -169,7 +169,12 @@ class PendingEnvelopes
 
     SCPEnvelopeWrapperPtr pop(uint64 slotIndex);
 
+    // erases data for all slots strictly below `slotIndex`
     void eraseBelow(uint64 slotIndex);
+
+    // stops all pending downloads for slots strictly below `slotIndex`
+    // counts partially downloaded data towards the cost for that slot
+    void stopAllBelow(uint64 slotIndex);
 
     void slotClosed(uint64 slotIndex);
 

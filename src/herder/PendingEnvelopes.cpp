@@ -678,6 +678,24 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 }
 
 void
+PendingEnvelopes::stopAllBelow(uint64 slotIndex)
+{
+    // Before we purge a slot, check if any envelopes are still in
+    // "fetching" mode and attempt to record cost
+    for (auto it = mEnvelopes.begin();
+         it != mEnvelopes.end() && it->first < slotIndex; it++)
+    {
+        auto& envs = it->second;
+        for (auto const& env : envs.mFetchingEnvelopes)
+        {
+            recordReceivedCost(env.first);
+        }
+    }
+    mTxSetFetcher.stopFetchingBelow(slotIndex);
+    mQuorumSetFetcher.stopFetchingBelow(slotIndex);
+}
+
+void
 PendingEnvelopes::slotClosed(uint64 slotIndex)
 {
     // force recomputing the transitive quorum
@@ -689,23 +707,8 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
     if (slotIndex > maxSlots)
     {
         slotIndex -= maxSlots;
-
-        // Before we purge a slot, check if any envelopes are still in
-        // "fetching" mode and attempt to record cost
-        auto it = mEnvelopes.find(slotIndex);
-        if (it != mEnvelopes.end())
-        {
-            for (auto const& env : it->second.mFetchingEnvelopes)
-            {
-                recordReceivedCost(env.first);
-            }
-        }
-
+        stopAllBelow(slotIndex + 1);
         mEnvelopes.erase(slotIndex);
-
-        mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
-        mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
-
         mTxSetCache.erase_if(
             [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
     }

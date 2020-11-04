@@ -861,12 +861,13 @@ HerderImpl::ledgerClosed(bool synchronous)
         // report any outliers for the most recent slot to purge
         if (mLedgerManager.isSynced())
         {
+            // stop early as to properly update cost for slots
+            mPendingEnvelopes.stopAllBelow(minSlotToRemember);
             getHerderSCPDriver().reportCostOutliersForSlot(
                 minSlotToRemember - 1, true);
         }
         getHerderSCPDriver().purgeSlots(minSlotToRemember);
         mPendingEnvelopes.eraseBelow(minSlotToRemember);
-
         auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
         mApp.getOverlayManager().clearLedgersBelow(minSlotToRemember,
                                                    lastIndex);
