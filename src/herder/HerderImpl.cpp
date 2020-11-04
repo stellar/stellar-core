@@ -246,20 +246,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
             mPendingEnvelopes.getTxSet(value.txSetHash);
         updateTransactionQueue(externalizedSet->mTransactions);
 
-        // Evict slots that are outside of our ledger validity bracket
-        auto minSlotToRemember = getMinLedgerSeqToRemember();
-        if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
-        {
-            // report any outliers for the most recent slot to purge
-            if (mLedgerManager.isSynced())
-            {
-                getHerderSCPDriver().reportCostOutliersForSlot(
-                    minSlotToRemember - 1, true);
-            }
-            getHerderSCPDriver().purgeSlots(minSlotToRemember);
-            mPendingEnvelopes.eraseBelow(minSlotToRemember);
-        }
-
         ledgerClosed(false);
 
         // Check to see if quorums have changed and we need to reanalyze.
@@ -867,6 +853,20 @@ HerderImpl::ledgerClosed(bool synchronous)
     mTriggerTimer.cancel();
 
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
+
+    // Evict slots that are outside of our ledger validity bracket
+    auto minSlotToRemember = getMinLedgerSeqToRemember();
+    if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        // report any outliers for the most recent slot to purge
+        if (mLedgerManager.isSynced())
+        {
+            getHerderSCPDriver().reportCostOutliersForSlot(
+                minSlotToRemember - 1, true);
+        }
+        getHerderSCPDriver().purgeSlots(minSlotToRemember);
+        mPendingEnvelopes.eraseBelow(minSlotToRemember);
+    }
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
 
