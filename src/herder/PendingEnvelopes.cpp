@@ -658,7 +658,7 @@ PendingEnvelopes::readySlots()
 void
 PendingEnvelopes::eraseBelow(uint64 slotIndex)
 {
-    stopAllBelow(slotIndex + 1);
+    stopAllBelow(slotIndex);
 
     for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
     {
