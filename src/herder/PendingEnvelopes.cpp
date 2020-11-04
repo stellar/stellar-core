@@ -658,6 +658,8 @@ PendingEnvelopes::readySlots()
 void
 PendingEnvelopes::eraseBelow(uint64 slotIndex)
 {
+    stopAllBelow(slotIndex + 1);
+
     for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
     {
         if (iter->first < slotIndex)
@@ -674,6 +676,7 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
         return i.first != 0 && i.first < slotIndex;
     });
 
+    cleanKnownData();
     updateMetrics();
 }
 
@@ -700,21 +703,6 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
 {
     // force recomputing the transitive quorum
     mRebuildQuorum = true;
-
-    // stop processing envelopes & downloads for the slot falling off the
-    // window
-    auto maxSlots = mApp.getConfig().MAX_SLOTS_TO_REMEMBER;
-    if (slotIndex > maxSlots)
-    {
-        slotIndex -= maxSlots;
-        stopAllBelow(slotIndex + 1);
-        mEnvelopes.erase(slotIndex);
-        mTxSetCache.erase_if(
-            [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
-    }
-
-    cleanKnownData();
-    updateMetrics();
 }
 
 TxSetFramePtr
