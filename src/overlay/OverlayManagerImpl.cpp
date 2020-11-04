@@ -495,8 +495,6 @@ OverlayManagerImpl::tick()
     CLOG(TRACE, "Overlay") << "OverlayManagerImpl tick  @"
                            << mApp.getConfig().PEER_PORT;
 
-    mLoad.maybeShedExcessLoad(mApp);
-
     if (futureIsReady(mResolvedPeers))
     {
         CLOG(TRACE, "Overlay") << "Resolved peers are ready";
@@ -931,12 +929,6 @@ PeerAuth&
 OverlayManagerImpl::getPeerAuth()
 {
     return mAuth;
-}
-
-LoadManager&
-OverlayManagerImpl::getLoadManager()
-{
-    return mLoad;
 }
 
 PeerManager&

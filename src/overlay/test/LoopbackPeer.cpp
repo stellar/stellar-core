@@ -5,8 +5,8 @@
 #include "overlay/test/LoopbackPeer.h"
 #include "crypto/Random.h"
 #include "main/Application.h"
+#include "medida/meter.h"
 #include "medida/timer.h"
-#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/StellarXDR.h"
@@ -251,7 +251,6 @@ LoopbackPeer::deliverOne()
                 },
                 "LoopbackPeer: processInQueue in deliverOne");
         }
-        LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
         getOverlayMetrics().mMessageWrite.Mark();
         getOverlayMetrics().mByteWrite.Mark(nBytes);

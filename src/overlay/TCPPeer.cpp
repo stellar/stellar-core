@@ -11,7 +11,6 @@
 #include "main/ErrorMessages.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
-#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayMetrics.h"
 #include "overlay/PeerManager.h"
@@ -369,7 +368,6 @@ TCPPeer::writeHandler(asio::error_code const& error,
     }
     else if (bytes_transferred != 0)
     {
-        LoadManager::PeerContext loadCtx(mApp, mPeerID);
         getOverlayMetrics().mMessageWrite.Mark(messages_transferred);
         getOverlayMetrics().mByteWrite.Mark(bytes_transferred);
 
