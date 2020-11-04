@@ -637,7 +637,9 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
     ZoneScoped;
     bool log = true;
+    auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
+        bool slotHadData = false;
         getSCP().processCurrentState(seq,
                                      [&](SCPEnvelope const& e) {
                                          StellarMessage m;
@@ -645,10 +647,15 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
                                          m.envelope() = e;
                                          peer->sendMessage(m, log);
                                          log = false;
+                                         slotHadData = true;
                                          return true;
                                      },
                                      false);
-        return true;
+        if (slotHadData)
+        {
+            --maxSlots;
+        }
+        return maxSlots != 0;
     });
 }
 
