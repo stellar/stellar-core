@@ -298,8 +298,7 @@ HerderImpl::outOfSyncRecovery()
     if (purgeSlot)
     {
         CLOG(INFO, "Herder") << "Purging slots older than " << purgeSlot;
-        getHerderSCPDriver().purgeSlots(purgeSlot);
-        mPendingEnvelopes.eraseBelow(purgeSlot);
+        eraseBelow(purgeSlot);
     }
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
@@ -843,6 +842,23 @@ HerderImpl::maybeTriggerNextLedger(bool synchronous)
 }
 
 void
+HerderImpl::eraseBelow(uint32 ledgerSeq)
+{
+    // report any outliers for the most recent slot to purge
+    if (mLedgerManager.isSynced())
+    {
+        // stop early as to properly update cost for slots
+        mPendingEnvelopes.stopAllBelow(ledgerSeq);
+        getHerderSCPDriver().reportCostOutliersForSlot(ledgerSeq - 1, true);
+    }
+    getHerderSCPDriver().purgeSlots(ledgerSeq);
+    mPendingEnvelopes.eraseBelow(ledgerSeq);
+
+    auto lastIndex = getCurrentLedgerSeq();
+    mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
+}
+
+void
 HerderImpl::ledgerClosed(bool synchronous)
 {
     // this method is triggered every time the most recent ledger is
@@ -858,19 +874,7 @@ HerderImpl::ledgerClosed(bool synchronous)
     auto minSlotToRemember = getMinLedgerSeqToRemember();
     if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
     {
-        // report any outliers for the most recent slot to purge
-        if (mLedgerManager.isSynced())
-        {
-            // stop early as to properly update cost for slots
-            mPendingEnvelopes.stopAllBelow(minSlotToRemember);
-            getHerderSCPDriver().reportCostOutliersForSlot(
-                minSlotToRemember - 1, true);
-        }
-        getHerderSCPDriver().purgeSlots(minSlotToRemember);
-        mPendingEnvelopes.eraseBelow(minSlotToRemember);
-        auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-        mApp.getOverlayManager().clearLedgersBelow(minSlotToRemember,
-                                                   lastIndex);
+        eraseBelow(minSlotToRemember);
     }
     mPendingEnvelopes.forceRebuildQuorum();
     maybeTriggerNextLedger(synchronous);
