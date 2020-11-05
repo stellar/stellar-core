@@ -14,6 +14,7 @@
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
+#include <fmt/format.h>
 
 namespace stellar
 {
@@ -112,13 +113,25 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
     bool log = true;
+    std::shared_ptr<StellarMessage> smsg =
+        std::make_shared<StellarMessage>(msg);
     for (auto peer : peers)
     {
         assert(peer.second->isAuthenticated());
         if (peersTold.find(peer.second->toString()) == peersTold.end())
         {
             mSendFromBroadcast.Mark();
-            peer.second->sendMessage(msg, log);
+            std::weak_ptr<Peer> weak(
+                std::static_pointer_cast<Peer>(peer.second));
+            mApp.postOnMainThread(
+                [smsg, weak, log]() {
+                    auto strong = weak.lock();
+                    if (strong)
+                    {
+                        strong->sendMessage(*smsg, log);
+                    }
+                },
+                fmt::format("broadcast to {}", peer.second->toString()));
             peersTold.insert(peer.second->toString());
             log = false;
         }
