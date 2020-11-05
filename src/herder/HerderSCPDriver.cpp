@@ -60,8 +60,6 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewTimer({"scp", "timing", "externalize-lag"}))
     , mExternalizeDelay(
           app.getMetrics().NewTimer({"scp", "timing", "externalize-delay"}))
-    , mCostPerSlot(app.getMetrics().NewHistogram({"scp", "cost", "per-slot"}))
-
 {
 }
 
@@ -1041,18 +1039,16 @@ HerderSCPDriver::recordSCPExternalizeEvent(uint64_t slotIndex, NodeID const& id,
         // Record externalize delay
         if (timing.mSelfExternalize)
         {
-            recordLogTiming(*timing.mSelfExternalize, now,
-                            mSCPMetrics.mExternalizeDelay,
-                            fmt::format("externalize delay ({})",
-                                        mApp.getConfig().toShortString(id)),
-                            std::chrono::nanoseconds::zero(), slotIndex);
+            recordLogTiming(
+                *timing.mSelfExternalize, now, mSCPMetrics.mExternalizeDelay,
+                fmt::format("externalize delay ({})", toShortString(id)),
+                std::chrono::nanoseconds::zero(), slotIndex);
         }
 
         // Record lag for other nodes
         auto& lag = mQSetLag[id];
         recordLogTiming(*timing.mFirstExternalize, now, lag,
-                        fmt::format("externalize lag ({})",
-                                    mApp.getConfig().toShortString(id)),
+                        fmt::format("externalize lag ({})", toShortString(id)),
                         std::chrono::nanoseconds::zero(), slotIndex);
     }
 }
@@ -1120,141 +1116,6 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
                         mSCPMetrics.mPrepareToExternalize, "Prepare", threshold,
                         slotIndex);
     }
-}
-
-static bool
-shouldReportCostOutlier(double possibleOutlierCost, double expectedCost,
-                        double ratioLimit)
-{
-    if (possibleOutlierCost <= 0 || expectedCost <= 0)
-    {
-        CLOG(ERROR, "SCP") << "Unexpected k-means value: must be positive";
-        return false;
-    }
-
-    if (possibleOutlierCost / expectedCost > ratioLimit)
-    {
-        // If we're off by too much from the selected cluster, report the value
-        return true;
-    }
-    return false;
-}
-
-void
-HerderSCPDriver::reportCostOutliersForSlot(int64_t slotIndex,
-                                           bool updateMetrics)
-{
-    ZoneScoped;
-
-    const uint32_t K_MEAN_NUM_CLUSTERS = 3;
-    const double OUTLIER_COST_RATIO_LIMIT = 10;
-
-    auto tracked = mPendingEnvelopes.getCostPerValidator(slotIndex);
-    if (tracked.empty())
-    {
-        return;
-    }
-
-    std::vector<double> myValidatorsTrackedCost;
-    double totalCost = 0;
-
-    for (auto const& t : tracked)
-    {
-        if (t.second > 0)
-        {
-            double cost = static_cast<double>(t.second);
-            myValidatorsTrackedCost.push_back(cost);
-            totalCost += cost;
-        }
-    }
-
-    // Compare each node to other nodes we heard from for this slot
-    // Note: do not include cost from self as it's much smaller and will
-    // likely skew the data
-    if (myValidatorsTrackedCost.size() > 1)
-    {
-        auto numClusters =
-            std::min(static_cast<uint32_t>(myValidatorsTrackedCost.size()),
-                     K_MEAN_NUM_CLUSTERS);
-        auto clusters = k_means(myValidatorsTrackedCost, numClusters);
-
-        if (clusters.empty() || *(clusters.begin()) <= 0)
-        {
-            CLOG(ERROR, "SCP")
-                << "Expected non-empty set of positive cluster centers";
-        }
-        else
-        {
-            Json::Value res;
-            for (auto const& t : tracked)
-            {
-                auto clusterToCompare =
-                    closest_cluster(static_cast<double>(t.second), clusters);
-                auto const smallestCluster = *(clusters.begin());
-                if (shouldReportCostOutlier(clusterToCompare, smallestCluster,
-                                            OUTLIER_COST_RATIO_LIMIT))
-                {
-                    res[mApp.getConfig().toShortString(t.first)] =
-                        static_cast<Json::UInt64>(t.second);
-                }
-            }
-
-            Json::FastWriter fw;
-            if (!res.empty())
-            {
-                CLOG(WARNING, "SCP") << "High validator costs for slot "
-                                     << slotIndex << ": " << fw.write(res);
-            }
-        }
-    }
-
-    if (updateMetrics && totalCost > 0)
-    {
-        mSCPMetrics.mCostPerSlot.Update(static_cast<int64_t>(totalCost));
-    }
-}
-
-Json::Value
-HerderSCPDriver::getJsonValidatorCost(bool summary, bool fullKeys,
-                                      uint64 index) const
-{
-    Json::Value res;
-
-    auto computeTotalAndMaybeFillJson = [&](Json::Value& res, uint64 slot) {
-        auto tracked = mPendingEnvelopes.getCostPerValidator(slot);
-        size_t total = 0;
-        for (auto const& t : tracked)
-        {
-            if (!summary)
-            {
-                res[std::to_string(slot)][toStrKey(t.first, fullKeys)] =
-                    static_cast<Json::UInt64>(t.second);
-            }
-            total += t.second;
-        }
-        return total;
-    };
-
-    // Total for one or all slots
-    size_t summaryTotal = 0;
-    if (index == 0)
-    {
-        for (auto const& scpInfo : mSCPExecutionTimes)
-        {
-            auto slotTotal = computeTotalAndMaybeFillJson(res, scpInfo.first);
-            summaryTotal += slotTotal;
-        }
-    }
-    else
-    {
-        summaryTotal = computeTotalAndMaybeFillJson(res, index);
-    }
-
-    if (summary)
-    {
-        res = static_cast<Json::UInt64>(summaryTotal);
-    }
-    return res;
 }
 
 void

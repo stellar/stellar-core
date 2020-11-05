@@ -1282,7 +1282,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
         ret["qset"]["lag_ms"] =
             getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
         ret["qset"]["cost"] =
-            mHerderSCPDriver.getJsonValidatorCost(summary, fullKeys, index);
+            mPendingEnvelopes.getJsonValidatorCost(summary, fullKeys, index);
     }
     return ret;
 }
@@ -1787,7 +1787,7 @@ HerderImpl::herderOutOfSync()
     auto trackingData = mHerderSCPDriver.lastTrackingSCP();
     if (trackingData)
     {
-        mHerderSCPDriver.reportCostOutliersForSlot(
+        mPendingEnvelopes.reportCostOutliersForSlot(
             trackingData->mConsensusIndex, false);
     }
 
