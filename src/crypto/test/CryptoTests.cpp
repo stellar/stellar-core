@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/Random.h"
@@ -149,6 +150,91 @@ TEST_CASE("SHA256 XDR bench", "[!hide][sha-xdr-bench]")
         for (auto const& e : entries)
         {
             xdrSha256(e);
+        }
+    }
+}
+
+static std::map<std::string, std::string> blake2TestVectors = {
+    {"", "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8"},
+
+    {"a", "8928aae63c84d87ea098564d1e03ad813f107add474e56aedd286349c0c03ea4"},
+
+    {"abc", "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319"},
+
+    {"abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq",
+     "5f7a93da9c5621583f22e49e8e91a40cbba37536622235a380f434b9f68e49c4"}};
+
+TEST_CASE("BLAKE2 tests", "[crypto]")
+{
+    // Do some fixed test vectors.
+    for (auto const& pair : blake2TestVectors)
+    {
+        LOG(DEBUG) << "fixed test vector BLAKE2: \"" << pair.second << "\"";
+
+        auto hash = binToHex(blake2(pair.first));
+        CHECK(hash.size() == pair.second.size());
+        CHECK(hash == pair.second);
+    }
+}
+
+TEST_CASE("Stateful BLAKE2 tests", "[crypto]")
+{
+    // Do some fixed test vectors.
+    for (auto const& pair : blake2TestVectors)
+    {
+        LOG(DEBUG) << "fixed test vector BLAKE2: \"" << pair.second << "\"";
+        BLAKE2 h;
+        h.add(pair.first);
+        auto hash = binToHex(h.finish());
+        CHECK(hash.size() == pair.second.size());
+        CHECK(hash == pair.second);
+    }
+}
+
+TEST_CASE("XDRBLAKE2 is identical to byte BLAKE2", "[crypto]")
+{
+    for (size_t i = 0; i < 1000; ++i)
+    {
+        auto entry = LedgerTestUtils::generateValidLedgerEntry(100);
+        auto bytes_hash = blake2(xdr::xdr_to_opaque(entry));
+        auto stream_hash = xdrBlake2(entry);
+        CHECK(bytes_hash == stream_hash);
+    }
+}
+
+TEST_CASE("BLAKE2 bytes bench", "[!hide][blake-bytes-bench]")
+{
+    shortHash::initialize();
+    autocheck::rng().seed(11111);
+    std::vector<LedgerEntry> entries;
+    for (size_t i = 0; i < 1000; ++i)
+    {
+        entries.emplace_back(LedgerTestUtils::generateValidLedgerEntry(1000));
+    }
+    for (size_t i = 0; i < 10000; ++i)
+    {
+        for (auto const& e : entries)
+        {
+            auto opaque = xdr::xdr_to_opaque(e);
+            blake2(opaque);
+        }
+    }
+}
+
+TEST_CASE("BLAKE2 XDR bench", "[!hide][blake-xdr-bench]")
+{
+    shortHash::initialize();
+    autocheck::rng().seed(11111);
+    std::vector<LedgerEntry> entries;
+    for (size_t i = 0; i < 1000; ++i)
+    {
+        entries.emplace_back(LedgerTestUtils::generateValidLedgerEntry(1000));
+    }
+    for (size_t i = 0; i < 10000; ++i)
+    {
+        for (auto const& e : entries)
+        {
+            xdrBlake2(e);
         }
     }
 }
