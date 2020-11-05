@@ -1065,7 +1065,7 @@ void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
     ZoneScoped;
-    Hash hash = sha256(xdr::xdr_to_opaque(msg.qSet()));
+    Hash hash = xdrSha256(msg.qSet());
     mApp.getHerder().recvSCPQuorumSet(hash, msg.qSet());
 }
 
