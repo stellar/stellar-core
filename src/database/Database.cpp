@@ -186,10 +186,6 @@ Database::Database(Application& app)
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
-    , mExcludedQueryTime(0)
-    , mExcludedTotalTime(0)
-    , mLastIdleQueryTime(0)
-    , mLastIdleTotalTime(app.getClock().now())
 {
     registerDrivers();
 
@@ -723,89 +719,5 @@ std::shared_ptr<SQLLogContext>
 Database::captureAndLogSQL(std::string contextName)
 {
     return make_shared<SQLLogContext>(contextName, mSession);
-}
-
-medida::Meter&
-Database::getQueryMeter()
-{
-    return mQueryMeter;
-}
-
-std::chrono::nanoseconds
-Database::totalQueryTime() const
-{
-    std::vector<std::string> qtypes = {"insert", "delete", "select", "update"};
-    std::chrono::nanoseconds nsq(0);
-    for (auto const& q : qtypes)
-    {
-        for (auto const& e : mEntityTypes)
-        {
-            auto& timer = mApp.getMetrics().NewTimer({"database", q, e});
-            uint64_t sumns = static_cast<uint64_t>(
-                timer.sum() *
-                static_cast<double>(timer.duration_unit().count()));
-            nsq += std::chrono::nanoseconds(sumns);
-        }
-    }
-    return nsq;
-}
-
-void
-Database::excludeTime(std::chrono::nanoseconds const& queryTime,
-                      std::chrono::nanoseconds const& totalTime)
-{
-    mExcludedQueryTime += queryTime;
-    mExcludedTotalTime += totalTime;
-}
-
-uint32_t
-Database::recentIdleDbPercent()
-{
-    std::chrono::nanoseconds query = totalQueryTime();
-    query -= mLastIdleQueryTime;
-    query -= mExcludedQueryTime;
-
-    std::chrono::nanoseconds total = mApp.getClock().now() - mLastIdleTotalTime;
-    total -= mExcludedTotalTime;
-
-    if (total == std::chrono::nanoseconds::zero())
-    {
-        return 100;
-    }
-
-    uint32_t queryPercent =
-        static_cast<uint32_t>((100 * query.count()) / total.count());
-    uint32_t idlePercent = 100 - queryPercent;
-    if (idlePercent > 100)
-    {
-        // This should never happen, but clocks are not perfectly well behaved.
-        CLOG(WARNING, "Database") << "DB idle percent (" << idlePercent
-                                  << ") over 100, limiting to 100";
-        idlePercent = 100;
-    }
-
-    CLOG(DEBUG, "Database") << "Estimated DB idle: " << idlePercent << "%"
-                            << " (query=" << query.count() << "ns"
-                            << ", total=" << total.count() << "ns)";
-
-    mLastIdleQueryTime = totalQueryTime();
-    mLastIdleTotalTime = mApp.getClock().now();
-    mExcludedQueryTime = std::chrono::nanoseconds(0);
-    mExcludedTotalTime = std::chrono::nanoseconds(0);
-    return idlePercent;
-}
-
-DBTimeExcluder::DBTimeExcluder(Application& app)
-    : mApp(app)
-    , mStartQueryTime(app.getDatabase().totalQueryTime())
-    , mStartTotalTime(app.getClock().now())
-{
-}
-
-DBTimeExcluder::~DBTimeExcluder()
-{
-    auto deltaQ = mApp.getDatabase().totalQueryTime() - mStartQueryTime;
-    auto deltaT = mApp.getClock().now() - mStartTotalTime;
-    mApp.getDatabase().excludeTime(deltaQ, deltaT);
 }
 }
