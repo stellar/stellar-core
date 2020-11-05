@@ -284,6 +284,6 @@ CreateClaimableBalanceOpFrame::getBalanceID()
     operationID.id().seqNum = mParentTx.getSeqNum();
     operationID.id().opNum = mOpIndex;
 
-    return sha256(xdr::xdr_to_opaque(operationID));
+    return xdrSha256(operationID);
 }
 }

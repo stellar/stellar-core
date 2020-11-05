@@ -240,8 +240,7 @@ Tracker::listen(const SCPEnvelope& env)
     m.envelope() = env;
 
     // NB: hash here is of StellarMessage
-    mWaitingEnvelopes.push_back(
-        std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
+    mWaitingEnvelopes.push_back(std::make_pair(xdrSha256(m), env));
 }
 
 void

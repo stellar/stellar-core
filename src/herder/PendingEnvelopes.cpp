@@ -335,9 +335,9 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             {
                 CLOG(TRACE, "Perf")
                     << "Herder fetched for envelope "
-                    << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                    << " with txsets " << txSetsToStr(envelope) << " and qset "
-                    << hexAbbrev(h) << " in "
+                    << hexAbbrev(xdrSha256(envelope)) << " with txsets "
+                    << txSetsToStr(envelope) << " and qset " << hexAbbrev(h)
+                    << " in "
                     << std::chrono::duration<double>(durationNano).count()
                     << " seconds";
             }
@@ -522,9 +522,8 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     if (Logging::logTrace("Herder"))
     {
         CLOG(TRACE, "Herder")
-            << "Envelope ready "
-            << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope))) << " i:" << slot
-            << " t:" << envelope.statement.pledges.type();
+            << "Envelope ready " << hexAbbrev(xdrSha256(envelope))
+            << " i:" << slot << " t:" << envelope.statement.pledges.type();
     }
 
     // envelope has been fetched completely, but SCP has not done
@@ -582,10 +581,10 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 
     if (needSomething && Logging::logTrace("Herder"))
     {
-        CLOG(TRACE, "Herder") << "StartFetch env "
-                              << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                              << " i:" << envelope.statement.slotIndex
-                              << " t:" << envelope.statement.pledges.type();
+        CLOG(TRACE, "Herder")
+            << "StartFetch env " << hexAbbrev(xdrSha256(envelope))
+            << " i:" << envelope.statement.slotIndex
+            << " t:" << envelope.statement.pledges.type();
     }
 }
 
@@ -603,10 +602,10 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 
     if (Logging::logTrace("Herder"))
     {
-        CLOG(TRACE, "Herder") << "StopFetch env "
-                              << hexAbbrev(sha256(xdr::xdr_to_opaque(envelope)))
-                              << " i:" << envelope.statement.slotIndex
-                              << " t:" << envelope.statement.pledges.type();
+        CLOG(TRACE, "Herder")
+            << "StopFetch env " << hexAbbrev(xdrSha256(envelope))
+            << " i:" << envelope.statement.slotIndex
+            << " t:" << envelope.statement.pledges.type();
     }
 }
 

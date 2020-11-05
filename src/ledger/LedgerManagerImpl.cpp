@@ -87,7 +87,7 @@ LedgerManager::create(Application& app)
 std::string
 LedgerManager::ledgerAbbrev(LedgerHeader const& header)
 {
-    return ledgerAbbrev(header, sha256(xdr::xdr_to_opaque(header)));
+    return ledgerAbbrev(header, xdrSha256(header));
 }
 
 std::string
@@ -610,8 +610,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     txResultSet.results.reserve(txs.size());
     applyTransactions(txs, ltx, txResultSet, ledgerCloseMeta);
 
-    ltx.loadHeader().current().txSetResultHash =
-        sha256(xdr::xdr_to_opaque(txResultSet));
+    ltx.loadHeader().current().txSetResultHash = xdrSha256(txResultSet);
 
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
@@ -807,7 +806,7 @@ void
 LedgerManagerImpl::advanceLedgerPointers(LedgerHeader const& header,
                                          bool debugLog)
 {
-    auto ledgerHash = sha256(xdr::xdr_to_opaque(header));
+    auto ledgerHash = xdrSha256(header);
 
     if (debugLog)
     {
@@ -1008,7 +1007,7 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
         LedgerHeaderUtils::storeInDatabase(mApp.getDatabase(), header);
     }
 
-    Hash hash = sha256(xdr::xdr_to_opaque(header));
+    Hash hash = xdrSha256(header);
     assert(!isZero(hash));
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));

@@ -624,7 +624,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
     mPendingEnvelopes.addTxSet(txset.getContentsHash(),
                                envelope.statement.slotIndex,
                                std::make_shared<TxSetFrame>(txset));
-    mPendingEnvelopes.addSCPQuorumSet(sha256(xdr::xdr_to_opaque(qset)), qset);
+    mPendingEnvelopes.addSCPQuorumSet(xdrSha256(qset), qset);
     return recvSCPEnvelope(envelope);
 }
 
@@ -1609,7 +1609,7 @@ HerderImpl::restoreSCPState()
             }
             for (auto const& qset : latestQSets)
             {
-                Hash hash = sha256(xdr::xdr_to_opaque(qset));
+                Hash hash = xdrSha256(qset);
                 mPendingEnvelopes.addSCPQuorumSet(hash, qset);
             }
             for (auto const& e : latestEnvs)
