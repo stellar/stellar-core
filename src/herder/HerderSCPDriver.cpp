@@ -871,7 +871,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
     mCurrentValue = wrapStellarValue(value);
     mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
 
-    auto valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue->getValue()));
+    auto valueHash = xdrSha256(mCurrentValue->getValue());
     CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
                           << " txSet.size: "
                           << proposedSet->mTransactions.size()

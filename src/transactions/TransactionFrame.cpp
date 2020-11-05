@@ -58,7 +58,7 @@ TransactionFrame::getFullHash() const
 {
     if (isZero(mFullHash))
     {
-        mFullHash = sha256(xdr::xdr_to_opaque(mEnvelope));
+        mFullHash = xdrSha256(mEnvelope);
     }
     return (mFullHash);
 }
