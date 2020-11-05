@@ -206,7 +206,6 @@ LedgerManager::genesisLedger()
 void
 LedgerManagerImpl::startNewLedger(LedgerHeader const& genesisLedger)
 {
-    DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
@@ -249,7 +248,6 @@ LedgerManagerImpl::loadLastKnownLedger(
     function<void(asio::error_code const& ec)> handler)
 {
     ZoneScoped;
-    DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
 
     string lastLedger =
@@ -525,7 +523,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     ZoneScoped;
     auto ledgerTime = mLedgerClose.TimeScope();
-    DBTimeExcluder qtExclude(mApp);
     LogSlowExecution closeLedgerTime{"closeLedger",
                                      LogSlowExecution::Mode::MANUAL, "",
                                      std::chrono::milliseconds::max()};

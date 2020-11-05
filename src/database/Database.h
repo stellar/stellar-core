@@ -94,13 +94,7 @@ class Database : NonMovableOrCopyable
     std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
     medida::Counter& mStatementsSize;
 
-    // Helpers for maintaining the total query time and calculating
-    // idle percentage.
     std::set<std::string> mEntityTypes;
-    std::chrono::nanoseconds mExcludedQueryTime;
-    std::chrono::nanoseconds mExcludedTotalTime;
-    std::chrono::nanoseconds mLastIdleQueryTime;
-    VirtualClock::time_point mLastIdleTotalTime;
 
     static bool gDriversRegistered;
     static void registerDrivers();
@@ -130,25 +124,6 @@ class Database : NonMovableOrCopyable
     virtual ~Database()
     {
     }
-
-    // Return a crude meter of total queries to the db, for use in
-    // overlay/LoadManager.
-    medida::Meter& getQueryMeter();
-
-    // Number of nanoseconds spent processing queries since app startup,
-    // without any reference to excluded time or running counters.
-    // Strictly a sum of measured time.
-    std::chrono::nanoseconds totalQueryTime() const;
-
-    // Subtract a number of nanoseconds from the running time counts,
-    // due to database usage spikes, specifically during ledger-close.
-    void excludeTime(std::chrono::nanoseconds const& queryTime,
-                     std::chrono::nanoseconds const& totalTime);
-
-    // Return the percent of the time since the last call to this
-    // method that database has been idle, _excluding_ the times
-    // excluded above via `excludeTime`.
-    uint32_t recentIdleDbPercent();
 
     // Return a logging helper that will capture all SQL statements made
     // on the main connection while active, and will log those statements
@@ -252,17 +227,6 @@ Database::doDatabaseTypeSpecificOperation(DatabaseTypeSpecificOperation<T>& op)
         abort();
     }
 }
-
-class DBTimeExcluder : NonCopyable
-{
-    Application& mApp;
-    std::chrono::nanoseconds mStartQueryTime;
-    VirtualClock::time_point mStartTotalTime;
-
-  public:
-    DBTimeExcluder(Application& mApp);
-    ~DBTimeExcluder();
-};
 
 // Select a set of records using a client-defined query string, then map
 // each record into an element of a client-defined datatype by applying a
