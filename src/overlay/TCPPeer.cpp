@@ -430,6 +430,23 @@ TCPPeer::noteFullyReadBody(size_t nbytes)
 }
 
 void
+TCPPeer::scheduleRead()
+{
+    // Post to the peer-specific Scheduler a call to ::startRead below;
+    // this will be throttled to try to balance input rates across peers.
+    ZoneScoped;
+    assertThreadIsMain();
+    if (shouldAbort())
+    {
+        return;
+    }
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+    self->getApp().postOnMainThread(
+        [self]() { self->startRead(); },
+        fmt::format("TCPPeer::startRead for {}", toString()));
+}
+
+void
 TCPPeer::startRead()
 {
     ZoneScoped;
@@ -520,11 +537,10 @@ TCPPeer::startRead()
     }
     else
     {
-        // we have enough data but need to bounce on the main thread as we've
-        // done too much work already
-        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        self->getApp().postOnMainThread([self]() { self->startRead(); },
-                                        "TCPPeer: startRead");
+        // If we get here it's because we broke out of the input loop above
+        // early (via shouldYield) which means it's time to bounce off a the
+        // per-peer scheduler queue to throttle further input.
+        scheduleRead();
     }
 }
 
@@ -611,7 +627,11 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
         noteFullyReadBody(bytes_transferred);
         recvMessage();
         mIncomingHeader.clear();
-        startRead();
+        // Completing a startRead => readHeaderHandler => readBodyHandler
+        // sequence happens after the first read of a single large input-buffer
+        // worth of input. Even when we weren't preempted, we still bounce off
+        // the per-peer scheduler queue here, to balance input across peers.
+        scheduleRead();
     }
 }
 
