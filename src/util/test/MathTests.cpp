@@ -28,7 +28,9 @@ TEST_CASE("k_means", "[kmeans][!hide]")
             for (auto const& p : points)
             {
                 auto closest = closest_cluster(p, kMeans);
-                curr += std::pow(std::fabs(closest - p), 2);
+                auto d2 = closest - p;
+                d2 *= d2;
+                curr += d2;
             }
 
             if (curr < currentBest)
