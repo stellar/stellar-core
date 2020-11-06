@@ -844,16 +844,8 @@ HerderImpl::maybeTriggerNextLedger(bool synchronous)
 void
 HerderImpl::eraseBelow(uint32 ledgerSeq)
 {
-    // report any outliers for the most recent slot to purge
-    if (mLedgerManager.isSynced())
-    {
-        // stop early as to properly update cost for slots
-        mPendingEnvelopes.stopAllBelow(ledgerSeq);
-        getHerderSCPDriver().reportCostOutliersForSlot(ledgerSeq - 1, true);
-    }
     getHerderSCPDriver().purgeSlots(ledgerSeq);
     mPendingEnvelopes.eraseBelow(ledgerSeq);
-
     auto lastIndex = getCurrentLedgerSeq();
     mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
 }

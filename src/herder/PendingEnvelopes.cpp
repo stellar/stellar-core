@@ -661,6 +661,9 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 {
     stopAllBelow(slotIndex);
 
+    // report only for the highest slot that we're purging
+    reportCostOutliersForSlot(slotIndex - 1, true);
+
     for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
     {
         if (iter->first < slotIndex)

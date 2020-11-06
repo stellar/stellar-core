@@ -112,6 +112,10 @@ class PendingEnvelopes
     std::unordered_map<NodeID, size_t>
     getCostPerValidator(uint64 slotIndex) const;
 
+    // stops all pending downloads for slots strictly below `slotIndex`
+    // counts partially downloaded data towards the cost for that slot
+    void stopAllBelow(uint64 slotIndex);
+
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
@@ -176,10 +180,6 @@ class PendingEnvelopes
 
     // erases data for all slots strictly below `slotIndex`
     void eraseBelow(uint64 slotIndex);
-
-    // stops all pending downloads for slots strictly below `slotIndex`
-    // counts partially downloaded data towards the cost for that slot
-    void stopAllBelow(uint64 slotIndex);
 
     void forceRebuildQuorum();
 
