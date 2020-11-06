@@ -213,6 +213,9 @@ class HerderImpl : public Herder
     // run a background job that re-analyzes the current quorum map.
     void checkAndMaybeReanalyzeQuorumMap();
 
+    // erase all data for ledgers strictly less than ledgerSeq
+    void eraseBelow(uint32 ledgerSeq);
+
     struct QuorumMapIntersectionState
     {
         uint32_t mLastCheckLedger{0};

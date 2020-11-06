@@ -37,13 +37,12 @@ Floodgate::Floodgate(Application& app)
 
 // remove old flood records
 void
-Floodgate::clearBelow(uint32_t currentLedger)
+Floodgate::clearBelow(uint32_t maxLedger)
 {
     ZoneScoped;
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
-        // give one ledger of leeway
-        if (it->second->mLedgerSeq + 10 < currentLedger)
+        if (it->second->mLedgerSeq < maxLedger)
         {
             it = mFloodMap.erase(it);
         }

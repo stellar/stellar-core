@@ -43,6 +43,9 @@ class Herder
     // timeout before considering the node out of sync
     static std::chrono::seconds const CONSENSUS_STUCK_TIMEOUT_SECONDS;
 
+    // timeout before triggering out of sync recovery
+    static std::chrono::seconds const OUT_OF_SYNC_RECOVERY_TIMER;
+
     // Maximum time slip between nodes.
     static std::chrono::seconds constexpr MAX_TIME_SLIP_SECONDS =
         std::chrono::seconds{60};

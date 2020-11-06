@@ -50,7 +50,6 @@ constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
 constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
-constexpr auto const OUT_OF_SYNC_RECOVERY_TIMER = std::chrono::seconds(10);
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -247,20 +246,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
             mPendingEnvelopes.getTxSet(value.txSetHash);
         updateTransactionQueue(externalizedSet->mTransactions);
 
-        // Evict slots that are outside of our ledger validity bracket
-        auto minSlotToRemember = getMinLedgerSeqToRemember();
-        if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
-        {
-            // report any outliers for the most recent slot to purge
-            if (mLedgerManager.isSynced())
-            {
-                getHerderSCPDriver().reportCostOutliersForSlot(
-                    minSlotToRemember - 1, true);
-            }
-            getHerderSCPDriver().purgeSlots(minSlotToRemember);
-            mPendingEnvelopes.eraseBelow(minSlotToRemember);
-        }
-
         ledgerClosed(false);
 
         // Check to see if quorums have changed and we need to reanalyze.
@@ -294,6 +279,26 @@ HerderImpl::outOfSyncRecovery()
     if (mHerderSCPDriver.trackingSCP())
     {
         return;
+    }
+
+    // see if we can shed some data as to speed up recovery
+    uint32_t maxSlotsAhead = Herder::LEDGER_VALIDITY_BRACKET;
+    uint32 purgeSlot = 0;
+    getSCP().processSlotsDescendingFrom(
+        std::numeric_limits<uint64>::max(), [&](uint64 seq) {
+            if (getSCP().gotVBlocking(seq))
+            {
+                if (--maxSlotsAhead == 0)
+                {
+                    purgeSlot = static_cast<uint32>(seq);
+                }
+            }
+            return maxSlotsAhead != 0;
+        });
+    if (purgeSlot)
+    {
+        CLOG(INFO, "Herder") << "Purging slots older than " << purgeSlot;
+        eraseBelow(purgeSlot);
     }
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader().header;
     for (auto const& e : getSCP().getLatestMessagesSend(lcl.ledgerSeq + 1))
@@ -331,7 +336,7 @@ HerderImpl::startOutOfSyncTimer()
         return;
     }
 
-    mOutOfSyncTimer.expires_from_now(OUT_OF_SYNC_RECOVERY_TIMER);
+    mOutOfSyncTimer.expires_from_now(Herder::OUT_OF_SYNC_RECOVERY_TIMER);
 
     mOutOfSyncTimer.async_wait(
         [&]() {
@@ -502,15 +507,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    if (!verifyEnvelope(envelope))
-    {
-        std::string txt("DISCARDED - bad envelope");
-        ZoneText(txt.c_str(), txt.size());
-        CLOG(TRACE, "Herder") << "Received bad envelope, discarding";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
-    }
-
     mSCPMetrics.mEnvelopeReceive.Mark();
+
+    // **** first perform checks that do NOT require signature verification
+    // this allows to fast fail messages that we'd throw away anyways
 
     uint32_t minLedgerSeq = getMinLedgerSeqToRemember();
     uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
@@ -563,6 +563,15 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
         std::string txt("DISCARDED - out of range");
         ZoneText(txt.c_str(), txt.size());
+        return Herder::ENVELOPE_STATUS_DISCARDED;
+    }
+
+    // **** from this point, we have to check signatures
+    if (!verifyEnvelope(envelope))
+    {
+        std::string txt("DISCARDED - bad envelope");
+        ZoneText(txt.c_str(), txt.size());
+        CLOG(TRACE, "Herder") << "Received bad envelope, discarding";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
@@ -633,7 +642,9 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
     ZoneScoped;
     bool log = true;
+    auto maxSlots = Herder::LEDGER_VALIDITY_BRACKET;
     getSCP().processSlotsAscendingFrom(ledgerSeq, [&](uint64 seq) {
+        bool slotHadData = false;
         getSCP().processCurrentState(seq,
                                      [&](SCPEnvelope const& e) {
                                          StellarMessage m;
@@ -641,10 +652,15 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
                                          m.envelope() = e;
                                          peer->sendMessage(m, log);
                                          log = false;
+                                         slotHadData = true;
                                          return true;
                                      },
                                      false);
-        return true;
+        if (slotHadData)
+        {
+            --maxSlots;
+        }
+        return maxSlots != 0;
     });
 }
 
@@ -826,6 +842,15 @@ HerderImpl::maybeTriggerNextLedger(bool synchronous)
 }
 
 void
+HerderImpl::eraseBelow(uint32 ledgerSeq)
+{
+    getHerderSCPDriver().purgeSlots(ledgerSeq);
+    mPendingEnvelopes.eraseBelow(ledgerSeq);
+    auto lastIndex = getCurrentLedgerSeq();
+    mApp.getOverlayManager().clearLedgersBelow(ledgerSeq, lastIndex);
+}
+
+void
 HerderImpl::ledgerClosed(bool synchronous)
 {
     // this method is triggered every time the most recent ledger is
@@ -837,12 +862,13 @@ HerderImpl::ledgerClosed(bool synchronous)
 
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
-    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-
-    mPendingEnvelopes.slotClosed(lastIndex);
-
-    mApp.getOverlayManager().ledgerClosed(lastIndex);
-
+    // Evict slots that are outside of our ledger validity bracket
+    auto minSlotToRemember = getMinLedgerSeqToRemember();
+    if (minSlotToRemember > LedgerManager::GENESIS_LEDGER_SEQ)
+    {
+        eraseBelow(minSlotToRemember);
+    }
+    mPendingEnvelopes.forceRebuildQuorum();
     maybeTriggerNextLedger(synchronous);
 }
 
@@ -1248,7 +1274,7 @@ HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys,
         ret["qset"]["lag_ms"] =
             getHerderSCPDriver().getQsetLagInfo(summary, fullKeys);
         ret["qset"]["cost"] =
-            mHerderSCPDriver.getJsonValidatorCost(summary, fullKeys, index);
+            mPendingEnvelopes.getJsonValidatorCost(summary, fullKeys, index);
     }
     return ret;
 }
@@ -1753,7 +1779,7 @@ HerderImpl::herderOutOfSync()
     auto trackingData = mHerderSCPDriver.lastTrackingSCP();
     if (trackingData)
     {
-        mHerderSCPDriver.reportCostOutliersForSlot(
+        mPendingEnvelopes.reportCostOutliersForSlot(
             trackingData->mConsensusIndex, false);
     }
 
