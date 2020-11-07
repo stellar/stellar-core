@@ -823,11 +823,11 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             parseOptionalParamOrDefault<uint32_t>(map, "accounts", 1000);
         uint32_t nTxs = parseOptionalParamOrDefault<uint32_t>(map, "txs", 0);
         uint32_t txRate =
-            parseOptionalParamOrDefault<uint32_t>(map, "batchsize", 10);
+            parseOptionalParamOrDefault<uint32_t>(map, "txrate", 10);
         uint32_t batchSize = parseOptionalParamOrDefault<uint32_t>(
-            map, "offset", 100); // Only for account creations
+            map, "batchsize", 100); // Only for account creations
         uint32_t offset =
-            parseOptionalParamOrDefault<uint32_t>(map, "txrate", 0);
+            parseOptionalParamOrDefault<uint32_t>(map, "offset", 0);
         uint32_t spikeIntervalInt =
             parseOptionalParamOrDefault<uint32_t>(map, "spikeinterval", 0);
         std::chrono::seconds spikeInterval(spikeIntervalInt);
