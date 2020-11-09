@@ -29,7 +29,7 @@ BeginSponsoringFutureReservesOpFrame::isVersionSupported(
 void
 BeginSponsoringFutureReservesOpFrame::createSponsorship(AbstractLedgerTxn& ltx)
 {
-    GeneralizedLedgerEntry gle(GeneralizedLedgerEntryType::SPONSORSHIP);
+    InternalLedgerEntry gle(InternalLedgerEntryType::SPONSORSHIP);
     auto& se = gle.sponsorshipEntry();
     se.sponsoredID = mBeginSponsoringFutureReservesOp.sponsoredID;
     se.sponsoringID = getSourceID();
@@ -45,7 +45,7 @@ void
 BeginSponsoringFutureReservesOpFrame::createSponsorshipCounter(
     AbstractLedgerTxn& ltx)
 {
-    GeneralizedLedgerEntry gle(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    InternalLedgerEntry gle(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     auto& sce = gle.sponsorshipCounterEntry();
     sce.sponsoringID = getSourceID();
     sce.numSponsoring = 1;

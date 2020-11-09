@@ -85,11 +85,11 @@ updateChangedSubEntriesCount(
 static void
 updateChangedSubEntriesCount(
     std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    std::shared_ptr<GeneralizedLedgerEntry const> const& genCurrent,
-    std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious)
+    std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
+    std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
     auto type = genCurrent ? genCurrent->type() : genPrevious->type();
-    if (type == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    if (type == InternalLedgerEntryType::LEDGER_ENTRY)
     {
         auto const* current = genCurrent ? &genCurrent->ledgerEntry() : nullptr;
         auto const* previous =
@@ -151,7 +151,7 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
         assert(entryDelta.second.previous);
 
         auto const& genPrevious = *entryDelta.second.previous;
-        if (genPrevious.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY)
+        if (genPrevious.type() != InternalLedgerEntryType::LEDGER_ENTRY)
         {
             continue;
         }

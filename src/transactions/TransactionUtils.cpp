@@ -146,18 +146,18 @@ claimableBalanceKey(ClaimableBalanceID const& balanceID)
     return key;
 }
 
-GeneralizedLedgerKey
+InternalLedgerKey
 sponsorshipKey(AccountID const& sponsoredID)
 {
-    GeneralizedLedgerKey gkey(GeneralizedLedgerEntryType::SPONSORSHIP);
+    InternalLedgerKey gkey(InternalLedgerEntryType::SPONSORSHIP);
     gkey.sponsorshipKey().sponsoredID = sponsoredID;
     return gkey;
 }
 
-GeneralizedLedgerKey
+InternalLedgerKey
 sponsorshipCounterKey(AccountID const& sponsoringID)
 {
-    GeneralizedLedgerKey gkey(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    InternalLedgerKey gkey(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     gkey.sponsorshipCounterKey().sponsoringID = sponsoringID;
     return gkey;
 }

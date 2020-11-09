@@ -171,8 +171,7 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(e.entryExists());
-            assert(e.entry().type() ==
-                   GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             auto const& le = e.entry().ledgerEntry();
             assert(le.data.type() == ACCOUNT);
             auto const& account = le.data.account();
@@ -376,7 +375,7 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
-            assert(e.key().type() == GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             assert(e.key().ledgerKey().type() == ACCOUNT);
             auto const& account = e.key().ledgerKey().account();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));

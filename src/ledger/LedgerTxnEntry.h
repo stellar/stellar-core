@@ -52,8 +52,8 @@ class LedgerTxnEntry
     LedgerEntry& current();
     LedgerEntry const& current() const;
 
-    GeneralizedLedgerEntry& currentGeneralized();
-    GeneralizedLedgerEntry const& currentGeneralized() const;
+    InternalLedgerEntry& currentGeneralized();
+    InternalLedgerEntry const& currentGeneralized() const;
 
     void deactivate();
 
@@ -61,8 +61,8 @@ class LedgerTxnEntry
 
     void swap(LedgerTxnEntry& other);
 
-    static std::shared_ptr<Impl>
-    makeSharedImpl(AbstractLedgerTxn& ltx, GeneralizedLedgerEntry& current);
+    static std::shared_ptr<Impl> makeSharedImpl(AbstractLedgerTxn& ltx,
+                                                InternalLedgerEntry& current);
 };
 
 class ConstLedgerTxnEntry
@@ -95,15 +95,14 @@ class ConstLedgerTxnEntry
 
     LedgerEntry const& current() const;
 
-    GeneralizedLedgerEntry const& currentGeneralized() const;
+    InternalLedgerEntry const& currentGeneralized() const;
 
     void deactivate();
 
     void swap(ConstLedgerTxnEntry& other);
 
     static std::shared_ptr<Impl>
-    makeSharedImpl(AbstractLedgerTxn& ltx,
-                   GeneralizedLedgerEntry const& current);
+    makeSharedImpl(AbstractLedgerTxn& ltx, InternalLedgerEntry const& current);
 };
 
 std::shared_ptr<EntryImplBase>

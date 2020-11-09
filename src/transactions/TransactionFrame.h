@@ -44,7 +44,7 @@ class TransactionFrame : public TransactionFrameBase
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 
-    std::shared_ptr<GeneralizedLedgerEntry const> mCachedAccount;
+    std::shared_ptr<InternalLedgerEntry const> mCachedAccount;
 
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents

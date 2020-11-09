@@ -66,11 +66,11 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
 
 std::string
 LedgerEntryIsValid::checkIsValid(
-    GeneralizedLedgerEntry const& le,
-    std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious,
+    InternalLedgerEntry const& le,
+    std::shared_ptr<InternalLedgerEntry const> const& genPrevious,
     uint32_t ledgerSeq, uint32 version) const
 {
-    if (le.type() == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    if (le.type() == InternalLedgerEntryType::LEDGER_ENTRY)
     {
         auto const* previous =
             genPrevious ? &genPrevious->ledgerEntry() : nullptr;

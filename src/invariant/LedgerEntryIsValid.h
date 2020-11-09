@@ -33,10 +33,10 @@ class LedgerEntryIsValid : public Invariant
                           LedgerTxnDelta const& ltxDelta) override;
 
   private:
-    std::string checkIsValid(
-        GeneralizedLedgerEntry const& le,
-        std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious,
-        uint32_t ledgerSeq, uint32 version) const;
+    std::string
+    checkIsValid(InternalLedgerEntry const& le,
+                 std::shared_ptr<InternalLedgerEntry const> const& genPrevious,
+                 uint32_t ledgerSeq, uint32 version) const;
     std::string checkIsValid(LedgerEntry const& le, LedgerEntry const* previous,
                              uint32_t ledgerSeq, uint32 version) const;
     std::string checkIsValid(AccountEntry const& ae, uint32 version) const;

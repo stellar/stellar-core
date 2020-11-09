@@ -40,11 +40,11 @@ calculateDeltaBalance(LedgerEntry const* current, LedgerEntry const* previous)
 
 static int64_t
 calculateDeltaBalance(
-    std::shared_ptr<GeneralizedLedgerEntry const> const& genCurrent,
-    std::shared_ptr<GeneralizedLedgerEntry const> const& genPrevious)
+    std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
+    std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
     auto type = genCurrent ? genCurrent->type() : genPrevious->type();
-    if (type == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    if (type == InternalLedgerEntryType::LEDGER_ENTRY)
     {
         auto const* current = genCurrent ? &genCurrent->ledgerEntry() : nullptr;
         auto const* previous =

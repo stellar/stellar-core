@@ -122,7 +122,7 @@ EntryIterator::operator bool() const
     return !getImpl()->atEnd();
 }
 
-GeneralizedLedgerEntry const&
+InternalLedgerEntry const&
 EntryIterator::entry() const
 {
     return getImpl()->entry();
@@ -134,7 +134,7 @@ EntryIterator::entryExists() const
     return getImpl()->entryExists();
 }
 
-GeneralizedLedgerKey const&
+InternalLedgerKey const&
 EntryIterator::key() const
 {
     return getImpl()->key();
@@ -357,8 +357,8 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 
             if (iter.entryExists())
             {
-                updateEntry(key, std::make_shared<GeneralizedLedgerEntry>(
-                                     iter.entry()));
+                updateEntry(
+                    key, std::make_shared<InternalLedgerEntry>(iter.entry()));
             }
             else
             {
@@ -460,13 +460,13 @@ LedgerTxn::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
 }
 
 LedgerTxnEntry
-LedgerTxn::create(GeneralizedLedgerEntry const& entry)
+LedgerTxn::create(InternalLedgerEntry const& entry)
 {
     return getImpl()->create(*this, entry);
 }
 
 LedgerTxnEntry
-LedgerTxn::Impl::create(LedgerTxn& self, GeneralizedLedgerEntry const& entry)
+LedgerTxn::Impl::create(LedgerTxn& self, InternalLedgerEntry const& entry)
 {
     throwIfSealed();
     throwIfChild();
@@ -477,7 +477,7 @@ LedgerTxn::Impl::create(LedgerTxn& self, GeneralizedLedgerEntry const& entry)
         throw std::runtime_error("Key already exists");
     }
 
-    auto current = std::make_shared<GeneralizedLedgerEntry>(entry);
+    auto current = std::make_shared<InternalLedgerEntry>(entry);
     auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
 
     // Set the key to active before constructing the LedgerTxnEntry, as this
@@ -492,14 +492,14 @@ LedgerTxn::Impl::create(LedgerTxn& self, GeneralizedLedgerEntry const& entry)
 }
 
 void
-LedgerTxn::createOrUpdateWithoutLoading(GeneralizedLedgerEntry const& entry)
+LedgerTxn::createOrUpdateWithoutLoading(InternalLedgerEntry const& entry)
 {
     return getImpl()->createOrUpdateWithoutLoading(*this, entry);
 }
 
 void
-LedgerTxn::Impl::createOrUpdateWithoutLoading(
-    LedgerTxn& self, GeneralizedLedgerEntry const& entry)
+LedgerTxn::Impl::createOrUpdateWithoutLoading(LedgerTxn& self,
+                                              InternalLedgerEntry const& entry)
 {
     throwIfSealed();
     throwIfChild();
@@ -511,17 +511,17 @@ LedgerTxn::Impl::createOrUpdateWithoutLoading(
         throw std::runtime_error("Key is already active");
     }
 
-    updateEntry(key, std::make_shared<GeneralizedLedgerEntry>(entry));
+    updateEntry(key, std::make_shared<InternalLedgerEntry>(entry));
 }
 
 void
-LedgerTxn::deactivate(GeneralizedLedgerKey const& key)
+LedgerTxn::deactivate(InternalLedgerKey const& key)
 {
     getImpl()->deactivate(key);
 }
 
 void
-LedgerTxn::Impl::deactivate(GeneralizedLedgerKey const& key)
+LedgerTxn::Impl::deactivate(InternalLedgerKey const& key)
 {
     auto iter = mActive.find(key);
     if (iter == mActive.end())
@@ -553,13 +553,13 @@ LedgerTxn::Impl::deactivateHeader()
 }
 
 void
-LedgerTxn::erase(GeneralizedLedgerKey const& key)
+LedgerTxn::erase(InternalLedgerKey const& key)
 {
     getImpl()->erase(key);
 }
 
 void
-LedgerTxn::Impl::erase(GeneralizedLedgerKey const& key)
+LedgerTxn::Impl::erase(InternalLedgerKey const& key)
 {
     throwIfSealed();
     throwIfChild();
@@ -586,13 +586,13 @@ LedgerTxn::Impl::erase(GeneralizedLedgerKey const& key)
 }
 
 void
-LedgerTxn::eraseWithoutLoading(GeneralizedLedgerKey const& key)
+LedgerTxn::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     getImpl()->eraseWithoutLoading(key);
 }
 
 void
-LedgerTxn::Impl::eraseWithoutLoading(GeneralizedLedgerKey const& key)
+LedgerTxn::Impl::eraseWithoutLoading(InternalLedgerKey const& key)
 {
     throwIfSealed();
     throwIfChild();
@@ -627,7 +627,7 @@ LedgerTxn::Impl::getAllOffers()
     {
         auto const& key = kv.first;
         auto const& entry = kv.second;
-        if (key.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY ||
+        if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY ||
             key.ledgerKey().type() != OFFER)
         {
             continue;
@@ -842,7 +842,7 @@ LedgerTxn::Impl::getChanges()
             auto const& key = kv.first;
             auto const& entry = kv.second;
 
-            if (key.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY)
+            if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY)
             {
                 continue;
             }
@@ -941,7 +941,7 @@ LedgerTxn::Impl::getDeltaVotes() const
     {
         auto const& key = kv.first;
         auto const& entry = kv.second;
-        if (key.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY ||
+        if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY ||
             key.ledgerKey().type() != ACCOUNT)
         {
             continue;
@@ -1106,7 +1106,7 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
             auto const& key = kv.first;
             auto const& entry = kv.second;
 
-            if (key.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY)
+            if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY)
             {
                 continue;
             }
@@ -1134,14 +1134,14 @@ LedgerTxn::Impl::getAllEntries(std::vector<LedgerEntry>& initEntries,
     deadEntries.swap(resDead);
 }
 
-std::shared_ptr<GeneralizedLedgerEntry const>
-LedgerTxn::getNewestVersion(GeneralizedLedgerKey const& key) const
+std::shared_ptr<InternalLedgerEntry const>
+LedgerTxn::getNewestVersion(InternalLedgerKey const& key) const
 {
     return getImpl()->getNewestVersion(key);
 }
 
-std::shared_ptr<GeneralizedLedgerEntry const>
-LedgerTxn::Impl::getNewestVersion(GeneralizedLedgerKey const& key) const
+std::shared_ptr<InternalLedgerEntry const>
+LedgerTxn::Impl::getNewestVersion(InternalLedgerKey const& key) const
 {
     auto iter = mEntry.find(key);
     if (iter != mEntry.end())
@@ -1167,7 +1167,7 @@ LedgerTxn::Impl::getOffersByAccountAndAsset(AccountID const& account,
     {
         auto const& key = kv.first;
         auto const& entry = kv.second;
-        if (key.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY ||
+        if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY ||
             key.ledgerKey().type() != OFFER)
         {
             continue;
@@ -1193,13 +1193,13 @@ LedgerTxn::Impl::getOffersByAccountAndAsset(AccountID const& account,
 }
 
 LedgerTxnEntry
-LedgerTxn::load(GeneralizedLedgerKey const& key)
+LedgerTxn::load(InternalLedgerKey const& key)
 {
     return getImpl()->load(*this, key);
 }
 
 LedgerTxnEntry
-LedgerTxn::Impl::load(LedgerTxn& self, GeneralizedLedgerKey const& key)
+LedgerTxn::Impl::load(LedgerTxn& self, InternalLedgerKey const& key)
 {
     throwIfSealed();
     throwIfChild();
@@ -1214,7 +1214,7 @@ LedgerTxn::Impl::load(LedgerTxn& self, GeneralizedLedgerKey const& key)
         return {};
     }
 
-    auto current = std::make_shared<GeneralizedLedgerEntry>(*newest);
+    auto current = std::make_shared<InternalLedgerEntry>(*newest);
     auto impl = LedgerTxnEntry::makeSharedImpl(self, *current);
 
     // Set the key to active before constructing the LedgerTxnEntry, as this
@@ -1415,14 +1415,14 @@ LedgerTxn::Impl::loadOffersByAccountAndAsset(LedgerTxn& self,
 }
 
 ConstLedgerTxnEntry
-LedgerTxn::loadWithoutRecord(GeneralizedLedgerKey const& key)
+LedgerTxn::loadWithoutRecord(InternalLedgerKey const& key)
 {
     return getImpl()->loadWithoutRecord(*this, key);
 }
 
 ConstLedgerTxnEntry
 LedgerTxn::Impl::loadWithoutRecord(LedgerTxn& self,
-                                   GeneralizedLedgerKey const& key)
+                                   InternalLedgerKey const& key)
 {
     throwIfSealed();
     throwIfChild();
@@ -1603,12 +1603,12 @@ LedgerTxn::Impl::maybeUpdateLastModified() const
     for (auto const& kv : mEntry)
     {
         auto const& key = kv.first;
-        std::shared_ptr<GeneralizedLedgerEntry> entry;
+        std::shared_ptr<InternalLedgerEntry> entry;
         if (kv.second)
         {
-            entry = std::make_shared<GeneralizedLedgerEntry>(*kv.second);
+            entry = std::make_shared<InternalLedgerEntry>(*kv.second);
             if (mShouldUpdateLastModified &&
-                entry->type() == GeneralizedLedgerEntryType::LEDGER_ENTRY)
+                entry->type() == InternalLedgerEntryType::LEDGER_ENTRY)
             {
                 entry->ledgerEntry().lastModifiedLedgerSeq = mHeader->ledgerSeq;
             }
@@ -1663,7 +1663,7 @@ LedgerTxn::Impl::findInOrderBook(LedgerEntry const& le)
 }
 
 void
-LedgerTxn::Impl::updateEntryIfRecorded(GeneralizedLedgerKey const& key,
+LedgerTxn::Impl::updateEntryIfRecorded(InternalLedgerKey const& key,
                                        bool effectiveActive)
 {
     auto entryIter = mEntry.find(key);
@@ -1677,16 +1677,16 @@ LedgerTxn::Impl::updateEntryIfRecorded(GeneralizedLedgerKey const& key,
 }
 
 void
-LedgerTxn::Impl::updateEntry(GeneralizedLedgerKey const& key,
-                             std::shared_ptr<GeneralizedLedgerEntry> lePtr)
+LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
+                             std::shared_ptr<InternalLedgerEntry> lePtr)
 {
     bool effectiveActive = mActive.find(key) != mActive.end();
     updateEntry(key, lePtr, effectiveActive);
 }
 
 void
-LedgerTxn::Impl::updateEntry(GeneralizedLedgerKey const& key,
-                             std::shared_ptr<GeneralizedLedgerEntry> lePtr,
+LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
+                             std::shared_ptr<InternalLedgerEntry> lePtr,
                              bool effectiveActive)
 {
     bool eraseIfNull = !lePtr && !mParent.getNewestVersion(key);
@@ -1694,8 +1694,8 @@ LedgerTxn::Impl::updateEntry(GeneralizedLedgerKey const& key,
 }
 
 void
-LedgerTxn::Impl::updateEntry(GeneralizedLedgerKey const& key,
-                             std::shared_ptr<GeneralizedLedgerEntry> lePtr,
+LedgerTxn::Impl::updateEntry(InternalLedgerKey const& key,
+                             std::shared_ptr<InternalLedgerEntry> lePtr,
                              bool effectiveActive, bool eraseIfNull)
 {
     // recordEntry has the strong exception safety guarantee because
@@ -1717,7 +1717,7 @@ LedgerTxn::Impl::updateEntry(GeneralizedLedgerKey const& key,
 
     // If the key does not correspond to an offer, we do not need to manage the
     // order book. Record the update in mEntry and return.
-    if (key.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY ||
+    if (key.type() != InternalLedgerEntryType::LEDGER_ENTRY ||
         key.ledgerKey().type() != OFFER)
     {
         recordEntry();
@@ -1878,7 +1878,7 @@ LedgerTxn::Impl::EntryIteratorImpl::atEnd() const
     return mIter == mEnd;
 }
 
-GeneralizedLedgerEntry const&
+InternalLedgerEntry const&
 LedgerTxn::Impl::EntryIteratorImpl::entry() const
 {
     return *(mIter->second);
@@ -1890,7 +1890,7 @@ LedgerTxn::Impl::EntryIteratorImpl::entryExists() const
     return (bool)(mIter->second);
 }
 
-GeneralizedLedgerKey const&
+InternalLedgerKey const&
 LedgerTxn::Impl::EntryIteratorImpl::key() const
 {
     return mIter->first;
@@ -2036,7 +2036,7 @@ void
 BulkLedgerEntryChangeAccumulator::accumulate(EntryIterator const& iter)
 {
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
-    if (iter.key().type() != GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    if (iter.key().type() != InternalLedgerEntryType::LEDGER_ENTRY)
     {
         return;
     }
@@ -2674,18 +2674,18 @@ LedgerTxnRoot::Impl::getInflationWinners(size_t maxWinners, int64_t minVotes)
     }
 }
 
-std::shared_ptr<GeneralizedLedgerEntry const>
-LedgerTxnRoot::getNewestVersion(GeneralizedLedgerKey const& key) const
+std::shared_ptr<InternalLedgerEntry const>
+LedgerTxnRoot::getNewestVersion(InternalLedgerKey const& key) const
 {
     return mImpl->getNewestVersion(key);
 }
 
-std::shared_ptr<GeneralizedLedgerEntry const>
-LedgerTxnRoot::Impl::getNewestVersion(GeneralizedLedgerKey const& gkey) const
+std::shared_ptr<InternalLedgerEntry const>
+LedgerTxnRoot::Impl::getNewestVersion(InternalLedgerKey const& gkey) const
 {
     ZoneScoped;
     // Right now, only LEDGER_ENTRY are recorded in the SQL database
-    if (gkey.type() != GeneralizedLedgerEntryType::LEDGER_ENTRY)
+    if (gkey.type() != InternalLedgerEntryType::LEDGER_ENTRY)
     {
         return nullptr;
     }
@@ -2754,7 +2754,7 @@ LedgerTxnRoot::Impl::getNewestVersion(GeneralizedLedgerKey const& gkey) const
     putInEntryCache(key, entry, LoadType::IMMEDIATE);
     if (entry)
     {
-        return std::make_shared<GeneralizedLedgerEntry const>(*entry);
+        return std::make_shared<InternalLedgerEntry const>(*entry);
     }
     else
     {
@@ -2792,7 +2792,7 @@ LedgerTxnRoot::Impl::rollbackChild()
     mPrefetchMisses = 0;
 }
 
-std::shared_ptr<GeneralizedLedgerEntry const>
+std::shared_ptr<InternalLedgerEntry const>
 LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
 {
     try
@@ -2805,8 +2805,7 @@ LedgerTxnRoot::Impl::getFromEntryCache(LedgerKey const& key) const
 
         if (cached.entry)
         {
-            return std::make_shared<GeneralizedLedgerEntry const>(
-                *cached.entry);
+            return std::make_shared<InternalLedgerEntry const>(*cached.entry);
         }
         else
         {
