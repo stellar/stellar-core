@@ -1112,7 +1112,7 @@ TEST_CASE("update sponsorship", "[tx][sponsorship]")
             {
                 SECTION("negative offer id")
                 {
-                    revoke(offerKey(a1, -1));
+                    revoke(offerKey(a1, static_cast<uint64>(-1LL)));
                 }
             }
             SECTION("invalid data name")

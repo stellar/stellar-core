@@ -1398,9 +1398,11 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
                     {
                         // start right after z(122), and go through some of the
                         // extended ascii codes
-                        for (int i = 123; i < 140; ++i)
+                        for (int v = 123; v < 140; ++v)
                         {
                             std::string assetCode;
+                            signed char i = static_cast<signed char>(
+                                (v < 128) ? v : (127 - v));
                             assetCode.push_back(i);
                             auto asset = txtest::makeAsset(acc, assetCode);
                             UNSCOPED_INFO(
