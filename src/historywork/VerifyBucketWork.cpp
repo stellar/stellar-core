@@ -23,11 +23,12 @@ namespace stellar
 
 VerifyBucketWork::VerifyBucketWork(
     Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    std::string const& bucketFile, uint256 const& hash)
+    std::string const& bucketFile, uint256 const& hash, OnFailureCallback cb)
     : BasicWork(app, "verify-bucket-hash-" + bucketFile, BasicWork::RETRY_NEVER)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)
+    , mOnFailure(cb)
     , mVerifyBucketSuccess(app.getMetrics().NewMeter(
           {"history", "verify-bucket", "success"}, "event"))
     , mVerifyBucketFailure(app.getMetrics().NewMeter(
@@ -144,5 +145,14 @@ VerifyBucketWork::spawnVerifier()
                 "VerifyBucket: finish");
         },
         "VerifyBucket: start in background");
+}
+
+void
+VerifyBucketWork::onFailureRaise()
+{
+    if (mOnFailure)
+    {
+        mOnFailure();
+    }
 }
 }

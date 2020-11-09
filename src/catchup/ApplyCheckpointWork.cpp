@@ -26,7 +26,8 @@ namespace stellar
 
 ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
                                          TmpDir const& downloadDir,
-                                         LedgerRange const& range)
+                                         LedgerRange const& range,
+                                         OnFailureCallback cb)
     : BasicWork(app,
                 "apply-ledgers-" +
                     fmt::format("{}-{}", range.mFirst, range.limit()),
@@ -35,6 +36,7 @@ ApplyCheckpointWork::ApplyCheckpointWork(Application& app,
     , mLedgerRange(range)
     , mCheckpoint(
           app.getHistoryManager().checkpointContainingLedger(range.mFirst))
+    , mOnFailure(cb)
     , mApplyLedgerSuccess(app.getMetrics().NewMeter(
           {"history", "apply-ledger-chain", "success"}, "event"))
     , mApplyLedgerFailure(app.getMetrics().NewMeter(
@@ -359,5 +361,14 @@ ApplyCheckpointWork::onAbort()
         return false;
     }
     return true;
+}
+
+void
+ApplyCheckpointWork::onFailureRaise()
+{
+    if (mOnFailure)
+    {
+        mOnFailure();
+    }
 }
 }

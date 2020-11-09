@@ -28,13 +28,16 @@ class VerifyBucketWork : public BasicWork
     void adoptBucket();
     void spawnVerifier();
 
+    OnFailureCallback mOnFailure;
+
     medida::Meter& mVerifyBucketSuccess;
     medida::Meter& mVerifyBucketFailure;
 
   public:
     VerifyBucketWork(Application& app,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-                     std::string const& bucketFile, uint256 const& hash);
+                     std::string const& bucketFile, uint256 const& hash,
+                     OnFailureCallback cb);
     ~VerifyBucketWork() = default;
 
   protected:
@@ -44,5 +47,6 @@ class VerifyBucketWork : public BasicWork
     {
         return true;
     };
+    void onFailureRaise() override;
 };
 }

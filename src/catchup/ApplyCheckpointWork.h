@@ -6,6 +6,7 @@
 
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
+#include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
 #include "util/XDRStream.h"
 #include "work/ConditionalWork.h"
@@ -54,6 +55,7 @@ class ApplyCheckpointWork : public BasicWork
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
     LedgerHeaderHistoryEntry mHeaderHistoryEntry;
+    OnFailureCallback mOnFailure;
 
     medida::Meter& mApplyLedgerSuccess;
     medida::Meter& mApplyLedgerFailure;
@@ -69,9 +71,10 @@ class ApplyCheckpointWork : public BasicWork
 
   public:
     ApplyCheckpointWork(Application& app, TmpDir const& downloadDir,
-                        LedgerRange const& range);
+                        LedgerRange const& range, OnFailureCallback cb);
     ~ApplyCheckpointWork() = default;
     std::string getStatus() const override;
+    void onFailureRaise() override;
     void shutdown() override;
 
   protected:

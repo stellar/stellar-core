@@ -3,10 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/GetRemoteFileWork.h"
+#include "fmt/format.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
@@ -57,7 +59,16 @@ void
 GetRemoteFileWork::onFailureRaise()
 {
     assert(mCurrentArchive);
+    CLOG(ERROR, "History") << fmt::format(
+        "Could not download file: archive {} maybe missing file {}",
+        mCurrentArchive->getName(), mRemote);
     mCurrentArchive->markFailure();
     RunCommandWork::onFailureRaise();
+}
+
+std::shared_ptr<HistoryArchive>
+GetRemoteFileWork::getCurrentArchive() const
+{
+    return mCurrentArchive;
 }
 }

@@ -15,7 +15,7 @@ class GetRemoteFileWork : public RunCommandWork
 {
     std::string const mRemote;
     std::string const mLocal;
-    std::shared_ptr<HistoryArchive> mArchive;
+    std::shared_ptr<HistoryArchive> const mArchive;
     std::shared_ptr<HistoryArchive> mCurrentArchive;
     CommandInfo getCommand() override;
 
@@ -28,6 +28,7 @@ class GetRemoteFileWork : public RunCommandWork
                       std::shared_ptr<HistoryArchive> archive = nullptr,
                       size_t maxRetries = BasicWork::RETRY_A_LOT);
     ~GetRemoteFileWork() = default;
+    std::shared_ptr<HistoryArchive> getCurrentArchive() const;
 
   protected:
     void onReset() override;
