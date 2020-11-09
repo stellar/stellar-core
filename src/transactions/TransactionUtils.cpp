@@ -4,7 +4,7 @@
 
 #include "transactions/TransactionUtils.h"
 #include "crypto/SecretKey.h"
-#include "ledger/GeneralizedLedgerEntry.h"
+#include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
