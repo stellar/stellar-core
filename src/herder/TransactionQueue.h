@@ -66,6 +66,7 @@ class TransactionQueue
         ADD_STATUS_DUPLICATE,
         ADD_STATUS_ERROR,
         ADD_STATUS_TRY_AGAIN_LATER,
+        ADD_STATUS_FILTERED,
         ADD_STATUS_COUNT
     };
 
@@ -170,6 +171,8 @@ class TransactionQueue
     medida::Counter& mBannedTransactionsCounter;
     medida::Timer& mTransactionsDelay;
 
+    std::unordered_set<OperationType> mFilteredTypes;
+
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
                      TimestampedTransactions::iterator& oldTxIter);
@@ -187,6 +190,8 @@ class TransactionQueue
 
     size_t maxQueueSizeOps() const;
 
+    bool isFiltered(TransactionFrameBasePtr tx) const;
+
 #ifdef BUILD_TESTS
   public:
     size_t
@@ -199,5 +204,5 @@ class TransactionQueue
 
 static const char* TX_STATUS_STRING[static_cast<int>(
     TransactionQueue::AddResult::ADD_STATUS_COUNT)] = {
-    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER"};
+    "PENDING", "DUPLICATE", "ERROR", "TRY_AGAIN_LATER", "FILTERED"};
 }

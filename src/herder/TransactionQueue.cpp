@@ -44,6 +44,10 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
         mSizeByAge.emplace_back(&app.getMetrics().NewCounter(
             {"herder", "pending-txs", fmt::format("age{}", i)}));
     }
+
+    auto const& filteredTypes =
+        app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
+    mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
 }
 
 // returns true, if a transaction can be replaced by another
@@ -131,6 +135,10 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     if (isBanned(tx->getFullHash()))
     {
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
+    }
+    if (isFiltered(tx))
+    {
+        return TransactionQueue::AddResult::ADD_STATUS_FILTERED;
     }
 
     int64_t netFee = tx->getFeeBid();
@@ -656,5 +664,43 @@ TransactionQueue::maxQueueSizeOps() const
     size_t maxOpsLedger = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     maxOpsLedger *= mPoolLedgerMultiplier;
     return maxOpsLedger;
+}
+
+static bool
+containsFilteredOperation(
+    std::vector<Operation> const& ops,
+    std::unordered_set<OperationType> const& filteredTypes)
+{
+    return std::any_of(ops.begin(), ops.end(), [&](auto const& op) {
+        return filteredTypes.find(op.body.type()) != filteredTypes.end();
+    });
+}
+
+bool
+TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
+{
+    // Avoid cost of checking if filtering is not in use
+    if (mFilteredTypes.empty())
+    {
+        return false;
+    }
+
+    switch (tx->getEnvelope().type())
+    {
+    case ENVELOPE_TYPE_TX_V0:
+        return containsFilteredOperation(tx->getEnvelope().v0().tx.operations,
+                                         mFilteredTypes);
+    case ENVELOPE_TYPE_TX:
+        return containsFilteredOperation(tx->getEnvelope().v1().tx.operations,
+                                         mFilteredTypes);
+    case ENVELOPE_TYPE_TX_FEE_BUMP:
+    {
+        auto const& envelope = tx->getEnvelope().feeBump().tx.innerTx.v1();
+        return containsFilteredOperation(envelope.tx.operations,
+                                         mFilteredTypes);
+    }
+    default:
+        abort();
+    }
 }
 }
