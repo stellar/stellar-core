@@ -361,6 +361,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\TransactionSQL.cpp" />
     <ClCompile Include="..\..\src\transactions\RevokeSponsorshipOpFrame.cpp" />
     <ClCompile Include="..\..\src\util\FileSystemException.cpp" />
+    <ClCompile Include="..\..\src\util\LogSlowExecution.cpp" />
     <ClCompile Include="..\..\src\util\Scheduler.cpp" />
     <ClCompile Include="..\..\src\util\test\MetricTests.cpp" />
     <ClCompile Include="..\..\src\util\test\SchedulerTests.cpp" />

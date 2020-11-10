@@ -1137,6 +1137,9 @@
     <ClCompile Include="..\..\src\util\XDRCereal.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\LogSlowExecution.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
