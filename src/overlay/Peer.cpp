@@ -1201,10 +1201,10 @@ Peer::recvHello(Hello const& elo)
     mRecvNonce = elo.nonce;
     mSendMacSeq = 0;
     mRecvMacSeq = 0;
-    mSendStreamKey = peerAuth.getSendingStreamKey(elo.cert.pubkey, mSendNonce,
-                                                  mRecvNonce, mRole);
-    mRecvStreamKey = peerAuth.getReceivingStreamKey(elo.cert.pubkey, mSendNonce,
-                                                    mRecvNonce, mRole);
+    mSendStreamKey = peerAuth.getSendingStreamKey(
+        elo.cert.pubkey, mSendNonce, mRecvNonce, mRole, mRemoteOverlayVersion);
+    mRecvStreamKey = peerAuth.getReceivingStreamKey(
+        elo.cert.pubkey, mSendNonce, mRecvNonce, mRole, mRemoteOverlayVersion);
     mState = GOT_HELLO;
 
     auto ip = getIP();

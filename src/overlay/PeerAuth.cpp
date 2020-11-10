@@ -73,9 +73,9 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
 
 OverlayStreamKey
 PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
-                       Peer::PeerRole role)
+                       Peer::PeerRole role, uint32_t overlayVersion)
 {
-    auto key = PeerSharedKeyId{remotePublic, role};
+    auto key = PeerSharedKeyId{remotePublic, role, overlayVersion};
     if (mSharedKeyCache.exists(key))
     {
         return mSharedKeyCache.get(key);
@@ -90,7 +90,8 @@ PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
 OverlayStreamKey
 PeerAuth::getSendingStreamKey(Curve25519Public const& remotePublic,
                               uint256 const& localNonce,
-                              uint256 const& remoteNonce, Peer::PeerRole role)
+                              uint256 const& remoteNonce, Peer::PeerRole role,
+                              uint32_t remoteVersion)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
@@ -109,14 +110,15 @@ PeerAuth::getSendingStreamKey(Curve25519Public const& remotePublic,
         buf.insert(buf.end(), localNonce.begin(), localNonce.end());
         buf.insert(buf.end(), remoteNonce.begin(), remoteNonce.end());
     }
-    auto k = getSharedKey(remotePublic, role);
+    auto k = getSharedKey(remotePublic, role, remoteVersion);
     return hkdfExpand(k, buf);
 }
 
 OverlayStreamKey
 PeerAuth::getReceivingStreamKey(Curve25519Public const& remotePublic,
                                 uint256 const& localNonce,
-                                uint256 const& remoteNonce, Peer::PeerRole role)
+                                uint256 const& remoteNonce, Peer::PeerRole role,
+                                uint32_t remoteVersion)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
@@ -135,7 +137,7 @@ PeerAuth::getReceivingStreamKey(Curve25519Public const& remotePublic,
         buf.insert(buf.end(), remoteNonce.begin(), remoteNonce.end());
         buf.insert(buf.end(), localNonce.begin(), localNonce.end());
     }
-    auto k = getSharedKey(remotePublic, role);
+    auto k = getSharedKey(remotePublic, role, remoteVersion);
     return hkdfExpand(k, buf);
 }
 }

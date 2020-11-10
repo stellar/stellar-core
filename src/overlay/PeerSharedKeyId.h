@@ -13,6 +13,7 @@ struct PeerSharedKeyId
 {
     Curve25519Public mECDHPublicKey;
     Peer::PeerRole mRole;
+    uint32_t mOverlayVersion;
 
     friend bool operator==(PeerSharedKeyId const& x, PeerSharedKeyId const& y);
     friend bool operator!=(PeerSharedKeyId const& x, PeerSharedKeyId const& y);

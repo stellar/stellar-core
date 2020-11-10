@@ -33,7 +33,7 @@ class PeerAuth
     RandomEvictionCache<PeerSharedKeyId, OverlayStreamKey> mSharedKeyCache;
 
     OverlayStreamKey getSharedKey(Curve25519Public const& remotePublic,
-                                  Peer::PeerRole role);
+                                  Peer::PeerRole role, uint32_t overlayVersion);
 
   public:
     PeerAuth(Application& app);
@@ -44,10 +44,12 @@ class PeerAuth
     OverlayStreamKey getSendingStreamKey(Curve25519Public const& remotePublic,
                                          uint256 const& localNonce,
                                          uint256 const& remoteNonce,
-                                         Peer::PeerRole role);
+                                         Peer::PeerRole role,
+                                         uint32_t remoteVersion);
     OverlayStreamKey getReceivingStreamKey(Curve25519Public const& remotePublic,
                                            uint256 const& localNonce,
                                            uint256 const& remoteNonce,
-                                           Peer::PeerRole role);
+                                           Peer::PeerRole role,
+                                           uint32_t remoteVersion);
 };
 }
