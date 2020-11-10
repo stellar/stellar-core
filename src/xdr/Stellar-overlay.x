@@ -225,5 +225,24 @@ case 0:
         StellarMessage message;
         HmacSha256Mac mac;
     } v0;
+
+// In overlay v16 we switch from an HMAC-authenticated plaintext stream to an AEAD
+// stream using the overall-cheaper primitive XChaCha20-Poly1305.
+//
+// Setup for this stream requires two AuthenticatedMessage versions: v==1 is used
+// to convey a stream-initialization header as well as a single inner AEAD message,
+// an empty AUTH StellarMessage (as in v15) to "complete" the handshake (or fail). Once
+// conveyed, AuthenticatedMessage v==2 is used for all subsequent AEAD messages.
+case 1:
+    struct
+    {
+        AEADInitHeader init;
+        opaque aeadMessage<>;
+    } v1;
+case 2:
+    struct
+    {
+        opaque aeadMessage<>;
+    } v2;
 };
 }

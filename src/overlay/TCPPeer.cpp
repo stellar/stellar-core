@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/TCPPeer.h"
+#include "crypto/CryptoError.h"
 #include "crypto/Curve25519.h"
 #include "database/Database.h"
 #include "main/Application.h"
@@ -653,8 +654,9 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
 
     if (mState != GOT_AUTH)
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
-                               << mState << " we called:" << mRole;
+        CLOG(DEBUG, "Overlay")
+            << "TCPPeer::drop " << toString() << " in state " << mState
+            << ", role:" << mRole << ", reason: " << reason;
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {

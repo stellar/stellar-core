@@ -30,10 +30,10 @@ class PeerAuth
     Curve25519Public mECDHPublicKey;
     AuthCert mCert;
 
-    RandomEvictionCache<PeerSharedKeyId, HmacSha256Key> mSharedKeyCache;
+    RandomEvictionCache<PeerSharedKeyId, OverlayStreamKey> mSharedKeyCache;
 
-    HmacSha256Key getSharedKey(Curve25519Public const& remotePublic,
-                               Peer::PeerRole role);
+    OverlayStreamKey getSharedKey(Curve25519Public const& remotePublic,
+                                  Peer::PeerRole role, uint32_t overlayVersion);
 
   public:
     PeerAuth(Application& app);
@@ -41,13 +41,15 @@ class PeerAuth
     AuthCert getAuthCert();
     bool verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert);
 
-    HmacSha256Key getSendingMacKey(Curve25519Public const& remotePublic,
-                                   uint256 const& localNonce,
-                                   uint256 const& remoteNonce,
-                                   Peer::PeerRole role);
-    HmacSha256Key getReceivingMacKey(Curve25519Public const& remotePublic,
-                                     uint256 const& localNonce,
-                                     uint256 const& remoteNonce,
-                                     Peer::PeerRole role);
+    OverlayStreamKey getSendingStreamKey(Curve25519Public const& remotePublic,
+                                         uint256 const& localNonce,
+                                         uint256 const& remoteNonce,
+                                         Peer::PeerRole role,
+                                         uint32_t remoteVersion);
+    OverlayStreamKey getReceivingStreamKey(Curve25519Public const& remotePublic,
+                                           uint256 const& localNonce,
+                                           uint256 const& remoteNonce,
+                                           Peer::PeerRole role,
+                                           uint32_t remoteVersion);
 };
 }

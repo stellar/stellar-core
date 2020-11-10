@@ -10,7 +10,8 @@ namespace stellar
 bool
 operator==(PeerSharedKeyId const& x, PeerSharedKeyId const& y)
 {
-    return (x.mECDHPublicKey == y.mECDHPublicKey) && (x.mRole == y.mRole);
+    return (x.mECDHPublicKey == y.mECDHPublicKey) && (x.mRole == y.mRole) &&
+           (x.mOverlayVersion == y.mOverlayVersion);
 }
 
 bool
@@ -28,6 +29,7 @@ hash<stellar::PeerSharedKeyId>::
 operator()(stellar::PeerSharedKeyId const& x) const noexcept
 {
     return std::hash<stellar::Curve25519Public>{}(x.mECDHPublicKey) ^
-           std::hash<int>{}(static_cast<int>(x.mRole));
+           std::hash<int>{}(static_cast<int>(x.mRole)) ^
+           std::hash<uint32_t>{}(x.mOverlayVersion);
 }
 }

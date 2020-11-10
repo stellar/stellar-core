@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/Curve25519.h"
+#include "crypto/CryptoError.h"
 #include "crypto/SHA.h"
 #include "util/HashOfHash.h"
 #include <Tracy.hpp>
@@ -46,7 +47,7 @@ clearCurve25519Keys(Curve25519Public& localPublic,
     sodium_memzero(localSecret.key.data(), localSecret.key.size());
 }
 
-HmacSha256Key
+OverlayStreamKey
 curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
                           Curve25519Public const& localPublic,
                           Curve25519Public const& remotePublic, bool localFirst)

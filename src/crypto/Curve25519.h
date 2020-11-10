@@ -13,13 +13,6 @@
 
 namespace stellar
 {
-class CryptoError : public std::runtime_error
-{
-  public:
-    CryptoError(std::string const& msg) : std::runtime_error(msg)
-    {
-    }
-};
 // This module contains functions for doing ECDH on Curve25519. Despite the
 // equivalence between this curve and Ed25519 (used in signatures, see
 // SecretKey.h) we use Curve25519 keys _only_ for ECDH shared-key-agreement
@@ -49,10 +42,10 @@ void clearCurve25519Keys(Curve25519Public& localPublic,
 //   publicA = localFirst ? localPublic : remotePublic
 //   publicB = localFirst ? remotePublic : localPublic
 
-HmacSha256Key curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
-                                        Curve25519Public const& localPublic,
-                                        Curve25519Public const& remotePublic,
-                                        bool localFirst);
+OverlayStreamKey curve25519DeriveSharedKey(Curve25519Secret const& localSecret,
+                                           Curve25519Public const& localPublic,
+                                           Curve25519Public const& remotePublic,
+                                           bool localFirst);
 
 xdr::opaque_vec<> curve25519Decrypt(Curve25519Secret const& localSecret,
                                     Curve25519Public const& localPublic,

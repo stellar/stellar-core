@@ -155,7 +155,7 @@ TEST_CASE("SHA256 XDR bench", "[!hide][sha-xdr-bench]")
 
 TEST_CASE("HMAC test vector", "[crypto]")
 {
-    HmacSha256Key k;
+    OverlayStreamKey k;
     k.key[0] = 'k';
     k.key[1] = 'e';
     k.key[2] = 'y';
@@ -170,7 +170,7 @@ TEST_CASE("HMAC test vector", "[crypto]")
 TEST_CASE("HKDF test vector", "[crypto]")
 {
     auto ikm = hexToBin("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
-    HmacSha256Key prk, okm;
+    OverlayStreamKey prk, okm;
     prk.key = hexToBin256(
         "19ef24a32c717b167f33a91d6f648bdf96596776afdb6377ac434c1c293ccb04");
     okm.key = hexToBin256(
