@@ -4,6 +4,7 @@
 
 #include "TestUtils.h"
 #include "overlay/test/LoopbackPeer.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "work/WorkScheduler.h"
 
@@ -62,6 +63,42 @@ injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
             },
             &VirtualTimer::onFailureNoop);
     }
+}
+
+std::vector<Asset>
+getInvalidAssets(SecretKey const& issuer)
+{
+    std::vector<Asset> assets;
+
+    // control char in asset name
+    assets.emplace_back(txtest::makeAsset(issuer, "\n"));
+
+    // non-trailing zero in asset name
+    assets.emplace_back(txtest::makeAsset(issuer, "\0a"));
+
+    // zero asset name
+    assets.emplace_back(txtest::makeAsset(issuer, "\0"));
+
+    // start right after z(122), and go through some of the
+    // extended ascii codes
+    for (int v = 123; v < 140; ++v)
+    {
+        std::string assetCode;
+        signed char i = static_cast<signed char>((v < 128) ? v : (127 - v));
+        assetCode.push_back(i);
+        assets.emplace_back(txtest::makeAsset(issuer, assetCode));
+    }
+
+    {
+        // AssetCode12 with less than 5 chars
+        Asset asset;
+        asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+        asset.alphaNum12().issuer = issuer.getPublicKey();
+        strToAssetCode(asset.alphaNum12().assetCode, "aaaa");
+        assets.emplace_back(asset);
+    }
+
+    return assets;
 }
 
 BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)

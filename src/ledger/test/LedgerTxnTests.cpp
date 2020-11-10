@@ -1355,7 +1355,9 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
 
                 {
                     std::string accountIDStr, issuerStr, assetCodeStr;
-                    auto loadTest = [&](Asset const& asset) {
+                    auto invalidAssets = testutil::getInvalidAssets(acc);
+                    for (auto const& asset : invalidAssets)
+                    {
                         auto key = trustlineKey(acc2.getPublicKey(), asset);
 
                         // verify that this doesn't throw before V15
@@ -1365,54 +1367,6 @@ TEST_CASE("LedgerTxn load", "[ledgertxn]")
 
                         REQUIRE_THROWS_AS(ltx1.load(key),
                                           NonSociRelatedException);
-                    };
-
-                    {
-                        auto asset = txtest::makeAsset(acc, "\n");
-                        UNSCOPED_INFO("control char in asset name");
-                        loadTest(asset);
-                    }
-
-                    {
-                        std::string assetCode;
-                        assetCode.push_back(0);
-                        assetCode.push_back('a');
-                        auto asset = txtest::makeAsset(acc, assetCode);
-                        UNSCOPED_INFO("non-trailing zero in asset name");
-                        loadTest(asset);
-                    }
-
-                    {
-                        std::string assetCode;
-                        assetCode.push_back(0);
-                        auto asset = txtest::makeAsset(acc, assetCode);
-                        UNSCOPED_INFO("zero asset name");
-                        loadTest(asset);
-                    }
-
-                    {
-                        // start right after z(122), and go through some of the
-                        // extended ascii codes
-                        for (int v = 123; v < 140; ++v)
-                        {
-                            std::string assetCode;
-                            signed char i = static_cast<signed char>(
-                                (v < 128) ? v : (127 - v));
-                            assetCode.push_back(i);
-                            auto asset = txtest::makeAsset(acc, assetCode);
-                            UNSCOPED_INFO(
-                                fmt::format("invalid ascii code={}", i));
-                            loadTest(asset);
-                        }
-                    }
-
-                    {
-                        Asset asset;
-                        asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
-                        asset.alphaNum12().issuer = acc.getPublicKey();
-                        strToAssetCode(asset.alphaNum12().assetCode, "aaaa");
-                        UNSCOPED_INFO("AssetCode12 with less than 5 chars");
-                        loadTest(asset);
                     }
                 }
 
