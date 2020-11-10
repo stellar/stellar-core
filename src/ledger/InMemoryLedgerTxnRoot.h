@@ -1,4 +1,4 @@
-#include "ledger/GeneralizedLedgerEntry.h"
+#include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "xdr/Stellar-ledger-entries.h"
@@ -42,8 +42,8 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     std::vector<InflationWinner>
     getInflationWinners(size_t maxWinners, int64_t minBalance) override;
 
-    std::shared_ptr<GeneralizedLedgerEntry const>
-    getNewestVersion(GeneralizedLedgerKey const& key) const override;
+    std::shared_ptr<InternalLedgerEntry const>
+    getNewestVersion(InternalLedgerKey const& key) const override;
 
     uint64_t countObjects(LedgerEntryType let) const override;
     uint64_t countObjects(LedgerEntryType let,

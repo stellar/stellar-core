@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/GeneralizedLedgerEntry.h"
+#include "ledger/InternalLedgerEntry.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
 
@@ -63,58 +63,57 @@ operator!=(SponsorshipCounterEntry const& lhs,
     return !(lhs == rhs);
 }
 
-// GeneralizedLedgerKey -------------------------------------------------------
-GeneralizedLedgerKey::GeneralizedLedgerKey()
-    : GeneralizedLedgerKey(GeneralizedLedgerEntryType::LEDGER_ENTRY)
+// InternalLedgerKey -------------------------------------------------------
+InternalLedgerKey::InternalLedgerKey()
+    : InternalLedgerKey(InternalLedgerEntryType::LEDGER_ENTRY)
 {
 }
 
-GeneralizedLedgerKey::GeneralizedLedgerKey(GeneralizedLedgerEntryType t)
-    : mType(t)
+InternalLedgerKey::InternalLedgerKey(InternalLedgerEntryType t) : mType(t)
 {
     construct();
 }
 
-GeneralizedLedgerKey::GeneralizedLedgerKey(LedgerKey const& lk)
-    : GeneralizedLedgerKey(GeneralizedLedgerEntryType::LEDGER_ENTRY)
+InternalLedgerKey::InternalLedgerKey(LedgerKey const& lk)
+    : InternalLedgerKey(InternalLedgerEntryType::LEDGER_ENTRY)
 {
     ledgerKey() = lk;
 }
 
-GeneralizedLedgerKey::GeneralizedLedgerKey(SponsorshipKey const& sk)
-    : GeneralizedLedgerKey(GeneralizedLedgerEntryType::SPONSORSHIP)
+InternalLedgerKey::InternalLedgerKey(SponsorshipKey const& sk)
+    : InternalLedgerKey(InternalLedgerEntryType::SPONSORSHIP)
 {
     sponsorshipKey() = sk;
 }
 
-GeneralizedLedgerKey::GeneralizedLedgerKey(SponsorshipCounterKey const& sck)
-    : GeneralizedLedgerKey(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER)
+InternalLedgerKey::InternalLedgerKey(SponsorshipCounterKey const& sck)
+    : InternalLedgerKey(InternalLedgerEntryType::SPONSORSHIP_COUNTER)
 {
     sponsorshipCounterKey() = sck;
 }
 
-GeneralizedLedgerKey::GeneralizedLedgerKey(GeneralizedLedgerKey const& glk)
-    : GeneralizedLedgerKey(glk.type())
+InternalLedgerKey::InternalLedgerKey(InternalLedgerKey const& glk)
+    : InternalLedgerKey(glk.type())
 {
     assign(glk);
 }
 
-GeneralizedLedgerKey::GeneralizedLedgerKey(GeneralizedLedgerKey&& glk)
-    : GeneralizedLedgerKey(glk.type())
+InternalLedgerKey::InternalLedgerKey(InternalLedgerKey&& glk)
+    : InternalLedgerKey(glk.type())
 {
     assign(std::move(glk));
 }
 
-GeneralizedLedgerKey&
-GeneralizedLedgerKey::operator=(GeneralizedLedgerKey const& glk)
+InternalLedgerKey&
+InternalLedgerKey::operator=(InternalLedgerKey const& glk)
 {
     type(glk.type());
     assign(glk);
     return *this;
 }
 
-GeneralizedLedgerKey&
-GeneralizedLedgerKey::operator=(GeneralizedLedgerKey&& glk)
+InternalLedgerKey&
+InternalLedgerKey::operator=(InternalLedgerKey&& glk)
 {
     if (this == &glk)
     {
@@ -126,24 +125,24 @@ GeneralizedLedgerKey::operator=(GeneralizedLedgerKey&& glk)
     return *this;
 }
 
-GeneralizedLedgerKey::~GeneralizedLedgerKey()
+InternalLedgerKey::~InternalLedgerKey()
 {
     destruct();
 }
 
 void
-GeneralizedLedgerKey::assign(GeneralizedLedgerKey const& glk)
+InternalLedgerKey::assign(InternalLedgerKey const& glk)
 {
     assert(glk.type() == mType);
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         ledgerKey() = glk.ledgerKey();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         sponsorshipKey() = glk.sponsorshipKey();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterKey() = glk.sponsorshipCounterKey();
         break;
     default:
@@ -152,18 +151,18 @@ GeneralizedLedgerKey::assign(GeneralizedLedgerKey const& glk)
 }
 
 void
-GeneralizedLedgerKey::assign(GeneralizedLedgerKey&& glk)
+InternalLedgerKey::assign(InternalLedgerKey&& glk)
 {
     assert(glk.type() == mType);
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         ledgerKey() = std::move(glk.ledgerKey());
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         sponsorshipKey() = std::move(glk.sponsorshipKey());
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterKey() = std::move(glk.sponsorshipCounterKey());
         break;
     default:
@@ -172,17 +171,17 @@ GeneralizedLedgerKey::assign(GeneralizedLedgerKey&& glk)
 }
 
 void
-GeneralizedLedgerKey::construct()
+InternalLedgerKey::construct()
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         new (&mLedgerKey) LedgerKey();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         new (&mSponsorshipKey) SponsorshipKey();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         new (&mSponsorshipCounterKey) SponsorshipCounterKey();
         break;
     default:
@@ -191,17 +190,17 @@ GeneralizedLedgerKey::construct()
 }
 
 void
-GeneralizedLedgerKey::destruct()
+InternalLedgerKey::destruct()
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         mLedgerKey.~LedgerKey();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         mSponsorshipKey.~SponsorshipKey();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         mSponsorshipCounterKey.~SponsorshipCounterKey();
         break;
     default:
@@ -210,7 +209,7 @@ GeneralizedLedgerKey::destruct()
 }
 
 void
-GeneralizedLedgerKey::type(GeneralizedLedgerEntryType t)
+InternalLedgerKey::type(InternalLedgerEntryType t)
 {
     if (t != mType)
     {
@@ -220,15 +219,14 @@ GeneralizedLedgerKey::type(GeneralizedLedgerEntryType t)
     }
 }
 
-GeneralizedLedgerEntryType
-GeneralizedLedgerKey::type() const
+InternalLedgerEntryType
+InternalLedgerKey::type() const
 {
     return mType;
 }
 
 void
-GeneralizedLedgerKey::checkDiscriminant(
-    GeneralizedLedgerEntryType expected) const
+InternalLedgerKey::checkDiscriminant(InternalLedgerEntryType expected) const
 {
     if (mType != expected)
     {
@@ -237,58 +235,58 @@ GeneralizedLedgerKey::checkDiscriminant(
 }
 
 LedgerKey&
-GeneralizedLedgerKey::ledgerKey()
+InternalLedgerKey::ledgerKey()
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::LEDGER_ENTRY);
+    checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerKey;
 }
 
 LedgerKey const&
-GeneralizedLedgerKey::ledgerKey() const
+InternalLedgerKey::ledgerKey() const
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::LEDGER_ENTRY);
+    checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerKey;
 }
 
 SponsorshipKey&
-GeneralizedLedgerKey::sponsorshipKey()
+InternalLedgerKey::sponsorshipKey()
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipKey;
 }
 
 SponsorshipKey const&
-GeneralizedLedgerKey::sponsorshipKey() const
+InternalLedgerKey::sponsorshipKey() const
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipKey;
 }
 
 SponsorshipCounterKey&
-GeneralizedLedgerKey::sponsorshipCounterKey()
+InternalLedgerKey::sponsorshipCounterKey()
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterKey;
 }
 
 SponsorshipCounterKey const&
-GeneralizedLedgerKey::sponsorshipCounterKey() const
+InternalLedgerKey::sponsorshipCounterKey() const
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterKey;
 }
 
 std::string
-GeneralizedLedgerKey::toString() const
+InternalLedgerKey::toString() const
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         return xdr_to_string(ledgerKey());
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {}\n}}\n",
                            xdr_to_string(sponsorshipKey().sponsoredID));
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return fmt::format("{{\n  sponsoringID = {}\n}}\n",
                            xdr_to_string(sponsorshipCounterKey().sponsoringID));
     default:
@@ -297,7 +295,7 @@ GeneralizedLedgerKey::toString() const
 }
 
 bool
-operator==(GeneralizedLedgerKey const& lhs, GeneralizedLedgerKey const& rhs)
+operator==(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
 {
     if (lhs.type() != rhs.type())
     {
@@ -306,11 +304,11 @@ operator==(GeneralizedLedgerKey const& lhs, GeneralizedLedgerKey const& rhs)
 
     switch (lhs.type())
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         return lhs.ledgerKey() == rhs.ledgerKey();
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         return lhs.sponsorshipKey() == rhs.sponsorshipKey();
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return lhs.sponsorshipCounterKey() == rhs.sponsorshipCounterKey();
     default:
         abort();
@@ -318,65 +316,62 @@ operator==(GeneralizedLedgerKey const& lhs, GeneralizedLedgerKey const& rhs)
 }
 
 bool
-operator!=(GeneralizedLedgerKey const& lhs, GeneralizedLedgerKey const& rhs)
+operator!=(InternalLedgerKey const& lhs, InternalLedgerKey const& rhs)
 {
     return !(lhs == rhs);
 }
 
-// GeneralizedLedgerEntry -----------------------------------------------------
-GeneralizedLedgerEntry::GeneralizedLedgerEntry()
-    : GeneralizedLedgerEntry(GeneralizedLedgerEntryType::LEDGER_ENTRY)
+// InternalLedgerEntry -----------------------------------------------------
+InternalLedgerEntry::InternalLedgerEntry()
+    : InternalLedgerEntry(InternalLedgerEntryType::LEDGER_ENTRY)
 {
 }
 
-GeneralizedLedgerEntry::GeneralizedLedgerEntry(GeneralizedLedgerEntryType t)
-    : mType(t)
+InternalLedgerEntry::InternalLedgerEntry(InternalLedgerEntryType t) : mType(t)
 {
     construct();
 }
 
-GeneralizedLedgerEntry::GeneralizedLedgerEntry(LedgerEntry const& le)
-    : GeneralizedLedgerEntry(GeneralizedLedgerEntryType::LEDGER_ENTRY)
+InternalLedgerEntry::InternalLedgerEntry(LedgerEntry const& le)
+    : InternalLedgerEntry(InternalLedgerEntryType::LEDGER_ENTRY)
 {
     ledgerEntry() = le;
 }
 
-GeneralizedLedgerEntry::GeneralizedLedgerEntry(SponsorshipEntry const& se)
-    : GeneralizedLedgerEntry(GeneralizedLedgerEntryType::SPONSORSHIP)
+InternalLedgerEntry::InternalLedgerEntry(SponsorshipEntry const& se)
+    : InternalLedgerEntry(InternalLedgerEntryType::SPONSORSHIP)
 {
     sponsorshipEntry() = se;
 }
 
-GeneralizedLedgerEntry::GeneralizedLedgerEntry(
-    SponsorshipCounterEntry const& sce)
-    : GeneralizedLedgerEntry(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER)
+InternalLedgerEntry::InternalLedgerEntry(SponsorshipCounterEntry const& sce)
+    : InternalLedgerEntry(InternalLedgerEntryType::SPONSORSHIP_COUNTER)
 {
     sponsorshipCounterEntry() = sce;
 }
 
-GeneralizedLedgerEntry::GeneralizedLedgerEntry(
-    GeneralizedLedgerEntry const& gle)
-    : GeneralizedLedgerEntry(gle.type())
+InternalLedgerEntry::InternalLedgerEntry(InternalLedgerEntry const& gle)
+    : InternalLedgerEntry(gle.type())
 {
     assign(gle);
 }
 
-GeneralizedLedgerEntry::GeneralizedLedgerEntry(GeneralizedLedgerEntry&& gle)
-    : GeneralizedLedgerEntry(gle.type())
+InternalLedgerEntry::InternalLedgerEntry(InternalLedgerEntry&& gle)
+    : InternalLedgerEntry(gle.type())
 {
     assign(std::move(gle));
 }
 
-GeneralizedLedgerEntry&
-GeneralizedLedgerEntry::operator=(GeneralizedLedgerEntry const& gle)
+InternalLedgerEntry&
+InternalLedgerEntry::operator=(InternalLedgerEntry const& gle)
 {
     type(gle.type());
     assign(gle);
     return *this;
 }
 
-GeneralizedLedgerEntry&
-GeneralizedLedgerEntry::operator=(GeneralizedLedgerEntry&& gle)
+InternalLedgerEntry&
+InternalLedgerEntry::operator=(InternalLedgerEntry&& gle)
 {
     if (this == &gle)
     {
@@ -388,24 +383,24 @@ GeneralizedLedgerEntry::operator=(GeneralizedLedgerEntry&& gle)
     return *this;
 }
 
-GeneralizedLedgerEntry::~GeneralizedLedgerEntry()
+InternalLedgerEntry::~InternalLedgerEntry()
 {
     destruct();
 }
 
 void
-GeneralizedLedgerEntry::assign(GeneralizedLedgerEntry const& gle)
+InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
 {
     assert(gle.type() == mType);
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         ledgerEntry() = gle.ledgerEntry();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         sponsorshipEntry() = gle.sponsorshipEntry();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterEntry() = gle.sponsorshipCounterEntry();
         break;
     default:
@@ -414,18 +409,18 @@ GeneralizedLedgerEntry::assign(GeneralizedLedgerEntry const& gle)
 }
 
 void
-GeneralizedLedgerEntry::assign(GeneralizedLedgerEntry&& gle)
+InternalLedgerEntry::assign(InternalLedgerEntry&& gle)
 {
     assert(gle.type() == mType);
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         ledgerEntry() = std::move(gle.ledgerEntry());
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         sponsorshipEntry() = std::move(gle.sponsorshipEntry());
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         sponsorshipCounterEntry() = std::move(gle.sponsorshipCounterEntry());
         break;
     default:
@@ -434,17 +429,17 @@ GeneralizedLedgerEntry::assign(GeneralizedLedgerEntry&& gle)
 }
 
 void
-GeneralizedLedgerEntry::construct()
+InternalLedgerEntry::construct()
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         new (&mLedgerEntry) LedgerEntry();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         new (&mSponsorshipEntry) SponsorshipEntry();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         new (&mSponsorshipCounterEntry) SponsorshipCounterEntry();
         break;
     default:
@@ -453,17 +448,17 @@ GeneralizedLedgerEntry::construct()
 }
 
 void
-GeneralizedLedgerEntry::destruct()
+InternalLedgerEntry::destruct()
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         mLedgerEntry.~LedgerEntry();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         mSponsorshipEntry.~SponsorshipEntry();
         break;
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         mSponsorshipCounterEntry.~SponsorshipCounterEntry();
         break;
     default:
@@ -472,7 +467,7 @@ GeneralizedLedgerEntry::destruct()
 }
 
 void
-GeneralizedLedgerEntry::type(GeneralizedLedgerEntryType t)
+InternalLedgerEntry::type(InternalLedgerEntryType t)
 {
     if (t != mType)
     {
@@ -482,15 +477,14 @@ GeneralizedLedgerEntry::type(GeneralizedLedgerEntryType t)
     }
 }
 
-GeneralizedLedgerEntryType
-GeneralizedLedgerEntry::type() const
+InternalLedgerEntryType
+InternalLedgerEntry::type() const
 {
     return mType;
 }
 
 void
-GeneralizedLedgerEntry::checkDiscriminant(
-    GeneralizedLedgerEntryType expected) const
+InternalLedgerEntry::checkDiscriminant(InternalLedgerEntryType expected) const
 {
     if (mType != expected)
     {
@@ -499,59 +493,59 @@ GeneralizedLedgerEntry::checkDiscriminant(
 }
 
 LedgerEntry&
-GeneralizedLedgerEntry::ledgerEntry()
+InternalLedgerEntry::ledgerEntry()
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::LEDGER_ENTRY);
+    checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerEntry;
 }
 
 LedgerEntry const&
-GeneralizedLedgerEntry::ledgerEntry() const
+InternalLedgerEntry::ledgerEntry() const
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::LEDGER_ENTRY);
+    checkDiscriminant(InternalLedgerEntryType::LEDGER_ENTRY);
     return mLedgerEntry;
 }
 
 SponsorshipEntry&
-GeneralizedLedgerEntry::sponsorshipEntry()
+InternalLedgerEntry::sponsorshipEntry()
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipEntry;
 }
 
 SponsorshipEntry const&
-GeneralizedLedgerEntry::sponsorshipEntry() const
+InternalLedgerEntry::sponsorshipEntry() const
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP);
     return mSponsorshipEntry;
 }
 
 SponsorshipCounterEntry&
-GeneralizedLedgerEntry::sponsorshipCounterEntry()
+InternalLedgerEntry::sponsorshipCounterEntry()
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterEntry;
 }
 
 SponsorshipCounterEntry const&
-GeneralizedLedgerEntry::sponsorshipCounterEntry() const
+InternalLedgerEntry::sponsorshipCounterEntry() const
 {
-    checkDiscriminant(GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER);
+    checkDiscriminant(InternalLedgerEntryType::SPONSORSHIP_COUNTER);
     return mSponsorshipCounterEntry;
 }
 
-GeneralizedLedgerKey
-GeneralizedLedgerEntry::toKey() const
+InternalLedgerKey
+InternalLedgerEntry::toKey() const
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         return LedgerEntryKey(ledgerEntry());
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
-        return GeneralizedLedgerKey(
+    case InternalLedgerEntryType::SPONSORSHIP:
+        return InternalLedgerKey(
             SponsorshipKey{sponsorshipEntry().sponsoredID});
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
-        return GeneralizedLedgerKey(
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
+        return InternalLedgerKey(
             SponsorshipCounterKey{sponsorshipCounterEntry().sponsoringID});
     default:
         abort();
@@ -559,17 +553,17 @@ GeneralizedLedgerEntry::toKey() const
 }
 
 std::string
-GeneralizedLedgerEntry::toString() const
+InternalLedgerEntry::toString() const
 {
     switch (mType)
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         return xdr_to_string(ledgerEntry());
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         return fmt::format("{{\n  sponsoredID = {},\n  sponsoringID = {}\n}}\n",
                            xdr_to_string(sponsorshipEntry().sponsoredID),
                            xdr_to_string(sponsorshipEntry().sponsoringID));
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return fmt::format(
             "{{\n  sponsoringID = {},\n  numSponsoring = {}\n}}\n",
             xdr_to_string(sponsorshipCounterEntry().sponsoringID),
@@ -580,7 +574,7 @@ GeneralizedLedgerEntry::toString() const
 }
 
 bool
-operator==(GeneralizedLedgerEntry const& lhs, GeneralizedLedgerEntry const& rhs)
+operator==(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
 {
     if (lhs.type() != rhs.type())
     {
@@ -589,11 +583,11 @@ operator==(GeneralizedLedgerEntry const& lhs, GeneralizedLedgerEntry const& rhs)
 
     switch (lhs.type())
     {
-    case GeneralizedLedgerEntryType::LEDGER_ENTRY:
+    case InternalLedgerEntryType::LEDGER_ENTRY:
         return lhs.ledgerEntry() == rhs.ledgerEntry();
-    case GeneralizedLedgerEntryType::SPONSORSHIP:
+    case InternalLedgerEntryType::SPONSORSHIP:
         return lhs.sponsorshipEntry() == rhs.sponsorshipEntry();
-    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
         return lhs.sponsorshipCounterEntry() == rhs.sponsorshipCounterEntry();
     default:
         abort();
@@ -601,7 +595,7 @@ operator==(GeneralizedLedgerEntry const& lhs, GeneralizedLedgerEntry const& rhs)
 }
 
 bool
-operator!=(GeneralizedLedgerEntry const& lhs, GeneralizedLedgerEntry const& rhs)
+operator!=(InternalLedgerEntry const& lhs, InternalLedgerEntry const& rhs)
 {
     return !(lhs == rhs);
 }

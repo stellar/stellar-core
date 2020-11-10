@@ -112,8 +112,7 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entryIter)
         {
             assert(e.entryExists());
-            assert(e.entry().type() ==
-                   GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             accumulateEntry(e.entry().ledgerEntry());
         }
     }
@@ -224,7 +223,7 @@ class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             assert(!e.entryExists());
-            assert(e.key().type() == GeneralizedLedgerEntryType::LEDGER_ENTRY);
+            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             assert(e.key().ledgerKey().type() == DATA);
             auto const& data = e.key().ledgerKey().data();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(data.accountID));

@@ -787,8 +787,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                     auto glk = kv.first;
                     switch (glk.type())
                     {
-                    case GeneralizedLedgerEntryType::SPONSORSHIP:
-                    case GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+                    case InternalLedgerEntryType::SPONSORSHIP:
+                    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
                         getResult().result.code(txBAD_SPONSORSHIP);
                         return false;
                     default:

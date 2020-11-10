@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/ShortHash.h"
-#include "ledger/GeneralizedLedgerEntry.h"
+#include "ledger/InternalLedgerEntry.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 
@@ -86,20 +86,20 @@ template <> class hash<stellar::LedgerKey>
     }
 };
 
-template <> class hash<stellar::GeneralizedLedgerKey>
+template <> class hash<stellar::InternalLedgerKey>
 {
   public:
     size_t
-    operator()(stellar::GeneralizedLedgerKey const& glk) const
+    operator()(stellar::InternalLedgerKey const& glk) const
     {
         switch (glk.type())
         {
-        case stellar::GeneralizedLedgerEntryType::LEDGER_ENTRY:
+        case stellar::InternalLedgerEntryType::LEDGER_ENTRY:
             return hash<stellar::LedgerKey>()(glk.ledgerKey());
-        case stellar::GeneralizedLedgerEntryType::SPONSORSHIP:
+        case stellar::InternalLedgerEntryType::SPONSORSHIP:
             return stellar::shortHash::computeHash(stellar::ByteSlice(
                 glk.sponsorshipKey().sponsoredID.ed25519().data(), 8));
-        case stellar::GeneralizedLedgerEntryType::SPONSORSHIP_COUNTER:
+        case stellar::InternalLedgerEntryType::SPONSORSHIP_COUNTER:
             return stellar::shortHash::computeHash(stellar::ByteSlice(
                 glk.sponsorshipCounterKey().sponsoringID.ed25519().data(), 8));
         default:
