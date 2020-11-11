@@ -286,6 +286,7 @@ exit /b 0
     <ClCompile Include="..\..\src\crypto\KeyUtils.cpp" />
     <ClCompile Include="..\..\src\crypto\Random.cpp" />
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
+    <ClCompile Include="..\..\src\crypto\SecretStream.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
     <ClCompile Include="..\..\src\crypto\ShortHash.cpp" />
     <ClCompile Include="..\..\src\crypto\SignerKey.cpp" />
@@ -645,11 +646,13 @@ exit /b 0
     <ClInclude Include="..\..\src\catchup\test\CatchupWorkTests.h" />
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
+    <ClInclude Include="..\..\src\crypto\CryptoError.h" />
     <ClInclude Include="..\..\src\crypto\Curve25519.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
     <ClInclude Include="..\..\src\crypto\KeyUtils.h" />
     <ClInclude Include="..\..\src\crypto\Random.h" />
     <ClInclude Include="..\..\src\crypto\SecretKey.h" />
+    <ClInclude Include="..\..\src\crypto\SecretStream.h" />
     <ClInclude Include="..\..\src\crypto\SHA.h" />
     <ClInclude Include="..\..\src\crypto\ShortHash.h" />
     <ClInclude Include="..\..\src\crypto\SignerKey.h" />

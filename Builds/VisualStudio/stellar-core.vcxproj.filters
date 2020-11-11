@@ -1137,6 +1137,9 @@
     <ClCompile Include="..\..\src\util\XDRCereal.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SecretStream.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1963,6 +1966,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\XDRCereal.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\CryptoError.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SecretStream.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
