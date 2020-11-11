@@ -297,7 +297,9 @@ Scheduler::runOne()
             auto updateMaxTotalService = gsl::finally([&]() {
                 mMaxTotalService =
                     std::max(q->totalService(), mMaxTotalService);
+                mCurrentActionType = ActionType::NORMAL_ACTION;
             });
+            mCurrentActionType = q->type();
             q->runNext(mClock, minTotalService);
         }
         return 1;
@@ -321,6 +323,12 @@ Scheduler::getOverloadedDuration() const
         res = std::chrono::seconds{0};
     }
     return res;
+}
+
+Scheduler::ActionType
+Scheduler::currentActionType() const
+{
+    return mCurrentActionType;
 }
 
 #ifdef BUILD_TESTS

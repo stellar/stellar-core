@@ -95,6 +95,7 @@ overlay.memory.flood-known               | counter   | number of known flooded e
 overlay.message.broadcast                | meter     | message broadcasted
 overlay.message.read                     | meter     | message received
 overlay.message.write                    | meter     | message sent
+overlay.message.drop                     | meter     | message dropped due to load-shedding
 overlay.outbound.attempt                 | meter     | outbound connection attempted (socket opened)
 overlay.outbound.cancel                  | meter     | outbound connection cancelled
 overlay.outbound.drop                    | meter     | outbound connection dropped

@@ -201,6 +201,10 @@ class Scheduler
     // not
     std::chrono::steady_clock::time_point mOverloadedStart;
 
+    // Records the currently-executing action type, or NORMAL_ACTION when no
+    // action is running. This can be retrieved through currentActionType().
+    ActionType mCurrentActionType{ActionType::NORMAL_ACTION};
+
   public:
     Scheduler(VirtualClock& clock, std::chrono::nanoseconds latencyWindow);
 
@@ -209,6 +213,10 @@ class Scheduler
 
     // Runs 0 or 1 action from the next ActionQueue in the queue-of-queues.
     size_t runOne();
+
+    // Return the ActionType of the currently-executing action; if no action
+    // is currently running, return NORMAL_ACTION.
+    ActionType currentActionType() const;
 
     // Returns how long ActionQueues have been overloaded (0 means not
     // overloaded)
