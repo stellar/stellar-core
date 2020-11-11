@@ -5,18 +5,31 @@
 set -ev
 
 WITH_TESTS=1
+export TEMP_POSTGRES=0
 
-case "$1" in
-"--disable-tests")
-        WITH_TESTS=0
-        ;;
-"")
-        ;;
-*)
-        echo Usage: $0 "[--disable-tests]"
-        exit 1
-        ;;
-esac
+while [[ -n "$1" ]]; do
+    COMMAND="$1"
+    shift
+
+    case "${COMMAND}" in
+    "--disable-tests")
+            WITH_TESTS=0
+            echo Disabling tests
+            ;;
+    "--use-temp-db")
+            export TEMP_POSTGRES=1
+            echo Using temp database
+            ;;
+    "")
+            ;;
+    *)
+            echo Unknown parameter ${COMMAND}
+            echo Usage: $0 "[--disable-tests][--use-temp-db]"
+            exit 1
+            ;;
+    esac
+
+done
 
 echo $TRAVIS_PULL_REQUEST
 
@@ -39,31 +52,29 @@ fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir bin
-which gcc-6
-ln -s `which gcc-6` bin/gcc
-which g++-6
-ln -s `which g++-6` bin/g++
-which clang-5.0
-ln -s `which clang-5.0` bin/clang
-which clang++-5.0
-ln -s `which clang++-5.0` bin/clang++
-which llvm-symbolizer-5.0
-ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
 
 export PATH=`pwd`/bin:$PATH
 echo "PATH is $PATH"
-
 hash -r
-
-clang -v
-which g++
-g++ -v
-llvm-symbolizer --version || true
 
 if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
+    which clang-5.0
+    ln -s `which clang-5.0` bin/clang
+    which clang++-5.0
+    ln -s `which clang++-5.0` bin/clang++
+    which llvm-symbolizer-5.0
+    ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
+    clang -v
+    llvm-symbolizer --version || true
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
+    which gcc-6
+    ln -s `which gcc-6` bin/gcc
+    which g++-6
+    ln -s `which g++-6` bin/g++
+    which g++
+    g++ -v
 fi
 
 config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs"
@@ -108,19 +119,20 @@ if [ $WITH_TESTS -eq 0 ] ; then
     exit 0
 fi
 
-# Create postgres databases
-export PGUSER=postgres
-psql -c "create database test;"
-# we run NPROCS jobs in parallel
-for j in $(seq 0 $((NPROCS-1))); do
-    base_instance=$((j*50))
-    for i in $(seq $base_instance $((base_instance+15))); do
-        psql -c "create database test$i;"
+if [ $TEMP_POSTGRES -eq 0 ] ; then
+    # Create postgres databases
+    export PGUSER=postgres
+    psql -c "create database test;"
+    # we run NPROCS jobs in parallel
+    for j in $(seq 0 $((NPROCS-1))); do
+        base_instance=$((j*50))
+        for i in $(seq $base_instance $((base_instance+15))); do
+            psql -c "create database test$i;"
+        done
     done
-done
+fi
 
 export ALL_VERSIONS=1
-export TEMP_POSTGRES=0
 export NUM_PARTITIONS=$((NPROCS*2))
 export RUN_PARTITIONS
 ulimit -n 256
