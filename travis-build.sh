@@ -17,7 +17,7 @@ while [[ -n "$1" ]]; do
             echo Disabling tests
             ;;
     "--use-temp-db")
-            export TEMP_POSTGRES=0
+            export TEMP_POSTGRES=1
             echo Using temp database
             ;;
     "")
