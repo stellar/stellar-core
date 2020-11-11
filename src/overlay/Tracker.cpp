@@ -5,8 +5,8 @@
 #include "Tracker.h"
 
 #include "OverlayMetrics.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
-#include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "medida/medida.h"
@@ -239,8 +239,11 @@ Tracker::listen(const SCPEnvelope& env)
     m.type(SCP_MESSAGE);
     m.envelope() = env;
 
-    // NB: hash here is of StellarMessage
-    mWaitingEnvelopes.push_back(std::make_pair(xdrSha256(m), env));
+    // NB: hash here is BLAKE2 of StellarMessage because that is
+    // what the floodmap is keyed by, and we're storing its keys
+    // in mWaitingEnvelopes, not the mItemHash that is the SHA256
+    // of the item being tracked.
+    mWaitingEnvelopes.push_back(std::make_pair(xdrBlake2(m), env));
 }
 
 void
