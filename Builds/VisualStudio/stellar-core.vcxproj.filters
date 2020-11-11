@@ -1140,6 +1140,9 @@
     <ClCompile Include="..\..\src\util\LogSlowExecution.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\crypto\BLAKE2.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1966,6 +1969,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\XDRCereal.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\BLAKE2.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
