@@ -31,7 +31,6 @@ while [[ -n "$1" ]]; do
 
 done
 
-
 echo $TRAVIS_PULL_REQUEST
 
 NPROCS=$(getconf _NPROCESSORS_ONLN)
@@ -53,31 +52,29 @@ fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir bin
-which gcc-6
-ln -s `which gcc-6` bin/gcc
-which g++-6
-ln -s `which g++-6` bin/g++
-which clang-5.0
-ln -s `which clang-5.0` bin/clang
-which clang++-5.0
-ln -s `which clang++-5.0` bin/clang++
-which llvm-symbolizer-5.0
-ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
 
 export PATH=`pwd`/bin:$PATH
 echo "PATH is $PATH"
-
 hash -r
-
-clang -v
-which g++
-g++ -v
-llvm-symbolizer --version || true
 
 if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
+    which clang-5.0
+    ln -s `which clang-5.0` bin/clang
+    which clang++-5.0
+    ln -s `which clang++-5.0` bin/clang++
+    which llvm-symbolizer-5.0
+    ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
+    clang -v
+    llvm-symbolizer --version || true
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
+    which gcc-6
+    ln -s `which gcc-6` bin/gcc
+    which g++-6
+    ln -s `which g++-6` bin/g++
+    which g++
+    g++ -v
 fi
 
 config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs"
