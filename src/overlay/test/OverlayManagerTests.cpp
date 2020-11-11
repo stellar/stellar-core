@@ -227,6 +227,16 @@ class OverlayManagerTests
     }
 
     void
+    crank(size_t n)
+    {
+        while (n != 0)
+        {
+            clock.crank(false);
+            n--;
+        }
+    }
+
+    void
     testBroadcast()
     {
         OverlayManagerStub& pm = app->getOverlayManager();
@@ -255,12 +265,15 @@ class OverlayManagerTests
             }
         }
         pm.broadcastMessage(AtoB);
+        crank(10);
         std::vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
         pm.broadcastMessage(AtoB);
+        crank(10);
         REQUIRE(sentCounts(pm) == expected);
         StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
         pm.broadcastMessage(CtoD);
+        crank(10);
         std::vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);
 
@@ -268,6 +281,7 @@ class OverlayManagerTests
         StellarMessage AtoC = a.tx({payment(c, 10)})->toStellarMessage();
         pm.updateFloodRecord(AtoB, AtoC);
         pm.broadcastMessage(AtoC);
+        crank(10);
         REQUIRE(sentCounts(pm) == expectedFinal);
     }
 };
