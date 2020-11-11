@@ -353,6 +353,7 @@
 #include "QuorumIntersectionChecker.h"
 #include "main/Config.h"
 #include "util/BitSet.h"
+#include "util/RandomEvictionCache.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
 
@@ -530,6 +531,10 @@ class QuorumIntersectionCheckerImpl : public stellar::QuorumIntersectionChecker
     bool containsQuorumSlice(BitSet const& bs, QBitSet const& qbs) const;
     bool containsQuorumSliceForNode(BitSet const& bs, size_t node) const;
     BitSet contractToMaximalQuorum(BitSet nodes) const;
+
+    const int MAX_CACHED_QUORUMS_SIZE = 0xffff;
+    mutable stellar::RandomEvictionCache<BitSet, bool, BitSet::HashFunction>
+        mCachedQuorums;
     bool isAQuorum(BitSet const& nodes) const;
     bool isMinimalQuorum(BitSet const& nodes) const;
     void noteFoundDisjointQuorums(BitSet const& nodes,
