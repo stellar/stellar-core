@@ -25,9 +25,14 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
         auto p = cache.get(i);
         REQUIRE(p == i * 100);
     }
+    for (int i = 0; i < sz; ++i)
+    {
+        auto p = *cache.maybeGet(i);
+        REQUIRE(p == i * 100);
+    }
     REQUIRE(ctrs.mInserts == sz);
     REQUIRE(ctrs.mUpdates == 0);
-    REQUIRE(ctrs.mHits == sz);
+    REQUIRE(ctrs.mHits == 2 * sz);
     REQUIRE(ctrs.mMisses == 0);
     REQUIRE(ctrs.mEvicts == 0);
 
@@ -41,9 +46,14 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
         int p = cache.get(i);
         REQUIRE(p == i * 200);
     }
+    for (int i = 0; i < sz; ++i)
+    {
+        int p = *cache.maybeGet(i);
+        REQUIRE(p == i * 200);
+    }
     REQUIRE(ctrs.mInserts == sz);
     REQUIRE(ctrs.mUpdates == sz);
-    REQUIRE(ctrs.mHits == 2 * sz);
+    REQUIRE(ctrs.mHits == 4 * sz);
     REQUIRE(ctrs.mMisses == 0);
     REQUIRE(ctrs.mEvicts == 0);
 
@@ -54,7 +64,7 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
     }
     REQUIRE(ctrs.mInserts == sz + sz / 2);
     REQUIRE(ctrs.mUpdates == sz);
-    REQUIRE(ctrs.mHits == 2 * sz);
+    REQUIRE(ctrs.mHits == 4 * sz);
     REQUIRE(ctrs.mMisses == 0);
     REQUIRE(ctrs.mEvicts == sz / 2);
 
@@ -68,9 +78,27 @@ TEST_CASE("cachetable works as a cache", "[randomevictioncache]")
     }
     REQUIRE(ctrs.mInserts == sz + sz / 2);
     REQUIRE(ctrs.mUpdates == sz);
-    REQUIRE(ctrs.mHits >= 2 * sz + sz / 2);
+    REQUIRE(ctrs.mHits >= 4 * sz + sz / 2);
     REQUIRE(ctrs.mMisses <= sz / 2);
     REQUIRE(ctrs.mEvicts == sz / 2);
+
+    // Check that enough un-evicted entries are still there.
+    for (int i = 0; i < sz; ++i)
+    {
+        cache.maybeGet(i);
+    }
+    REQUIRE(ctrs.mInserts == sz + sz / 2);
+    REQUIRE(ctrs.mUpdates == sz);
+    REQUIRE(ctrs.mHits >= 5 * sz);
+    REQUIRE(ctrs.mMisses <= sz);
+    REQUIRE(ctrs.mEvicts == sz / 2);
+
+    // Ensure that maybeGet returns nullptr if and only if
+    // cache.exists return false.
+    for (int i = 0; i < sz; i++)
+    {
+        REQUIRE(cache.exists(i) == (cache.maybeGet(i) != nullptr));
+    }
 }
 
 TEST_CASE("cachetable does not thrash", "[randomevictioncachethrash][!hide]")
@@ -91,13 +119,24 @@ TEST_CASE("cachetable does not thrash", "[randomevictioncachethrash][!hide]")
     // LRU this would be the bad case.
     for (int i = 0; i <= sz; ++i)
     {
-        if (cache.exists(i))
+        if (i % 2 == 0)
         {
-            cache.get(i);
+            if (cache.exists(i))
+            {
+                cache.get(i);
+            }
+            else
+            {
+                cache.put(i, i * 100);
+            }
         }
         else
         {
-            cache.put(i, i * 100);
+            auto p = cache.maybeGet(i);
+            if (p == nullptr)
+            {
+                cache.put(i, i * 100);
+            }
         }
     }
     // These are statistical: it's theoretically possible that a terrible stroke
@@ -172,6 +211,30 @@ TEMPLATE_TEST_CASE("cache keeps last read items", "[cache][template]",
     REQUIRE(existing == 5);
 }
 
+TEMPLATE_TEST_CASE("cache keeps last read items with maybeGet",
+                   "[cache][template]", RandCache)
+{
+    TestType c{5};
+    c.put(0, 0);
+    c.put(1, 1);
+    c.put(2, 2);
+    c.put(3, 3);
+    c.put(4, 4);
+    c.maybeGet(0);
+    c.put(5, 5);
+
+    REQUIRE(c.size() == 5);
+    size_t existing = 0;
+    for (int i = 0; i <= 5; ++i)
+    {
+        if (c.exists(i))
+        {
+            ++existing;
+        }
+    }
+    REQUIRE(existing == 5);
+}
+
 TEMPLATE_TEST_CASE("cache replace element", "[cache][template]", RandCache)
 {
     TestType c{5};
@@ -185,6 +248,18 @@ TEMPLATE_TEST_CASE("cache replace element", "[cache][template]", RandCache)
     REQUIRE(c.get(0) == 3);
     c.put(0, 4);
     REQUIRE(c.get(0) == 4);
+
+    TestType d{5};
+    d.put(0, 0);
+    REQUIRE(*d.maybeGet(0) == 0);
+    d.put(0, 1);
+    REQUIRE(*d.maybeGet(0) == 1);
+    d.put(0, 2);
+    REQUIRE(*d.maybeGet(0) == 2);
+    d.put(0, 3);
+    REQUIRE(*d.maybeGet(0) == 3);
+    d.put(0, 4);
+    REQUIRE(*d.maybeGet(0) == 4);
 }
 
 TEMPLATE_TEST_CASE("cache erase_if removes some nodes", "[cache][template]",
