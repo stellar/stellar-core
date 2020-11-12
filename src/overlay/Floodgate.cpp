@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Floodgate.h"
+#include "crypto/BLAKE2.h"
 #include "crypto/Hex.h"
-#include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "medida/counter.h"
@@ -59,7 +59,7 @@ bool
 Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 {
     ZoneScoped;
-    index = sha256(xdr::xdr_to_opaque(msg));
+    index = xdrBlake2(msg);
     if (mShuttingDown)
     {
         return false;
@@ -90,7 +90,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     {
         return;
     }
-    Hash index = sha256(xdr::xdr_to_opaque(msg));
+    Hash index = xdrBlake2(msg);
 
     FloodRecord::pointer fr;
     auto result = mFloodMap.find(index);
@@ -177,8 +177,8 @@ Floodgate::updateRecord(StellarMessage const& oldMsg,
                         StellarMessage const& newMsg)
 {
     ZoneScoped;
-    Hash oldHash = sha256(xdr::xdr_to_opaque(oldMsg));
-    Hash newHash = sha256(xdr::xdr_to_opaque(newMsg));
+    Hash oldHash = xdrBlake2(oldMsg);
+    Hash newHash = xdrBlake2(newMsg);
 
     auto oldIter = mFloodMap.find(oldHash);
     if (oldIter != mFloodMap.end())

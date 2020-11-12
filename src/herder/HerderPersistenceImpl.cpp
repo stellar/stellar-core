@@ -104,7 +104,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             // skip node if we don't have its quorum set
             continue;
         }
-        auto qSetH = sha256(xdr::xdr_to_opaque(*(p.second.mQuorumSet)));
+        auto qSetH = xdrSha256(*(p.second.mQuorumSet));
         usedQSets.insert(std::make_pair(qSetH, p.second.mQuorumSet));
 
         std::string nodeIDStrKey = KeyUtils::toStrKey(nodeID);
