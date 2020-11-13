@@ -47,6 +47,61 @@ TEST_CASE("quorum intersection basic 4-node", "[herder][quorumintersection]")
     REQUIRE(qic->networkEnjoysQuorumIntersection());
 }
 
+TEST_CASE("quorum non intersection basic 4-node",
+          "[herder][quorumintersection]")
+{
+    QuorumTracker::QuorumMap qm;
+
+    PublicKey pkA = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkB = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkC = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkD = SecretKey::pseudoRandomForTesting().getPublicKey();
+
+    qm[pkA] = QuorumTracker::NodeInfo{
+        make_shared<QS>(1, VK({pkB, pkC, pkD}), VQ{}), 0};
+    qm[pkB] = QuorumTracker::NodeInfo{
+        make_shared<QS>(1, VK({pkA, pkC, pkD}), VQ{}), 0};
+    qm[pkC] = QuorumTracker::NodeInfo{
+        make_shared<QS>(1, VK({pkA, pkB, pkD}), VQ{}), 0};
+    qm[pkD] = QuorumTracker::NodeInfo{
+        make_shared<QS>(1, VK({pkA, pkB, pkC}), VQ{}), 0};
+
+    Config cfg(getTestConfig());
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
+    REQUIRE(!qic->networkEnjoysQuorumIntersection());
+}
+
+TEST_CASE("quorum non intersection 6-node", "[herder][quorumintersection]")
+{
+    QuorumTracker::QuorumMap qm;
+
+    PublicKey pkA = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkB = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkC = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkD = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkE = SecretKey::pseudoRandomForTesting().getPublicKey();
+    PublicKey pkF = SecretKey::pseudoRandomForTesting().getPublicKey();
+
+    qm[pkA] =
+        QuorumTracker::NodeInfo{make_shared<QS>(2, VK{pkB, pkC}, VQ{}), 0};
+    qm[pkB] =
+        QuorumTracker::NodeInfo{make_shared<QS>(2, VK{pkA, pkC}, VQ{}), 0};
+    qm[pkC] =
+        QuorumTracker::NodeInfo{make_shared<QS>(2, VK{pkA, pkB}, VQ{}), 0};
+    qm[pkD] =
+        QuorumTracker::NodeInfo{make_shared<QS>(2, VK{pkE, pkF}, VQ{}), 0};
+    qm[pkE] =
+        QuorumTracker::NodeInfo{make_shared<QS>(2, VK{pkD, pkF}, VQ{}), 0};
+    qm[pkF] =
+        QuorumTracker::NodeInfo{make_shared<QS>(2, VK{pkD, pkE}, VQ{}), 0};
+
+    Config cfg(getTestConfig());
+    std::atomic<bool> flag{false};
+    auto qic = QuorumIntersectionChecker::create(qm, cfg, flag);
+    REQUIRE(!qic->networkEnjoysQuorumIntersection());
+}
+
 TEST_CASE("quorum intersection 6-node with subquorums",
           "[herder][quorumintersection]")
 {

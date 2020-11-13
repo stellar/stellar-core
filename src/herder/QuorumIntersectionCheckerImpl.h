@@ -172,7 +172,7 @@
 // ======================================================
 //
 // The first early exit is easy: just stop expanding when you get half-way
-// through the space (or precisely: at sets larger than MAXSZ = (#N/2) + 1)
+// through the space (or precisely: at sets larger than MAXSZ = #N/2)
 // because the problem is symmetric: any potential failing subset C with size
 // greater than MAXSZ discovered in the branching subtree ahead will satisfy
 //
