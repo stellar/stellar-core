@@ -365,7 +365,8 @@ ApplicationImpl::~ApplicationImpl()
     }
     catch (std::exception const& e)
     {
-        LOG_ERROR(DEFAULT_LOG, "While shutting down {}", e.what());
+        LOG_ERROR(DEFAULT_LOG, "Exception occurred while shutting down: {}",
+                  e.what());
     }
     reportCfgMetrics();
     shutdownMainIOContext();
