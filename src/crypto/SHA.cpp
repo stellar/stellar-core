@@ -59,7 +59,8 @@ uint256
 SHA256::finish()
 {
     uint256 out;
-    assert(out.size() == crypto_hash_sha256_BYTES);
+    static_assert(sizeof(out) == crypto_hash_sha256_BYTES,
+                  "unexpected crypto_hash_sha256_BYTES");
     if (mFinished)
     {
         throw std::runtime_error("finishing already-finished SHA256");

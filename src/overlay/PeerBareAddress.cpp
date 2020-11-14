@@ -14,12 +14,16 @@
 namespace stellar
 {
 
-PeerBareAddress::PeerBareAddress() : mType{Type::EMPTY}, mPort{0}
+PeerBareAddress::PeerBareAddress()
+    : mType{Type::EMPTY}, mPort{0}, mStringValue("(empty)")
 {
 }
 
 PeerBareAddress::PeerBareAddress(std::string ip, unsigned short port)
-    : mType{Type::IPv4}, mIP{std::move(ip)}, mPort{port}
+    : mType{Type::IPv4}
+    , mIP{std::move(ip)}
+    , mPort{port}
+    , mStringValue{fmt::format("{}:{}", mIP, mPort)}
 {
     if (mIP.empty())
     {
@@ -27,15 +31,16 @@ PeerBareAddress::PeerBareAddress(std::string ip, unsigned short port)
     }
 }
 
-PeerBareAddress::PeerBareAddress(PeerAddress const& pa) : mType{Type::IPv4}
+PeerBareAddress::PeerBareAddress(PeerAddress const& pa)
+    : mType{Type::IPv4}
+    , mIP{pa.ip.type() == IPv4
+              ? fmt::format("{}.{}.{}.{}", (int)pa.ip.ipv4()[0],
+                            (int)pa.ip.ipv4()[1], (int)pa.ip.ipv4()[2],
+                            (int)pa.ip.ipv4()[3])
+              : throw std::runtime_error("IPv6 addresses not supported")}
+    , mPort{static_cast<unsigned short>(pa.port)}
+    , mStringValue{fmt::format("{}:{}", mIP, mPort)}
 {
-    assert(pa.ip.type() == IPv4);
-
-    std::stringstream ip;
-    ip << (int)pa.ip.ipv4()[0] << "." << (int)pa.ip.ipv4()[1] << "."
-       << (int)pa.ip.ipv4()[2] << "." << (int)pa.ip.ipv4()[3];
-    mIP = ip.str();
-    mPort = static_cast<unsigned short>(pa.port);
 }
 
 PeerBareAddress
@@ -113,22 +118,10 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     return PeerBareAddress{ip, port};
 }
 
-std::string
+std::string const&
 PeerBareAddress::toString() const
 {
-    switch (mType)
-    {
-    case Type::EMPTY:
-    {
-        return "(empty)";
-    }
-    case Type::IPv4:
-    {
-        return mIP + ":" + std::to_string(mPort);
-    }
-    default:
-        abort();
-    }
+    return mStringValue;
 }
 
 bool
