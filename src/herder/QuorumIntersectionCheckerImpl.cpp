@@ -346,6 +346,7 @@ QuorumIntersectionCheckerImpl::QuorumIntersectionCheckerImpl(
     , mQuiet(quiet)
     , mTSC(mGraph)
     , mInterruptFlag(interruptFlag)
+    , mCachedQuorums(MAX_CACHED_QUORUMS_SIZE)
 {
     buildGraph(qmap);
     buildSCCs();
@@ -464,7 +465,17 @@ QuorumIntersectionCheckerImpl::containsQuorumSliceForNode(BitSet const& bs,
 bool
 QuorumIntersectionCheckerImpl::isAQuorum(BitSet const& nodes) const
 {
-    return (bool)contractToMaximalQuorum(nodes);
+    bool* pRes = mCachedQuorums.maybeGet(nodes);
+    if (pRes == nullptr)
+    {
+        bool result = (bool)contractToMaximalQuorum(nodes);
+        mCachedQuorums.put(nodes, result);
+        return result;
+    }
+    else
+    {
+        return *pRes;
+    }
 }
 
 BitSet
@@ -478,16 +489,15 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
     }
     while (true)
     {
-        BitSet filtered(nodes.count());
+        BitSet filtered(nodes);
         for (size_t i = 0; nodes.nextSet(i); ++i)
         {
-            if (containsQuorumSliceForNode(nodes, i))
+            if (containsQuorumSliceForNode(filtered, i))
             {
                 if (mLogTrace)
                 {
                     CLOG(TRACE, "SCP") << "Have qslice for " << i;
                 }
-                filtered.set(i);
             }
             else
             {
@@ -495,6 +505,7 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
                 {
                     CLOG(TRACE, "SCP") << "Missing qslice for " << i;
                 }
+                filtered.unset(i);
             }
         }
         if (filtered.count() == nodes.count() || filtered.empty())

@@ -181,9 +181,11 @@ class RandomEvictionCache : public NonMovableOrCopyable
         }
     }
 
-    // `get` offers strong exception safety guarantee.
-    V&
-    get(K const& k)
+    // `maybeGet` offers basic exception safety guarantee.
+    // Returns a pointer to the value if the key exists,
+    // and returns a nullptr otherwise.
+    V*
+    maybeGet(K const& k)
     {
         auto it = mValueMap.find(k);
         if (it != mValueMap.end())
@@ -191,12 +193,25 @@ class RandomEvictionCache : public NonMovableOrCopyable
             auto& cacheVal = it->second;
             ++mCounters.mHits;
             cacheVal.mLastAccess = ++mGeneration;
-            return cacheVal.mValue;
+            return &cacheVal.mValue;
         }
         else
         {
+            ++mCounters.mMisses;
+            return nullptr;
+        }
+    }
+
+    // `get` offers basic exception safety guarantee.
+    V&
+    get(K const& k)
+    {
+        V* result = maybeGet(k);
+        if (result == nullptr)
+        {
             throw std::range_error("There is no such key in cache");
         }
+        return *result;
     }
 };
 }
