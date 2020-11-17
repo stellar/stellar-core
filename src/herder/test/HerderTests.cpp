@@ -455,7 +455,11 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     auto checkTrimCheck = [&](std::vector<TransactionFrameBasePtr> const& txs) {
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
-        REQUIRE(txSet->trimInvalid(*app, 0, 0) == txs);
+        auto trimmedSet = txSet->trimInvalid(*app, 0, 0);
+        std::sort(trimmedSet.begin(), trimmedSet.end());
+        auto txsNormalized = txs;
+        std::sort(txsNormalized.begin(), txsNormalized.end());
+        REQUIRE(trimmedSet == txsNormalized);
         REQUIRE(txSet->checkValid(*app, 0, 0));
     };
 
