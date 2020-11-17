@@ -861,9 +861,6 @@
     <ClCompile Include="..\..\src\overlay\test\ItemFetcherTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\test\LoadManagerTests.cpp">
-      <Filter>overlay\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\overlay\test\LoopbackPeer.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
@@ -889,9 +886,6 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\LoadManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
@@ -1764,9 +1758,6 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
-      <Filter>overlay</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\LoadManager.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\OverlayManager.h">
