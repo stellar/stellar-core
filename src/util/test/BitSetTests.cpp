@@ -25,12 +25,12 @@ TEST_CASE("BitSet basics", "[bitset]")
         REQUIRE(!bs_even.get(i + 1));
         REQUIRE(bs_odd.get(i + 1));
     }
-    REQUIRE(bs_even <= (bs_even | bs_odd));
-    REQUIRE(bs_odd <= (bs_even | bs_odd));
-    REQUIRE(bs_odd <= bs_odd);
-    REQUIRE(bs_even <= bs_even);
-    REQUIRE(!(bs_odd <= bs_even));
-    REQUIRE(!(bs_even <= bs_odd));
+    REQUIRE(bs_even.isSubsetEq(bs_even | bs_odd));
+    REQUIRE(bs_odd.isSubsetEq(bs_even | bs_odd));
+    REQUIRE(bs_odd.isSubsetEq(bs_odd));
+    REQUIRE(bs_even.isSubsetEq(bs_even));
+    REQUIRE(!bs_odd.isSubsetEq(bs_even));
+    REQUIRE(!bs_even.isSubsetEq(bs_odd));
     REQUIRE((bs_even | bs_odd) == (bs_odd | bs_even));
     REQUIRE((bs_even & bs_odd).empty());
     REQUIRE((bs_even & (bs_even | bs_odd)) == bs_even);

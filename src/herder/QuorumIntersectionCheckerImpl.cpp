@@ -240,7 +240,8 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     {
         CLOG(TRACE, "SCP") << "checking for quorum in committed=" << mCommitted;
     }
-    if (auto committedQuorum = mQic.contractToMaximalQuorum(mCommitted))
+    auto committedQuorum = mQic.contractToMaximalQuorum(mCommitted);
+    if (!committedQuorum.empty())
     {
         if (mQic.isMinimalQuorum(committedQuorum))
         {
@@ -270,9 +271,10 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     {
         CLOG(TRACE, "SCP") << "checking for quorum in perimeter=" << mPerimeter;
     }
-    if (auto extensionQuorum = mQic.contractToMaximalQuorum(mPerimeter))
+    auto extensionQuorum = mQic.contractToMaximalQuorum(mPerimeter);
+    if (!extensionQuorum.empty())
     {
-        if (!(mCommitted <= extensionQuorum))
+        if (!mCommitted.isSubsetEq(extensionQuorum))
         {
             if (mQic.mLogTrace)
             {
@@ -298,7 +300,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     }
 
     // Principal termination condition: stop when remainder is empty.
-    if (!mRemaining)
+    if (mRemaining.empty())
     {
         mQic.mStats.mTerminations++;
         if (mQic.mLogTrace)
@@ -468,7 +470,7 @@ QuorumIntersectionCheckerImpl::isAQuorum(BitSet const& nodes) const
     bool* pRes = mCachedQuorums.maybeGet(nodes);
     if (pRes == nullptr)
     {
-        bool result = (bool)contractToMaximalQuorum(nodes);
+        bool result = !contractToMaximalQuorum(nodes).empty();
         mCachedQuorums.put(nodes, result);
         return result;
     }
@@ -514,7 +516,7 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
             {
                 CLOG(TRACE, "SCP") << "Contracted to max quorum " << filtered;
             }
-            if (filtered)
+            if (!filtered.empty())
             {
                 ++mStats.mMaxQuorumsSeen;
             }
@@ -534,7 +536,7 @@ QuorumIntersectionCheckerImpl::isMinimalQuorum(BitSet const& nodes) const
 #endif
 
     BitSet minQ = nodes;
-    if (!nodes)
+    if (nodes.empty())
     {
         // nodes isn't a quorum at all: certainly not a minq.
         return false;
@@ -588,7 +590,7 @@ bool
 MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
 {
     BitSet disj = mQic.contractToMaximalQuorum(mScanSCC - nodes);
-    if (disj)
+    if (!disj.empty())
     {
         mQic.noteFoundDisjointQuorums(nodes, disj);
     }
@@ -600,7 +602,7 @@ MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
                 << "no quorum in complement  = " << (mScanSCC - nodes);
         }
     }
-    return disj;
+    return !disj.empty();
 }
 
 QBitSet
@@ -723,7 +725,8 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
     BitSet scanSCC;
     for (auto const& scc : mTSC.mSCCs)
     {
-        if (auto q = contractToMaximalQuorum(scc))
+        auto q = contractToMaximalQuorum(scc);
+        if (!q.empty())
         {
             if (scanSCC.empty())
             {
