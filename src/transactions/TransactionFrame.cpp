@@ -184,7 +184,6 @@ TransactionFrame::getFee(LedgerHeader const& header, int64_t baseFee,
 void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
-    clearCached();
     auto sig = SignatureUtils::sign(secretKey, getContentsHash());
     addSignature(sig);
 }
@@ -192,6 +191,7 @@ TransactionFrame::addSignature(SecretKey const& secretKey)
 void
 TransactionFrame::addSignature(DecoratedSignature const& signature)
 {
+    clearCached();
     getSignatures(mEnvelope).push_back(signature);
 }
 

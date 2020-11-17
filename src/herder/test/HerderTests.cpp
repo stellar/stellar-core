@@ -1386,6 +1386,11 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
                            : tx->getEnvelope().v1().tx.timeBounds.activate();
             tb.minTime = minTime;
             tb.maxTime = maxTime;
+            auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                            ? tx->getEnvelope().v0().signatures
+                            : tx->getEnvelope().v1().signatures;
+            sig.clear();
+            tx->addSignature(root.getSecretKey());
             auto txSet = std::make_shared<TxSetFrame>(
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
             txSet->add(tx);
