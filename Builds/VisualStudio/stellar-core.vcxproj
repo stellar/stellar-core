@@ -503,7 +503,6 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
-    <ClCompile Include="..\..\src\overlay\LoadManager.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayMetrics.cpp" />
     <ClCompile Include="..\..\src\overlay\Peer.cpp" />
@@ -516,7 +515,6 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\overlay\test\FloodTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\ItemFetcherTests.cpp" />
-    <ClCompile Include="..\..\src\overlay\test\LoadManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\LoopbackPeer.cpp" />
     <ClCompile Include="..\..\src\overlay\test\OverlayManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\test\OverlayTests.cpp" />
@@ -801,7 +799,6 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
-    <ClInclude Include="..\..\src\overlay\LoadManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\OverlayMetrics.h" />
