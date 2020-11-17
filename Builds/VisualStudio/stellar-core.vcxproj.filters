@@ -1083,9 +1083,6 @@
     <ClCompile Include="..\..\lib\tracy\TracyClient.cpp">
       <Filter>lib\tracy</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\GeneralizedLedgerEntry.cpp">
-      <Filter>ledger</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
@@ -1142,6 +1139,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\BLAKE2.cpp">
       <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp">
+      <Filter>ledger</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1937,9 +1937,6 @@
     <ClInclude Include="..\..\lib\fmt\include\fmt\format.h">
       <Filter>lib\fmt</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ledger\GeneralizedLedgerEntry.h">
-      <Filter>ledger</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
@@ -1972,6 +1969,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\BLAKE2.h">
       <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h">
+      <Filter>ledger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

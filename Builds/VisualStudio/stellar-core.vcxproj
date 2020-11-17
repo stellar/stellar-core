@@ -321,7 +321,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\test\QuorumIntersectionTests.cpp" />
     <ClCompile Include="..\..\src\historywork\test\HistoryWorkTests.cpp" />
     <ClCompile Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.cpp" />
-    <ClCompile Include="..\..\src\ledger\GeneralizedLedgerEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTxnClaimableBalanceSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\test\LedgerCloseMetaStreamTests.cpp" />
     <ClCompile Include="..\..\src\main\test\CommandHandlerTests.cpp" />
@@ -680,7 +680,8 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\QuorumIntersectionChecker.h" />
     <ClInclude Include="..\..\src\herder\QuorumIntersectionCheckerImpl.h" />
     <ClInclude Include="..\..\src\historywork\WriteVerifiedCheckpointHashesWork.h" />
-    <ClInclude Include="..\..\src\ledger\GeneralizedLedgerEntry.h" />
+    <ClInclude Include="..\..\src\ledger\InternalLedgerEntry.h" />
+    <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h" />
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
