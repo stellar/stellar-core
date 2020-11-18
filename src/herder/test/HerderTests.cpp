@@ -455,7 +455,11 @@ testTxSetWithFeeBumps(uint32 protocolVersion)
     auto checkTrimCheck = [&](std::vector<TransactionFrameBasePtr> const& txs) {
         txSet->sortForHash();
         REQUIRE(!txSet->checkValid(*app, 0, 0));
-        REQUIRE(txSet->trimInvalid(*app, 0, 0) == txs);
+        auto trimmedSet = txSet->trimInvalid(*app, 0, 0);
+        std::sort(trimmedSet.begin(), trimmedSet.end());
+        auto txsNormalized = txs;
+        std::sort(txsNormalized.begin(), txsNormalized.end());
+        REQUIRE(trimmedSet == txsNormalized);
         REQUIRE(txSet->checkValid(*app, 0, 0));
     };
 
@@ -1382,6 +1386,11 @@ testSCPDriver(uint32 protocolVersion, uint32_t maxTxSize, size_t expectedOps,
                            : tx->getEnvelope().v1().tx.timeBounds.activate();
             tb.minTime = minTime;
             tb.maxTime = maxTime;
+            auto& sig = tx->getEnvelope().type() == ENVELOPE_TYPE_TX_V0
+                            ? tx->getEnvelope().v0().signatures
+                            : tx->getEnvelope().v1().signatures;
+            sig.clear();
+            tx->addSignature(root.getSecretKey());
             auto txSet = std::make_shared<TxSetFrame>(
                 app->getLedgerManager().getLastClosedLedgerHeader().hash);
             txSet->add(tx);
