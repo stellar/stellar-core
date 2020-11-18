@@ -12,12 +12,26 @@ jobs:
       matrix:
         toolchain: [ "gcc", "clang"]
     steps:
+      - name: Compute cache key
+        # this step works around a limitation in actions/cache
+        # that does not allow updating a cache
+        # so what we do here instead is
+        #  1. generate a new id that gets refreshed every hour
+        #   the limit is to reduce the chance of hitting the
+        #   global 5GB limit per repo
+        #  2. use that id as part of the cache identifier
+        #  3. fallback (restore-keys) to the most recent cache
+        id: cache_extra_id
+        run: |
+          echo "::set-output name=id::$(( $(date +'%s') / 60 / 60 ))"
       - name: Cache
         uses: actions/cache@v2
         with:
           path: |
             /home/runner/.ccache
-          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID
+          key: ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-${{ steps.cache_extra_id.outputs.id }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.toolchain }}-cacheID-
       - uses: actions/checkout@v2
         with:
            fetch-depth: 200
