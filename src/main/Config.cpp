@@ -240,6 +240,44 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
     }
     return static_cast<T>(v);
 }
+
+template <typename T>
+std::vector<T>
+readXdrEnumArray(ConfigItem const& item)
+{
+    std::unordered_map<std::string, T> enumNames;
+    for (auto enumVal : xdr::xdr_traits<T>::enum_values())
+    {
+        auto enumNameCharPtr =
+            xdr::xdr_traits<T>::enum_name(static_cast<T>(enumVal));
+        assert(enumNameCharPtr);
+        enumNames.emplace(enumNameCharPtr, static_cast<T>(enumVal));
+    }
+
+    std::vector<T> result;
+    if (!item.second->is_array())
+    {
+        throw std::invalid_argument(
+            fmt::format("{} must be an array", item.first));
+    }
+    for (auto v : item.second->as_array()->get())
+    {
+        if (!v->as<std::string>())
+        {
+            throw std::invalid_argument(
+                fmt::format("invalid element of {}", item.first));
+        }
+
+        auto name = v->as<std::string>()->get();
+        if (enumNames.find(name) == enumNames.end())
+        {
+            throw std::invalid_argument(
+                fmt::format("invalid element of {}", item.first));
+        }
+        result.push_back(enumNames[name]);
+    }
+    return result;
+}
 }
 
 void
@@ -967,6 +1005,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             {
                 // processed later (may depend on previously defined public
                 // keys)
+            }
+            else if (item.first ==
+                     "EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE")
+            {
+                EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE =
+                    readXdrEnumArray<OperationType>(item);
             }
             else
             {

@@ -946,23 +946,11 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        switch (mApp.getHerder().recvTransaction(txFrame))
+        auto status = mApp.getHerder().recvTransaction(txFrame);
+        root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
+        if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-        case TransactionQueue::AddResult::ADD_STATUS_PENDING:
-            root["status"] = "pending";
-            break;
-        case TransactionQueue::AddResult::ADD_STATUS_DUPLICATE:
-            root["status"] = "duplicate";
-            break;
-        case TransactionQueue::AddResult::ADD_STATUS_ERROR:
-            root["status"] = "error";
             root["detail"] = xdr_to_string(txFrame->getResult().result.code());
-            break;
-        case TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER:
-            root["status"] = "try_again_later";
-            break;
-        default:
-            assert(false);
         }
     }
     else

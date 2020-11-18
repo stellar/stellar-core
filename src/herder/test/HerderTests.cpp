@@ -2560,3 +2560,54 @@ TEST_CASE("slot herder policy", "[herder]")
     REQUIRE(herder.getSCP().getKnownSlotsCount() ==
             Herder::LEDGER_VALIDITY_BRACKET);
 }
+
+TEST_CASE("exclude transactions by operation type", "[herder]")
+{
+    SECTION("operation is received when no filter")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+
+        auto root = TestAccount::createRoot(*app);
+        auto acc = getAccount("acc");
+        auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    }
+
+    SECTION("filter excludes transaction containing specified operation")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {CREATE_ACCOUNT};
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+
+        auto root = TestAccount::createRoot(*app);
+        auto acc = getAccount("acc");
+        auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx) ==
+                TransactionQueue::AddResult::ADD_STATUS_FILTERED);
+    }
+
+    SECTION("filter does not exclude transaction containing non-specified "
+            "operation")
+    {
+        VirtualClock clock;
+        auto cfg = getTestConfig();
+        cfg.EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE = {MANAGE_DATA};
+        Application::pointer app = createTestApplication(clock, cfg);
+        app->start();
+
+        auto root = TestAccount::createRoot(*app);
+        auto acc = getAccount("acc");
+        auto tx = root.tx({createAccount(acc.getPublicKey(), 1)});
+
+        REQUIRE(app->getHerder().recvTransaction(tx) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    }
+}

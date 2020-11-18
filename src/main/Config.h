@@ -387,6 +387,10 @@ class Config : public std::enable_shared_from_this<Config>
     bool TEST_CASES_ENABLED;
 #endif
 
+    // Any transaction that reaches the TransactionQueue will be rejected if it
+    // contains an operation in this list.
+    std::vector<OperationType> EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
+
     Config();
 
     void load(std::string const& filename);
