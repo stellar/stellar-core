@@ -4,6 +4,9 @@
 
 set -ev
 
+# max age of cache before force purging
+CACHE_MAX_DAYS=30
+
 WITH_TESTS=1
 export TEMP_POSTGRES=0
 
@@ -89,10 +92,17 @@ export LSAN_OPTIONS=detect_leaks=0
 echo "config_flags = $config_flags"
 
 #### ccache config
+export CCACHE_DIR=$HOME/.ccache
 export CCACHE_COMPRESS=true
 export CCACHE_COMPILERCHECK="string:$CXX"
 export CCACHE_MAXSIZE=900M
 export CCACHE_CPP2=true
+
+# purge cache if it's too old
+if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
+    echo Purging old cache $CCACHE_DIR
+    rm -rf $CCACHE_DIR
+fi
 
 ccache -p
 
