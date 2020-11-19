@@ -94,7 +94,6 @@ echo "config_flags = $config_flags"
 #### ccache config
 export CCACHE_DIR=$HOME/.ccache
 export CCACHE_COMPRESS=true
-export CCACHE_COMPILERCHECK="string:$CXX"
 export CCACHE_COMPRESSLEVEL=9
 # cache size should be large enough for a full build
 export CCACHE_MAXSIZE=300M
