@@ -65,4 +65,4 @@ jobs:
             export CXX='clang++'
           fi
           echo Build with $CC and $CXX
-          ./travis-build.sh --use-temp-db
+          ./ci-build.sh --use-temp-db

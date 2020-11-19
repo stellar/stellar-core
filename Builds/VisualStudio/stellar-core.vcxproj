@@ -1071,7 +1071,7 @@ exit /b 0
     <None Include="..\..\src\overlay\readme.md" />
     <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\transactions\readme.md" />
-    <None Include="..\..\travis-build.sh" />
+    <None Include="..\..\ci-build.sh" />
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>

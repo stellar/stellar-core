@@ -1,6 +1,7 @@
 #!/bin/bash
 
-# This is just a slightly more-debuggable script that does our travis build
+# this script performs a build & test pass
+# it depends on the CC and CXX environment variables
 
 set -ev
 
@@ -152,4 +153,3 @@ time make check
 echo All done
 date
 exit 0
-
