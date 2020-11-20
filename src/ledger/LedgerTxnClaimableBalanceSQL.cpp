@@ -88,7 +88,7 @@ class BulkLoadClaimableBalanceOperation
 
   public:
     BulkLoadClaimableBalanceOperation(Database& db,
-                                      std::unordered_set<LedgerKey> const& keys)
+                                      UnorderedSet<LedgerKey> const& keys)
         : mDb(db)
     {
         mBalanceIDs.reserve(keys.size());
@@ -153,7 +153,7 @@ class BulkLoadClaimableBalanceOperation
 
 std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadClaimableBalance(
-    std::unordered_set<LedgerKey> const& keys) const
+    UnorderedSet<LedgerKey> const& keys) const
 {
     if (!keys.empty())
     {

@@ -6,6 +6,7 @@
 
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
+#include "util/UnorderedSet.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -23,7 +24,7 @@ class PutSnapshotFilesWork : public Work
     std::list<std::shared_ptr<BasicWork>> mGzipFilesWorks;
     std::list<std::shared_ptr<BasicWork>> mUploadSeqs;
 
-    std::unordered_set<std::string> getFilesToZip();
+    UnorderedSet<std::string> getFilesToZip();
 
   public:
     PutSnapshotFilesWork(Application& app,

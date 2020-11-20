@@ -2,10 +2,10 @@
 
 #include "bucket/MergeKey.h"
 #include "util/HashOfHash.h"
+#include "util/UnorderedSet.h"
 #include "xdr/Stellar-types.h"
 #include <set>
 #include <unordered_map>
-#include <unordered_set>
 
 // Copyright 2019 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
@@ -42,7 +42,7 @@ class BucketMergeMap
 
   public:
     void recordMerge(MergeKey const& input, Hash const& output);
-    std::unordered_set<MergeKey> forgetAllMergesProducing(Hash const& output);
+    UnorderedSet<MergeKey> forgetAllMergesProducing(Hash const& output);
     bool findMergeFor(MergeKey const& input, Hash& output);
     void getOutputsUsingInput(Hash const& input, std::set<Hash>& outputs) const;
 };

@@ -526,7 +526,7 @@ class BulkLoadTrustLinesOperation
 
   public:
     BulkLoadTrustLinesOperation(Database& db,
-                                std::unordered_set<LedgerKey> const& keys)
+                                UnorderedSet<LedgerKey> const& keys)
         : mDb(db)
     {
         mAccountIDs.reserve(keys.size());
@@ -648,7 +648,7 @@ class BulkLoadTrustLinesOperation
 
 std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadTrustLines(
-    std::unordered_set<LedgerKey> const& keys) const
+    UnorderedSet<LedgerKey> const& keys) const
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(keys.size()));

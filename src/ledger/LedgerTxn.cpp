@@ -25,7 +25,7 @@ namespace stellar
 {
 
 std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
+populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries)
 {
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>> res;
@@ -1579,13 +1579,13 @@ LedgerTxn::Impl::getPrefetchHitRate() const
 }
 
 uint32_t
-LedgerTxn::prefetch(std::unordered_set<LedgerKey> const& keys)
+LedgerTxn::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return getImpl()->prefetch(keys);
 }
 
 uint32_t
-LedgerTxn::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
+LedgerTxn::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return mParent.prefetch(keys);
 }
@@ -2305,22 +2305,22 @@ LedgerTxnRoot::dropClaimableBalances()
 }
 
 uint32_t
-LedgerTxnRoot::prefetch(std::unordered_set<LedgerKey> const& keys)
+LedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return mImpl->prefetch(keys);
 }
 
 uint32_t
-LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
+LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     ZoneScoped;
     uint32_t total = 0;
 
-    std::unordered_set<LedgerKey> accounts;
-    std::unordered_set<LedgerKey> offers;
-    std::unordered_set<LedgerKey> trustlines;
-    std::unordered_set<LedgerKey> data;
-    std::unordered_set<LedgerKey> claimablebalance;
+    UnorderedSet<LedgerKey> accounts;
+    UnorderedSet<LedgerKey> offers;
+    UnorderedSet<LedgerKey> trustlines;
+    UnorderedSet<LedgerKey> data;
+    UnorderedSet<LedgerKey> claimablebalance;
 
     auto cacheResult =
         [&](std::unordered_map<LedgerKey,
@@ -2332,7 +2332,7 @@ LedgerTxnRoot::Impl::prefetch(std::unordered_set<LedgerKey> const& keys)
             }
         };
 
-    auto insertIfNotLoaded = [&](std::unordered_set<LedgerKey>& keys,
+    auto insertIfNotLoaded = [&](UnorderedSet<LedgerKey>& keys,
                                  LedgerKey const& key) {
         if (!mEntryCache.exists(key, false))
         {
@@ -2534,7 +2534,7 @@ LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
     std::deque<LedgerEntry>::const_iterator iter,
     std::deque<LedgerEntry>::const_iterator const& end)
 {
-    std::unordered_set<LedgerKey> toPrefetch;
+    UnorderedSet<LedgerKey> toPrefetch;
     for (; iter != end; ++iter)
     {
         auto const& oe = iter->data.offer();

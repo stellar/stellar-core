@@ -1137,9 +1137,6 @@
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="Source.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">

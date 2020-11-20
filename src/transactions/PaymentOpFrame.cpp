@@ -131,8 +131,7 @@ PaymentOpFrame::doCheckValid(uint32_t ledgerVersion)
 }
 
 void
-PaymentOpFrame::insertLedgerKeysToPrefetch(
-    std::unordered_set<LedgerKey>& keys) const
+PaymentOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {
     auto destID = toAccountID(mPayment.destination);
     keys.emplace(accountKey(destID));

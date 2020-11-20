@@ -7,6 +7,7 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
 #include <ledger/LedgerHashUtils.h>
@@ -14,7 +15,6 @@
 #include <memory>
 #include <set>
 #include <unordered_map>
-#include <unordered_set>
 
 /////////////////////////////////////////////////////////////////////////////
 //  Overview
@@ -448,7 +448,7 @@ class AbstractLedgerTxnParent
     // This is purely advisory and can be a no-op, or do any level of actual
     // work, while still being correct. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
-    virtual uint32_t prefetch(std::unordered_set<LedgerKey> const& keys) = 0;
+    virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
 };
 
 // An abstraction for an object that is an AbstractLedgerTxnParent and has
@@ -687,7 +687,7 @@ class LedgerTxn final : public AbstractLedgerTxn
     void dropTrustLines() override;
     void dropClaimableBalances() override;
     double getPrefetchHitRate() const override;
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys) override;
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
 
 #ifdef BUILD_TESTS
     std::unordered_map<
@@ -751,7 +751,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
 
     void rollbackChild() override;
 
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys) override;
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
     double getPrefetchHitRate() const override;
 };
 }

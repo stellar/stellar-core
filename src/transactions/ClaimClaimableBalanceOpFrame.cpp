@@ -144,7 +144,7 @@ ClaimClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion)
 
 void
 ClaimClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
-    std::unordered_set<LedgerKey>& keys) const
+    UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(claimableBalanceKey(mClaimClaimableBalance.balanceID));
 }

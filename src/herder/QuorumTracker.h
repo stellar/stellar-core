@@ -6,10 +6,10 @@
 
 #include "scp/SCP.h"
 #include "util/NonCopyable.h"
+#include "util/UnorderedSet.h"
 #include <deque>
 #include <set>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace stellar
 {

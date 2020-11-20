@@ -240,7 +240,7 @@ CreateClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion)
     }
 
     // check for duplicates
-    std::unordered_set<AccountID> dests;
+    UnorderedSet<AccountID> dests;
     for (auto const& claimant : claimants)
     {
         auto const& dest = claimant.v0().destination;
@@ -265,7 +265,7 @@ CreateClaimableBalanceOpFrame::doCheckValid(uint32_t ledgerVersion)
 
 void
 CreateClaimableBalanceOpFrame::insertLedgerKeysToPrefetch(
-    std::unordered_set<LedgerKey>& keys) const
+    UnorderedSet<LedgerKey>& keys) const
 {
     // Prefetch trustline for non-native assets
     if (mCreateClaimableBalance.asset.type() != ASSET_TYPE_NATIVE)

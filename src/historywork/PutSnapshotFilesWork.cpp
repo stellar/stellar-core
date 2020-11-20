@@ -104,7 +104,7 @@ PutSnapshotFilesWork::doReset()
     mUploadSeqs.clear();
 }
 
-std::unordered_set<std::string>
+UnorderedSet<std::string>
 PutSnapshotFilesWork::getFilesToZip()
 {
     // Sanity check: there are states for all archives
@@ -114,7 +114,7 @@ PutSnapshotFilesWork::getFilesToZip()
         throw std::runtime_error("Corrupted GetHistoryArchiveStateWork");
     }
 
-    std::unordered_set<std::string> filesToZip{};
+    UnorderedSet<std::string> filesToZip{};
     for (auto const& getState : mGetStateWorks)
     {
         for (auto const& f :

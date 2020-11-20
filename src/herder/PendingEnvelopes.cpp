@@ -11,8 +11,8 @@
 #include "scp/QuorumSetUtils.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include "util/UnorderedSet.h"
 #include <Tracy.hpp>
-#include <unordered_set>
 #include <xdrpp/marshal.h>
 
 using namespace std;
@@ -262,7 +262,7 @@ static std::string
 txSetsToStr(SCPEnvelope const& envelope)
 {
     auto hashes = getTxSetHashes(envelope);
-    std::unordered_set<Hash> hashesSet(hashes.begin(), hashes.end());
+    UnorderedSet<Hash> hashesSet(hashes.begin(), hashes.end());
     std::string res = "[";
     for (auto const& s : hashesSet)
     {

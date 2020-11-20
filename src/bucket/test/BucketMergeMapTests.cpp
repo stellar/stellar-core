@@ -101,23 +101,23 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
     REQUIRE(outs == std::set<Hash>{out1->getHash()});
 
     REQUIRE(bmm.forgetAllMergesProducing(out1->getHash()) ==
-            std::unordered_set<MergeKey>{m1});
+            UnorderedSet<MergeKey>{m1});
     REQUIRE(!bmm.findMergeFor(m1, t));
     outs.clear();
     bmm.getOutputsUsingInput(in1a->getHash(), outs);
     REQUIRE(outs == std::set<Hash>{out6->getHash()});
 
     REQUIRE(bmm.forgetAllMergesProducing(out2->getHash()) ==
-            std::unordered_set<MergeKey>{m2, m3});
+            UnorderedSet<MergeKey>{m2, m3});
     REQUIRE(!bmm.findMergeFor(m2, t));
     REQUIRE(!bmm.findMergeFor(m3, t));
 
     REQUIRE(bmm.forgetAllMergesProducing(out4->getHash()) ==
-            std::unordered_set<MergeKey>{m4});
+            UnorderedSet<MergeKey>{m4});
     REQUIRE(!bmm.findMergeFor(m4, t));
 
     REQUIRE(bmm.forgetAllMergesProducing(out6->getHash()) ==
-            std::unordered_set<MergeKey>{m6});
+            UnorderedSet<MergeKey>{m6});
     REQUIRE(!bmm.findMergeFor(m6, t));
     outs.clear();
     bmm.getOutputsUsingInput(in6a->getHash(), outs);
@@ -128,5 +128,5 @@ TEST_CASE("bucket merge map", "[bucket][bucketmergemap]")
 
     // Second forget produces empty set.
     REQUIRE(bmm.forgetAllMergesProducing(out1->getHash()) ==
-            std::unordered_set<MergeKey>{});
+            UnorderedSet<MergeKey>{});
 }

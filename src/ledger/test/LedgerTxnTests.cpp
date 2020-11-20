@@ -345,9 +345,9 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     auto generateErase =
         [&](AbstractLedgerTxn& ltx,
             std::unordered_map<LedgerKey, LedgerEntry>& entries,
-            std::unordered_set<LedgerKey>& dead) {
+            UnorderedSet<LedgerKey>& dead) {
             size_t const ERASE_ENTRIES = 25;
-            std::unordered_set<LedgerKey> eraseBatch;
+            UnorderedSet<LedgerKey> eraseBatch;
             std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
             while (eraseBatch.size() < ERASE_ENTRIES)
             {
@@ -367,7 +367,7 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     auto checkLedger =
         [](AbstractLedgerTxnParent& ltxParent,
            std::unordered_map<LedgerKey, LedgerEntry> const& entries,
-           std::unordered_set<LedgerKey> const& dead) {
+           UnorderedSet<LedgerKey> const& dead) {
             LedgerTxn ltx(ltxParent);
             for (auto const& kv : entries)
             {
@@ -387,14 +387,14 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
 
     auto runTest = [&](AbstractLedgerTxnParent& ltxParent) {
         std::unordered_map<LedgerKey, LedgerEntry> entries;
-        std::unordered_set<LedgerKey> dead;
+        UnorderedSet<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
         for (size_t k = 0; k < NUM_BATCHES; ++k)
         {
             checkLedger(ltxParent, entries, dead);
 
             std::unordered_map<LedgerKey, LedgerEntry> updatedEntries = entries;
-            std::unordered_set<LedgerKey> updatedDead = dead;
+            UnorderedSet<LedgerKey> updatedDead = dead;
             LedgerTxn ltx1(ltxParent);
             generateNew(ltx1, updatedEntries);
             generateModify(ltx1, updatedEntries);
@@ -2430,7 +2430,7 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
         cfg.ENTRY_CACHE_SIZE = 1000;
         cfg.PREFETCH_BATCH_SIZE = cfg.ENTRY_CACHE_SIZE / 10;
 
-        std::unordered_set<LedgerKey> keysToPrefetch;
+        UnorderedSet<LedgerKey> keysToPrefetch;
         auto app = createTestApplication(clock, cfg);
         app->start();
         auto& root = app->getLedgerTxnRoot();
@@ -2447,7 +2447,7 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
         SECTION("prefetch normally")
         {
             LedgerTxn ltx2(root);
-            std::unordered_set<LedgerKey> smallSet;
+            UnorderedSet<LedgerKey> smallSet;
             for (auto const& k : keysToPrefetch)
             {
                 smallSet.emplace(k);
@@ -2622,7 +2622,7 @@ TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
     auto runTest = [&](Config::TestDbMode mode) {
         for (; floor <= ceiling; floor += 1000)
         {
-            std::unordered_set<LedgerKey> keys;
+            UnorderedSet<LedgerKey> keys;
             VirtualClock clock;
             Config cfg(getTestConfig(0, mode));
             cfg.PREFETCH_BATCH_SIZE = floor;

@@ -599,7 +599,7 @@ ManageOfferOpFrameBase::doCheckValid(uint32_t ledgerVersion)
 
 void
 ManageOfferOpFrameBase::insertLedgerKeysToPrefetch(
-    std::unordered_set<LedgerKey>& keys) const
+    UnorderedSet<LedgerKey>& keys) const
 {
     // Prefetch existing offer
     if (mOfferID)

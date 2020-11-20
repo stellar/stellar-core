@@ -582,8 +582,7 @@ class BulkLoadAccountsOperation
     }
 
   public:
-    BulkLoadAccountsOperation(Database& db,
-                              std::unordered_set<LedgerKey> const& keys)
+    BulkLoadAccountsOperation(Database& db, UnorderedSet<LedgerKey> const& keys)
         : mDb(db)
     {
         mAccountIDs.reserve(keys.size());
@@ -651,8 +650,7 @@ class BulkLoadAccountsOperation
 };
 
 std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-LedgerTxnRoot::Impl::bulkLoadAccounts(
-    std::unordered_set<LedgerKey> const& keys) const
+LedgerTxnRoot::Impl::bulkLoadAccounts(UnorderedSet<LedgerKey> const& keys) const
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(keys.size()));

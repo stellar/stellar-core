@@ -333,7 +333,7 @@ TransactionQueue::removeApplied(Transactions const& appliedTxs)
     ZoneScoped;
     // Find the highest sequence number that was applied for each source account
     std::map<AccountID, int64_t> seqByAccount;
-    std::unordered_set<Hash> appliedHashes;
+    UnorderedSet<Hash> appliedHashes;
     appliedHashes.reserve(appliedTxs.size());
     for (auto const& tx : appliedTxs)
     {
@@ -584,7 +584,7 @@ TransactionQueue::isBanned(Hash const& hash) const
 {
     return std::any_of(
         std::begin(mBannedTransactions), std::end(mBannedTransactions),
-        [&](std::unordered_set<Hash> const& transactions) {
+        [&](UnorderedSet<Hash> const& transactions) {
             return transactions.find(hash) != std::end(transactions);
         });
 }
@@ -667,9 +667,8 @@ TransactionQueue::maxQueueSizeOps() const
 }
 
 static bool
-containsFilteredOperation(
-    std::vector<Operation> const& ops,
-    std::unordered_set<OperationType> const& filteredTypes)
+containsFilteredOperation(std::vector<Operation> const& ops,
+                          UnorderedSet<OperationType> const& filteredTypes)
 {
     return std::any_of(ops.begin(), ops.end(), [&](auto const& op) {
         return filteredTypes.find(op.body.type()) != filteredTypes.end();

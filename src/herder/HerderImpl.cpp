@@ -1298,7 +1298,7 @@ HerderImpl::getJsonTransitiveQuorumInfo(NodeID const& rootID, bool summary,
     std::map<Value, int> knownValues;
 
     // walk the quorum graph, starting at id
-    std::unordered_set<NodeID> visited;
+    UnorderedSet<NodeID> visited;
     std::vector<NodeID> next;
     next.push_back(rootID);
     visited.emplace(rootID);

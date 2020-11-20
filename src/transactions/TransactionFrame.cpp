@@ -599,7 +599,7 @@ TransactionFrame::removeOneTimeSignerFromAllSourceAccounts(
         return;
     }
 
-    std::unordered_set<AccountID> accounts{getSourceID()};
+    UnorderedSet<AccountID> accounts{getSourceID()};
     for (auto& op : mOperations)
     {
         accounts.emplace(op->getSourceID());
@@ -692,14 +692,13 @@ TransactionFrame::checkValid(AbstractLedgerTxn& ltxOuter,
 
 void
 TransactionFrame::insertKeysForFeeProcessing(
-    std::unordered_set<LedgerKey>& keys) const
+    UnorderedSet<LedgerKey>& keys) const
 {
     keys.emplace(accountKey(getSourceID()));
 }
 
 void
-TransactionFrame::insertKeysForTxApply(
-    std::unordered_set<LedgerKey>& keys) const
+TransactionFrame::insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const
 {
     for (auto const& op : mOperations)
     {

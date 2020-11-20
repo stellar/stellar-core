@@ -19,7 +19,7 @@ namespace stellar
 // Precondition: The keys associated with entries are unique and constitute a
 // subset of keys
 std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
+populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
 // A defensive heuristic to ensure prefetching stops if entry cache is filling
@@ -582,7 +582,7 @@ class LedgerTxn::Impl
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
 
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
 
@@ -760,15 +760,15 @@ class LedgerTxnRoot::Impl
                                                    Asset const& selling) const;
 
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadAccounts(std::unordered_set<LedgerKey> const& keys) const;
+    bulkLoadAccounts(UnorderedSet<LedgerKey> const& keys) const;
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadTrustLines(std::unordered_set<LedgerKey> const& keys) const;
+    bulkLoadTrustLines(UnorderedSet<LedgerKey> const& keys) const;
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadOffers(std::unordered_set<LedgerKey> const& keys) const;
+    bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const;
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadData(std::unordered_set<LedgerKey> const& keys) const;
+    bulkLoadData(UnorderedSet<LedgerKey> const& keys) const;
     std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadClaimableBalance(std::unordered_set<LedgerKey> const& keys) const;
+    bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
@@ -859,7 +859,7 @@ class LedgerTxnRoot::Impl
     // Prefetch some or all of given keys in batches. Note that no prefetching
     // could occur if the cache is at its fill ratio. Returns number of keys
     // prefetched.
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
 };

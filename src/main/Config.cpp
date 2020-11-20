@@ -18,6 +18,7 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 
+#include "util/UnorderedSet.h"
 #include <fmt/format.h>
 #include <functional>
 #include <sstream>
@@ -1079,7 +1080,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             QUORUM_SET = autoQSet;
             verifyHistoryValidatorsBlocking(validators);
             // count the number of domains
-            std::unordered_set<std::string> domains;
+            UnorderedSet<std::string> domains;
             for (auto const& v : validators)
             {
                 domains.insert(v.mHomeDomain);

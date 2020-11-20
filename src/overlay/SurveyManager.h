@@ -9,6 +9,7 @@
 #include "overlay/StellarXDR.h"
 #include "overlay/SurveyMessageLimiter.h"
 #include "util/Timer.h"
+#include "util/UnorderedSet.h"
 #include <lib/json/json.h>
 
 namespace stellar
@@ -76,12 +77,12 @@ class SurveyManager : public std::enable_shared_from_this<SurveyManager>,
     Curve25519Public mCurve25519PublicKey;
     SurveyMessageLimiter mMessageLimiter;
 
-    std::unordered_set<NodeID> mPeersToSurvey;
+    UnorderedSet<NodeID> mPeersToSurvey;
     std::queue<NodeID> mPeersToSurveyQueue;
 
     std::chrono::seconds const SURVEY_THROTTLE_TIMEOUT_SEC;
 
-    std::unordered_set<NodeID> mBadResponseNodes;
+    UnorderedSet<NodeID> mBadResponseNodes;
     Json::Value mResults;
 };
 }
