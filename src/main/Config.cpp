@@ -246,7 +246,7 @@ template <typename T>
 std::vector<T>
 readXdrEnumArray(ConfigItem const& item)
 {
-    std::unordered_map<std::string, T> enumNames;
+    UnorderedMap<std::string, T> enumNames;
     for (auto enumVal : xdr::xdr_traits<T>::enum_values())
     {
         auto enumNameCharPtr =
@@ -404,7 +404,7 @@ Config::parseQuality(std::string const& q) const
 std::vector<Config::ValidatorEntry>
 Config::parseValidators(
     std::shared_ptr<cpptoml::base> validators,
-    std::unordered_map<std::string, ValidatorQuality> const& domainQualityMap)
+    UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap)
 {
     std::vector<ValidatorEntry> res;
 
@@ -511,10 +511,10 @@ Config::parseValidators(
     return res;
 }
 
-std::unordered_map<std::string, Config::ValidatorQuality>
+UnorderedMap<std::string, Config::ValidatorQuality>
 Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
 {
-    std::unordered_map<std::string, ValidatorQuality> res;
+    UnorderedMap<std::string, ValidatorQuality> res;
     auto tarr = domainsQuality->as_table_array();
     if (!tarr)
     {
@@ -615,7 +615,7 @@ Config::load(std::istream& in)
 void
 Config::addSelfToValidators(
     std::vector<ValidatorEntry>& validators,
-    std::unordered_map<std::string, ValidatorQuality> const& domainQualityMap)
+    UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap)
 {
     auto it = domainQualityMap.find(NODE_HOME_DOMAIN);
     ValidatorEntry self;
@@ -690,7 +690,7 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             throw std::runtime_error("Could not parse toml");
         }
         std::vector<ValidatorEntry> validators;
-        std::unordered_map<std::string, ValidatorQuality> domainQualityMap;
+        UnorderedMap<std::string, ValidatorQuality> domainQualityMap;
 
         // cpptoml returns the items in non-deterministic order
         // so we need to process items that are potential dependencies first

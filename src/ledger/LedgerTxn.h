@@ -7,6 +7,7 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "util/UnorderedMap.h"
 #include "util/UnorderedSet.h"
 #include "xdr/Stellar-ledger.h"
 #include <functional>
@@ -14,7 +15,6 @@
 #include <map>
 #include <memory>
 #include <set>
-#include <unordered_map>
 
 /////////////////////////////////////////////////////////////////////////////
 //  Overview
@@ -276,7 +276,7 @@ struct LedgerTxnDelta
         LedgerHeader previous;
     };
 
-    std::unordered_map<InternalLedgerKey, EntryDelta> entry;
+    UnorderedMap<InternalLedgerKey, EntryDelta> entry;
     HeaderDelta header;
 };
 
@@ -376,13 +376,13 @@ class AbstractLedgerTxnParent
     // - getOffersByAccountAndAsset
     //     Get XDR for every offer owned by the specified account that is either
     //     buying or selling the specified asset.
-    virtual std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() = 0;
+    virtual UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() = 0;
     virtual std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling) = 0;
     virtual std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) = 0;
-    virtual std::unordered_map<LedgerKey, LedgerEntry>
+    virtual UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) = 0;
 
@@ -618,7 +618,7 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     void erase(InternalLedgerKey const& key) override;
 
-    std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
+    UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling) override;
@@ -632,7 +632,7 @@ class LedgerTxn final : public AbstractLedgerTxn
 
     LedgerTxnDelta getDelta() override;
 
-    std::unordered_map<LedgerKey, LedgerEntry>
+    UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 
@@ -690,7 +690,7 @@ class LedgerTxn final : public AbstractLedgerTxn
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
 
 #ifdef BUILD_TESTS
-    std::unordered_map<
+    UnorderedMap<
         AssetPair,
         std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
         AssetPairHash> const&
@@ -729,7 +729,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void resetForFuzzer();
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
-    std::unordered_map<LedgerKey, LedgerEntry> getAllOffers() override;
+    UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;
 
     std::shared_ptr<LedgerEntry const>
     getBestOffer(Asset const& buying, Asset const& selling) override;
@@ -737,7 +737,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     getBestOffer(Asset const& buying, Asset const& selling,
                  OfferDescriptor const& worseThan) override;
 
-    std::unordered_map<LedgerKey, LedgerEntry>
+    UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account,
                                Asset const& asset) override;
 

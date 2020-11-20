@@ -10,10 +10,10 @@
 #include "herder/TransactionQueue.h"
 #include "herder/Upgrades.h"
 #include "util/Timer.h"
+#include "util/UnorderedMap.h"
 #include "util/XDROperators.h"
 #include <deque>
 #include <memory>
-#include <unordered_map>
 #include <vector>
 
 namespace medida

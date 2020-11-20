@@ -646,7 +646,7 @@ class BulkLoadTrustLinesOperation
 #endif
 };
 
-std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadTrustLines(
     UnorderedSet<LedgerKey> const& keys) const
 {

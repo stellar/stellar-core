@@ -210,7 +210,7 @@ class HerderSCPDriver : public SCPDriver
     medida::Histogram& mPrepareTimeout;
 
     // Externalize lag tracking for nodes in qset
-    std::unordered_map<NodeID, medida::Timer> mQSetLag;
+    UnorderedMap<NodeID, medida::Timer> mQSetLag;
 
     struct SCPTiming
     {

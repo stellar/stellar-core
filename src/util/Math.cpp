@@ -4,12 +4,12 @@
 
 #include "Math.h"
 #include "util/GlobalChecks.h"
+#include "util/UnorderedMap.h"
 #include <Tracy.hpp>
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <set>
-#include <unordered_map>
 
 namespace stellar
 {
@@ -125,7 +125,7 @@ k_means(std::vector<double> const& points, uint32_t k)
     // Run until convergence or iteration depth exhaustion
     while (recalculate && iteration++ < MAX_RECOMPUTE_ITERATIONS)
     {
-        std::unordered_map<double, std::vector<double>> assignment;
+        UnorderedMap<double, std::vector<double>> assignment;
         assignment.reserve(points.size());
         recalculate = false;
         // centroid -> assigned points

@@ -151,7 +151,7 @@ class BulkLoadClaimableBalanceOperation
 #endif
 };
 
-std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
+UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 LedgerTxnRoot::Impl::bulkLoadClaimableBalance(
     UnorderedSet<LedgerKey> const& keys) const
 {

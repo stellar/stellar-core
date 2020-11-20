@@ -55,7 +55,7 @@ class BucketManagerImpl : public BucketManager
     // FutureBucket being resolved). Entries in this map will be cleared when
     // the FutureBucket is _cleared_ (typically when the owning BucketList level
     // is committed).
-    std::unordered_map<MergeKey, std::shared_future<std::shared_ptr<Bucket>>>
+    UnorderedMap<MergeKey, std::shared_future<std::shared_ptr<Bucket>>>
         mLiveFutures;
 
     // Records bucket-merges that are _finished_, i.e. have been adopted as

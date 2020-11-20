@@ -7,8 +7,8 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include "util/UnorderedMap.h"
 #include <fmt/format.h>
-#include <unordered_map>
 
 namespace stellar
 {
@@ -30,7 +30,7 @@ calculateDelta(LedgerEntry const* current, LedgerEntry const* previous)
 
 static void
 updateChangedSubEntriesCount(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
+    UnorderedMap<AccountID, SubEntriesChange>& subEntriesChange,
     LedgerEntry const* current, LedgerEntry const* previous)
 {
     auto valid = current ? current : previous;
@@ -84,7 +84,7 @@ updateChangedSubEntriesCount(
 
 static void
 updateChangedSubEntriesCount(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
+    UnorderedMap<AccountID, SubEntriesChange>& subEntriesChange,
     std::shared_ptr<InternalLedgerEntry const> const& genCurrent,
     std::shared_ptr<InternalLedgerEntry const> const& genPrevious)
 {
@@ -121,7 +121,7 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
     LedgerTxnDelta const& ltxDelta)
 {
-    std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
+    UnorderedMap<AccountID, SubEntriesChange> subEntriesChange;
     for (auto const& entryDelta : ltxDelta.entry)
     {
         updateChangedSubEntriesCount(subEntriesChange,

@@ -7,10 +7,10 @@
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include "util/UnorderedMap.h"
 #include "util/optional.h"
 #include <deque>
 #include <functional>
-#include <unordered_map>
 
 namespace stellar
 {
@@ -56,8 +56,7 @@ class TxSetFrame : public AbstractTxSetFrameForApply
                      bool justCheck, uint64_t lowerBoundCloseTimeOffset,
                      uint64_t upperBoundCloseTimeOffset);
 
-    std::unordered_map<AccountID, AccountTransactionQueue>
-    buildAccountTxQueues();
+    UnorderedMap<AccountID, AccountTransactionQueue> buildAccountTxQueues();
     friend struct SurgeCompare;
 
   public:

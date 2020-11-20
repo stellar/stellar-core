@@ -27,9 +27,8 @@
 using namespace stellar;
 
 static void
-validate(
-    AbstractLedgerTxn& ltx,
-    std::unordered_map<LedgerKey, LedgerTxnDelta::EntryDelta> const& expected)
+validate(AbstractLedgerTxn& ltx,
+         UnorderedMap<LedgerKey, LedgerTxnDelta::EntryDelta> const& expected)
 {
     auto const delta = ltx.getDelta();
 
@@ -298,9 +297,9 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
     std::bernoulli_distribution shouldCommitDist;
 
     auto generateNew = [](AbstractLedgerTxn& ltx,
-                          std::unordered_map<LedgerKey, LedgerEntry>& entries) {
+                          UnorderedMap<LedgerKey, LedgerEntry>& entries) {
         size_t const NEW_ENTRIES = 100;
-        std::unordered_map<LedgerKey, LedgerEntry> newBatch;
+        UnorderedMap<LedgerKey, LedgerEntry> newBatch;
         while (newBatch.size() < NEW_ENTRIES)
         {
             auto le = LedgerTestUtils::generateValidLedgerEntry();
@@ -319,81 +318,78 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
         }
     };
 
-    auto generateModify =
-        [](AbstractLedgerTxn& ltx,
-           std::unordered_map<LedgerKey, LedgerEntry>& entries) {
-            size_t const MODIFY_ENTRIES = 25;
-            std::unordered_map<LedgerKey, LedgerEntry> modifyBatch;
-            std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
-            while (modifyBatch.size() < MODIFY_ENTRIES)
-            {
-                auto iter = entries.begin();
-                std::advance(iter, dist(gRandomEngine));
-                modifyBatch[iter->first] =
-                    generateLedgerEntryWithSameKey(iter->second);
-            }
+    auto generateModify = [](AbstractLedgerTxn& ltx,
+                             UnorderedMap<LedgerKey, LedgerEntry>& entries) {
+        size_t const MODIFY_ENTRIES = 25;
+        UnorderedMap<LedgerKey, LedgerEntry> modifyBatch;
+        std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
+        while (modifyBatch.size() < MODIFY_ENTRIES)
+        {
+            auto iter = entries.begin();
+            std::advance(iter, dist(gRandomEngine));
+            modifyBatch[iter->first] =
+                generateLedgerEntryWithSameKey(iter->second);
+        }
 
-            for (auto const& kv : modifyBatch)
-            {
-                auto ltxe = ltx.load(kv.first);
-                REQUIRE(ltxe);
-                ltxe.current() = kv.second;
-                entries[kv.first] = kv.second;
-            }
-        };
+        for (auto const& kv : modifyBatch)
+        {
+            auto ltxe = ltx.load(kv.first);
+            REQUIRE(ltxe);
+            ltxe.current() = kv.second;
+            entries[kv.first] = kv.second;
+        }
+    };
 
-    auto generateErase =
-        [&](AbstractLedgerTxn& ltx,
-            std::unordered_map<LedgerKey, LedgerEntry>& entries,
-            UnorderedSet<LedgerKey>& dead) {
-            size_t const ERASE_ENTRIES = 25;
-            UnorderedSet<LedgerKey> eraseBatch;
-            std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
-            while (eraseBatch.size() < ERASE_ENTRIES)
-            {
-                auto iter = entries.begin();
-                std::advance(iter, dist(gRandomEngine));
-                eraseBatch.insert(iter->first);
-            }
+    auto generateErase = [&](AbstractLedgerTxn& ltx,
+                             UnorderedMap<LedgerKey, LedgerEntry>& entries,
+                             UnorderedSet<LedgerKey>& dead) {
+        size_t const ERASE_ENTRIES = 25;
+        UnorderedSet<LedgerKey> eraseBatch;
+        std::uniform_int_distribution<size_t> dist(0, entries.size() - 1);
+        while (eraseBatch.size() < ERASE_ENTRIES)
+        {
+            auto iter = entries.begin();
+            std::advance(iter, dist(gRandomEngine));
+            eraseBatch.insert(iter->first);
+        }
 
-            for (auto const& key : eraseBatch)
-            {
-                REQUIRE_NOTHROW(ltx.erase(key));
-                entries.erase(key);
-                dead.insert(key);
-            }
-        };
+        for (auto const& key : eraseBatch)
+        {
+            REQUIRE_NOTHROW(ltx.erase(key));
+            entries.erase(key);
+            dead.insert(key);
+        }
+    };
 
-    auto checkLedger =
-        [](AbstractLedgerTxnParent& ltxParent,
-           std::unordered_map<LedgerKey, LedgerEntry> const& entries,
-           UnorderedSet<LedgerKey> const& dead) {
-            LedgerTxn ltx(ltxParent);
-            for (auto const& kv : entries)
-            {
-                auto ltxe = ltx.load(kv.first);
-                REQUIRE(ltxe);
-                REQUIRE(ltxe.current() == kv.second);
-            }
+    auto checkLedger = [](AbstractLedgerTxnParent& ltxParent,
+                          UnorderedMap<LedgerKey, LedgerEntry> const& entries,
+                          UnorderedSet<LedgerKey> const& dead) {
+        LedgerTxn ltx(ltxParent);
+        for (auto const& kv : entries)
+        {
+            auto ltxe = ltx.load(kv.first);
+            REQUIRE(ltxe);
+            REQUIRE(ltxe.current() == kv.second);
+        }
 
-            for (auto const& key : dead)
+        for (auto const& key : dead)
+        {
+            if (entries.find(key) == entries.end())
             {
-                if (entries.find(key) == entries.end())
-                {
-                    REQUIRE(!ltx.load(key));
-                }
+                REQUIRE(!ltx.load(key));
             }
-        };
+        }
+    };
 
     auto runTest = [&](AbstractLedgerTxnParent& ltxParent) {
-        std::unordered_map<LedgerKey, LedgerEntry> entries;
+        UnorderedMap<LedgerKey, LedgerEntry> entries;
         UnorderedSet<LedgerKey> dead;
         size_t const NUM_BATCHES = 10;
         for (size_t k = 0; k < NUM_BATCHES; ++k)
         {
             checkLedger(ltxParent, entries, dead);
 
-            std::unordered_map<LedgerKey, LedgerEntry> updatedEntries = entries;
+            UnorderedMap<LedgerKey, LedgerEntry> updatedEntries = entries;
             UnorderedSet<LedgerKey> updatedDead = dead;
             LedgerTxn ltx1(ltxParent);
             generateNew(ltx1, updatedEntries);
@@ -3003,9 +2999,9 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
     }
 }
 
-typedef std::unordered_map<AssetPair, std::vector<LedgerEntry>, AssetPairHash>
+typedef UnorderedMap<AssetPair, std::vector<LedgerEntry>, AssetPairHash>
     OrderBook;
-typedef std::unordered_map<
+typedef UnorderedMap<
     AssetPair,
     std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
     AssetPairHash>

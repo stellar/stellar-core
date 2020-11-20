@@ -833,7 +833,7 @@ PendingEnvelopes::envelopeProcessed(SCPEnvelope const& env)
     }
 }
 
-std::unordered_map<NodeID, size_t>
+UnorderedMap<NodeID, size_t>
 PendingEnvelopes::getCostPerValidator(uint64 slotIndex) const
 {
     auto found = mEnvelopes.find(slotIndex);

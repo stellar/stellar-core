@@ -207,7 +207,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         // a valid transaction set
 
         std::vector<SecretKey> keys;
-        std::unordered_map<PublicKey, SecretKey> keysMap;
+        UnorderedMap<PublicKey, SecretKey> keysMap;
         for (int i = 0; i < nbTx; i++)
         {
             keys.emplace_back(SecretKey::pseudoRandomForTesting());

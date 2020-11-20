@@ -611,12 +611,12 @@ updateOffer(
     return res;
 }
 
-static std::unordered_map<AccountID, int64_t>
+static UnorderedMap<AccountID, int64_t>
 getOfferAccountMinBalances(
     AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     std::map<AccountID, std::vector<LedgerTxnEntry>> const& offersByAccount)
 {
-    std::unordered_map<AccountID, int64_t> minBalanceMap;
+    UnorderedMap<AccountID, int64_t> minBalanceMap;
     for (auto const& accountOffers : offersByAccount)
     {
         auto const& accountID = accountOffers.first;
