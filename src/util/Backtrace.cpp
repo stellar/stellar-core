@@ -69,6 +69,11 @@ namespace stellar
 void
 printCurrentBacktrace()
 {
+    if (getenv("STELLAR_NO_BACKTRACE") != nullptr)
+    {
+        return;
+    }
+
     fprintf(stderr, "backtrace:\n");
 
     unw_context_t ctxt;
