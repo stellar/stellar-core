@@ -2037,7 +2037,7 @@
     </None>
     <None Include="..\..\CONTRIBUTING.md" />
     <None Include="..\..\README" />
-    <None Include="..\..\travis-build.sh" />
+    <None Include="..\..\ci-build.sh" />
     <None Include="..\..\src\history\serialize-tests\stellar-history.livenet.15686975.json">
       <Filter>history\tests\serialize-tests</Filter>
     </None>

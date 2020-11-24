@@ -34,7 +34,7 @@ addons:
 before_script:
   - ulimit -c unlimited -S
 
-script: ./travis-build.sh
+script: ./ci-build.sh
 
 after_failure:
   - COREFILE=$(find . -maxdepth 1 -name "core*" | head -n 1)
@@ -62,8 +62,8 @@ matrix:
   include:
     - stage: compile
       compiler: clang
-      script: ./travis-build.sh --disable-tests
+      script: ./ci-build.sh --disable-tests
     - stage: compile
       compiler: gcc
-      script: ./travis-build.sh --disable-tests
+      script: ./ci-build.sh --disable-tests
 
