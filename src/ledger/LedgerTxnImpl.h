@@ -677,7 +677,6 @@ class LedgerTxnRoot::Impl
         BestOffersCache;
 
     static size_t const MIN_BEST_OFFERS_BATCH_SIZE;
-    static size_t const MAX_BEST_OFFERS_BATCH_SIZE;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;

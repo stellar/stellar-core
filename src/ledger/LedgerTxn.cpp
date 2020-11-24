@@ -1941,7 +1941,6 @@ LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
 
 // Implementation of LedgerTxnRoot ------------------------------------------
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
-size_t const LedgerTxnRoot::Impl::MAX_BEST_OFFERS_BATCH_SIZE = 1024;
 
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
                              size_t bestOfferCacheSize,
@@ -2493,6 +2492,9 @@ LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
     {
         return offers.cend();
     }
+
+    size_t const MAX_BEST_OFFERS_BATCH_SIZE =
+        std::max(mBulkLoadBatchSize, MIN_BEST_OFFERS_BATCH_SIZE);
 
     size_t const BATCH_SIZE =
         std::min(MAX_BEST_OFFERS_BATCH_SIZE,
