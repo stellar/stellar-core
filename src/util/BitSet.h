@@ -157,12 +157,6 @@ class BitSet
         return bitset_subseteq(mPtr, other.mPtr);
     }
 
-    bool
-    operator<=(BitSet const& other) const
-    {
-        return isSubsetEq(other);
-    }
-
     size_t
     size() const
     {
@@ -209,10 +203,6 @@ class BitSet
     {
         size_t tmp = 0;
         return !nextSet(tmp);
-    }
-    operator bool() const
-    {
-        return !empty();
     }
     size_t
     min() const
