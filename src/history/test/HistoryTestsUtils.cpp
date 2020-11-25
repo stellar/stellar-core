@@ -721,7 +721,12 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
 
     auto& cm = app->getCatchupManager();
     auto finished = [&]() { return cm.catchupWorkIsDone(); };
-    crankUntil(app, finished, std::chrono::seconds{60});
+
+    auto expectedCatchupWork =
+        computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
+    crankUntil(app, finished,
+               std::chrono::seconds{std::max<int64>(
+                   expectedCatchupWork.mTransactionsApplied + 15, 60)});
 
     // Finished successfully
     auto success = cm.isCatchupInitialized() &&
@@ -734,9 +739,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
         auto catchupPerformedWork =
             CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
 
-        REQUIRE(catchupPerformedWork ==
-                computeCatchupPerformedWork(lastLedger, catchupConfiguration,
-                                            *app));
+        REQUIRE(catchupPerformedWork == expectedCatchupWork);
         if (app->getHistoryArchiveManager().hasAnyWritableHistoryArchive())
         {
             auto& hm = app->getHistoryManager();
@@ -832,7 +835,13 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
     };
 
     auto lastLedger = lm.getLastClosedLedgerNum();
-    crankUntil(app, catchupIsDone, std::chrono::seconds{60});
+
+    auto expectedCatchupWork =
+        computeCatchupPerformedWork(lastLedger, catchupConfiguration, *app);
+
+    crankUntil(app, catchupIsDone,
+               std::chrono::seconds{std::max<int64>(
+                   expectedCatchupWork.mTransactionsApplied + 15, 60)});
 
     if (lm.getLastClosedLedgerNum() == triggerLedger + bufferLedgers)
     {
@@ -850,9 +859,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
         auto catchupPerformedWork =
             CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
 
-        REQUIRE(catchupPerformedWork ==
-                computeCatchupPerformedWork(lastLedger, catchupConfiguration,
-                                            *app));
+        REQUIRE(catchupPerformedWork == expectedCatchupWork);
 
         CLOG(INFO, "History") << "Caught up";
     }
