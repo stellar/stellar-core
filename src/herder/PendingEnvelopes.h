@@ -41,7 +41,7 @@ struct SlotEnvelopes
     //   * txsets `NodeID` introduces either itself or via its
     //     quorum (our transitive quorum)
     //   * qsets
-    std::unordered_map<NodeID, size_t> mReceivedCost;
+    UnorderedMap<NodeID, size_t> mReceivedCost;
 };
 
 class PendingEnvelopes
@@ -55,7 +55,7 @@ class PendingEnvelopes
     // recent quorum sets
     RandomEvictionCache<Hash, SCPQuorumSetPtr> mQsetCache;
     // weak references to all known qsets
-    std::unordered_map<Hash, std::weak_ptr<SCPQuorumSet>> mKnownQSets;
+    UnorderedMap<Hash, std::weak_ptr<SCPQuorumSet>> mKnownQSets;
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
@@ -64,7 +64,7 @@ class PendingEnvelopes
     // recent txsets
     RandomEvictionCache<Hash, TxSetFramCacheItem> mTxSetCache;
     // weak references to all known txsets
-    std::unordered_map<Hash, std::weak_ptr<TxSetFrame>> mKnownTxSets;
+    UnorderedMap<Hash, std::weak_ptr<TxSetFrame>> mKnownTxSets;
 
     // keep track of txset/qset hash -> size pairs for quick access
     RandomEvictionCache<Hash, size_t> mValueSizeCache;
@@ -109,8 +109,7 @@ class PendingEnvelopes
 
     void recordReceivedCost(SCPEnvelope const& env);
 
-    std::unordered_map<NodeID, size_t>
-    getCostPerValidator(uint64 slotIndex) const;
+    UnorderedMap<NodeID, size_t> getCostPerValidator(uint64 slotIndex) const;
 
     // stops all pending downloads for slots strictly below `slotIndex`
     // counts partially downloaded data towards the cost for that slot

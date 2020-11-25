@@ -16,7 +16,6 @@
 #include <Tracy.hpp>
 #include <algorithm>
 #include <functional>
-#include <unordered_set>
 
 namespace stellar
 {

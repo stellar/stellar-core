@@ -89,6 +89,6 @@ class OperationFrame
     }
 
     virtual void
-    insertLedgerKeysToPrefetch(std::unordered_set<LedgerKey>& keys) const;
+    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const;
 };
 }

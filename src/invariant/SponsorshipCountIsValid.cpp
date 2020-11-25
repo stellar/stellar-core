@@ -7,8 +7,8 @@
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
 #include "transactions/TransactionUtils.h"
+#include "util/UnorderedMap.h"
 #include <fmt/format.h>
-#include <unordered_map>
 
 namespace stellar
 {
@@ -69,8 +69,8 @@ getAccountID(LedgerEntry const& le)
 
 static void
 updateCounters(LedgerEntry const& le,
-               std::unordered_map<AccountID, int64_t>& numSponsoring,
-               std::unordered_map<AccountID, int64_t>& numSponsored,
+               UnorderedMap<AccountID, int64_t>& numSponsoring,
+               UnorderedMap<AccountID, int64_t>& numSponsored,
                int64_t& claimableBalanceReserve, int64_t sign)
 {
     if (le.ext.v() == 1 && le.ext.v1().sponsoringID)
@@ -109,8 +109,8 @@ static void
 updateChangedSponsorshipCounts(
     std::shared_ptr<InternalLedgerEntry const> current,
     std::shared_ptr<InternalLedgerEntry const> previous,
-    std::unordered_map<AccountID, int64_t>& numSponsoring,
-    std::unordered_map<AccountID, int64_t>& numSponsored,
+    UnorderedMap<AccountID, int64_t>& numSponsoring,
+    UnorderedMap<AccountID, int64_t>& numSponsored,
     int64_t& claimableBalanceReserve)
 {
     if (current && current->type() == InternalLedgerEntryType::LEDGER_ENTRY)
@@ -157,8 +157,8 @@ SponsorshipCountIsValid::checkOnOperationApply(Operation const& operation,
     }
 
     // Get changes in numSponsoring and numSponsored based on extensions
-    std::unordered_map<AccountID, int64_t> numSponsoring;
-    std::unordered_map<AccountID, int64_t> numSponsored;
+    UnorderedMap<AccountID, int64_t> numSponsoring;
+    UnorderedMap<AccountID, int64_t> numSponsored;
     int64_t claimableBalanceReserve = 0;
     for (auto const& kv : ltxDelta.entry)
     {

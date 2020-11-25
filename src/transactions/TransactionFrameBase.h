@@ -6,7 +6,7 @@
 
 #include "ledger/LedgerHashUtils.h"
 #include "overlay/StellarXDR.h"
-#include <unordered_set>
+#include "util/UnorderedSet.h"
 
 namespace stellar
 {
@@ -52,9 +52,8 @@ class TransactionFrameBase
     virtual AccountID getSourceID() const = 0;
 
     virtual void
-    insertKeysForFeeProcessing(std::unordered_set<LedgerKey>& keys) const = 0;
-    virtual void
-    insertKeysForTxApply(std::unordered_set<LedgerKey>& keys) const = 0;
+    insertKeysForFeeProcessing(UnorderedSet<LedgerKey>& keys) const = 0;
+    virtual void insertKeysForTxApply(UnorderedSet<LedgerKey>& keys) const = 0;
 
     virtual void processFeeSeqNum(AbstractLedgerTxn& ltx, int64_t baseFee) = 0;
 

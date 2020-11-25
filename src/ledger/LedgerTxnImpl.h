@@ -18,8 +18,8 @@ namespace stellar
 
 // Precondition: The keys associated with entries are unique and constitute a
 // subset of keys
-std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-populateLoadedEntries(std::unordered_set<LedgerKey> const& keys,
+UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
 // A defensive heuristic to ensure prefetching stops if entry cache is filling
@@ -166,8 +166,8 @@ class LedgerTxn::Impl
     class EntryIteratorImpl;
     class WorstBestOfferIteratorImpl;
 
-    typedef std::unordered_map<InternalLedgerKey,
-                               std::shared_ptr<InternalLedgerEntry>>
+    typedef UnorderedMap<InternalLedgerKey,
+                         std::shared_ptr<InternalLedgerEntry>>
         EntryMap;
 
     AbstractLedgerTxnParent& mParent;
@@ -175,8 +175,7 @@ class LedgerTxn::Impl
     std::unique_ptr<LedgerHeader> mHeader;
     std::shared_ptr<LedgerTxnHeader::Impl> mActiveHeader;
     EntryMap mEntry;
-    std::unordered_map<InternalLedgerKey, std::shared_ptr<EntryImplBase>>
-        mActive;
+    UnorderedMap<InternalLedgerKey, std::shared_ptr<EntryImplBase>> mActive;
     bool const mShouldUpdateLastModified;
     bool mIsSealed;
     LedgerTxnConsistency mConsistency;
@@ -188,8 +187,7 @@ class LedgerTxn::Impl
     // have multiple elements with the same key.
     typedef std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>
         OrderBook;
-    typedef std::unordered_map<AssetPair, OrderBook, AssetPairHash>
-        MultiOrderBook;
+    typedef UnorderedMap<AssetPair, OrderBook, AssetPairHash> MultiOrderBook;
     // mMultiOrderbook is an in-memory representation of the order book that
     // contains an entry if and only if it is live, and recorded in this
     // LedgerTxn, and not active. It is grouped by asset pair, and for each
@@ -318,8 +316,8 @@ class LedgerTxn::Impl
     // parent, and finally _used_ when that parent asks _its_ parent to
     // getBestOffer.
 
-    typedef std::unordered_map<
-        AssetPair, std::shared_ptr<OfferDescriptor const>, AssetPairHash>
+    typedef UnorderedMap<AssetPair, std::shared_ptr<OfferDescriptor const>,
+                         AssetPairHash>
         WorstBestOfferMap;
     // The exact definition / invariant of the WorstBestOfferMap's data is
     // unfortunately a bit subtle.
@@ -448,7 +446,7 @@ class LedgerTxn::Impl
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified.
-    std::unordered_map<LedgerKey, LedgerEntry> getAllOffers();
+    UnorderedMap<LedgerKey, LedgerEntry> getAllOffers();
 
     // getBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -485,7 +483,7 @@ class LedgerTxn::Impl
     // it throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
-    std::unordered_map<LedgerKey, LedgerEntry>
+    UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);
 
     // getHeader does not throw
@@ -582,7 +580,7 @@ class LedgerTxn::Impl
     // unsealHeader has the same exception safety guarantee as f
     void unsealHeader(LedgerTxn& self, std::function<void(LedgerHeader&)> f);
 
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
 
@@ -758,16 +756,16 @@ class LedgerTxnRoot::Impl
     BestOffersCacheEntryPtr getFromBestOffersCache(Asset const& buying,
                                                    Asset const& selling) const;
 
-    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadAccounts(std::unordered_set<LedgerKey> const& keys) const;
-    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadTrustLines(std::unordered_set<LedgerKey> const& keys) const;
-    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadOffers(std::unordered_set<LedgerKey> const& keys) const;
-    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadData(std::unordered_set<LedgerKey> const& keys) const;
-    std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-    bulkLoadClaimableBalance(std::unordered_set<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadAccounts(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadTrustLines(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadData(UnorderedSet<LedgerKey> const& keys) const;
+    UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+    bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
 
     std::deque<LedgerEntry>::const_iterator
     loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
@@ -813,7 +811,7 @@ class LedgerTxnRoot::Impl
     // exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified.
-    std::unordered_map<LedgerKey, LedgerEntry> getAllOffers();
+    UnorderedMap<LedgerKey, LedgerEntry> getAllOffers();
 
     // getBestOffer has the basic exception safety guarantee. If it throws an
     // exception, then
@@ -831,7 +829,7 @@ class LedgerTxnRoot::Impl
     // it throws an exception, then
     // - the prepared statement cache may be, but is not guaranteed to be,
     //   modified
-    std::unordered_map<LedgerKey, LedgerEntry>
+    UnorderedMap<LedgerKey, LedgerEntry>
     getOffersByAccountAndAsset(AccountID const& account, Asset const& asset);
 
     // getHeader does not throw
@@ -858,7 +856,7 @@ class LedgerTxnRoot::Impl
     // Prefetch some or all of given keys in batches. Note that no prefetching
     // could occur if the cache is at its fill ratio. Returns number of keys
     // prefetched.
-    uint32_t prefetch(std::unordered_set<LedgerKey> const& keys);
+    uint32_t prefetch(UnorderedSet<LedgerKey> const& keys);
 
     double getPrefetchHitRate() const;
 };

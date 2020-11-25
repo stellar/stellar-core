@@ -1967,6 +1967,15 @@
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h">
       <Filter>ledger</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\util\RandHasher.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\UnorderedMap.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\UnorderedSet.h">
+      <Filter>util</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

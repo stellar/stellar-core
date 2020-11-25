@@ -8,6 +8,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/SecretValue.h"
 #include "util/Timer.h"
+#include "util/UnorderedMap.h"
 #include "util/optional.h"
 
 #include <map>
@@ -76,12 +77,11 @@ class Config : public std::enable_shared_from_this<Config>
     std::string toString(ValidatorQuality q) const;
     ValidatorQuality parseQuality(std::string const& q) const;
 
-    std::vector<ValidatorEntry>
-    parseValidators(std::shared_ptr<cpptoml::base> validators,
-                    std::unordered_map<std::string, ValidatorQuality> const&
-                        domainQualityMap);
+    std::vector<ValidatorEntry> parseValidators(
+        std::shared_ptr<cpptoml::base> validators,
+        UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap);
 
-    std::unordered_map<std::string, ValidatorQuality>
+    UnorderedMap<std::string, ValidatorQuality>
     parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality);
 
     static SCPQuorumSet
@@ -92,10 +92,9 @@ class Config : public std::enable_shared_from_this<Config>
     static SCPQuorumSet
     generateQuorumSet(std::vector<ValidatorEntry> const& validators);
 
-    void
-    addSelfToValidators(std::vector<ValidatorEntry>& validators,
-                        std::unordered_map<std::string, ValidatorQuality> const&
-                            domainQualityMap);
+    void addSelfToValidators(
+        std::vector<ValidatorEntry>& validators,
+        UnorderedMap<std::string, ValidatorQuality> const& domainQualityMap);
 
     void verifyHistoryValidatorsBlocking(
         std::vector<ValidatorEntry> const& validators);

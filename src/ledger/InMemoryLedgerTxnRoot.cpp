@@ -32,10 +32,10 @@ InMemoryLedgerTxnRoot::rollbackChild()
 {
 }
 
-std::unordered_map<LedgerKey, LedgerEntry>
+UnorderedMap<LedgerKey, LedgerEntry>
 InMemoryLedgerTxnRoot::getAllOffers()
 {
-    return std::unordered_map<LedgerKey, LedgerEntry>();
+    return UnorderedMap<LedgerKey, LedgerEntry>();
 }
 
 std::shared_ptr<LedgerEntry const>
@@ -51,11 +51,11 @@ InMemoryLedgerTxnRoot::getBestOffer(Asset const& buying, Asset const& selling,
     return nullptr;
 }
 
-std::unordered_map<LedgerKey, LedgerEntry>
+UnorderedMap<LedgerKey, LedgerEntry>
 InMemoryLedgerTxnRoot::getOffersByAccountAndAsset(AccountID const& account,
                                                   Asset const& asset)
 {
-    return std::unordered_map<LedgerKey, LedgerEntry>();
+    return UnorderedMap<LedgerKey, LedgerEntry>();
 }
 
 LedgerHeader const&
@@ -128,7 +128,7 @@ InMemoryLedgerTxnRoot::getPrefetchHitRate() const
 }
 
 uint32_t
-InMemoryLedgerTxnRoot::prefetch(std::unordered_set<LedgerKey> const& keys)
+InMemoryLedgerTxnRoot::prefetch(UnorderedSet<LedgerKey> const& keys)
 {
     return 0;
 }

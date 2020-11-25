@@ -252,8 +252,7 @@ OperationFrame::resetResultSuccess()
 }
 
 void
-OperationFrame::insertLedgerKeysToPrefetch(
-    std::unordered_set<LedgerKey>& keys) const
+OperationFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {
     // Do nothing by default
     return;

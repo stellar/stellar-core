@@ -708,7 +708,10 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\TransactionSQL.h" />
     <ClInclude Include="..\..\src\transactions\RevokeSponsorshipOpFrame.h" />
     <ClInclude Include="..\..\src\util\Decoder.h" />
+    <ClInclude Include="..\..\src\util\RandHasher.h" />
     <ClInclude Include="..\..\src\util\Scheduler.h" />
+    <ClInclude Include="..\..\src\util\UnorderedMap.h" />
+    <ClInclude Include="..\..\src\util\UnorderedSet.h" />
     <ClInclude Include="..\..\src\util\XDRCereal.h" />
     <ClInclude Include="..\..\src\util\XDROperators.h" />
     <ClInclude Include="..\..\src\work\BatchWork.h" />

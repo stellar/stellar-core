@@ -12,11 +12,11 @@
 #include "util/XDROperators.h"
 #include "xdr/Stellar-transaction.h"
 
+#include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
 #include <chrono>
 #include <deque>
 #include <memory>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 namespace medida
@@ -151,13 +151,13 @@ class TransactionQueue
      * - AccountState.mTotalFees > 0
      * - !AccountState.mTransactions.empty()
      */
-    using AccountStates = std::unordered_map<AccountID, AccountState>;
+    using AccountStates = UnorderedMap<AccountID, AccountState>;
 
     /**
      * Banned transactions are stored in deque of depth banDepth, so it is easy
      * to unban all transactions that were banned for long enough.
      */
-    using BannedTransactions = std::deque<std::unordered_set<Hash>>;
+    using BannedTransactions = std::deque<UnorderedSet<Hash>>;
 
     Application& mApp;
     int const mPendingDepth;
@@ -171,7 +171,7 @@ class TransactionQueue
     medida::Counter& mBannedTransactionsCounter;
     medida::Timer& mTransactionsDelay;
 
-    std::unordered_set<OperationType> mFilteredTypes;
+    UnorderedSet<OperationType> mFilteredTypes;
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,

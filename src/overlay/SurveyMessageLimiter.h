@@ -5,9 +5,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
+#include "util/UnorderedMap.h"
 #include <functional>
 #include <map>
-#include <unordered_map>
 
 namespace stellar
 {
@@ -39,10 +39,9 @@ class SurveyMessageLimiter
   private:
     bool surveyLedgerNumValid(uint32_t ledgerNum);
 
-    typedef std::unordered_map<NodeID /*surveyedNodeId*/, bool /*responseSeen*/>
+    typedef UnorderedMap<NodeID /*surveyedNodeId*/, bool /*responseSeen*/>
         SurveyedMap;
-    typedef std::unordered_map<NodeID /*surveyorNodeId*/, SurveyedMap>
-        SurveyorMap;
+    typedef UnorderedMap<NodeID /*surveyorNodeId*/, SurveyedMap> SurveyorMap;
 
     std::map<uint32_t /*ledgerNum*/, SurveyorMap> mRecordMap;
 

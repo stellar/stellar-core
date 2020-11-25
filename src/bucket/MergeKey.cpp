@@ -4,6 +4,7 @@
 
 #include "bucket/MergeKey.h"
 #include "crypto/Hex.h"
+#include "fmt/format.h"
 #include <sstream>
 
 namespace stellar
@@ -48,7 +49,7 @@ operator<<(std::ostream& out, MergeKey const& b)
         first = false;
         out << hexAbbrev(s);
     }
-    out << "]]";
+    out << fmt::format("], keep={}]", b.mKeepDeadEntries);
     return out;
 }
 }

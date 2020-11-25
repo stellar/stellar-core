@@ -715,7 +715,7 @@ class BulkLoadOffersOperation
 {
     Database& mDb;
     std::vector<int64_t> mOfferIDs;
-    std::unordered_set<LedgerKey> mKeys;
+    UnorderedSet<LedgerKey> mKeys;
 
     std::vector<LedgerEntry>
     executeAndFetch(soci::statement& st)
@@ -778,8 +778,7 @@ class BulkLoadOffersOperation
     }
 
   public:
-    BulkLoadOffersOperation(Database& db,
-                            std::unordered_set<LedgerKey> const& keys)
+    BulkLoadOffersOperation(Database& db, UnorderedSet<LedgerKey> const& keys)
         : mDb(db)
     {
         mOfferIDs.reserve(keys.size());
@@ -839,9 +838,8 @@ class BulkLoadOffersOperation
 #endif
 };
 
-std::unordered_map<LedgerKey, std::shared_ptr<LedgerEntry const>>
-LedgerTxnRoot::Impl::bulkLoadOffers(
-    std::unordered_set<LedgerKey> const& keys) const
+UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
+LedgerTxnRoot::Impl::bulkLoadOffers(UnorderedSet<LedgerKey> const& keys) const
 {
     ZoneScoped;
     ZoneValue(static_cast<int64_t>(keys.size()));

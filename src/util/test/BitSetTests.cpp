@@ -5,9 +5,8 @@
 #include "lib/catch.hpp"
 #include "util/BitSet.h"
 #include "util/Math.h"
-
+#include "util/UnorderedSet.h"
 #include <set>
-#include <unordered_set>
 
 using namespace stellar;
 
@@ -63,7 +62,7 @@ TEST_CASE("BitSet union", "[bitset]")
 {
     for (size_t loop = 0; loop < 100; ++loop)
     {
-        std::unordered_set<size_t> ref;
+        UnorderedSet<size_t> ref;
         BitSet bs_a, bs_b;
         for (size_t i = 0; i < rand_uniform<size_t>(size_t(1), size_t(100));
              ++i)
@@ -95,7 +94,7 @@ TEST_CASE("BitSet intersection", "[bitset]")
 {
     for (size_t loop = 0; loop < 100; ++loop)
     {
-        std::unordered_set<size_t> ref;
+        UnorderedSet<size_t> ref;
         BitSet bs_a, bs_b;
         for (size_t i = 0; i < rand_uniform<size_t>(size_t(1), size_t(100));
              ++i)
@@ -125,7 +124,7 @@ TEST_CASE("BitSet difference", "[bitset]")
 {
     for (size_t loop = 0; loop < 100; ++loop)
     {
-        std::unordered_set<size_t> ref;
+        UnorderedSet<size_t> ref;
         BitSet bs_a, bs_b;
         for (size_t i = 0; i < rand_uniform<size_t>(size_t(1), size_t(100));
              ++i)
@@ -158,7 +157,7 @@ TEST_CASE("BitSet symmetric difference", "[bitset]")
 {
     for (size_t loop = 0; loop < 100; ++loop)
     {
-        std::unordered_set<size_t> ref;
+        UnorderedSet<size_t> ref;
         BitSet bs_a, bs_b;
         for (size_t i = 0; i < rand_uniform<size_t>(size_t(1), size_t(100));
              ++i)

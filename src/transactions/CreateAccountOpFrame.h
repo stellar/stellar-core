@@ -33,8 +33,8 @@ class CreateAccountOpFrame : public OperationFrame
 
     bool doApply(AbstractLedgerTxn& ltx) override;
     bool doCheckValid(uint32_t ledgerVersion) override;
-    void insertLedgerKeysToPrefetch(
-        std::unordered_set<LedgerKey>& keys) const override;
+    void
+    insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const override;
 
     static CreateAccountResultCode
     getInnerCode(OperationResult const& res)

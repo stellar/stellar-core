@@ -3,12 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #pragma once
-#include <xdr/Stellar-types.h>
+#include "util/RandHasher.h"
+#include <unordered_map>
 
-namespace std
+namespace stellar
 {
-template <> struct hash<stellar::uint256>
-{
-    size_t operator()(stellar::uint256 const& x) const noexcept;
-};
+template <class KeyT, class ValT, class Hasher = std::hash<KeyT>>
+using UnorderedMap =
+    std::unordered_map<KeyT, ValT, std::RandHasher<KeyT, Hasher>>;
 }

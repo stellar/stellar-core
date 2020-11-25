@@ -611,12 +611,12 @@ updateOffer(
     return res;
 }
 
-static std::unordered_map<AccountID, int64_t>
+static UnorderedMap<AccountID, int64_t>
 getOfferAccountMinBalances(
     AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     std::map<AccountID, std::vector<LedgerTxnEntry>> const& offersByAccount)
 {
-    std::unordered_map<AccountID, int64_t> minBalanceMap;
+    UnorderedMap<AccountID, int64_t> minBalanceMap;
     for (auto const& accountOffers : offersByAccount)
     {
         auto const& accountID = accountOffers.first;
@@ -635,10 +635,11 @@ getOfferAccountMinBalances(
 }
 
 static void
-eraseOfferWithPossibleSponsorship(
-    AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
-    LedgerTxnEntry& offerEntry, LedgerTxnEntry& accountEntry,
-    std::unordered_set<AccountID>& changedAccounts)
+eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
+                                  LedgerTxnHeader const& header,
+                                  LedgerTxnEntry& offerEntry,
+                                  LedgerTxnEntry& accountEntry,
+                                  UnorderedSet<AccountID>& changedAccounts)
 {
     LedgerEntry::_ext_t extension = offerEntry.current().ext;
     bool isSponsored = extension.v() == 1 && extension.v1().sponsoringID;
@@ -682,7 +683,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
 
     auto offersByAccount = ltx.loadAllOffers();
 
-    std::unordered_set<AccountID> changedAccounts;
+    UnorderedSet<AccountID> changedAccounts;
     uint64_t nChangedTrustLines = 0;
 
     std::map<UpdateOfferResult, uint64_t> nUpdatedOffers;

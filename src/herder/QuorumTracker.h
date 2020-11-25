@@ -6,10 +6,10 @@
 
 #include "scp/SCP.h"
 #include "util/NonCopyable.h"
+#include "util/UnorderedMap.h"
+#include "util/UnorderedSet.h"
 #include <deque>
 #include <set>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace stellar
 {
@@ -40,7 +40,7 @@ class QuorumTracker : public NonMovableOrCopyable
         std::set<NodeID> mClosestValidators;
     };
 
-    using QuorumMap = std::unordered_map<NodeID, NodeInfo>;
+    using QuorumMap = UnorderedMap<NodeID, NodeInfo>;
 
   private:
     NodeID const mLocalNodeID;
