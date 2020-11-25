@@ -32,11 +32,10 @@ std::string
 StringMaker<stellar::historytestutils::CatchupPerformedWork>::convert(
     stellar::historytestutils::CatchupPerformedWork const& cm)
 {
-    return fmt::format("{}, {}, {}, {}, {}, {}, {}, {}",
-                       cm.mHistoryArchiveStatesDownloaded,
-                       cm.mLedgersDownloaded, cm.mLedgersVerified,
-                       cm.mLedgerChainsVerificationFailed,
-                       cm.mBucketsDownloaded, cm.mBucketsApplied,
-                       cm.mTransactionsDownloaded, cm.mTransactionsApplied);
+    return fmt::format(
+        "{}, {}, {}, {}, {}, {}, {}, {}", cm.mHistoryArchiveStatesDownloaded,
+        cm.mCheckpointsDownloaded, cm.mLedgersVerified,
+        cm.mLedgerChainsVerificationFailed, cm.mBucketsDownloaded,
+        cm.mBucketsApplied, cm.mTxSetsDownloaded, cm.mTxSetsApplied);
 }
 }
