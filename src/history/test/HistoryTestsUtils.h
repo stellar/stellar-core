@@ -152,22 +152,21 @@ class TestLedgerChainGenerator
 struct CatchupMetrics
 {
     uint64_t mHistoryArchiveStatesDownloaded;
-    uint64_t mLedgersDownloaded;
+    uint64_t mCheckpointsDownloaded;
     uint64_t mLedgersVerified;
     uint64_t mLedgerChainsVerificationFailed;
     uint64_t mBucketsDownloaded;
     uint64_t mBucketsApplied;
-    uint64_t mTransactionsDownloaded;
-    uint64_t mTransactionsApplied;
+    uint64_t mTxSetsDownloaded;
+    uint64_t mTxSetsApplied;
 
     CatchupMetrics();
 
     CatchupMetrics(uint64_t historyArchiveStatesDownloaded,
-                   uint64_t ledgersDownloaded, uint64_t ledgersVerified,
+                   uint64_t checkpointsDownloaded, uint64_t ledgersVerified,
                    uint64_t ledgerChainsVerificationFailed,
                    uint64_t bucketsDownloaded, uint64_t bucketsApplied,
-                   uint64_t transactionsDownloaded,
-                   uint64_t transactionsApplied);
+                   uint64_t txSetsDownloaded, uint64_t txSetsApplied);
 
     friend CatchupMetrics operator-(CatchupMetrics const& x,
                                     CatchupMetrics const& y);
@@ -176,22 +175,22 @@ struct CatchupMetrics
 struct CatchupPerformedWork
 {
     uint64_t mHistoryArchiveStatesDownloaded;
-    uint64_t mLedgersDownloaded;
+    uint64_t mCheckpointsDownloaded;
     uint64_t mLedgersVerified;
     uint64_t mLedgerChainsVerificationFailed;
     bool mBucketsDownloaded;
     bool mBucketsApplied;
-    uint64_t mTransactionsDownloaded;
-    uint64_t mTransactionsApplied;
+    uint64_t mTxSetsDownloaded;
+    uint64_t mTxSetsApplied;
 
     CatchupPerformedWork(CatchupMetrics const& metrics);
 
     CatchupPerformedWork(uint64_t historyArchiveStatesDownloaded,
-                         uint64_t ledgersDownloaded, uint64_t ledgersVerified,
+                         uint64_t checkpointsDownloaded,
+                         uint64_t ledgersVerified,
                          uint64_t ledgerChainsVerificationFailed,
                          bool bucketsDownloaded, bool bucketsApplied,
-                         uint64_t transactionsDownloaded,
-                         uint64_t transactionsApplied);
+                         uint64_t txSetsDownloaded, uint64_t txSetsApplied);
 
     friend bool operator==(CatchupPerformedWork const& x,
                            CatchupPerformedWork const& y);
