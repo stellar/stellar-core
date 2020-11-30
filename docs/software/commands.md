@@ -123,6 +123,9 @@ You can send commands to stellar-core via a web browser, curl, or using the --c
 command line option (see above). Most commands return their results in JSON
 format.
 
+* **self-check**: Perform history-related sanity checks, and it is planned
+  to support other kinds of sanity checks in the future.
+
 * **bans**
   List current active bans
 

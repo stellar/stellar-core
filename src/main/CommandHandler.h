@@ -48,6 +48,7 @@ class CommandHandler
     void metrics(std::string const& params, std::string& retStr);
     void clearMetrics(std::string const& params, std::string& retStr);
     void peers(std::string const& params, std::string& retStr);
+    void selfCheck(std::string const&, std::string& retStr);
     void quorum(std::string const& params, std::string& retStr);
     void setcursor(std::string const& params, std::string& retStr);
     void getcursor(std::string const& params, std::string& retStr);
