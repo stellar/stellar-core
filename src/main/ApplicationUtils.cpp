@@ -64,6 +64,7 @@ runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
     Application::pointer app;
     try
     {
+        cfg.COMMANDS.push_back("self-check");
         app = Application::create(clock, cfg, false);
 
         if (!app->getHistoryArchiveManager().checkSensibleConfig())
