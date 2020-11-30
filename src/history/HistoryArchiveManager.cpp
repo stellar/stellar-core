@@ -4,6 +4,7 @@
 
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryArchive.h"
+#include "history/HistoryArchiveReportWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "main/Application.h"
@@ -155,6 +156,20 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
         return archives[i];
     }
 }
+
+std::shared_ptr<HistoryArchiveReportWork>
+HistoryArchiveManager::scheduleHistoryArchiveReportWork() const
+{
+    std::vector<std::shared_ptr<GetHistoryArchiveStateWork>> hasWorks;
+    for (auto const& archive : mArchives)
+    {
+        hasWorks.push_back(std::make_shared<GetHistoryArchiveStateWork>(
+            mApp, 0, archive, "archive-report-" + archive->getName(),
+            BasicWork::RETRY_NEVER));
+    }
+    return mApp.getWorkScheduler().scheduleWork<HistoryArchiveReportWork>(
+        hasWorks);
+};
 
 bool
 HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const

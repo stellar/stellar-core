@@ -14,6 +14,8 @@ class Application;
 class Config;
 class HistoryArchive;
 
+class HistoryArchiveReportWork;
+
 class HistoryArchiveManager
 {
   public:
@@ -25,6 +27,9 @@ class HistoryArchiveManager
     // Select any readable history archive. If there are more than one,
     // select one at random.
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive() const;
+
+    std::shared_ptr<HistoryArchiveReportWork>
+    scheduleHistoryArchiveReportWork() const;
 
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
