@@ -389,10 +389,10 @@ HerderImpl::checkCloseTime(SCPEnvelope const& envelope, bool enforceRecent)
 
     if (enforceRecent)
     {
-        ctCutoff = VirtualClock::to_time_t(mApp.getClock().system_now());
-        if (ctCutoff >= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT)
+        auto now = VirtualClock::to_time_t(mApp.getClock().system_now());
+        if (now >= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT)
         {
-            ctCutoff -= mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT;
+            ctCutoff = now - mApp.getConfig().MAXIMUM_LEDGER_CLOSETIME_DRIFT;
         }
     }
 
