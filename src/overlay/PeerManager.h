@@ -64,10 +64,9 @@ class PeerManager
   public:
     enum class TypeUpdate
     {
-        SET_OUTBOUND,
+        ENSURE_OUTBOUND,
         SET_PREFERRED,
-        REMOVE_PREFERRED,
-        UPDATE_TO_OUTBOUND
+        ENSURE_NOT_PREFERRED,
     };
 
     enum class BackOffUpdate
@@ -87,9 +86,13 @@ class PeerManager
     void ensureExists(PeerBareAddress const& address);
 
     /**
-     * Update type of peer associated with given address.
+     * Update type of peer associated with given address. This function takes
+     * observed peer type, and whether the preferred type is definitely known
+     * (in some cases it is unknown whether a peer is preferred or not).
+     * Depending on the peer type stored in the DB, a new type is determined.
      */
-    void update(PeerBareAddress const& address, TypeUpdate type);
+    void update(PeerBareAddress const& address, PeerType observedType,
+                bool preferredTypeKnown);
 
     /**
      * Update "next try" of peer associated with given address - can reset
@@ -100,8 +103,8 @@ class PeerManager
     /**
      * Update both type and "next try" of peer associated with given address.
      */
-    void update(PeerBareAddress const& address, TypeUpdate type,
-                BackOffUpdate backOff);
+    void update(PeerBareAddress const& address, PeerType observedType,
+                bool preferredTypeKnown, BackOffUpdate backOff);
 
     /**
      * Load PeerRecord data for peer with given address. If not available in
