@@ -129,7 +129,7 @@ server::handle_request(const request& req, reply& rep)
         {
             it->second(params, rep.content);
 
-            rep.status = reply::ok;
+            rep.status = reply::not_found;
             rep.headers.resize(2);
             rep.headers[0].name = "Content-Length";
             rep.headers[0].value = std::to_string(rep.content.size());
