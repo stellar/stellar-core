@@ -52,9 +52,8 @@ createFuzzer(int processID, FuzzerMode fuzzerMode)
 
 #define PERSIST_MAX 1000000
 void
-fuzz(std::string const& filename, el::Level logLevel,
-     std::vector<std::string> const& metrics, int processID,
-     FuzzerMode fuzzerMode)
+fuzz(std::string const& filename, std::vector<std::string> const& metrics,
+     int processID, FuzzerMode fuzzerMode)
 {
     auto fuzzer = FuzzUtils::createFuzzer(processID, fuzzerMode);
     fuzzer->initialize();

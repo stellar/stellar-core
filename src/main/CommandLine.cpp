@@ -1418,8 +1418,9 @@ runFuzz(CommandLineArgs const& args)
                         fileNameParser(fileName), processIDParser(processID),
                         fuzzerModeParser(fuzzerModeArg, fuzzerMode)},
                        [&] {
-                           fuzz(fileName, logLevel, metrics, processID,
-                                fuzzerMode);
+                           Logging::setLogLevel(logLevel, nullptr);
+
+                           fuzz(fileName, metrics, processID, fuzzerMode);
                            return 0;
                        });
 }
