@@ -101,9 +101,11 @@ export CCACHE_MAXSIZE=300M
 export CCACHE_CPP2=true
 
 # purge cache if it's too old
-if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
-    echo Purging old cache $CCACHE_DIR
-    rm -rf $CCACHE_DIR
+if [ -d "$CCACHE_DIR" ] ; then
+    if [ -n "$(find $CCACHE_DIR -mtime +$CACHE_MAX_DAYS -print -quit)" ] ; then
+        echo Purging old cache $CCACHE_DIR
+        rm -rf $CCACHE_DIR
+    fi
 fi
 
 ccache -p
