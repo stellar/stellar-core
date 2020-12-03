@@ -427,6 +427,12 @@ TransactionFuzzer::genFuzz(std::string const& filename)
     for (int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
+        // include a placeholder account for the base cases as it's more likely
+        // to be useful right away
+        if (!op.sourceAccount)
+        {
+            op.sourceAccount.activate();
+        }
         ops.emplace_back(op);
     }
     auto bins = xdr::xdr_to_opaque(ops);
