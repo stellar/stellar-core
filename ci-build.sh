@@ -51,7 +51,7 @@ echo $HEAD
 if [ $HEAD == $MASTER ]
 then
     echo "HEAD SHA1 equals master; probably just establishing merge, exiting build early"
-    exit 0
+    exit 1
 fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
