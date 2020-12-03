@@ -16,6 +16,7 @@
 #include "transactions/SignatureChecker.h"
 #include "transactions/TransactionUtils.h"
 #include "util/Math.h"
+#include "util/XDRCereal.h"
 
 #include <xdrpp/autocheck.h>
 
@@ -353,45 +354,54 @@ TransactionFuzzer::shutdown()
 void
 TransactionFuzzer::inject(std::string const& filename)
 {
-    XDRInputFileStream in(xdrSizeLimit());
-    in.open(filename);
-    // for tryRead, in case of fuzzer creating an ill-formed xdr, generate an
-    // xdr that will trigger a non-execution path so that the fuzzer realizes it
-    // has hit an uninteresting case
-    auto tryRead = [&in](xdr::xvector<Operation>& m) {
-        try
-        {
-            return in.readOne(m);
-        }
-        catch (...)
-        {
-            m.clear(); // we ignore transactions with 0 operations
-            return true;
-        }
-    };
+    std::ifstream in;
+    in.exceptions(std::ios::badbit);
+    in.open(filename, std::ios::binary);
 
     xdr::xvector<Operation> ops;
-    while (tryRead(ops))
+    std::vector<char> bins(xdrSizeLimit());
+    in.read(bins.data(), bins.size());
+    auto actual = in.gcount();
+    // if we could read the whole buffer, or got a short read, stop
+    if (in || actual == 0)
     {
-        // limit operations per transaction to limit size of fuzzed input
-        if (ops.size() < 1 || ops.size() > FuzzUtils::FUZZER_MAX_OPERATIONS)
-        {
-            return;
-        }
-
-        // construct transaction
-        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
-                                                     mApp->getNetworkID());
-
-        {
-            resetTxInternalState(*mApp);
-            LedgerTxn ltx(mApp->getLedgerTxnRoot());
-
-            // attempt to apply transaction
-            txFramePtr->attemptApplication(*mApp, ltx);
-        }
-        resetTxInternalState(*mApp);
+        return;
     }
+    bins.resize(actual);
+    try
+    {
+        xdr::xdr_from_opaque(bins, ops);
+    }
+    catch (...)
+    {
+        // in case of fuzzer creating an ill-formed xdr, generate an
+        // xdr that will trigger a non-execution path so that the fuzzer
+        // realizes it has hit an uninteresting case
+        return;
+    }
+    // limit operations per transaction to limit size of fuzzed input
+    if (ops.size() < 1 || ops.size() > FuzzUtils::FUZZER_MAX_OPERATIONS)
+    {
+        return;
+    }
+
+    // construct transaction
+    auto txFramePtr =
+        createFuzzTransactionFrame(mSourceAccountID, ops, mApp->getNetworkID());
+
+    if (Logging::logDebug("Ledger"))
+    {
+        LOG(DEBUG) << xdr_to_string(txFramePtr->getEnvelope());
+    }
+
+    {
+        resetTxInternalState(*mApp);
+        LedgerTxn ltx(mApp->getLedgerTxnRoot());
+
+        // attempt to apply transaction
+        txFramePtr->attemptApplication(*mApp, ltx);
+    }
+    resetTxInternalState(*mApp);
 }
 
 int
@@ -399,27 +409,29 @@ TransactionFuzzer::xdrSizeLimit()
 {
     // path_payments are the largest operations, where 100k 1-3 operation
     // transactions (more correctly xdr::xvector's) with path_payments averaged
-    // to 294 bytes, so 0x500 should be fine
-    return 0x500;
+    // to 294 bytes
+    return 294 * FuzzUtils::FUZZER_MAX_OPERATIONS;
 }
 
 #define FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND 128
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
-    VirtualClock clock;
-    XDROutputFileStream out(clock.getIOContext(), /*doFsync=*/false);
-    out.open(filename);
+    std::ofstream out;
+    out.exceptions(std::ios::failbit | std::ios::badbit);
+    out.open(filename, std::ofstream::binary | std::ofstream::trunc);
     autocheck::generator<Operation> gen;
     xdr::xvector<Operation> ops;
+    ops.reserve(FuzzUtils::FUZZER_MAX_OPERATIONS);
     auto const numops = rand_uniform<int>(1, FuzzUtils::FUZZER_MAX_OPERATIONS);
     for (int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
         ops.emplace_back(op);
     }
+    auto bins = xdr::xdr_to_opaque(ops);
+    out.write(reinterpret_cast<char const*>(bins.data()), bins.size());
 
-    out.writeOne(ops);
 }
 
 void
@@ -471,51 +483,58 @@ OverlayFuzzer::initialize()
 void
 OverlayFuzzer::inject(std::string const& filename)
 {
-    XDRInputFileStream in(xdrSizeLimit());
-    in.open(filename);
-    // see note on TransactionFuzzer's tryRead above
-    auto tryRead = [&in](StellarMessage& m) {
-        try
-        {
-            return in.readOne(m);
-        }
-        catch (...)
-        {
-            m.type(HELLO); // we ignore HELLO messages
-            return true;
-        }
-    };
+    std::ifstream in;
+    in.exceptions(std::ios::badbit);
+    in.open(filename, std::ios::binary);
 
     StellarMessage msg;
-    while (tryRead(msg))
+    std::vector<char> bins(xdrSizeLimit());
+    in.read(bins.data(), bins.size());
+    auto actual = in.gcount();
+    // if we could read the whole buffer, or got a short read, stop
+    if (in || actual == 0)
     {
-        if (isBadOverlayFuzzerInput(msg))
-        {
-            return;
-        }
-
-        auto nodeids = mSimulation->getNodeIDs();
-        auto loopbackPeerConnection = mSimulation->getLoopbackConnection(
-            nodeids[INITIATOR_INDEX], nodeids[ACCEPTOR_INDEX]);
-
-        auto initiator = loopbackPeerConnection->getInitiator();
-        auto acceptor = loopbackPeerConnection->getAcceptor();
-
-        initiator->getApp().getClock().postAction(
-            [initiator, msg]() { initiator->Peer::sendMessage(msg); }, "main",
-            Scheduler::ActionType::NORMAL_ACTION);
-
-        mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
-
-        // clear all queues and cancel all events
-        initiator->clearInAndOutQueues();
-        acceptor->clearInAndOutQueues();
-
-        while (initiator->getApp().getClock().cancelAllEvents())
-            ;
-        while (acceptor->getApp().getClock().cancelAllEvents())
-            ;
+        return;
     }
+    bins.resize(actual);
+    try
+    {
+        xdr::xdr_from_opaque(bins, msg);
+    }
+    catch (...)
+    {
+        // in case of fuzzer creating an ill-formed xdr, generate an
+        // xdr that will trigger a non-execution path so that the fuzzer
+        // realizes it has hit an uninteresting case
+        return;
+    }
+
+    if (isBadOverlayFuzzerInput(msg))
+    {
+        return;
+    }
+
+    auto nodeids = mSimulation->getNodeIDs();
+    auto loopbackPeerConnection = mSimulation->getLoopbackConnection(
+        nodeids[INITIATOR_INDEX], nodeids[ACCEPTOR_INDEX]);
+
+    auto initiator = loopbackPeerConnection->getInitiator();
+    auto acceptor = loopbackPeerConnection->getAcceptor();
+
+    initiator->getApp().getClock().postAction(
+        [initiator, msg]() { initiator->Peer::sendMessage(msg); }, "main",
+        Scheduler::ActionType::NORMAL_ACTION);
+
+    mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
+
+    // clear all queues and cancel all events
+    initiator->clearInAndOutQueues();
+    acceptor->clearInAndOutQueues();
+
+    while (initiator->getApp().getClock().cancelAllEvents())
+        ;
+    while (acceptor->getApp().getClock().cancelAllEvents())
+        ;
 }
 
 int
@@ -528,16 +547,17 @@ OverlayFuzzer::xdrSizeLimit()
 void
 OverlayFuzzer::genFuzz(std::string const& filename)
 {
-    VirtualClock clock;
-    XDROutputFileStream out(clock.getIOContext(), /*doFsync=*/false);
-    out.open(filename);
+    std::ofstream out;
+    out.exceptions(std::ios::failbit | std::ios::badbit);
+    out.open(filename, std::ofstream::binary | std::ofstream::trunc);
     autocheck::generator<StellarMessage> gen;
     StellarMessage m(gen(FUZZER_INITIAL_CORPUS_MESSAGE_GEN_UPPERBOUND));
     while (isBadOverlayFuzzerInput(m))
     {
         m = gen(FUZZER_INITIAL_CORPUS_MESSAGE_GEN_UPPERBOUND);
     }
-    out.writeOne(m);
+    auto bins = xdr::xdr_to_opaque(m);
+    out.write(reinterpret_cast<char const*>(bins.data()), bins.size());
 }
 }
 
