@@ -31,8 +31,6 @@ namespace stellar
 {
 namespace FuzzUtils
 {
-int const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
-
 std::unique_ptr<Fuzzer>
 createFuzzer(int processID, FuzzerMode fuzzerMode)
 {
@@ -42,8 +40,7 @@ createFuzzer(int processID, FuzzerMode fuzzerMode)
     case FuzzerMode::OVERLAY:
         return std::make_unique<OverlayFuzzer>();
     case FuzzerMode::TRANSACTION:
-        return std::make_unique<TransactionFuzzer>(
-            NUMBER_OF_PREGENERATED_ACCOUNTS);
+        return std::make_unique<TransactionFuzzer>();
     default:
         abort();
     }

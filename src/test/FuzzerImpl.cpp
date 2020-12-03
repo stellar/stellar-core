@@ -27,6 +27,9 @@ namespace FuzzUtils
 auto const FUZZER_MAX_OPERATIONS = 5;
 auto const INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
 auto const NUMBER_OF_ASSETS_TO_ISSUE = 4;
+int const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
+
+std::vector<stellar::PublicKey> gAccounts;
 
 // generates a public key such that it's comprised of bytes reading [0,0,...,i]
 PublicKey
@@ -47,8 +50,17 @@ makeAsset(int i)
     Asset asset;
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(asset.alphaNum4().assetCode, "Ast" + std::to_string(i));
-    asset.alphaNum4().issuer = makePublicKey(i);
+    asset.alphaNum4().issuer = gAccounts.at(i);
     return asset;
+}
+
+void
+initialize()
+{
+    for (int i = 0; i < NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
+    {
+        gAccounts.emplace_back(gAccounts.at(i));
+    }
 }
 }
 
@@ -169,6 +181,7 @@ void
 TransactionFuzzer::initialize()
 {
     resetRandomSeed();
+    FuzzUtils::initialize();
     mApp = createTestApplication(mClock, getFuzzConfig(0));
 
     resetTxInternalState(*mApp);
@@ -178,13 +191,13 @@ TransactionFuzzer::initialize()
         LedgerTxn ltx(ltxroot);
 
         // Setup the state, for this we only need to pregenerate some
-        // accounts. For now we create mNumAccounts accounts, or enough to
-        // fill the first few bits such that we have a pregenerated account
-        // for the last few bits of the 32nd byte of a public key, thus
+        // accounts. For now we create NUMBER_OF_PREGENERATED_ACCOUNTS accounts,
+        // or enough to fill the first few bits such that we have a pregenerated
+        // account for the last few bits of the 32nd byte of a public key, thus
         // account creation is over a deterministic range of public keys
-        for (int i = 0; i < mNumAccounts; ++i)
+        for (int i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
-            PublicKey publicKey = FuzzUtils::makePublicKey(i);
+            PublicKey publicKey = FuzzUtils::gAccounts.at(i);
 
             // manually construct ledger entries, "creating" each account
             LedgerEntry newAccountEntry;
@@ -222,16 +235,16 @@ TransactionFuzzer::initialize()
         // everyone so that they can make trades, payments, etc. We start with 1
         // since we use 0 as source account for transactions and don't want that
         // account to trust any issuer or receive non-native assets
-        for (int i = 1; i < mNumAccounts; ++i)
+        for (int i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
-            auto const account = FuzzUtils::makePublicKey(i);
+            auto const account = FuzzUtils::gAccounts.at(i);
 
             // start with 1 since we use 0 as source account for transactions
             // and don't want that account to be an issuer
             for (int j = 1; j < FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE + 1; ++j)
             {
                 auto const asset = FuzzUtils::makeAsset(j);
-                auto const issuer = FuzzUtils::makePublicKey(j);
+                auto const issuer = FuzzUtils::gAccounts.at(j);
                 if (i != j)
                 {
                     // trust asset issuer
@@ -294,7 +307,7 @@ TransactionFuzzer::initialize()
                                    int64 amount) {
                 auto op = txtest::manageOffer(0, bid, sell, price, amount);
                 op.sourceAccount.activate() =
-                    toMuxedAccount(FuzzUtils::makePublicKey(pk));
+                    toMuxedAccount(FuzzUtils::gAccounts.at(pk));
                 ops.emplace_back(op);
             };
 
@@ -417,6 +430,7 @@ TransactionFuzzer::xdrSizeLimit()
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
+    FuzzUtils::initialize();
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
@@ -431,7 +445,8 @@ TransactionFuzzer::genFuzz(std::string const& filename)
         // to be useful right away
         if (!op.sourceAccount)
         {
-            op.sourceAccount.activate();
+            op.sourceAccount.activate() =
+                toMuxedAccount(FuzzUtils::gAccounts.at(0));
         }
         ops.emplace_back(op);
     }
@@ -450,6 +465,7 @@ void
 OverlayFuzzer::initialize()
 {
     resetRandomSeed();
+    FuzzUtils::initialize();
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     mSimulation = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
                                                networkID, getFuzzConfig);

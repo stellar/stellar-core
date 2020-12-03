@@ -20,7 +20,7 @@ struct Operation;
 class TransactionFuzzer : public Fuzzer
 {
   public:
-    TransactionFuzzer(int numAccounts) : mNumAccounts(numAccounts)
+    TransactionFuzzer()
     {
     }
     void inject(std::string const& filename) override;
@@ -33,7 +33,6 @@ class TransactionFuzzer : public Fuzzer
     VirtualClock mClock;
     std::shared_ptr<Application> mApp;
     PublicKey mSourceAccountID;
-    int mNumAccounts;
 };
 
 class OverlayFuzzer : public Fuzzer
