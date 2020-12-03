@@ -29,17 +29,28 @@ auto const INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
 auto const NUMBER_OF_ASSETS_TO_ISSUE = 4;
 int const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
 
-std::vector<stellar::PublicKey> gAccounts;
-
-// generates a public key such that it's comprised of bytes reading [0,0,...,i]
-PublicKey
-makePublicKey(int i)
+void
+setShortKey(uint256& ed25519, int i)
 {
-    PublicKey publicKey;
-    uint256 accountID;
-    accountID.at(31) = static_cast<uint8_t>(i);
-    publicKey.ed25519() = accountID;
-    return publicKey;
+    ed25519[0] = static_cast<uint8_t>(i);
+}
+
+void
+setShortKey(PublicKey& pk, int i)
+{
+    setShortKey(pk.ed25519(), i);
+}
+
+uint8_t
+getShortKey(uint256 const& ed25519)
+{
+    return ed25519[0];
+}
+
+uint8_t
+getShortKey(PublicKey const& pk)
+{
+    return getShortKey(pk.ed25519());
 }
 
 // constructs an Asset structure for an asset issued by an account id comprised
@@ -50,20 +61,308 @@ makeAsset(int i)
     Asset asset;
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(asset.alphaNum4().assetCode, "Ast" + std::to_string(i));
-    asset.alphaNum4().issuer = gAccounts.at(i);
+    setShortKey(asset.alphaNum4().issuer, i);
     return asset;
 }
+}
+}
 
-void
-initialize()
+namespace xdr
 {
-    for (int i = 0; i < NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
+struct xdr_fuzzer_compactor
+{
+    std::uint8_t* const mStart;
+    std::uint8_t* mCur;
+    std::uint8_t* const mEnd;
+
+    xdr_fuzzer_compactor(void* start, void* end)
+        : mStart(reinterpret_cast<std::uint8_t*>(start))
+        , mCur(reinterpret_cast<std::uint8_t*>(start))
+        , mEnd(reinterpret_cast<std::uint8_t*>(end))
     {
-        gAccounts.emplace_back(gAccounts.at(i));
+        assert(mStart <= mEnd);
     }
-}
+    xdr_fuzzer_compactor(msg_ptr& m) : xdr_fuzzer_compactor(m->data(), m->end())
+    {
+    }
+
+    void
+    put_bytes(const void* buf, size_t len)
+    {
+        if (len != 0)
+        {
+            std::memcpy(mCur, buf, len);
+            mCur += len;
+        }
+    }
+
+    void
+    check(std::size_t n) const
+    {
+        if (n > std::size_t(reinterpret_cast<char*>(mEnd) -
+                            reinterpret_cast<char*>(mCur)))
+            throw xdr_overflow(
+                "insufficient buffer space in xdr_fuzzer_compactor");
+    }
+
+    uint32_t
+    size() const
+    {
+        auto s = std::size_t(reinterpret_cast<char*>(mCur) -
+                             reinterpret_cast<char*>(mStart));
+        return static_cast<uint32_t>(s);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<
+        std::uint32_t, typename xdr_traits<T>::uint_type>::value>::type
+    operator()(T t)
+    {
+        // convert uint32 -> 1 byte
+        check(1);
+        auto v = xdr_traits<T>::to_uint(t);
+        uint8_t b = static_cast<uint8_t>(v & 0xFF);
+        put_bytes(&b, 1);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<
+        std::uint64_t, typename xdr_traits<T>::uint_type>::value>::type
+    operator()(T t)
+    {
+        // convert uint64 -> 2 bytes
+        check(2);
+        uint16_t v = static_cast<uint16_t>(xdr_traits<T>::to_uint(t) & 0xFFFF);
+        put_bytes(&v, 2);
+    }
+
+    template <typename T>
+    typename std::enable_if<xdr_traits<T>::is_bytes>::type
+    operator()(const T& t)
+    {
+        // convert array -> 0/1 byte
+        auto s2 = t.size();
+        if (s2 > 0)
+        {
+            s2 = 1;
+        }
+        if (xdr_traits<T>::variable_nelem)
+        {
+            check(1 + s2);
+            uint8_t b = static_cast<uint8_t>(size32(s2) & 0xFF);
+            put_bytes(&b, 1);
+        }
+        else
+        {
+            check(s2);
+        }
+        put_bytes(t.data(), s2);
+    }
+
+    template <typename T>
+    typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
+                             !std::is_same<stellar::MuxedAccount, T>::value) &&
+                            (xdr_traits<T>::is_class ||
+                             xdr_traits<T>::is_container)>::type
+    operator()(const T& t)
+    {
+        xdr_traits<T>::save(*this, t);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::AccountID, T>::value>::type
+    operator()(const T& pk)
+    {
+        // convert public key 1 byte
+        check(1);
+        auto v = stellar::FuzzUtils::getShortKey(pk.ed25519());
+        uint8_t b = static_cast<uint8_t>(v & 0xFF);
+        put_bytes(&b, 1);
+    }
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::MuxedAccount, T>::value>::type
+    operator()(const T& m)
+    {
+        // convert MuxedAccount -> 1 byte (same than an AccountID)
+        auto const& ed25519 = (m.type() == stellar::KEY_TYPE_ED25519)
+                                  ? m.ed25519()
+                                  : m.med25519().ed25519;
+        check(1);
+        auto v = stellar::FuzzUtils::getShortKey(ed25519);
+        uint8_t b = static_cast<uint8_t>(v & 0xFF);
+        put_bytes(&b, 1);
+    }
+};
+
+template <typename... Args>
+opaque_vec<>
+xdr_to_fuzzer_opaque(const Args&... args)
+{
+    opaque_vec<> m(opaque_vec<>::size_type{xdr_argpack_size(args...)});
+    xdr_fuzzer_compactor p(m.data(), m.data() + m.size());
+    xdr_argpack_archive(p, args...);
+    m.resize(p.size());
+    return m;
 }
 
+struct xdr_fuzzer_unpacker
+{
+    const std::uint8_t* mCur;
+    const std::uint8_t* const mEnd;
+
+    xdr_fuzzer_unpacker(const void* start, const void* end)
+        : mCur(reinterpret_cast<const std::uint8_t*>(start))
+        , mEnd(reinterpret_cast<const std::uint8_t*>(end))
+    {
+        assert(mCur <= mEnd);
+    }
+    xdr_fuzzer_unpacker(const msg_ptr& m)
+        : xdr_fuzzer_unpacker(m->data(), m->end())
+    {
+    }
+
+    void
+    get_bytes(void* buf, size_t len)
+    {
+        if (len != 0)
+        {
+            std::memcpy(buf, mCur, len);
+            mCur += len;
+        }
+    }
+
+    uint8_t
+    get_byte()
+    {
+        uint8_t b;
+        get_bytes(&b, 1);
+        return b;
+    }
+
+    void
+    check(std::size_t n) const
+    {
+        if (n > std::size_t(reinterpret_cast<const char*>(mCur) -
+                            reinterpret_cast<const char*>(mEnd)))
+            throw xdr_overflow(
+                "insufficient buffer space in xdr_fuzzer_unpacker");
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<
+        std::uint32_t, typename xdr_traits<T>::uint_type>::value>::type
+    operator()(T& t)
+    {
+        // 1 byte --> uint32
+        check(1);
+        uint32_t w = get_byte();
+        t = xdr_traits<T>::from_uint(w);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<
+        std::uint64_t, typename xdr_traits<T>::uint_type>::value>::type
+    operator()(T& t)
+    {
+        // 2 bytes --> uint64 **with** "sign expension"
+        check(2);
+        // load into a 16 signed
+        int16_t w;
+        get_bytes(&w, 2);
+        // expand to 64 bit
+        int64_t ww = w;
+        t = xdr_traits<T>::from_uint(ww);
+    }
+
+    template <typename T>
+    typename std::enable_if<xdr_traits<T>::is_bytes>::type
+    operator()(T& t)
+    {
+        std::uint32_t s2 = 0;
+        if (xdr_traits<T>::variable_nelem)
+        {
+            check(1);
+            s2 = get_byte();
+            check(s2);
+            t.resize(s2);
+        }
+        else
+        {
+            if (t.size() > 0)
+            {
+                s2 = 1;
+            }
+            check(s2);
+        }
+        get_bytes(t.data(), s2);
+    }
+
+    template <typename T>
+    typename std::enable_if<(!std::is_same<stellar::AccountID, T>::value &&
+                             !std::is_same<stellar::MuxedAccount, T>::value) &&
+                            (xdr_traits<T>::is_class ||
+                             xdr_traits<T>::is_container)>::type
+    operator()(T& t)
+    {
+        xdr_traits<T>::load(*this, t);
+    }
+
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::AccountID, T>::value>::type
+    operator()(T& pk)
+    {
+        // 1 byte --> AccountID
+        check(1);
+        std::uint8_t v = get_byte();
+        stellar::FuzzUtils::setShortKey(pk, v);
+    }
+    template <typename T>
+    typename std::enable_if<std::is_same<stellar::MuxedAccount, T>::value>::type
+    operator()(T& m)
+    {
+        // convert 1 byte --> MuxedAccount (regular AccountID)
+        check(1);
+        std::uint8_t v = get_byte();
+        stellar::FuzzUtils::setShortKey(m.ed25519(), v);
+    }
+
+    void
+    done()
+    {
+        if (mCur != mEnd)
+        {
+            throw xdr_bad_message_size("trailing data in xdr_fuzzer_unpacker");
+        }
+    }
+};
+
+template <typename Bytes, typename... Args>
+auto
+xdr_from_fuzzer_opaque(const Bytes& m, Args&... args)
+    -> decltype(detail::bytes_to_void(m))
+{
+    xdr_fuzzer_unpacker g(m.data(), m.data() + m.size());
+    xdr_argpack_archive(g, args...);
+    g.done();
+}
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+template <>
+void
+generator_t::operator()(stellar::PublicKey& t) const
+{
+    // note that we include NUMBER_OF_PREGENERATED_ACCOUNTS as to also cover the
+    // case of non existing accounts
+    stellar::FuzzUtils::setShortKey(
+        t.ed25519(),
+        static_cast<uint8_t>(stellar::rand_uniform<int>(
+            0, stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS)));
+}
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+}
+
+namespace stellar
+{
 // creates a generic configuration with settings rigged to maximize
 // determinism
 static Config
@@ -181,7 +480,6 @@ void
 TransactionFuzzer::initialize()
 {
     resetRandomSeed();
-    FuzzUtils::initialize();
     mApp = createTestApplication(mClock, getFuzzConfig(0));
 
     resetTxInternalState(*mApp);
@@ -189,7 +487,6 @@ TransactionFuzzer::initialize()
 
     {
         LedgerTxn ltx(ltxroot);
-
         // Setup the state, for this we only need to pregenerate some
         // accounts. For now we create NUMBER_OF_PREGENERATED_ACCOUNTS accounts,
         // or enough to fill the first few bits such that we have a pregenerated
@@ -197,7 +494,8 @@ TransactionFuzzer::initialize()
         // account creation is over a deterministic range of public keys
         for (int i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
-            PublicKey publicKey = FuzzUtils::gAccounts.at(i);
+            PublicKey publicKey;
+            FuzzUtils::setShortKey(publicKey, i);
 
             // manually construct ledger entries, "creating" each account
             LedgerEntry newAccountEntry;
@@ -237,14 +535,14 @@ TransactionFuzzer::initialize()
         // account to trust any issuer or receive non-native assets
         for (int i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
-            auto const account = FuzzUtils::gAccounts.at(i);
+            PublicKey account;
+            FuzzUtils::setShortKey(account, i);
 
             // start with 1 since we use 0 as source account for transactions
             // and don't want that account to be an issuer
             for (int j = 1; j < FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE + 1; ++j)
             {
                 auto const asset = FuzzUtils::makeAsset(j);
-                auto const issuer = FuzzUtils::gAccounts.at(j);
                 if (i != j)
                 {
                     // trust asset issuer
@@ -256,6 +554,8 @@ TransactionFuzzer::initialize()
                     auto distributeOp = txtest::payment(
                         account, asset,
                         FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE);
+                    PublicKey issuer;
+                    FuzzUtils::setShortKey(issuer, j);
                     distributeOp.sourceAccount.activate() =
                         toMuxedAccount(issuer);
                     ops.emplace_back(distributeOp);
@@ -306,8 +606,9 @@ TransactionFuzzer::initialize()
             auto addOffer = [&ops](Asset bid, Asset sell, int pk, Price price,
                                    int64 amount) {
                 auto op = txtest::manageOffer(0, bid, sell, price, amount);
-                op.sourceAccount.activate() =
-                    toMuxedAccount(FuzzUtils::gAccounts.at(pk));
+                PublicKey pkA;
+                FuzzUtils::setShortKey(pkA, pk);
+                op.sourceAccount.activate() = toMuxedAccount(pkA);
                 ops.emplace_back(op);
             };
 
@@ -383,7 +684,7 @@ TransactionFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_opaque(bins, ops);
+        xdr::xdr_from_fuzzer_opaque(bins, ops);
     }
     catch (...)
     {
@@ -420,17 +721,14 @@ TransactionFuzzer::inject(std::string const& filename)
 int
 TransactionFuzzer::xdrSizeLimit()
 {
-    // path_payments are the largest operations, where 100k 1-3 operation
-    // transactions (more correctly xdr::xvector's) with path_payments averaged
-    // to 294 bytes
-    return 294 * FuzzUtils::FUZZER_MAX_OPERATIONS;
+    // 50 bytes in compact mode seems to hold large operations
+    return 50 * FuzzUtils::FUZZER_MAX_OPERATIONS;
 }
 
 #define FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND 128
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
-    FuzzUtils::initialize();
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
@@ -445,14 +743,14 @@ TransactionFuzzer::genFuzz(std::string const& filename)
         // to be useful right away
         if (!op.sourceAccount)
         {
-            op.sourceAccount.activate() =
-                toMuxedAccount(FuzzUtils::gAccounts.at(0));
+            PublicKey a0;
+            FuzzUtils::setShortKey(a0, 0);
+            op.sourceAccount.activate() = toMuxedAccount(a0);
         }
         ops.emplace_back(op);
     }
-    auto bins = xdr::xdr_to_opaque(ops);
+    auto bins = xdr::xdr_to_fuzzer_opaque(ops);
     out.write(reinterpret_cast<char const*>(bins.data()), bins.size());
-
 }
 
 void
@@ -465,7 +763,6 @@ void
 OverlayFuzzer::initialize()
 {
     resetRandomSeed();
-    FuzzUtils::initialize();
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     mSimulation = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
                                                networkID, getFuzzConfig);
@@ -521,7 +818,7 @@ OverlayFuzzer::inject(std::string const& filename)
     bins.resize(actual);
     try
     {
-        xdr::xdr_from_opaque(bins, msg);
+        xdr::xdr_from_fuzzer_opaque(bins, msg);
     }
     catch (...)
     {
@@ -578,30 +875,7 @@ OverlayFuzzer::genFuzz(std::string const& filename)
     {
         m = gen(FUZZER_INITIAL_CORPUS_MESSAGE_GEN_UPPERBOUND);
     }
-    auto bins = xdr::xdr_to_opaque(m);
+    auto bins = xdr::xdr_to_fuzzer_opaque(m);
     out.write(reinterpret_cast<char const*>(bins.data()), bins.size());
 }
 }
-
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-namespace xdr
-{
-template <>
-void
-generator_t::operator()(stellar::PublicKey& t) const
-{
-    // generate public keys such that it is zero'd out except the last byte,
-    // hence for ED25519 public keys, an uint256 defined as opaque[32] set the
-    // 31st indexed byte. Furthermore, utilize only the first few bits of the
-    // 32nd byte, allowing us to generate these accounts against a pregeneration
-    // of such accountID's.Also, note that NUMBER_OF_PREGENERATED_ACCOUNTS here
-    // creates an off-by-one error, when generating acounts we use
-    // [0,NUMBER_OF_PREGENERATED_ACCOUNTS) exclusive versus here we use
-    // [0,NUMBER_OF_PREGENERATED_ACCOUNTS] inclusive. This allows us to generate
-    // some transactions with a source account/destination account that does
-    // not exist.
-    t.ed25519().at(31) = autocheck::generator<uint>()(
-        stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS);
-}
-} // namespace xdr
-#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
