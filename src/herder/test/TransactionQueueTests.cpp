@@ -705,33 +705,37 @@ TEST_CASE("transaction queue starting sequence boundary",
     closeLedgerOn(*app, 2, 1, 1, 2020);
     closeLedgerOn(*app, 3, 1, 1, 2020);
 
-    int64_t startingSeq = static_cast<int64_t>(4) << 32;
-    REQUIRE(acc1.loadSequenceNumber() < startingSeq);
-    acc1.bumpSequence(startingSeq - 3);
-    REQUIRE(acc1.loadSequenceNumber() == startingSeq - 3);
-
-    TransactionQueue tq(*app, 4, 10, 4);
-    for (size_t i = 1; i <= 4; ++i)
+    SECTION("below")
     {
-        REQUIRE(tq.tryAdd(transaction(*app, acc1, i, 1, 100)) ==
+        int64_t startingSeq = static_cast<int64_t>(4) << 32;
+        REQUIRE(acc1.loadSequenceNumber() < startingSeq);
+        acc1.bumpSequence(startingSeq - 3);
+        REQUIRE(acc1.loadSequenceNumber() == startingSeq - 3);
+
+        TransactionQueue tq(*app, 4, 10, 4);
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100)) ==
                 TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 2, 1, 100)) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 3, 1, 100)) ==
+                TransactionQueue::AddResult::ADD_STATUS_ERROR);
     }
 
-    auto checkTxSet = [&](uint32_t ledgerSeq, size_t size) {
-        auto lcl = app->getLedgerManager().getLastClosedLedgerHeader();
-        lcl.header.ledgerSeq = ledgerSeq;
-        auto txSet = tq.toTxSet(lcl);
-        REQUIRE(txSet->mTransactions.size() == size);
-        for (size_t i = 1; i <= size; ++i)
-        {
-            REQUIRE(txSet->mTransactions[i - 1]->getSeqNum() ==
-                    static_cast<int64_t>(startingSeq - 3 + i));
-        }
-    };
+    SECTION("above")
+    {
+        int64_t startingSeq = static_cast<int64_t>(4) << 32;
+        REQUIRE(acc1.loadSequenceNumber() < startingSeq - 1);
+        acc1.bumpSequence(startingSeq - 1);
+        REQUIRE(acc1.loadSequenceNumber() == startingSeq - 1);
 
-    checkTxSet(2, 4);
-    checkTxSet(3, 2);
-    checkTxSet(4, 4);
+        TransactionQueue tq(*app, 4, 10, 4);
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 1, 1, 100)) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 2, 1, 100)) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        REQUIRE(tq.tryAdd(transaction(*app, acc1, 3, 1, 100)) ==
+                TransactionQueue::AddResult::ADD_STATUS_PENDING);
+    }
 }
 
 TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
