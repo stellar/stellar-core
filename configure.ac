@@ -344,9 +344,28 @@ case "${host_os}" in
             [Define to 1 if you have the <libunwind.h> header file])
         ;;
     *)
-        PKG_CHECK_MODULES(libunwind, libunwind,
-            AC_DEFINE([HAVE_LIBUNWIND], [1],
-                [Define to 1 if you have the <libunwind.h> header file]))
+        # Unfortunately libunwind seems to interfere with clang-compiled
+        # exception-handling, at least when linked with libgcc (which is the
+        # default of libcxx and a requirement for libstdc++). I think this is
+        # roughly caused by both libgcc and libunwind providing the C++ EH ABI
+        # symbols but, evidently, interacting with clang-compiled code slightly
+        # differently when ELF-interposed with one another, in the same binary.
+        #
+        # Haven't been able to make a reduced testcase that works. You can check
+        # that this is still a problem by running the stellar-core Catch2-based
+        # unit test suite: many of the tests do REQUIRE_THROWS_AS(...) and
+        # that crashes with libunwind+clang.  Haven't been able to figure out a
+        # workaround either.
+        case "${CXX}" in
+            *clang*)
+                AC_MSG_NOTICE([backtraces disabled due to clang interaction with libunwind])
+            ;;
+            *)
+                PKG_CHECK_MODULES(libunwind, libunwind,
+                    AC_DEFINE([HAVE_LIBUNWIND], [1],
+                              [Define to 1 if you have the <libunwind.h> header file]))
+           ;;
+        esac
         ;;
 esac
 
