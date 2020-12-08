@@ -473,15 +473,29 @@ TransactionFrame::processSignatures(ValidationType cv,
 }
 
 bool
-TransactionFrame::isBadSeq(int64_t seqNum) const
+TransactionFrame::isBadSeq(LedgerTxnHeader const& header,
+                           LedgerTxnEntry const& sourceAccount, int64_t seqNum,
+                           bool applying) const
 {
+    bool hasPrev = seqNum != 0;
+    if (seqNum == 0)
+    {
+        seqNum = sourceAccount.current().data.account().seqNum;
+    }
+
+    uint32_t nextLedgerSeq = header.current().ledgerSeq + 1;
+    if (!applying && hasPrev &&
+        getSeqNum() == getStartingSequenceNumber(nextLedgerSeq))
+    {
+        return true;
+    }
     return seqNum == INT64_MAX || seqNum + 1 != getSeqNum();
 }
 
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               AbstractLedgerTxn& ltxOuter,
-                              SequenceNumber current, bool applying,
+                              SequenceNumber seqNum, bool applying,
                               bool chargeFee,
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset)
@@ -510,11 +524,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // fees
     if (header.current().ledgerVersion >= 10 || !applying)
     {
-        if (current == 0)
-        {
-            current = sourceAccount.current().data.account().seqNum;
-        }
-        if (isBadSeq(current))
+        if (isBadSeq(header, sourceAccount, seqNum, applying))
         {
             getResult().result.code(txBAD_SEQ);
             return res;

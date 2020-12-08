@@ -74,11 +74,13 @@ class TransactionFrame : public TransactionFrameBase
                               uint64_t lowerBoundCloseTimeOffset,
                               uint64_t upperBoundCloseTimeOffset);
 
-    virtual bool isBadSeq(int64_t seqNum) const;
+    virtual bool isBadSeq(LedgerTxnHeader const& header,
+                          LedgerTxnEntry const& sourceAccount, int64_t seqNum,
+                          bool applying) const;
 
     ValidationType commonValid(SignatureChecker& signatureChecker,
                                AbstractLedgerTxn& ltxOuter,
-                               SequenceNumber current, bool applying,
+                               SequenceNumber seqNum, bool applying,
                                bool chargeFee,
                                uint64_t lowerBoundCloseTimeOffset,
                                uint64_t upperBoundCloseTimeOffset);
