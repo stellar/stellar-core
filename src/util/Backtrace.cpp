@@ -4,6 +4,7 @@
 
 #include "util/Backtrace.h"
 #include "config.h"
+#include "util/GlobalChecks.h"
 #include <cstdio>
 #include <cstdlib>
 #include <stdexcept>
@@ -69,6 +70,11 @@ namespace stellar
 void
 printCurrentBacktrace()
 {
+    if (!threadIsMain())
+    {
+        return;
+    }
+
     if (getenv("STELLAR_NO_BACKTRACE") != nullptr)
     {
         return;
