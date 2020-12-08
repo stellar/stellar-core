@@ -210,8 +210,7 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
     }
     signers.insert(signers.end(), acc.signers.begin(), acc.signers.end());
 
-    return signatureChecker.checkSignature(acc.accountID, signers,
-                                           neededWeight);
+    return signatureChecker.checkSignature(signers, neededWeight);
 }
 
 bool
@@ -222,7 +221,7 @@ TransactionFrame::checkSignatureNoAccount(SignatureChecker& signatureChecker,
     std::vector<Signer> signers;
     auto signerKey = KeyUtils::convertKey<SignerKey>(accountID);
     signers.push_back(Signer(signerKey, 1));
-    return signatureChecker.checkSignature(accountID, signers, 0);
+    return signatureChecker.checkSignature(signers, 0);
 }
 
 LedgerTxnEntry

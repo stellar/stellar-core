@@ -27,8 +27,7 @@ SignatureChecker::SignatureChecker(
 }
 
 bool
-SignatureChecker::checkSignature(AccountID const& accountID,
-                                 std::vector<Signer> const& signersV,
+SignatureChecker::checkSignature(std::vector<Signer> const& signersV,
                                  int neededWeight)
 {
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
