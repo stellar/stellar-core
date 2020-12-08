@@ -2,7 +2,7 @@
 
 AM_CPPFLAGS = -isystem "$(top_srcdir)" -I"$(top_srcdir)/src" -I"$(top_builddir)/src"
 AM_CPPFLAGS += $(libsodium_CFLAGS) $(xdrpp_CFLAGS) $(libmedida_CFLAGS)	\
-	$(soci_CFLAGS) $(sqlite3_CFLAGS) $(libasio_CFLAGS)
+	$(soci_CFLAGS) $(sqlite3_CFLAGS) $(libasio_CFLAGS) $(libunwind_CFLAGS)
 AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/autocheck/include"      \
 	-isystem "$(top_srcdir)/lib/cereal/include"         \

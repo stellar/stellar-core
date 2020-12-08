@@ -1137,6 +1137,9 @@
     <ClCompile Include="..\..\src\ledger\InternalLedgerEntry.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\Backtrace.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\easylogging++.h">
@@ -1974,6 +1977,9 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\UnorderedSet.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\Backtrace.h">
       <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>

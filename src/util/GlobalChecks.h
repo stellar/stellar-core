@@ -6,6 +6,7 @@
 
 namespace stellar
 {
+bool threadIsMain();
 void assertThreadIsMain();
 
 void dbgAbort();
@@ -20,6 +21,7 @@ void dbgAbort();
 // This is like `assert()` but it is _not_ sensitive to the presence of
 // NDEBUG. We don't compile with NDEBUG but "compiling out important asserts" is
 // enough of a footgun that we want to avoid even the possibility.
+// It will also print a backtrace (at least on unix platforms with libunwind).
 #define releaseAssert(e) \
     (static_cast<bool>(e) \
          ? void(0) \
