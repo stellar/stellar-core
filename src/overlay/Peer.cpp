@@ -1015,7 +1015,14 @@ Peer::recvError(StellarMessage const& msg)
     default:
         break;
     }
-    drop(fmt::format("{} ({})", codeStr, std::string{msg.error().msg}),
+
+    std::string msgStr;
+    msgStr.reserve(msg.error().msg.size());
+    std::transform(msg.error().msg.begin(), msg.error().msg.end(),
+                   std::back_inserter(msgStr),
+                   [](char c) { return (isalnum(c) || c == ' ') ? c : '*'; });
+
+    drop(fmt::format("{} ({})", codeStr, msgStr),
          Peer::DropDirection::REMOTE_DROPPED_US,
          Peer::DropMode::IGNORE_WRITE_QUEUE);
 }
