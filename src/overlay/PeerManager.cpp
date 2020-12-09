@@ -324,9 +324,12 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
 {
     switch (type)
     {
-    case TypeUpdate::SET_OUTBOUND:
+    case TypeUpdate::ENSURE_OUTBOUND:
     {
-        peer.mType = static_cast<int>(PeerType::OUTBOUND);
+        if (peer.mType == static_cast<int>(PeerType::INBOUND))
+        {
+            peer.mType = static_cast<int>(PeerType::OUTBOUND);
+        }
         break;
     }
     case TypeUpdate::SET_PREFERRED:
@@ -334,17 +337,9 @@ PeerManager::update(PeerRecord& peer, TypeUpdate type)
         peer.mType = static_cast<int>(PeerType::PREFERRED);
         break;
     }
-    case TypeUpdate::REMOVE_PREFERRED:
+    case TypeUpdate::ENSURE_NOT_PREFERRED:
     {
         if (peer.mType == static_cast<int>(PeerType::PREFERRED))
-        {
-            peer.mType = static_cast<int>(PeerType::OUTBOUND);
-        }
-        break;
-    }
-    case TypeUpdate::UPDATE_TO_OUTBOUND:
-    {
-        if (peer.mType == static_cast<int>(PeerType::INBOUND))
         {
             peer.mType = static_cast<int>(PeerType::OUTBOUND);
         }
@@ -415,12 +410,59 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     }
 }
 
+static PeerManager::TypeUpdate
+getTypeUpdate(PeerRecord const& peer, PeerType observedType,
+              bool preferredTypeKnown)
+{
+    PeerManager::TypeUpdate typeUpdate;
+    bool isPreferredInDB = peer.mType == static_cast<int>(PeerType::PREFERRED);
+
+    switch (observedType)
+    {
+    case PeerType::PREFERRED:
+    {
+        // Always update to preferred
+        typeUpdate = PeerManager::TypeUpdate::SET_PREFERRED;
+        break;
+    }
+    case PeerType::OUTBOUND:
+    {
+        if (isPreferredInDB && preferredTypeKnown)
+        {
+            // Downgrade to outbound if peer is definitely not preferred
+            typeUpdate = PeerManager::TypeUpdate::ENSURE_NOT_PREFERRED;
+        }
+        else
+        {
+            // Maybe upgrade to outbound, or keep preferred
+            typeUpdate = PeerManager::TypeUpdate::ENSURE_OUTBOUND;
+        }
+        break;
+    }
+    case PeerType::INBOUND:
+    {
+        // Either keep inbound type, or downgrade preferred to outbound
+        typeUpdate = PeerManager::TypeUpdate::ENSURE_NOT_PREFERRED;
+        break;
+    }
+    default:
+    {
+        abort();
+    }
+    }
+
+    return typeUpdate;
+}
+
 void
-PeerManager::update(PeerBareAddress const& address, TypeUpdate type)
+PeerManager::update(PeerBareAddress const& address, PeerType observedType,
+                    bool preferredTypeKnown)
 {
     ZoneScoped;
     auto peer = load(address);
-    update(peer.first, type);
+    TypeUpdate typeUpdate =
+        getTypeUpdate(peer.first, observedType, preferredTypeKnown);
+    update(peer.first, typeUpdate);
     store(address, peer.first, peer.second);
 }
 
@@ -434,12 +476,14 @@ PeerManager::update(PeerBareAddress const& address, BackOffUpdate backOff)
 }
 
 void
-PeerManager::update(PeerBareAddress const& address, TypeUpdate type,
-                    BackOffUpdate backOff)
+PeerManager::update(PeerBareAddress const& address, PeerType observedType,
+                    bool preferredTypeKnown, BackOffUpdate backOff)
 {
     ZoneScoped;
     auto peer = load(address);
-    update(peer.first, type);
+    TypeUpdate typeUpdate =
+        getTypeUpdate(peer.first, observedType, preferredTypeKnown);
+    update(peer.first, typeUpdate);
     update(peer.first, backOff, mApp);
     store(address, peer.first, peer.second);
 }

@@ -376,8 +376,7 @@ TEST_CASE("getPeersToSend", "[overlay][PeerManager]")
         }
         for (auto i = 0; i < normalOutboundCount; i++)
         {
-            peerManager.update(localhost(port++),
-                               PeerManager::TypeUpdate::SET_OUTBOUND);
+            peerManager.update(localhost(port++), PeerType::OUTBOUND, false);
         }
         for (auto i = 0; i < failedOutboundCount; i++)
         {

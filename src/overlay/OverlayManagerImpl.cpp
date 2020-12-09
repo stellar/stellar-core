@@ -346,9 +346,7 @@ OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
                                   bool setPreferred, bool startup)
 {
     ZoneScoped;
-    auto typeUpgrade = setPreferred
-                           ? PeerManager::TypeUpdate::SET_PREFERRED
-                           : PeerManager::TypeUpdate::UPDATE_TO_OUTBOUND;
+    auto type = setPreferred ? PeerType::PREFERRED : PeerType::OUTBOUND;
     if (setPreferred)
     {
         mConfigurationPreferredPeers.clear();
@@ -363,7 +361,8 @@ OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
 
         if (startup)
         {
-            getPeerManager().update(peer, typeUpgrade,
+            getPeerManager().update(peer, type,
+                                    /* preferredTypeKnown */ false,
                                     PeerManager::BackOffUpdate::HARD_RESET);
         }
         else
@@ -371,7 +370,8 @@ OverlayManagerImpl::storePeerList(std::vector<PeerBareAddress> const& addresses,
             // If address is present in the DB, `update` will ensure
             // type is correctly updated. Otherwise, a new entry is created.
             // Note that this won't downgrade preferred peers back to outbound.
-            getPeerManager().update(peer, typeUpgrade);
+            getPeerManager().update(peer, type,
+                                    /* preferredTypeKnown */ false);
         }
     }
 }
