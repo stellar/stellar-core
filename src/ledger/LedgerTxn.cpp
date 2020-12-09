@@ -2011,7 +2011,7 @@ LedgerTxnRoot::Impl::~Impl()
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
 {
-    mBestOffersCache.clear();
+    mBestOffers.clear();
     mEntryCache.clear();
 }
 
@@ -2207,7 +2207,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     }
 
     // Clearing the cache does not throw
-    mBestOffersCache.clear();
+    mBestOffers.clear();
     mEntryCache.clear();
 
     // std::unique_ptr<...>::reset does not throw
@@ -2296,7 +2296,7 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
     using namespace soci;
     throwIfChild();
     mEntryCache.clear();
-    mBestOffersCache.clear();
+    mBestOffers.clear();
 
     for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER, CLAIMABLE_BALANCE})
     {
@@ -2510,7 +2510,7 @@ findIncludedOffer(std::deque<LedgerEntry>::const_iterator iter,
 }
 
 std::deque<LedgerEntry>::const_iterator
-LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
+LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersEntryPtr cached,
                                                  Asset const& buying,
                                                  Asset const& selling)
 {
@@ -2586,12 +2586,12 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
 {
     ZoneScoped;
 
-    // Note: Elements of mBestOffersCache are properly sorted lists of the best
+    // Note: Elements of mBestOffers are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).
-    auto cached = getFromBestOffersCache(buying, selling);
+    auto cached = getFromBestOffers(buying, selling);
     auto& offers = cached->bestOffers;
 
     // Batch-load best offers until an offer worse than *worseThan is found
@@ -2864,28 +2864,28 @@ LedgerTxnRoot::Impl::putInEntryCache(
     }
 }
 
-LedgerTxnRoot::Impl::BestOffersCacheEntryPtr
-LedgerTxnRoot::Impl::getFromBestOffersCache(Asset const& buying,
-                                            Asset const& selling) const
+LedgerTxnRoot::Impl::BestOffersEntryPtr
+LedgerTxnRoot::Impl::getFromBestOffers(Asset const& buying,
+                                       Asset const& selling) const
 {
     try
     {
-        BestOffersCacheKey cacheKey{buying, selling};
-        auto it = mBestOffersCache.find(cacheKey);
+        BestOffersKey offersKey{buying, selling};
+        auto it = mBestOffers.find(offersKey);
 
-        if (it != mBestOffersCache.end())
+        if (it != mBestOffers.end())
         {
             return it->second;
         }
 
-        auto emptyPtr = std::make_shared<BestOffersCacheEntry>(
-            BestOffersCacheEntry{{}, false});
-        mBestOffersCache.emplace(cacheKey, emptyPtr);
+        auto emptyPtr =
+            std::make_shared<BestOffersEntry>(BestOffersEntry{{}, false});
+        mBestOffers.emplace(offersKey, emptyPtr);
         return emptyPtr;
     }
     catch (...)
     {
-        mBestOffersCache.clear();
+        mBestOffers.clear();
         throw;
     }
 }

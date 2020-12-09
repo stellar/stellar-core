@@ -660,25 +660,24 @@ class LedgerTxnRoot::Impl
 
     typedef RandomEvictionCache<LedgerKey, CacheEntry> EntryCache;
 
-    typedef AssetPair BestOffersCacheKey;
+    typedef AssetPair BestOffersKey;
 
-    struct BestOffersCacheEntry
+    struct BestOffersEntry
     {
         std::deque<LedgerEntry> bestOffers;
         bool allLoaded;
     };
-    typedef std::shared_ptr<BestOffersCacheEntry> BestOffersCacheEntryPtr;
+    typedef std::shared_ptr<BestOffersEntry> BestOffersEntryPtr;
 
-    typedef UnorderedMap<BestOffersCacheKey, BestOffersCacheEntryPtr,
-                         AssetPairHash>
-        BestOffersCache;
+    typedef UnorderedMap<BestOffersKey, BestOffersEntryPtr, AssetPairHash>
+        BestOffers;
 
     static size_t const MIN_BEST_OFFERS_BATCH_SIZE;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;
     mutable EntryCache mEntryCache;
-    mutable BestOffersCache mBestOffersCache;
+    mutable BestOffers mBestOffers;
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
 
@@ -751,8 +750,8 @@ class LedgerTxnRoot::Impl
                          std::shared_ptr<LedgerEntry const> const& entry,
                          LoadType type) const;
 
-    BestOffersCacheEntryPtr getFromBestOffersCache(Asset const& buying,
-                                                   Asset const& selling) const;
+    BestOffersEntryPtr getFromBestOffers(Asset const& buying,
+                                         Asset const& selling) const;
 
     UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
     bulkLoadAccounts(UnorderedSet<LedgerKey> const& keys) const;
@@ -766,8 +765,8 @@ class LedgerTxnRoot::Impl
     bulkLoadClaimableBalance(UnorderedSet<LedgerKey> const& keys) const;
 
     std::deque<LedgerEntry>::const_iterator
-    loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
-                                Asset const& buying, Asset const& selling);
+    loadNextBestOffersIntoCache(BestOffersEntryPtr cached, Asset const& buying,
+                                Asset const& selling);
     void populateEntryCacheFromBestOffers(
         std::deque<LedgerEntry>::const_iterator iter,
         std::deque<LedgerEntry>::const_iterator const& end);
