@@ -199,8 +199,9 @@ PeerManager::removePeersWithManyFailures(int minNumFailures,
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay")
-            << "PeerManager::removePeersWithManyFailures error: " << err.what();
+        CLOG_ERROR(Overlay,
+                   "PeerManager::removePeersWithManyFailures error: {}",
+                   err.what());
     }
 }
 
@@ -260,8 +261,8 @@ PeerManager::load(PeerBareAddress const& address)
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "PeerManager::load error: " << err.what()
-                               << " on " << address.toString();
+        CLOG_ERROR(Overlay, "PeerManager::load error: {} on {}", err.what(),
+                   address.toString());
     }
 
     return std::make_pair(result, inDatabase);
@@ -307,15 +308,15 @@ PeerManager::store(PeerBareAddress const& address, PeerRecord const& peerRecord,
             st.execute(true);
             if (st.get_affected_rows() != 1)
             {
-                CLOG(ERROR, "Overlay")
-                    << "PeerManager::store failed on " + address.toString();
+                CLOG_ERROR(Overlay, "PeerManager::store failed on {}",
+                           address.toString());
             }
         }
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "PeerManager::store error: " << err.what()
-                               << " on " << address.toString();
+        CLOG_ERROR(Overlay, "PeerManager::store error: {} on {}", err.what(),
+                   address.toString());
     }
 }
 
@@ -404,8 +405,8 @@ PeerManager::ensureExists(PeerBareAddress const& address)
     auto peer = load(address);
     if (!peer.second)
     {
-        CLOG(TRACE, "Overlay") << "Learned peer " << address.toString() << " @"
-                               << mApp.getConfig().PEER_PORT;
+        CLOG_TRACE(Overlay, "Learned peer {} @{}", address.toString(),
+                   mApp.getConfig().PEER_PORT);
         store(address, peer.first, peer.second);
     }
 }
@@ -510,7 +511,7 @@ PeerManager::countPeers(std::string const& where,
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "countPeers error: " << err.what();
+        CLOG_ERROR(Overlay, "countPeers error: {}", err.what());
     }
 
     return count;
@@ -557,7 +558,7 @@ PeerManager::loadPeers(int limit, int offset, std::string const& where,
     }
     catch (soci_error& err)
     {
-        CLOG(ERROR, "Overlay") << "loadPeers error: " << err.what();
+        CLOG_ERROR(Overlay, "loadPeers error: {}", err.what());
     }
 
     return result;

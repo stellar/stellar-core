@@ -586,7 +586,10 @@ configurable as `LOG_FILE_PATH`.
 
  Log messages are classified by progressive _priority levels_:
   `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR` and `FATAL`.
-   The logging system only emits those messages at or above its configured logging level. 
+   The logging system only emits those messages at or above its configured logging level.
+
+Log messages at different priority levels can be color-coded on standard output
+by setting `LOG_COLOR=true` in the config file. By default they are not color-coded.
 
 The log level can be controlled by configuration, the `-ll` command-line flag 
 or adjusted dynamically by administrative (HTTP) commands. Run:

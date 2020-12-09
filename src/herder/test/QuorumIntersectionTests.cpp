@@ -375,7 +375,7 @@ interconnectOrgs(xdr::xvector<xdr::xvector<PublicKey>> const& orgs,
             }
             if (shouldDepend(i, j))
             {
-                CLOG(DEBUG, "Herder") << "dep: org#" << i << " => org#" << j;
+                CLOG_DEBUG(Herder, "dep: org#{} => org#{}", i, j);
                 auto& otherOrg = orgs.at(j);
                 auto thresh = roundUpPct(otherOrg.size(), innerThreshPct);
                 depOrgs.emplace_back(thresh, otherOrg, emptySet);
@@ -888,13 +888,13 @@ debugQmap(Config const& cfg, QuorumTracker::QuorumMap const& qm)
             auto str = LocalNode::toJson(
                 *(pair.second.mQuorumSet),
                 [&cfg](PublicKey const& k) { return cfg.toShortString(k); });
-            CLOG(DEBUG, "Herder")
-                << "qmap[" << cfg.toShortString(pair.first) << "] = " << str;
+            CLOG_DEBUG(Herder, "qmap[{}] = {}", cfg.toShortString(pair.first),
+                       str);
         }
         else
         {
-            CLOG(DEBUG, "Herder")
-                << "qmap[" << cfg.toShortString(pair.first) << "] = nullptr";
+            CLOG_DEBUG(Herder, "qmap[{}] = nullptr",
+                       cfg.toShortString(pair.first));
         }
     }
 }

@@ -33,8 +33,8 @@ TEST_CASE("random", "[crypto]")
 {
     SecretKey k1 = SecretKey::random();
     SecretKey k2 = SecretKey::random();
-    LOG(DEBUG) << "k1: " << k1.getStrKeySeed().value;
-    LOG(DEBUG) << "k2: " << k2.getStrKeySeed().value;
+    LOG_DEBUG(DEFAULT_LOG, "k1: {}", k1.getStrKeySeed().value);
+    LOG_DEBUG(DEFAULT_LOG, "k2: {}", k2.getStrKeySeed().value);
     CHECK(k1.getStrKeySeed() != k2.getStrKeySeed());
 
     SecretKey k1b = SecretKey::fromStrKeySeed(k1.getStrKeySeed().value);
@@ -47,7 +47,7 @@ TEST_CASE("hex tests", "[crypto]")
     // Do some fixed test vectors.
     for (auto const& pair : hexTestVectors)
     {
-        LOG(DEBUG) << "fixed test vector hex: \"" << pair.second << "\"";
+        LOG_DEBUG(DEFAULT_LOG, "fixed test vector hex: \"{}\"", pair.second);
 
         auto enc = binToHex(pair.first);
         CHECK(enc.size() == pair.second.size());
@@ -62,7 +62,7 @@ TEST_CASE("hex tests", "[crypto]")
         [](std::vector<uint8_t> v) {
             auto enc = binToHex(v);
             auto dec = hexToBin(enc);
-            LOG(DEBUG) << "random round-trip hex: \"" << enc << "\"";
+            LOG_DEBUG(DEFAULT_LOG, "random round-trip hex: \"{}\"", enc);
             CHECK(v == dec);
             return v == dec;
         },
@@ -84,7 +84,7 @@ TEST_CASE("SHA256 tests", "[crypto]")
     // Do some fixed test vectors.
     for (auto const& pair : sha256TestVectors)
     {
-        LOG(DEBUG) << "fixed test vector SHA256: \"" << pair.second << "\"";
+        LOG_DEBUG(DEFAULT_LOG, "fixed test vector SHA256: \"{}\"", pair.second);
 
         auto hash = binToHex(sha256(pair.first));
         CHECK(hash.size() == pair.second.size());
@@ -97,7 +97,7 @@ TEST_CASE("Stateful SHA256 tests", "[crypto]")
     // Do some fixed test vectors.
     for (auto const& pair : sha256TestVectors)
     {
-        LOG(DEBUG) << "fixed test vector SHA256: \"" << pair.second << "\"";
+        LOG_DEBUG(DEFAULT_LOG, "fixed test vector SHA256: \"{}\"", pair.second);
         SHA256 h;
         h.add(pair.first);
         auto hash = binToHex(h.finish());
@@ -169,7 +169,7 @@ TEST_CASE("BLAKE2 tests", "[crypto]")
     // Do some fixed test vectors.
     for (auto const& pair : blake2TestVectors)
     {
-        LOG(DEBUG) << "fixed test vector BLAKE2: \"" << pair.second << "\"";
+        LOG_DEBUG(DEFAULT_LOG, "fixed test vector BLAKE2: \"{}\"", pair.second);
 
         auto hash = binToHex(blake2(pair.first));
         CHECK(hash.size() == pair.second.size());
@@ -182,7 +182,7 @@ TEST_CASE("Stateful BLAKE2 tests", "[crypto]")
     // Do some fixed test vectors.
     for (auto const& pair : blake2TestVectors)
     {
-        LOG(DEBUG) << "fixed test vector BLAKE2: \"" << pair.second << "\"";
+        LOG_DEBUG(DEFAULT_LOG, "fixed test vector BLAKE2: \"{}\"", pair.second);
         BLAKE2 h;
         h.add(pair.first);
         auto hash = binToHex(h.finish());
@@ -270,24 +270,25 @@ TEST_CASE("sign tests", "[crypto]")
 {
     auto sk = SecretKey::random();
     auto pk = sk.getPublicKey();
-    LOG(DEBUG) << "generated random secret key seed: "
-               << sk.getStrKeySeed().value;
-    LOG(DEBUG) << "corresponding public key: " << KeyUtils::toStrKey(pk);
+    LOG_DEBUG(DEFAULT_LOG, "generated random secret key seed: {}",
+              sk.getStrKeySeed().value);
+    LOG_DEBUG(DEFAULT_LOG, "corresponding public key: {}",
+              KeyUtils::toStrKey(pk));
 
     CHECK(SecretKey::fromStrKeySeed(sk.getStrKeySeed().value) == sk);
 
     std::string msg = "hello";
     auto sig = sk.sign(msg);
 
-    LOG(DEBUG) << "formed signature: " << binToHex(sig);
+    LOG_DEBUG(DEFAULT_LOG, "formed signature: {}", binToHex(sig));
 
-    LOG(DEBUG) << "checking signature-verify";
+    LOG_DEBUG(DEFAULT_LOG, "checking signature-verify");
     CHECK(PubKeyUtils::verifySig(pk, sig, msg));
 
-    LOG(DEBUG) << "checking verify-failure on bad message";
+    LOG_DEBUG(DEFAULT_LOG, "checking verify-failure on bad message");
     CHECK(!PubKeyUtils::verifySig(pk, sig, std::string("helloo")));
 
-    LOG(DEBUG) << "checking verify-failure on bad signature";
+    LOG_DEBUG(DEFAULT_LOG, "checking verify-failure on bad signature");
     sig[4] ^= 1;
     CHECK(!PubKeyUtils::verifySig(pk, sig, msg));
 }
@@ -328,7 +329,7 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
         cases.push_back(SignVerifyTestcase::create());
     }
 
-    LOG(INFO) << "Benchmarking " << n << " signatures and verifications";
+    LOG_INFO(DEFAULT_LOG, "Benchmarking {} signatures and verifications", n);
     {
         for (auto& c : cases)
         {
@@ -359,8 +360,7 @@ TEST_CASE("verify-hit benchmarking", "[crypto-bench][bench][!hide]")
         c.sign();
     }
 
-    LOG(INFO) << "Benchmarking " << n << " verify-hits on " << k
-              << " signatures";
+    LOG_INFO(DEFAULT_LOG, "Benchmarking {} verify-hits on {} signatures", n, k);
     for (size_t i = 0; i < n; ++i)
     {
         for (auto& c : cases)
@@ -480,9 +480,10 @@ TEST_CASE("StrKey tests", "[crypto]")
                     }
                     else
                     {
-                        LOG(WARNING) << "Failed to detect strkey corruption";
-                        LOG(WARNING) << " original: " << encoded;
-                        LOG(WARNING) << "  corrupt: " << corrupted;
+                        LOG_WARNING(DEFAULT_LOG,
+                                    "Failed to detect strkey corruption");
+                        LOG_WARNING(DEFAULT_LOG, " original: {}", encoded);
+                        LOG_WARNING(DEFAULT_LOG, "  corrupt: {}", corrupted);
                     }
                     if (!sameSize)
                     {
@@ -504,6 +505,6 @@ TEST_CASE("StrKey tests", "[crypto]")
 
     double detectionRate =
         (((double)n_detected) / ((double)n_corrupted)) * 100.0;
-    LOG(INFO) << "CRC16 error-detection rate " << detectionRate;
+    LOG_INFO(DEFAULT_LOG, "CRC16 error-detection rate {}", detectionRate);
     REQUIRE(detectionRate > 99.99);
 }

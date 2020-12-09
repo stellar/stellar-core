@@ -57,7 +57,7 @@ class XDRInputFileStream
             msg += filename;
             msg += ", reason: ";
             msg += std::to_string(errno);
-            CLOG(ERROR, "Fs") << msg;
+            CLOG_ERROR(Fs, "{}", msg);
             throw FileSystemException(msg);
         }
         mIn.exceptions(std::ios::badbit);

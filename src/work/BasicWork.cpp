@@ -49,7 +49,7 @@ BasicWork::~BasicWork()
 void
 BasicWork::shutdown()
 {
-    CLOG(TRACE, "Work") << "Shutting down: " << getName();
+    CLOG_TRACE(Work, "Shutting down: {}", getName());
     if (!isDone())
     {
         setState(InternalState::ABORTING);
@@ -130,7 +130,7 @@ BasicWork::stateName(InternalState st)
 void
 BasicWork::reset()
 {
-    CLOG(TRACE, "Work") << "resetting " << getName();
+    CLOG_TRACE(Work, "resetting {}", getName());
 
     if (mRetryTimer)
     {
@@ -144,7 +144,7 @@ BasicWork::reset()
 void
 BasicWork::startWork(std::function<void()> notificationCallback)
 {
-    CLOG(TRACE, "Work") << "Starting " << getName();
+    CLOG_TRACE(Work, "Starting {}", getName());
 
     if (mState != InternalState::PENDING)
     {
@@ -170,10 +170,10 @@ BasicWork::waitForRetry()
     std::weak_ptr<BasicWork> weak = shared_from_this();
     auto t = getRetryDelay();
     mRetryTimer->expires_from_now(t);
-    CLOG(DEBUG, "Work")
-        << "Scheduling retry #" << (mRetries + 1) << "/" << mMaxRetries
-        << " in " << std::chrono::duration_cast<std::chrono::seconds>(t).count()
-        << " sec, for " << getName();
+    CLOG_DEBUG(Work, "Scheduling retry #{}/{} in {} sec, for {}",
+               (mRetries + 1), mMaxRetries,
+               std::chrono::duration_cast<std::chrono::seconds>(t).count(),
+               getName());
     setState(InternalState::WAITING);
     mRetryTimer->async_wait([weak](asio::error_code const& ec) {
         auto self = weak.lock();
@@ -275,8 +275,8 @@ BasicWork::setState(InternalState st)
 
     if (mState != st)
     {
-        CLOG(DEBUG, "Work") << "work " << getName() << " : "
-                            << stateName(mState) << " -> " << stateName(st);
+        CLOG_DEBUG(Work, "work {} : {} -> {}", getName(), stateName(mState),
+                   stateName(st));
         mState = st;
     }
 
@@ -296,13 +296,12 @@ BasicWork::wakeUp(std::function<void()> innerCallback)
         return;
     }
 
-    CLOG(TRACE, "Work") << "Waking up: " << getName();
+    CLOG_TRACE(Work, "Waking up: {}", getName());
     setState(InternalState::RUNNING);
 
     if (innerCallback)
     {
-        CLOG(TRACE, "Work")
-            << getName() << " woke up and is executing its callback";
+        CLOG_TRACE(Work, "{} woke up and is executing its callback", getName());
         innerCallback();
     }
 
@@ -340,8 +339,8 @@ BasicWork::crankWork()
         auto doneAborting = onAbort();
         nextState =
             doneAborting ? InternalState::ABORTED : InternalState::ABORTING;
-        CLOG(TRACE, "Work") << "Abort progress for " << getName()
-                            << (doneAborting ? ": done" : ": still aborting");
+        CLOG_TRACE(Work, "Abort progress for {}{}", getName(),
+                   (doneAborting ? ": done" : ": still aborting"));
     }
     else
     {

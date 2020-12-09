@@ -85,8 +85,7 @@ VerifyBucketWork::spawnVerifier()
             try
             {
                 ZoneNamedN(verifyZone, "bucket verify", true);
-                CLOG(INFO, "History")
-                    << fmt::format("Verifying bucket {}", binToHex(hash));
+                CLOG_INFO(History, "Verifying bucket {}", binToHex(hash));
 
                 // ensure that the stream gets its own scope to avoid race with
                 // main thread
@@ -106,26 +105,22 @@ VerifyBucketWork::spawnVerifier()
                 uint256 vHash = hasher.finish();
                 if (vHash == hash)
                 {
-                    CLOG(DEBUG, "History")
-                        << "Verified hash (" << hexAbbrev(hash) << ") for "
-                        << filename;
+                    CLOG_DEBUG(History, "Verified hash ({}) for {}",
+                               hexAbbrev(hash), filename);
                 }
                 else
                 {
-                    CLOG(WARNING, "History")
-                        << "FAILED verifying hash for " << filename;
-                    CLOG(WARNING, "History")
-                        << "expected hash: " << binToHex(hash);
-                    CLOG(WARNING, "History")
-                        << "computed hash: " << binToHex(vHash);
-                    CLOG(WARNING, "History") << POSSIBLY_CORRUPTED_HISTORY;
+                    CLOG_WARNING(History, "FAILED verifying hash for {}",
+                                 filename);
+                    CLOG_WARNING(History, "expected hash: {}", binToHex(hash));
+                    CLOG_WARNING(History, "computed hash: {}", binToHex(vHash));
+                    CLOG_WARNING(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
                     ec = std::make_error_code(std::errc::io_error);
                 }
             }
             catch (std::exception const& e)
             {
-                CLOG(WARNING, "History")
-                    << "Failed verification : " << e.what();
+                CLOG_WARNING(History, "Failed verification : {}", e.what());
                 ec = std::make_error_code(std::errc::io_error);
             }
 

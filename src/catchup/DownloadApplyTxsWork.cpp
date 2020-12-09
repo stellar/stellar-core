@@ -40,9 +40,9 @@ DownloadApplyTxsWork::yieldMoreWork()
         throw std::runtime_error("Work has no more children to iterate over!");
     }
 
-    CLOG(INFO, "History") << "Downloading, unzipping and applying "
-                          << HISTORY_FILE_TYPE_TRANSACTIONS
-                          << " for checkpoint " << mCheckpointToQueue;
+    CLOG_INFO(History,
+              "Downloading, unzipping and applying {} for checkpoint {}",
+              HISTORY_FILE_TYPE_TRANSACTIONS, mCheckpointToQueue);
     FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS,
                         mCheckpointToQueue);
     auto getAndUnzip =
@@ -65,9 +65,8 @@ DownloadApplyTxsWork::yieldMoreWork()
             {
                 FileTransferInfo ti(dir, HISTORY_FILE_TYPE_TRANSACTIONS,
                                     checkpoint);
-                CLOG(ERROR, "History")
-                    << fmt::format("Archive {} maybe contains corrupt file {}",
-                                   archive->getName(), ti.remoteName());
+                CLOG_ERROR(History, "Archive {} maybe contains corrupt file {}",
+                           archive->getName(), ti.remoteName());
             }
         }
     };

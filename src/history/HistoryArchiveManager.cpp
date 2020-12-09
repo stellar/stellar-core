@@ -64,50 +64,53 @@ HistoryArchiveManager::checkSensibleConfig() const
 
     for (auto const& a : inertArchives)
     {
-        CLOG(FATAL, "History")
-            << "Archive '" << a
-            << "' has no 'get' or 'put' command, will not function";
+        CLOG_FATAL(
+            History,
+            "Archive '{}' has no 'get' or 'put' command, will not function", a);
         badArchives = true;
     }
 
     for (auto const& a : writeOnlyArchives)
     {
-        CLOG(FATAL, "History")
-            << "Archive '" << a
-            << "' has 'put' but no 'get' command, will be unwritable";
+        CLOG_FATAL(
+            History,
+            "Archive '{}' has 'put' but no 'get' command, will be unwritable",
+            a);
         badArchives = true;
     }
 
     for (auto const& a : readWriteArchives)
     {
-        CLOG(INFO, "History")
-            << "Archive '" << a
-            << "' has 'put' and 'get' commands, will be read and written";
+        CLOG_INFO(History,
+                  "Archive '{}' has 'put' and 'get' commands, will be read and "
+                  "written",
+                  a);
     }
 
     for (auto const& a : readOnlyArchives)
     {
-        CLOG(INFO, "History")
-            << "Archive '" << a
-            << "' has 'get' command only, will not be written";
+        CLOG_INFO(History,
+                  "Archive '{}' has 'get' command only, will not be written",
+                  a);
     }
 
     if (readOnlyArchives.empty() && readWriteArchives.empty())
     {
-        CLOG(FATAL, "History")
-            << "No readable archives configured, catchup will fail.";
+        CLOG_FATAL(History,
+                   "No readable archives configured, catchup will fail.");
         badArchives = true;
     }
 
     if (readWriteArchives.empty())
     {
-        CLOG(WARNING, "History")
-            << "No writable archives configured, history will not be written.";
+        CLOG_WARNING(
+            History,
+            "No writable archives configured, history will not be written.");
     }
 
     if (badArchives)
     {
-        CLOG(ERROR, "History") << "History archives misconfigured.";
+        CLOG_ERROR(History, "History archives misconfigured.");
         return false;
     }
     return true;
@@ -142,17 +145,16 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
     }
     else if (archives.size() == 1)
     {
-        CLOG(DEBUG, "History")
-            << "Fetching from sole readable history archive '"
-            << archives[0]->getName() << "'";
+        CLOG_DEBUG(History, "Fetching from sole readable history archive '{}'",
+                   archives[0]->getName());
         return archives[0];
     }
     else
     {
         std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
         size_t i = dist(gRandomEngine);
-        CLOG(DEBUG, "History") << "Fetching from readable history archive #"
-                               << i << ", '" << archives[i]->getName() << "'";
+        CLOG_DEBUG(History, "Fetching from readable history archive #{}, '{}'",
+                   i, archives[i]->getName());
         return archives[i];
     }
 }
@@ -177,42 +179,38 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
     auto archive = getHistoryArchive(arch);
     if (!archive)
     {
-        CLOG(FATAL, "History")
-            << "Can't initialize unknown history archive '" << arch << "'";
+        CLOG_FATAL(History, "Can't initialize unknown history archive '{}'",
+                   arch);
         return false;
     }
 
     auto& ws = mApp.getWorkScheduler();
 
     // First check that there's no existing HAS in the archive
-    CLOG(INFO, "History") << "Probing history archive '" << arch
-                          << "' for existing state";
+    CLOG_INFO(History, "Probing history archive '{}' for existing state", arch);
     auto getHas =
         ws.executeWork<GetHistoryArchiveStateWork>(0, archive, "hist-init", 0);
     if (getHas->getState() == BasicWork::State::WORK_SUCCESS)
     {
-        CLOG(ERROR, "History")
-            << "History archive '" << arch << "' already initialized!";
+        CLOG_ERROR(History, "History archive '{}' already initialized!", arch);
         return false;
     }
-    CLOG(INFO, "History") << "History archive '" << arch
-                          << "' appears uninitialized";
+    CLOG_INFO(History, "History archive '{}' appears uninitialized", arch);
 
     HistoryArchiveState has;
-    CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
+    CLOG_INFO(History, "Initializing history archive '{}'", arch);
     has.resolveAllFutures();
     has.networkPassphrase = mApp.getConfig().NETWORK_PASSPHRASE;
 
     auto putHas = ws.executeWork<PutHistoryArchiveStateWork>(has, archive);
     if (putHas->getState() == BasicWork::State::WORK_SUCCESS)
     {
-        CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
+        CLOG_INFO(History, "Initialized history archive '{}'", arch);
         return true;
     }
     else
     {
-        CLOG(FATAL, "History")
-            << "Failed to initialize history archive '" << arch << "'";
+        CLOG_FATAL(History, "Failed to initialize history archive '{}'", arch);
         return false;
     }
 }

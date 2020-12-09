@@ -68,7 +68,7 @@ WriteVerifiedCheckpointHashesWork::WriteVerifiedCheckpointHashesWork(
     mRangeEndPromise.set_value(mRangeEnd);
     if (mArchive)
     {
-        CLOG(INFO, "History") << "selected archive " << mArchive->getName();
+        CLOG_INFO(History, "selected archive {}", mArchive->getName());
     }
     startOutputFile();
 }

@@ -116,30 +116,30 @@ checkMVCCIsolation(Application::pointer app)
     soci::session sess2(app->getDatabase().getPool());
 
     // Check that sess2 can observe changes from sess1
-    CLOG(DEBUG, "Database") << "Checking sess2 observes sess1 changes";
+    CLOG_DEBUG(Database, "Checking sess2 observes sess1 changes");
     sess2 << "SELECT x FROM test", soci::into(s2r1);
     CHECK(s2r1 == v0);
 
     // Open tx and modify through sess1
-    CLOG(DEBUG, "Database") << "Opening tx1 against sess1";
+    CLOG_DEBUG(Database, "Opening tx1 against sess1");
     soci::transaction tx1(sess1);
 
-    CLOG(DEBUG, "Database") << "Writing through tx1 to sess1";
+    CLOG_DEBUG(Database, "Writing through tx1 to sess1");
     sess1 << "UPDATE test SET x=:v", soci::use(tx1v1);
 
     // Check that sess2 does not observe tx1-pending write
-    CLOG(DEBUG, "Database") << "Checking that sess2 does not observe tx1 write";
+    CLOG_DEBUG(Database, "Checking that sess2 does not observe tx1 write");
     sess2 << "SELECT x FROM test", soci::into(s2r2);
     CHECK(s2r2 == v0);
 
     {
         // Open 2nd tx on sess2
-        CLOG(DEBUG, "Database") << "Opening tx2 against sess2";
+        CLOG_DEBUG(Database, "Opening tx2 against sess2");
         soci::transaction tx2(sess2);
 
         // First select upgrades us from deferred to a read-lock.
-        CLOG(DEBUG, "Database")
-            << "Issuing select to acquire read lock for sess2/tx2";
+        CLOG_DEBUG(Database,
+                   "Issuing select to acquire read lock for sess2/tx2");
         sess2 << "SELECT x FROM test", soci::into(s2r3);
         CHECK(s2r3 == v0);
 
@@ -151,8 +151,8 @@ checkMVCCIsolation(Application::pointer app)
             // postgres
             // this just blocks, so we only check on sqlite.
 
-            CLOG(DEBUG, "Database") << "Checking failure to upgrade read lock "
-                                       "to conflicting write lock";
+            CLOG_DEBUG(Database, "Checking failure to upgrade read lock "
+                                 "to conflicting write lock");
             try
             {
                 soci::statement st =
@@ -162,7 +162,7 @@ checkMVCCIsolation(Application::pointer app)
             }
             catch (soci::soci_error& e)
             {
-                CLOG(DEBUG, "Database") << "Got " << e.what();
+                CLOG_DEBUG(Database, "Got {}", e.what());
             }
             catch (...)
             {
@@ -170,29 +170,29 @@ checkMVCCIsolation(Application::pointer app)
             }
 
             // Check that sess1 didn't see a write via sess2
-            CLOG(DEBUG, "Database") << "Checking sess1 did not observe write "
-                                       "on failed sess2 write-lock upgrade";
+            CLOG_DEBUG(Database, "Checking sess1 did not observe write "
+                                 "on failed sess2 write-lock upgrade");
             sess1 << "SELECT x FROM test", soci::into(s1r2);
             CHECK(s1r2 == tx1v1);
         }
 
         // Do another write in tx1
-        CLOG(DEBUG, "Database") << "Writing through sess1/tx1 again";
+        CLOG_DEBUG(Database, "Writing through sess1/tx1 again");
         sess1 << "UPDATE test SET x=:v", soci::use(tx1v2);
 
         // Close tx1
-        CLOG(DEBUG, "Database") << "Committing tx1";
+        CLOG_DEBUG(Database, "Committing tx1");
         tx1.commit();
 
         // Check that sess2 is still read-isolated, back before any tx1 writes
-        CLOG(DEBUG, "Database") << "Checking read-isolation of sess2/tx2";
+        CLOG_DEBUG(Database, "Checking read-isolation of sess2/tx2");
         sess2 << "SELECT x FROM test", soci::into(s2r4);
         CHECK(s2r4 == v0);
 
         // tx2 rolls back here
     }
 
-    CLOG(DEBUG, "Database") << "Checking tx1 write committed";
+    CLOG_DEBUG(Database, "Checking tx1 write committed");
     sess1 << "SELECT x FROM test", soci::into(s1r3);
     CHECK(s1r3 == tx1v2);
     sess1 << "DROP TABLE test";
@@ -240,8 +240,9 @@ TEST_CASE("postgres smoketest", "[db]")
             y.resize(blobY.get_len());
             blobY.read(0, reinterpret_cast<char*>(y.data()), y.size());
             CHECK(x == y);
-            LOG(DEBUG) << "blob round trip with postgresql database: "
-                       << binToHex(x) << " == " << binToHex(y);
+            LOG_DEBUG(DEFAULT_LOG,
+                      "blob round trip with postgresql database: {} == {}",
+                      binToHex(x), binToHex(y));
             tx.commit();
         }
 
@@ -257,11 +258,12 @@ TEST_CASE("postgres smoketest", "[db]")
 
         if (what.find("Cannot establish connection") != std::string::npos)
         {
-            LOG(WARNING) << "Cannot connect to postgres server " << what;
+            LOG_WARNING(DEFAULT_LOG, "Cannot connect to postgres server {}",
+                        what);
         }
         else
         {
-            LOG(ERROR) << "DB error: " << what;
+            LOG_ERROR(DEFAULT_LOG, "DB error: {}", what);
             REQUIRE(0);
         }
     }
@@ -286,7 +288,7 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
         int64_t sz = 10000;
         int64_t div = 100;
 
-        LOG(INFO) << "timing 10 inserts of " << sz << " rows";
+        LOG_INFO(DEFAULT_LOG, "timing 10 inserts of {} rows", sz);
         {
             for (int64_t i = 0; i < 10; ++i)
             {
@@ -301,9 +303,10 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
             }
         }
 
-        LOG(INFO) << "retiming 10 inserts of " << sz << " rows"
-                  << " batched into " << sz / div << " subtransactions of "
-                  << div << " inserts each";
+        LOG_INFO(DEFAULT_LOG,
+                 "retiming 10 inserts of {} rows batched into {} "
+                 "subtransactions of {} inserts each",
+                 sz, sz / div, div);
         soci::transaction sqltx(session);
         for (int64_t i = 0; i < 10; ++i)
         {
@@ -330,11 +333,12 @@ TEST_CASE("postgres performance", "[db][pgperf][!hide]")
 
         if (what.find("Cannot establish connection") != std::string::npos)
         {
-            LOG(WARNING) << "Cannot connect to postgres server " << what;
+            LOG_WARNING(DEFAULT_LOG, "Cannot connect to postgres server {}",
+                        what);
         }
         else
         {
-            LOG(ERROR) << "DB error: " << what;
+            LOG_ERROR(DEFAULT_LOG, "DB error: {}", what);
             REQUIRE(0);
         }
     }

@@ -53,7 +53,8 @@ printDistribution(std::vector<double> const& dist, size_t nbuckets = 10)
     size_t ncols = 40;
     size_t countPerCol = maxbucket / ncols;
     double b = bucketsz;
-    LOG(INFO) << fmt::format("histogram range [{:8.2f},{:8.2f}]", lo, hi);
+    LOG_INFO(DEFAULT_LOG, "{}",
+             fmt::format("histogram range [{:8.2f},{:8.2f}]", lo, hi));
     ;
     for (auto const& c : buckets)
     {
@@ -62,8 +63,9 @@ printDistribution(std::vector<double> const& dist, size_t nbuckets = 10)
         {
             oss << '*';
         }
-        LOG(INFO) << fmt::format("[{:8.2f},{:8.2f}] = {:>8d} : {:s}", b,
-                                 (b + bucketsz), c, oss.str());
+        LOG_INFO(DEFAULT_LOG, "{}",
+                 fmt::format("[{:8.2f},{:8.2f}] = {:>8d} : {:s}", b,
+                             (b + bucketsz), c, oss.str()));
         ;
         b += bucketsz;
     }
@@ -144,7 +146,7 @@ struct Percentiles
                 }
                 oss << dbl;
             }
-            LOG(ERROR) << "failing samples: " << oss.str();
+            LOG_ERROR(DEFAULT_LOG, "failing samples: {}", oss.str());
         }
     }
 };
@@ -210,7 +212,7 @@ class SlidingWindowTester
             mSamples.emplace_back(sample, mTimestamp);
             mTimestamp += timeStep;
         }
-        LOG(DEBUG) << "added samples, have " << mSamples.size();
+        LOG_DEBUG(DEFAULT_LOG, "added samples, have {}", mSamples.size());
 
         // Drop values from the front that are out-of-range.
         auto dropBefore = mTimestamp - sampleCutoff;
@@ -218,7 +220,7 @@ class SlidingWindowTester
         {
             mSamples.pop_front();
         }
-        LOG(DEBUG) << "dropped samples, now have " << mSamples.size();
+        LOG_DEBUG(DEFAULT_LOG, "dropped samples, now have {}", mSamples.size());
     }
 
     // Adds 10 minutes @ 1khz of uniform samples from [low, high]

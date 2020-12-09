@@ -189,9 +189,9 @@ Database::Database(Application& app)
 {
     registerDrivers();
 
-    CLOG(INFO, "Database") << "Connecting to: "
-                           << removePasswordFromConnectionString(
-                                  app.getConfig().DATABASE.value);
+    CLOG_INFO(
+        Database, "Connecting to: {}",
+        removePasswordFromConnectionString(app.getConfig().DATABASE.value));
     mSession.open(app.getConfig().DATABASE.value);
     DatabaseConfigureSessionOp op(mSession);
     doDatabaseTypeSpecificOperation(op);
@@ -263,12 +263,11 @@ Database::upgradeToCurrentSchema()
     while (vers < SCHEMA_VERSION)
     {
         ++vers;
-        CLOG(INFO, "Database")
-            << "Applying DB schema upgrade to version " << vers;
+        CLOG_INFO(Database, "Applying DB schema upgrade to version {}", vers);
         applySchemaUpgrade(vers);
         putSchemaVersion(vers);
     }
-    CLOG(INFO, "Database") << "DB schema is in current version";
+    CLOG_INFO(Database, "DB schema is in current version");
     assert(vers == SCHEMA_VERSION);
 }
 
@@ -277,8 +276,7 @@ Database::addTextColumn(std::string const& table, std::string const& column)
 {
     std::string addColumnStr("ALTER TABLE " + table + " ADD " + column +
                              " TEXT;");
-    CLOG(INFO, "Database") << "Adding column '" << column << "' to table '"
-                           << table << "'";
+    CLOG_INFO(Database, "Adding column '{}' to table '{}'", column, table);
     mSession << addColumnStr;
 }
 
@@ -296,8 +294,8 @@ Database::dropNullableColumn(std::string const& table,
     {
         std::string dropColumnStr("ALTER TABLE " + table + " DROP COLUMN " +
                                   column);
-        CLOG(INFO, "Database") << "Dropping column '" << column
-                               << "' from table '" << table << "'";
+        CLOG_INFO(Database, "Dropping column '{}' from table '{}'", column,
+                  table);
 
         mSession << dropColumnStr;
     }
@@ -305,8 +303,9 @@ Database::dropNullableColumn(std::string const& table,
     {
         std::string nullColumnStr("UPDATE " + table + " SET " + column +
                                   " = NULL");
-        CLOG(INFO, "Database") << "Setting all cells of column '" << column
-                               << "' in table '" << table << "' to NULL";
+        CLOG_INFO(Database,
+                  "Setting all cells of column '{}' in table '{}' to NULL",
+                  column, table);
 
         mSession << nullColumnStr;
     }
@@ -346,7 +345,7 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
 {
     std::string const tableStr = "accounts";
 
-    CLOG(INFO, "Database") << "Updating extension schema for " << tableStr;
+    CLOG_INFO(Database, "Updating extension schema for {}", tableStr);
 
     // <accountID, extension>
     struct Fields
@@ -387,9 +386,9 @@ Database::copyIndividualAccountExtensionFieldsToOpaqueXDR()
     size_t numUpdated = selectUpdateMap<Fields>(
         *this, selectStr, makeFields, updateStr, prepUpdate, postUpdate);
 
-    CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
-                           << " records(s) with liabilities in " << tableStr
-                           << " table";
+    CLOG_INFO(Database,
+              "{}: updated {} records(s) with liabilities in {} table",
+              __func__, numUpdated, tableStr);
 }
 
 void
@@ -397,8 +396,8 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
 {
     std::string const tableStr = "trustlines";
 
-    CLOG(INFO, "Database") << __func__ << ": updating extension schema for "
-                           << tableStr;
+    CLOG_INFO(Database, "{}: updating extension schema for {}", __func__,
+              tableStr);
 
     // <accountID, issuer_id, asset_id, extension>
     struct Fields
@@ -447,9 +446,9 @@ Database::copyIndividualTrustLineExtensionFieldsToOpaqueXDR()
     size_t numUpdated = selectUpdateMap<Fields>(
         *this, selectStr, makeFields, updateStr, prepUpdate, postUpdate);
 
-    CLOG(INFO, "Database") << __func__ << ": updated " << numUpdated
-                           << " records(s) with liabilities in " << tableStr
-                           << " table";
+    CLOG_INFO(Database,
+              "{}: updated {} records(s) with liabilities in {} table",
+              __func__, numUpdated, tableStr);
 }
 
 void
@@ -616,9 +615,9 @@ Database::initialize()
     putSchemaVersion(MIN_SCHEMA_VERSION);
     mApp.getHerderPersistence().createQuorumTrackingTable(mSession);
 
-    LOG(INFO) << "* ";
-    LOG(INFO) << "* The database has been initialized";
-    LOG(INFO) << "* ";
+    LOG_INFO(DEFAULT_LOG, "* ");
+    LOG_INFO(DEFAULT_LOG, "* The database has been initialized");
+    LOG_INFO(DEFAULT_LOG, "* ");
 }
 
 soci::session&
@@ -642,12 +641,12 @@ Database::getPool()
             throw std::runtime_error(s);
         }
         size_t n = std::thread::hardware_concurrency();
-        LOG(INFO) << "Establishing " << n << "-entry connection pool to: "
-                  << removePasswordFromConnectionString(c.value);
+        LOG_INFO(DEFAULT_LOG, "Establishing {}-entry connection pool to: {}", n,
+                 removePasswordFromConnectionString(c.value));
         mPool = std::make_unique<soci::connection_pool>(n);
         for (size_t i = 0; i < n; ++i)
         {
-            LOG(DEBUG) << "Opening pool entry " << i;
+            LOG_DEBUG(DEFAULT_LOG, "Opening pool entry {}", i);
             soci::session& sess = mPool->at(i);
             sess.open(c.value);
             DatabaseConfigureSessionOp op(sess);
@@ -676,21 +675,21 @@ class SQLLogContext : NonCopyable
         std::string captured = mCapture.str();
         std::istringstream rd(captured);
         std::string buf;
-        CLOG(INFO, "Database") << "";
-        CLOG(INFO, "Database") << "";
-        CLOG(INFO, "Database") << "[SQL] -----------------------";
-        CLOG(INFO, "Database") << "[SQL] begin capture: " << mName;
-        CLOG(INFO, "Database") << "[SQL] -----------------------";
+        CLOG_INFO(Database, "");
+        CLOG_INFO(Database, "");
+        CLOG_INFO(Database, "[SQL] -----------------------");
+        CLOG_INFO(Database, "[SQL] begin capture: {}", mName);
+        CLOG_INFO(Database, "[SQL] -----------------------");
         while (std::getline(rd, buf))
         {
-            CLOG(INFO, "Database") << "[SQL:" << mName << "] " << buf;
+            CLOG_INFO(Database, "[SQL:{}] {}", mName, buf);
             buf.clear();
         }
-        CLOG(INFO, "Database") << "[SQL] -----------------------";
-        CLOG(INFO, "Database") << "[SQL] end capture: " << mName;
-        CLOG(INFO, "Database") << "[SQL] -----------------------";
-        CLOG(INFO, "Database") << "";
-        CLOG(INFO, "Database") << "";
+        CLOG_INFO(Database, "[SQL] -----------------------");
+        CLOG_INFO(Database, "[SQL] end capture: {}", mName);
+        CLOG_INFO(Database, "[SQL] -----------------------");
+        CLOG_INFO(Database, "");
+        CLOG_INFO(Database, "");
     }
 };
 

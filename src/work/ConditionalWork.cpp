@@ -56,17 +56,16 @@ ConditionalWork::onRun()
             }
         };
 
-        CLOG(TRACE, "Work")
-            << fmt::format("Condition for {} is not satisfied: sleeping {} ms",
-                           getName(), mSleepDelay.count());
+        CLOG_TRACE(Work, "Condition for {} is not satisfied: sleeping {} ms",
+                   getName(), mSleepDelay.count());
         mSleepTimer->expires_from_now(mSleepDelay);
         mSleepTimer->async_wait(handler);
         return State::WORK_WAITING;
     }
     else
     {
-        CLOG(TRACE, "Work") << fmt::format(
-            "Condition for {} is satisfied: starting work", getName());
+        CLOG_TRACE(Work, "Condition for {} is satisfied: starting work",
+                   getName());
         mConditionedWork->startWork(wakeSelfUpCallback());
         mWorkStarted = true;
         mCondition = nullptr;

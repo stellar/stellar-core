@@ -159,10 +159,9 @@ closeLedger(Application& app)
     auto& lm = app.getLedgerManager();
     auto lcl = lm.getLastClosedLedgerHeader();
     uint32_t ledgerNum = lcl.header.ledgerSeq + 1;
-    CLOG(INFO, "Bucket")
-        << "Artificially closing ledger " << ledgerNum
-        << " with lcl=" << hexAbbrev(lcl.hash) << ", buckets="
-        << hexAbbrev(app.getBucketManager().getBucketList().getHash());
+    CLOG_INFO(Bucket, "Artificially closing ledger {} with lcl={}, buckets={}",
+              ledgerNum, hexAbbrev(lcl.hash),
+              hexAbbrev(app.getBucketManager().getBucketList().getHash()));
     auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
     StellarValue sv(txSet->getContentsHash(), lcl.header.scpValue.closeTime,
                     emptyUpgradeSteps, STELLAR_VALUE_BASIC);
@@ -511,8 +510,8 @@ TEST_CASE("bucketmanager reattach to running merge", "[bucket][bucketmanager]")
                 }
             }
         }
-        CLOG(INFO, "Bucket")
-            << "reattached to running merge at or around ledger " << ledger;
+        CLOG_INFO(Bucket, "reattached to running merge at or around ledger {}",
+                  ledger);
         REQUIRE(ledger < limit);
         auto ra = bm.readMergeCounters().mRunningMergeReattachments;
         REQUIRE(ra != 0);
@@ -576,11 +575,11 @@ TEST_CASE("bucketmanager do not leak empty-merge futures",
 
     for (auto const& bmr : bmRefBuckets)
     {
-        CLOG(DEBUG, "Bucket") << "bucketmanager ref: " << binToHex(bmr);
+        CLOG_DEBUG(Bucket, "bucketmanager ref: {}", binToHex(bmr));
     }
     for (auto const& bmd : bmDirBuckets)
     {
-        CLOG(DEBUG, "Bucket") << "bucketmanager dir: " << binToHex(bmd);
+        CLOG_DEBUG(Bucket, "bucketmanager dir: {}", binToHex(bmd));
     }
     REQUIRE(bmRefBuckets.size() == bmDirBuckets.size());
 }
@@ -615,8 +614,8 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
             // deadlock with one of the worker threads if you try to hold them
             // both at the same time.
             auto ra = bm.readMergeCounters().mFinishedMergeReattachments;
-            CLOG(INFO, "Bucket")
-                << "finished-merge reattachments while queueing: " << ra;
+            CLOG_INFO(Bucket, "finished-merge reattachments while queueing: {}",
+                      ra);
             bl.addBatch(*app, lm.getLastClosedLedgerNum() + 1, vers, {},
                         LedgerTestUtils::generateValidLedgerEntries(100), {});
             clock.crank(false);
@@ -642,8 +641,8 @@ TEST_CASE("bucketmanager reattach HAS from publish queue to finished merge",
             // Versions prior to FIRST_PROTOCOL_SHADOWS_REMOVED re-attach to
             // finished merges
             REQUIRE(ra > oldReattachments);
-            CLOG(INFO, "Bucket")
-                << "finished-merge reattachments after making-live: " << ra;
+            CLOG_INFO(Bucket,
+                      "finished-merge reattachments after making-live: {}", ra);
         }
         else
         {
@@ -724,71 +723,64 @@ class StopAndRestartBucketMergesTest
         void
         dumpMergeCounters(std::string const& label, uint32_t level) const
         {
-            CLOG(INFO, "Bucket") << "MergeCounters: " << label
-                                 << " (designated level: " << level << ")";
-            CLOG(INFO, "Bucket") << "PreInitEntryProtocolMerges: "
-                                 << mMergeCounters.mPreInitEntryProtocolMerges;
-            CLOG(INFO, "Bucket") << "PostInitEntryProtocolMerges: "
-                                 << mMergeCounters.mPostInitEntryProtocolMerges;
-            CLOG(INFO, "Bucket")
-                << "mPreShadowRemovalProtocolMerges: "
-                << mMergeCounters.mPreShadowRemovalProtocolMerges;
-            CLOG(INFO, "Bucket")
-                << "mPostShadowRemovalProtocolMerges: "
-                << mMergeCounters.mPostShadowRemovalProtocolMerges;
-            CLOG(INFO, "Bucket") << "RunningMergeReattachments: "
-                                 << mMergeCounters.mRunningMergeReattachments;
-            CLOG(INFO, "Bucket") << "FinishedMergeReattachments: "
-                                 << mMergeCounters.mFinishedMergeReattachments;
-            CLOG(INFO, "Bucket")
-                << "NewMetaEntries: " << mMergeCounters.mNewMetaEntries;
-            CLOG(INFO, "Bucket")
-                << "NewInitEntries: " << mMergeCounters.mNewInitEntries;
-            CLOG(INFO, "Bucket")
-                << "NewLiveEntries: " << mMergeCounters.mNewLiveEntries;
-            CLOG(INFO, "Bucket")
-                << "NewDeadEntries: " << mMergeCounters.mNewDeadEntries;
-            CLOG(INFO, "Bucket")
-                << "OldMetaEntries: " << mMergeCounters.mOldMetaEntries;
-            CLOG(INFO, "Bucket")
-                << "OldInitEntries: " << mMergeCounters.mOldInitEntries;
-            CLOG(INFO, "Bucket")
-                << "OldLiveEntries: " << mMergeCounters.mOldLiveEntries;
-            CLOG(INFO, "Bucket")
-                << "OldDeadEntries: " << mMergeCounters.mOldDeadEntries;
-            CLOG(INFO, "Bucket") << "OldEntriesDefaultAccepted: "
-                                 << mMergeCounters.mOldEntriesDefaultAccepted;
-            CLOG(INFO, "Bucket") << "NewEntriesDefaultAccepted: "
-                                 << mMergeCounters.mNewEntriesDefaultAccepted;
-            CLOG(INFO, "Bucket")
-                << "NewInitEntriesMergedWithOldDead: "
-                << mMergeCounters.mNewInitEntriesMergedWithOldDead;
-            CLOG(INFO, "Bucket")
-                << "OldInitEntriesMergedWithNewLive: "
-                << mMergeCounters.mOldInitEntriesMergedWithNewLive;
-            CLOG(INFO, "Bucket")
-                << "OldInitEntriesMergedWithNewDead: "
-                << mMergeCounters.mOldInitEntriesMergedWithNewDead;
-            CLOG(INFO, "Bucket")
-                << "NewEntriesMergedWithOldNeitherInit: "
-                << mMergeCounters.mNewEntriesMergedWithOldNeitherInit;
-            CLOG(INFO, "Bucket")
-                << "ShadowScanSteps: " << mMergeCounters.mShadowScanSteps;
-            CLOG(INFO, "Bucket") << "MetaEntryShadowElisions: "
-                                 << mMergeCounters.mMetaEntryShadowElisions;
-            CLOG(INFO, "Bucket") << "LiveEntryShadowElisions: "
-                                 << mMergeCounters.mLiveEntryShadowElisions;
-            CLOG(INFO, "Bucket") << "InitEntryShadowElisions: "
-                                 << mMergeCounters.mInitEntryShadowElisions;
-            CLOG(INFO, "Bucket") << "DeadEntryShadowElisions: "
-                                 << mMergeCounters.mDeadEntryShadowElisions;
-            CLOG(INFO, "Bucket")
-                << "OutputIteratorTombstoneElisions: "
-                << mMergeCounters.mOutputIteratorTombstoneElisions;
-            CLOG(INFO, "Bucket") << "OutputIteratorBufferUpdates: "
-                                 << mMergeCounters.mOutputIteratorBufferUpdates;
-            CLOG(INFO, "Bucket") << "OutputIteratorActualWrites: "
-                                 << mMergeCounters.mOutputIteratorActualWrites;
+            CLOG_INFO(Bucket, "MergeCounters: {} (designated level: {})", label,
+                      level);
+            CLOG_INFO(Bucket, "PreInitEntryProtocolMerges: {}",
+                      mMergeCounters.mPreInitEntryProtocolMerges);
+            CLOG_INFO(Bucket, "PostInitEntryProtocolMerges: {}",
+                      mMergeCounters.mPostInitEntryProtocolMerges);
+            CLOG_INFO(Bucket, "mPreShadowRemovalProtocolMerges: {}",
+                      mMergeCounters.mPreShadowRemovalProtocolMerges);
+            CLOG_INFO(Bucket, "mPostShadowRemovalProtocolMerges: {}",
+                      mMergeCounters.mPostShadowRemovalProtocolMerges);
+            CLOG_INFO(Bucket, "RunningMergeReattachments: {}",
+                      mMergeCounters.mRunningMergeReattachments);
+            CLOG_INFO(Bucket, "FinishedMergeReattachments: {}",
+                      mMergeCounters.mFinishedMergeReattachments);
+            CLOG_INFO(Bucket, "NewMetaEntries: {}",
+                      mMergeCounters.mNewMetaEntries);
+            CLOG_INFO(Bucket, "NewInitEntries: {}",
+                      mMergeCounters.mNewInitEntries);
+            CLOG_INFO(Bucket, "NewLiveEntries: {}",
+                      mMergeCounters.mNewLiveEntries);
+            CLOG_INFO(Bucket, "NewDeadEntries: {}",
+                      mMergeCounters.mNewDeadEntries);
+            CLOG_INFO(Bucket, "OldMetaEntries: {}",
+                      mMergeCounters.mOldMetaEntries);
+            CLOG_INFO(Bucket, "OldInitEntries: {}",
+                      mMergeCounters.mOldInitEntries);
+            CLOG_INFO(Bucket, "OldLiveEntries: {}",
+                      mMergeCounters.mOldLiveEntries);
+            CLOG_INFO(Bucket, "OldDeadEntries: {}",
+                      mMergeCounters.mOldDeadEntries);
+            CLOG_INFO(Bucket, "OldEntriesDefaultAccepted: {}",
+                      mMergeCounters.mOldEntriesDefaultAccepted);
+            CLOG_INFO(Bucket, "NewEntriesDefaultAccepted: {}",
+                      mMergeCounters.mNewEntriesDefaultAccepted);
+            CLOG_INFO(Bucket, "NewInitEntriesMergedWithOldDead: {}",
+                      mMergeCounters.mNewInitEntriesMergedWithOldDead);
+            CLOG_INFO(Bucket, "OldInitEntriesMergedWithNewLive: {}",
+                      mMergeCounters.mOldInitEntriesMergedWithNewLive);
+            CLOG_INFO(Bucket, "OldInitEntriesMergedWithNewDead: {}",
+                      mMergeCounters.mOldInitEntriesMergedWithNewDead);
+            CLOG_INFO(Bucket, "NewEntriesMergedWithOldNeitherInit: {}",
+                      mMergeCounters.mNewEntriesMergedWithOldNeitherInit);
+            CLOG_INFO(Bucket, "ShadowScanSteps: {}",
+                      mMergeCounters.mShadowScanSteps);
+            CLOG_INFO(Bucket, "MetaEntryShadowElisions: {}",
+                      mMergeCounters.mMetaEntryShadowElisions);
+            CLOG_INFO(Bucket, "LiveEntryShadowElisions: {}",
+                      mMergeCounters.mLiveEntryShadowElisions);
+            CLOG_INFO(Bucket, "InitEntryShadowElisions: {}",
+                      mMergeCounters.mInitEntryShadowElisions);
+            CLOG_INFO(Bucket, "DeadEntryShadowElisions: {}",
+                      mMergeCounters.mDeadEntryShadowElisions);
+            CLOG_INFO(Bucket, "OutputIteratorTombstoneElisions: {}",
+                      mMergeCounters.mOutputIteratorTombstoneElisions);
+            CLOG_INFO(Bucket, "OutputIteratorBufferUpdates: {}",
+                      mMergeCounters.mOutputIteratorBufferUpdates);
+            CLOG_INFO(Bucket, "OutputIteratorActualWrites: {}",
+                      mMergeCounters.mOutputIteratorActualWrites);
         }
 
         void
@@ -1010,8 +1002,8 @@ class StopAndRestartBucketMergesTest
     collectFinalLedgerEntries(Application& app)
     {
         collectLedgerEntries(app, mFinalEntries);
-        CLOG(INFO, "Bucket") << "Collected final ledger state with " << std::dec
-                             << mFinalEntries.size() << " entries.";
+        CLOG_INFO(Bucket, "Collected final ledger state with {} entries.",
+                  mFinalEntries.size());
     }
 
     void
@@ -1019,8 +1011,8 @@ class StopAndRestartBucketMergesTest
     {
         std::map<LedgerKey, LedgerEntry> testEntries;
         collectLedgerEntries(app, testEntries);
-        CLOG(INFO, "Bucket") << "Collected test ledger state with " << std::dec
-                             << testEntries.size() << " entries.";
+        CLOG_INFO(Bucket, "Collected test ledger state with {} entries.",
+                  testEntries.size());
         CHECK(testEntries.size() == mFinalEntries.size());
         for (auto const& pair : testEntries)
         {
@@ -1065,13 +1057,11 @@ class StopAndRestartBucketMergesTest
                 }
             }
         }
-        CLOG(INFO, "Bucket")
-            << "Collected " << mDesignatedLedgers.size()
-            << " designated ledgers for level " << mDesignatedLevel;
+        CLOG_INFO(Bucket, "Collected {} designated ledgers for level {}",
+                  mDesignatedLedgers.size(), mDesignatedLevel);
         for (auto d : mDesignatedLedgers)
         {
-            CLOG(INFO, "Bucket") << "Designated ledger: " << std::dec << d
-                                 << " = 0x" << std::hex << d;
+            CLOG_INFO(Bucket, "Designated ledger: {} = {:#x}", d, d);
         }
     }
 
@@ -1106,9 +1096,9 @@ class StopAndRestartBucketMergesTest
         cfg.LEDGER_PROTOCOL_VERSION = mProtocol;
         assert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
-        CLOG(INFO, "Bucket")
-            << "Collecting control surveys in ledger range 2.." << std::dec
-            << finalLedger << " = 0x" << std::hex << finalLedger;
+        CLOG_INFO(Bucket,
+                  "Collecting control surveys in ledger range 2..{} = {:#x}",
+                  finalLedger, finalLedger);
         auto app =
             createTestApplication<BucketManagerTestApplication>(clock, cfg);
         app->start();
@@ -1199,8 +1189,7 @@ class StopAndRestartBucketMergesTest
             assert(i == lm.getLastClosedLedgerHeader().header.ledgerSeq);
             if (shouldSurveyLedger(i))
             {
-                CLOG(INFO, "Bucket") << "Taking survey at " << std::dec << i
-                                     << " = 0x" << std::hex << i;
+                CLOG_INFO(Bucket, "Taking survey at {} = {:#x}", i, i);
                 mControlSurveys.insert(
                     std::make_pair(i, Survey(*app, mDesignatedLevel)));
             }
@@ -1232,9 +1221,10 @@ class StopAndRestartBucketMergesTest
         auto app =
             createTestApplication<BucketManagerTestApplication>(*clock, cfg);
         app->start();
-        CLOG(INFO, "Bucket")
-            << "Running stop/restart test in ledger range 2.." << std::dec
-            << finalLedger << " = 0x" << std::hex << finalLedger;
+        uint32_t finalLedger2 = finalLedger;
+        CLOG_INFO(Bucket,
+                  "Running stop/restart test in ledger range 2..{} = {:#x}",
+                  finalLedger, finalLedger2);
         for (uint32_t i = 2;
              !app->getClock().getIOContext().stopped() && i < finalLedger; ++i)
         {
@@ -1271,24 +1261,23 @@ class StopAndRestartBucketMergesTest
                 }
 
                 // Stop the application.
-                CLOG(INFO, "Bucket")
-                    << "Stopping application after closing ledger " << std::dec
-                    << i;
+                CLOG_INFO(Bucket,
+                          "Stopping application after closing ledger {}", i);
                 app.reset();
 
                 if (firstProtocol != secondProtocol &&
                     i == protocolSwitchLedger)
                 {
-                    CLOG(INFO, "Bucket")
-                        << "Switching protocol at ledger " << std::dec << i
-                        << " from protocol " << firstProtocol << " to protocol "
-                        << secondProtocol;
+                    CLOG_INFO(
+                        Bucket,
+                        "Switching protocol at ledger {} from protocol {} "
+                        "to protocol {}",
+                        i, firstProtocol, secondProtocol);
                     cfg.LEDGER_PROTOCOL_VERSION = secondProtocol;
                 }
 
                 // Restart the application.
-                CLOG(INFO, "Bucket")
-                    << "Restarting application at ledger " << std::dec << i;
+                CLOG_INFO(Bucket, "Restarting application at ledger {}", i);
                 clock = std::make_unique<VirtualClock>();
                 app = createTestApplication<BucketManagerTestApplication>(
                     *clock, cfg, false);
@@ -1427,7 +1416,7 @@ TEST_CASE("bucket persistence over app restart",
             uint32_t i = 2;
             while (i < pause)
             {
-                CLOG(INFO, "Bucket") << "Adding setup phase 1 batch " << i;
+                CLOG_INFO(Bucket, "Adding setup phase 1 batch {}", i);
                 bl.addBatch(*app, i, getAppLedgerVersion(app), {}, batches[i],
                             emptySet);
                 i++;
@@ -1440,7 +1429,7 @@ TEST_CASE("bucket persistence over app restart",
 
             while (i < 100)
             {
-                CLOG(INFO, "Bucket") << "Adding setup phase 2 batch " << i;
+                CLOG_INFO(Bucket, "Adding setup phase 2 batch {}", i);
                 bl.addBatch(*app, i, getAppLedgerVersion(app), {}, batches[i],
                             emptySet);
                 i++;
@@ -1463,7 +1452,7 @@ TEST_CASE("bucket persistence over app restart",
             uint32_t i = 2;
             while (i < pause)
             {
-                CLOG(INFO, "Bucket") << "Adding prefix-batch " << i;
+                CLOG_INFO(Bucket, "Adding prefix-batch {}", i);
                 bl.addBatch(*app, i, getAppLedgerVersion(app), {}, batches[i],
                             emptySet);
                 i++;
@@ -1501,7 +1490,7 @@ TEST_CASE("bucket persistence over app restart",
 
             while (i < 100)
             {
-                CLOG(INFO, "Bucket") << "Adding suffix-batch " << i;
+                CLOG_INFO(Bucket, "Adding suffix-batch {}", i);
                 bl.addBatch(*app, i, getAppLedgerVersion(app), {}, batches[i],
                             emptySet);
                 i++;

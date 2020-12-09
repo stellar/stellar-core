@@ -135,8 +135,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
             log = false;
         }
     }
-    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told "
-                           << peersTold.size();
+    CLOG_TRACE(Overlay, "broadcast {} told {}", hexAbbrev(index),
+               peersTold.size());
 }
 
 std::set<Peer::pointer>

@@ -169,7 +169,7 @@ InvariantManagerImpl::enableInvariant(std::string const& invPattern)
             {
                 enabledSome = true;
                 mEnabled.push_back(inv.second);
-                CLOG(INFO, "Invariant") << "Enabled invariant '" << name << "'";
+                CLOG_INFO(Invariant, "Enabled invariant '{}'", name);
             }
             else
             {
@@ -220,14 +220,14 @@ InvariantManagerImpl::handleInvariantFailure(
 #endif
     if (invariant->isStrict())
     {
-        CLOG(FATAL, "Invariant") << message;
-        CLOG(FATAL, "Invariant") << REPORT_INTERNAL_BUG;
+        CLOG_FATAL(Invariant, "{}", message);
+        CLOG_FATAL(Invariant, "{}", REPORT_INTERNAL_BUG);
         throw InvariantDoesNotHold{message};
     }
     else
     {
-        CLOG(ERROR, "Invariant") << message;
-        CLOG(ERROR, "Invariant") << REPORT_INTERNAL_BUG;
+        CLOG_ERROR(Invariant, "{}", message);
+        CLOG_ERROR(Invariant, "{}", REPORT_INTERNAL_BUG);
     }
 }
 }

@@ -47,8 +47,8 @@ BucketOutputIterator::BucketOutputIterator(std::string const& tmpDir,
     , mMergeCounters(mc)
 {
     ZoneScoped;
-    CLOG(TRACE, "Bucket") << "BucketOutputIterator opening file to write: "
-                          << mFilename;
+    CLOG_TRACE(Bucket, "BucketOutputIterator opening file to write: {}",
+               mFilename);
     // Will throw if unable to open the file
     mOut.open(mFilename);
 
@@ -126,7 +126,7 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
     {
         assert(mObjectsPut == 0);
         assert(mBytesPut == 0);
-        CLOG(DEBUG, "Bucket") << "Deleting empty bucket file " << mFilename;
+        CLOG_DEBUG(Bucket, "Deleting empty bucket file {}", mFilename);
         std::remove(mFilename.c_str());
         if (mergeKey)
         {

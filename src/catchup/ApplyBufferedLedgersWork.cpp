@@ -51,22 +51,20 @@ ApplyBufferedLedgersWork::onRun()
     if (lcd.getLedgerSeq() != expectedLedger)
     {
         cm.logAndUpdateCatchupStatus(false);
-        CLOG(WARNING, "History")
-            << "Expected buffered ledger=" << expectedLedger
-            << ", actual=" << lcd.getLedgerSeq();
+        CLOG_WARNING(History, "Expected buffered ledger={}, actual={}",
+                     expectedLedger, lcd.getLedgerSeq());
         return State::WORK_FAILURE;
     }
 
     cm.popBufferedLedger();
 
-    CLOG(INFO, "History") << "Scheduling buffered ledger-close: "
-                          << "[seq=" << lcd.getLedgerSeq() << ", prev="
-                          << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-                          << ", txs=" << lcd.getTxSet()->sizeTx()
-                          << ", ops=" << lcd.getTxSet()->sizeOp() << ", sv: "
-                          << stellarValueToString(mApp.getConfig(),
-                                                  lcd.getValue())
-                          << "]";
+    CLOG_INFO(History,
+              "Scheduling buffered ledger-close: [seq={}, prev={}, txs={}, "
+              "ops={}, sv: {}]",
+              lcd.getLedgerSeq(),
+              hexAbbrev(lcd.getTxSet()->previousLedgerHash()),
+              lcd.getTxSet()->sizeTx(), lcd.getTxSet()->sizeOp(),
+              stellarValueToString(mApp.getConfig(), lcd.getValue()));
 
     auto applyLedger = std::make_shared<ApplyLedgerWork>(mApp, lcd);
 

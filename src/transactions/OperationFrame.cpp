@@ -119,7 +119,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
     bool res;
     if (Logging::logTrace("Tx"))
     {
-        CLOG(TRACE, "Tx") << "Operation: " << xdr_to_string(mOperation);
+        CLOG_TRACE(Tx, "Operation: {}", xdr_to_string(mOperation));
     }
     res = checkValid(signatureChecker, ltx, true);
     if (res)
@@ -127,7 +127,7 @@ OperationFrame::apply(SignatureChecker& signatureChecker,
         res = doApply(ltx);
         if (Logging::logTrace("Tx"))
         {
-            CLOG(TRACE, "Tx") << "Operation result: " << xdr_to_string(mResult);
+            CLOG_TRACE(Tx, "Operation result: {}", xdr_to_string(mResult));
         }
     }
 

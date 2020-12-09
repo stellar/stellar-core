@@ -78,7 +78,8 @@ PeerBareAddress::resolve(std::string const& ipPort, Application& app,
     asio::ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
     if (ec)
     {
-        LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << ec.message();
+        LOG_DEBUG(DEFAULT_LOG, "Could not resolve '{}' : {}", ipPort,
+                  ec.message());
         throw std::runtime_error(
             fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
     }

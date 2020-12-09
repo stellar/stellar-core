@@ -33,10 +33,11 @@ Maintainer::start()
             c.getExpectedLedgerCloseTime().count(), Rounding::ROUND_UP);
         if (c.AUTOMATIC_MAINTENANCE_COUNT <= ledgersPerMaintenancePeriod)
         {
-            LOG(WARNING) << fmt::format(
-                "Maintenance may not be able to keep up: "
-                "AUTOMATIC_MAINTENANCE_COUNT={} <= {}",
-                c.AUTOMATIC_MAINTENANCE_COUNT, ledgersPerMaintenancePeriod);
+            LOG_WARNING(DEFAULT_LOG, "{}",
+                        fmt::format("Maintenance may not be able to keep up: "
+                                    "AUTOMATIC_MAINTENANCE_COUNT={} <= {}",
+                                    c.AUTOMATIC_MAINTENANCE_COUNT,
+                                    ledgersPerMaintenancePeriod));
         }
         scheduleMaintenance();
     }
@@ -61,7 +62,7 @@ void
 Maintainer::performMaintenance(uint32_t count)
 {
     ZoneScoped;
-    LOG(INFO) << "Performing maintenance";
+    LOG_INFO(DEFAULT_LOG, "Performing maintenance");
     ExternalQueue ps{mApp};
     ps.deleteOldEntries(count);
 }

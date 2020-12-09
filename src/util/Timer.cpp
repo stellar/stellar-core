@@ -198,7 +198,6 @@ VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
         return;
     }
     assertThreadIsMain();
-    // LOG(DEBUG) << "VirtualClock::enqueue";
     mEvents.emplace(ve);
     maybeSetRealtimer();
 }
@@ -222,7 +221,6 @@ VirtualClock::flushCancelledEvents()
         return;
     }
     assertThreadIsMain();
-    // LOG(DEBUG) << "VirtualClock::cancelAllEventsFrom";
 
     auto toKeep = vector<shared_ptr<VirtualClockEvent>>();
     toKeep.reserve(mEvents.size());
@@ -447,8 +445,6 @@ VirtualClock::advanceToNow()
     }
     assertThreadIsMain();
 
-    // LOG(DEBUG) << "VirtualClock::advanceTo("
-    //            << n.time_since_epoch().count() << ")";
     auto n = now();
     vector<shared_ptr<VirtualClockEvent>> toDispatch;
     while (!mEvents.empty())
@@ -465,7 +461,6 @@ VirtualClock::advanceToNow()
     {
         ev->trigger();
     }
-    // LOG(DEBUG) << "VirtualClock::advanceTo done";
     maybeSetRealtimer();
     return toDispatch.size();
 }

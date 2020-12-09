@@ -82,7 +82,7 @@ Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
-        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemHash);
+        CLOG_TRACE(Overlay, "Does not have {}", hexAbbrev(mItemHash));
         tryNextPeer();
     }
 }
@@ -93,10 +93,8 @@ Tracker::tryNextPeer()
     ZoneScoped;
     // will be called by some timer or when we get a
     // response saying they don't have it
-    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
-                           << " last: "
-                           << (mLastAskedPeer ? mLastAskedPeer->toString()
-                                              : "<none>");
+    CLOG_TRACE(Overlay, "tryNextPeer {} last: {}", hexAbbrev(mItemHash),
+               (mLastAskedPeer ? mLastAskedPeer->toString() : "<none>"));
 
     if (mLastAskedPeer)
     {
@@ -192,8 +190,8 @@ Tracker::tryNextPeer()
         mNumListRebuild++;
         mPeersAsked.clear();
 
-        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
-                               << " restarting fetch #" << mNumListRebuild;
+        CLOG_TRACE(Overlay, "tryNextPeer {} restarting fetch #{}",
+                   hexAbbrev(mItemHash), mNumListRebuild);
 
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY *
                   std::min(MAX_REBUILD_FETCH_LIST, mNumListRebuild);
@@ -201,8 +199,8 @@ Tracker::tryNextPeer()
     else
     {
         mPeersAsked[mLastAskedPeer] = peerWithEnvelopeSelected;
-        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash)
-                               << " to " << mLastAskedPeer->toString();
+        CLOG_TRACE(Overlay, "Asking for {} to {}", hexAbbrev(mItemHash),
+                   mLastAskedPeer->toString());
         mAskPeer(mLastAskedPeer, mItemHash);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }

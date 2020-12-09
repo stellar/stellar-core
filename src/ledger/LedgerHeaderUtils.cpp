@@ -192,8 +192,7 @@ copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
         LedgerHeaderHistoryEntry lhe;
         lhe.header = decodeFromData(headerEncoded);
         lhe.hash = xdrSha256(lhe.header);
-        CLOG(DEBUG, "Ledger")
-            << "Streaming ledger-header " << lhe.header.ledgerSeq;
+        CLOG_DEBUG(Ledger, "Streaming ledger-header {}", lhe.header.ledgerSeq);
         headersOut.writeOne(lhe);
         ++n;
         st.fetch();

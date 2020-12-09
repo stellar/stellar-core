@@ -50,9 +50,8 @@ LogSlowExecution::checkElapsedTime() const
         {
             if (gDroppedLogMessagesSinceLast > 0)
             {
-                CLOG(WARNING, "Perf")
-                    << "Dropped " << gDroppedLogMessagesSinceLast
-                    << " slow-execution warning messages";
+                CLOG_WARNING(Perf, "Dropped {} slow-execution warning messages",
+                             gDroppedLogMessagesSinceLast);
                 gDroppedLogMessagesSinceLast = 0;
             }
             auto msg = fmt::format("'{}' {} {} s", mName, mMessage,
@@ -61,11 +60,11 @@ LogSlowExecution::checkElapsedTime() const
             // use DEBUG
             if (elapsed > mThreshold * 10)
             {
-                CLOG(WARNING, "Perf") << msg;
+                CLOG_WARNING(Perf, "{}", msg);
             }
             else
             {
-                CLOG(DEBUG, "Perf") << msg;
+                CLOG_DEBUG(Perf, "{}", msg);
             }
             gLastLogMessage = finish;
         }

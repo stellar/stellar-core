@@ -867,8 +867,8 @@ TEST_CASE("drop peers who straggle", "[overlay][connections][straggler]")
             });
             clock.crank(false);
         }
-        LOG(INFO) << "loop complete, clock.now() = "
-                  << clock.now().time_since_epoch().count();
+        LOG_INFO(DEFAULT_LOG, "loop complete, clock.now() = {}",
+                 clock.now().time_since_epoch().count());
         REQUIRE(clock.now() < (start + waitTime + padTime));
         REQUIRE(!conn.getInitiator()->isConnected());
         REQUIRE(!conn.getAcceptor()->isConnected());

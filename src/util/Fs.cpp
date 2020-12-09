@@ -166,7 +166,8 @@ mkdir(std::string const& name)
 {
     ZoneScoped;
     bool b = _mkdir(name.c_str()) == 0;
-    CLOG(DEBUG, "Fs") << (b ? "created dir " : "failed to create dir ") << name;
+    CLOG_DEBUG(Fs, "{}{}", (b ? "created dir " : "failed to create dir "),
+               name);
     return b;
 }
 
@@ -365,7 +366,8 @@ mkdir(std::string const& name)
 {
     ZoneScoped;
     bool b = ::mkdir(name.c_str(), 0700) == 0;
-    CLOG(DEBUG, "Fs") << (b ? "created dir " : "failed to create dir ") << name;
+    CLOG_DEBUG(Fs, "{}{}", (b ? "created dir " : "failed to create dir "),
+               name);
     return b;
 }
 
@@ -377,7 +379,7 @@ nftw_deltree_callback(char const* name, struct stat const* st, int flag,
                       struct FTW* ftw)
 {
     ZoneScoped;
-    CLOG(DEBUG, "Fs") << "deleting: " << name;
+    CLOG_DEBUG(Fs, "deleting: {}", name);
     if (flag == FTW_DP)
     {
         if (rmdir(name) != 0)

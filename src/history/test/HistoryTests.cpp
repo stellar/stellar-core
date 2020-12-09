@@ -239,43 +239,43 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
     };
 
     LedgerHeaderHistoryEntry lcl, last;
-    LOG(DEBUG) << "fully valid";
+    LOG_DEBUG(DEFAULT_LOG, "fully valid");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         checkExpectedBehavior(BasicWork::State::WORK_SUCCESS, lcl, last);
     }
-    LOG(DEBUG) << "invalid link due to bad hash";
+    LOG_DEBUG(DEFAULT_LOG, "invalid link due to bad hash");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_HASH);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "invalid ledger version";
+    LOG_DEBUG(DEFAULT_LOG, "invalid ledger version");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "overshot";
+    LOG_DEBUG(DEFAULT_LOG, "overshot");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_OVERSHOT);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "undershot";
+    LOG_DEBUG(DEFAULT_LOG, "undershot");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "missing entries";
+    LOG_DEBUG(DEFAULT_LOG, "missing entries");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES);
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "chain does not agree with LCL";
+    LOG_DEBUG(DEFAULT_LOG, "chain does not agree with LCL");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -283,7 +283,8 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
 
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "chain does not agree with LCL on checkpoint boundary";
+    LOG_DEBUG(DEFAULT_LOG,
+              "chain does not agree with LCL on checkpoint boundary");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -292,7 +293,7 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         lcl.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "chain does not agree with LCL outside of range";
+    LOG_DEBUG(DEFAULT_LOG, "chain does not agree with LCL outside of range");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -300,14 +301,14 @@ TEST_CASE("Ledger chain verification", "[ledgerheaderverification]")
         lcl.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "chain does not agree with trusted hash";
+    LOG_DEBUG(DEFAULT_LOG, "chain does not agree with trusted hash");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
         last.hash = HashUtils::random();
         checkExpectedBehavior(BasicWork::State::WORK_FAILURE, lcl, last);
     }
-    LOG(DEBUG) << "missing file";
+    LOG_DEBUG(DEFAULT_LOG, "missing file");
     {
         std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
             HistoryManager::VERIFY_STATUS_OK);
@@ -883,11 +884,10 @@ TEST_CASE("Catchup non-initentry buckets to initentry-supporting works",
                 auto v = xdr::xdr_to_opaque(ledgerUpgrade);
                 upgrades.push_back(UpgradeType{v.begin(), v.end()});
             }
-            CLOG(DEBUG, "History")
-                << "Closing synthetic ledger " << ledgerSeq << " with "
-                << txSet->size(lm.getLastClosedLedgerHeader().header)
-                << " txs (txhash:" << hexAbbrev(txSet->getContentsHash())
-                << ")";
+            CLOG_DEBUG(
+                History, "Closing synthetic ledger {} with {} txs (txhash:{})",
+                ledgerSeq, txSet->size(lm.getLastClosedLedgerHeader().header),
+                hexAbbrev(txSet->getContentsHash()));
             StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
                             STELLAR_VALUE_BASIC);
             lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
@@ -1090,7 +1090,7 @@ TEST_CASE("persist publish queue", "[history][publish][acceptance]")
         // We should have either an empty publish queue or a
         // ledger sometime after the 5th checkpoint
         auto minLedger = hm1.getMinLedgerQueuedToPublish();
-        LOG(INFO) << "minLedger " << minLedger;
+        LOG_INFO(DEFAULT_LOG, "minLedger {}", minLedger);
         bool okQueue = minLedger == 0 || minLedger >= 35;
         REQUIRE(okQueue);
     }
@@ -1120,7 +1120,7 @@ TEST_CASE("catchup with a gap", "[history][catchup][acceptance]")
 
     // Now start a catchup on that catchups as far as it can due to gap. Make
     // sure gap is past the checkpoint to ensure we buffer the ledger
-    LOG(INFO) << "Starting catchup (with gap) from " << init;
+    LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 5, init + 59));
 
     // 73+59=132 is the missing ledger, so the previous ledger was the last one
@@ -1204,7 +1204,7 @@ TEST_CASE("Catchup manual", "[history][catchup][acceptance]")
         auto name =
             fmt::format("lcl = {}, to ledger = {}, count = {}", test.first,
                         configuration.toLedger(), configuration.count());
-        LOG(INFO) << "Catchup configuration: " << name;
+        LOG_INFO(DEFAULT_LOG, "Catchup configuration: {}", name);
         // manual catchup-recent
         auto app = catchupSimulation.createCatchupApplication(
             configuration.count(), dbMode, name);
@@ -1256,7 +1256,7 @@ TEST_CASE("Catchup failure recovery with buffered checkpoint",
     catchupSimulation.ensureOnlineCatchupPossible(checkpointLedger, 63);
 
     // Now start a catchup on that catchups as far as it can due to gap
-    LOG(INFO) << "Starting catchup (with gap) from " << init;
+    LOG_INFO(DEFAULT_LOG, "Starting catchup (with gap) from {}", init);
     REQUIRE(!catchupSimulation.catchupOnline(app, init, 115, init + 60));
     REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() == 132);
 

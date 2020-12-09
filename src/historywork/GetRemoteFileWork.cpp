@@ -59,9 +59,9 @@ void
 GetRemoteFileWork::onFailureRaise()
 {
     assert(mCurrentArchive);
-    CLOG(ERROR, "History") << fmt::format(
-        "Could not download file: archive {} maybe missing file {}",
-        mCurrentArchive->getName(), mRemote);
+    CLOG_ERROR(History,
+               "Could not download file: archive {} maybe missing file {}",
+               mCurrentArchive->getName(), mRemote);
     mCurrentArchive->markFailure();
     RunCommandWork::onFailureRaise();
 }

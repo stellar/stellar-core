@@ -261,8 +261,8 @@ runTest(CommandLineArgs const& args)
     Logging::setLoggingToFile(logFile);
     Logging::setLogLevel(logLevel, nullptr);
 
-    LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
-    LOG(INFO) << "Logging to " << logFile;
+    LOG_INFO(DEFAULT_LOG, "Testing stellar-core {}", STELLAR_CORE_VERSION);
+    LOG_INFO(DEFAULT_LOG, "Logging to {}", logFile);
 
     if (gVersionsToTest.empty())
     {
@@ -281,7 +281,7 @@ runTest(CommandLineArgs const& args)
     gTestCfg->clear();
     if (r != 0)
     {
-        LOG(ERROR) << "Nonzero test result with --rng-seed " << seed;
+        LOG_ERROR(DEFAULT_LOG, "Nonzero test result with --rng-seed {}", seed);
     }
     return r;
 }

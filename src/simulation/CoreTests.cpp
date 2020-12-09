@@ -43,11 +43,11 @@ printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
     auto t = std::chrono::duration_cast<std::chrono::seconds>(
         std::chrono::system_clock::now() - tBegin);
 
-    LOG(INFO) << "Time spent closing " << nLedgers << " ledgers with "
-              << sim->getNodes().size() << " nodes : " << t.count()
-              << " seconds";
+    LOG_INFO(DEFAULT_LOG,
+             "Time spent closing {} ledgers with {} nodes : {} seconds",
+             nLedgers, sim->getNodes().size(), t.count());
 
-    LOG(INFO) << sim->metricsSummary("scp");
+    LOG_INFO(DEFAULT_LOG, "{}", sim->metricsSummary("scp"));
 }
 
 TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3][acceptance]")
@@ -87,7 +87,8 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3][acceptance]")
         simulation->addPendingConnection(keys[0].getPublicKey(),
                                          keys[1].getPublicKey());
 
-        LOG(INFO) << "#######################################################";
+        LOG_INFO(DEFAULT_LOG,
+                 "#######################################################");
 
         simulation->startAllNodes();
 
@@ -100,7 +101,7 @@ TEST_CASE("3 nodes 2 running threshold 2", "[simulation][core3][acceptance]")
 
         REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 5));
     }
-    LOG(DEBUG) << "done with core3 test";
+    LOG_DEBUG(DEFAULT_LOG, "done with core3 test");
 }
 
 TEST_CASE("assymetric topology report cost", "[simulation][!hide]")
@@ -125,12 +126,12 @@ TEST_CASE("assymetric topology report cost", "[simulation][!hide]")
 
     auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
 
-    LOG(WARNING) << "Cost information for recent ledgers:";
+    LOG_WARNING(DEFAULT_LOG, "Cost information for recent ledgers:");
     for (auto count = lcl; count > lcl - 5; count--)
     {
         auto qinfo = app->getHerder().getJsonQuorumInfo(
             checkNode.getPublicKey(), false, false, count);
-        LOG(WARNING) << qinfo["qset"]["cost"].toStyledString();
+        LOG_WARNING(DEFAULT_LOG, "{}", qinfo["qset"]["cost"].toStyledString());
     }
 }
 
@@ -284,7 +285,7 @@ static void
 hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
                      Hash const& networkID)
 {
-    LOG(DEBUG) << "starting topo test " << nLedgers << " : " << nBranches;
+    LOG_DEBUG(DEFAULT_LOG, "starting topo test {} : {}", nLedgers, nBranches);
 
     Simulation::pointer sim =
         Topologies::hierarchicalQuorum(nBranches, mode, networkID);
@@ -312,13 +313,13 @@ TEST_CASE("hierarchical topology scales 1 to 3", "[simulation][acceptance]")
     };
     SECTION("Over loopback")
     {
-        LOG(DEBUG) << "OVER_LOOPBACK";
+        LOG_DEBUG(DEFAULT_LOG, "OVER_LOOPBACK");
         mode = Simulation::OVER_LOOPBACK;
         test();
     }
     SECTION("Over tcp")
     {
-        LOG(DEBUG) << "OVER_TCP";
+        LOG_DEBUG(DEFAULT_LOG, "OVER_TCP");
         mode = Simulation::OVER_TCP;
         test();
     }
@@ -328,7 +329,8 @@ static void
 hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
                            Simulation::Mode mode, Hash const& networkID)
 {
-    LOG(DEBUG) << "starting simplified test " << nLedgers << " : " << nbCore;
+    LOG_DEBUG(DEFAULT_LOG, "starting simplified test {} : {}", nLedgers,
+              nbCore);
 
     Simulation::pointer sim = Topologies::hierarchicalQuorumSimplified(
         nbCore, nbOuterNodes, mode, networkID);
@@ -419,7 +421,7 @@ TEST_CASE(
         REQUIRE(problems.empty());
     }
 
-    LOG(INFO) << simulation->metricsSummary("database");
+    LOG_INFO(DEFAULT_LOG, "{}", simulation->metricsSummary("database"));
 }
 
 Application::pointer
@@ -474,13 +476,13 @@ class ScaleReporter
     {
         mOut.exceptions(std::ios::failbit | std::ios::badbit);
         mOut.open(mFilename);
-        LOG(INFO) << "Opened " << mFilename << " for writing";
+        LOG_INFO(DEFAULT_LOG, "Opened {} for writing", mFilename);
         mOut << join(columns, ",") << std::endl;
     }
 
     ~ScaleReporter()
     {
-        LOG(INFO) << "Wrote " << mNumWritten << " rows to " << mFilename;
+        LOG_INFO(DEFAULT_LOG, "Wrote {} rows to {}", mNumWritten, mFilename);
     }
 
     void
@@ -498,7 +500,7 @@ class ScaleReporter
             oss << mColumns.at(i) << "=" << std::fixed << vals.at(i);
             mOut << std::fixed << vals.at(i);
         }
-        LOG(INFO) << std::fixed << "Writing " << oss.str();
+        LOG_INFO(DEFAULT_LOG, "Writing {}", oss.str());
         mOut << std::endl;
         ++mNumWritten;
     }

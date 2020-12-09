@@ -70,8 +70,8 @@ void
 Peer::sendHello()
 {
     ZoneScoped;
-    CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString() << " @"
-                           << mApp.getConfig().PEER_PORT;
+    CLOG_DEBUG(Overlay, "Peer::sendHello to {} @{}", toString(),
+               mApp.getConfig().PEER_PORT);
     StellarMessage msg;
     msg.type(HELLO);
     Hello& elo = msg.hello();
@@ -209,8 +209,8 @@ Peer::connectHandler(asio::error_code const& error)
     }
     else
     {
-        CLOG(DEBUG, "Overlay") << "Connected to " << toString() << " @"
-                               << mApp.getConfig().PEER_PORT;
+        CLOG_DEBUG(Overlay, "Connected to {} @{}", toString(),
+                   mApp.getConfig().PEER_PORT);
         connected();
         mState = CONNECTED;
         sendHello();
@@ -396,13 +396,12 @@ void
 Peer::sendMessage(StellarMessage const& msg, bool log)
 {
     ZoneScoped;
-    if (log && Logging::logTrace("Overlay"))
-    {
-        CLOG(TRACE, "Overlay")
-            << "send: " << msgSummary(msg)
-            << " to : " << mApp.getConfig().toShortString(mPeerID) << " @"
-            << mApp.getConfig().PEER_PORT;
-    }
+    //    if (log && Logging::logTrace("Overlay"))
+    //    {
+    CLOG_TRACE(Overlay, "send: {} to : {} @{}", msgSummary(msg),
+               mApp.getConfig().toShortString(mPeerID),
+               mApp.getConfig().PEER_PORT);
+    //    }
 
     // There are really _two_ layers of queues, one in Scheduler for actions and
     // one in Peer (and its subclasses) for outgoing writes. We enforce a
@@ -507,7 +506,7 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
+        CLOG_ERROR(Overlay, "received corrupt xdr::msg_ptr {}", e.what());
         drop("received corrupted message",
              Peer::DropDirection::WE_DROPPED_REMOTE,
              Peer::DropMode::IGNORE_WRITE_QUEUE);
@@ -643,8 +642,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                     std::string err =
                         fmt::format("Error RecvMessage T:{} cat:{} {} @{}",
                                     mtype, cat, self->toString(), port);
-                    CLOG(ERROR, "Overlay") << fmt::format(
-                        "Dropping connection with {}: {}", err, e.what());
+                    CLOG_ERROR(Overlay, "Dropping connection with {}: {}", err,
+                               e.what());
                     self->drop("Bad crypto request",
                                Peer::DropDirection::WE_DROPPED_REMOTE,
                                Peer::DropMode::IGNORE_WRITE_QUEUE);
@@ -652,9 +651,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
             }
             else
             {
-                std::string err =
-                    fmt::format("Error RecvMessage T:{} cat:{}", mtype, cat);
-                CLOG(TRACE, "Overlay") << err;
+                CLOG_TRACE(Overlay, "Error RecvMessage T:{} cat:{}", mtype,
+                           cat);
             }
         },
         fmt::format("{} recvMessage", cat), type);
@@ -893,8 +891,8 @@ Peer::maybeProcessPingResponse(Hash const& id)
             mLastPing = std::chrono::duration_cast<std::chrono::milliseconds>(
                 mApp.getClock().now() - mPingSentTime);
             mPingSentTime = PING_NOT_SENT;
-            CLOG(DEBUG, "Overlay") << fmt::format(
-                "Latency {}: {} ms", toString(), mLastPing.count());
+            CLOG_DEBUG(Overlay, "Latency {}: {} ms", toString(),
+                       mLastPing.count());
             getOverlayMetrics().mConnectionLatencyTimer.Update(mLastPing);
         }
     }
@@ -921,8 +919,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     else
     {
         if (Logging::logTrace("Overlay"))
-            CLOG(TRACE, "Overlay")
-                << "No quorum set: " << hexAbbrev(msg.qSetHash());
+            CLOG_TRACE(Overlay, "No quorum set: {}", hexAbbrev(msg.qSetHash()));
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
@@ -1054,9 +1051,9 @@ Peer::updatePeerRecordAfterAuthentication()
             getAddress(), PeerManager::BackOffUpdate::RESET);
     }
 
-    CLOG(DEBUG, "Overlay") << "successful handshake with "
-                           << mApp.getConfig().toShortString(mPeerID) << "@"
-                           << getAddress().toString();
+    CLOG_DEBUG(Overlay, "successful handshake with {}@{}",
+               mApp.getConfig().toShortString(mPeerID),
+               getAddress().toString());
 }
 
 void
@@ -1112,8 +1109,8 @@ Peer::recvHello(Hello const& elo)
     mAddress =
         PeerBareAddress{ip, static_cast<unsigned short>(elo.listeningPort)};
 
-    CLOG(DEBUG, "Overlay") << "recvHello from " << toString() << " @"
-                           << mApp.getConfig().PEER_PORT;
+    CLOG_DEBUG(Overlay, "recvHello from {} @{}", toString(),
+               mApp.getConfig().PEER_PORT);
 
     auto dropMode = Peer::DropMode::IGNORE_WRITE_QUEUE;
     if (mRole == REMOTE_CALLED_US)
@@ -1130,11 +1127,10 @@ Peer::recvHello(Hello const& elo)
         mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
         mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
-        CLOG(DEBUG, "Overlay")
-            << "Protocol = [" << mRemoteOverlayMinVersion << ","
-            << mRemoteOverlayVersion << "] expected: ["
-            << mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION << ","
-            << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
+        CLOG_DEBUG(Overlay, "Protocol = [{},{}] expected: [{},{}]",
+                   mRemoteOverlayMinVersion, mRemoteOverlayVersion,
+                   mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION,
+                   mApp.getConfig().OVERLAY_PROTOCOL_VERSION);
         sendErrorAndDrop(ERR_CONF, "wrong protocol version", dropMode);
         return;
     }
@@ -1147,14 +1143,12 @@ Peer::recvHello(Hello const& elo)
 
     if (elo.networkID != mApp.getNetworkID())
     {
-        CLOG(WARNING, "Overlay")
-            << "Connection from peer with different NetworkID";
-        CLOG(WARNING, "Overlay") << "Check your configuration file settings: "
-                                    "KNOWN_PEERS and PREFERRED_PEERS for peers "
-                                    "that are from other networks.";
-        CLOG(DEBUG, "Overlay")
-            << "NetworkID = " << hexAbbrev(elo.networkID)
-            << " expected: " << hexAbbrev(mApp.getNetworkID());
+        CLOG_WARNING(Overlay, "Connection from peer with different NetworkID");
+        CLOG_WARNING(Overlay, "Check your configuration file settings: "
+                              "KNOWN_PEERS and PREFERRED_PEERS for peers "
+                              "that are from other networks.");
+        CLOG_DEBUG(Overlay, "NetworkID = {} expected: {}",
+                   hexAbbrev(elo.networkID), hexAbbrev(mApp.getNetworkID()));
         sendErrorAndDrop(ERR_CONF, "wrong network passphrase", dropMode);
         return;
     }
@@ -1261,14 +1255,14 @@ Peer::recvPeers(StellarMessage const& msg)
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
         {
-            CLOG(DEBUG, "Overlay")
-                << "ignoring received peer with bad port " << peer.port;
+            CLOG_DEBUG(Overlay, "ignoring received peer with bad port {}",
+                       peer.port);
             continue;
         }
         if (peer.ip.type() == IPv6)
         {
-            CLOG(DEBUG, "Overlay") << "ignoring received IPv6 address"
-                                   << " (not yet supported)";
+            CLOG_DEBUG(Overlay,
+                       "ignoring received IPv6 address (not yet supported)");
             continue;
         }
 
@@ -1277,19 +1271,19 @@ Peer::recvPeers(StellarMessage const& msg)
 
         if (address.isPrivate())
         {
-            CLOG(DEBUG, "Overlay")
-                << "ignoring received private address " << address.toString();
+            CLOG_DEBUG(Overlay, "ignoring received private address {}",
+                       address.toString());
         }
         else if (address == PeerBareAddress{getAddress().getIP(),
                                             mApp.getConfig().PEER_PORT})
         {
-            CLOG(DEBUG, "Overlay")
-                << "ignoring received self-address " << address.toString();
+            CLOG_DEBUG(Overlay, "ignoring received self-address {}",
+                       address.toString());
         }
         else if (address.isLocalhost() &&
                  !mApp.getConfig().ALLOW_LOCALHOST_FOR_TESTING)
         {
-            CLOG(DEBUG, "Overlay") << "ignoring received localhost";
+            CLOG_DEBUG(Overlay, "ignoring received localhost");
         }
         else
         {

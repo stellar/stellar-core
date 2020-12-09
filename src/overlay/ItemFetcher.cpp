@@ -28,7 +28,7 @@ void
 ItemFetcher::fetch(Hash const& itemHash, const SCPEnvelope& envelope)
 {
     ZoneScoped;
-    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemHash);
+    CLOG_TRACE(Overlay, "fetch {}", hexAbbrev(itemHash));
     auto entryIt = mTrackers.find(itemHash);
     if (entryIt == mTrackers.end())
     { // not being tracked
@@ -54,8 +54,8 @@ ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
     {
         auto const& tracker = iter->second;
 
-        CLOG(TRACE, "Overlay")
-            << "stopFetch " << hexAbbrev(itemHash) << " : " << tracker->size();
+        CLOG_TRACE(Overlay, "stopFetch {} : {}", hexAbbrev(itemHash),
+                   tracker->size());
         tracker->discard(envelope);
         if (tracker->empty())
         {
@@ -66,7 +66,7 @@ ItemFetcher::stopFetch(Hash const& itemHash, SCPEnvelope const& envelope)
     }
     else
     {
-        CLOG(TRACE, "Overlay") << "stopFetch untracked " << hexAbbrev(itemHash);
+        CLOG_TRACE(Overlay, "stopFetch untracked {}", hexAbbrev(itemHash));
     }
 }
 
@@ -149,8 +149,8 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
         // calling recv on the same itemHash
         auto& tracker = iter->second;
 
-        CLOG(TRACE, "Overlay")
-            << "Recv " << hexAbbrev(itemHash) << " : " << tracker->size();
+        CLOG_TRACE(Overlay, "Recv {} : {}", hexAbbrev(itemHash),
+                   tracker->size());
 
         timer.Update(tracker->getDuration());
         while (!tracker->empty())
@@ -163,7 +163,7 @@ ItemFetcher::recv(Hash itemHash, medida::Timer& timer)
     }
     else
     {
-        CLOG(TRACE, "Overlay") << "Recv untracked " << hexAbbrev(itemHash);
+        CLOG_TRACE(Overlay, "Recv untracked {}", hexAbbrev(itemHash));
     }
 }
 

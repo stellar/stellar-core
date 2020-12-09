@@ -72,8 +72,7 @@ SurveyManager::stopSurvey()
 
     clearCurve25519Keys(mCurve25519PublicKey, mCurve25519SecretKey);
 
-    CLOG(INFO, "Overlay") << "SurveyResults "
-                          << getJsonResults().toStyledString();
+    CLOG_INFO(Overlay, "SurveyResults {}", getJsonResults().toStyledString());
 }
 
 void
@@ -136,8 +135,8 @@ SurveyManager::relayOrProcessResponse(StellarMessage const& msg,
             }
             catch (std::exception const& e)
             {
-                CLOG(ERROR, "Overlay")
-                    << "processing survey response failed: " << e.what();
+                CLOG_ERROR(Overlay, "processing survey response failed: {}",
+                           e.what());
 
                 mBadResponseNodes.emplace(response.surveyedPeerID);
                 return;
@@ -249,9 +248,8 @@ SurveyManager::processTopologyResponse(NodeID const& surveyedPeerID,
 void
 SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
 {
-    CLOG(TRACE, "Overlay") << "Responding to Topology request from "
-                           << mApp.getConfig().toShortString(
-                                  request.surveyorPeerID);
+    CLOG_TRACE(Overlay, "Responding to Topology request from {}",
+               mApp.getConfig().toShortString(request.surveyorPeerID));
 
     StellarMessage newMsg;
     newMsg.type(SURVEY_RESPONSE);
@@ -292,7 +290,7 @@ SurveyManager::processTopologyRequest(SurveyRequestMessage const& request) const
     }
     catch (std::exception const& e)
     {
-        CLOG(ERROR, "Overlay") << "curve25519Encrypt failed: " << e.what();
+        CLOG_ERROR(Overlay, "curve25519Encrypt failed: {}", e.what());
         return;
     }
 

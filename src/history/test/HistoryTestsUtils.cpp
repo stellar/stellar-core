@@ -500,9 +500,8 @@ CatchupSimulation::generateRandomLedger(uint32_t version)
     // Provoke sortForHash and hash-caching:
     txSet->getContentsHash();
 
-    CLOG(DEBUG, "History") << "Closing synthetic ledger " << ledgerSeq
-                           << " with " << txSet->sizeTx() << " txs (txhash:"
-                           << hexAbbrev(txSet->getContentsHash()) << ")";
+    CLOG_DEBUG(History, "Closing synthetic ledger {} with {} txs (txhash:{})",
+               ledgerSeq, txSet->sizeTx(), hexAbbrev(txSet->getContentsHash()));
 
     auto upgrades = xdr::xvector<UpgradeType, 6>{};
     if (version > 0)
@@ -685,9 +684,9 @@ CatchupSimulation::createCatchupApplication(uint32_t count,
                                             std::string const& appName,
                                             bool publish)
 {
-    CLOG(INFO, "History") << "****";
-    CLOG(INFO, "History") << "**** Create app for catchup: '" << appName << "'";
-    CLOG(INFO, "History") << "****";
+    CLOG_INFO(History, "****");
+    CLOG_INFO(History, "**** Create app for catchup: '{}'", appName);
+    CLOG_INFO(History, "****");
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
@@ -706,8 +705,7 @@ bool
 CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
                                   bool extraValidation)
 {
-    CLOG(INFO, "History") << "starting offline catchup with toLedger="
-                          << toLedger;
+    CLOG_INFO(History, "starting offline catchup with toLedger={}", toLedger);
 
     auto startCatchupMetrics = getCatchupMetrics(app);
     auto& lm = app->getLedgerManager();
@@ -733,7 +731,7 @@ CatchupSimulation::catchupOffline(Application::pointer app, uint32_t toLedger,
                    cm.getCatchupWorkState() == BasicWork::State::WORK_SUCCESS;
     if (success)
     {
-        CLOG(INFO, "History") << "Caught up";
+        CLOG_INFO(History, "Caught up");
 
         auto endCatchupMetrics = getCatchupMetrics(app);
         auto catchupPerformedWork =
@@ -782,8 +780,8 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
                 ++gapLedger;
             }
 
-            CLOG(INFO, "History")
-                << "simulating LedgerClose transmit gap at ledger " << n;
+            CLOG_INFO(History,
+                      "simulating LedgerClose transmit gap at ledger {}", n);
         }
         else
         {
@@ -861,7 +859,7 @@ CatchupSimulation::catchupOnline(Application::pointer app, uint32_t initLedger,
 
         REQUIRE(catchupPerformedWork == expectedCatchupWork);
 
-        CLOG(INFO, "History") << "Caught up";
+        CLOG_INFO(History, "Caught up");
     }
 
     validateCatchup(app);
@@ -879,9 +877,9 @@ CatchupSimulation::externalizeLedger(HerderImpl& herder, uint32_t ledger)
 
     auto const& lcd = mLedgerCloseDatas.at(ledger - 2);
 
-    CLOG(INFO, "History") << "force-externalizing LedgerCloseData for "
-                          << ledger << " has txhash:"
-                          << hexAbbrev(lcd.getTxSet()->getContentsHash());
+    CLOG_INFO(History,
+              "force-externalizing LedgerCloseData for {} has txhash:{}",
+              ledger, hexAbbrev(lcd.getTxSet()->getContentsHash()));
 
     auto txSet = std::static_pointer_cast<TxSetFrame>(lcd.getTxSet());
 
@@ -930,28 +928,26 @@ CatchupSimulation::validateCatchup(Application::pointer app)
                                .getCurr()
                                ->getHash();
 
-    CLOG(INFO, "History") << "Caught up: want Seq[" << i << "] = " << wantSeq;
-    CLOG(INFO, "History") << "Caught up: have Seq[" << i << "] = " << haveSeq;
+    CLOG_INFO(History, "Caught up: want Seq[{}] = {}", i, wantSeq);
+    CLOG_INFO(History, "Caught up: have Seq[{}] = {}", i, haveSeq);
 
-    CLOG(INFO, "History") << "Caught up: want Hash[" << i
-                          << "] = " << hexAbbrev(wantHash);
-    CLOG(INFO, "History") << "Caught up: have Hash[" << i
-                          << "] = " << hexAbbrev(haveHash);
+    CLOG_INFO(History, "Caught up: want Hash[{}] = {}", i, hexAbbrev(wantHash));
+    CLOG_INFO(History, "Caught up: have Hash[{}] = {}", i, hexAbbrev(haveHash));
 
-    CLOG(INFO, "History") << "Caught up: want BucketListHash[" << i
-                          << "] = " << hexAbbrev(wantBucketListHash);
-    CLOG(INFO, "History") << "Caught up: have BucketListHash[" << i
-                          << "] = " << hexAbbrev(haveBucketListHash);
+    CLOG_INFO(History, "Caught up: want BucketListHash[{}] = {}", i,
+              hexAbbrev(wantBucketListHash));
+    CLOG_INFO(History, "Caught up: have BucketListHash[{}] = {}", i,
+              hexAbbrev(haveBucketListHash));
 
-    CLOG(INFO, "History") << "Caught up: want Bucket0Hash[" << i
-                          << "] = " << hexAbbrev(wantBucket0Hash);
-    CLOG(INFO, "History") << "Caught up: have Bucket0Hash[" << i
-                          << "] = " << hexAbbrev(haveBucket0Hash);
+    CLOG_INFO(History, "Caught up: want Bucket0Hash[{}] = {}", i,
+              hexAbbrev(wantBucket0Hash));
+    CLOG_INFO(History, "Caught up: have Bucket0Hash[{}] = {}", i,
+              hexAbbrev(haveBucket0Hash));
 
-    CLOG(INFO, "History") << "Caught up: want Bucket1Hash[" << i
-                          << "] = " << hexAbbrev(wantBucket1Hash);
-    CLOG(INFO, "History") << "Caught up: have Bucket1Hash[" << i
-                          << "] = " << hexAbbrev(haveBucket1Hash);
+    CLOG_INFO(History, "Caught up: want Bucket1Hash[{}] = {}", i,
+              hexAbbrev(wantBucket1Hash));
+    CLOG_INFO(History, "Caught up: have Bucket1Hash[{}] = {}", i,
+              hexAbbrev(haveBucket1Hash));
 
     CHECK(nextLedger == haveSeq + 1);
     CHECK(wantSeq == haveSeq);

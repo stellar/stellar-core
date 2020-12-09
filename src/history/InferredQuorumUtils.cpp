@@ -38,7 +38,7 @@ checkQuorumIntersection(Config const& cfg, uint32_t ledgerNum)
     Config cfg2(cfg);
     cfg2.setNoListen();
     Application::pointer app = Application::create(clock, cfg2, false);
-    LOG(INFO) << "Checking last-heard quorum from herder";
+    LOG_INFO(DEFAULT_LOG, "Checking last-heard quorum from herder");
     app->start();
     auto qmap = getQuorumMapForLedger(app, ledgerNum);
     std::atomic<bool> interruptFlag{false};
@@ -58,7 +58,7 @@ inferQuorumAndWrite(Config const& cfg, uint32_t ledgerNum)
         auto qmap = getQuorumMapForLedger(app, ledgerNum);
         iq = InferredQuorum(qmap);
     }
-    LOG(INFO) << "Inferred quorum";
+    LOG_INFO(DEFAULT_LOG, "Inferred quorum");
     std::cout << iq.toString(cfg2, true) << std::endl;
 }
 
@@ -80,9 +80,9 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile,
     {
         std::stringstream out;
         iq.writeQuorumGraph(cfg2, out);
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Quorum graph: " << out.str();
-        LOG(INFO) << "*";
+        LOG_INFO(DEFAULT_LOG, "*");
+        LOG_INFO(DEFAULT_LOG, "* Quorum graph: {}", out.str());
+        LOG_INFO(DEFAULT_LOG, "*");
     }
     else
     {
@@ -90,9 +90,9 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile,
         out.exceptions(std::ios::failbit | std::ios::badbit);
         out.open(filename);
         iq.writeQuorumGraph(cfg2, out);
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Wrote quorum graph to " << filename;
-        LOG(INFO) << "*";
+        LOG_INFO(DEFAULT_LOG, "*");
+        LOG_INFO(DEFAULT_LOG, "* Wrote quorum graph to {}", filename);
+        LOG_INFO(DEFAULT_LOG, "*");
     }
 }
 }

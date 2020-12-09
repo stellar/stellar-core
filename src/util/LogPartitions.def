@@ -1,0 +1,21 @@
+// Copyright 2020 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+// This file defines the list of log-partitions in terms of a so-called "x-macro": define
+// LOG_PARTITION(name) to something that uses the name then include this file.
+
+LOG_PARTITION(Fs)
+LOG_PARTITION(SCP)
+LOG_PARTITION(Bucket)
+LOG_PARTITION(Database)
+LOG_PARTITION(History)
+LOG_PARTITION(Process)
+LOG_PARTITION(Ledger)
+LOG_PARTITION(Overlay)
+LOG_PARTITION(Herder)
+LOG_PARTITION(Tx)
+LOG_PARTITION(LoadGen)
+LOG_PARTITION(Work)
+LOG_PARTITION(Invariant)
+LOG_PARTITION(Perf)

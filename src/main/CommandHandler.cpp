@@ -57,8 +57,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         {
             ipStr = "127.0.0.1";
         }
-        LOG(INFO) << "Listening on " << ipStr << ":"
-                  << mApp.getConfig().HTTP_PORT << " for HTTP requests";
+        LOG_INFO(DEFAULT_LOG, "Listening on {}:{} for HTTP requests", ipStr,
+                 mApp.getConfig().HTTP_PORT);
 
         int httpMaxClient = mApp.getConfig().HTTP_MAX_CLIENT;
 
@@ -150,7 +150,7 @@ CommandHandler::manualCmd(std::string const& cmd)
     http::server::request request;
     request.uri = cmd;
     mServer->handle_request(request, reply);
-    LOG(INFO) << cmd << " -> " << reply.content;
+    LOG_INFO(DEFAULT_LOG, "{} -> {}", cmd, reply.content);
     return reply.content;
 }
 

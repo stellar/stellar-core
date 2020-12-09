@@ -26,7 +26,7 @@ runCurrentThreadWithLowPriority()
 
     if (!ret)
     {
-        LOG(DEBUG) << "Unable to set priority for thread: " << ret;
+        LOG_DEBUG(DEFAULT_LOG, "Unable to set priority for thread: {}", ret);
     }
 }
 
@@ -40,8 +40,8 @@ runCurrentThreadWithLowPriority()
     auto newNice = nice(LOW_PRIORITY_NICE);
     if (newNice != LOW_PRIORITY_NICE)
     {
-        LOG(DEBUG) << "Unable to run worker thread with low priority. "
-                      "Normal priority will be used.";
+        LOG_DEBUG(DEFAULT_LOG, "Unable to run worker thread with low priority. "
+                               "Normal priority will be used.");
     }
 }
 
@@ -60,13 +60,13 @@ runCurrentThreadWithLowPriority()
     int ret = pthread_getschedparam(pthread_self(), &policy, &sp);
     if (ret != 0)
     {
-        LOG(DEBUG) << "Unable to get priority for thread: " << ret;
+        LOG_DEBUG(DEFAULT_LOG, "Unable to get priority for thread: {}", ret);
     }
     sp.sched_priority -= LOW_PRIORITY_NICE;
     ret = pthread_setschedparam(pthread_self(), policy, &sp);
     if (ret != 0)
     {
-        LOG(DEBUG) << "Unable to set priority for thread: " << ret;
+        LOG_DEBUG(DEFAULT_LOG, "Unable to set priority for thread: {}", ret);
     }
 }
 

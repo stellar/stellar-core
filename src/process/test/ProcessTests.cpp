@@ -30,10 +30,10 @@ TEST_CASE("subprocess", "[process]")
     auto evt = app->getProcessManager().runProcess("hostname", "").lock();
     REQUIRE(evt);
     evt->async_wait([&](asio::error_code ec) {
-        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        CLOG_DEBUG(Process, "process exited: {}", ec);
         if (ec)
         {
-            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+            CLOG_DEBUG(Process, "error code: {}", ec.message());
         }
         failed = !!ec;
         exited = true;
@@ -58,10 +58,10 @@ TEST_CASE("subprocess fails", "[process]")
                    .lock();
     REQUIRE(evt);
     evt->async_wait([&](asio::error_code ec) {
-        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        CLOG_DEBUG(Process, "process exited: {}", ec);
         if (ec)
         {
-            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+            CLOG_DEBUG(Process, "error code: {}", ec.message());
         }
         failed = !!ec;
         exited = true;
@@ -85,10 +85,10 @@ TEST_CASE("subprocess redirect to file", "[process]")
     auto evt = app.getProcessManager().runProcess("hostname", filename).lock();
     REQUIRE(evt);
     evt->async_wait([&](asio::error_code ec) {
-        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        CLOG_DEBUG(Process, "process exited: {}", ec);
         if (ec)
         {
-            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+            CLOG_DEBUG(Process, "error code: {}", ec.message());
         }
         exited = true;
     });
@@ -103,7 +103,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
     in.exceptions(std::ios::badbit);
     std::string s;
     in >> s;
-    CLOG(DEBUG, "Process") << "opened redirect file, read: " << s;
+    CLOG_DEBUG(Process, "opened redirect file, read: {}", s);
     CHECK(!s.empty());
     std::remove(filename.c_str());
 }
@@ -127,7 +127,7 @@ TEST_CASE("subprocess storm", "[process]")
     {
         std::string src(fmt::format("{:s}/src/{:d}", dir, i));
         std::string dst(fmt::format("{:s}/dst/{:d}", dir, i));
-        CLOG(INFO, "Process") << "making file " << src;
+        CLOG_INFO(Process, "making file {}", src);
         {
             std::ofstream out;
             out.exceptions(std::ios::failbit | std::ios::badbit);
@@ -139,10 +139,10 @@ TEST_CASE("subprocess storm", "[process]")
                        .lock();
         REQUIRE(evt);
         evt->async_wait([&](asio::error_code ec) {
-            CLOG(INFO, "Process") << "process exited: " << ec;
+            CLOG_INFO(Process, "process exited: {}", ec);
             if (ec)
             {
-                CLOG(DEBUG, "Process") << "error code: " << ec.message();
+                CLOG_DEBUG(Process, "error code: {}", ec.message());
             }
             ++completed;
         });
@@ -155,7 +155,7 @@ TEST_CASE("subprocess storm", "[process]")
         size_t n2 = app.getProcessManager().getNumRunningProcesses();
         if (last != n2)
         {
-            CLOG(INFO, "Process") << "running subprocess count: " << n2;
+            CLOG_INFO(Process, "running subprocess count: {}", n2);
         }
         last = n2;
         REQUIRE(n2 <= cfg.MAX_CONCURRENT_SUBPROCESSES);
@@ -193,10 +193,10 @@ TEST_CASE("shutdown while process running", "[process]")
     {
         REQUIRE(event);
         event->async_wait([&](asio::error_code ec) {
-            CLOG(DEBUG, "Process") << "process exited: " << ec;
+            CLOG_DEBUG(Process, "process exited: {}", ec);
             if (ec)
             {
-                CLOG(DEBUG, "Process") << "error code: " << ec.message();
+                CLOG_DEBUG(Process, "error code: {}", ec.message());
             }
             exitedCount++;
             errorCodes.push_back(ec);
@@ -242,10 +242,10 @@ TEST_CASE("ProcessManager::tryProcessShutdown test", "[process]")
 
     REQUIRE(event);
     event->async_wait([&](asio::error_code ec) {
-        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        CLOG_DEBUG(Process, "process exited: {}", ec);
         if (ec)
         {
-            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+            CLOG_DEBUG(Process, "error code: {}", ec.message());
         }
         errorCode = ec;
         exited = true;

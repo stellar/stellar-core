@@ -98,8 +98,8 @@ BucketInputIterator::BucketInputIterator(std::shared_ptr<Bucket const> bucket)
     mMetadata.ledgerVersion = 0;
     if (!mBucket->getFilename().empty())
     {
-        CLOG(TRACE, "Bucket") << "BucketInputIterator opening file to read: "
-                              << mBucket->getFilename();
+        CLOG_TRACE(Bucket, "BucketInputIterator opening file to read: {}",
+                   mBucket->getFilename());
         mIn.open(mBucket->getFilename());
         loadEntry();
     }
