@@ -669,8 +669,8 @@ class LedgerTxnRoot::Impl
     };
     typedef std::shared_ptr<BestOffersCacheEntry> BestOffersCacheEntryPtr;
 
-    typedef RandomEvictionCache<BestOffersCacheKey, BestOffersCacheEntryPtr,
-                                AssetPairHash>
+    typedef UnorderedMap<BestOffersCacheKey, BestOffersCacheEntryPtr,
+                         AssetPairHash>
         BestOffersCache;
 
     static size_t const MIN_BEST_OFFERS_BATCH_SIZE;

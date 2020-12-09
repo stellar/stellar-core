@@ -1992,7 +1992,6 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
     : mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
-    , mBestOffersCache(bestOfferCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
 {
@@ -2874,14 +2873,16 @@ LedgerTxnRoot::Impl::getFromBestOffersCache(Asset const& buying,
     try
     {
         BestOffersCacheKey cacheKey{buying, selling};
-        if (mBestOffersCache.exists(cacheKey))
+        auto it = mBestOffersCache.find(cacheKey);
+
+        if (it != mBestOffersCache.end())
         {
-            return mBestOffersCache.get(cacheKey);
+            return it->second;
         }
 
         auto emptyPtr = std::make_shared<BestOffersCacheEntry>(
             BestOffersCacheEntry{{}, false});
-        mBestOffersCache.put(cacheKey, emptyPtr);
+        mBestOffersCache.emplace(cacheKey, emptyPtr);
         return emptyPtr;
     }
     catch (...)
