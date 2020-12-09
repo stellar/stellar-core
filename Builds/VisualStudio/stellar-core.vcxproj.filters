@@ -534,6 +534,9 @@
     <ClCompile Include="..\..\src\history\HistoryArchiveManager.cpp">
       <Filter>history</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryArchiveReportWork.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -1569,6 +1572,9 @@
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryArchiveManager.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryArchiveReportWork.h">
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryManager.h">

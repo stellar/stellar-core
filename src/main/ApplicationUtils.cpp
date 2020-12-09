@@ -10,6 +10,7 @@
 #include "database/Database.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
+#include "history/HistoryArchiveReportWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/ErrorMessages.h"
@@ -64,6 +65,7 @@ runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
     Application::pointer app;
     try
     {
+        cfg.COMMANDS.push_back("self-check");
         app = Application::create(clock, cfg, false);
 
         if (!app->getHistoryArchiveManager().checkSensibleConfig())
@@ -168,6 +170,26 @@ httpCommand(std::string const& command, unsigned short port)
     {
         LOG(INFO) << "http failed(" << code << ") port: " << port
                   << " command: " << command;
+    }
+}
+
+int
+selfCheck(Config cfg)
+{
+    VirtualClock clock;
+    cfg.setNoListen();
+    Application::pointer app = Application::create(clock, cfg, false);
+    std::shared_ptr<HistoryArchiveReportWork> w =
+        app->getHistoryArchiveManager().scheduleHistoryArchiveReportWork();
+    while (clock.crank(true) && !w->isDone())
+        ;
+    if (w->getState() == BasicWork::State::WORK_SUCCESS)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
     }
 }
 

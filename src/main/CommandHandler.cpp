@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
+#include "history/HistoryArchiveManager.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
@@ -105,6 +106,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("metrics", &CommandHandler::metrics);
     addRoute("tx", &CommandHandler::tx);
     addRoute("upgrades", &CommandHandler::upgrades);
+    addRoute("self-check", &CommandHandler::selfCheck);
 
 #ifdef BUILD_TESTS
     addRoute("generateload", &CommandHandler::generateLoad);
@@ -491,6 +493,13 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     {
         retStr = fmt::format("Unknown mode: {}", s);
     }
+}
+
+void
+CommandHandler::selfCheck(std::string const&, std::string& retStr)
+{
+    ZoneScoped;
+    mApp.getHistoryArchiveManager().scheduleHistoryArchiveReportWork();
 }
 
 void

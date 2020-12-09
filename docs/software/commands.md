@@ -80,6 +80,8 @@ Command options can only by placed after command.
 * **sec-to-pub**:  Reads a secret key on standard input and outputs the
   corresponding public key.  Both keys are in Stellar's standard
   base-32 ASCII format.
+* **self-check**: Perform history-related sanity checks, and it is planned
+  to support other kinds of sanity checks in the future.
 * **sign-transaction <FILE-NAME>**:  Add a digital signature to a transaction
   envelope stored in binary format in <FILE-NAME>, and send the result to
   standard output (which should be redirected to a file or piped through a tool
@@ -122,6 +124,9 @@ By default stellar-core listens for connections from localhost on port 11626.
 You can send commands to stellar-core via a web browser, curl, or using the --c 
 command line option (see above). Most commands return their results in JSON
 format.
+
+* **self-check**: Perform history-related sanity checks, and it is planned
+  to support other kinds of sanity checks in the future.
 
 * **bans**
   List current active bans
