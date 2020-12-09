@@ -774,8 +774,7 @@ class LedgerTxnRoot::Impl
 
   public:
     // Constructor has the strong exception safety guarantee
-    Impl(Database& db, size_t entryCacheSize, size_t bestOfferCacheSize,
-         size_t prefetchBatchSize);
+    Impl(Database& db, size_t entryCacheSize, size_t prefetchBatchSize);
 
     ~Impl();
 

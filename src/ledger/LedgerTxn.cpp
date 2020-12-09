@@ -1980,15 +1980,13 @@ LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
-                             size_t bestOfferCacheSize,
                              size_t prefetchBatchSize)
-    : mImpl(std::make_unique<Impl>(db, entryCacheSize, bestOfferCacheSize,
-                                   prefetchBatchSize))
+    : mImpl(std::make_unique<Impl>(db, entryCacheSize, prefetchBatchSize))
 {
 }
 
 LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
-                          size_t bestOfferCacheSize, size_t prefetchBatchSize)
+                          size_t prefetchBatchSize)
     : mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)

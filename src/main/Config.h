@@ -370,11 +370,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Data layer cache configuration
     // - ENTRY_CACHE_SIZE controls the maximum number of LedgerEntry objects
     //   that will be stored in the cache
-    // - BEST_OFFERS_CACHE_SIZE controls the maximum number of Asset pairs that
-    //   will be stored in the cache, although many LedgerEntry objects may be
-    //   associated with a single Asset pair
     size_t ENTRY_CACHE_SIZE;
-    size_t BEST_OFFERS_CACHE_SIZE;
 
     // Data layer prefetcher configuration
     // - PREFETCH_BATCH_SIZE determines how many records we'll prefetch per

@@ -432,7 +432,6 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                 VirtualClock clock;
                 auto cfg = getTestConfig(0, mode);
                 cfg.ENTRY_CACHE_SIZE = 0;
-                cfg.BEST_OFFERS_CACHE_SIZE = 0;
                 auto app = createTestApplication(clock, cfg);
                 app->start();
 
@@ -912,7 +911,6 @@ testInflationWinners(
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -1582,7 +1580,6 @@ testAllOffers(
         VirtualClock clock;
         auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -1863,7 +1860,6 @@ testBestOffer(
         VirtualClock clock;
         auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -2156,7 +2152,6 @@ testOffersByAccountAndAsset(
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -2773,7 +2768,6 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
         VirtualClock clock;
         Config cfg(getTestConfig(0, mode));
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         Application::pointer app = createTestApplication(clock, cfg);
         app->start();
 
@@ -2936,7 +2930,6 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         VirtualClock clock;
         Config cfg(getTestConfig(0, mode));
         cfg.ENTRY_CACHE_SIZE = 100000;
-        cfg.BEST_OFFERS_CACHE_SIZE = 1000;
         Application::pointer app = createTestApplication(clock, cfg);
 
         CLOG_WARNING(

@@ -160,8 +160,7 @@ ApplicationImpl::initialize(bool createNewDB)
     else
     {
         mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
-            *mDatabase, mConfig.ENTRY_CACHE_SIZE,
-            mConfig.BEST_OFFERS_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE);
+            *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE);
     }
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
