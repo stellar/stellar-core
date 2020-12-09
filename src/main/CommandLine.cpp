@@ -175,7 +175,7 @@ fileNameParser(std::string& string)
 clara::Opt
 processIDParser(int& num)
 {
-    return clara::Opt{num, "PROCESS-ID"}["--process_id"](
+    return clara::Opt{num, "PROCESS-ID"}["--process-id"](
         "for spawning multiple instances in fuzzing parallelization");
 }
 

@@ -22,7 +22,7 @@ enum class FuzzerMode
 
 namespace FuzzUtils
 {
-extern unsigned int const NUMBER_OF_PREGENERATED_ACCOUNTS;
+extern int const NUMBER_OF_PREGENERATED_ACCOUNTS;
 std::unique_ptr<Fuzzer> createFuzzer(int processID, FuzzerMode fuzzerMode);
 }
 

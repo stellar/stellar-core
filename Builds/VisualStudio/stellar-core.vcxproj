@@ -684,6 +684,7 @@ exit /b 0
     <ClInclude Include="..\..\src\ledger\NonSociRelatedException.h" />
     <ClInclude Include="..\..\src\overlay\SurveyManager.h" />
     <ClInclude Include="..\..\src\overlay\SurveyMessageLimiter.h" />
+    <ClInclude Include="..\..\src\test\Fuzzer.h" />
     <ClInclude Include="..\..\src\test\FuzzerImpl.h" />
     <ClInclude Include="..\..\src\transactions\ClaimClaimableBalanceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\EndSponsoringFutureReservesOpFrame.h" />

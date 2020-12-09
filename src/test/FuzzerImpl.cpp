@@ -14,12 +14,42 @@
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Math.h"
 
 #include <xdrpp/autocheck.h>
 
 namespace stellar
 {
+namespace FuzzUtils
+{
+auto const FUZZER_MAX_OPERATIONS = 5;
+auto const INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
+auto const NUMBER_OF_ASSETS_TO_ISSUE = 4;
+
+// generates a public key such that it's comprised of bytes reading [0,0,...,i]
+PublicKey
+makePublicKey(int i)
+{
+    PublicKey publicKey;
+    uint256 accountID;
+    accountID.at(31) = static_cast<uint8_t>(i);
+    publicKey.ed25519() = accountID;
+    return publicKey;
+}
+
+// constructs an Asset structure for an asset issued by an account id comprised
+// of bytes reading [0,0,...,i] and an alphanum4 asset code of "Ast + i"
+Asset
+makeAsset(int i)
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    strToAssetCode(asset.alphaNum4().assetCode, "Ast" + std::to_string(i));
+    asset.alphaNum4().issuer = makePublicKey(i);
+    return asset;
+}
+}
 
 // creates a generic configuration with settings rigged to maximize
 // determinism
@@ -32,7 +62,7 @@ getFuzzConfig(int instanceNumber)
     cfg.CATCHUP_RECENT = 0;
     cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = UINT32_MAX;
-    cfg.PUBLIC_HTTP_PORT = false;
+    cfg.HTTP_PORT = 0;
     cfg.WORKER_THREADS = 1;
     cfg.QUORUM_INTERSECTION_CHECKER = false;
     cfg.PREFERRED_PEERS_ONLY = false;
@@ -41,13 +71,18 @@ getFuzzConfig(int instanceNumber)
     return cfg;
 }
 
-void
-resetTxInternalState(Application& app)
+static void
+resetRandomSeed()
 {
     // seed randomness
     srand(1);
     gRandomEngine.seed(1);
+}
 
+static void
+resetTxInternalState(Application& app)
+{
+    resetRandomSeed();
 // reset caches to clear persistent state
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
     app.getLedgerTxnRoot().resetForFuzzer();
@@ -75,7 +110,7 @@ class FuzzTransactionFrame : public TransactionFrame
         // number, processing the fee, or committing the LedgerTxn
         SignatureChecker signatureChecker{
             ltx.loadHeader().current().ledgerVersion, getContentsHash(),
-            mEnvelope.v0().signatures};
+            mEnvelope.v1().signatures};
         // if any ill-formed Operations, do not attempt transaction application
         auto isInvalidOperationXDR = [&](auto const& op) {
             return !op->checkValid(signatureChecker, ltx, false);
@@ -102,23 +137,17 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
     // application in the fuzzer, is the exact same, except for the inner
     // operations of course
     auto txEnv = TransactionEnvelope{};
-    txEnv.v0().tx.sourceAccountEd25519 = sourceAccountID.ed25519();
-    txEnv.v0().tx.fee = 0;
-    txEnv.v0().tx.seqNum = 1;
+    txEnv.type(ENVELOPE_TYPE_TX);
+    auto& tx1 = txEnv.v1();
+    tx1.tx.sourceAccount = toMuxedAccount(sourceAccountID);
+    tx1.tx.fee = 0;
+    tx1.tx.seqNum = 1;
     std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(txEnv.v0().tx.operations));
+              std::back_inserter(tx1.tx.operations));
 
     std::shared_ptr<FuzzTransactionFrame> res =
         std::make_shared<FuzzTransactionFrame>(networkID, txEnv);
     return res;
-}
-
-bool
-isBadTransactionFuzzerInput(Operation const& op)
-{
-    return !(op.body.type() == ACCOUNT_MERGE) &&
-           !(op.body.type() == PAYMENT &&
-             op.body.paymentOp().asset.type() == ASSET_TYPE_NATIVE);
 }
 
 bool
@@ -138,51 +167,194 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
 void
 TransactionFuzzer::initialize()
 {
-    VirtualClock clock;
-    mApp = createTestApplication(clock, getFuzzConfig(mProcessID));
+    resetRandomSeed();
+    mApp = createTestApplication(mClock, getFuzzConfig(0));
 
     resetTxInternalState(*mApp);
-    LedgerTxn ltx(mApp->getLedgerTxnRoot());
+    LedgerTxn ltxroot(mApp->getLedgerTxnRoot());
 
-    // setup the state, for this we only need to pregenerate some accounts. For
-    // now we create mNumAccounts accounts, or enough to fill the first few bits
-    // such that we have a pregenerated account for the last few bits of the
-    // 32nd byte of a public key, thus account creation is over a deterministic
-    // range of public keys
-    for (unsigned int i = 0; i < mNumAccounts; ++i)
     {
-        PublicKey publicKey;
-        uint256 accountID;
-        // NB: need to map to more bytes if we have more accounts at some point
-        assert(i <= std::numeric_limits<uint8_t>::max());
-        accountID.at(31) = static_cast<uint8_t>(i);
-        publicKey.ed25519() = accountID;
+        LedgerTxn ltx(ltxroot);
 
-        // manually construct ledger entries, "creating" each account
-        LedgerEntry newAccountEntry;
-        newAccountEntry.data.type(ACCOUNT);
-        auto& newAccount = newAccountEntry.data.account();
-        newAccount.thresholds[0] = 1;
-        newAccount.accountID = publicKey;
-        newAccount.seqNum = 0;
-        // to create "interesting" balances we utilize powers of 2
-        newAccount.balance = 2 << i;
-        ltx.create(newAccountEntry);
+        // Setup the state, for this we only need to pregenerate some
+        // accounts. For now we create mNumAccounts accounts, or enough to
+        // fill the first few bits such that we have a pregenerated account
+        // for the last few bits of the 32nd byte of a public key, thus
+        // account creation is over a deterministic range of public keys
+        for (int i = 0; i < mNumAccounts; ++i)
+        {
+            PublicKey publicKey = FuzzUtils::makePublicKey(i);
 
-        // select the first pregenerated account to be the hard coded source
-        // account for all transactions
-        if (i == 0)
-            mSourceAccountID = publicKey;
+            // manually construct ledger entries, "creating" each account
+            LedgerEntry newAccountEntry;
+            newAccountEntry.data.type(ACCOUNT);
+            auto& newAccount = newAccountEntry.data.account();
+            newAccount.thresholds[0] = 1;
+            newAccount.accountID = publicKey;
+            newAccount.seqNum = 0;
+            // convert lumens to stroops; required by low level ledger entry
+            // structure which operates in stroops
+            newAccount.balance =
+                FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE * 10000000;
+
+            ltx.create(newAccountEntry);
+
+            // select the first pregenerated account to be the hard coded source
+            // account for all transactions
+            if (i == 0)
+            {
+                mSourceAccountID = publicKey;
+            }
+        }
+
+        ltx.commit();
     }
 
-    // commit these to the ledger so that we have a starting, persistent state
-    // to fuzz test against -- should be the only stateful/effectful action
-    ltx.commit();
+    {
+        LedgerTxn ltx(ltxroot);
+
+        xdr::xvector<Operation> ops;
+
+        // for now we have every pregenerated account except the source account
+        // trust everything for some assets issued by account indexed 1...
+        // NUMBER_OF_ASSETS_TO_ISSUE. We also distribute some of these assets to
+        // everyone so that they can make trades, payments, etc. We start with 1
+        // since we use 0 as source account for transactions and don't want that
+        // account to trust any issuer or receive non-native assets
+        for (int i = 1; i < mNumAccounts; ++i)
+        {
+            auto const account = FuzzUtils::makePublicKey(i);
+
+            // start with 1 since we use 0 as source account for transactions
+            // and don't want that account to be an issuer
+            for (int j = 1; j < FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE + 1; ++j)
+            {
+                auto const asset = FuzzUtils::makeAsset(j);
+                auto const issuer = FuzzUtils::makePublicKey(j);
+                if (i != j)
+                {
+                    // trust asset issuer
+                    auto trustOp = txtest::changeTrust(asset, INT64_MAX);
+                    trustOp.sourceAccount.activate() = toMuxedAccount(account);
+                    ops.emplace_back(trustOp);
+
+                    // distribute asset
+                    auto distributeOp = txtest::payment(
+                        account, asset,
+                        FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE);
+                    distributeOp.sourceAccount.activate() =
+                        toMuxedAccount(issuer);
+                    ops.emplace_back(distributeOp);
+                }
+            }
+        }
+
+        // construct transaction
+        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
+                                                     mApp->getNetworkID());
+
+        txFramePtr->attemptApplication(*mApp, ltx);
+
+        ltx.commit();
+    }
+
+    {
+        // In order for certain operation combinations to be valid, we need an
+        // initial order book with various offers. The order book will consist
+        // of identical setups for the asset pairs:
+        //      XLM - A
+        //      A   - B
+        //      B   - C
+        //      C   - D
+        // For any asset A and asset B, the generic order book setup will be as
+        // follows:
+        //
+        // +------------+-----+------+--------+------------------------------+
+        // |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
+        // +------------+-----+------+--------+------------------------------+
+        // | 0          | A   | B    |  1,000 | 3/2                          |
+        // | 1 (issuer) | A   | B    |  5,000 | 3/2                          |
+        // | 2          | A   | B    | 10,000 | 1/1                          |
+        // | 3 (issuer) | B   | A    |  1,000 | 10/9                         |
+        // | 4          | B   | A    |  5,000 | 10/9                         |
+        // | 0          | B   | A    | 10,000 | 22/7                         |
+        // +------------+-----+------+--------+------------------------------+
+        //
+        // This gives us a good mixture of buy and sell, issuers with offers,
+        // and an account with a bid and a sell. It also gives us an initial
+        // order book that is in a legal state.
+        LedgerTxn ltx(ltxroot);
+
+        xdr::xvector<Operation> ops;
+
+        auto genOffersForPair = [&ops](Asset A, Asset B, std::vector<int> pks,
+                                       LedgerTxn& ltx) {
+            auto addOffer = [&ops](Asset bid, Asset sell, int pk, Price price,
+                                   int64 amount) {
+                auto op = txtest::manageOffer(0, bid, sell, price, amount);
+                op.sourceAccount.activate() =
+                    toMuxedAccount(FuzzUtils::makePublicKey(pk));
+                ops.emplace_back(op);
+            };
+
+            // A -> B acc0         : 1000A (3B/2A)
+            addOffer(A, B, pks[0], Price{3, 2}, 1000);
+
+            // A -> B acc1 (ISSUER): 5000A (3B/2A)
+            addOffer(A, B, pks[1], Price{3, 2}, 5000);
+
+            // A -> B acc2         : 10000A (1B/1A)
+            addOffer(A, B, pks[2], Price{1, 1}, 10000);
+
+            // B -> A acc3 (ISSUER): 1000B (10A/9B)
+            addOffer(B, A, pks[3], Price{10, 9}, 1000);
+
+            // B -> A acc4         : 5000B (10A/9B)
+            addOffer(B, A, pks[4], Price{10, 9}, 5000);
+
+            // B -> A acc0         : 10000B (22A/7B)
+            addOffer(B, A, pks[0], Price{22, 7}, 10000);
+        };
+
+        auto const& XLM = txtest::makeNativeAsset();
+        auto const& ASSET_A = FuzzUtils::makeAsset(1);
+        auto const& ASSET_B = FuzzUtils::makeAsset(2);
+        auto const& ASSET_C = FuzzUtils::makeAsset(3);
+        auto const& ASSET_D = FuzzUtils::makeAsset(4);
+
+        genOffersForPair(XLM, ASSET_A, {13, 14, 15, 1, 12}, ltx);
+        genOffersForPair(ASSET_A, ASSET_B, {11, 1, 12, 2, 10}, ltx);
+        genOffersForPair(ASSET_B, ASSET_C, {13, 2, 14, 3, 15}, ltx);
+        genOffersForPair(ASSET_C, ASSET_D, {6, 3, 7, 4, 8}, ltx);
+
+        // construct transaction
+        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
+                                                     mApp->getNetworkID());
+
+        txFramePtr->attemptApplication(*mApp, ltx);
+
+        ltx.commit();
+    }
+
+    // commit this to the ledger so that we have a starting, persistent
+    // state to fuzz test against
+    ltxroot.commit();
 }
 
 void
-TransactionFuzzer::inject(XDRInputFileStream& in)
+TransactionFuzzer::shutdown()
 {
+    mApp->gracefulStop();
+    while (mClock.crank(true))
+    {
+    }
+}
+
+void
+TransactionFuzzer::inject(std::string const& filename)
+{
+    XDRInputFileStream in(xdrSizeLimit());
+    in.open(filename);
     // for tryRead, in case of fuzzer creating an ill-formed xdr, generate an
     // xdr that will trigger a non-execution path so that the fuzzer realizes it
     // has hit an uninteresting case
@@ -201,9 +373,8 @@ TransactionFuzzer::inject(XDRInputFileStream& in)
     xdr::xvector<Operation> ops;
     while (tryRead(ops))
     {
-        auto wellSizedTx = ops.size() > 0 && ops.size() < 6;
-        if (std::any_of(ops.begin(), ops.end(), isBadTransactionFuzzerInput) ||
-            !wellSizedTx)
+        // limit operations per transaction to limit size of fuzzed input
+        if (ops.size() < 1 || ops.size() > FuzzUtils::FUZZER_MAX_OPERATIONS)
         {
             return;
         }
@@ -232,25 +403,19 @@ TransactionFuzzer::xdrSizeLimit()
     return 0x500;
 }
 
-#define FUZZER_INITIAL_CORPUS_MAX_OPERATIONS 5
 #define FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND 128
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
-    XDROutputFileStream out(mApp->getClock().getIOContext(),
-                            /*doFsync=*/false);
+    VirtualClock clock;
+    XDROutputFileStream out(clock.getIOContext(), /*doFsync=*/false);
     out.open(filename);
     autocheck::generator<Operation> gen;
     xdr::xvector<Operation> ops;
-    auto numops = autocheck::generator<unsigned int>()(
-        FUZZER_INITIAL_CORPUS_MAX_OPERATIONS);
-    for (unsigned int i = 0; i < numops; ++i)
+    auto const numops = rand_uniform<int>(1, FuzzUtils::FUZZER_MAX_OPERATIONS);
+    for (int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
-        while (isBadTransactionFuzzerInput(op))
-        {
-            op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
-        }
         ops.emplace_back(op);
     }
 
@@ -258,8 +423,15 @@ TransactionFuzzer::genFuzz(std::string const& filename)
 }
 
 void
+OverlayFuzzer::shutdown()
+{
+    mSimulation->stopAllNodes();
+}
+
+void
 OverlayFuzzer::initialize()
 {
+    resetRandomSeed();
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     mSimulation = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK,
                                                networkID, getFuzzConfig);
@@ -297,8 +469,10 @@ OverlayFuzzer::initialize()
 }
 
 void
-OverlayFuzzer::inject(XDRInputFileStream& in)
+OverlayFuzzer::inject(std::string const& filename)
 {
+    XDRInputFileStream in(xdrSizeLimit());
+    in.open(filename);
     // see note on TransactionFuzzer's tryRead above
     auto tryRead = [&in](StellarMessage& m) {
         try
@@ -327,9 +501,9 @@ OverlayFuzzer::inject(XDRInputFileStream& in)
         auto initiator = loopbackPeerConnection->getInitiator();
         auto acceptor = loopbackPeerConnection->getAcceptor();
 
-        initiator->getApp().postOnMainThread(
-            [initiator, msg]() { initiator->Peer::sendMessage(msg); },
-            "OverlayFuzzer");
+        initiator->getApp().getClock().postAction(
+            [initiator, msg]() { initiator->Peer::sendMessage(msg); }, "main",
+            Scheduler::ActionType::NORMAL_ACTION);
 
         mSimulation->crankForAtMost(std::chrono::milliseconds{500}, false);
 
@@ -355,8 +529,7 @@ void
 OverlayFuzzer::genFuzz(std::string const& filename)
 {
     VirtualClock clock;
-    XDROutputFileStream out(clock.getIOContext(),
-                            /*doFsync=*/false);
+    XDROutputFileStream out(clock.getIOContext(), /*doFsync=*/false);
     out.open(filename);
     autocheck::generator<StellarMessage> gen;
     StellarMessage m(gen(FUZZER_INITIAL_CORPUS_MESSAGE_GEN_UPPERBOUND));
@@ -385,7 +558,7 @@ generator_t::operator()(stellar::PublicKey& t) const
     // [0,NUMBER_OF_PREGENERATED_ACCOUNTS] inclusive. This allows us to generate
     // some transactions with a source account/destination account that does
     // not exist.
-    t.ed25519().at(31) = autocheck::generator<unsigned int>()(
+    t.ed25519().at(31) = autocheck::generator<uint>()(
         stellar::FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS);
 }
 } // namespace xdr

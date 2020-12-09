@@ -44,17 +44,45 @@ signatures. For both modes, there is still much room for improvement in regards 
 
 ## Installing AFL
 
+### Packages
+
+Pre-packaged versions of AFL may be available.
+
+For example, Ubuntu provides `AFL++` that can be installed with
+```
+  apt-get install afl++
+```
+
+### From source
+
 Go to the [AFL repo][0], download the [tarball][2], unpack and run `make`, `make -C llvm_mode`
 then `sudo make install`. This will install both `afl-fuzz`, the fuzzer itself, and `afl-gcc`,
 `afl-clang`, and `afl-clang-fast`, which are compiler-wrappers that instrument binaries they
 compile with the fuzzer's branch-tracking machinery (the later being necessary for `llvm_mode`
 improvements described above).
 
+note: you may have to provide a default clang/clang++, this can be done in many ways.
+
+For example, this makes clang-8 the default:
+
+```
+sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-8   81 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-8    --slave /usr/share/man/man1/clang.1.gz clang.1.gz /usr/share/man/man1/clang-8.1.gz --slave /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-8  --slave /usr/bin/clang-format clang-format /usr/bin/clang-format-8 --slave /usr/bin/llvm-config llvm-config /usr/bin/llvm-config-8
+```
 
 ## Building an instrumented stellar-core
 
-Start with a clean workspace, `make clean` or cleaner; then just do `./configure
---enable-afl && make` and make sure you have not enabled `asan` and `ccache`;
+Start with a clean workspace, `make clean` or cleaner; then just do
+
+```
+# or any compile flags that you like
+export CFLAGS='-O3 -g1' ; export CXXFLAGS="$CFLAGS"
+
+# or any compiler that you want
+export CC='clang' ; export CXX='clang++'
+./autogen.sh && ./configure --enable-extrachecks --disable-postgres --enable-afl && make
+```
+
+make sure you have not enabled `asan` and `ccache`;
 the former is incompatible, and the latter doesn't interoperate with the
 compiler wrappers.
 
@@ -155,3 +183,4 @@ part of staging-tests", here are some directions I think we should take fuzzing:
 [10]: https://github.com/trailofbits/deepstate
 [11]: https://llvm.org/docs/LibFuzzer.html
 [12]: https://github.com/google/AFL/blob/master/docs/status_screen.txt
+
