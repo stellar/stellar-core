@@ -1993,7 +1993,6 @@ LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
     , mBestOffersCache(bestOfferCacheSize)
-    , mMaxCacheSize(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
 {
@@ -2378,12 +2377,6 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
 
     for (auto const& key : keys)
     {
-        if ((static_cast<double>(mEntryCache.size()) / mMaxCacheSize) >=
-            ENTRY_CACHE_FILL_RATIO)
-        {
-            return total;
-        }
-
         switch (key.type())
         {
         case ACCOUNT:

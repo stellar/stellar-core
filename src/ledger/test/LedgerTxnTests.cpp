@@ -2431,7 +2431,8 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
         app->start();
         auto& root = app->getLedgerTxnRoot();
 
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(1000);
+        auto entries = LedgerTestUtils::generateValidLedgerEntries(
+            cfg.ENTRY_CACHE_SIZE + 1);
         LedgerTxn ltx(root);
         for (auto e : entries)
         {
@@ -2456,12 +2457,10 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             REQUIRE(root.prefetch(smallSet) == smallSet.size());
             ltx2.commit();
         }
-        SECTION("stop prefetching as cache fills up")
+        SECTION("prefetch more than ENTRY_CACHE_SIZE entries")
         {
             LedgerTxn ltx2(root);
-            REQUIRE(root.prefetch(keysToPrefetch) ==
-                    (cfg.ENTRY_CACHE_SIZE / 2));
-            REQUIRE(root.prefetch(keysToPrefetch) == 0);
+            REQUIRE(root.prefetch(keysToPrefetch) == keysToPrefetch.size());
             ltx2.commit();
         }
     };

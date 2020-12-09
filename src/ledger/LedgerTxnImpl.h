@@ -22,10 +22,6 @@ UnorderedMap<LedgerKey, std::shared_ptr<LedgerEntry const>>
 populateLoadedEntries(UnorderedSet<LedgerKey> const& keys,
                       std::vector<LedgerEntry> const& entries);
 
-// A defensive heuristic to ensure prefetching stops if entry cache is filling
-// up.
-static const double ENTRY_CACHE_FILL_RATIO = 0.5;
-
 class EntryIterator::AbstractImpl
 {
   public:
@@ -686,7 +682,6 @@ class LedgerTxnRoot::Impl
     mutable uint64_t mPrefetchHits{0};
     mutable uint64_t mPrefetchMisses{0};
 
-    size_t mMaxCacheSize;
     size_t mBulkLoadBatchSize;
     std::unique_ptr<soci::transaction> mTransaction;
     AbstractLedgerTxn* mChild;
