@@ -19,7 +19,9 @@ double closest_cluster(double p, std::set<double> const& centers);
 
 bool rand_flip();
 
-extern std::default_random_engine gRandomEngine;
+typedef std::minstd_rand stellar_default_random_engine;
+
+extern stellar_default_random_engine gRandomEngine;
 
 template <typename T>
 T

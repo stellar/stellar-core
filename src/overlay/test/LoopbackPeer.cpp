@@ -127,7 +127,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
 }
 
 static bool
-damageMessage(default_random_engine& gen, xdr::msg_ptr& msg)
+damageMessage(stellar_default_random_engine& gen, xdr::msg_ptr& msg)
 {
     size_t bitsFlipped = 0;
     char* d = msg->raw_data();

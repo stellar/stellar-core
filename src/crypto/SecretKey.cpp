@@ -155,7 +155,7 @@ SecretKey::random()
 
 #ifdef BUILD_TESTS
 static SecretKey
-pseudoRandomForTestingFromPRNG(std::default_random_engine& engine)
+pseudoRandomForTestingFromPRNG(stellar_default_random_engine& engine)
 {
     std::vector<uint8_t> bytes;
     for (size_t i = 0; i < crypto_sign_SEEDBYTES; ++i)
@@ -180,7 +180,7 @@ SecretKey::pseudoRandomForTestingFromSeed(unsigned int seed)
     // Reminder: this is not cryptographic randomness or even particularly hard
     // to guess PRNG-ness. It's intended for _deterministic_ use, when you want
     // "slightly random-ish" keys, for test-data generation.
-    std::default_random_engine tmpEngine(seed);
+    stellar_default_random_engine tmpEngine(seed);
     return pseudoRandomForTestingFromPRNG(tmpEngine);
 }
 #endif
