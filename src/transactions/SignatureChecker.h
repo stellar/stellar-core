@@ -23,8 +23,7 @@ class SignatureChecker
         uint32_t protocolVersion, Hash const& contentsHash,
         xdr::xvector<DecoratedSignature, 20> const& signatures);
 
-    bool checkSignature(AccountID const& accountID,
-                        std::vector<Signer> const& signersV,
+    bool checkSignature(std::vector<Signer> const& signersV,
                         int32_t neededWeight);
     bool checkAllSignaturesUsed() const;
 
