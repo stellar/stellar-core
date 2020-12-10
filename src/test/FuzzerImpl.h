@@ -37,8 +37,8 @@ class TransactionFuzzer : public Fuzzer
 
 class OverlayFuzzer : public Fuzzer
 {
-    const int ACCEPTOR_INDEX = 0;
-    const int INITIATOR_INDEX = 1;
+    int const ACCEPTOR_INDEX = 0;
+    int const INITIATOR_INDEX = 1;
 
   public:
     OverlayFuzzer()

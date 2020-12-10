@@ -836,9 +836,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             << "Unknown exception while applying operations (txHash= "
             << xdr_to_string(getFullHash()) << ")";
     }
-#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    abort();
-#endif
     // This is only reachable if an exception is thrown
     getResult().result.code(txINTERNAL_ERROR);
 

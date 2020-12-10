@@ -24,10 +24,12 @@ namespace stellar
 {
 namespace FuzzUtils
 {
-auto const FUZZER_MAX_OPERATIONS = 5;
-auto const INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
-auto const NUMBER_OF_ASSETS_TO_ISSUE = 4;
-int const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
+auto constexpr FUZZER_MAX_OPERATIONS = 5;
+auto constexpr INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
+auto constexpr NUMBER_OF_ASSETS_TO_ISSUE = 4;
+
+// must be strictly less than 255
+uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
 
 void
 setShortKey(uint256& ed25519, int i)
@@ -69,6 +71,25 @@ makeAsset(int i)
 
 namespace xdr
 {
+/*
+    the xdr_fuzzer_compactor/xdr_fuzzer_unpacker helper structs
+    are based on xdr_get/xdr_put (marshallers for xdr) and make the following
+   adjustments:
+    * use a binary representation as compact as possible, so that fuzzers have
+   less data to fuzz
+        * shorten 64 and 32 bits values into respectively 16 and 8 bits
+            * in particular, discriminant values are 8 bits instead of 32
+        * shorten byte arrays
+            * static arrays of size N bytes are shorten to 1 byte
+            * non empty variable size arrays are shortened to 1 byte
+        * remaps complex types
+            * PublicKey is mapped to 8 bits
+    * use the lowest overhead possible binary form
+        * no alignment requirement
+        * does not adjust endianness
+        * implementation defined behavior (generation and fuzzing must be
+               from the same build, on the same arch)
+*/
 struct xdr_fuzzer_compactor
 {
     std::uint8_t* const mStart;
@@ -87,7 +108,7 @@ struct xdr_fuzzer_compactor
     }
 
     void
-    put_bytes(const void* buf, size_t len)
+    put_bytes(void const* buf, size_t len)
     {
         if (len != 0)
         {
@@ -138,19 +159,14 @@ struct xdr_fuzzer_compactor
 
     template <typename T>
     typename std::enable_if<xdr_traits<T>::is_bytes>::type
-    operator()(const T& t)
+    operator()(T const& t)
     {
         // convert array -> 0/1 byte
-        auto s2 = t.size();
-        if (s2 > 0)
-        {
-            s2 = 1;
-        }
+        uint8_t s2 = t.empty() ? 0 : 1;
         if (xdr_traits<T>::variable_nelem)
         {
             check(1 + s2);
-            uint8_t b = static_cast<uint8_t>(size32(s2) & 0xFF);
-            put_bytes(&b, 1);
+            put_bytes(&s2, 1);
         }
         else
         {
@@ -164,39 +180,37 @@ struct xdr_fuzzer_compactor
                              !std::is_same<stellar::MuxedAccount, T>::value) &&
                             (xdr_traits<T>::is_class ||
                              xdr_traits<T>::is_container)>::type
-    operator()(const T& t)
+    operator()(T const& t)
     {
         xdr_traits<T>::save(*this, t);
     }
 
     template <typename T>
     typename std::enable_if<std::is_same<stellar::AccountID, T>::value>::type
-    operator()(const T& pk)
+    operator()(T const& pk)
     {
         // convert public key 1 byte
         check(1);
-        auto v = stellar::FuzzUtils::getShortKey(pk.ed25519());
-        uint8_t b = static_cast<uint8_t>(v & 0xFF);
+        auto b = stellar::FuzzUtils::getShortKey(pk.ed25519());
         put_bytes(&b, 1);
     }
     template <typename T>
     typename std::enable_if<std::is_same<stellar::MuxedAccount, T>::value>::type
-    operator()(const T& m)
+    operator()(T const& m)
     {
         // convert MuxedAccount -> 1 byte (same than an AccountID)
         auto const& ed25519 = (m.type() == stellar::KEY_TYPE_ED25519)
                                   ? m.ed25519()
                                   : m.med25519().ed25519;
         check(1);
-        auto v = stellar::FuzzUtils::getShortKey(ed25519);
-        uint8_t b = static_cast<uint8_t>(v & 0xFF);
+        auto b = stellar::FuzzUtils::getShortKey(ed25519);
         put_bytes(&b, 1);
     }
 };
 
 template <typename... Args>
 opaque_vec<>
-xdr_to_fuzzer_opaque(const Args&... args)
+xdr_to_fuzzer_opaque(Args const&... args)
 {
     opaque_vec<> m(opaque_vec<>::size_type{xdr_argpack_size(args...)});
     xdr_fuzzer_compactor p(m.data(), m.data() + m.size());
@@ -207,16 +221,16 @@ xdr_to_fuzzer_opaque(const Args&... args)
 
 struct xdr_fuzzer_unpacker
 {
-    const std::uint8_t* mCur;
-    const std::uint8_t* const mEnd;
+    std::uint8_t const* mCur;
+    std::uint8_t const* const mEnd;
 
-    xdr_fuzzer_unpacker(const void* start, const void* end)
-        : mCur(reinterpret_cast<const std::uint8_t*>(start))
-        , mEnd(reinterpret_cast<const std::uint8_t*>(end))
+    xdr_fuzzer_unpacker(void const* start, void const* end)
+        : mCur(reinterpret_cast<std::uint8_t const*>(start))
+        , mEnd(reinterpret_cast<std::uint8_t const*>(end))
     {
         assert(mCur <= mEnd);
     }
-    xdr_fuzzer_unpacker(const msg_ptr& m)
+    xdr_fuzzer_unpacker(msg_ptr const& m)
         : xdr_fuzzer_unpacker(m->data(), m->end())
     {
     }
@@ -242,8 +256,8 @@ struct xdr_fuzzer_unpacker
     void
     check(std::size_t n) const
     {
-        if (n > std::size_t(reinterpret_cast<const char*>(mCur) -
-                            reinterpret_cast<const char*>(mEnd)))
+        if (n > std::size_t(reinterpret_cast<char const*>(mCur) -
+                            reinterpret_cast<char const*>(mEnd)))
             throw xdr_overflow(
                 "insufficient buffer space in xdr_fuzzer_unpacker");
     }
@@ -264,12 +278,12 @@ struct xdr_fuzzer_unpacker
         std::uint64_t, typename xdr_traits<T>::uint_type>::value>::type
     operator()(T& t)
     {
-        // 2 bytes --> uint64 **with** "sign expension"
+        // 2 bytes --> uint64 **with** "sign extension"
         check(2);
         // load into a 16 signed
         int16_t w;
         get_bytes(&w, 2);
-        // expand to 64 bit
+        // extend to 64 bit
         int64_t ww = w;
         t = xdr_traits<T>::from_uint(ww);
     }
@@ -284,11 +298,16 @@ struct xdr_fuzzer_unpacker
             check(1);
             s2 = get_byte();
             check(s2);
+            // only accept small vectors
+            if (s2 > 1)
+            {
+                throw xdr_overflow("large vector in xdr_fuzzer_unpacker");
+            }
             t.resize(s2);
         }
         else
         {
-            if (t.size() > 0)
+            if (!t.empty())
             {
                 s2 = 1;
             }
@@ -338,7 +357,7 @@ struct xdr_fuzzer_unpacker
 
 template <typename Bytes, typename... Args>
 auto
-xdr_from_fuzzer_opaque(const Bytes& m, Args&... args)
+xdr_from_fuzzer_opaque(Bytes const& m, Args&... args)
     -> decltype(detail::bytes_to_void(m))
 {
     xdr_fuzzer_unpacker g(m.data(), m.data() + m.size());
@@ -438,6 +457,10 @@ class FuzzTransactionFrame : public TransactionFrame
         loadSourceAccount(ltx, ltx.loadHeader());
         TransactionMeta tm(2);
         applyOperations(signatureChecker, app, ltx, tm);
+        if (getResultCode() == txINTERNAL_ERROR)
+        {
+            throw std::runtime_error("Internal error while fuzzing");
+        }
     }
 };
 
@@ -483,16 +506,16 @@ TransactionFuzzer::initialize()
     mApp = createTestApplication(mClock, getFuzzConfig(0));
 
     resetTxInternalState(*mApp);
-    LedgerTxn ltxroot(mApp->getLedgerTxnRoot());
+    LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
 
     {
-        LedgerTxn ltx(ltxroot);
+        LedgerTxn ltx(ltxOuter);
         // Setup the state, for this we only need to pregenerate some
         // accounts. For now we create NUMBER_OF_PREGENERATED_ACCOUNTS accounts,
         // or enough to fill the first few bits such that we have a pregenerated
         // account for the last few bits of the 32nd byte of a public key, thus
         // account creation is over a deterministic range of public keys
-        for (int i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
+        for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey publicKey;
             FuzzUtils::setShortKey(publicKey, i);
@@ -523,7 +546,7 @@ TransactionFuzzer::initialize()
     }
 
     {
-        LedgerTxn ltx(ltxroot);
+        LedgerTxn ltx(ltxOuter);
 
         xdr::xvector<Operation> ops;
 
@@ -533,14 +556,14 @@ TransactionFuzzer::initialize()
         // everyone so that they can make trades, payments, etc. We start with 1
         // since we use 0 as source account for transactions and don't want that
         // account to trust any issuer or receive non-native assets
-        for (int i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
+        for (uint8_t i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey account;
             FuzzUtils::setShortKey(account, i);
 
             // start with 1 since we use 0 as source account for transactions
             // and don't want that account to be an issuer
-            for (int j = 1; j < FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE + 1; ++j)
+            for (int j = 1; j <= FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE; ++j)
             {
                 auto const asset = FuzzUtils::makeAsset(j);
                 if (i != j)
@@ -597,7 +620,7 @@ TransactionFuzzer::initialize()
         // This gives us a good mixture of buy and sell, issuers with offers,
         // and an account with a bid and a sell. It also gives us an initial
         // order book that is in a legal state.
-        LedgerTxn ltx(ltxroot);
+        LedgerTxn ltx(ltxOuter);
 
         xdr::xvector<Operation> ops;
 
@@ -631,11 +654,11 @@ TransactionFuzzer::initialize()
             addOffer(B, A, pks[0], Price{22, 7}, 10000);
         };
 
-        auto const& XLM = txtest::makeNativeAsset();
-        auto const& ASSET_A = FuzzUtils::makeAsset(1);
-        auto const& ASSET_B = FuzzUtils::makeAsset(2);
-        auto const& ASSET_C = FuzzUtils::makeAsset(3);
-        auto const& ASSET_D = FuzzUtils::makeAsset(4);
+        auto const XLM = txtest::makeNativeAsset();
+        auto const ASSET_A = FuzzUtils::makeAsset(1);
+        auto const ASSET_B = FuzzUtils::makeAsset(2);
+        auto const ASSET_C = FuzzUtils::makeAsset(3);
+        auto const ASSET_D = FuzzUtils::makeAsset(4);
 
         genOffersForPair(XLM, ASSET_A, {13, 14, 15, 1, 12}, ltx);
         genOffersForPair(ASSET_A, ASSET_B, {11, 1, 12, 2, 10}, ltx);
@@ -643,17 +666,22 @@ TransactionFuzzer::initialize()
         genOffersForPair(ASSET_C, ASSET_D, {6, 3, 7, 4, 8}, ltx);
 
         // construct transaction
-        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
-                                                     mApp->getNetworkID());
+        auto tx = createFuzzTransactionFrame(mSourceAccountID, ops,
+                                             mApp->getNetworkID());
 
-        txFramePtr->attemptApplication(*mApp, ltx);
+        tx->attemptApplication(*mApp, ltx);
+
+        if (tx->getResultCode() != txSUCCESS)
+        {
+            throw std::runtime_error("Error while initializing ledger state");
+        }
 
         ltx.commit();
     }
 
     // commit this to the ledger so that we have a starting, persistent
     // state to fuzz test against
-    ltxroot.commit();
+    ltxOuter.commit();
 }
 
 void
@@ -676,8 +704,10 @@ TransactionFuzzer::inject(std::string const& filename)
     std::vector<char> bins(xdrSizeLimit());
     in.read(bins.data(), bins.size());
     auto actual = in.gcount();
-    // if we could read the whole buffer, or got a short read, stop
-    if (in || actual == 0)
+    // stop if either
+    // we could read the whole buffer (too much data was generated by the
+    // fuzzer), or got a short read
+    if (actual == xdrSizeLimit() || actual == 0)
     {
         return;
     }
@@ -708,14 +738,11 @@ TransactionFuzzer::inject(std::string const& filename)
         LOG(DEBUG) << xdr_to_string(txFramePtr->getEnvelope());
     }
 
-    {
-        resetTxInternalState(*mApp);
-        LedgerTxn ltx(mApp->getLedgerTxnRoot());
-
-        // attempt to apply transaction
-        txFramePtr->attemptApplication(*mApp, ltx);
-    }
     resetTxInternalState(*mApp);
+    LedgerTxn ltx(mApp->getLedgerTxnRoot());
+
+    // attempt to apply transaction
+    txFramePtr->attemptApplication(*mApp, ltx);
 }
 
 int
