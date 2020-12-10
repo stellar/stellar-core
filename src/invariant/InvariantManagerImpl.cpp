@@ -215,6 +215,9 @@ void
 InvariantManagerImpl::handleInvariantFailure(
     std::shared_ptr<Invariant> invariant, std::string const& message) const
 {
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    abort();
+#endif
     if (invariant->isStrict())
     {
         CLOG(FATAL, "Invariant") << message;

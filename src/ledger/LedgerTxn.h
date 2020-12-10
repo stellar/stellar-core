@@ -449,6 +449,10 @@ class AbstractLedgerTxnParent
     // work, while still being correct. Will throw when called on anything other
     // than a (real or stub) root LedgerTxn.
     virtual uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) = 0;
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    virtual void resetForFuzzer() = 0;
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 };
 
 // An abstraction for an object that is an AbstractLedgerTxnParent and has
@@ -696,6 +700,9 @@ class LedgerTxn final : public AbstractLedgerTxn
         AssetPairHash> const&
     getOrderBook();
 #endif
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    void resetForFuzzer() override;
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 };
 
 class LedgerTxnRoot : public AbstractLedgerTxnParent
@@ -726,7 +733,7 @@ class LedgerTxnRoot : public AbstractLedgerTxnParent
     void dropClaimableBalances() override;
 
 #ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
-    void resetForFuzzer();
+    void resetForFuzzer() override;
 #endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 
     UnorderedMap<LedgerKey, LedgerEntry> getAllOffers() override;

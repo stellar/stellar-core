@@ -1988,6 +1988,9 @@
     <ClInclude Include="..\..\src\util\Backtrace.h">
       <Filter>util</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\test\Fuzzer.h">
+      <Filter>test</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/Fuzzer.h"
+#include "util/Timer.h"
 #include "xdr/Stellar-types.h"
 
 namespace stellar
@@ -19,33 +20,33 @@ struct Operation;
 class TransactionFuzzer : public Fuzzer
 {
   public:
-    TransactionFuzzer(unsigned int numAccounts, int processID)
-        : mNumAccounts(numAccounts), mProcessID(processID)
+    TransactionFuzzer()
     {
     }
-    void inject(XDRInputFileStream&) override;
+    void inject(std::string const& filename) override;
     void initialize() override;
+    void shutdown() override;
     void genFuzz(std::string const& filename) override;
     int xdrSizeLimit() override;
 
   private:
+    VirtualClock mClock;
     std::shared_ptr<Application> mApp;
     PublicKey mSourceAccountID;
-    unsigned int mNumAccounts;
-    int mProcessID;
 };
 
 class OverlayFuzzer : public Fuzzer
 {
-    const int ACCEPTOR_INDEX = 0;
-    const int INITIATOR_INDEX = 1;
+    int const ACCEPTOR_INDEX = 0;
+    int const INITIATOR_INDEX = 1;
 
   public:
     OverlayFuzzer()
     {
     }
-    void inject(XDRInputFileStream&) override;
+    void inject(std::string const& filename) override;
     void initialize() override;
+    void shutdown() override;
     void genFuzz(std::string const& filename) override;
     int xdrSizeLimit() override;
 

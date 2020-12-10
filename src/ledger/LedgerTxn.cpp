@@ -1572,6 +1572,14 @@ LedgerTxn::getPrefetchHitRate() const
     return getImpl()->getPrefetchHitRate();
 }
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+void
+LedgerTxn::resetForFuzzer()
+{
+    abort();
+}
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+
 double
 LedgerTxn::Impl::getPrefetchHitRate() const
 {

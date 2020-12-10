@@ -836,7 +836,6 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             << "Unknown exception while applying operations (txHash= "
             << xdr_to_string(getFullHash()) << ")";
     }
-
     // This is only reachable if an exception is thrown
     getResult().result.code(txINTERNAL_ERROR);
 

@@ -4,6 +4,7 @@
 
 #include "test/fuzz.h"
 #include "test/FuzzerImpl.h"
+#include "test/test.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 
@@ -28,21 +29,18 @@
 
 namespace stellar
 {
-
 namespace FuzzUtils
 {
-unsigned int const NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
-
 std::unique_ptr<Fuzzer>
 createFuzzer(int processID, FuzzerMode fuzzerMode)
 {
+    gBaseInstance = processID;
     switch (fuzzerMode)
     {
     case FuzzerMode::OVERLAY:
         return std::make_unique<OverlayFuzzer>();
     case FuzzerMode::TRANSACTION:
-        return std::make_unique<TransactionFuzzer>(
-            NUMBER_OF_PREGENERATED_ACCOUNTS, processID);
+        return std::make_unique<TransactionFuzzer>();
     default:
         abort();
     }
@@ -51,9 +49,8 @@ createFuzzer(int processID, FuzzerMode fuzzerMode)
 
 #define PERSIST_MAX 1000000
 void
-fuzz(std::string const& filename, el::Level logLevel,
-     std::vector<std::string> const& metrics, int processID,
-     FuzzerMode fuzzerMode)
+fuzz(std::string const& filename, std::vector<std::string> const& metrics,
+     int processID, FuzzerMode fuzzerMode)
 {
     auto fuzzer = FuzzUtils::createFuzzer(processID, fuzzerMode);
     fuzzer->initialize();
@@ -65,10 +62,8 @@ fuzz(std::string const& filename, el::Level logLevel,
     while (__AFL_LOOP(PERSIST_MAX))
 #endif // AFL_LLVM_MODE
     {
-        XDRInputFileStream in(fuzzer->xdrSizeLimit());
-        in.open(filename);
-
-        fuzzer->inject(in);
+        fuzzer->inject(filename);
     }
+    fuzzer->shutdown();
 }
 }

@@ -20,6 +20,7 @@ Config const& getTestConfig(int instanceNumber = 0,
 
 int runTest(CommandLineArgs const& args);
 
+extern int gBaseInstance;
 extern bool force_sqlite;
 
 void for_versions_to(uint32 to, Application& app,

@@ -58,5 +58,8 @@ class InMemoryLedgerTxnRoot : public AbstractLedgerTxnParent
     void dropClaimableBalances() override;
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+    void resetForFuzzer() override;
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 };
 }

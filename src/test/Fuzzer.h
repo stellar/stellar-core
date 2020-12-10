@@ -24,8 +24,9 @@ class Fuzzer
     // attempts to apply it to the state according to whatever apply may mean,
     // i.e. apply a transaction in the case of a TransactionFuzzer or send a
     // message in case of an OverlayFuzzer
-    virtual void inject(XDRInputFileStream&) = 0;
+    virtual void inject(std::string const& filename) = 0;
     virtual void initialize() = 0;
+    virtual void shutdown() = 0;
     // genFuzz randomly generates an XDR input for the given fuzzer. For the
     // TransactionFuzzer, this is a xdr::xvector of Operations, for the
     // OverlayFuzzer this is a StellarMessage
