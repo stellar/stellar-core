@@ -159,6 +159,14 @@ ApplicationImpl::initialize(bool createNewDB)
     }
     else
     {
+        if (mConfig.ENTRY_CACHE_SIZE < 20000)
+        {
+            LOG_WARNING(DEFAULT_LOG,
+                        "ENTRY_CACHE_SIZE({}) is below the recommended minimum "
+                        "of 20000",
+                        mConfig.ENTRY_CACHE_SIZE);
+        }
+
         mLedgerTxnRoot = std::make_unique<LedgerTxnRoot>(
             *mDatabase, mConfig.ENTRY_CACHE_SIZE, mConfig.PREFETCH_BATCH_SIZE);
     }
