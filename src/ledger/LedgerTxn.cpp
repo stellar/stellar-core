@@ -1987,7 +1987,10 @@ LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
 
 LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
                           size_t prefetchBatchSize)
-    : mDatabase(db)
+    : mMaxBestOffersBatchSize(
+          std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
+                   MAX_OFFERS_TO_CROSS))
+    , mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
@@ -2520,11 +2523,8 @@ LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersEntryPtr cached,
         return offers.cend();
     }
 
-    size_t const MAX_BEST_OFFERS_BATCH_SIZE =
-        std::max(mBulkLoadBatchSize, MIN_BEST_OFFERS_BATCH_SIZE);
-
     size_t const BATCH_SIZE =
-        std::min(MAX_BEST_OFFERS_BATCH_SIZE,
+        std::min(mMaxBestOffersBatchSize,
                  std::max(MIN_BEST_OFFERS_BATCH_SIZE, offers.size()));
 
     std::deque<LedgerEntry>::const_iterator iter;
@@ -2580,6 +2580,31 @@ LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
     prefetch(toPrefetch);
 }
 
+bool
+LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
+{
+    if (!mEntryCache.exists(accountKey(oe.sellerID)))
+    {
+        return true;
+    }
+    if (oe.buying.type() != ASSET_TYPE_NATIVE)
+    {
+        if (!mEntryCache.exists(trustlineKey(oe.sellerID, oe.buying)))
+        {
+            return true;
+        }
+    }
+    if (oe.selling.type() != ASSET_TYPE_NATIVE)
+    {
+        if (!mEntryCache.exists(trustlineKey(oe.sellerID, oe.selling)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                   OfferDescriptor const* worseThan)
@@ -2604,9 +2629,10 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         iter = findIncludedOffer(iter, offers.cend(), worseThan);
     }
 
+    bool newOffersLoaded = offers.size() != initialBestOffersSize;
     // Populate entry cache with upcoming best offers and prefetch associated
     // accounts and trust lines
-    if (offers.size() != initialBestOffersSize)
+    if (newOffersLoaded)
     {
         // At this point, we know that new offers were loaded. But new offers
         // will only be loaded if there were no offers worse than *worseThan
@@ -2620,9 +2646,24 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     if (iter != offers.cend())
     {
         assert(!worseThan || isBetterOffer(*worseThan, *iter));
+
+        // Check if we didn't prefetch and that we're missing
+        // accounts/trustlines for this offer in the cache. If we are, batch
+        // load for this offer and the next 999
+        if (!newOffersLoaded &&
+            areEntriesMissingInCacheForOffer(iter->data.offer()))
+        {
+            auto lastOfferIter =
+                std::distance(iter, offers.cend()) > mMaxBestOffersBatchSize
+                    ? iter + mMaxBestOffersBatchSize
+                    : offers.cend();
+            populateEntryCacheFromBestOffers(iter, lastOfferIter);
+        }
+
         putInEntryCache(LedgerEntryKey(*iter),
                         std::make_shared<LedgerEntry const>(*iter),
                         LoadType::IMMEDIATE);
+
         return std::make_shared<LedgerEntry const>(*iter);
     }
     return nullptr;

@@ -53,6 +53,7 @@ InternalLedgerKey sponsorshipCounterKey(AccountID const& sponsoringID);
 uint32_t const FIRST_PROTOCOL_SUPPORTING_OPERATION_LIMITS = 11;
 uint32_t const ACCOUNT_SUBENTRY_LIMIT = 1000;
 int32_t const EXPECTED_CLOSE_TIME_MULT = 2;
+size_t const MAX_OFFERS_TO_CROSS = 1000;
 
 LedgerTxnEntry loadAccount(AbstractLedgerTxn& ltx, AccountID const& accountID);
 

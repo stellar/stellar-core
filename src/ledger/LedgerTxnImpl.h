@@ -673,6 +673,7 @@ class LedgerTxnRoot::Impl
         BestOffers;
 
     static size_t const MIN_BEST_OFFERS_BATCH_SIZE;
+    size_t const mMaxBestOffersBatchSize;
 
     Database& mDatabase;
     std::unique_ptr<LedgerHeader> mHeader;
@@ -770,6 +771,8 @@ class LedgerTxnRoot::Impl
     void populateEntryCacheFromBestOffers(
         std::deque<LedgerEntry>::const_iterator iter,
         std::deque<LedgerEntry>::const_iterator const& end);
+
+    bool areEntriesMissingInCacheForOffer(OfferEntry const& oe);
 
   public:
     // Constructor has the strong exception safety guarantee
