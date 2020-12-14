@@ -601,17 +601,36 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
     {
         for (auto const& tx : m.second.mTransactions)
         {
-            result->add(tx.mTx);
-            // This condition implements the following constraint: there may be
-            // any number of transactions for a given source account, but all
-            // transactions must satisfy one of the following mutually exclusive
-            // conditions
-            // - sequence number <= startingSeq - 1
-            // - sequence number >= startingSeq
-            if (tx.mTx->getSeqNum() == startingSeq - 1)
+            // The previous version of this enforced the following constraint:
+            // there may be any number of transactions for a given source
+            // account, but all transactions for that source account must
+            // satisfy one of the following mutually exclusive conditions
+            // (1) sequence number <= startingSeq - 1
+            // (2) sequence number >= startingSeq
+            //
+            // This version enforces the following constraint: it is forbidden
+            // to include a transaction with
+            //     sequence number == startingSeq
+            // The new condition is strictly stronger. First, note that the
+            // sequence numbers (assuming 0 < k < n, and the source account has
+            // initial number startingSeq - n - 1)
+            //     startingSeq - n, ..., startingSeq - n + k
+            // would be accepted by the new condition and by condition (1)
+            // above. Second, note that the sequence numbers (assuming 0 < k,
+            // 0 < n, and the source account has initial sequence number
+            // startingSeq + n - 1)
+            //     startingSeq + n, ..., startingSeq + n + k
+            // would be accepted by the new condition and by condition (2)
+            // above. These are the only sequence numbers that would be accepted
+            // by the new condition. But the old condition would also accept
+            // (assuming 0 < k, and the source account has initial sequence
+            // number startingSeq - 1)
+            //     startingSeq, ..., startingSeq + k .
+            if (tx.mTx->getSeqNum() == startingSeq)
             {
                 break;
             }
+            result->add(tx.mTx);
         }
     }
 
