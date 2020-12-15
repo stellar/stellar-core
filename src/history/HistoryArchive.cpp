@@ -17,6 +17,7 @@
 #include "main/StellarCoreVersion.h"
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -284,24 +285,78 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 {
     ZoneScoped;
     // This function assumes presence of required buckets to verify state
-    // Level 0 future buckets are always clear
-    assert(currentBuckets[0].next.isClear());
+    uint32_t minBucketVersion = 0;
+    uint32_t oldestBucketVersion = 0;
+    bool nonEmptySeen = false;
+    Hash const emptyHash;
 
-    for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
-    {
-        auto& level = currentBuckets[i];
-        auto& prev = currentBuckets[i - 1];
-        Hash const emptyHash;
-
-        auto snap =
-            app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
-        assert(snap);
-        if (snap->getHash() == emptyHash)
+    auto validateBucketVersion = [&](uint32_t bucketVersion) {
+        if (bucketVersion < minBucketVersion)
         {
+            CLOG_ERROR(History,
+                       "Incompatible bucket versions: expected version "
+                       "{} or higher, got {}",
+                       minBucketVersion, bucketVersion);
+            return false;
+        }
+        minBucketVersion = bucketVersion;
+        return true;
+    };
+
+    // Process bucket, return version
+    auto processBucket = [&](std::string const& bucketHash) {
+        auto bucket =
+            app.getBucketManager().getBucketByHash(hexToBin256(bucketHash));
+        releaseAssert(bucket);
+        int32_t version = 0;
+        if (bucket->getHash() != emptyHash)
+        {
+            version = Bucket::getBucketVersion(bucket);
+            if (!nonEmptySeen)
+            {
+                nonEmptySeen = true;
+                oldestBucketVersion = version;
+            }
+        }
+        return version;
+    };
+
+    // Iterate bottom-up, from oldest to newest buckets
+    for (uint32_t i = BucketList::kNumLevels - 1; i >= 0; i--)
+    {
+        auto const& level = currentBuckets[i];
+
+        // Note: snap is always older than curr, and therefore must be processed
+        // first
+        if (!validateBucketVersion(processBucket(level.snap)) ||
+            !validateBucketVersion(processBucket(level.curr)))
+        {
+            return false;
+        }
+
+        // Level 0 future buckets are always clear
+        if (i == 0)
+        {
+            if (!level.next.isClear())
+            {
+                CLOG_ERROR(History,
+                           "Invalid HAS: next must be clear at level 0");
+                return false;
+            }
+            break;
+        }
+
+        // Validate "next" field
+        // Use previous level snap to determine "next" validity
+        auto const& prev = currentBuckets[i - 1];
+        uint32_t prevSnapVersion = processBucket(prev.snap);
+
+        if (!nonEmptySeen)
+        {
+            // No real buckets seen yet, move on
             continue;
         }
-        else if (Bucket::getBucketVersion(snap) >=
-                 Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+        else if (prevSnapVersion >= Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
         {
             if (!level.next.isClear())
             {
@@ -316,6 +371,19 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
             return false;
         }
     }
+
+    // By protocol "Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED + 1", all buckets
+    // must be at least of version "Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED"
+    if (minBucketVersion >= Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED + 1 &&
+        oldestBucketVersion < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
+    {
+        CLOG_ERROR(History,
+                   "Invalid HAS: bucketlist contains bucket version {} that is "
+                   "too old",
+                   oldestBucketVersion);
+        return false;
+    }
+
     return true;
 }
 

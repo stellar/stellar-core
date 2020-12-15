@@ -1074,6 +1074,10 @@ This section contains information that is useful to know but that should not sto
 [testnet.md](./testnet.md) is a short tutorial demonstrating how to
   configure and run a short-lived, isolated test network.
 
+### Considerations when bootstrapping a private network
+
+In order to generate valid state when running a private network, it must be upgraded to the latest protocol version. The protocol upgrade must occur before the network starts accepting any transactions. See "Example upgrade command" section for an example command.
+
 ### Runtime information: start and stop
 
 Stellar-core can be started directly from the command line, or through a supervision 
