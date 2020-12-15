@@ -10,6 +10,7 @@
 #include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/fuzz.h"
 #include "test/test.h"
 #include "transactions/OperationFrame.h"
@@ -18,6 +19,7 @@
 #include "util/Math.h"
 #include "util/XDRCereal.h"
 
+#include <fmt/format.h>
 #include <xdrpp/autocheck.h>
 
 namespace stellar
@@ -499,6 +501,22 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
     return m.type() == AUTH || m.type() == ERROR_MSG || m.type() == HELLO;
 }
 
+static void
+attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
+                  xdr::xvector<Operation> const& ops, Application& app)
+{
+    auto txFramePtr =
+        createFuzzTransactionFrame(sourceAccount, ops, app.getNetworkID());
+    txFramePtr->attemptApplication(app, ltx);
+
+    if (txFramePtr->getResultCode() != txSUCCESS)
+    {
+        throw std::runtime_error(fmt::format(
+            FMT_STRING("Error {} while applying operations while fuzzing"),
+            txFramePtr->getResultCode()));
+    }
+}
+
 void
 TransactionFuzzer::initialize()
 {
@@ -515,24 +533,24 @@ TransactionFuzzer::initialize()
         // or enough to fill the first few bits such that we have a pregenerated
         // account for the last few bits of the 32nd byte of a public key, thus
         // account creation is over a deterministic range of public keys
+        auto root = TestAccount::createRoot(*mApp);
+        xdr::xvector<Operation> ops;
         for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey publicKey;
             FuzzUtils::setShortKey(publicKey, i);
 
-            // manually construct ledger entries, "creating" each account
-            LedgerEntry newAccountEntry;
-            newAccountEntry.data.type(ACCOUNT);
-            auto& newAccount = newAccountEntry.data.account();
-            newAccount.thresholds[0] = 1;
-            newAccount.accountID = publicKey;
-            newAccount.seqNum = 0;
-            // convert lumens to stroops; required by low level ledger entry
-            // structure which operates in stroops
-            newAccount.balance =
-                FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE * 10000000;
+            auto createOp = txtest::createAccount(
+                publicKey,
+                FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE * 10000000);
 
-            ltx.create(newAccountEntry);
+            ops.emplace_back(createOp);
+
+            if (ops.size() == MAX_OPS_PER_TX)
+            {
+                attemptToApplyOps(ltx, root.getPublicKey(), ops, *mApp);
+                ops.clear();
+            }
 
             // select the first pregenerated account to be the hard coded source
             // account for all transactions
@@ -540,6 +558,11 @@ TransactionFuzzer::initialize()
             {
                 mSourceAccountID = publicKey;
             }
+        }
+
+        if (!ops.empty())
+        {
+            attemptToApplyOps(ltx, root.getPublicKey(), ops, *mApp);
         }
 
         ltx.commit();
