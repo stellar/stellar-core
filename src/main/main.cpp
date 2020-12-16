@@ -12,8 +12,6 @@
 #include <sodium/core.h>
 #include <xdrpp/marshal.h>
 
-INITIALIZE_EASYLOGGINGPP
-
 namespace stellar
 {
 static void

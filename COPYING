@@ -54,15 +54,6 @@ lib/http:
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
-lib/util/easylogging++.h:
-
-  The EasyLogging++ library,
-  Copyright 2014 Majid Khan
-  (support@easylogging.org)
-  (http://easylogging.muflihun.com/)
-  Licensed under the MIT license
-  (http://opensource.org/licenses/MIT)
-
 lib/util/getopt.h and getopt_long.c:
 
   NetBSD's getopt/getopt_long libraries,
@@ -205,3 +196,11 @@ lib/tracy
   (https://bitbucket.org/wolfpld/tracy)
   Licensed under the 3-clause BSD license.
   (https://opensource.org/licenses/BSD-3-Clause)
+
+lib/spdlog
+
+  Spdlog logging library
+  Copyright (c) 2016 Gabi Melman <gmelman1@gmail.com>
+  (https://github.com/gabime/spdlog)
+  Licensed under the MIT license
+  (http://opensource.org/licenses/MIT)

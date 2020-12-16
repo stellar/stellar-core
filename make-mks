@@ -46,15 +46,14 @@ listall() {
  echo SOCI_PG_FILES = $(listall soci/src/backends/postgresql)
 
  echo SQLITE3_FILES = $(listall sqlite)
- echo UTIL_EXCEPT_EASYLOGGING_FILES = $(listall util http | grep -v easylogging)
- echo EASYLOGGING_FILES = $(listall util | grep easylogging)
+ echo UTIL_FILES = $(listall util http)
  echo ASIO_H_FILES = $(listall asio/asio/include)
  # The following does not work without boost or -DASIO_STANDALONE=1
  #echo ASIO_CXX_FILES = asio/src/*.cpp
  echo ASIO_CXX_FILES = asio.cpp
  echo TRACY_CXX_FILES = tracy/TracyClient.cpp
  echo JSON_FILES = $(listall json)
- echo SPDLOG_FILES = $(listall spdlog/src/)
+ echo SPDLOG_FILES = spdlog.cpp
 
  echo MISC_H_FILES = *.hpp $(listall autocheck cereal fmt)
 ) > lib/lib.mk
