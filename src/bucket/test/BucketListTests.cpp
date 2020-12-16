@@ -139,7 +139,7 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
             Application::pointer app = createTestApplication(clock, cfg);
             BucketList bl;
             autocheck::generator<std::vector<LedgerKey>> deadGen;
-            CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
+            CLOG_DEBUG(Bucket, "Adding batches to bucket list");
             for (uint32_t i = 1;
                  !app->getClock().getIOContext().stopped() && i < 130; ++i)
             {
@@ -148,17 +148,13 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
                             LedgerTestUtils::generateValidLedgerEntries(8),
                             deadGen(5));
                 if (i % 10 == 0)
-                    CLOG(DEBUG, "Bucket")
-                        << "Added batch " << i
-                        << ", hash=" << binToHex(bl.getHash());
+                    CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
+                               binToHex(bl.getHash()));
                 for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
                 {
                     auto const& lev = bl.getLevel(j);
                     auto currSz = countEntries(lev.getCurr());
                     auto snapSz = countEntries(lev.getSnap());
-                    // CLOG(DEBUG, "Bucket") << "level " << j
-                    //            << " curr=" << currSz
-                    //            << " snap=" << snapSz;
                     CHECK(currSz <= BucketList::levelHalf(j) * 100);
                     CHECK(snapSz <= BucketList::levelHalf(j) * 100);
                 }
@@ -167,8 +163,8 @@ TEST_CASE("bucket list", "[bucket][bucketlist]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "Bucket")
-            << "Test caught std::future_error " << e.code() << ": " << e.what();
+        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
+                   e.what());
         REQUIRE(false);
     }
 }
@@ -186,7 +182,7 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
         auto bob = LedgerTestUtils::generateValidAccountEntry(5);
 
         autocheck::generator<std::vector<LedgerKey>> deadGen;
-        CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
+        CLOG_DEBUG(Bucket, "Adding batches to bucket list");
 
         uint32_t const totalNumEntries = 1200;
         for (uint32_t i = 1;
@@ -213,8 +209,8 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
                         deadGen(5));
             if (i % 100 == 0)
             {
-                CLOG(DEBUG, "Bucket") << "Added batch " << i
-                                      << ", hash=" << binToHex(bl.getHash());
+                CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
+                           binToHex(bl.getHash()));
                 // Alice and bob should be in either curr or snap of level 0 and
                 // 1
                 for (uint32_t j = 0; j < 2; ++j)
@@ -279,7 +275,7 @@ TEST_CASE("bucket tombstones expire at bottom level",
         BucketManager& bm = app->getBucketManager();
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         auto& mergeTimer = bm.getMergeTimer();
-        CLOG(INFO, "Bucket") << "Establishing random bucketlist";
+        CLOG_INFO(Bucket, "Establishing random bucketlist");
         for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
         {
             auto& level = bl.getLevel(i);
@@ -315,8 +311,9 @@ TEST_CASE("bucket tombstones expire at bottom level",
                     }
                 }
                 n = mergeTimer.count() - n;
-                CLOG(INFO, "Bucket") << "Added batch at ledger " << j
-                                     << ", merges provoked: " << n;
+                CLOG_INFO(Bucket,
+                          "Added batch at ledger {}, merges provoked: {}", j,
+                          n);
                 REQUIRE(n > 0);
                 REQUIRE(n < 2 * BucketList::kNumLevels);
             }
@@ -399,8 +396,7 @@ TEST_CASE("bucket tombstones mutually-annihilate init entries",
                 // entries.
                 REQUIRE((currSz + snapSz) < 500);
             }
-            CLOG(INFO, "Bucket")
-                << "Level " << k << " size: " << (currSz + snapSz);
+            CLOG_INFO(Bucket, "Level {} size: {}", k, (currSz + snapSz));
         }
     });
 }
@@ -417,12 +413,12 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
             std::vector<stellar::LedgerKey> emptySet;
             std::vector<stellar::LedgerEntry> emptySetEntry;
 
-            CLOG(DEBUG, "Bucket") << "Adding single entry in lowest level";
+            CLOG_DEBUG(Bucket, "Adding single entry in lowest level");
             bl.addBatch(*app, 1, getAppLedgerVersion(app), {},
                         LedgerTestUtils::generateValidLedgerEntries(1),
                         emptySet);
 
-            CLOG(DEBUG, "Bucket") << "Adding empty batches to bucket list";
+            CLOG_DEBUG(Bucket, "Adding empty batches to bucket list");
             for (uint32_t i = 2;
                  !app->getClock().getIOContext().stopped() && i < 300; ++i)
             {
@@ -430,11 +426,10 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
                 bl.addBatch(*app, i, getAppLedgerVersion(app), {},
                             emptySetEntry, emptySet);
                 if (i % 10 == 0)
-                    CLOG(DEBUG, "Bucket")
-                        << "Added batch " << i
-                        << ", hash=" << binToHex(bl.getHash());
+                    CLOG_DEBUG(Bucket, "Added batch {}, hash={}", i,
+                               binToHex(bl.getHash()));
 
-                CLOG(DEBUG, "Bucket") << "------- ledger " << i;
+                CLOG_DEBUG(Bucket, "------- ledger {}", i);
 
                 for (uint32_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
                 {
@@ -444,9 +439,8 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
                     auto const& lev = bl.getLevel(j);
                     auto currSz = countEntries(lev.getCurr());
                     auto snapSz = countEntries(lev.getSnap());
-                    CLOG(DEBUG, "Bucket")
-                        << "ledger " << i << ", level " << j
-                        << " curr=" << currSz << " snap=" << snapSz;
+                    CLOG_DEBUG(Bucket, "ledger {}, level {} curr={} snap={}", i,
+                               j, currSz, snapSz);
 
                     if (1 > lb && 1 <= hb)
                     {
@@ -463,8 +457,8 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketlist][bucketbubble]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "Bucket")
-            << "Test caught std::future_error " << e.code() << ": " << e.what();
+        CLOG_DEBUG(Bucket, "Test caught std::future_error {}: {}", e.code(),
+                   e.what());
         REQUIRE(false);
     }
 }
@@ -645,38 +639,30 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
 {
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
-        CLOG(INFO, "Bucket")
-            << "levelSize(" << level
-            << ") = " << formatU32(BucketList::levelSize(level))
-            << " (formally)";
+        CLOG_INFO(Bucket, "levelSize({}) = {} (formally)", level,
+                  formatU32(BucketList::levelSize(level)));
     }
 
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
-        CLOG(INFO, "Bucket")
-            << "levelHalf(" << level
-            << ") = " << formatU32(BucketList::levelHalf(level))
-            << " (formally)";
+        CLOG_INFO(Bucket, "levelHalf({}) = {} (formally)", level,
+                  formatU32(BucketList::levelHalf(level)));
     }
 
     for (uint32_t probe : {0x100, 0x10000, 0x1000000})
     {
         for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
         {
-            CLOG(INFO, "Bucket")
-                << "sizeOfCurr(0x" << std::hex << probe << ", " << std::dec
-                << level
-                << ") = " << formatU32(BucketList::sizeOfCurr(probe, level))
-                << " (precisely)";
+            auto sz = formatU32(BucketList::sizeOfCurr(probe, level));
+            CLOG_INFO(Bucket, "sizeOfCurr({:#x}, {}) = {} (precisely)", probe,
+                      level, sz);
         }
 
         for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
         {
-            CLOG(INFO, "Bucket")
-                << "sizeOfSnap(0x" << std::hex << probe << ", " << std::dec
-                << level
-                << ") = " << formatU32(BucketList::sizeOfSnap(probe, level))
-                << " (precisely)";
+            auto sz = formatU32(BucketList::sizeOfSnap(probe, level));
+            CLOG_INFO(Bucket, "sizeOfSnap({:#x}, {}) = {} (precisely)", probe,
+                      level, sz);
         }
     }
 
@@ -718,24 +704,23 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
     }
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
-        CLOG(INFO, "Bucket")
-            << "levelShouldSpill(" << std::hex << level << ") = true @ "
-            << formatLedgerList(spillEvents[level]);
+        auto ls = formatLedgerList(spillEvents[level]);
+        CLOG_INFO(Bucket, "levelShouldSpill({:#x}) = true @ {}", level, ls);
     }
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
-        CLOG(INFO, "Bucket") << "mergeCommit(" << std::hex << level << ") @ "
-                             << formatLedgerList(mergeCommitEvents[level]);
+        auto ls = formatLedgerList(mergeCommitEvents[level]);
+        CLOG_INFO(Bucket, "mergeCommit({:#x}) @ {}", level, ls);
     }
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
-        CLOG(INFO, "Bucket") << "nonMergeCommit(" << std::hex << level << ") @ "
-                             << formatLedgerList(nonMergeCommitEvents[level]);
+        auto ls = formatLedgerList(nonMergeCommitEvents[level]);
+        CLOG_INFO(Bucket, "nonMergeCommit({:#x}) @ {}", level, ls);
     }
 
     // Print out the full bucketlist at an arbitrarily-chosen probe ledger.
     uint32_t probe = 0x11f9ab;
-    CLOG(INFO, "Bucket") << "BucketList state at" << std::hex << probe;
+    CLOG_INFO(Bucket, "BucketList state at {:#x}", probe);
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
     {
         uint32_t currOld = BucketList::oldestLedgerInCurr(probe, level);
@@ -744,11 +729,10 @@ TEST_CASE("BucketList number dump", "[bucket][bucketlist][count][!hide]")
         uint32_t snapSz = BucketList::sizeOfSnap(probe, level);
         uint32_t currNew = currOld + currSz - 1;
         uint32_t snapNew = snapOld + snapSz - 1;
-        CLOG(INFO, "Bucket")
-            << "level[" << std::hex << level << "]"
-            << " curr (size:" << formatX32(currSz) << ") = "
-            << "[" << formatX32(currOld) << ", " << formatX32(currNew) << "]"
-            << " snap (size:" << formatX32(snapSz) << ") = "
-            << "[" << formatX32(snapOld) << ", " << formatX32(snapNew) << "]";
+        CLOG_INFO(
+            Bucket,
+            "level[{:x}] curr (size:{}) = [{}, {}] snap (size:{}) = [{}, {}]",
+            level, formatX32(currSz), formatX32(currOld), formatX32(currNew),
+            formatX32(snapSz), formatX32(snapOld), formatX32(snapNew));
     }
 }

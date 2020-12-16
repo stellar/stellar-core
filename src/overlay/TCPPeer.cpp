@@ -45,8 +45,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
 {
     assert(address.getType() == PeerBareAddress::Type::IPv4);
 
-    CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
-                           << " to " << address.toString();
+    CLOG_DEBUG(Overlay, "TCPPeer:initiate to {}", address.toString());
     assertThreadIsMain();
     auto socket = make_shared<SocketType>(app.getClock().getIOContext(), BUFSZ);
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
@@ -84,17 +83,15 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 
     if (!ec)
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-                               << "@" << app.getConfig().PEER_PORT;
+        CLOG_DEBUG(Overlay, "TCPPeer:accept@{}", app.getConfig().PEER_PORT);
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
         result->startRecurrentTimer();
         result->startRead();
     }
     else
     {
-        CLOG(DEBUG, "Overlay")
-            << "TCPPeer:accept"
-            << "@" << app.getConfig().PEER_PORT << " error " << ec.message();
+        CLOG_DEBUG(Overlay, "TCPPeer:accept@{} error {}",
+                   app.getConfig().PEER_PORT, ec.message());
     }
 
     return result;
@@ -128,8 +125,8 @@ TCPPeer::getIP() const
     auto ep = mSocket->next_layer().remote_endpoint(ec);
     if (ec)
     {
-        CLOG(ERROR, "Overlay")
-            << "Could not determine remote endpoint: " << ec.message();
+        CLOG_ERROR(Overlay, "Could not determine remote endpoint: {}",
+                   ec.message());
     }
     else
     {
@@ -144,9 +141,9 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
     if (mState == CLOSING)
     {
-        CLOG(ERROR, "Overlay")
-            << "Trying to send message to " << toString() << " after drop";
-        CLOG(ERROR, "Overlay") << REPORT_INTERNAL_BUG;
+        CLOG_ERROR(Overlay, "Trying to send message to {} after drop",
+                   toString());
+        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
         return;
     }
 
@@ -170,8 +167,8 @@ TCPPeer::shutdown()
     if (mShutdownScheduled)
     {
         // should not happen, leave here for debugging purposes
-        CLOG(ERROR, "Overlay") << "Double schedule of shutdown " << toString();
-        CLOG(ERROR, "Overlay") << REPORT_INTERNAL_BUG;
+        CLOG_ERROR(Overlay, "Double schedule of shutdown {}", toString());
+        CLOG_ERROR(Overlay, "{}", REPORT_INTERNAL_BUG);
         return;
     }
 
@@ -202,8 +199,8 @@ TCPPeer::shutdown()
             asio::ip::tcp::socket::shutdown_both, ec);
         if (ec)
         {
-            CLOG(DEBUG, "Overlay")
-                << "TCPPeer::drop shutdown socket failed: " << ec.message();
+            CLOG_DEBUG(Overlay, "TCPPeer::drop shutdown socket failed: {}",
+                       ec.message());
         }
         self->getApp().postOnMainThread(
             [self]() {
@@ -220,9 +217,8 @@ TCPPeer::shutdown()
                 self->mSocket->close(ec2);
                 if (ec2)
                 {
-                    CLOG(DEBUG, "Overlay")
-                        << "TCPPeer::drop close socket failed: "
-                        << ec2.message();
+                    CLOG_DEBUG(Overlay, "TCPPeer::drop close socket failed: {}",
+                               ec2.message());
                 }
             },
             "TCPPeer: close");
@@ -277,9 +273,8 @@ TCPPeer::messageSender()
 
     if (Logging::logDebug("Overlay"))
     {
-        CLOG(DEBUG, "Overlay") << fmt::format(
-            "messageSender {} - b:{} n:{}/{}", toString(), expected_length,
-            mWriteBuffers.size(), mWriteQueue.size());
+        CLOG_DEBUG(Overlay, "messageSender {} - b:{} n:{}/{}", toString(),
+                   expected_length, mWriteBuffers.size(), mWriteQueue.size());
     }
     getOverlayMetrics().mAsyncWrite.Mark();
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
@@ -351,8 +346,8 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             getOverlayMetrics().mErrorWrite.Mark();
-            CLOG(ERROR, "Overlay")
-                << "Error during sending message to " << toString();
+            CLOG_ERROR(Overlay, "Error during sending message to {}",
+                       toString());
         }
         if (mDelayedShutdown)
         {
@@ -459,8 +454,8 @@ TCPPeer::startRead()
 
     if (Logging::logDebug("Overlay"))
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer::startRead " << mSocket->in_avail()
-                               << " from " << toString();
+        CLOG_DEBUG(Overlay, "TCPPeer::startRead {} from {}",
+                   mSocket->in_avail(), toString());
     }
 
     mIncomingHeader.resize(HDRSZ);
@@ -559,9 +554,8 @@ TCPPeer::getIncomingMsgLength()
         length > MAX_MESSAGE_SIZE)
     {
         getOverlayMetrics().mErrorRead.Mark();
-        CLOG(ERROR, "Overlay")
-            << "TCP: message size unacceptable: " << length
-            << (isAuthenticated() ? "" : " while not authenticated");
+        CLOG_ERROR(Overlay, "TCP: message size unacceptable: {}{}", length,
+                   (isAuthenticated() ? "" : " while not authenticated"));
         drop("error during read", Peer::DropDirection::WE_DROPPED_REMOTE,
              Peer::DropMode::IGNORE_WRITE_QUEUE);
         length = 0;
@@ -659,13 +653,13 @@ TCPPeer::recvMessage()
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
+        CLOG_ERROR(Overlay, "recvMessage got a corrupt xdr: {}", e.what());
         sendErrorAndDrop(ERR_DATA, "received corrupt XDR",
                          Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
     catch (CryptoError const& e)
     {
-        CLOG(ERROR, "Overlay") << fmt::format("Crypto error: {}", e.what());
+        CLOG_ERROR(Overlay, "Crypto error: {}", e.what());
         sendErrorAndDrop(ERR_DATA, "crypto error",
                          Peer::DropMode::IGNORE_WRITE_QUEUE);
     }
@@ -683,18 +677,16 @@ TCPPeer::drop(std::string const& reason, DropDirection dropDirection,
 
     if (mState != GOT_AUTH)
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer::drop " << toString() << " in state "
-                               << mState << " we called:" << mRole;
+        CLOG_DEBUG(Overlay, "TCPPeer::drop {} in state {} we called:{}",
+                   toString(), mState, mRole);
     }
     else if (dropDirection == Peer::DropDirection::WE_DROPPED_REMOTE)
     {
-        CLOG(INFO, "Overlay")
-            << "Dropping peer " << toString() << "; reason: " << reason;
+        CLOG_INFO(Overlay, "Dropping peer {}, reason {}", toString(), reason);
     }
     else
     {
-        CLOG(INFO, "Overlay")
-            << "Peer " << toString() << " dropped us; reason: " << reason;
+        CLOG_INFO(Overlay, "Peer {} dropped us, reason {}", toString(), reason);
     }
 
     mState = CLOSING;

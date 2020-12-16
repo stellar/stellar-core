@@ -107,7 +107,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
         if (!ec)
         {
-            LOG(INFO) << "got signal " << sig << ", shutting down";
+            LOG_INFO(DEFAULT_LOG, "got signal {}, shutting down", sig);
 
 #ifdef BUILD_TESTS
             if (mConfig.TEST_CASES_ENABLED)
@@ -120,8 +120,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     });
 
     auto t = mConfig.WORKER_THREADS;
-    LOG(DEBUG) << "Application constructing "
-               << "(worker threads: " << t << ")";
+    LOG_DEBUG(DEFAULT_LOG, "Application constructing (worker threads: {})", t);
     while (t--)
     {
         auto thread = std::thread{[this]() {
@@ -186,7 +185,7 @@ ApplicationImpl::initialize(bool createNewDB)
     // initialization and newDB run, as it relies on tmp dir created in the
     // constructor
     mProcessManager = ProcessManager::create(*this);
-    LOG(DEBUG) << "Application constructed";
+    LOG_DEBUG(DEFAULT_LOG, "Application constructed");
 }
 
 void
@@ -224,8 +223,8 @@ ApplicationImpl::reportCfgMetrics()
     {
         if (allMetrics.find(name) == allMetrics.end())
         {
-            LOG(INFO) << "";
-            LOG(WARNING) << "Metric not found: " << name;
+            LOG_INFO(DEFAULT_LOG, "");
+            LOG_WARNING(DEFAULT_LOG, "Metric not found: {}", name);
             reportAvailableMetrics = true;
         }
         metricsToReport.insert(name);
@@ -233,13 +232,14 @@ ApplicationImpl::reportCfgMetrics()
 
     if (reportAvailableMetrics)
     {
-        LOG(INFO) << "Update REPORT_METRICS value in configuration file to "
-                     "only include available metrics:";
+        LOG_INFO(DEFAULT_LOG,
+                 "Update REPORT_METRICS value in configuration file to "
+                 "only include available metrics:");
         for (auto const& n : allMetrics)
         {
-            LOG(INFO) << "    " << n;
+            LOG_INFO(DEFAULT_LOG, "    {}", n);
         }
-        LOG(INFO) << "";
+        LOG_INFO(DEFAULT_LOG, "");
     }
 
     std::ostringstream oss;
@@ -251,17 +251,17 @@ ApplicationImpl::reportCfgMetrics()
         auto nstr = name.ToString();
         if (metricsToReport.find(nstr) != metricsToReport.end())
         {
-            LOG(INFO) << "";
-            LOG(INFO) << "metric '" << nstr << "':";
+            LOG_INFO(DEFAULT_LOG, "");
+            LOG_INFO(DEFAULT_LOG, "metric '{}':", nstr);
             metric->Process(reporter);
             std::istringstream iss(oss.str());
             char buf[128];
             while (iss.getline(buf, 128))
             {
-                LOG(INFO) << std::string(buf);
+                LOG_INFO(DEFAULT_LOG, "{}", std::string(buf));
             }
             oss.str("");
-            LOG(INFO) << "";
+            LOG_INFO(DEFAULT_LOG, "");
         }
     }
 }
@@ -339,7 +339,7 @@ void
 ApplicationImpl::reportInfo()
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
-    LOG(INFO) << "info -> " << getJsonInfo().toStyledString();
+    LOG_INFO(DEFAULT_LOG, "info -> {}", getJsonInfo().toStyledString());
 }
 
 Hash const&
@@ -350,7 +350,7 @@ ApplicationImpl::getNetworkID() const
 
 ApplicationImpl::~ApplicationImpl()
 {
-    LOG(INFO) << "Application destructing";
+    LOG_INFO(DEFAULT_LOG, "Application destructing");
     try
     {
         shutdownWorkScheduler();
@@ -365,12 +365,12 @@ ApplicationImpl::~ApplicationImpl()
     }
     catch (std::exception const& e)
     {
-        LOG(ERROR) << "While shutting down " << e.what();
+        LOG_ERROR(DEFAULT_LOG, "While shutting down {}", e.what());
     }
     reportCfgMetrics();
     shutdownMainIOContext();
     joinAllThreads();
-    LOG(INFO) << "Application destroyed";
+    LOG_INFO(DEFAULT_LOG, "Application destroyed");
 }
 
 uint64_t
@@ -384,10 +384,10 @@ ApplicationImpl::start()
 {
     if (mStarted)
     {
-        CLOG(INFO, "Ledger") << "Skipping application start up";
+        CLOG_INFO(Ledger, "Skipping application start up");
         return;
     }
-    CLOG(INFO, "Ledger") << "Starting up application";
+    CLOG_INFO(Ledger, "Starting up application");
     mStarted = true;
 
     if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
@@ -438,40 +438,40 @@ ApplicationImpl::start()
     mConfig.logBasicInfo();
 
     bool done = false;
-    mLedgerManager->loadLastKnownLedger(
-        [this, &done](asio::error_code const& ec) {
-            if (ec)
-            {
-                throw std::runtime_error(
-                    "Unable to restore last-known ledger state");
-            }
+    mLedgerManager->loadLastKnownLedger([this,
+                                         &done](asio::error_code const& ec) {
+        if (ec)
+        {
+            throw std::runtime_error(
+                "Unable to restore last-known ledger state");
+        }
 
-            // restores Herder's state before starting overlay
-            mHerder->restoreState();
-            // set known cursors before starting maintenance job
-            ExternalQueue ps(*this);
-            ps.setInitialCursors(mConfig.KNOWN_CURSORS);
-            mMaintainer->start();
-            if (mConfig.MODE_AUTO_STARTS_OVERLAY)
-            {
-                mOverlayManager->start();
-            }
-            auto npub = mHistoryManager->publishQueuedHistory();
-            if (npub != 0)
-            {
-                CLOG(INFO, "Ledger")
-                    << "Restarted publishing " << npub << " queued snapshots";
-            }
-            if (mConfig.FORCE_SCP)
-            {
-                LOG(INFO) << "* ";
-                LOG(INFO) << "* Force-starting scp from the current db state.";
-                LOG(INFO) << "* ";
+        // restores Herder's state before starting overlay
+        mHerder->restoreState();
+        // set known cursors before starting maintenance job
+        ExternalQueue ps(*this);
+        ps.setInitialCursors(mConfig.KNOWN_CURSORS);
+        mMaintainer->start();
+        if (mConfig.MODE_AUTO_STARTS_OVERLAY)
+        {
+            mOverlayManager->start();
+        }
+        auto npub = mHistoryManager->publishQueuedHistory();
+        if (npub != 0)
+        {
+            CLOG_INFO(Ledger, "Restarted publishing {} queued snapshots", npub);
+        }
+        if (mConfig.FORCE_SCP)
+        {
+            LOG_INFO(DEFAULT_LOG, "* ");
+            LOG_INFO(DEFAULT_LOG,
+                     "* Force-starting scp from the current db state.");
+            LOG_INFO(DEFAULT_LOG, "* ");
 
-                mHerder->bootstrap();
-            }
-            done = true;
-        });
+            mHerder->bootstrap();
+        }
+        done = true;
+    });
 
     while (!done && mVirtualClock.crank(true))
         ;
@@ -547,12 +547,12 @@ ApplicationImpl::joinAllThreads()
     {
         mWork.reset();
     }
-    LOG(DEBUG) << "Joining " << mWorkerThreads.size() << " worker threads";
+    LOG_DEBUG(DEFAULT_LOG, "Joining {} worker threads", mWorkerThreads.size());
     for (auto& w : mWorkerThreads)
     {
         w.join();
     }
-    LOG(DEBUG) << "Joined all " << mWorkerThreads.size() << " threads";
+    LOG_DEBUG(DEFAULT_LOG, "Joined all {} threads", mWorkerThreads.size());
 }
 
 std::string
@@ -733,10 +733,12 @@ ApplicationImpl::advanceToLedgerBeforeManualCloseTarget(
 {
     if (targetLedgerSeq != getLedgerManager().getLastClosedLedgerNum() + 1)
     {
-        LOG(INFO) << "manually advancing to ledger with sequence number "
-                  << targetLedgerSeq - 1 << " to prepare to close number "
-                  << targetLedgerSeq << " (last ledger to close was number "
-                  << getLedgerManager().getLastClosedLedgerNum() << ")";
+        LOG_INFO(DEFAULT_LOG,
+                 "manually advancing to ledger with sequence number {} to "
+                 "prepare to close number {} (last ledger to close was number "
+                 "{})",
+                 targetLedgerSeq - 1, targetLedgerSeq,
+                 getLedgerManager().getLastClosedLedgerNum());
 
         LedgerTxn ltx(getLedgerTxnRoot());
         ltx.loadHeader().current().ledgerSeq = targetLedgerSeq - 1;

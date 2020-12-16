@@ -84,9 +84,9 @@ Slot::setStateFromEnvelope(SCPEnvelopeWrapperPtr env)
     else
     {
         if (Logging::logTrace("SCP"))
-            CLOG(TRACE, "SCP")
-                << "Slot::setStateFromEnvelope invalid envelope"
-                << " i: " << getSlotIndex() << " " << mSCP.envToStr(e);
+            CLOG_TRACE(SCP,
+                       "Slot::setStateFromEnvelope invalid envelope i: {} {}",
+                       getSlotIndex(), mSCP.envToStr(e));
     }
 }
 
@@ -120,10 +120,9 @@ Slot::recordStatement(SCPStatement const& st)
 {
     mStatementsHistory.emplace_back(
         HistoricalStatement{std::time(nullptr), st, mFullyValidated});
-    CLOG(DEBUG, "SCP") << "new statement: "
-                       << " i: " << getSlotIndex()
-                       << " st: " << mSCP.envToStr(st, false) << " validated: "
-                       << (mFullyValidated ? "true" : "false");
+    CLOG_DEBUG(SCP, "new statement:  i: {} st: {} validated: {}",
+               getSlotIndex(), mSCP.envToStr(st, false),
+               (mFullyValidated ? "true" : "false"));
 }
 
 SCP::EnvelopeState
@@ -132,9 +131,8 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
     dbgAssert(envelope->getStatement().slotIndex == mSlotIndex);
 
     if (Logging::logTrace("SCP"))
-        CLOG(TRACE, "SCP") << "Slot::processEnvelope"
-                           << " i: " << getSlotIndex() << " "
-                           << mSCP.envToStr(envelope->getEnvelope());
+        CLOG_TRACE(SCP, "Slot::processEnvelope i: {} {}", getSlotIndex(),
+                   mSCP.envToStr(envelope->getEnvelope()));
 
     SCP::EnvelopeState res;
 
@@ -159,15 +157,12 @@ Slot::processEnvelope(SCPEnvelopeWrapperPtr envelope, bool self)
     }
     catch (...)
     {
-        CLOG(FATAL, "SCP") << "SCP context ("
-                           << mSCP.getDriver().toShortString(
-                                  mSCP.getLocalNodeID())
-                           << "): ";
-        CLOG(FATAL, "SCP") << getJsonInfo().toStyledString();
-        CLOG(FATAL, "SCP") << "Exception processing SCP messages at "
-                           << mSlotIndex << ", envelope: "
-                           << mSCP.envToStr(envelope->getEnvelope());
-        CLOG(FATAL, "SCP") << REPORT_INTERNAL_BUG;
+        CLOG_FATAL(SCP, "SCP context ({}): ",
+                   mSCP.getDriver().toShortString(mSCP.getLocalNodeID()));
+        CLOG_FATAL(SCP, "{}", getJsonInfo().toStyledString());
+        CLOG_FATAL(SCP, "Exception processing SCP messages at {}, envelope: {}",
+                   mSlotIndex, mSCP.envToStr(envelope->getEnvelope()));
+        CLOG_FATAL(SCP, "{}", REPORT_INTERNAL_BUG);
 
         throw;
     }
@@ -440,7 +435,7 @@ Slot::maybeSetGotVBlocking()
 
     if (mGotVBlocking)
     {
-        CLOG(TRACE, "SCP") << "Got v-blocking for " << mSlotIndex;
+        CLOG_TRACE(SCP, "Got v-blocking for {}", mSlotIndex);
     }
 }
 }

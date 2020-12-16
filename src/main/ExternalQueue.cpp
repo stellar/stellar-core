@@ -198,9 +198,9 @@ ExternalQueue::deleteOldEntries(uint32 count)
     // publication and the requirements of our pubsub subscribers.
     uint32_t cmin = std::min(lmin, rmin);
 
-    CLOG(INFO, "History") << "Trimming history <= ledger " << cmin
-                          << " (rmin=" << rmin << ", qmin=" << qmin
-                          << ", lmin=" << lmin << ")";
+    CLOG_INFO(History,
+              "Trimming history <= ledger {} (rmin={}, qmin={}, lmin={})", cmin,
+              rmin, qmin, lmin);
 
     mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), cmin, count);
 }

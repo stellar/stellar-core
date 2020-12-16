@@ -458,7 +458,7 @@ TEST_CASE("operation filter configuration", "[config]")
             ss << "\"" << OperationTypeTraits::enum_name(*iter++) << "\"";
         }
         ss << "]";
-        CLOG(ERROR, "Tx") << ss.str();
+        CLOG_ERROR(Tx, "{}", ss.str());
     };
 
     auto loadConfig = [&](std::vector<OperationType> const& vals) {

@@ -62,8 +62,8 @@ FetchRecentQsetsWork::doWork()
 
     if (!mDownloadSCPMessagesWork)
     {
-        CLOG(INFO, "History") << "Downloading historical SCP messages: ["
-                              << firstSeq << ", " << lastSeq << "]";
+        CLOG_INFO(History, "Downloading historical SCP messages: [{}, {}]",
+                  firstSeq, lastSeq);
         auto range = CheckpointRange::inclusive(firstSeq, lastSeq, step);
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
             range, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
@@ -77,7 +77,7 @@ FetchRecentQsetsWork::doWork()
     // Phase 3: extract the qsets.
     for (uint32_t i = firstSeq; i <= lastSeq; i += step)
     {
-        CLOG(INFO, "History") << "Scanning for QSets in checkpoint: " << i;
+        CLOG_INFO(History, "Scanning for QSets in checkpoint: {}", i);
         XDRInputFileStream in;
         FileTransferInfo fi(*mDownloadDir, HISTORY_FILE_TYPE_SCP, i);
         try
@@ -86,7 +86,7 @@ FetchRecentQsetsWork::doWork()
         }
         catch (FileSystemException&)
         {
-            CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+            CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
             return State::WORK_FAILURE;
         }
 

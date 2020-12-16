@@ -320,9 +320,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     assert(!mOutputBucketFuture.valid());
     assert(!mOutputBucket);
 
-    CLOG(TRACE, "Bucket") << "Preparing merge of curr="
-                          << hexAbbrev(curr->getHash())
-                          << " with snap=" << hexAbbrev(snap->getHash());
+    CLOG_TRACE(Bucket, "Preparing merge of curr={} with snap={}",
+               hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
 
     BucketManager& bm = app.getBucketManager();
     auto& timer = app.getMetrics().NewTimer(
@@ -340,9 +339,9 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     auto f = bm.getMergeFuture(mk);
     if (f.valid())
     {
-        CLOG(TRACE, "Bucket") << "Re-attached to existing merge of curr="
-                              << hexAbbrev(curr->getHash())
-                              << " with snap=" << hexAbbrev(snap->getHash());
+        CLOG_TRACE(Bucket,
+                   "Re-attached to existing merge of curr={} with snap={}",
+                   hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
         mOutputBucketFuture = f;
         checkState();
         return;
@@ -352,9 +351,8 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
         [curr, snap, &bm, shadows, maxProtocolVersion, countMergeEvents, level,
          &timer, &app]() mutable {
             auto timeScope = timer.TimeScope();
-            CLOG(TRACE, "Bucket")
-                << "Worker merging curr=" << hexAbbrev(curr->getHash())
-                << " with snap=" << hexAbbrev(snap->getHash());
+            CLOG_TRACE(Bucket, "Worker merging curr={} with snap={}",
+                       hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
 
             try
             {
@@ -369,19 +367,19 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
 
                 if (res)
                 {
-                    CLOG(TRACE, "Bucket")
-                        << "Worker finished merging curr="
-                        << hexAbbrev(curr->getHash())
-                        << " with snap=" << hexAbbrev(snap->getHash());
+                    CLOG_TRACE(
+                        Bucket, "Worker finished merging curr={} with snap={}",
+                        hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
 
                     std::chrono::duration<double> time(timeScope.Stop());
                     double timePct =
                         time.count() /
                         getAvailableTimeForMerge(app, level).count() * 100;
-                    CLOG(DEBUG, "Perf")
-                        << "Bucket merge on level " << level << " finished in "
-                        << time.count() << " seconds (" << timePct
-                        << "% of available time)";
+                    CLOG_DEBUG(
+                        Perf,
+                        "Bucket merge on level {} finished in {} seconds "
+                        "({}% of available time)",
+                        level, time.count(), timePct);
                 }
 
                 return res;
@@ -428,7 +426,7 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
         {
             auto b = bm.getBucketByHash(hexToBin256(h));
             assert(b);
-            CLOG(DEBUG, "Bucket") << "Reconstituting shadow " << h;
+            CLOG_DEBUG(Bucket, "Reconstituting shadow {}", h);
             mInputShadowBuckets.push_back(b);
         }
         mState = FB_LIVE_INPUTS;

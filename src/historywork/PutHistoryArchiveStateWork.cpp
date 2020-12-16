@@ -50,9 +50,8 @@ PutHistoryArchiveStateWork::doWork()
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "History")
-                << "Error saving history state: " << e.what();
-            CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+            CLOG_ERROR(History, "Error saving history state: {}", e.what());
+            CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
             return State::WORK_FAILURE;
         }
     }

@@ -1459,29 +1459,30 @@ TEST_CASE("upgrade to version 11", "[upgrades]")
             ledgerUpgrade.newLedgerVersion() = newProto;
             auto v = xdr::xdr_to_opaque(ledgerUpgrade);
             upgrades.push_back(UpgradeType{v.begin(), v.end()});
-            CLOG(INFO, "Ledger")
-                << "Ledger " << ledgerSeq << " upgrading to v" << newProto;
+            CLOG_INFO(Ledger, "Ledger {} upgrading to v{}", ledgerSeq,
+                      newProto);
         }
         StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
                         STELLAR_VALUE_BASIC);
         lm.closeLedger(LedgerCloseData(ledgerSeq, txSet, sv));
         auto& bm = app->getBucketManager();
         auto mc = bm.readMergeCounters();
-        CLOG(INFO, "Bucket")
-            << "Ledger " << ledgerSeq << " did "
-            << mc.mPreInitEntryProtocolMerges << " old-protocol merges, "
-            << mc.mPostInitEntryProtocolMerges << " new-protocol merges, "
-            << mc.mNewInitEntries << " new INITENTRYs, " << mc.mOldInitEntries
-            << " old INITENTRYs";
+        CLOG_INFO(Bucket,
+                  "Ledger {} did {} old-protocol merges, {} new-protocol "
+                  "merges, {} new INITENTRYs, {} old INITENTRYs",
+                  ledgerSeq, mc.mPreInitEntryProtocolMerges,
+                  mc.mPostInitEntryProtocolMerges, mc.mNewInitEntries,
+                  mc.mOldInitEntries);
         for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)
         {
             auto& lev = bm.getBucketList().getLevel(level);
             BucketTests::EntryCounts currCounts(lev.getCurr());
             BucketTests::EntryCounts snapCounts(lev.getSnap());
-            CLOG(INFO, "Bucket")
-                << "post-ledger " << ledgerSeq << " close, init counts: level "
-                << level << ", " << currCounts.nInit << " in curr, "
-                << snapCounts.nInit << " in snap";
+            CLOG_INFO(
+                Bucket,
+                "post-ledger {} close, init counts: level {}, {} in curr, "
+                "{} in snap",
+                ledgerSeq, level, currCounts.nInit, snapCounts.nInit);
         }
         if (ledgerSeq < 5)
         {
@@ -1573,8 +1574,8 @@ TEST_CASE("upgrade to version 12", "[upgrades]")
             ledgerUpgrade.newLedgerVersion() = newProto;
             auto v = xdr::xdr_to_opaque(ledgerUpgrade);
             upgrades.push_back(UpgradeType{v.begin(), v.end()});
-            CLOG(INFO, "Ledger")
-                << "Ledger " << ledgerSeq << " upgrading to v" << newProto;
+            CLOG_INFO(Ledger, "Ledger {} upgrading to v{}", ledgerSeq,
+                      newProto);
         }
         StellarValue sv(txSet->getContentsHash(), closeTime, upgrades,
                         STELLAR_VALUE_BASIC);

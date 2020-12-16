@@ -18,7 +18,7 @@ class FileSystemException : public std::runtime_error
     static void
     failWith(std::string msg)
     {
-        CLOG(FATAL, "Fs") << msg;
+        CLOG_FATAL(Fs, "{}", msg);
         throw FileSystemException(msg);
     }
     static void

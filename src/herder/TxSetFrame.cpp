@@ -245,8 +245,8 @@ TxSetFrame::surgePricingFilter(Application& app)
     auto curSizeOps = maxIsOps ? sizeOp() : (sizeTx() * MAX_OPS_PER_TX);
     if (curSizeOps > opsLeft)
     {
-        CLOG(WARNING, "Herder")
-            << "surge pricing in effect! " << curSizeOps << " > " << opsLeft;
+        CLOG_WARNING(Herder, "surge pricing in effect! {} > {}", curSizeOps,
+                     opsLeft);
 
         auto actTxQueueMap = buildAccountTxQueues();
 
@@ -315,11 +315,12 @@ TxSetFrame::checkOrTrim(Application& app,
             {
                 if (justCheck)
                 {
-                    CLOG(DEBUG, "Herder")
-                        << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                        << " tx invalid lastSeq:" << lastSeq
-                        << " tx: " << xdr_to_string(tx->getEnvelope())
-                        << " result: " << tx->getResultCode();
+                    CLOG_DEBUG(Herder,
+                               "Got bad txSet: {} tx invalid lastSeq:{} tx: {} "
+                               "result: {}",
+                               hexAbbrev(mPreviousLedgerHash), lastSeq,
+                               xdr_to_string(tx->getEnvelope()),
+                               tx->getResultCode());
                     return false;
                 }
                 trimmed.emplace_back(tx);
@@ -356,10 +357,10 @@ TxSetFrame::checkOrTrim(Application& app,
             {
                 if (justCheck)
                 {
-                    CLOG(DEBUG, "Herder")
-                        << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                        << " account can't pay fee tx: "
-                        << xdr_to_string(tx->getEnvelope());
+                    CLOG_DEBUG(Herder,
+                               "Got bad txSet: {} account can't pay fee tx: {}",
+                               hexAbbrev(mPreviousLedgerHash),
+                               xdr_to_string(tx->getEnvelope()));
                     return false;
                 }
                 while (iter != kv.second.end())
@@ -407,18 +408,16 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
     {
-        CLOG(DEBUG, "Herder")
-            << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-            << " ; expected: " << hexAbbrev(lcl.hash);
+        CLOG_DEBUG(Herder, "Got bad txSet: {}, expected {}",
+                   hexAbbrev(mPreviousLedgerHash), hexAbbrev(lcl.hash));
         mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
 
     if (this->size(lcl.header) > lcl.header.maxTxSetSize)
     {
-        CLOG(DEBUG, "Herder")
-            << "Got bad txSet: too many txs " << this->size(lcl.header) << " > "
-            << lcl.header.maxTxSetSize;
+        CLOG_DEBUG(Herder, "Got bad txSet: too many txs {} > {}",
+                   this->size(lcl.header), lcl.header.maxTxSetSize);
         mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }
@@ -428,9 +427,8 @@ TxSetFrame::checkValid(Application& app, uint64_t lowerBoundCloseTimeOffset,
                             return lhs->getFullHash() < rhs->getFullHash();
                         }))
     {
-        CLOG(DEBUG, "Herder")
-            << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-            << " not sorted correctly";
+        CLOG_DEBUG(Herder, "Got bad txSet: {} not sorted correctly",
+                   hexAbbrev(mPreviousLedgerHash));
         mValid = make_optional<std::pair<Hash, bool>>(lcl.hash, false);
         return false;
     }

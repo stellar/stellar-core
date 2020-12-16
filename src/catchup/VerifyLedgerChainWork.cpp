@@ -29,10 +29,11 @@ verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
     Hash calculated = sha256(xdr::xdr_to_opaque(hhe.header));
     if (calculated != hhe.hash)
     {
-        CLOG(ERROR, "History")
-            << "Bad ledger-header history entry: claimed ledger "
-            << LedgerManager::ledgerAbbrev(hhe) << " actually hashes to "
-            << hexAbbrev(calculated);
+        CLOG_ERROR(
+            History,
+            "Bad ledger-header history entry: claimed ledger {} actually "
+            "hashes to {}",
+            LedgerManager::ledgerAbbrev(hhe), hexAbbrev(calculated));
         return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
     }
     return HistoryManager::VERIFY_STATUS_OK;
@@ -48,10 +49,11 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
     }
     if (prev != curr.header.previousLedgerHash)
     {
-        CLOG(ERROR, "History")
-            << "Bad hash-chain: " << LedgerManager::ledgerAbbrev(curr)
-            << " wants prev hash " << hexAbbrev(curr.header.previousLedgerHash)
-            << " but actual prev hash is " << hexAbbrev(prev);
+        CLOG_ERROR(
+            History,
+            "Bad hash-chain: {} wants prev hash {} but actual prev hash is {}",
+            LedgerManager::ledgerAbbrev(curr),
+            hexAbbrev(curr.header.previousLedgerHash), hexAbbrev(prev));
         return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
     }
     return HistoryManager::VERIFY_STATUS_OK;
@@ -69,15 +71,13 @@ verifyLastLedgerInCheckpoint(LedgerHeaderHistoryEntry const& ledger,
     auto trustedHash = verifiedAhead.second;
     if (!trustedHash)
     {
-        CLOG(DEBUG, "History")
-            << "No trusted hash provided to verify "
-            << LedgerManager::ledgerAbbrev(ledger) << " against.";
+        CLOG_DEBUG(History, "No trusted hash provided to verify {} against.",
+                   LedgerManager::ledgerAbbrev(ledger));
     }
     else
     {
-        CLOG(DEBUG, "History")
-            << "Verifying ledger " << ledger.header.ledgerSeq
-            << " against trusted hash " << hexAbbrev(*trustedHash);
+        CLOG_DEBUG(History, "Verifying ledger {} against trusted hash {}",
+                   ledger.header.ledgerSeq, hexAbbrev(*trustedHash));
         if (ledger.hash != *trustedHash)
         {
             return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
@@ -129,7 +129,7 @@ VerifyLedgerChainWork::getStatus() const
 void
 VerifyLedgerChainWork::onReset()
 {
-    CLOG(INFO, "History") << "Verifying ledgers " << mRange.toString();
+    CLOG_INFO(History, "Verifying ledgers {}", mRange.toString());
 
     mVerifiedAhead = LedgerNumHashPair(0, nullptr);
     mMaxVerifiedLedgerOfMinCheckpoint = {};
@@ -166,9 +166,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     LedgerHeaderHistoryEntry first;
     LedgerHeaderHistoryEntry prev;
 
-    CLOG(DEBUG, "History") << "Verifying ledger headers from "
-                           << ft.localPath_nogz() << " for checkpoint "
-                           << mCurrCheckpoint;
+    CLOG_DEBUG(History, "Verifying ledger headers from {} for checkpoint {}",
+               ft.localPath_nogz(), mCurrCheckpoint);
 
     while (hdrIn && hdrIn.readOne(curr))
     {
@@ -182,12 +181,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         {
             if (sha256(xdr::xdr_to_opaque(curr.header)) != *mLastClosed.second)
             {
-                CLOG(ERROR, "History")
-                    << "Bad ledger-header history entry: claimed ledger "
-                    << LedgerManager::ledgerAbbrev(curr)
-                    << " does not agree with LCL "
-                    << LedgerManager::ledgerAbbrev(mLastClosed.first,
-                                                   *mLastClosed.second);
+                CLOG_ERROR(History,
+                           "Bad ledger-header history entry: claimed ledger {} "
+                           "does not agree with LCL {}",
+                           LedgerManager::ledgerAbbrev(curr),
+                           LedgerManager::ledgerAbbrev(mLastClosed.first,
+                                                       *mLastClosed.second));
                 return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
             }
         }
@@ -197,12 +196,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             auto lclResult = verifyLedgerHistoryLink(*mLastClosed.second, curr);
             if (lclResult != HistoryManager::VERIFY_STATUS_OK)
             {
-                CLOG(ERROR, "History")
-                    << "Bad ledger-header history entry: claimed ledger "
-                    << LedgerManager::ledgerAbbrev(curr)
-                    << " previous hash does not agree with LCL: "
-                    << LedgerManager::ledgerAbbrev(mLastClosed.first,
-                                                   *mLastClosed.second);
+                CLOG_ERROR(History,
+                           "Bad ledger-header history entry: claimed ledger {} "
+                           "previous hash does not agree with LCL: {}",
+                           LedgerManager::ledgerAbbrev(curr),
+                           LedgerManager::ledgerAbbrev(mLastClosed.first,
+                                                       *mLastClosed.second));
                 return lclResult;
             }
         }
@@ -228,18 +227,19 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             uint32_t expectedSeq = prev.header.ledgerSeq + 1;
             if (curr.header.ledgerSeq < expectedSeq)
             {
-                CLOG(ERROR, "History")
-                    << "History chain undershot expected ledger seq "
-                    << expectedSeq << ", got " << curr.header.ledgerSeq
-                    << " instead";
+                CLOG_ERROR(
+                    History,
+                    "History chain undershot expected ledger seq {}, got "
+                    "{} instead",
+                    expectedSeq, curr.header.ledgerSeq);
                 return HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT;
             }
             else if (curr.header.ledgerSeq > expectedSeq)
             {
-                CLOG(ERROR, "History")
-                    << "History chain overshot expected ledger seq "
-                    << expectedSeq << ", got " << curr.header.ledgerSeq
-                    << " instead";
+                CLOG_ERROR(History,
+                           "History chain overshot expected ledger seq {}, got "
+                           "{} instead",
+                           expectedSeq, curr.header.ledgerSeq);
                 return HistoryManager::VERIFY_STATUS_ERR_OVERSHOT;
             }
             auto linkResult = verifyLedgerHistoryLink(prev.hash, curr);
@@ -266,8 +266,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         // or at mRange.last() if history chain file was valid and we
         // reached last ledger in the range. Any other ledger here means
         // that file is corrupted.
-        CLOG(ERROR, "History") << "History chain did not end with "
-                               << mCurrCheckpoint << " or " << mRange.last();
+        CLOG_ERROR(History, "History chain did not end with {} or {}",
+                   mCurrCheckpoint, mRange.last());
         return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 
@@ -311,10 +311,9 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
         incoming = mTrustedMaxLedger.get();
         releaseAssert(incoming.first == curr.header.ledgerSeq);
-        CLOG(INFO, "History")
-            << (incoming.second ? "Verifying" : "Skipping verification for")
-            << " ledger " << LedgerManager::ledgerAbbrev(curr)
-            << " against SCP hash";
+        CLOG_INFO(History, "{} ledger {} against SCP hash",
+                  (incoming.second ? "Verifying" : "Skipping verification for"),
+                  LedgerManager::ledgerAbbrev(curr));
     }
     else
     {
@@ -333,10 +332,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     if (verifyTrustedHash != HistoryManager::VERIFY_STATUS_OK)
     {
         releaseAssert(incoming.second);
-        CLOG(ERROR, "History")
-            << "Checkpoint does not agree with checkpoint ahead: "
-            << "current " << LedgerManager::ledgerAbbrev(curr) << ", verified: "
-            << LedgerManager::ledgerAbbrev(incoming.first, *(incoming.second));
+        CLOG_ERROR(
+            History,
+            "Checkpoint does not agree with checkpoint ahead: current {}, "
+            "verified: {}",
+            LedgerManager::ledgerAbbrev(curr),
+            LedgerManager::ledgerAbbrev(incoming.first, *(incoming.second)));
         return verifyTrustedHash;
     }
 
@@ -392,7 +393,7 @@ VerifyLedgerChainWork::onRun()
     ZoneScoped;
     if (mRange.mCount == 0)
     {
-        CLOG(INFO, "History") << "History chain [0,0) trivially verified";
+        CLOG_INFO(History, "History chain [0,0) trivially verified");
         mVerifyLedgerChainSuccess.Mark();
         return BasicWork::State::WORK_SUCCESS;
     }
@@ -413,8 +414,8 @@ VerifyLedgerChainWork::onRun()
     }
     catch (FileSystemException&)
     {
-        CLOG(ERROR, "History") << "Catchup material failed verification";
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+        CLOG_ERROR(History, "Catchup material failed verification");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     }
@@ -425,42 +426,42 @@ VerifyLedgerChainWork::onRun()
         if (mCurrCheckpoint ==
             mApp.getHistoryManager().checkpointContainingLedger(mRange.mFirst))
         {
-            CLOG(INFO, "History") << "History chain [" << mRange.mFirst << ","
-                                  << mRange.last() << "] verified";
+            CLOG_INFO(History, "History chain [{},{}] verified", mRange.mFirst,
+                      mRange.last());
             mVerifyLedgerChainSuccess.Mark();
             return BasicWork::State::WORK_SUCCESS;
         }
         mCurrCheckpoint -= mApp.getHistoryManager().getCheckpointFrequency();
         return BasicWork::State::WORK_RUNNING;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "unsupported ledger version, propagating "
-                                  "failure";
-        CLOG(ERROR, "History") << UPGRADE_STELLAR_CORE;
+        CLOG_ERROR(History, "Catchup material failed verification - "
+                            "unsupported ledger version, propagating "
+                            "failure");
+        CLOG_ERROR(History, "{}", UPGRADE_STELLAR_CORE);
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
-        CLOG(ERROR, "History") << "Catchup material failed verification - hash "
-                                  "mismatch, propagating failure";
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+        CLOG_ERROR(History, "Catchup material failed verification - hash "
+                            "mismatch, propagating failure");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "overshot, propagating failure";
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+        CLOG_ERROR(History, "Catchup material failed verification - "
+                            "overshot, propagating failure");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "undershot, propagating failure";
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+        CLOG_ERROR(History, "Catchup material failed verification - "
+                            "undershot, propagating failure");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "missing entries, propagating failure";
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+        CLOG_ERROR(History, "Catchup material failed verification - "
+                            "missing entries, propagating failure");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
         mVerifyLedgerChainFailure.Mark();
         return BasicWork::State::WORK_FAILURE;
     default:

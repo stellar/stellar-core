@@ -76,8 +76,8 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
         auto stop = std::chrono::system_clock::now();
         auto elapsed =
             std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        CLOG(INFO, "Fs") << "wrote " << bytes << " bytes to fsync file in "
-                         << elapsed.count() << "ms";
+        CLOG_INFO(Fs, "wrote {} bytes to fsync file in {}ms", bytes,
+                  elapsed.count());
 
         bytes = 0;
         start = std::chrono::system_clock::now();
@@ -89,7 +89,7 @@ TEST_CASE("XDROutputFileStream fsync bench", "[!hide][xdrstream][bench]")
         stop = std::chrono::system_clock::now();
         elapsed =
             std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
-        CLOG(INFO, "Fs") << "wrote " << bytes << " bytes to no-fsync file in "
-                         << elapsed.count() << "ms";
+        CLOG_INFO(Fs, "wrote {} bytes to no-fsync file in {}ms", bytes,
+                  elapsed.count());
     }
 }

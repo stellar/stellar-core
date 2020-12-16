@@ -454,7 +454,7 @@ CommandLine::ConfigOption::getConfig(bool logToFile) const
     auto configFile =
         mConfigFile.empty() ? std::string{"stellar-core.cfg"} : mConfigFile;
 
-    LOG(INFO) << "Config from " << configFile;
+    LOG_INFO(DEFAULT_LOG, "Config from {}", configFile);
 
     // yes you really have to do this 3 times
     Logging::setLogLevel(mLogLevel, nullptr);
@@ -467,6 +467,8 @@ CommandLine::ConfigOption::getConfig(bool logToFile) const
     {
         if (config.LOG_FILE_PATH.size())
             Logging::setLoggingToFile(config.LOG_FILE_PATH);
+        if (config.LOG_COLOR)
+            Logging::setLoggingColor(true);
         Logging::setLogLevel(mLogLevel, nullptr);
     }
 
@@ -712,8 +714,8 @@ runCatchup(CommandLineArgs const& args)
                     LedgerNumHashPair pair;
                     pair.first = cc.toLedger();
                     pair.second = make_optional<Hash>(h);
-                    LOG(INFO) << "Found trusted hash " << hexAbbrev(h)
-                              << " for ledger " << cc.toLedger();
+                    LOG_INFO(DEFAULT_LOG, "Found trusted hash {} for ledger {}",
+                             hexAbbrev(h), cc.toLedger());
                     cc = CatchupConfiguration(pair, cc.count(), cc.mode());
                 }
 
@@ -792,16 +794,19 @@ runWriteVerifiedCheckpointHashes(CommandLineArgs const& args)
             auto tryCheckpoint = [&](uint32_t seq, Hash h) {
                 if (hm.isLastLedgerInCheckpoint(seq))
                 {
-                    LOG(INFO) << "Found authenticated checkpoint hash "
-                              << hexAbbrev(h) << " for ledger " << seq;
+                    LOG_INFO(
+                        DEFAULT_LOG,
+                        "Found authenticated checkpoint hash {} for ledger {}",
+                        hexAbbrev(h), seq);
                     authPair.first = seq;
                     authPair.second = make_optional<Hash>(h);
                 }
                 else if (authPair.first != seq)
                 {
                     authPair.first = seq;
-                    LOG(INFO) << "Ledger " << seq
-                              << " is not a checkpoint boundary, waiting.";
+                    LOG_INFO(DEFAULT_LOG,
+                             "Ledger {} is not a checkpoint boundary, waiting.",
+                             seq);
                 }
             };
 
@@ -1070,8 +1075,8 @@ run(CommandLineArgs const& args)
             }
             catch (std::exception& e)
             {
-                LOG(FATAL) << "Got an exception: " << e.what();
-                LOG(FATAL) << REPORT_INTERNAL_BUG;
+                LOG_FATAL(DEFAULT_LOG, "Got an exception: {}", e.what());
+                LOG_FATAL(DEFAULT_LOG, "{}", REPORT_INTERNAL_BUG);
                 return 1;
             }
 
@@ -1234,7 +1239,7 @@ runGenerateOrSimulateTxs(CommandLineArgs const& args, bool generate)
                 config.HISTORY[simArchive.first] = simArchive.second;
             }
 
-            LOG(INFO) << "Publishing is disabled in `simulate` mode";
+            LOG_INFO(DEFAULT_LOG, "Publishing is disabled in `simulate` mode");
             config.setNoPublish();
         }
         else if (found == config.HISTORY.end())
@@ -1322,7 +1327,7 @@ runSimulateBuckets(CommandLineArgs const& args)
             std::shared_ptr<HistoryArchiveState> has;
             if (!hasStr.empty())
             {
-                LOG(INFO) << "Loading state from " << hasStr;
+                LOG_INFO(DEFAULT_LOG, "Loading state from {}", hasStr);
                 has = std::make_shared<HistoryArchiveState>();
                 has->load(hasStr);
                 config.DISABLE_BUCKET_GC =
@@ -1368,8 +1373,8 @@ runSimulateBuckets(CommandLineArgs const& args)
                 while (hdrIn && hdrIn.readOne(curr))
                     ;
 
-                LOG(INFO) << "Assuming state for ledger "
-                          << curr.header.ledgerSeq;
+                LOG_INFO(DEFAULT_LOG, "Assuming state for ledger {}",
+                         curr.header.ledgerSeq);
                 app->getLedgerManager().setLastClosedLedger(curr);
                 app->getBucketManager().forgetUnreferencedBuckets();
             }
@@ -1531,8 +1536,8 @@ handleCommandLine(int argc, char* const* argv)
     }
     catch (std::exception& e)
     {
-        LOG(FATAL) << "Got an exception: " << e.what();
-        LOG(FATAL) << REPORT_INTERNAL_BUG;
+        LOG_FATAL(DEFAULT_LOG, "Got an exception: {}", e.what());
+        LOG_FATAL(DEFAULT_LOG, "{}", REPORT_INTERNAL_BUG);
         return 1;
     }
 }

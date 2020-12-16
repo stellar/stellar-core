@@ -9,7 +9,8 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/util"                   \
 	-isystem "$(top_srcdir)/lib/fmt/include"            \
 	-isystem "$(top_srcdir)/lib/soci/src/core"          \
-	-isystem "$(top_srcdir)/lib/tracy"
+	-isystem "$(top_srcdir)/lib/tracy"                  \
+	-isystem "$(top_srcdir)/lib/spdlog/include"
 
 if USE_POSTGRES
 AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)
@@ -31,3 +32,7 @@ endif # BUILD_TESTS
 if USE_EASYLOGGING
 AM_CPPFLAGS += -DUSE_EASYLOGGING
 endif # USE_EASYLOGGING
+
+if USE_SPDLOG
+AM_CPPFLAGS += -DUSE_SPDLOG -include $(top_srcdir)/src/util/SpdlogTweaks.h
+endif # USE_SPDLOG

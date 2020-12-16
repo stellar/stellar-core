@@ -111,8 +111,6 @@ BucketLevel::commit()
     if (mNextCurr.isLive())
     {
         setCurr(mNextCurr.resolve());
-        // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mCurr to "
-        //            << mCurr->getEntries().size() << " elements";
     }
     assert(!mNextCurr.isMerging());
 }
@@ -179,10 +177,6 @@ BucketLevel::snap()
 {
     mSnap = mCurr;
     mCurr = std::make_shared<Bucket>();
-    // CLOG(DEBUG, "Bucket") << "level " << mLevel << " set mSnap to "
-    //            << mSnap->getEntries().size() << " elements";
-    // CLOG(DEBUG, "Bucket") << "level " << mLevel << " reset mCurr to "
-    //            << mCurr->getEntries().size() << " elements";
     return mSnap;
 }
 
@@ -522,11 +516,10 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
         shadows.pop_back();
 
         /*
-        CLOG(DEBUG, "Bucket") << "curr=" << currLedger
-                   << ", half(i-1)=" << levelHalf(i-1)
-                   << ", size(i-1)=" << levelSize(i-1)
-                   << ", mask(curr,half)=" << mask(currLedger, levelHalf(i-1))
-                   << ", mask(curr,size)=" << mask(currLedger, levelSize(i-1));
+        CLOG_DEBUG(Bucket, "curr={}, half(i-1)={}, size(i-1)={},
+        mask(curr,half)={}, mask(curr,size)={}", currLedger, levelHalf(i-1),
+        levelSize(i-1), mask(currLedger, levelHalf(i-1)), mask(currLedger,
+        levelSize(i-1)));
         */
         if (levelShouldSpill(currLedger, i - 1))
         {
@@ -556,14 +549,6 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
              */
 
             auto snap = mLevels[i - 1].snap();
-
-            // CLOG(DEBUG, "Bucket") << "Ledger " << currLedger
-            //           << " causing commit on level " << i
-            //           << " and prepare of "
-            //           << snap->getEntries().size()
-            //           << " element snap from level " << i-1
-            //           << " to level " << i;
-
             mLevels[i].commit();
             mLevels[i].prepare(app, currLedger, currLedgerProtocol, snap,
                                shadows, /*countMergeEvents=*/true);
@@ -613,8 +598,7 @@ BucketList::restartMerges(Application& app, uint32_t maxProtocolVersion,
             next.makeLive(app, maxProtocolVersion, i);
             if (next.isMerging())
             {
-                CLOG(INFO, "Bucket")
-                    << "Restarted merge on BucketList level " << i;
+                CLOG_INFO(Bucket, "Restarted merge on BucketList level {}", i);
             }
         }
         // The next block assumes we are re-starting a

@@ -6,6 +6,7 @@
 
 // C++ value-semantic / convenience wrapper around C bitset_t
 
+#include "util/Logging.h"
 #include <functional>
 #include <memory>
 #include <ostream>

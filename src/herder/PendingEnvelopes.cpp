@@ -66,7 +66,7 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
         mQuorumSetFetcher.doesntHave(itemID, peer);
         break;
     default:
-        CLOG(INFO, "Herder") << "Unknown Type in peerDoesntHave: " << type;
+        CLOG_INFO(Herder, "Unknown Type in peerDoesntHave: {}", type);
         break;
     }
 }
@@ -92,7 +92,7 @@ PendingEnvelopes::getKnownQSet(Hash const& hash, bool touch)
 SCPQuorumSetPtr
 PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
 {
-    CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(qSetHash);
+    CLOG_TRACE(Herder, "Add SCPQSet {}", hexAbbrev(qSetHash));
     SCPQuorumSetPtr res;
     const char* errString = nullptr;
     assert(isQuorumSetSane(qSet, false, errString));
@@ -118,7 +118,7 @@ bool
 PendingEnvelopes::recvSCPQuorumSet(Hash const& hash, SCPQuorumSet const& q)
 {
     ZoneScoped;
-    CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
+    CLOG_TRACE(Herder, "Got SCPQSet {}", hexAbbrev(hash));
 
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
     if (lastSeenSlotIndex == 0)
@@ -143,8 +143,8 @@ void
 PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash const& hash)
 {
     ZoneScoped;
-    CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with SCPQSet "
-                          << hexAbbrev(hash);
+    CLOG_TRACE(Herder, "Discarding SCP Envelopes with SCPQSet {}",
+               hexAbbrev(hash));
 
     auto envelopes = mQuorumSetFetcher.fetchingFor(hash);
     for (auto& envelope : envelopes)
@@ -225,7 +225,7 @@ PendingEnvelopes::addTxSet(Hash const& hash, uint64 lastSeenSlotIndex,
                            TxSetFramePtr txset)
 {
     ZoneScoped;
-    CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
+    CLOG_TRACE(Herder, "Add TxSet {}", hexAbbrev(hash));
 
     putTxSet(hash, lastSeenSlotIndex, txset);
     mTxSetFetcher.recv(hash, mFetchTxSetTimer);
@@ -235,7 +235,7 @@ bool
 PendingEnvelopes::recvTxSet(Hash const& hash, TxSetFramePtr txset)
 {
     ZoneScoped;
-    CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
+    CLOG_TRACE(Herder, "Got TxSet {}", hexAbbrev(hash));
 
     auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
     if (lastSeenSlotIndex == 0)
@@ -280,9 +280,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     auto const& nodeID = envelope.statement.nodeID;
     if (!isNodeDefinitelyInQuorum(nodeID))
     {
-        CLOG(TRACE, "Herder")
-            << "Dropping envelope from "
-            << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
+        CLOG_TRACE(Herder, "Dropping envelope from {} (not in quorum)",
+                   mApp.getConfig().toShortString(nodeID));
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
@@ -334,13 +333,12 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
                 envelope.statement);
             if (Logging::logTrace("Perf"))
             {
-                CLOG(TRACE, "Perf")
-                    << "Herder fetched for envelope "
-                    << hexAbbrev(xdrSha256(envelope)) << " with txsets "
-                    << txSetsToStr(envelope) << " and qset " << hexAbbrev(h)
-                    << " in "
-                    << std::chrono::duration<double>(durationNano).count()
-                    << " seconds";
+                CLOG_TRACE(Perf,
+                           "Herder fetched for envelope {} with txsets {} and "
+                           "qset {} in {} seconds",
+                           hexAbbrev(xdrSha256(envelope)),
+                           txSetsToStr(envelope), hexAbbrev(h),
+                           std::chrono::duration<double>(durationNano).count());
             }
 
             // move the item from fetching to processed
@@ -362,9 +360,9 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(TRACE, "Herder")
-            << "PendingEnvelopes::recvSCPEnvelope got corrupt message: "
-            << e.what();
+        CLOG_TRACE(Herder,
+                   "PendingEnvelopes::recvSCPEnvelope got corrupt message: {}",
+                   e.what());
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 }
@@ -389,9 +387,10 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(TRACE, "Herder")
-            << "PendingEnvelopes::discardSCPEnvelope got corrupt message: "
-            << e.what();
+        CLOG_TRACE(
+            Herder,
+            "PendingEnvelopes::discardSCPEnvelope got corrupt message: {}",
+            e.what());
     }
     updateMetrics();
 }
@@ -522,9 +521,9 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     auto slot = envelope.statement.slotIndex;
     if (Logging::logTrace("Herder"))
     {
-        CLOG(TRACE, "Herder")
-            << "Envelope ready " << hexAbbrev(xdrSha256(envelope))
-            << " i:" << slot << " t:" << envelope.statement.pledges.type();
+        CLOG_TRACE(Herder, "Envelope ready {} i:{} t:{}",
+                   hexAbbrev(xdrSha256(envelope)), slot,
+                   envelope.statement.pledges.type());
     }
 
     // envelope has been fetched completely, but SCP has not done
@@ -582,10 +581,9 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 
     if (needSomething && Logging::logTrace("Herder"))
     {
-        CLOG(TRACE, "Herder")
-            << "StartFetch env " << hexAbbrev(xdrSha256(envelope))
-            << " i:" << envelope.statement.slotIndex
-            << " t:" << envelope.statement.pledges.type();
+        CLOG_TRACE(Herder, "StartFetch env {} i:{} t:{}",
+                   hexAbbrev(xdrSha256(envelope)), envelope.statement.slotIndex,
+                   envelope.statement.pledges.type());
     }
 }
 
@@ -603,10 +601,9 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 
     if (Logging::logTrace("Herder"))
     {
-        CLOG(TRACE, "Herder")
-            << "StopFetch env " << hexAbbrev(xdrSha256(envelope))
-            << " i:" << envelope.statement.slotIndex
-            << " t:" << envelope.statement.pledges.type();
+        CLOG_TRACE(Herder, "StopFetch env {} i:{} t:{}",
+                   hexAbbrev(xdrSha256(envelope)), envelope.statement.slotIndex,
+                   envelope.statement.pledges.type());
     }
 }
 
@@ -850,7 +847,7 @@ shouldReportCostOutlier(double possibleOutlierCost, double expectedCost,
 {
     if (possibleOutlierCost <= 0 || expectedCost <= 0)
     {
-        CLOG(ERROR, "SCP") << "Unexpected k-means value: must be positive";
+        CLOG_ERROR(SCP, "Unexpected k-means value: must be positive");
         return false;
     }
 
@@ -902,8 +899,8 @@ PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
 
         if (clusters.empty() || *(clusters.begin()) <= 0)
         {
-            CLOG(ERROR, "SCP")
-                << "Expected non-empty set of positive cluster centers";
+            CLOG_ERROR(SCP,
+                       "Expected non-empty set of positive cluster centers");
         }
         else
         {
@@ -924,8 +921,8 @@ PendingEnvelopes::reportCostOutliersForSlot(int64_t slotIndex,
             Json::FastWriter fw;
             if (!res.empty())
             {
-                CLOG(WARNING, "SCP") << "High validator costs for slot "
-                                     << slotIndex << ": " << fw.write(res);
+                CLOG_WARNING(SCP, "High validator costs for slot {}: {}",
+                             slotIndex, fw.write(res));
             }
         }
     }

@@ -79,8 +79,8 @@ DownloadBucketsWork::yieldMoreWork()
             auto ar = getFile->getArchive();
             if (ar)
             {
-                CLOG(INFO, "History") << fmt::format(
-                    "Bucket {} from archive {}", hash, ar->getName());
+                CLOG_INFO(History, "Bucket {} from archive {}", hash,
+                          ar->getName());
             }
         }
     };

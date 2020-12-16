@@ -58,13 +58,12 @@ http_request(std::string domain, std::string path, unsigned short port, std::str
         std::getline(response_stream, status_message);
         if (!response_stream || http_version.substr(0, 5) != "HTTP/")
         {
-            LOG(DEBUG) << "Invalid response\n";
+            LOG_DEBUG(DEFAULT_LOG, "Invalid response\n");
             return 1;
         }
         if (status_code != 200)
         {
-            LOG(DEBUG) << "Response returned with status code " << status_code
-                       << "\n";
+            LOG_DEBUG(DEFAULT_LOG, "Response returned with status code {}\n", status_code);
             return status_code;
         }
 
@@ -93,7 +92,7 @@ http_request(std::string domain, std::string path, unsigned short port, std::str
     }
     catch (std::exception& e)
     {
-        LOG(DEBUG) << "Exception: " << e.what() << "\n";
+        LOG_DEBUG(DEFAULT_LOG, "Exception: {}\n", e.what());
         return 1;
     }
 }

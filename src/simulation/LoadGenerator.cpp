@@ -70,7 +70,7 @@ LoadGenerator::createRootAccount()
         mRoot = make_shared<TestAccount>(rootTestAccount);
         if (!loadAccount(mRoot, mApp))
         {
-            CLOG(ERROR, "LoadGen") << "Could not retrieve root account!";
+            CLOG_ERROR(LoadGen, "Could not retrieve root account!");
         }
     }
 }
@@ -132,9 +132,9 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
     // run.
     if (mFailed)
     {
-        CLOG(ERROR, "LoadGen") << "Load generation failed, ensure correct "
-                                  "number parameters are set and accounts are "
-                                  "created, or retry with smaller tx rate.";
+        CLOG_ERROR(LoadGen, "Load generation failed, ensure correct "
+                            "number parameters are set and accounts are "
+                            "created, or retry with smaller tx rate.");
         mLoadgenFail.Mark();
         reset();
         return;
@@ -158,9 +158,10 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
     }
     else
     {
-        CLOG(WARNING, "LoadGen")
-            << "Application is not in sync, load generation inhibited. State "
-            << mApp.getState();
+        CLOG_WARNING(
+            LoadGen,
+            "Application is not in sync, load generation inhibited. State {}",
+            mApp.getState());
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
         mLoadTimer->async_wait(
             [this, nAccounts, offset, nTxs, txRate, batchSize, isCreate,
@@ -349,14 +350,13 @@ LoadGenerator::logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
     auto etaHours = etaSecs / 3600;
     auto etaMins = etaSecs % 60;
 
-    CLOG(INFO, "LoadGen") << "Tx/s: " << txRate << " target, "
-                          << applyTx.one_minute_rate() << "tx/"
-                          << applyOp.one_minute_rate() << "op actual (1m EWMA)."
-                          << " Pending: " << nAccounts << " accounts, " << nTxs
-                          << " txs."
-                          << " ETA: " << etaHours << "h" << etaMins << "m";
+    CLOG_INFO(LoadGen,
+              "Tx/s: {} target, {}tx/{}op actual (1m EWMA). Pending: {} "
+              "accounts, {} txs. ETA: {}h{}m",
+              txRate, applyTx.one_minute_rate(), applyOp.one_minute_rate(),
+              nAccounts, nTxs, etaHours, etaMins);
 
-    CLOG(DEBUG, "LoadGen") << "Step timing: " << submitSteps << "ms submit.";
+    CLOG_DEBUG(LoadGen, "Step timing: {}ms submit.", submitSteps);
 
     TxMetrics txm(mApp.getMetrics());
     txm.report();
@@ -439,8 +439,8 @@ LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
 
     auto destAccount = findAccount(destAccountId, ledgerNum);
 
-    CLOG(DEBUG, "LoadGen") << "Generated pair for payment tx - "
-                           << sourceAccountId << " and " << destAccountId;
+    CLOG_DEBUG(LoadGen, "Generated pair for payment tx - {} and {}",
+               sourceAccountId, destAccountId);
     return std::pair<TestAccountPtr, TestAccountPtr>(sourceAccount,
                                                      destAccount);
 }
@@ -502,8 +502,8 @@ LoadGenerator::maybeHandleFailedTx(TestAccountPtr sourceAccount,
     {
         if (!loadAccount(sourceAccount, mApp))
         {
-            CLOG(ERROR, "LoadGen")
-                << "Unable to reload account " << sourceAccount->getAccountId();
+            CLOG_ERROR(LoadGen, "Unable to reload account {}",
+                       sourceAccount->getAccountId());
         }
     }
 }
@@ -525,8 +525,8 @@ LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
         {
             if (!reloadRes)
             {
-                CLOG(TRACE, "LoadGen") << "Account " << account->getAccountId()
-                                       << " is not created yet!";
+                CLOG_TRACE(LoadGen, "Account {} is not created yet!",
+                           account->getAccountId());
                 result.push_back(account);
             }
         }
@@ -541,11 +541,11 @@ LoadGenerator::checkAccountSynced(Application& app, bool isCreate)
         else if (account->getLastSequenceNumber() !=
                  accountFromDB.getLastSequenceNumber())
         {
-            CLOG(TRACE, "LoadGen")
-                << "Account " << account->getAccountId()
-                << " is at sequence num " << account->getLastSequenceNumber()
-                << ", but the DB is at  "
-                << accountFromDB.getLastSequenceNumber();
+            CLOG_TRACE(LoadGen,
+                       "Account {} is at sequence num {}, but the DB is at  {}",
+                       account->getAccountId(),
+                       account->getLastSequenceNumber(),
+                       accountFromDB.getLastSequenceNumber());
             result.push_back(account);
         }
     }
@@ -564,7 +564,7 @@ LoadGenerator::waitTillComplete(bool isCreate)
 
     if (inconsistencies.empty())
     {
-        CLOG(INFO, "LoadGen") << "Load generation complete.";
+        CLOG_INFO(LoadGen, "Load generation complete.");
         mLoadgenComplete.Mark();
         reset();
         return;
@@ -573,7 +573,7 @@ LoadGenerator::waitTillComplete(bool isCreate)
     {
         if (++mWaitTillCompleteForLedgers >= TIMEOUT_NUM_LEDGERS)
         {
-            CLOG(INFO, "LoadGen") << "Load generation failed.";
+            CLOG_INFO(LoadGen, "Load generation failed.");
             mLoadgenFail.Mark();
             reset();
             return;
@@ -603,18 +603,15 @@ LoadGenerator::TxMetrics::TxMetrics(medida::MetricsRegistry& m)
 void
 LoadGenerator::TxMetrics::report()
 {
-    CLOG(DEBUG, "LoadGen") << "Counts: " << mTxnAttempted.count() << " tx, "
-                           << mTxnRejected.count() << " rj, "
-                           << mTxnBytes.count() << " by, "
-                           << mAccountCreated.count() << " ac ("
-                           << mNativePayment.count() << " na, ";
+    CLOG_DEBUG(LoadGen, "Counts: {} tx, {} rj, {} by, {} ac ({} na, ",
+               mTxnAttempted.count(), mTxnRejected.count(), mTxnBytes.count(),
+               mAccountCreated.count(), mNativePayment.count());
 
-    CLOG(DEBUG, "LoadGen") << "Rates/sec (1m EWMA): " << std::setprecision(3)
-                           << mTxnAttempted.one_minute_rate() << " tx, "
-                           << mTxnRejected.one_minute_rate() << " rj, "
-                           << mTxnBytes.one_minute_rate() << " by, "
-                           << mAccountCreated.one_minute_rate() << " ac, "
-                           << mNativePayment.one_minute_rate() << " na, ";
+    CLOG_DEBUG(LoadGen,
+               "Rates/sec (1m EWMA): {} tx, {} rj, {} by, {} ac, {} na, ",
+               mTxnAttempted.one_minute_rate(), mTxnRejected.one_minute_rate(),
+               mTxnBytes.one_minute_rate(), mAccountCreated.one_minute_rate(),
+               mNativePayment.one_minute_rate());
 }
 
 TransactionQueue::AddResult
@@ -650,10 +647,10 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     auto status = app.getHerder().recvTransaction(txf);
     if (status != TransactionQueue::AddResult::ADD_STATUS_PENDING)
     {
-        CLOG(INFO, "LoadGen")
-            << "tx rejected '" << TX_STATUS_STRING[static_cast<int>(status)]
-            << "': " << xdr_to_string(txf->getEnvelope()) << " ===> "
-            << xdr_to_string(txf->getResult());
+        CLOG_INFO(LoadGen, "tx rejected '{}': {} ===> {}",
+                  TX_STATUS_STRING[static_cast<int>(status)],
+                  xdr_to_string(txf->getEnvelope()),
+                  xdr_to_string(txf->getResult()));
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
             code = txf->getResultCode();

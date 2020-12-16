@@ -138,17 +138,16 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchup]")
         auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
                                 lastClosedLedger, configuration.toLedger(),
                                 configuration.count());
-        CLOG(DEBUG, "History") << "Catchup configuration: " << name;
+        CLOG_DEBUG(History, "Catchup configuration: {}", name);
         {
             auto range =
                 CatchupRange{lastClosedLedger, configuration, historyManager};
 
-            CLOG(DEBUG, "History")
-                << "computed CatchupRange: first=" << range.first()
-                << ", last=" << range.last()
-                << ", replayFirst=" << range.getReplayFirst()
-                << ", replayCount=" << range.getReplayCount()
-                << ", replayLimit=" << range.getReplayLimit();
+            CLOG_DEBUG(History,
+                       "computed CatchupRange: first={}, last={}, "
+                       "replayFirst={}, replayCount={}, replayLimit={}",
+                       range.first(), range.last(), range.getReplayFirst(),
+                       range.getReplayCount(), range.getReplayLimit());
 
             // we need to finish where we wanted to finish
             REQUIRE(configuration.toLedger() == range.last());

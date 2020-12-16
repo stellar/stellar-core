@@ -20,9 +20,8 @@ PosixSpawnFileActions::~PosixSpawnFileActions()
     {
         if (auto err = posix_spawn_file_actions_destroy(&mFileActions))
         {
-            CLOG(ERROR, "Process")
-                << "posix_spawn_file_actions_destroy() failed: "
-                << strerror(err);
+            CLOG_ERROR(Process, "posix_spawn_file_actions_destroy() failed: {}",
+                       strerror(err));
         }
     }
 }
@@ -37,8 +36,8 @@ PosixSpawnFileActions::initialize()
 
     if (auto err = posix_spawn_file_actions_init(&mFileActions))
     {
-        CLOG(ERROR, "Process")
-            << "posix_spawn_file_actions_init() failed: " << strerror(err);
+        CLOG_ERROR(Process, "posix_spawn_file_actions_init() failed: {}",
+                   strerror(err));
         throw std::runtime_error("posix_spawn_file_actions_init() failed");
     }
     mInitialized = true;
@@ -54,8 +53,8 @@ PosixSpawnFileActions::addOpen(int fildes, std::string const& fileName,
     if (auto err = posix_spawn_file_actions_addopen(
             &mFileActions, fildes, fileName.c_str(), oflag, mode))
     {
-        CLOG(ERROR, "Process")
-            << "posix_spawn_file_actions_addopen() failed: " << strerror(err);
+        CLOG_ERROR(Process, "posix_spawn_file_actions_addopen() failed: {}",
+                   strerror(err));
         throw std::runtime_error("posix_spawn_file_actions_addopen() failed");
     }
 }

@@ -27,9 +27,8 @@ LocalNode::LocalNode(NodeID const& nodeID, bool isValidator,
     auto const& scpDriver = mSCP->getDriver();
     mQSetHash = scpDriver.getHashOf({xdr::xdr_to_opaque(mQSet)});
 
-    CLOG(INFO, "SCP") << "LocalNode::LocalNode"
-                      << "@" << KeyUtils::toShortString(mNodeID)
-                      << " qSet: " << hexAbbrev(mQSetHash);
+    CLOG_INFO(SCP, "LocalNode::LocalNode@{} qSet: {}",
+              KeyUtils::toShortString(mNodeID), hexAbbrev(mQSetHash));
 
     mSingleQSet = std::make_shared<SCPQuorumSet>(buildSingletonQSet(mNodeID));
     gSingleQSetHash = scpDriver.getHashOf({xdr::xdr_to_opaque(*mSingleQSet)});

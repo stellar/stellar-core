@@ -60,7 +60,7 @@ Work::onRun()
 
     else
     {
-        CLOG(DEBUG, "Work") << "Running " << getName();
+        CLOG_DEBUG(Work, "Running {}", getName());
         auto state = doWork();
         if (state == State::WORK_SUCCESS)
         {
@@ -69,9 +69,10 @@ Work::onRun()
         }
         else if (state == State::WORK_FAILURE && !allChildrenDone())
         {
-            CLOG(DEBUG, "Work")
-                << "A child of " << getName()
-                << " failed: aborting remaining children before failure.";
+            CLOG_DEBUG(Work,
+                       "A child of {} failed: aborting remaining children "
+                       "before failure.",
+                       getName());
             shutdownChildren();
             mAbortChildrenButNotSelf = true;
             return State::WORK_RUNNING;
@@ -93,7 +94,7 @@ Work::onAbort()
     }
     else
     {
-        CLOG(TRACE, "Work") << getName() << ": waiting for children to abort.";
+        CLOG_TRACE(Work, "{}: waiting for children to abort.", getName());
         return allChildrenDone();
     }
 }

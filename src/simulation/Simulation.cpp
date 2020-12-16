@@ -465,7 +465,8 @@ Simulation::haveAllExternalized(uint32 num, uint32 maxSpread)
     {
         auto app = it->second.mApp;
         auto n = app->getLedgerManager().getLastClosedLedgerNum();
-        LOG(DEBUG) << app->getConfig().PEER_PORT << " @ ledger#: " << n;
+        LOG_DEBUG(DEFAULT_LOG, "{} @ ledger#: {}", app->getConfig().PEER_PORT,
+                  n);
 
         if (n < min)
             min = n;
@@ -499,9 +500,9 @@ Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
         ;
 
     if (stop)
-        LOG(INFO) << "Simulation timed out";
+        LOG_INFO(DEFAULT_LOG, "Simulation timed out");
     else
-        LOG(INFO) << "Simulation complete";
+        LOG_INFO(DEFAULT_LOG, "Simulation complete");
 
     if (finalCrank)
     {

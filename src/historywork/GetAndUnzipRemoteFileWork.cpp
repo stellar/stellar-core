@@ -60,9 +60,8 @@ GetAndUnzipRemoteFileWork::onFailureRaise()
     std::shared_ptr<HistoryArchive> ar = getArchive();
     if (ar)
     {
-        CLOG(ERROR, "History")
-            << fmt::format("Archive {}: file {} is maybe corrupt",
-                           ar->getName(), mFt.remoteName());
+        CLOG_ERROR(History, "Archive {}: file {} is maybe corrupt",
+                   ar->getName(), mFt.remoteName());
     }
     mDownloadFailure.Mark();
     Work::onFailureRaise();
@@ -87,8 +86,8 @@ GetAndUnzipRemoteFileWork::doWork()
         auto state = mGunzipFileWork->getState();
         if (state == State::WORK_SUCCESS && !fs::exists(mFt.localPath_nogz()))
         {
-            CLOG(ERROR, "History") << "Downloading and unzipping "
-                                   << mFt.remoteName() << ": .xdr not found";
+            CLOG_ERROR(History, "Downloading and unzipping {}: .xdr not found",
+                       mFt.remoteName());
             return State::WORK_FAILURE;
         }
         return state;
@@ -111,8 +110,7 @@ GetAndUnzipRemoteFileWork::doWork()
     }
     else
     {
-        CLOG(DEBUG, "History")
-            << "Downloading and unzipping " << mFt.remoteName();
+        CLOG_DEBUG(History, "Downloading and unzipping {}", mFt.remoteName());
         mGetRemoteFileWork =
             addWork<GetRemoteFileWork>(mFt.remoteName(), mFt.localPath_gz_tmp(),
                                        mArchive, BasicWork::RETRY_NEVER);
@@ -127,36 +125,38 @@ GetAndUnzipRemoteFileWork::validateFile()
     ZoneScoped;
     if (!fs::exists(mFt.localPath_gz_tmp()))
     {
-        CLOG(ERROR, "History") << "Downloading and unzipping "
-                               << mFt.remoteName() << ": .tmp file not found";
+        CLOG_ERROR(History, "Downloading and unzipping {}: .tmp file not found",
+                   mFt.remoteName());
         return false;
     }
 
-    CLOG(TRACE, "History") << "Downloading and unzipping " << mFt.remoteName()
-                           << ": renaming .gz.tmp to .gz";
+    CLOG_TRACE(History, "Downloading and unzipping {}: renaming .gz.tmp to .gz",
+               mFt.remoteName());
     if (fs::exists(mFt.localPath_gz()) &&
         std::remove(mFt.localPath_gz().c_str()))
     {
-        CLOG(ERROR, "History") << "Downloading and unzipping "
-                               << mFt.remoteName() << ": failed to remove .gz";
+        CLOG_ERROR(History,
+                   "Downloading and unzipping {}: failed to remove .gz",
+                   mFt.remoteName());
         return false;
     }
 
     if (std::rename(mFt.localPath_gz_tmp().c_str(), mFt.localPath_gz().c_str()))
     {
-        CLOG(ERROR, "History")
-            << "Downloading and unzipping " << mFt.remoteName()
-            << ": failed to rename .gz.tmp to .gz";
+        CLOG_ERROR(
+            History,
+            "Downloading and unzipping {}: failed to rename .gz.tmp to .gz",
+            mFt.remoteName());
         return false;
     }
 
-    CLOG(TRACE, "History") << "Downloading and unzipping " << mFt.remoteName()
-                           << ": renamed .gz.tmp to .gz";
+    CLOG_TRACE(History, "Downloading and unzipping {}: renamed .gz.tmp to .gz",
+               mFt.remoteName());
 
     if (!fs::exists(mFt.localPath_gz()))
     {
-        CLOG(ERROR, "History") << "Downloading and unzipping "
-                               << mFt.remoteName() << ": .gz not found";
+        CLOG_ERROR(History, "Downloading and unzipping {}: .gz not found",
+                   mFt.remoteName());
         return false;
     }
 

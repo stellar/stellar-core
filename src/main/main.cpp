@@ -47,7 +47,7 @@ main(int argc, char* const* argv)
     Logging::init();
     if (sodium_init() != 0)
     {
-        LOG(FATAL) << "Could not initialize crypto";
+        LOG_FATAL(DEFAULT_LOG, "Could not initialize crypto");
         return 1;
     }
     shortHash::initialize();

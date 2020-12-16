@@ -679,7 +679,7 @@ eraseOfferWithPossibleSponsorship(AbstractLedgerTxn& ltx,
 static void
 prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
 {
-    CLOG(INFO, "Ledger") << "Starting prepareLiabilities";
+    CLOG_INFO(Ledger, "Starting prepareLiabilities");
 
     auto offersByAccount = ltx.loadAllOffers();
 
@@ -768,8 +768,7 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
                 default:
                     throw std::runtime_error("Unknown UpdateOfferResult");
                 }
-                CLOG(DEBUG, "Ledger")
-                    << "Offer with offerID=" << offerID << message;
+                CLOG_DEBUG(Ledger, "Offer with offerID={}{}", offerID, message);
             }
         }
 
@@ -834,15 +833,14 @@ prepareLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header)
         }
     }
 
-    CLOG(INFO, "Ledger") << "prepareLiabilities completed with "
-                         << changedAccounts.size() << " accounts modified, "
-                         << nChangedTrustLines << " trustlines modified, "
-                         << nUpdatedOffers[UpdateOfferResult::Adjusted]
-                         << " offers adjusted, "
-                         << nUpdatedOffers[UpdateOfferResult::AdjustedToZero]
-                         << " offers adjusted to zero, and "
-                         << nUpdatedOffers[UpdateOfferResult::Erase]
-                         << " offers erased";
+    CLOG_INFO(Ledger,
+              "prepareLiabilities completed with {} accounts modified, {} "
+              "trustlines modified, {} offers adjusted, {} offers adjusted to "
+              "zero, and {} offers erased",
+              changedAccounts.size(), nChangedTrustLines,
+              nUpdatedOffers[UpdateOfferResult::Adjusted],
+              nUpdatedOffers[UpdateOfferResult::AdjustedToZero],
+              nUpdatedOffers[UpdateOfferResult::Erase]);
 }
 
 void

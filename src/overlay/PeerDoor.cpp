@@ -28,7 +28,8 @@ PeerDoor::start()
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         tcp::endpoint endpoint(tcp::v4(), mApp.getConfig().PEER_PORT);
-        CLOG(INFO, "Overlay") << "Binding to endpoint " << endpoint;
+        CLOG_INFO(Overlay, "Binding to endpoint {}:{}",
+                  endpoint.address().to_string(), endpoint.port());
         mAcceptor.open(endpoint.protocol());
         mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
         mAcceptor.bind(endpoint);
@@ -56,7 +57,7 @@ PeerDoor::acceptNextPeer()
         return;
     }
 
-    CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
+    CLOG_DEBUG(Overlay, "PeerDoor acceptNextPeer()");
     auto sock = make_shared<TCPPeer::SocketType>(mApp.getClock().getIOContext(),
                                                  TCPPeer::BUFSZ);
     mAcceptor.async_accept(sock->next_layer(),
@@ -71,8 +72,8 @@ PeerDoor::acceptNextPeer()
 void
 PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
-    CLOG(DEBUG, "Overlay") << "PeerDoor handleKnock() @"
-                           << mApp.getConfig().PEER_PORT;
+    CLOG_DEBUG(Overlay, "PeerDoor handleKnock() @{}",
+               mApp.getConfig().PEER_PORT);
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
     if (peer)
     {

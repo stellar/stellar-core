@@ -141,22 +141,18 @@ BucketApplicator::Counters::logInfo(std::string const& bucketName,
         cu_sec, cd_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
              dd_sec, cu_sec, cd_sec, T_sec, total);
-    CLOG(INFO, "Bucket") << "Apply-rates for " << total << "-entry bucket "
-                         << level << "." << bucketName << " au:" << au_sec
-                         << " ad:" << ad_sec << " tu:" << tu_sec
-                         << " td:" << td_sec << " ou:" << ou_sec
-                         << " od:" << od_sec << " du:" << du_sec
-                         << " dd:" << dd_sec << " cu:" << cu_sec
-                         << " cd:" << cd_sec << " T:" << T_sec;
-    CLOG(INFO, "Bucket") << "Entry-counts for " << total << "-entry bucket "
-                         << level << "." << bucketName
-                         << " au:" << mAccountUpsert << " ad:" << mAccountDelete
-                         << " tu:" << mTrustLineUpsert
-                         << " td:" << mTrustLineDelete << " ou:" << mOfferUpsert
-                         << " od:" << mOfferDelete << " du:" << mDataUpsert
-                         << " dd:" << mDataDelete
-                         << " cu:" << mClaimableBalanceUpsert
-                         << " cd:" << mClaimableBalanceDelete;
+    CLOG_INFO(Bucket,
+              "Apply-rates for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
+              "ou:{} od:{} du:{} dd:{} cu:{} cd:{} T:{}",
+              total, level, bucketName, au_sec, ad_sec, tu_sec, td_sec, ou_sec,
+              od_sec, du_sec, dd_sec, cu_sec, cd_sec, T_sec);
+    CLOG_INFO(Bucket,
+              "Entry-counts for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
+              "ou:{} od:{} du:{} dd:{} cu:{} cd:{}",
+              total, level, bucketName, mAccountUpsert, mAccountDelete,
+              mTrustLineUpsert, mTrustLineDelete, mOfferUpsert, mOfferDelete,
+              mDataUpsert, mDataDelete, mClaimableBalanceUpsert,
+              mClaimableBalanceDelete);
 }
 
 void
@@ -168,13 +164,11 @@ BucketApplicator::Counters::logDebug(std::string const& bucketName,
         cu_sec, cd_sec, T_sec, total;
     getRates(now, au_sec, ad_sec, tu_sec, td_sec, ou_sec, od_sec, du_sec,
              dd_sec, cu_sec, cd_sec, T_sec, total);
-    CLOG(DEBUG, "Bucket") << "Apply-rates for " << total << "-entry bucket "
-                          << level << "." << bucketName << " au:" << au_sec
-                          << " ad:" << ad_sec << " tu:" << tu_sec
-                          << " td:" << td_sec << " ou:" << ou_sec
-                          << " od:" << od_sec << " du:" << du_sec
-                          << " dd:" << dd_sec << " cu:" << cu_sec
-                          << " cd:" << cd_sec << " T:" << T_sec;
+    CLOG_DEBUG(Bucket,
+               "Apply-rates for {}-entry bucket {}.{} au:{} ad:{} tu:{} td:{} "
+               "ou:{} od:{} du:{} dd:{} cu:{} cd:{} T:{}",
+               total, level, bucketName, au_sec, ad_sec, tu_sec, td_sec, ou_sec,
+               od_sec, du_sec, dd_sec, cu_sec, cd_sec, T_sec);
 }
 
 void

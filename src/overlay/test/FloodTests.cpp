@@ -84,7 +84,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         // enough for connections to be made
         simulation->crankForAtLeast(std::chrono::seconds(1), false);
 
-        LOG(DEBUG) << "Injecting work";
+        LOG_DEBUG(DEFAULT_LOG, "Injecting work");
 
         // inject transactions
         for (int i = 0; i < nbTx; i++)
@@ -92,7 +92,7 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             inject(i);
         }
 
-        LOG(DEBUG) << "Done injecting work";
+        LOG_DEBUG(DEFAULT_LOG, "Done injecting work");
 
         auto checkSim = [&]() {
             bool res = true;
@@ -122,8 +122,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                     kv.second->Process(reporter);
                 }
             }
-            LOG(DEBUG) << " ~~~~~~ " << n->getConfig().PEER_PORT << " :\n"
-                       << out.str();
+            LOG_DEBUG(DEFAULT_LOG, " ~~~~~~ {} :\n{}", n->getConfig().PEER_PORT,
+                      out.str());
         }
         REQUIRE(checkSim());
     };
@@ -160,10 +160,10 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                         : 0;
             }
             bool res = okCount == sources.size();
-            LOG(DEBUG) << app->getConfig().PEER_PORT
-                       << (res ? " OK " : " BEHIND ") << okCount << " / "
-                       << sources.size() << " authenticated peers: "
-                       << app->getOverlayManager().getAuthenticatedPeersCount();
+            LOG_DEBUG(DEFAULT_LOG, "{}{}{} / {} authenticated peers: {}",
+                      app->getConfig().PEER_PORT, (res ? " OK " : " BEHIND "),
+                      okCount, sources.size(),
+                      app->getOverlayManager().getAuthenticatedPeersCount());
             return res;
         };
 
@@ -289,10 +289,10 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
                 },
                 true);
             bool res = okCount == sources.size();
-            LOG(DEBUG) << app->getConfig().PEER_PORT
-                       << (res ? " OK " : " BEHIND ") << okCount << " / "
-                       << sources.size() << " authenticated peers: "
-                       << app->getOverlayManager().getAuthenticatedPeersCount();
+            LOG_DEBUG(DEFAULT_LOG, "{}{}{} / {} authenticated peers: {}",
+                      app->getConfig().PEER_PORT, (res ? " OK " : " BEHIND "),
+                      okCount, sources.size(),
+                      app->getOverlayManager().getAuthenticatedPeersCount());
             return res;
         };
 

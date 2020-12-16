@@ -40,7 +40,7 @@ BanManagerImpl::banNode(NodeID nodeID)
 
     auto nodeIDString = KeyUtils::toStrKey(nodeID);
 
-    CLOG(INFO, "Overlay") << "ban " << nodeIDString;
+    CLOG_INFO(Overlay, "ban {}", nodeIDString);
 
     auto timer = mApp.getDatabase().getInsertTimer("ban");
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -56,7 +56,7 @@ BanManagerImpl::unbanNode(NodeID nodeID)
 {
     ZoneScoped;
     auto nodeIDString = KeyUtils::toStrKey(nodeID);
-    CLOG(INFO, "Overlay") << "unban " << nodeIDString;
+    CLOG_INFO(Overlay, "unban {}", nodeIDString);
     auto timer = mApp.getDatabase().getDeleteTimer("ban");
     auto prep = mApp.getDatabase().getPreparedStatement(
         "DELETE FROM ban WHERE nodeid = :n;");

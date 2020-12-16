@@ -54,12 +54,12 @@ VerifyTxResultsWork::onRun()
             ZoneScoped;
             asio::error_code ec;
             auto verified = self->verifyTxResultsOfCheckpoint();
-            CLOG(TRACE, "History")
-                << "Transaction results verification for checkpoint "
-                << checkpoint
-                << (verified ? " successful"
-                             : (" failed: " +
-                                std::string(POSSIBLY_CORRUPTED_HISTORY)));
+            CLOG_TRACE(History,
+                       "Transaction results verification for checkpoint {}{}",
+                       checkpoint,
+                       (verified ? " successful"
+                                 : (" failed: " +
+                                    std::string(POSSIBLY_CORRUPTED_HISTORY))));
             if (!verified)
             {
                 ec = std::make_error_code(std::errc::io_error);
@@ -109,7 +109,8 @@ VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
 
             if (!genesis && resultSetHash != curr.header.txSetResultHash)
             {
-                CLOG(ERROR, "History") << fmt::format(
+                CLOG_ERROR(
+                    History,
                     "Hash of result set does not agree with result "
                     "hash in ledger header: "
                     "txset result hash for {:d} is {:s}, but expected {:s}",
@@ -121,16 +122,16 @@ VerifyTxResultsWork::verifyTxResultsOfCheckpoint()
     }
     catch (FileSystemException&)
     {
-        CLOG(ERROR, "History") << "Transaction results failed verification: "
-                                  "are .xdr files downloaded?";
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_LOCAL_FS;
+        CLOG_ERROR(History, "Transaction results failed verification: "
+                            "are .xdr files downloaded?");
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_LOCAL_FS);
         return false;
     }
     catch (std::runtime_error& e)
     {
-        CLOG(ERROR, "History")
-            << "Transaction results failed verification: " << e.what();
-        CLOG(ERROR, "History") << POSSIBLY_CORRUPTED_HISTORY;
+        CLOG_ERROR(History, "Transaction results failed verification: {}",
+                   e.what());
+        CLOG_ERROR(History, "{}", POSSIBLY_CORRUPTED_HISTORY);
         return false;
     }
 
@@ -171,8 +172,8 @@ VerifyTxResultsWork::getCurrentTxResultSet(uint32_t ledger)
     {
         if (mTxResultEntry.ledgerSeq < ledger)
         {
-            CLOG(DEBUG, "History") << "Processed tx results for ledger "
-                                   << mTxResultEntry.ledgerSeq;
+            CLOG_DEBUG(History, "Processed tx results for ledger {}",
+                       mTxResultEntry.ledgerSeq);
         }
         else if (mTxResultEntry.ledgerSeq > ledger)
         {
@@ -181,8 +182,7 @@ VerifyTxResultsWork::getCurrentTxResultSet(uint32_t ledger)
         }
         else
         {
-            CLOG(DEBUG, "History")
-                << "Loaded tx result set for ledger " << ledger;
+            CLOG_DEBUG(History, "Loaded tx result set for ledger {}", ledger);
             trs.txResultSet = mTxResultEntry.txResultSet;
             return trs;
         }

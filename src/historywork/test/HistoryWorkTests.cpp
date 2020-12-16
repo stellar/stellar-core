@@ -46,8 +46,8 @@ TEST_CASE("write verified checkpoint hashes", "[historywork]")
 
     for (auto const& p : pairs)
     {
-        LOG(DEBUG) << "Verified " << p.first << " with hash "
-                   << hexAbbrev(*p.second);
+        LOG_DEBUG(DEFAULT_LOG, "Verified {} with hash {}", p.first,
+                  hexAbbrev(*p.second));
         Hash h = WriteVerifiedCheckpointHashesWork::loadHashFromJsonOutput(
             p.first, file);
         REQUIRE(h == *p.second);

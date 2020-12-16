@@ -78,27 +78,25 @@ StateSnapshot::writeHistoryBlocks() const
         auto& hm = mApp.getHistoryManager();
         begin = hm.firstLedgerInCheckpointContaining(mLocalState.currentLedger);
         count = hm.sizeOfCheckpointContaining(mLocalState.currentLedger);
-        CLOG(DEBUG, "History") << "Streaming " << count
-                               << " ledgers worth of history, from " << begin;
+        CLOG_DEBUG(History, "Streaming {} ledgers worth of history, from {}",
+                   count, begin);
 
         nHeaders = LedgerHeaderUtils::copyToStream(mApp.getDatabase(), sess,
                                                    begin, count, ledgerOut);
         size_t nTxs =
             copyTransactionsToStream(mApp.getNetworkID(), mApp.getDatabase(),
                                      sess, begin, count, txOut, txResultOut);
-        CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to "
-                               << mLedgerSnapFile->localPath_nogz();
-        CLOG(DEBUG, "History")
-            << "Wrote " << nTxs << " transactions to "
-            << mTransactionSnapFile->localPath_nogz() << " and "
-            << mTransactionResultSnapFile->localPath_nogz();
+        CLOG_DEBUG(History, "Wrote {} ledger headers to {}", nHeaders,
+                   mLedgerSnapFile->localPath_nogz());
+        CLOG_DEBUG(History, "Wrote {} transactions to {} and {}", nTxs,
+                   mTransactionSnapFile->localPath_nogz(),
+                   mTransactionResultSnapFile->localPath_nogz());
 
         nbSCPMessages = HerderPersistence::copySCPHistoryToStream(
             mApp.getDatabase(), sess, begin, count, scpHistory);
 
-        CLOG(DEBUG, "History")
-            << "Wrote " << nbSCPMessages << " SCP messages to "
-            << mSCPHistorySnapFile->localPath_nogz();
+        CLOG_DEBUG(History, "Wrote {} SCP messages to {}", nbSCPMessages,
+                   mSCPHistorySnapFile->localPath_nogz());
     }
 
     if (nbSCPMessages == 0)
@@ -119,10 +117,10 @@ StateSnapshot::writeHistoryBlocks() const
     // we issued them. Anyway this is transient and should go away upon retry.
     if (nHeaders != count)
     {
-        CLOG(WARNING, "History")
-            << "Only wrote " << nHeaders << " ledger headers for "
-            << mLedgerSnapFile->localPath_nogz() << ", expecting " << count
-            << ", will retry";
+        CLOG_WARNING(
+            History,
+            "Only wrote {} ledger headers for {}, expecting {}, will retry",
+            nHeaders, mLedgerSnapFile->localPath_nogz(), count);
         return false;
     }
 

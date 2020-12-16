@@ -235,7 +235,7 @@ CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous,
             StatusCategory::HISTORY_CATCHUP);
         if (existing != state)
         {
-            CLOG(INFO, "History") << state;
+            CLOG_INFO(History, "{}", state);
             mApp.getStatusManager().setStatusMessage(
                 StatusCategory::HISTORY_CATCHUP, state);
         }
@@ -316,8 +316,7 @@ CatchupManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
 {
     mSyncingLedgers.emplace(ledgerData.getLedgerSeq(), ledgerData);
 
-    CLOG(INFO, "Ledger") << "Close of ledger " << ledgerData.getLedgerSeq()
-                         << " buffered";
+    CLOG_INFO(Ledger, "Close of ledger {} buffered", ledgerData.getLedgerSeq());
 }
 
 void
@@ -383,8 +382,8 @@ CatchupManagerImpl::tryApplySyncingLedgers()
         }
 
         mApp.getLedgerManager().closeLedger(lcd);
-        CLOG(INFO, "History") << "Closed buffered ledger: "
-                              << LedgerManager::ledgerAbbrev(ledgerHeader);
+        CLOG_INFO(History, "Closed buffered ledger: {}",
+                  LedgerManager::ledgerAbbrev(ledgerHeader));
 
         ++it;
     }

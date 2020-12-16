@@ -38,8 +38,8 @@ Bucket::Bucket(std::string const& filename, Hash const& hash)
     assert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
     {
-        CLOG(TRACE, "Bucket")
-            << "Bucket::Bucket() created, file exists : " << mFilename;
+        CLOG_TRACE(Bucket, "Bucket::Bucket() created, file exists : {}",
+                   mFilename);
         mSize = fs::size(filename);
     }
 }
@@ -373,8 +373,8 @@ calculateMergeProtocolVersion(
         }
     }
 
-    CLOG(TRACE, "Bucket") << "Bucket merge protocolVersion=" << protocolVersion
-                          << ", maxProtocolVersion=" << maxProtocolVersion;
+    CLOG_TRACE(Bucket, "Bucket merge protocolVersion={}, maxProtocolVersion={}",
+               protocolVersion, maxProtocolVersion);
 
     if (protocolVersion > maxProtocolVersion)
     {

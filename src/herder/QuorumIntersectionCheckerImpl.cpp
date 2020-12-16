@@ -32,9 +32,8 @@ void
 QBitSet::log(size_t indent) const
 {
     std::string s(indent, ' ');
-    CLOG(DEBUG, "SCP") << s << "QBitSet: thresh=" << mThreshold << "/"
-                       << (mNodes.count() + mInnerSets.size())
-                       << " validators=" << mNodes;
+    CLOG_DEBUG(SCP, "{}QBitSet: thresh={}/{} validators={}", s, mThreshold,
+               (mNodes.count() + mInnerSets.size()), mNodes);
     for (auto const& inner : mInnerSets)
     {
         inner.log(indent + 4);
@@ -99,7 +98,7 @@ TarjanSCCCalculator::scc(size_t i)
     BitSet const& succ = mGraph.at(i).mAllSuccessors;
     for (size_t j = 0; succ.nextSet(j); ++j)
     {
-        CLOG(TRACE, "SCP") << "edge: " << i << " -> " << j;
+        CLOG_TRACE(SCP, "edge: {} -> {}", i, j);
         SCCNode& w = mNodes.at(j);
         if (w.mIndex == -1)
         {
@@ -213,8 +212,8 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     }
     if (mQic.mLogTrace)
     {
-        CLOG(TRACE, "SCP") << "exploring with committed=" << mCommitted;
-        CLOG(TRACE, "SCP") << "exploring with remaining=" << mRemaining;
+        CLOG_TRACE(SCP, "exploring with committed={}", mCommitted);
+        CLOG_TRACE(SCP, "exploring with remaining={}", mRemaining);
     }
 
     // First early exit: we can avoid looking for further min-quorums if
@@ -226,7 +225,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
         mQic.mStats.mEarlyExit1s++;
         if (mQic.mLogTrace)
         {
-            CLOG(TRACE, "SCP") << "early exit 1, with committed=" << mCommitted;
+            CLOG_TRACE(SCP, "early exit 1, with committed={}", mCommitted);
         }
         return false;
     }
@@ -238,7 +237,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     // a subquorum, so both cases are terminal.
     if (mQic.mLogTrace)
     {
-        CLOG(TRACE, "SCP") << "checking for quorum in committed=" << mCommitted;
+        CLOG_TRACE(SCP, "checking for quorum in committed={}", mCommitted);
     }
     auto committedQuorum = mQic.contractToMaximalQuorum(mCommitted);
     if (!committedQuorum.empty())
@@ -249,16 +248,16 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
             // there's a disjoint quorum.
             if (mQic.mLogTrace)
             {
-                CLOG(TRACE, "SCP")
-                    << "early exit 3.1: minimal quorum=" << committedQuorum;
+                CLOG_TRACE(SCP, "early exit 3.1: minimal quorum={}",
+                           committedQuorum);
             }
             mQic.mStats.mEarlyExit31s++;
             return hasDisjointQuorum(committedQuorum);
         }
         if (mQic.mLogTrace)
         {
-            CLOG(TRACE, "SCP")
-                << "early exit 3.2: non-minimal quorum=" << committedQuorum;
+            CLOG_TRACE(SCP, "early exit 3.2: non-minimal quorum={}",
+                       committedQuorum);
         }
         mQic.mStats.mEarlyExit32s++;
         return false;
@@ -269,7 +268,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     // existing committed set.
     if (mQic.mLogTrace)
     {
-        CLOG(TRACE, "SCP") << "checking for quorum in perimeter=" << mPerimeter;
+        CLOG_TRACE(SCP, "checking for quorum in perimeter={}", mPerimeter);
     }
     auto extensionQuorum = mQic.contractToMaximalQuorum(mPerimeter);
     if (!extensionQuorum.empty())
@@ -278,10 +277,11 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
         {
             if (mQic.mLogTrace)
             {
-                CLOG(TRACE, "SCP")
-                    << "early exit 2.2: extension quorum=" << extensionQuorum
-                    << " in perimeter=" << mPerimeter
-                    << " does not extend committed=" << mCommitted;
+                CLOG_TRACE(
+                    SCP,
+                    "early exit 2.2: extension quorum={} in perimeter={} "
+                    "does not extend committed={}",
+                    extensionQuorum, mPerimeter, mCommitted);
             }
             mQic.mStats.mEarlyExit22s++;
             return false;
@@ -291,9 +291,9 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     {
         if (mQic.mLogTrace)
         {
-            CLOG(TRACE, "SCP")
-                << "early exit 2.1: no extension quorum in perimeter="
-                << mPerimeter;
+            CLOG_TRACE(SCP,
+                       "early exit 2.1: no extension quorum in perimeter={}",
+                       mPerimeter);
         }
         mQic.mStats.mEarlyExit21s++;
         return false;
@@ -305,7 +305,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
         mQic.mStats.mTerminations++;
         if (mQic.mLogTrace)
         {
-            CLOG(TRACE, "SCP") << "remainder exhausted";
+            CLOG_TRACE(SCP, "remainder exhausted");
         }
         return false;
     }
@@ -314,7 +314,7 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     size_t split = pickSplitNode();
     if (mQic.mLogTrace)
     {
-        CLOG(TRACE, "SCP") << "recursing into subproblems, split=" << split;
+        CLOG_TRACE(SCP, "recursing into subproblems, split={}", split);
     }
     mRemaining.unset(split);
     MinQuorumEnumerator childExcludingSplit(mCommitted, mRemaining, mScanSCC,
@@ -324,8 +324,8 @@ MinQuorumEnumerator::anyMinQuorumHasDisjointQuorum()
     {
         if (mQic.mLogTrace)
         {
-            CLOG(TRACE, "SCP")
-                << "first subproblem returned true, missing split=" << split;
+            CLOG_TRACE(SCP, "first subproblem returned true, missing split={}",
+                       split);
         }
         return true;
     }
@@ -369,21 +369,17 @@ QuorumIntersectionCheckerImpl::getMaxQuorumsFound() const
 void
 QuorumIntersectionCheckerImpl::Stats::log() const
 {
-    CLOG(DEBUG, "SCP") << "Quorum intersection checker stats:";
+    CLOG_DEBUG(SCP, "Quorum intersection checker stats:");
     size_t exits = (mEarlyExit1s + mEarlyExit21s + mEarlyExit22s +
                     mEarlyExit31s + mEarlyExit32s);
-    CLOG(DEBUG, "SCP") << "[Nodes: " << mTotalNodes << ", SCCs: " << mNumSCCs
-                       << ", ScanSCC: " << mScanSCCSize
-                       << ", MaxQs:" << mMaxQuorumsSeen
-                       << ", MinQs:" << mMinQuorumsSeen
-                       << ", Calls:" << mCallsStarted
-                       << ", Terms:" << mTerminations << ", Exits:" << exits
-                       << "]";
-    CLOG(DEBUG, "SCP") << "Detailed exit stats:";
-    CLOG(DEBUG, "SCP") << "[X1:" << mEarlyExit1s << ", X2.1:" << mEarlyExit21s
-                       << ", X2.2:" << mEarlyExit22s
-                       << ", X3.1:" << mEarlyExit31s
-                       << ", X3.2:" << mEarlyExit32s << "]";
+    CLOG_DEBUG(SCP,
+               "[Nodes: {}, SCCs: {}, ScanSCC: {}, MaxQs:{}, MinQs:{}, "
+               "Calls:{}, Terms:{}, Exits:{}]",
+               mTotalNodes, mNumSCCs, mScanSCCSize, mMaxQuorumsSeen,
+               mMinQuorumsSeen, mCallsStarted, mTerminations, exits);
+    CLOG_DEBUG(SCP, "Detailed exit stats:");
+    CLOG_DEBUG(SCP, "[X1:{}, X2.1:{}, X2.2:{}, X3.1:{}, X3.2:{}]", mEarlyExit1s,
+               mEarlyExit21s, mEarlyExit22s, mEarlyExit31s, mEarlyExit32s);
 }
 
 // This function is the innermost call in the checker and must be as fast
@@ -487,7 +483,7 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
     // n)}
     if (mLogTrace)
     {
-        CLOG(TRACE, "SCP") << "Contracting to max quorum of " << nodes;
+        CLOG_TRACE(SCP, "Contracting to max quorum of {}", nodes);
     }
     while (true)
     {
@@ -498,14 +494,14 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
             {
                 if (mLogTrace)
                 {
-                    CLOG(TRACE, "SCP") << "Have qslice for " << i;
+                    CLOG_TRACE(SCP, "Have qslice for {}", i);
                 }
             }
             else
             {
                 if (mLogTrace)
                 {
-                    CLOG(TRACE, "SCP") << "Missing qslice for " << i;
+                    CLOG_TRACE(SCP, "Missing qslice for {}", i);
                 }
                 filtered.unset(i);
             }
@@ -514,7 +510,7 @@ QuorumIntersectionCheckerImpl::contractToMaximalQuorum(BitSet nodes) const
         {
             if (mLogTrace)
             {
-                CLOG(TRACE, "SCP") << "Contracted to max quorum " << filtered;
+                CLOG_TRACE(SCP, "Contracted to max quorum {}", filtered);
             }
             if (!filtered.empty())
             {
@@ -567,7 +563,7 @@ QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
 
     // Show internal node IDs only in DEBUG message; user is going to care
     // more about the translated names printed in the ERROR below.
-    CLOG(DEBUG, "SCP") << "Disjoint quorum IDs: " << nodes << " vs. " << disj;
+    CLOG_DEBUG(SCP, "Disjoint quorum IDs: {} vs. {}", nodes, disj);
 
     std::ostringstream err;
     err << "Found potential disjoint quorums: ";
@@ -582,7 +578,7 @@ QuorumIntersectionCheckerImpl::noteFoundDisjointQuorums(
     });
     if (!mQuiet)
     {
-        CLOG(ERROR, "SCP") << err.str();
+        CLOG_ERROR(SCP, "{}", err.str());
     }
 }
 
@@ -598,8 +594,8 @@ MinQuorumEnumerator::hasDisjointQuorum(BitSet const& nodes) const
     {
         if (mQic.mLogTrace)
         {
-            CLOG(TRACE, "SCP")
-                << "no quorum in complement  = " << (mScanSCC - nodes);
+            CLOG_TRACE(SCP, "no quorum in complement  = {}",
+                       (mScanSCC - nodes));
         }
     }
     return !disj.empty();
@@ -639,8 +635,8 @@ QuorumIntersectionCheckerImpl::convertSCPQuorumSet(SCPQuorumSet const& sqs)
             // the diagnostic purposes this checker is serving, #1 is the best
             // approximation. The tests referring to "null qsets" differentiate
             // these cases.
-            CLOG(DEBUG, "SCP") << "Depending on node with missing QSet: "
-                               << mCfg.toShortString(v);
+            CLOG_DEBUG(SCP, "Depending on node with missing QSet: {}",
+                       mCfg.toShortString(v));
         }
         else
         {
@@ -673,8 +669,8 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
         }
         else
         {
-            CLOG(DEBUG, "SCP")
-                << "Node with missing QSet: " << mCfg.toShortString(pair.first);
+            CLOG_DEBUG(SCP, "Node with missing QSet: {}",
+                       mCfg.toShortString(pair.first));
         }
     }
 
@@ -713,8 +709,8 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
     size_t nNodes = mPubKeyBitNums.size();
     if (!mQuiet)
     {
-        CLOG(INFO, "SCP") << "Calculating " << nNodes
-                          << "-node network quorum intersection";
+        CLOG_INFO(SCP, "Calculating {}-node network quorum intersection",
+                  nNodes);
     }
 
     // First stage: do a single pass over the SCCs searching for one with a
@@ -734,17 +730,17 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
                 // scan SCC.
                 scanSCC = scc;
                 mStats.mScanSCCSize = scanSCC.count();
-                CLOG(DEBUG, "SCP") << "Found scan SCC: " << scc;
-                CLOG(DEBUG, "SCP") << "Containing quorum: " << q;
+                CLOG_DEBUG(SCP, "Found scan SCC: {}", scc);
+                CLOG_DEBUG(SCP, "Containing quorum: {}", q);
                 for (size_t i = 0; scanSCC.nextSet(i); ++i)
                 {
-                    CLOG(DEBUG, "SCP") << "SCC node to scan: " << nodeName(i);
+                    CLOG_DEBUG(SCP, "SCC node to scan: {}", nodeName(i));
                 }
             }
             else
             {
-                CLOG(DEBUG, "SCP") << "Found extra SCC: " << scc;
-                CLOG(DEBUG, "SCP") << "Containing quorum: " << q;
+                CLOG_DEBUG(SCP, "Found extra SCC: {}", scc);
+                CLOG_DEBUG(SCP, "Containing quorum: {}", q);
                 noteFoundDisjointQuorums(contractToMaximalQuorum(scanSCC), q);
                 foundDisjoint = true;
                 break;
@@ -752,10 +748,10 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
         }
         else
         {
-            CLOG(DEBUG, "SCP") << "SCC contains no quorums = " << scc;
+            CLOG_DEBUG(SCP, "SCC contains no quorums = {}", scc);
             for (size_t i = 0; scc.nextSet(i); ++i)
             {
-                CLOG(DEBUG, "SCP") << "Node outside scan-SCC: " << nodeName(i);
+                CLOG_DEBUG(SCP, "Node outside scan-SCC: {}", nodeName(i));
             }
         }
     }
@@ -767,8 +763,8 @@ QuorumIntersectionCheckerImpl::networkEnjoysQuorumIntersection() const
         // it's worth warning about.
         if (!mQuiet)
         {
-            CLOG(WARNING, "SCP") << "No quorums found in any SCC "
-                                    "(possible network halt)";
+            CLOG_WARNING(SCP, "No quorums found in any SCC "
+                              "(possible network halt)");
         }
         return true;
     }
@@ -908,8 +904,8 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
         }
     }
 
-    CLOG(INFO, "SCP") << "Examining " << candidates.size()
-                      << " node groups for intersection-criticality";
+    CLOG_INFO(SCP, "Examining {} node groups for intersection-criticality",
+              candidates.size());
 
     for (auto const& group : candidates)
     {
@@ -960,15 +956,17 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
                                               /*quiet=*/true);
         if (checker->networkEnjoysQuorumIntersection())
         {
-            CLOG(DEBUG, "SCP") << "group is not intersection-critical: "
-                               << groupString(cfg, group) << " (with "
-                               << pointsToGroup.size() << " depending nodes)";
+            CLOG_DEBUG(SCP,
+                       "group is not intersection-critical: {} (with {} "
+                       "depending nodes)",
+                       groupString(cfg, group), pointsToGroup.size());
         }
         else
         {
-            CLOG(WARNING, "SCP")
-                << "Group is intersection-critical: " << groupString(cfg, group)
-                << " (with " << pointsToGroup.size() << " depending nodes)";
+            CLOG_WARNING(
+                SCP,
+                "Group is intersection-critical: {} (with {} depending nodes)",
+                groupString(cfg, group), pointsToGroup.size());
             critical.insert(group);
         }
 
@@ -980,12 +978,12 @@ QuorumIntersectionChecker::getIntersectionCriticalGroups(
     }
     if (critical.empty())
     {
-        CLOG(INFO, "SCP") << "No intersection-critical groups found";
+        CLOG_INFO(SCP, "No intersection-critical groups found");
     }
     else
     {
-        CLOG(WARNING, "SCP")
-            << "Found " << critical.size() << " intersection-critical groups";
+        CLOG_WARNING(SCP, "Found {} intersection-critical groups",
+                     critical.size());
     }
     return critical;
 }

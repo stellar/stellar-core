@@ -48,10 +48,9 @@ formatString(std::string const& templateString, Tokens const&... tokens)
     }
     catch (fmt::format_error const& ex)
     {
-        CLOG(ERROR, "History") << "Failed to format string \"" << templateString
-                               << "\":" << ex.what();
-        CLOG(ERROR, "History")
-            << "Check your HISTORY entry in configuration file";
+        CLOG_ERROR(History, "Failed to format string \{}\":{}", templateString,
+                   ex.what());
+        CLOG_ERROR(History, "Check your HISTORY entry in configuration file");
         throw std::runtime_error("failed to format command string");
     }
 }
@@ -144,8 +143,8 @@ HistoryArchiveState::load(std::string const& inFile)
     serialize(ar);
     if (version != HISTORY_ARCHIVE_STATE_VERSION)
     {
-        CLOG(ERROR, "History")
-            << "Unexpected history archive state version: " << version;
+        CLOG_ERROR(History, "Unexpected history archive state version: {}",
+                   version);
         throw std::runtime_error("unexpected history archive state version");
     }
 }
@@ -306,15 +305,14 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
         {
             if (!level.next.isClear())
             {
-                CLOG(ERROR, "History")
-                    << "Invalid HAS: future must be cleared ";
+                CLOG_ERROR(History, "Invalid HAS: future must be cleared ");
                 return false;
             }
         }
         else if (!level.next.hasOutputHash())
         {
-            CLOG(ERROR, "History")
-                << "Invalid HAS: future must have resolved output";
+            CLOG_ERROR(History,
+                       "Invalid HAS: future must have resolved output");
             return false;
         }
     }

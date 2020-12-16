@@ -620,8 +620,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     REQUIRE(yValue < zValue);
     REQUIRE(zValue < zzValue);
 
-    CLOG(INFO, "SCP") << "";
-    CLOG(INFO, "SCP") << "BEGIN TEST";
+    CLOG_INFO(SCP, "");
+    CLOG_INFO(SCP, "BEGIN TEST");
 
     auto recvVBlockingChecks = [&](genEnvelope gen, bool withChecks) {
         SCPEnvelope e1 = gen(v1SecretKey);

@@ -262,13 +262,12 @@ NominationProtocol::updateRoundLeaders()
         {
             if (Logging::logDebug("SCP"))
             {
-                CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << oldSize
-                                   << " -> " << mRoundLeaders.size();
+                CLOG_DEBUG(SCP, "updateRoundLeaders: {} -> {}", oldSize,
+                           mRoundLeaders.size());
                 for (auto const& rl : mRoundLeaders)
                 {
-                    CLOG(DEBUG, "SCP")
-                        << "    leader "
-                        << mSlot.getSCPDriver().toShortString(rl);
+                    CLOG_DEBUG(SCP, "    leader {}",
+                               mSlot.getSCPDriver().toShortString(rl));
                 }
             }
             return;
@@ -276,12 +275,12 @@ NominationProtocol::updateRoundLeaders()
         else
         {
             mRoundNumber++;
-            CLOG(DEBUG, "SCP")
-                << "updateRoundLeaders: fast timeout (would no op) -> "
-                << mRoundNumber;
+            CLOG_DEBUG(SCP,
+                       "updateRoundLeaders: fast timeout (would no op) -> {}",
+                       mRoundNumber);
         }
     }
-    CLOG(DEBUG, "SCP") << "updateRoundLeaders: nothing to do";
+    CLOG_DEBUG(SCP, "updateRoundLeaders: nothing to do");
 }
 
 uint64
@@ -381,8 +380,7 @@ NominationProtocol::processEnvelope(SCPEnvelopeWrapperPtr envelope)
 
     if (!isSane(st))
     {
-        CLOG(TRACE, "SCP")
-            << "NominationProtocol: message didn't pass sanity check";
+        CLOG_TRACE(SCP, "NominationProtocol: message didn't pass sanity check");
         return SCP::EnvelopeState::INVALID;
     }
 
@@ -503,15 +501,14 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
 {
     ZoneScoped;
     if (Logging::logDebug("SCP"))
-        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (" << mRoundNumber
-                           << ") "
-                           << mSlot.getSCP().getValueString(value->getValue());
+        CLOG_DEBUG(SCP, "NominationProtocol::nominate ({}) {}", mRoundNumber,
+                   mSlot.getSCP().getValueString(value->getValue()));
 
     bool updated = false;
 
     if (timedout && !mNominationStarted)
     {
-        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (TIMED OUT)";
+        CLOG_DEBUG(SCP, "NominationProtocol::nominate (TIMED OUT)");
         return false;
     }
 
@@ -568,7 +565,7 @@ NominationProtocol::nominate(ValueWrapperPtr value, Value const& previousValue,
     }
     else
     {
-        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (SKIPPED)";
+        CLOG_DEBUG(SCP, "NominationProtocol::nominate (SKIPPED)");
     }
 
     return updated;

@@ -2523,9 +2523,8 @@ TEST_CASE("Create performance benchmark", "[!hide][createbench]")
             }
             ltx.commit();
             m.Mark(batch);
-            CLOG(INFO, "Ledger")
-                << "benchmark create rate: " << m.mean_rate() << " entries/sec "
-                << (loading ? "(loading)" : "(non-loading)");
+            CLOG_INFO(Ledger, "benchmark create rate: {} entries/sec {}",
+                      m.mean_rate(), (loading ? "(loading)" : "(non-loading)"));
         }
     };
 
@@ -2587,9 +2586,8 @@ TEST_CASE("Erase performance benchmark", "[!hide][erasebench]")
             }
             ltx.commit();
             m.Mark(batch);
-            CLOG(INFO, "Ledger")
-                << "benchmark erase rate: " << m.mean_rate() << " entries/sec "
-                << (loading ? "(loading)" : "(non-loading)");
+            CLOG_INFO(Ledger, "benchmark erase rate: {} entries/sec {}",
+                      m.mean_rate(), (loading ? "(loading)" : "(non-loading)"));
         }
     };
 
@@ -2646,8 +2644,8 @@ TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
             ltx2.commit();
 
             auto total = m.sum();
-            CLOG(INFO, "Ledger")
-                << "Bulk Load test batch size: " << floor << " took " << total;
+            CLOG_INFO(Ledger, "Bulk Load test batch size: {} took {}", floor,
+                      total);
 
             if (total < bestTime)
             {
@@ -2655,8 +2653,8 @@ TEST_CASE("Bulk load batch size benchmark", "[!hide][bulkbatchsizebench]")
                 bestTime = total;
             }
         }
-        CLOG(INFO, "Ledger") << "Best batch and best time per entry "
-                             << bestBatchSize << " : " << bestTime;
+        CLOG_INFO(Ledger, "Best batch and best time per entry {} : {}",
+                  bestBatchSize, bestTime);
     };
 
     SECTION("sqlite")
@@ -2734,7 +2732,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
     auto writeEntries =
         [&getTimeScope](Application& app, uint32_t numSigners,
                         std::vector<LedgerEntry> const& accounts) {
-            CLOG(WARNING, "Ledger") << "Creating accounts";
+            CLOG_WARNING(Ledger, "Creating accounts");
             LedgerTxn ltx(app.getLedgerTxnRoot());
             {
                 auto timer = getTimeScope(app, numSigners, "create");
@@ -2744,7 +2742,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
                 }
             }
 
-            CLOG(WARNING, "Ledger") << "Writing accounts";
+            CLOG_WARNING(Ledger, "Writing accounts");
             {
                 auto timer = getTimeScope(app, numSigners, "write");
                 ltx.commit();
@@ -2754,7 +2752,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
     auto readEntriesAndUpdateLastModified =
         [&getTimeScope](Application& app, uint32_t numSigners,
                         std::vector<LedgerKey> const& accounts) {
-            CLOG(WARNING, "Ledger") << "Reading accounts";
+            CLOG_WARNING(Ledger, "Reading accounts");
             LedgerTxn ltx(app.getLedgerTxnRoot());
             {
                 auto timer = getTimeScope(app, numSigners, "read");
@@ -2764,8 +2762,7 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
                 }
             }
 
-            CLOG(WARNING, "Ledger")
-                << "Writing accounts with unchanged signers";
+            CLOG_WARNING(Ledger, "Writing accounts with unchanged signers");
             {
                 auto timer = getTimeScope(app, numSigners, "rewrite");
                 ltx.commit();
@@ -2781,20 +2778,19 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
         Application::pointer app = createTestApplication(clock, cfg);
         app->start();
 
-        CLOG(WARNING, "Ledger")
-            << "Generating " << numAccounts << " accounts with " << numSigners
-            << " signers each";
+        CLOG_WARNING(Ledger, "Generating {} accounts with {} signers each",
+                     numAccounts, numSigners);
         auto accounts = generateEntries(numAccounts, numSigners);
         auto keys = generateKeys(accounts);
 
         writeEntries(*app, numSigners, accounts);
         readEntriesAndUpdateLastModified(*app, numSigners, keys);
 
-        CLOG(WARNING, "Ledger")
-            << "Done (" << getTimeSpent(*app, numSigners, "create") << ", "
-            << getTimeSpent(*app, numSigners, "write") << ", "
-            << getTimeSpent(*app, numSigners, "read") << ", "
-            << getTimeSpent(*app, numSigners, "rewrite") << ")";
+        CLOG_WARNING(Ledger, "Done ({}, {}, {}, {})",
+                     getTimeSpent(*app, numSigners, "create"),
+                     getTimeSpent(*app, numSigners, "write"),
+                     getTimeSpent(*app, numSigners, "read"),
+                     getTimeSpent(*app, numSigners, "rewrite"));
     };
 
     auto runTests = [&](Config::TestDbMode mode) {
@@ -2840,7 +2836,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
     };
 
     auto generateAssets = [](size_t numAssets, size_t numIssuers) {
-        CLOG(WARNING, "Ledger") << "Generating issuers";
+        CLOG_WARNING(Ledger, "Generating issuers");
         REQUIRE(numIssuers >= 1);
         std::vector<AccountID> issuers;
         for (size_t i = 1; i < numIssuers; ++i)
@@ -2848,7 +2844,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
             issuers.emplace_back(autocheck::generator<AccountID>()(5));
         }
 
-        CLOG(WARNING, "Ledger") << "Generating assets";
+        CLOG_WARNING(Ledger, "Generating assets");
         REQUIRE(numAssets >= 2);
         std::vector<Asset> assets;
         assets.emplace_back(ASSET_TYPE_NATIVE);
@@ -2882,7 +2878,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
 
     auto generateEntries = [&](size_t numOffers,
                                std::vector<Asset> const& assets) {
-        CLOG(WARNING, "Ledger") << "Generating offers";
+        CLOG_WARNING(Ledger, "Generating offers");
         std::vector<LedgerEntry> offers;
         offers.reserve(numOffers);
         for (size_t i = 0; i < numOffers; ++i)
@@ -2906,7 +2902,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
                             std::vector<LedgerEntry> const& offers) {
         LedgerTxn ltx(app.getLedgerTxnRoot());
         {
-            CLOG(WARNING, "Ledger") << "Creating offers";
+            CLOG_WARNING(Ledger, "Creating offers");
             auto timer = getTimeScope(app, "create");
             for (auto const& le : offers)
             {
@@ -2915,7 +2911,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         }
 
         {
-            CLOG(WARNING, "Ledger") << "Writing offers";
+            CLOG_WARNING(Ledger, "Writing offers");
             auto timer = getTimeScope(app, "write");
             ltx.commit();
         }
@@ -2944,9 +2940,10 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         cfg.BEST_OFFERS_CACHE_SIZE = 1000;
         Application::pointer app = createTestApplication(clock, cfg);
 
-        CLOG(WARNING, "Ledger")
-            << "Generating " << numOffers << " offers buying and selling "
-            << numAssets << " assets with " << numIssuers << " issuers";
+        CLOG_WARNING(
+            Ledger,
+            "Generating {} offers buying and selling {} assets with {} issuers",
+            numOffers, numAssets, numIssuers);
         auto assets = generateAssets(numAssets, numIssuers);
         auto offers = generateEntries(numOffers, assets);
 
@@ -2967,7 +2964,7 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
 
         writeEntries(*app, offers);
 
-        CLOG(WARNING, "Ledger") << "Loading best offers";
+        CLOG_WARNING(Ledger, "Loading best offers");
         for (auto const& buying : assets)
         {
             for (auto const& selling : assets)
@@ -2981,9 +2978,8 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
             }
         }
 
-        CLOG(WARNING, "Ledger") << "Done (" << getTimeSpent(*app, "create")
-                                << ", " << getTimeSpent(*app, "write") << ", "
-                                << getTimeSpent(*app, "load") << ")";
+        CLOG_WARNING(Ledger, "Done ({}, {}, {})", getTimeSpent(*app, "create"),
+                     getTimeSpent(*app, "write"), getTimeSpent(*app, "load"));
     };
 
 #ifdef USE_POSTGRES
