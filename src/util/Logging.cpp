@@ -305,7 +305,14 @@ Logging::rotate()
 std::string
 Logging::normalizePartition(std::string const& partition)
 {
-    return partition;
+    for (auto& p : kPartitionNames)
+    {
+        if (iequals(partition, p))
+        {
+            return p;
+        }
+    }
+    throw std::invalid_argument("not a valid partition");
 }
 
 std::recursive_mutex Logging::mLogMutex;
