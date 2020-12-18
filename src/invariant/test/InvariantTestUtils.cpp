@@ -72,7 +72,11 @@ store(Application& app, UpdateList const& apply, AbstractLedgerTxn* ltxPtr,
             REQUIRE(false);
         }
 
-        if (entry && entry.current().data.type() == ACCOUNT)
+        if (previous && !current)
+        {
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+        }
+        else if (entry && entry.current().data.type() == ACCOUNT)
         {
             normalizeSigners(entry.current().data.account());
         }

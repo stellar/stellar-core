@@ -106,7 +106,24 @@ LedgerTxnEntry::operator=(LedgerTxnEntry&& other)
 
 LedgerTxnEntry::operator bool() const
 {
-    return !mImpl.expired();
+    if (!mImpl.expired())
+    {
+        return true;
+    }
+
+    // Comparison against an unassigned weak_ptr using owner_before will
+    // distiguish an unassigned mImpl vs an expired mImpl
+    bool isUninitialized = !mImpl.owner_before(std::weak_ptr<Impl>{}) &&
+                           !std::weak_ptr<Impl>{}.owner_before(mImpl);
+    if (isUninitialized)
+    {
+        return false;
+    }
+
+    // If we get here, we know we had valid mImpl, but the entry was either
+    // deleted or deactivated. In either scenario, it's now invalid to use this
+    // LedgerTxnEntry.
+    throw std::runtime_error("Accessed deactivated entry");
 }
 
 LedgerEntry&
@@ -302,7 +319,24 @@ ConstLedgerTxnEntry::operator=(ConstLedgerTxnEntry&& other)
 
 ConstLedgerTxnEntry::operator bool() const
 {
-    return !mImpl.expired();
+    if (!mImpl.expired())
+    {
+        return true;
+    }
+
+    // Comparison against an unassigned weak_ptr using owner_before will
+    // distiguish an unassigned mImpl vs an expired mImpl
+    bool isUninitialized = !mImpl.owner_before(std::weak_ptr<Impl>{}) &&
+                           !std::weak_ptr<Impl>{}.owner_before(mImpl);
+    if (isUninitialized)
+    {
+        return false;
+    }
+
+    // If we get here, we know we had valid mImpl, but the entry was either
+    // deleted or deactivated. In either scenario, it's invalid to use this
+    // LedgerTxnEntry.
+    throw std::runtime_error("Accessed deactivated entry");
 }
 
 LedgerEntry const&
