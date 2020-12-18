@@ -55,12 +55,13 @@ toEntryImplBase(std::shared_ptr<LedgerTxnEntry::Impl> const& impl)
     return impl;
 }
 
-LedgerTxnEntry::LedgerTxnEntry()
+LedgerTxnEntry::LedgerTxnEntry() : mIsInitialized(false)
 {
 }
 
 LedgerTxnEntry::LedgerTxnEntry(std::shared_ptr<Impl> const& impl)
     : mImpl(impl) // Constructing weak_ptr from shared_ptr is noexcept
+    , mIsInitialized(static_cast<bool>(impl))
 {
 }
 
@@ -83,7 +84,7 @@ LedgerTxnEntry::Impl::~Impl()
 }
 
 LedgerTxnEntry::LedgerTxnEntry(LedgerTxnEntry&& other)
-    : mImpl(std::move(other.mImpl))
+    : mImpl(std::move(other.mImpl)), mIsInitialized(other.mIsInitialized)
 {
     // According to https://en.cppreference.com/w/cpp/memory/weak_ptr/weak_ptr
     // other.mImpl is empty after move-construction so reset is not required.
@@ -100,13 +101,27 @@ LedgerTxnEntry::operator=(LedgerTxnEntry&& other)
         LedgerTxnEntry otherCopy(other.mImpl.lock());
         swap(otherCopy);
         other.mImpl.reset();
+        mIsInitialized = other.mIsInitialized;
     }
     return *this;
 }
 
 LedgerTxnEntry::operator bool() const
 {
-    return !mImpl.expired();
+    if (!mImpl.expired())
+    {
+        return true;
+    }
+
+    if (!mIsInitialized)
+    {
+        return false;
+    }
+
+    // If we get here, we know we had an initialized entry, but the entry was
+    // either deleted or deactivated. In either scenario, it's now invalid to
+    // use this LedgerTxnEntry.
+    throw std::runtime_error("Accessed deactivated entry");
 }
 
 LedgerEntry&
@@ -250,12 +265,13 @@ toEntryImplBase(std::shared_ptr<ConstLedgerTxnEntry::Impl> const& impl)
     return impl;
 }
 
-ConstLedgerTxnEntry::ConstLedgerTxnEntry()
+ConstLedgerTxnEntry::ConstLedgerTxnEntry() : mIsInitialized(false)
 {
 }
 
 ConstLedgerTxnEntry::ConstLedgerTxnEntry(std::shared_ptr<Impl> const& impl)
     : mImpl(impl) // Constructing weak_ptr from shared_ptr is noexcept
+    , mIsInitialized(static_cast<bool>(impl))
 {
 }
 
@@ -279,7 +295,7 @@ ConstLedgerTxnEntry::Impl::~Impl()
 }
 
 ConstLedgerTxnEntry::ConstLedgerTxnEntry(ConstLedgerTxnEntry&& other)
-    : mImpl(std::move(other.mImpl))
+    : mImpl(std::move(other.mImpl)), mIsInitialized(other.mIsInitialized)
 {
     // According to https://en.cppreference.com/w/cpp/memory/weak_ptr/weak_ptr
     // other.mImpl is empty after move-construction so reset is not required.
@@ -296,13 +312,27 @@ ConstLedgerTxnEntry::operator=(ConstLedgerTxnEntry&& other)
         ConstLedgerTxnEntry otherCopy(other.mImpl.lock());
         swap(otherCopy);
         other.mImpl.reset();
+        mIsInitialized = other.mIsInitialized;
     }
     return *this;
 }
 
 ConstLedgerTxnEntry::operator bool() const
 {
-    return !mImpl.expired();
+    if (!mImpl.expired())
+    {
+        return true;
+    }
+
+    if (!mIsInitialized)
+    {
+        return false;
+    }
+
+    // If we get here, we know we had an initialized entry, but the entry was
+    // either deleted or deactivated. In either scenario, it's now invalid to
+    // use this LedgerTxnEntry.
+    throw std::runtime_error("Accessed deactivated entry");
 }
 
 LedgerEntry const&

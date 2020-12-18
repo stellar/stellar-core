@@ -473,7 +473,7 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
             auto entry = ltx.create(le);
             REQUIRE(entry);
             f(ltx);
-            REQUIRE(!entry);
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
         }
 
         SECTION("const entry")
@@ -483,7 +483,7 @@ TEST_CASE("LedgerTxn rollback and commit deactivate", "[ledgertxn]")
             auto entry = ltx.loadWithoutRecord(key);
             REQUIRE(entry);
             f(ltx);
-            REQUIRE(!entry);
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
         }
 
         SECTION("header")
@@ -3427,6 +3427,144 @@ TEST_CASE("LedgerTxn bulk-load offers", "[ledgertxn]")
             LedgerTxn ltx(app->getLedgerTxnRoot());
             REQUIRE(ltx.load(lk1));
         });
+    };
+
+    SECTION("default")
+    {
+        runTest(Config::TESTDB_DEFAULT);
+    }
+
+#ifdef USE_POSTGRES
+    SECTION("postgresql")
+    {
+        runTest(Config::TESTDB_POSTGRESQL);
+    }
+#endif
+}
+
+TEST_CASE("Access deactivated entry", "[ledgertxn]")
+{
+    auto runTest = [&](Config::TestDbMode mode) {
+        VirtualClock clock;
+        auto app = createTestApplication(clock, getTestConfig(0, mode));
+        app->start();
+
+        LedgerEntry le1;
+        le1.data.type(DATA);
+        le1.data.data() = LedgerTestUtils::generateValidDataEntry();
+
+        LedgerKey lk1 = LedgerEntryKey(le1);
+
+        {
+            LedgerTxn ltx(app->getLedgerTxnRoot());
+            ltx.create(le1);
+            ltx.commit();
+        }
+
+        LedgerKey missingEntryKey =
+            LedgerEntryKey(LedgerTestUtils::generateValidLedgerEntry());
+
+        LedgerTxn ltx1(app->getLedgerTxnRoot());
+
+        SECTION("load")
+        {
+            auto entry = ltx1.load(lk1);
+            REQUIRE(entry);
+
+            auto missingEntry = ltx1.load(missingEntryKey);
+            REQUIRE(!missingEntry);
+
+            // this will deactivate entry
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+
+            REQUIRE(!missingEntry);
+        }
+
+        SECTION("loadWithoutRecord")
+        {
+            auto entry = ltx1.loadWithoutRecord(lk1);
+            REQUIRE(entry);
+
+            auto missingEntry = ltx1.loadWithoutRecord(missingEntryKey);
+            REQUIRE(!missingEntry);
+
+            // this will deactivate entry
+            LedgerTxn ltx2(ltx1);
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+
+            REQUIRE(!missingEntry);
+        }
+
+        SECTION("load and erase")
+        {
+            auto entry = ltx1.load(lk1);
+            REQUIRE(entry);
+
+            entry.erase();
+
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+        }
+        SECTION("load and move assign")
+        {
+            LedgerTxnEntry entry;
+            entry = ltx1.load(lk1);
+            REQUIRE(entry);
+
+            LedgerTxnEntry ltxe2;
+            ltxe2 = std::move(entry);
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+        }
+        SECTION("load and move construct")
+        {
+            auto entry = ltx1.load(lk1);
+            REQUIRE(entry);
+
+            LedgerTxnEntry ltxe2(std::move(entry));
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+        }
+        SECTION("loadWithoutRecord and move assign")
+        {
+            ConstLedgerTxnEntry entry;
+            entry = ltx1.loadWithoutRecord(lk1);
+            REQUIRE(entry);
+
+            ConstLedgerTxnEntry ltxe2;
+            ltxe2 = std::move(entry);
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+        }
+        SECTION("loadWithoutRecord and move construct")
+        {
+            auto entry = ltx1.loadWithoutRecord(lk1);
+            REQUIRE(entry);
+
+            ConstLedgerTxnEntry ltxe2(std::move(entry));
+            REQUIRE_THROWS_AS(!entry, std::runtime_error);
+        }
+        SECTION("unassigned entry")
+        {
+            LedgerTxnEntry ltxe(nullptr);
+            REQUIRE(!ltxe);
+
+            ConstLedgerTxnEntry cltxe(nullptr);
+            REQUIRE(!cltxe);
+
+            // Move constructor
+            LedgerTxnEntry ltxe2(std::move(ltxe));
+            REQUIRE(!ltxe2);
+
+            ConstLedgerTxnEntry cltxe2(std::move(cltxe));
+            REQUIRE(!cltxe2);
+
+            // Move assignment
+            LedgerTxnEntry ltxe3;
+            ltxe3 = std::move(ltxe);
+            REQUIRE(!ltxe3);
+
+            ConstLedgerTxnEntry cltxe3;
+            cltxe3 = std::move(cltxe);
+            REQUIRE(!cltxe3);
+        }
     };
 
     SECTION("default")
