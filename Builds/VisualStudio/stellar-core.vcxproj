@@ -1084,6 +1084,7 @@ exit /b 0
     <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\transactions\readme.md" />
     <None Include="..\..\ci-build.sh" />
+    <None Include="..\..\src\util\LogPartitions.def" />
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
