@@ -281,7 +281,7 @@ class Config : public std::enable_shared_from_this<Config>
 
     // maximum allowed drift for close time when joining the network for the
     // first time
-    uint64 MAXIMUM_LEDGER_CLOSETIME_DRIFT;
+    time_t MAXIMUM_LEDGER_CLOSETIME_DRIFT;
 
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
