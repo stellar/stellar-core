@@ -47,7 +47,7 @@ HistoryArchiveReportWork::onFailureRaise()
     {
         if (work->getState() != State::WORK_SUCCESS)
         {
-            CLOG(ERROR, "History")
+            CLOG(ERR, "History")
                 << fmt::format("Failed to obtain archive information: {}",
                                work->getArchive()->getName());
             return;

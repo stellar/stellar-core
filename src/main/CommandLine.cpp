@@ -58,7 +58,7 @@ class CommandLine
         using Common = std::pair<std::string, bool>;
         static const std::vector<Common> COMMON_OPTIONS;
 
-        el::Level mLogLevel{el::Level::Info};
+        LogLevel mLogLevel{LogLevel::Info};
         std::vector<std::string> mMetrics;
         std::string mConfigFile;
 
@@ -186,7 +186,7 @@ outputFileParser(std::string& string)
 }
 
 clara::Opt
-logLevelParser(el::Level& value)
+logLevelParser(LogLevel& value)
 {
     return clara::Opt{
         [&](std::string const& arg) { value = Logging::getLLfromString(arg); },
@@ -1411,7 +1411,7 @@ fuzzerModeParser(std::string& fuzzerModeArg, FuzzerMode& fuzzerMode)
 int
 runFuzz(CommandLineArgs const& args)
 {
-    el::Level logLevel{el::Level::Info};
+    LogLevel logLevel{LogLevel::Info};
     std::vector<std::string> metrics;
     std::string fileName;
     int processID = 0;

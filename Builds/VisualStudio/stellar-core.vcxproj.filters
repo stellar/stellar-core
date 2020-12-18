@@ -157,6 +157,9 @@
     <Filter Include="lib\tracy">
       <UniqueIdentifier>{59b37591-b830-4d78-9b4f-c7e2ddcea012}</UniqueIdentifier>
     </Filter>
+    <Filter Include="lib\spdlog">
+      <UniqueIdentifier>{f296b651-5074-4b3c-9fec-1df4233f2fec}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\lib\util\getopt_long.c">
@@ -317,9 +320,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\test\TestPrinter.cpp">
       <Filter>test</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\lib\util\easylogging++.cc">
-      <Filter>lib\util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\TestMarket.cpp">
       <Filter>test</Filter>
@@ -1143,11 +1143,11 @@
     <ClCompile Include="..\..\src\util\Backtrace.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\lib\spdlog.cpp">
+      <Filter>lib</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\lib\util\easylogging++.h">
-      <Filter>lib\util</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
       <Filter>lib\util</Filter>
     </ClInclude>
@@ -1990,6 +1990,21 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\Fuzzer.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\spdlog\include\spdlog\spdlog.h">
+      <Filter>lib\spdlog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\spdlog\include\spdlog\sinks\stdout_color_sinks.h">
+      <Filter>lib\spdlog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\spdlog\include\spdlog\sinks\stdout_sinks.h">
+      <Filter>lib\spdlog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\lib\spdlog\include\spdlog\sinks\basic_file_sink.h">
+      <Filter>lib\spdlog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\SpdlogTweaks.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
