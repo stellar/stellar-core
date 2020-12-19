@@ -8,6 +8,7 @@
 #include "catchup/ApplyBucketsWork.h"
 #include "catchup/CatchupConfiguration.h"
 #include "database/Database.h"
+#include "herder/Herder.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryArchiveReportWork.h"
@@ -100,6 +101,7 @@ runWithConfig(Config cfg, optional<CatchupConfiguration> cc)
 
         if (!cfg.MODE_AUTO_STARTS_OVERLAY)
         {
+            app->getHerder().restoreState();
             app->getOverlayManager().start();
         }
 
