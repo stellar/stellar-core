@@ -15,6 +15,11 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
+# use mirrors instead of hardcoded location for performance
+RUN sed -i -e 's/http:\/\/us.archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list \
+    && sed -i -e 's/http:\/\/security/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list \
+    && sed -i -e 's/http:\/\/archive/mirror:\/\/mirrors/' -e 's/\/ubuntu\//\/mirrors.txt/' /etc/apt/sources.list
+
 # Configure apt and install packages
 RUN apt-get update \
     && apt-get -y install --no-install-recommends apt-utils dialog 2>&1 \
@@ -28,32 +33,27 @@ RUN apt-get update \
     # [Optional] Add sudo support for the non-root user
     && apt-get install -y sudo \
     && echo $USERNAME ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/$USERNAME\
-    && chmod 0440 /etc/sudoers.d/$USERNAME \
-    #
-    # Clean up
-    && apt-get autoremove -y \
-    && apt-get clean -y \
-    && rm -rf /var/lib/apt/lists/*
+    && chmod 0440 /etc/sudoers.d/$USERNAME
 
 # Add test tool chain
 # NOTE: newer version of the compilers are not
 #    provided by stock distributions
 #    and are provided by the /test toolchain
-RUN sudo apt-get update \
-    && sudo apt-get -y install software-properties-common \
-    && sudo add-apt-repository ppa:ubuntu-toolchain-r/test \
-    && sudo apt-get update
+RUN apt-get update \
+    && apt-get -y install software-properties-common \
+    && add-apt-repository ppa:ubuntu-toolchain-r/test \
+    && apt-get update
 
 # Install common compilation tools
-RUN sudo apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
+RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
 
 # Update compiler tools
-RUN sudo apt-get -y install gcc-6 g++-6 cpp-6 libstdc++6
+RUN apt-get -y install gcc-6 g++-6 cpp-6 libstdc++6
 ENV CC=gcc-6
 ENV CXX=g++-6
 
 # Install postgresql to enable tests under make check
-RUN sudo apt-get -y install postgresql
+RUN apt-get -y install postgresql
 
 # Set up locale
 RUN sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen \

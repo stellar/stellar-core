@@ -48,7 +48,7 @@ formatString(std::string const& templateString, Tokens const&... tokens)
     }
     catch (fmt::format_error const& ex)
     {
-        CLOG_ERROR(History, "Failed to format string \{}\":{}", templateString,
+        CLOG_ERROR(History, "Failed to format string \"{}\":{}", templateString,
                    ex.what());
         CLOG_ERROR(History, "Check your HISTORY entry in configuration file");
         throw std::runtime_error("failed to format command string");

@@ -64,7 +64,15 @@ git reset --hard
 On some platforms (Windows), there is a large overhead when building from the workspace folder (and if you're using WSL2 on Windows, cross OS file speed is [slower than WSL1](https://docs.microsoft.com/en-us/windows/wsl/wsl2-ux-changes#cross-os-file-speed-will-be-slower-in-initial-preview-builds)), the alternative
 is to simply mirror your workspace into your home directory from within the container with a command such as
 ```
-rsync -a -HAX --exclude=*.o /workspaces/ ~/src/
+(
+  cd /workspaces/stellar-core/
+  find .git -print
+  echo .gitmodules
+  git ls-files
+  git submodule foreach --recursive --quiet 'git ls-files | xargs -I{} -n1 echo "$sm_path/{}"'
+  git submodule foreach --recursive --quiet 'echo $sm_path/.git' | xargs -I{} -n1 find "{}" -print
+) |
+  rsync -a -HAX --files-from=- /workspaces/stellar-core/ ~/src/stellar-core
 ```
 
 You can then use the new folder for building and testing (just `cd ~/src/stellar-core` and build like normal).
@@ -73,9 +81,19 @@ Note: `-C` cannot be used here as git files (the `.git` folder) are needed for `
 
 Note (Windows): the `.git` folder may be invisible in the workspace, which causes mirroring to skip it. A workaround is to uncheck the "hidden" property from Windows explorer.
 
+If you modify a few files in the host folder, a handful shortcut is to copy files as per git instead of syncing:
+```
+  git ls-files -m | xargs -I'{}' -n1 -- cp '{}' ~/src/stellar-core/'{}'
+```
+
 To mirror any changes done back into the workspace (note `-C` to skip git related files in this direction):
 ```
-rsync --progress -v -ru -C --exclude=*.o ~/src/ /workspaces/
+(
+  cd /workspaces/stellar-core/
+  git ls-files
+  git submodule foreach --recursive --quiet 'git ls-files | xargs -I{} -n1 echo "$sm_path/{}"'
+) |
+  rsync --progress -v -ru -C --files-from=- ~/src/stellar-core /workspaces/stellar-core
 ```
 
 ## Known issues
