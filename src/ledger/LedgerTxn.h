@@ -48,9 +48,9 @@
 //                |    |                                                     |
 //                |    |          void commit()                              |
 //                |    |          void rollback()                            |
-//                |    |LedgerTxnEntry create(InternalLedgerEntry)        |
-//                |    |LedgerTxnEntry load(InternalLedgerKey)            |
-//                |    |          void erase(InternalLedgerKey)           |
+//                |    |LedgerTxnEntry create(InternalLedgerEntry)           |
+//                |    |LedgerTxnEntry load(InternalLedgerKey)               |
+//                |    |          void erase(InternalLedgerKey)              |
 //                |    |                                                     |
 //                |    |+---------------------------------------------------+|
 //                |    ||LedgerTxn::Impl                                    ||
@@ -61,14 +61,14 @@
 //  +----------------+ ||+------------------------------+                   ||
 //  |LedgerTxnEntry  | |||mActive                       |                   ||
 //  |(for client use)| |||                              |                   ||
-//  |                | |||map<InternalLedgerKey,     |                   ||
+//  |                | |||map<InternalLedgerKey,        |                   ||
 //  |weak_ptr<Impl>  | |||    shared_ptr<EntryImplBase>>|                   ||
 //  +----------------+ ||+------------------------------+                   ||
-//                     ||+----------------------------+                     ||
+//           |         ||+----------------------------+                     ||
 //                     |||mEntry                      |                     ||
-//                     |||                            |                     ||
-//                     |||map<InternalLedgerKey,   |                     ||
-//                     |||    InternalLedgerEntry> |                     ||
+//           |         |||                            |                     ||
+//                     |||map<InternalLedgerKey,      |                     ||
+//           |         |||    InternalLedgerEntry>    |                     ||
 //                     ||+---------------------------+|                     ||
 //           |         |+---------------------------------------------------+|
 //                     +-----------------------------------------------------+
@@ -81,7 +81,7 @@
 //                       |||active in this state")   |  |
 //                       |||                         |  |
 //                       +||AbstractLedgerTxn &  -------+
-//                        +|InternalLedgerEntry & |
+//                        +|InternalLedgerEntry &    |
 //                         +-------------------------+
 //
 //
