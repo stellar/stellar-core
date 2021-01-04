@@ -233,7 +233,7 @@ LedgerTxn::getImpl() const
 {
     if (!mImpl)
     {
-        throw std::runtime_error("LedgerTxnEntry was handled");
+        throw std::runtime_error("LedgerTxn was handled");
     }
     return mImpl;
 }
