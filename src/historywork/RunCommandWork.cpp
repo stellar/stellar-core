@@ -42,7 +42,7 @@ RunCommandWork::onRun()
                 std::static_pointer_cast<RunCommandWork>(shared_from_this()));
             exit->async_wait([weak](asio::error_code const& ec) {
                 auto self = weak.lock();
-                if (self)
+                if (self && !self->isDone())
                 {
                     self->mEc = ec;
                     self->mDone = true;
