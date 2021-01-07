@@ -758,11 +758,14 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             {
                 app.getInvariantManager().checkOnOperationApply(
                     op->getOperation(), op->getResult(), ltxOp.getDelta());
+
+                // The operation meta will be empty if the transaction doesn't
+                // succeed so we may as well not do any work in that case
+                newMeta.v2().operations.emplace_back(ltxOp.getChanges());
             }
 
             if (txRes || ledgerVersion < 14)
             {
-                newMeta.v2().operations.emplace_back(ltxOp.getChanges());
                 ltxOp.commit();
             }
         }
