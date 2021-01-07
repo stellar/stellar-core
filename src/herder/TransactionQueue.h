@@ -101,6 +101,7 @@ class TransactionQueue
     struct TimestampedTx
     {
         TransactionFrameBasePtr mTx;
+        bool mBroadcasted;
         VirtualClock::time_point mInsertionTime;
     };
     using TimestampedTransactions = std::vector<TimestampedTx>;
@@ -175,6 +176,8 @@ class TransactionQueue
     medida::Timer& mTransactionsDelay;
 
     UnorderedSet<OperationType> mFilteredTypes;
+
+    void broadcast();
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,

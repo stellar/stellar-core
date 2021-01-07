@@ -279,11 +279,13 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
         releaseFeeMaybeEraseAccountState(oldTxIter->mTx);
         stateIter->second.mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
         mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
-        *oldTxIter = {tx, mApp.getClock().now()};
+        *oldTxIter = {tx, false, mApp.getClock().now()};
     }
     else
     {
-        stateIter->second.mTransactions.push_back({tx, mApp.getClock().now()});
+        stateIter->second.mTransactions.push_back(
+            {tx, false, mApp.getClock().now()});
+        oldTxIter = --stateIter->second.mTransactions.end();
         mSizeByAge[stateIter->second.mAge]->inc();
     }
     stateIter->second.mQueueSizeOps += tx->getNumOperations();
@@ -669,19 +671,19 @@ TransactionQueue::maybeVersionUpgraded()
 }
 
 void
-TransactionQueue::rebroadcast()
+TransactionQueue::broadcast()
 {
-    // Rebroadcast transactions, sorted in apply-order per account to maximize
-    // chances of propagation. Do not broadcast more operations than
-    // OPERATION_BROADCAST_MULTIPLIER times the maximum number of operations
-    // that can be included in the next ledger.
+    // Rebroadcast transactions, sorted in apply-order per account to
+    // maximize chances of propagation. Do not broadcast more operations
+    // than OPERATION_BROADCAST_MULTIPLIER times the maximum number of
+    // operations that can be included in the next ledger.
     size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
 
-    std::deque<std::pair<TimestampedTransactions::const_iterator,
-                         TimestampedTransactions::const_iterator>>
+    std::deque<std::pair<TimestampedTransactions::iterator,
+                         TimestampedTransactions::iterator>>
         iters;
-    for (auto const& m : mAccountStates)
+    for (auto& m : mAccountStates)
     {
         iters.emplace_back(std::make_pair(m.second.mTransactions.begin(),
                                           m.second.mTransactions.end()));
@@ -702,23 +704,51 @@ TransactionQueue::rebroadcast()
         else
         {
             auto& tx = it->first->mTx;
-            if (opsToFlood < tx->getNumOperations())
+            bool broadcasted =
+                it->first->mBroadcasted;
+
+            if (broadcasted)
             {
-                // skip the rest of this queue
-                it->first = it->second;
+                // already done, skip this transaction
+                it->first++;
             }
             else
             {
-                auto msg = tx->toStellarMessage();
-                if (mApp.getOverlayManager().broadcastMessage(msg))
+                if (opsToFlood < tx->getNumOperations())
                 {
-                    opsToFlood -= tx->getNumOperations();
+                    // skip the rest of this queue
+                    it->first = it->second;
                 }
-                it->first++;
+                else
+                {
+                    auto msg = tx->toStellarMessage();
+                    it->first->mBroadcasted = true;
+                    if (mApp.getOverlayManager().broadcastMessage(msg))
+                    {
+                        opsToFlood -= tx->getNumOperations();
+                    }
+                    it->first++;
+                }
             }
+            // move to the next AccountState
             ++it;
         }
     }
+}
+
+void
+TransactionQueue::rebroadcast()
+{
+    // force to rebroadcast everything
+    for (auto& m : mAccountStates)
+    {
+        for (auto& tx : m.second.mTransactions)
+        {
+            tx.mBroadcasted = false;
+        }
+    }
+    broadcast();
+}
 }
 
 bool
