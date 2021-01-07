@@ -671,28 +671,52 @@ TransactionQueue::maybeVersionUpgraded()
 void
 TransactionQueue::rebroadcast()
 {
-    // Rebroadcast transactions, sorted in apply-order to maximize chances of
-    // propagation. Do not broadcast more operations than
+    // Rebroadcast transactions, sorted in apply-order per account to maximize
+    // chances of propagation. Do not broadcast more operations than
     // OPERATION_BROADCAST_MULTIPLIER times the maximum number of operations
     // that can be included in the next ledger.
     size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
     size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
 
+    std::deque<std::pair<TimestampedTransactions::const_iterator,
+                         TimestampedTransactions::const_iterator>>
+        iters;
     for (auto const& m : mAccountStates)
     {
-        for (auto const& itx : m.second.mTransactions)
+        iters.emplace_back(std::make_pair(m.second.mTransactions.begin(),
+                                          m.second.mTransactions.end()));
+    }
+    std::shuffle(iters.begin(), iters.end(), gRandomEngine);
+
+    auto it = iters.begin();
+    while (opsToFlood != 0 && !iters.empty())
+    {
+        if (it == iters.end())
         {
-            auto& tx = itx.mTx;
+            it = iters.begin();
+        }
+        if (it->first == it->second)
+        {
+            it = iters.erase(it);
+        }
+        else
+        {
+            auto& tx = it->first->mTx;
             if (opsToFlood < tx->getNumOperations())
             {
-                break;
+                // skip the rest of this queue
+                it->first = it->second;
             }
-
-            auto msg = tx->toStellarMessage();
-            if (mApp.getOverlayManager().broadcastMessage(msg))
+            else
             {
-                opsToFlood -= tx->getNumOperations();
+                auto msg = tx->toStellarMessage();
+                if (mApp.getOverlayManager().broadcastMessage(msg))
+                {
+                    opsToFlood -= tx->getNumOperations();
+                }
+                it->first++;
             }
+            ++it;
         }
     }
 }
