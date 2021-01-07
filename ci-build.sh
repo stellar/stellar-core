@@ -81,7 +81,7 @@ elif test $CXX = 'g++'; then
     g++ -v
 fi
 
-config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs"
+config_flags="--enable-asan --enable-extrachecks --enable-ccache --enable-sdfprefs --enable-next-protocol-version-unsafe-for-production"
 export CFLAGS="-O2 -g1"
 export CXXFLAGS="-w -O2 -g1"
 
