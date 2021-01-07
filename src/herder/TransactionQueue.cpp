@@ -25,7 +25,6 @@
 namespace stellar
 {
 const int64_t TransactionQueue::FEE_MULTIPLIER = 10;
-constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
 
 TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
                                    int banDepth, int poolLedgerMultiplier)
@@ -679,6 +678,33 @@ TransactionQueue::maybeVersionUpgraded()
     mLedgerVersion = lcl.header.ledgerVersion;
 }
 
+size_t
+TransactionQueue::getMaxOpsToFloodPerPeriod() const
+{
+    size_t opsToFlood;
+    auto& cfg = mApp.getConfig();
+    auto const opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
+    if (opRatePerLedger < 0)
+    {
+        size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+        opsToFlood = maxOps * -opRatePerLedger;
+    }
+    else
+    {
+        opsToFlood = opRatePerLedger;
+    }
+
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
+    {
+        opsToFlood = bigDivide(opsToFlood, cfg.FLOOD_TX_PERIOD_MS,
+                               cfg.getExpectedLedgerCloseTime().count() * 1000,
+                               Rounding::ROUND_UP);
+    } // else, flood the target at once
+    opsToFlood = std::max<size_t>(1, opsToFlood);
+
+    return opsToFlood;
+}
+
 void
 TransactionQueue::broadcast(bool fromCallback)
 {
@@ -688,11 +714,8 @@ TransactionQueue::broadcast(bool fromCallback)
     }
     mWaiting = false;
     // Rebroadcast transactions, sorted in apply-order per account to
-    // maximize chances of propagation. Do not broadcast more operations
-    // than OPERATION_BROADCAST_MULTIPLIER times the maximum number of
-    // operations that can be included in the next ledger.
-    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-    size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
+    // maximize chances of propagation.
+    size_t opsToFlood = getMaxOpsToFloodPerPeriod();
 
     std::deque<std::pair<TimestampedTransactions::iterator,
                          TimestampedTransactions::iterator>>

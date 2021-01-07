@@ -183,6 +183,7 @@ class TransactionQueue
     bool mWaiting{false};
     VirtualTimer mBroadcastTimer;
 
+    size_t getMaxOpsToFloodPerPeriod() const;
     void broadcast(bool fromCallback);
 
     AddResult canAdd(TransactionFrameBasePtr tx,
