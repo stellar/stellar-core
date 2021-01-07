@@ -594,8 +594,6 @@ TransactionQueue::shift()
     {
         mSizeByAge[i]->set_count(sizes[i]);
     }
-    mBroadcastOpCount = 0;
-    mBroadcastSteps = 0;
 }
 
 int
@@ -689,38 +687,32 @@ TransactionQueue::maybeVersionUpgraded()
 size_t
 TransactionQueue::getMaxOpsToFloodThisPeriod() const
 {
-    size_t opsToFlood;
+    size_t opsToFloodLedger;
     auto& cfg = mApp.getConfig();
     auto const opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
     if (opRatePerLedger < 0)
     {
         size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-        opsToFlood = maxOps * -opRatePerLedger;
+        opsToFloodLedger = maxOps * -opRatePerLedger;
     }
     else
     {
-        opsToFlood = opRatePerLedger;
+        opsToFloodLedger = opRatePerLedger;
     }
 
+    size_t opsToFlood;
     if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
     {
-        // perform a linear interpolation of how many ops we should have flooded
-        // so far
-        opsToFlood =
-            bigDivide(opsToFlood, mBroadcastSteps * cfg.FLOOD_TX_PERIOD_MS,
-                      cfg.getExpectedLedgerCloseTime().count() * 1000,
-                      Rounding::ROUND_DOWN);
-
-        if (opsToFlood >= mBroadcastOpCount)
-        {
-            opsToFlood -= mBroadcastOpCount;
-        }
-        else
-        {
-            opsToFlood = 0;
-        }
-    } // else, flood the target at once
-
+        opsToFlood = mBroadcastOpCarryover +
+                     bigDivide(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+                               cfg.getExpectedLedgerCloseTime().count() * 1000,
+                               Rounding::ROUND_UP);
+    }
+    else
+    {
+        // else, flood the target at once
+        opsToFlood = opsToFloodLedger;
+    }
     return opsToFlood;
 }
 
@@ -742,9 +734,8 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
 bool
 TransactionQueue::broadcastSome()
 {
-    // Rebroadcast transactions, sorted in apply-order per account to
+    // broadcast transactions, sorted in apply-order per account to
     // maximize chances of propagation.
-    ++mBroadcastSteps;
     size_t opsToFlood = getMaxOpsToFloodThisPeriod();
 
     struct TxTracker
@@ -768,6 +759,7 @@ TransactionQueue::broadcastSome()
             return *this;
         }
     };
+    // populate the list of per account queues of transactions to broadcast
     std::deque<TxTracker> iters;
     size_t totalOpsToFlood = 0;
     for (auto& m : mAccountStates)
@@ -783,19 +775,21 @@ TransactionQueue::broadcastSome()
     std::shuffle(iters.begin(), iters.end(), gRandomEngine);
 
     auto it = iters.begin();
-    bool skippedSome = false;
     while (opsToFlood != 0 && !iters.empty())
     {
         if (it == iters.end())
         {
+            // round robin over accounts
             it = iters.begin();
         }
         if (it->mCur == it->mAccountState->mTransactions.end())
         {
+            // no more transactions for that account, stop tracking it
             it = iters.erase(it);
         }
         else
         {
+            // look at the next candidate transaction for that account
             auto& cur = it->mCur;
             auto& tx = cur->mTx;
             bool broadcasted = cur->mBroadcasted;
@@ -805,29 +799,30 @@ TransactionQueue::broadcastSome()
                 // already done, skip this transaction
                 cur++;
             }
+            else if (opsToFlood < tx->getNumOperations())
+            {
+                // as we can't flood this transaction we have to wait to
+                // accumulate more flooding credit
+                break;
+            }
             else
             {
-                if (opsToFlood < tx->getNumOperations())
+                if (broadcastTx(*it->mAccountState, *cur))
                 {
-                    // skip the rest of this queue
-                    cur = it->mAccountState->mTransactions.end();
-                    skippedSome = true;
+                    auto ops = tx->getNumOperations();
+                    opsToFlood -= ops;
+                    totalOpsToFlood -= ops;
                 }
-                else
-                {
-                    if (broadcastTx(*it->mAccountState, *cur))
-                    {
-                        auto ops = tx->getNumOperations();
-                        opsToFlood -= ops;
-                        totalOpsToFlood -= ops;
-                    }
-                    cur++;
-                }
+                cur++;
             }
             // move to the next AccountState
             ++it;
         }
     }
+    // carry over remainder, up to MAX_OPS_PER_TX ops
+    // reason is that if we add 1 next round, we can flood a "worst case fee
+    // bump" tx
+    mBroadcastOpCarryover = std::min<size_t>(opsToFlood, MAX_OPS_PER_TX + 1);
     return totalOpsToFlood != 0;
 }
 

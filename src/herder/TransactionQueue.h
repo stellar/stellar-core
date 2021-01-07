@@ -183,8 +183,7 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
-    int mBroadcastSteps{0};
-    size_t mBroadcastOpCount{0};
+    size_t mBroadcastOpCarryover{0};
     VirtualTimer mBroadcastTimer;
 
     size_t getMaxOpsToFloodThisPeriod() const;
