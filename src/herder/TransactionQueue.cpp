@@ -687,10 +687,12 @@ TransactionQueue::rebroadcast()
             {
                 break;
             }
-            opsToFlood -= tx->getNumOperations();
 
             auto msg = tx->toStellarMessage();
-            mApp.getOverlayManager().broadcastMessage(msg);
+            if (mApp.getOverlayManager().broadcastMessage(msg))
+            {
+                opsToFlood -= tx->getNumOperations();
+            }
         }
     }
 }

@@ -111,7 +111,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     // make a copy, in case peers gets modified
     auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
-    bool log = true;
+    bool broadcasted = false;
     std::shared_ptr<StellarMessage> smsg =
         std::make_shared<StellarMessage>(msg);
     for (auto peer : peers)
@@ -123,7 +123,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
             std::weak_ptr<Peer> weak(
                 std::static_pointer_cast<Peer>(peer.second));
             mApp.postOnMainThread(
-                [smsg, weak, log]() {
+                [ smsg, weak, log = !broadcasted ]() {
                     auto strong = weak.lock();
                     if (strong)
                     {
@@ -131,12 +131,12 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
                     }
                 },
                 fmt::format("broadcast to {}", peer.second->toString()));
-            log = false;
+            broadcasted = true;
         }
     }
     CLOG_TRACE(Overlay, "broadcast {} told {}", hexAbbrev(index),
                peersTold.size());
-    return !peersTold.empty();
+    return broadcasted;
 }
 
 std::set<Peer::pointer>
