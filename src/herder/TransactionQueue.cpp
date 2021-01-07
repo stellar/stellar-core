@@ -751,6 +751,22 @@ TransactionQueue::broadcastSome()
     {
         TimestampedTransactions::iterator mCur;
         AccountState* mAccountState;
+        TxTracker(TxTracker&&) = default;
+
+        // NB: this overload seems to be necessary with most versions of
+        // libstdc++ that assert when std::move is called on self for iterators
+        // std::swap ends up calling this operator
+        // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85828
+        TxTracker&
+        operator=(TxTracker&& other)
+        {
+            if (this != &other)
+            {
+                mCur = other.mCur;
+                mAccountState = other.mAccountState;
+            }
+            return *this;
+        }
     };
     std::deque<TxTracker> iters;
     size_t totalOpsToFlood = 0;
