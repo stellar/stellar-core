@@ -261,6 +261,10 @@ TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
     auto ops = tstx.mTx->getNumOperations();
     as.mQueueSizeOps -= ops;
     mQueueSizeOps -= ops;
+    if (!tstx.mBroadcasted)
+    {
+        as.mBroadcastQueueOps -= ops;
+    }
     releaseFeeMaybeEraseAccountState(tstx.mTx);
 }
 
@@ -297,6 +301,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     }
     auto ops = tx->getNumOperations();
     stateIter->second.mQueueSizeOps += ops;
+    stateIter->second.mBroadcastQueueOps += ops;
     mQueueSizeOps += ops;
 
     auto& thisAccountState = mAccountStates[tx->getFeeSourceID()];
@@ -522,13 +527,14 @@ TransactionQueue::getAccountTransactionQueueInfo(
     auto i = mAccountStates.find(accountID);
     if (i == std::end(mAccountStates))
     {
-        return {0, 0, 0, 0};
+        return {0, 0, 0, 0, 0};
     }
 
-    auto const& txs = i->second.mTransactions;
+    auto& as = i->second;
+    auto const& txs = as.mTransactions;
     auto seqNum = txs.empty() ? 0 : txs.back().mTx->getSeqNum();
-    return {seqNum, i->second.mTotalFees, i->second.mQueueSizeOps,
-            i->second.mAge};
+    return {seqNum, as.mTotalFees, as.mQueueSizeOps, as.mBroadcastQueueOps,
+            as.mAge};
 }
 
 void
@@ -713,6 +719,7 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
         return false;
     }
     tx.mBroadcasted = true;
+    state.mBroadcastQueueOps -= tx.mTx->getNumOperations();
     StellarMessage msg;
     msg.type(TRANSACTION);
     msg.transaction() = tx.mTx->getEnvelope();
@@ -823,7 +830,9 @@ TransactionQueue::rebroadcast()
     // force to rebroadcast everything
     for (auto& m : mAccountStates)
     {
-        for (auto& tx : m.second.mTransactions)
+        auto& as = m.second;
+        as.mBroadcastQueueOps = as.mQueueSizeOps;
+        for (auto& tx : as.mTransactions)
         {
             tx.mBroadcasted = false;
         }
@@ -843,7 +852,8 @@ operator==(TransactionQueue::AccountTxQueueInfo const& x,
            TransactionQueue::AccountTxQueueInfo const& y)
 {
     return x.mMaxSeq == y.mMaxSeq && x.mTotalFees == y.mTotalFees &&
-           x.mQueueSizeOps == y.mQueueSizeOps;
+           x.mQueueSizeOps == y.mQueueSizeOps &&
+           x.mBroadcastQueueOps == y.mBroadcastQueueOps;
 }
 
 size_t

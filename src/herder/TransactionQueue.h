@@ -80,6 +80,7 @@ class TransactionQueue
         SequenceNumber mMaxSeq{0};
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
+        size_t mBroadcastQueueOps{0};
         int32_t mAge{0};
 
         friend bool operator==(AccountTxQueueInfo const& x,
@@ -110,6 +111,7 @@ class TransactionQueue
     {
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
+        size_t mBroadcastQueueOps{0};
         int32_t mAge{0};
         TimestampedTransactions mTransactions;
     };
