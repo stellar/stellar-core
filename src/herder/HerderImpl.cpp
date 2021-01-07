@@ -1792,6 +1792,8 @@ HerderImpl::getMoreSCPState()
 
     auto low = getMinLedgerSeqToAskPeers();
 
+    CLOG_INFO(Herder, "Asking peers for SCP messages more recent than {}", low);
+
     // ask a few random peers their SCP messages
     auto r = mApp.getOverlayManager().getRandomAuthenticatedPeers();
     for (int i = 0; i < NB_PEERS_TO_ASK && i < r.size(); i++)
