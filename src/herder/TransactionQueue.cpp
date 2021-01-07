@@ -637,7 +637,18 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
     return result;
 }
 
-std::vector<TransactionQueue::ReplacedTransaction>
+void
+TransactionQueue::clearAll()
+{
+    mAccountStates.clear();
+    for (auto& b : mBannedTransactions)
+    {
+        b.clear();
+    }
+    mQueueSizeOps = 0;
+}
+
+void
 TransactionQueue::maybeVersionUpgraded()
 {
     std::vector<ReplacedTransaction> res;
@@ -645,28 +656,9 @@ TransactionQueue::maybeVersionUpgraded()
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     if (mLedgerVersion < 13 && lcl.header.ledgerVersion >= 13)
     {
-        for (auto& banned : mBannedTransactions)
-        {
-            banned.clear();
-        }
-
-        for (auto& kv : mAccountStates)
-        {
-            for (auto& txFrame : kv.second.mTransactions)
-            {
-                auto oldTxFrame = txFrame;
-                auto envV1 =
-                    txbridge::convertForV13(txFrame.mTx->getEnvelope());
-                txFrame.mTx = TransactionFrame::makeTransactionFromWire(
-                    mApp.getNetworkID(), envV1);
-                res.emplace_back(
-                    ReplacedTransaction{oldTxFrame.mTx, txFrame.mTx});
-            }
-        }
+        clearAll();
     }
     mLedgerVersion = lcl.header.ledgerVersion;
-
-    return res;
 }
 
 bool

@@ -141,7 +141,8 @@ class TransactionQueue
         TransactionFrameBasePtr mOld;
         TransactionFrameBasePtr mNew;
     };
-    std::vector<ReplacedTransaction> maybeVersionUpgraded();
+
+    void maybeVersionUpgraded();
 
   private:
     /**
@@ -182,6 +183,8 @@ class TransactionQueue
     void dropTransactions(AccountStates::iterator stateIter,
                           TimestampedTransactions::iterator begin,
                           TimestampedTransactions::iterator end);
+
+    void clearAll();
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};
