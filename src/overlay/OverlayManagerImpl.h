@@ -103,7 +103,7 @@ class OverlayManagerImpl : public OverlayManager
     bool recvFloodedMsgID(StellarMessage const& msg, Peer::pointer peer,
                           Hash& msgID) override;
     void forgetFloodedMsg(Hash const& msgID) override;
-    void broadcastMessage(StellarMessage const& msg,
+    bool broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;
     void connectTo(PeerBareAddress const& address) override;
 

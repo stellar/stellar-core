@@ -59,7 +59,8 @@ class Floodgate
     bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer,
                    Hash& msgID);
 
-    void broadcast(StellarMessage const& msg, bool force);
+    // returns true if msg was sent to at least one peer
+    bool broadcast(StellarMessage const& msg, bool force);
 
     // returns the list of peers that sent us the item with hash `msgID`
     // NB: `msgID` is the hash of a `StellarMessage`

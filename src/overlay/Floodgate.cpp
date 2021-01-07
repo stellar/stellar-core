@@ -82,13 +82,13 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer, Hash& index)
 }
 
 // send message to anyone you haven't gotten it from
-void
+bool
 Floodgate::broadcast(StellarMessage const& msg, bool force)
 {
     ZoneScoped;
     if (mShuttingDown)
     {
-        return;
+        return false;
     }
     Hash index = xdrBlake2(msg);
 
@@ -117,7 +117,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     for (auto peer : peers)
     {
         assert(peer.second->isAuthenticated());
-        if (peersTold.find(peer.second->toString()) == peersTold.end())
+        if (peersTold.insert(peer.second->toString()).second)
         {
             mSendFromBroadcast.Mark();
             std::weak_ptr<Peer> weak(
@@ -131,12 +131,12 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
                     }
                 },
                 fmt::format("broadcast to {}", peer.second->toString()));
-            peersTold.insert(peer.second->toString());
             log = false;
         }
     }
     CLOG_TRACE(Overlay, "broadcast {} told {}", hexAbbrev(index),
                peersTold.size());
+    return !peersTold.empty();
 }
 
 std::set<Peer::pointer>
