@@ -183,9 +183,11 @@ class TransactionQueue
 
     bool mShutdown{false};
     bool mWaiting{false};
+    int mBroadcastSteps{0};
+    size_t mBroadcastOpCount{0};
     VirtualTimer mBroadcastTimer;
 
-    size_t getMaxOpsToFloodPerPeriod() const;
+    size_t getMaxOpsToFloodThisPeriod() const;
     bool broadcastSome();
     void broadcast(bool fromCallback);
     bool broadcastTx(AccountState& state, TimestampedTx& tx);

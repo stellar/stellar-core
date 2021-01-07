@@ -594,6 +594,8 @@ TransactionQueue::shift()
     {
         mSizeByAge[i]->set_count(sizes[i]);
     }
+    mBroadcastOpCount = 0;
+    mBroadcastSteps = 0;
 }
 
 int
@@ -685,7 +687,7 @@ TransactionQueue::maybeVersionUpgraded()
 }
 
 size_t
-TransactionQueue::getMaxOpsToFloodPerPeriod() const
+TransactionQueue::getMaxOpsToFloodThisPeriod() const
 {
     size_t opsToFlood;
     auto& cfg = mApp.getConfig();
@@ -702,11 +704,22 @@ TransactionQueue::getMaxOpsToFloodPerPeriod() const
 
     if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
     {
-        opsToFlood = bigDivide(opsToFlood, cfg.FLOOD_TX_PERIOD_MS,
-                               cfg.getExpectedLedgerCloseTime().count() * 1000,
-                               Rounding::ROUND_UP);
+        // perform a linear interpolation of how many ops we should have flooded
+        // so far
+        opsToFlood =
+            bigDivide(opsToFlood, mBroadcastSteps * cfg.FLOOD_TX_PERIOD_MS,
+                      cfg.getExpectedLedgerCloseTime().count() * 1000,
+                      Rounding::ROUND_DOWN);
+
+        if (opsToFlood >= mBroadcastOpCount)
+        {
+            opsToFlood -= mBroadcastOpCount;
+        }
+        else
+        {
+            opsToFlood = 0;
+        }
     } // else, flood the target at once
-    opsToFlood = std::max<size_t>(1, opsToFlood);
 
     return opsToFlood;
 }
@@ -731,7 +744,8 @@ TransactionQueue::broadcastSome()
 {
     // Rebroadcast transactions, sorted in apply-order per account to
     // maximize chances of propagation.
-    size_t opsToFlood = getMaxOpsToFloodPerPeriod();
+    ++mBroadcastSteps;
+    size_t opsToFlood = getMaxOpsToFloodThisPeriod();
 
     struct TxTracker
     {
@@ -742,8 +756,13 @@ TransactionQueue::broadcastSome()
     size_t totalOpsToFlood = 0;
     for (auto& m : mAccountStates)
     {
+        auto asOps = m.second.mBroadcastQueueOps;
+        if (asOps != 0)
+        {
             iters.emplace_back(
                 TxTracker{m.second.mTransactions.begin(), &m.second});
+            totalOpsToFlood += asOps;
+        }
     }
     std::shuffle(iters.begin(), iters.end(), gRandomEngine);
 
@@ -782,7 +801,9 @@ TransactionQueue::broadcastSome()
                 {
                     if (broadcastTx(*it->mAccountState, *cur))
                     {
-                        opsToFlood -= tx->getNumOperations();
+                        auto ops = tx->getNumOperations();
+                        opsToFlood -= ops;
+                        totalOpsToFlood -= ops;
                     }
                     cur++;
                 }
@@ -791,7 +812,7 @@ TransactionQueue::broadcastSome()
             ++it;
         }
     }
-    return skippedSome;
+    return totalOpsToFlood != 0;
 }
 
 void
