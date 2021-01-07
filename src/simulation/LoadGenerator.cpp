@@ -639,9 +639,7 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     }
     txm.mTxnAttempted.Mark();
 
-    StellarMessage msg;
-    msg.type(TRANSACTION);
-    msg.transaction() = txf->getEnvelope();
+    StellarMessage msg(txf->toStellarMessage());
     txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
     auto status = app.getHerder().recvTransaction(txf);

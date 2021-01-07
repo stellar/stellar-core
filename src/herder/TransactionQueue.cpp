@@ -725,11 +725,9 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
     }
     tx.mBroadcasted = true;
     state.mBroadcastQueueOps -= tx.mTx->getNumOperations();
-    StellarMessage msg;
-    msg.type(TRANSACTION);
-    msg.transaction() = tx.mTx->getEnvelope();
-    return mApp.getOverlayManager().broadcastMessage(msg);
-    }
+    return mApp.getOverlayManager().broadcastMessage(
+        tx.mTx->toStellarMessage());
+}
 
 bool
 TransactionQueue::broadcastSome()
