@@ -149,6 +149,7 @@ HerderImpl::shutdown()
                    "Shutdown interrupting quorum transitive closure analysis.");
         mLastQuorumMapIntersectionState.mInterruptFlag = true;
     }
+    mTransactionQueue.shutdown();
 }
 
 void

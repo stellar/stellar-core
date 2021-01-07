@@ -153,6 +153,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
 
+    FLOOD_TX_PERIOD_MS = 0;
+
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
     PREFERRED_PEERS_ONLY = false;
@@ -887,6 +889,10 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             else if (item.first == "MAX_BATCH_WRITE_BYTES")
             {
                 MAX_BATCH_WRITE_BYTES = readInt<int>(item, 1);
+            }
+            else if (item.first == "FLOOD_TX_PERIOD_MS")
+            {
+                FLOOD_TX_PERIOD_MS = readInt<int>(item, 0);
             }
             else if (item.first == "PREFERRED_PEERS")
             {

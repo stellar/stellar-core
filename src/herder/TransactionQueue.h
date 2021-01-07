@@ -147,6 +147,8 @@ class TransactionQueue
 
     void rebroadcast();
 
+    void shutdown();
+
   private:
     /**
      * The AccountState for every account. As noted above, an AccountID is in
@@ -177,7 +179,11 @@ class TransactionQueue
 
     UnorderedSet<OperationType> mFilteredTypes;
 
-    void broadcast();
+    bool mShutdown{false};
+    bool mWaiting{false};
+    VirtualTimer mBroadcastTimer;
+
+    void broadcast(bool fromCallback);
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,

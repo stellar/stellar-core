@@ -39,6 +39,7 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
           app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}))
     , mTransactionsDelay(
           app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
+    , mBroadcastTimer(app)
     , mPoolLedgerMultiplier(poolLedgerMultiplier)
 {
     for (auto i = 0; i < pendingDepth; i++)
@@ -292,10 +293,18 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     mQueueSizeOps += tx->getNumOperations();
     mAccountStates[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
 
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
+    {
+        broadcast(false);
+    }
+    else
+    {
+        oldTxIter->mBroadcasted = true;
     StellarMessage msg;
     msg.type(TRANSACTION);
     msg.transaction() = tx->getEnvelope();
     mApp.getOverlayManager().broadcastMessage(msg);
+    }
 
     return res;
 }
@@ -671,8 +680,13 @@ TransactionQueue::maybeVersionUpgraded()
 }
 
 void
-TransactionQueue::broadcast()
+TransactionQueue::broadcast(bool fromCallback)
 {
+    if (mShutdown || (!fromCallback && mWaiting))
+{
+        return;
+    }
+    mWaiting = false;
     // Rebroadcast transactions, sorted in apply-order per account to
     // maximize chances of propagation. Do not broadcast more operations
     // than OPERATION_BROADCAST_MULTIPLIER times the maximum number of
@@ -691,6 +705,7 @@ TransactionQueue::broadcast()
     std::shuffle(iters.begin(), iters.end(), gRandomEngine);
 
     auto it = iters.begin();
+    bool skippedSome = false;
     while (opsToFlood != 0 && !iters.empty())
     {
         if (it == iters.end())
@@ -704,8 +719,7 @@ TransactionQueue::broadcast()
         else
         {
             auto& tx = it->first->mTx;
-            bool broadcasted =
-                it->first->mBroadcasted;
+            bool broadcasted = it->first->mBroadcasted;
 
             if (broadcasted)
             {
@@ -718,6 +732,7 @@ TransactionQueue::broadcast()
                 {
                     // skip the rest of this queue
                     it->first = it->second;
+                    skippedSome = true;
                 }
                 else
                 {
@@ -734,6 +749,15 @@ TransactionQueue::broadcast()
             ++it;
         }
     }
+
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && skippedSome)
+    {
+        mWaiting = true;
+        mBroadcastTimer.expires_from_now(
+            std::chrono::milliseconds(mApp.getConfig().FLOOD_TX_PERIOD_MS));
+        mBroadcastTimer.async_wait([&]() { broadcast(true); },
+                                   &VirtualTimer::onFailureNoop);
+    }
 }
 
 void
@@ -747,8 +771,14 @@ TransactionQueue::rebroadcast()
             tx.mBroadcasted = false;
         }
     }
-    broadcast();
+    broadcast(false);
 }
+
+void
+TransactionQueue::shutdown()
+{
+    mShutdown = true;
+    mBroadcastTimer.cancel();
 }
 
 bool
