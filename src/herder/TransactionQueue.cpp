@@ -7,6 +7,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "overlay/OverlayManager.h"
 #include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
@@ -24,6 +25,7 @@
 namespace stellar
 {
 const int64_t TransactionQueue::FEE_MULTIPLIER = 10;
+constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
 
 TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
                                    int banDepth, int poolLedgerMultiplier)
@@ -287,6 +289,11 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     stateIter->second.mQueueSizeOps += tx->getNumOperations();
     mQueueSizeOps += tx->getNumOperations();
     mAccountStates[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
+
+    StellarMessage msg;
+    msg.type(TRANSACTION);
+    msg.transaction() = tx->getEnvelope();
+    mApp.getOverlayManager().broadcastMessage(msg);
 
     return res;
 }
@@ -659,6 +666,33 @@ TransactionQueue::maybeVersionUpgraded()
         clearAll();
     }
     mLedgerVersion = lcl.header.ledgerVersion;
+}
+
+void
+TransactionQueue::rebroadcast()
+{
+    // Rebroadcast transactions, sorted in apply-order to maximize chances of
+    // propagation. Do not broadcast more operations than
+    // OPERATION_BROADCAST_MULTIPLIER times the maximum number of operations
+    // that can be included in the next ledger.
+    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+    size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
+
+    for (auto const& m : mAccountStates)
+    {
+        for (auto const& itx : m.second.mTransactions)
+        {
+            auto& tx = itx.mTx;
+            if (opsToFlood < tx->getNumOperations())
+            {
+                break;
+            }
+            opsToFlood -= tx->getNumOperations();
+
+            auto msg = tx->toStellarMessage();
+            mApp.getOverlayManager().broadcastMessage(msg);
+        }
+    }
 }
 
 bool

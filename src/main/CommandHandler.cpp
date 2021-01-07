@@ -621,14 +621,6 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             TransactionQueue::AddResult status =
                 mApp.getHerder().recvTransaction(transaction);
 
-            if (status == TransactionQueue::AddResult::ADD_STATUS_PENDING)
-            {
-                StellarMessage msg;
-                msg.type(TRANSACTION);
-                msg.transaction() = envelope;
-                mApp.getOverlayManager().broadcastMessage(msg);
-            }
-
             output << "{"
                    << "\"status\": "
                    << "\"" << TX_STATUS_STRING[static_cast<int>(status)]

@@ -144,6 +144,8 @@ class TransactionQueue
 
     void maybeVersionUpgraded();
 
+    void rebroadcast();
+
   private:
     /**
      * The AccountState for every account. As noted above, an AccountID is in
