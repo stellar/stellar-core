@@ -184,7 +184,9 @@ class TransactionQueue
     VirtualTimer mBroadcastTimer;
 
     size_t getMaxOpsToFloodPerPeriod() const;
+    bool broadcastSome();
     void broadcast(bool fromCallback);
+    bool broadcastTx(AccountState& state, TimestampedTx& tx);
 
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
@@ -192,6 +194,7 @@ class TransactionQueue
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
+    void prepareDropTransaction(AccountState& as, TimestampedTx& tstx);
     void dropTransactions(AccountStates::iterator stateIter,
                           TimestampedTransactions::iterator begin,
                           TimestampedTransactions::iterator end);

@@ -255,6 +255,15 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
     }
 }
 
+void
+TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
+{
+    auto ops = tstx.mTx->getNumOperations();
+    as.mQueueSizeOps -= ops;
+    mQueueSizeOps -= ops;
+    releaseFeeMaybeEraseAccountState(tstx.mTx);
+}
+
 TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 {
@@ -276,9 +285,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 
     if (oldTxIter != stateIter->second.mTransactions.end())
     {
-        releaseFeeMaybeEraseAccountState(oldTxIter->mTx);
-        stateIter->second.mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
-        mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
+        prepareDropTransaction(stateIter->second, *oldTxIter);
         *oldTxIter = {tx, false, mApp.getClock().now()};
     }
     else
@@ -288,9 +295,12 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
         oldTxIter = --stateIter->second.mTransactions.end();
         mSizeByAge[stateIter->second.mAge]->inc();
     }
-    stateIter->second.mQueueSizeOps += tx->getNumOperations();
-    mQueueSizeOps += tx->getNumOperations();
-    mAccountStates[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
+    auto ops = tx->getNumOperations();
+    stateIter->second.mQueueSizeOps += ops;
+    mQueueSizeOps += ops;
+
+    auto& thisAccountState = mAccountStates[tx->getFeeSourceID()];
+    thisAccountState.mTotalFees += tx->getFeeBid();
 
     if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
     {
@@ -298,11 +308,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     }
     else
     {
-        oldTxIter->mBroadcasted = true;
-    StellarMessage msg;
-    msg.type(TRANSACTION);
-    msg.transaction() = tx->getEnvelope();
-    mApp.getOverlayManager().broadcastMessage(msg);
+        broadcastTx(thisAccountState, *oldTxIter);
     }
 
     return res;
@@ -315,15 +321,12 @@ TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
 {
     ZoneScoped;
     // Remove fees and update queue size for each transaction to be dropped.
-    // Note releaseFeeMaybeEraseSourceAccount may erase other iterators from
+    // Note prepareDropTransaction may erase other iterators from
     // mAccountStates, but it will not erase stateIter because it has at least
     // one transaction (otherwise we couldn't reach that line).
     for (auto iter = begin; iter != end; ++iter)
     {
-        auto ops = iter->mTx->getNumOperations();
-        stateIter->second.mQueueSizeOps -= ops;
-        mQueueSizeOps -= ops;
-        releaseFeeMaybeEraseAccountState(iter->mTx);
+        prepareDropTransaction(stateIter->second, *iter);
     }
 
     // Actually erase the transactions to be dropped.
@@ -553,19 +556,16 @@ TransactionQueue::shift()
 
         if (mPendingDepth == it->second.mAge)
         {
-            for (auto const& toBan : it->second.mTransactions)
+            for (auto& toBan : it->second.mTransactions)
             {
                 // This never invalidates it because
                 //     !it->second.mTransactions.empty()
                 // otherwise we couldn't have reached this line.
-                releaseFeeMaybeEraseAccountState(toBan.mTx);
+                prepareDropTransaction(it->second, toBan);
                 bannedFront.insert(toBan.mTx->getFullHash());
             }
             mBannedTransactionsCounter.inc(
                 static_cast<int64_t>(it->second.mTransactions.size()));
-            mQueueSizeOps -= it->second.mQueueSizeOps;
-            it->second.mQueueSizeOps = 0;
-
             it->second.mTransactions.clear();
             if (it->second.mTotalFees == 0)
             {
@@ -705,25 +705,38 @@ TransactionQueue::getMaxOpsToFloodPerPeriod() const
     return opsToFlood;
 }
 
-void
-TransactionQueue::broadcast(bool fromCallback)
+bool
+TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
 {
-    if (mShutdown || (!fromCallback && mWaiting))
-{
-        return;
+    if (tx.mBroadcasted)
+    {
+        return false;
     }
-    mWaiting = false;
+    tx.mBroadcasted = true;
+    StellarMessage msg;
+    msg.type(TRANSACTION);
+    msg.transaction() = tx.mTx->getEnvelope();
+    return mApp.getOverlayManager().broadcastMessage(msg);
+    }
+
+bool
+TransactionQueue::broadcastSome()
+{
     // Rebroadcast transactions, sorted in apply-order per account to
     // maximize chances of propagation.
     size_t opsToFlood = getMaxOpsToFloodPerPeriod();
 
-    std::deque<std::pair<TimestampedTransactions::iterator,
-                         TimestampedTransactions::iterator>>
-        iters;
+    struct TxTracker
+    {
+        TimestampedTransactions::iterator mCur;
+        AccountState* mAccountState;
+    };
+    std::deque<TxTracker> iters;
+    size_t totalOpsToFlood = 0;
     for (auto& m : mAccountStates)
     {
-        iters.emplace_back(std::make_pair(m.second.mTransactions.begin(),
-                                          m.second.mTransactions.end()));
+            iters.emplace_back(
+                TxTracker{m.second.mTransactions.begin(), &m.second});
     }
     std::shuffle(iters.begin(), iters.end(), gRandomEngine);
 
@@ -735,45 +748,66 @@ TransactionQueue::broadcast(bool fromCallback)
         {
             it = iters.begin();
         }
-        if (it->first == it->second)
+        if (it->mCur == it->mAccountState->mTransactions.end())
         {
             it = iters.erase(it);
         }
         else
         {
-            auto& tx = it->first->mTx;
-            bool broadcasted = it->first->mBroadcasted;
+            auto& cur = it->mCur;
+            auto& tx = cur->mTx;
+            bool broadcasted = cur->mBroadcasted;
 
             if (broadcasted)
             {
                 // already done, skip this transaction
-                it->first++;
+                cur++;
             }
             else
             {
                 if (opsToFlood < tx->getNumOperations())
                 {
                     // skip the rest of this queue
-                    it->first = it->second;
+                    cur = it->mAccountState->mTransactions.end();
                     skippedSome = true;
                 }
                 else
                 {
-                    auto msg = tx->toStellarMessage();
-                    it->first->mBroadcasted = true;
-                    if (mApp.getOverlayManager().broadcastMessage(msg))
+                    if (broadcastTx(*it->mAccountState, *cur))
                     {
                         opsToFlood -= tx->getNumOperations();
                     }
-                    it->first++;
+                    cur++;
                 }
             }
             // move to the next AccountState
             ++it;
         }
     }
+    return skippedSome;
+}
 
-    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && skippedSome)
+void
+TransactionQueue::broadcast(bool fromCallback)
+{
+    if (mShutdown || (!fromCallback && mWaiting))
+    {
+        return;
+    }
+    mWaiting = false;
+
+    bool needsMore = false;
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && !fromCallback)
+    {
+        // don't do anything right away, wait for the timer
+        needsMore = true;
+    }
+    else
+    {
+        needsMore = broadcastSome();
+    }
+
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && needsMore)
     {
         mWaiting = true;
         mBroadcastTimer.expires_from_now(
