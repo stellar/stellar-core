@@ -174,7 +174,7 @@ class Logging
 #endif
 
   public:
-    static void init();
+    static void init(bool truncate = false);
     static void deinit();
     static void setFmt(std::string const& peerID, bool timestamps = true);
     static void setLoggingToFile(std::string const& filename);

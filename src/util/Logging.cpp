@@ -80,7 +80,7 @@ convert_loglevel(LogLevel level)
 #endif
 
 void
-Logging::init()
+Logging::init(bool truncate)
 {
 #if defined(USE_SPDLOG)
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
@@ -105,7 +105,7 @@ Logging::init()
                 fmt::format(mLastFilenamePattern,
                             fmt::arg("datetime", fmt::localtime(time)));
             sinks.emplace_back(
-                make_shared<basic_file_sink_mt>(filename, /*truncate=*/true));
+                make_shared<basic_file_sink_mt>(filename, truncate));
         }
 
         auto makeLogger =
@@ -298,7 +298,7 @@ Logging::rotate()
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
     deinit();
-    init();
+    init(/*truncate=*/true);
 }
 
 // throws if partition name is not recognized
