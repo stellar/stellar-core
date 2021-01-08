@@ -115,9 +115,10 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
             continue;
         }
 
-        auto message = fmt::format(
-            R"(Invariant "{}" does not hold on operation: {}{}{})",
-            invariant->getName(), result, "\n", xdr_to_string(operation));
+        auto message =
+            fmt::format(R"(Invariant "{}" does not hold on operation: {}{}{})",
+                        invariant->getName(), result, "\n",
+                        xdr_to_string(operation, "Operation"));
         onInvariantFailure(invariant, message,
                            ltxDelta.header.current.ledgerSeq);
     }

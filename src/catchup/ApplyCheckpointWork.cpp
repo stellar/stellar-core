@@ -257,11 +257,12 @@ ApplyCheckpointWork::onRun()
             {
                 auto& lm = mApp.getLedgerManager();
 
-                CLOG_DEBUG(History, "LedgerManager LCL:\n{}",
-                           xdr_to_string(lm.getLastClosedLedgerHeader()));
+                CLOG_DEBUG(History, "{}",
+                           xdr_to_string(lm.getLastClosedLedgerHeader(),
+                                         "LedgerManager LCL"));
 
-                CLOG_DEBUG(History, "Replay header:\n{}",
-                           xdr_to_string(mHeaderHistoryEntry));
+                CLOG_DEBUG(History, "{}",
+                           xdr_to_string(mHeaderHistoryEntry, "Replay header"));
                 if (lm.getLastClosedLedgerHeader().hash !=
                     mHeaderHistoryEntry.hash)
                 {

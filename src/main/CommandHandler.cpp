@@ -951,7 +951,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["status"] = TX_STATUS_STRING[static_cast<int>(status)];
         if (status == TransactionQueue::AddResult::ADD_STATUS_ERROR)
         {
-            root["detail"] = xdr_to_string(txFrame->getResult().result.code());
+            root["detail"] = xdr_to_string(txFrame->getResult().result.code(),
+                                           "TransactionResultCode");
         }
     }
     else

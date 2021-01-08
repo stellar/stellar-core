@@ -119,11 +119,10 @@ cereal_override(cereal::JSONOutputArchive& ar, const xdr::pointer<T>& t,
 // during the enable_if call in the cereal adaptor fails to find them.
 #include <xdrpp/cereal.h>
 
-// If name is a nonempty string, the output string begins with it.
 // If compact = true, the output string will not contain any indentation.
 template <typename T>
 std::string
-xdr_to_string(const T& t, std::string const& name = "", bool compact = false)
+xdr_to_string(const T& t, std::string const& name, bool compact = false)
 {
     std::stringstream os;
 
@@ -133,14 +132,7 @@ xdr_to_string(const T& t, std::string const& name = "", bool compact = false)
         cereal::JSONOutputArchive ar(
             os, compact ? cereal::JSONOutputArchive::Options::NoIndent()
                         : cereal::JSONOutputArchive::Options::Default());
-        if (!name.empty())
-        {
-            ar(cereal::make_nvp(name, t));
-        }
-        else
-        {
-            ar(t);
-        }
+        ar(cereal::make_nvp(name, t));
     }
     return os.str();
 }

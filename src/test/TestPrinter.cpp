@@ -13,11 +13,12 @@ namespace Catch
 std::string
 StringMaker<stellar::OfferState>::convert(stellar::OfferState const& os)
 {
-    return fmt::format(
-        "selling: {}, buying: {}, price: {}, amount: {}, type: {}",
-        xdr_to_string(os.selling), xdr_to_string(os.buying),
-        xdr_to_string(os.price), os.amount,
-        os.type == stellar::OfferType::PASSIVE ? "passive" : "active");
+    return fmt::format("{}, {}, {}, amount: {}, type: {}",
+                       xdr_to_string(os.selling, "selling"),
+                       xdr_to_string(os.buying, "buying"),
+                       xdr_to_string(os.price, "price"), os.amount,
+                       os.type == stellar::OfferType::PASSIVE ? "passive"
+                                                              : "active");
 }
 
 std::string
