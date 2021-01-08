@@ -65,7 +65,7 @@ runpg() {
 
     # pick a random utf locale if we can as to increase
     # detection of encoding issues
-    DB_LOC=`locale -a | grep -i utf | shuf | head -1`
+    DB_LOC=`locale -a | grep -i utf | sort -R | head -1`
     if [ -z "$DB_LOC" ] ; then DB_LOC="--no-locale" ; else DB_LOC="--locale=$DB_LOC" ; fi
 
     echo Creating temporary PostgreSQL database cluster in "$PGDATA" with $DB_LOC
