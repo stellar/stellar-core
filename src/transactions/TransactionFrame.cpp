@@ -786,22 +786,10 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
                 newMeta.v2().txChangesAfter = ltxAfter.getChanges();
                 ltxAfter.commit();
             }
-            else if (ledgerVersion >= 14)
+            else if (ledgerVersion >= 14 && ltxTx.hasSponsorshipEntry())
             {
-                auto delta = ltxTx.getDelta();
-                for (auto const& kv : delta.entry)
-                {
-                    auto glk = kv.first;
-                    switch (glk.type())
-                    {
-                    case InternalLedgerEntryType::SPONSORSHIP:
-                    case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
-                        getResult().result.code(txBAD_SPONSORSHIP);
-                        return false;
-                    default:
-                        break;
-                    }
-                }
+                getResult().result.code(txBAD_SPONSORSHIP);
+                return false;
             }
 
             ltxTx.commit();

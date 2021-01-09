@@ -1850,6 +1850,34 @@ LedgerTxn::Impl::getWorstBestOfferIterator()
     return WorstBestOfferIterator(std::move(iterImpl));
 }
 
+bool
+LedgerTxn::hasSponsorshipEntry() const
+{
+    return getImpl()->hasSponsorshipEntry();
+}
+
+bool
+LedgerTxn::Impl::hasSponsorshipEntry() const
+{
+    throwIfNotExactConsistency();
+    throwIfChild();
+
+    for (auto const& kv : mEntry)
+    {
+        auto glk = kv.first;
+        switch (glk.type())
+        {
+        case InternalLedgerEntryType::SPONSORSHIP:
+        case InternalLedgerEntryType::SPONSORSHIP_COUNTER:
+            return true;
+        default:
+            break;
+        }
+    }
+
+    return false;
+}
+
 #ifdef BUILD_TESTS
 UnorderedMap<AssetPair,
              std::multimap<OfferDescriptor, LedgerKey, IsBetterOfferComparator>,
