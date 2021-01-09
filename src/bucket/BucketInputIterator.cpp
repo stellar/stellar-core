@@ -69,7 +69,8 @@ BucketInputIterator::operator bool() const
     return mEntryPtr != nullptr;
 }
 
-BucketEntry const& BucketInputIterator::operator*()
+BucketEntry const&
+BucketInputIterator::operator*()
 {
     return *mEntryPtr;
 }
@@ -110,7 +111,8 @@ BucketInputIterator::~BucketInputIterator()
     mIn.close();
 }
 
-BucketInputIterator& BucketInputIterator::operator++()
+BucketInputIterator&
+BucketInputIterator::operator++()
 {
     if (mIn)
     {

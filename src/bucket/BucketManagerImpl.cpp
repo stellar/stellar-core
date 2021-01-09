@@ -22,7 +22,7 @@
 #include <map>
 #include <regex>
 #include <set>
-
+#include "util/GlobalChecks.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -219,7 +219,7 @@ BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
     {
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
         std::string lock = d + "/" + kLockFilename;
-        assert(fs::exists(lock));
+        releaseAssert(fs::exists(lock));
         fs::unlockFile(lock);
         mLockedBucketDir.reset();
     }
@@ -412,7 +412,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
             mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
     }
-    assert(b);
+    releaseAssert(b);
     if (mergeKey)
     {
         // Second half of the mergeKey record-keeping, above: if we successfully

@@ -43,8 +43,8 @@ FutureBucket::FutureBucket(Application& app,
     // Constructed with a bunch of inputs, _immediately_ commence merging
     // them; there's no valid state for have-inputs-but-not-merging, the
     // presence of inputs implies merging, and vice-versa.
-    assert(curr);
-    assert(snap);
+    releaseAssert(curr);
+    releaseAssert(snap);
     mInputCurrBucketHash = binToHex(curr->getHash());
     mInputSnapBucketHash = binToHex(snap->getHash());
     if (Bucket::getBucketVersion(snap) >=
@@ -76,7 +76,7 @@ FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
 static void
 checkHashEq(std::shared_ptr<Bucket> const& b, std::string const& h)
 {
-    assert(b->getHash() == hexToBin256(h));
+    releaseAssert(b->getHash() == hexToBin256(h));
 }
 
 void
@@ -85,7 +85,7 @@ FutureBucket::checkHashesMatch() const
     ZoneScoped;
     if (!mInputShadowBuckets.empty())
     {
-        assert(mInputShadowBuckets.size() == mInputShadowBucketHashes.size());
+        releaseAssert(mInputShadowBuckets.size() == mInputShadowBucketHashes.size());
         for (size_t i = 0; i < mInputShadowBuckets.size(); ++i)
         {
             checkHashEq(mInputShadowBuckets.at(i),
@@ -118,56 +118,56 @@ FutureBucket::checkState() const
     switch (mState)
     {
     case FB_CLEAR:
-        assert(mInputShadowBuckets.empty());
-        assert(!mInputSnapBucket);
-        assert(!mInputCurrBucket);
-        assert(!mOutputBucket);
-        assert(!mOutputBucketFuture.valid());
-        assert(mInputShadowBucketHashes.empty());
-        assert(mInputSnapBucketHash.empty());
-        assert(mInputCurrBucketHash.empty());
-        assert(mOutputBucketHash.empty());
+        releaseAssert(mInputShadowBuckets.empty());
+        releaseAssert(!mInputSnapBucket);
+        releaseAssert(!mInputCurrBucket);
+        releaseAssert(!mOutputBucket);
+        releaseAssert(!mOutputBucketFuture.valid());
+        releaseAssert(mInputShadowBucketHashes.empty());
+        releaseAssert(mInputSnapBucketHash.empty());
+        releaseAssert(mInputCurrBucketHash.empty());
+        releaseAssert(mOutputBucketHash.empty());
         break;
 
     case FB_LIVE_INPUTS:
-        assert(mInputSnapBucket);
-        assert(mInputCurrBucket);
-        assert(mOutputBucketFuture.valid());
-        assert(!mOutputBucket);
-        assert(mOutputBucketHash.empty());
+        releaseAssert(mInputSnapBucket);
+        releaseAssert(mInputCurrBucket);
+        releaseAssert(mOutputBucketFuture.valid());
+        releaseAssert(!mOutputBucket);
+        releaseAssert(mOutputBucketHash.empty());
         checkHashesMatch();
         break;
 
     case FB_LIVE_OUTPUT:
-        assert(mergeComplete());
-        assert(mOutputBucket);
-        assert(!mOutputBucketFuture.valid());
-        assert(!mOutputBucketHash.empty());
+        releaseAssert(mergeComplete());
+        releaseAssert(mOutputBucket);
+        releaseAssert(!mOutputBucketFuture.valid());
+        releaseAssert(!mOutputBucketHash.empty());
         checkHashesMatch();
         break;
 
     case FB_HASH_INPUTS:
-        assert(!mInputSnapBucket);
-        assert(!mInputCurrBucket);
-        assert(!mOutputBucket);
-        assert(!mOutputBucketFuture.valid());
-        assert(!mInputSnapBucketHash.empty());
-        assert(!mInputCurrBucketHash.empty());
-        assert(mOutputBucketHash.empty());
+        releaseAssert(!mInputSnapBucket);
+        releaseAssert(!mInputCurrBucket);
+        releaseAssert(!mOutputBucket);
+        releaseAssert(!mOutputBucketFuture.valid());
+        releaseAssert(!mInputSnapBucketHash.empty());
+        releaseAssert(!mInputCurrBucketHash.empty());
+        releaseAssert(mOutputBucketHash.empty());
         break;
 
     case FB_HASH_OUTPUT:
-        assert(!mInputSnapBucket);
-        assert(!mInputCurrBucket);
-        assert(!mOutputBucket);
-        assert(!mOutputBucketFuture.valid());
-        assert(mInputSnapBucketHash.empty());
-        assert(mInputCurrBucketHash.empty());
-        assert(!mOutputBucketHash.empty());
+        releaseAssert(!mInputSnapBucket);
+        releaseAssert(!mInputCurrBucket);
+        releaseAssert(!mOutputBucket);
+        releaseAssert(!mOutputBucketFuture.valid());
+        releaseAssert(mInputSnapBucketHash.empty());
+        releaseAssert(mInputCurrBucketHash.empty());
+        releaseAssert(!mOutputBucketHash.empty());
         break;
 
     default:
-        assert(false);
+        releaseAssert(false);
         break;
     }
 }
@@ -230,7 +230,7 @@ bool
 FutureBucket::mergeComplete() const
 {
     ZoneScoped;
-    assert(isLive());
+    releaseAssert(isLive());
     if (mOutputBucket)
     {
         return true;
@@ -244,7 +244,7 @@ FutureBucket::resolve()
 {
     ZoneScoped;
     checkState();
-    assert(isLive());
+    releaseAssert(isLive());
 
     if (mState == FB_LIVE_OUTPUT)
     {
@@ -275,7 +275,7 @@ FutureBucket::hasOutputHash() const
 {
     if (mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT)
     {
-        assert(!mOutputBucketHash.empty());
+        releaseAssert(!mOutputBucketHash.empty());
         return true;
     }
     return false;
@@ -284,8 +284,8 @@ FutureBucket::hasOutputHash() const
 std::string const&
 FutureBucket::getOutputHash() const
 {
-    assert(mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT);
-    assert(!mOutputBucketHash.empty());
+    releaseAssert(mState == FB_LIVE_OUTPUT || mState == FB_HASH_OUTPUT);
+    releaseAssert(!mOutputBucketHash.empty());
     return mOutputBucketHash;
 }
 
@@ -309,16 +309,16 @@ FutureBucket::startMerge(Application& app, uint32_t maxProtocolVersion,
     // are live but the merge is not yet running. So you can't call checkState()
     // on entry, only on exit.
 
-    assert(mState == FB_LIVE_INPUTS);
+    releaseAssert(mState == FB_LIVE_INPUTS);
 
     std::shared_ptr<Bucket> curr = mInputCurrBucket;
     std::shared_ptr<Bucket> snap = mInputSnapBucket;
     std::vector<std::shared_ptr<Bucket>> shadows = mInputShadowBuckets;
 
-    assert(curr);
-    assert(snap);
-    assert(!mOutputBucketFuture.valid());
-    assert(!mOutputBucket);
+    releaseAssert(curr);
+    releaseAssert(snap);
+    releaseAssert(!mOutputBucketFuture.valid());
+    releaseAssert(!mOutputBucket);
 
     CLOG_TRACE(Bucket, "Preparing merge of curr={} with snap={}",
                hexAbbrev(curr->getHash()), hexAbbrev(snap->getHash()));
@@ -407,8 +407,8 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
 {
     ZoneScoped;
     checkState();
-    assert(!isLive());
-    assert(hasHashes());
+    releaseAssert(!isLive());
+    releaseAssert(hasHashes());
     auto& bm = app.getBucketManager();
     if (hasOutputHash())
     {
@@ -416,22 +416,22 @@ FutureBucket::makeLive(Application& app, uint32_t maxProtocolVersion,
     }
     else
     {
-        assert(mState == FB_HASH_INPUTS);
+        releaseAssert(mState == FB_HASH_INPUTS);
         mInputCurrBucket =
             bm.getBucketByHash(hexToBin256(mInputCurrBucketHash));
         mInputSnapBucket =
             bm.getBucketByHash(hexToBin256(mInputSnapBucketHash));
-        assert(mInputShadowBuckets.empty());
+        releaseAssert(mInputShadowBuckets.empty());
         for (auto const& h : mInputShadowBucketHashes)
         {
             auto b = bm.getBucketByHash(hexToBin256(h));
-            assert(b);
+            releaseAssert(b);
             CLOG_DEBUG(Bucket, "Reconstituting shadow {}", h);
             mInputShadowBuckets.push_back(b);
         }
         mState = FB_LIVE_INPUTS;
         startMerge(app, maxProtocolVersion, /*countMergeEvents=*/true, level);
-        assert(isLive());
+        releaseAssert(isLive());
     }
 }
 
