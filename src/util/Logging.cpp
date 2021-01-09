@@ -9,6 +9,7 @@
 #include "util/Timer.h"
 #include <chrono>
 #include <fmt/chrono.h>
+#include <fstream>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/stdout_sinks.h>
@@ -104,8 +105,43 @@ Logging::init(bool truncate)
             auto filename =
                 fmt::format(mLastFilenamePattern,
                             fmt::arg("datetime", fmt::localtime(time)));
+
+            // NB: We do _not_ pass 'truncate' through to spdlog here -- spdlog
+            // interprets 'truncate=true' as a request to open the file in "wb"
+            // mode rather than "ab" mode. Opening in "wb" mode does truncate
+            // the file but also sets it to a fundamentally different _mode_
+            // than "ab" mode.
+            //
+            // In particular, in "ab" mode the underlying file descriptor is
+            // opened with O_APPEND and this makes the kernel atomically preface
+            // any write(fd, buf, n) with an lseek(fd, SEEK_END, 0), adjusting
+            // the fd's offset to the current end of file, _even if the file
+            // shrank_ since the last write.
+            //
+            // In contrast, in "wb" mode the underlying file descriptor just
+            // increments its offset after each write, and if the file shrinks
+            // between writes the space between the actual end of file and the
+            // offset at the time of writing will be zero-filled!
+            //
+            // Why would a file shrink? Because users might choose to use an
+            // _external_ log-rotation program such as logrotate(1) rather than
+            // our internal log rotation command. This command happens to call
+            // truncate(2) on the log file after it's made a copy for rotation
+            // purposes. This is fine if we're writing to an fd with O_APPEND
+            // but it's a recipe for giant zero-filled files if we're not.
+            //
+            // So instead we just truncate ourselves here if it was requested,
+            // and always pass 'truncate=false' to spdlog, so it always opens in
+            // "ab" == O_APPEND mode. The "portable" way to truncate is to open
+            // an ofstream in out|trunc mode, then immediately close it.
+            if (truncate)
+            {
+                std::ofstream truncator(filename, std::ios_base::out |
+                                                      std::ios_base::trunc);
+            }
+
             sinks.emplace_back(
-                make_shared<basic_file_sink_mt>(filename, truncate));
+                make_shared<basic_file_sink_mt>(filename, /*truncate=*/false));
         }
 
         auto makeLogger =
