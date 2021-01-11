@@ -43,7 +43,6 @@ class TxSimGenerateBucketsWork : public BasicWork
     std::list<std::shared_ptr<Bucket>> mIntermediateBuckets;
     std::vector<FutureBucket> mMergesInProgress;
     bool mIsCurr;
-    std::unique_ptr<VirtualTimer> mTimer;
 
     void setFutureBucket(std::shared_ptr<Bucket> const& curr);
     void startBucketGeneration(std::shared_ptr<Bucket> const& oldBucket);

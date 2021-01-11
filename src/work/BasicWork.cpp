@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/BasicWork.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include <Tracy.hpp>
@@ -47,11 +48,24 @@ BasicWork::~BasicWork()
 }
 
 void
+BasicWork::resetWaitingTimer()
+{
+    if (mWaitingTimer)
+    {
+        mWaitingTimer->cancel();
+        mWaitingTimer.reset();
+    }
+}
+
+void
 BasicWork::shutdown()
 {
     CLOG_TRACE(Work, "Shutting down: {}", getName());
     if (!isDone())
     {
+        // We're transitioning into "ABORTING" state, so cancel
+        // the waiting timer
+        resetWaitingTimer();
         setState(InternalState::ABORTING);
     }
 }
@@ -299,6 +313,9 @@ BasicWork::wakeUp(std::function<void()> innerCallback)
     CLOG_TRACE(Work, "Waking up: {}", getName());
     setState(InternalState::RUNNING);
 
+    // If we woke up because of the waiting timer firing, reset it
+    resetWaitingTimer();
+
     if (innerCallback)
     {
         CLOG_TRACE(Work, "{} woke up and is executing its callback", getName());
@@ -325,6 +342,28 @@ BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
         self->wakeUp(innerCallback);
     };
     return callback;
+}
+
+void
+BasicWork::setupWaitingCallback(std::chrono::milliseconds wakeUpIn)
+{
+    // Work must be running to schedule a timer
+    releaseAssert(mState == BasicWork::InternalState::RUNNING);
+
+    // No-op if timer is already set
+    if (mWaitingTimer)
+    {
+        CLOG_WARNING(Work, "{}: waiting timer is already set (no-op)",
+                     getName());
+        return;
+    }
+
+    // Otherwise, setup the timer that no-ops on failure (if work is shutdown or
+    // destroyed, for example)
+    mWaitingTimer = std::make_unique<VirtualTimer>(mApp.getClock());
+    mWaitingTimer->expires_from_now(wakeUpIn);
+    mWaitingTimer->async_wait(wakeSelfUpCallback(),
+                              &VirtualTimer::onFailureNoop);
 }
 
 void

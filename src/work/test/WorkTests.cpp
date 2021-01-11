@@ -112,25 +112,19 @@ class TestWaitingWork : public TestBasicWork
         ++mRunningCount;
         if (--mCount > 0)
         {
-            std::weak_ptr<TestWaitingWork> weak(
-                std::static_pointer_cast<TestWaitingWork>(shared_from_this()));
-            auto handler = [weak](asio::error_code const& ec) {
-                auto self = weak.lock();
-                if (self)
-                {
-                    ++(self->mWakeUpCount);
-                    self->wakeUp();
-                }
-            };
-
-            mTimer.expires_from_now(std::chrono::milliseconds(1));
-            mTimer.async_wait(handler);
-
+            setupWaitingCallback(std::chrono::milliseconds(1));
             ++mWaitingCount;
             return BasicWork::State::WORK_WAITING;
         }
 
         return BasicWork::State::WORK_SUCCESS;
+    }
+
+    void
+    wakeUp(std::function<void()> innerCallback) override
+    {
+        ++mWakeUpCount;
+        TestBasicWork::wakeUp(innerCallback);
     }
 };
 
@@ -180,6 +174,28 @@ TEST_CASE("BasicWork test", "[work][basicwork]")
         checkSuccess(*w);
         REQUIRE(w->mWaitingCount == w->mWakeUpCount);
         REQUIRE(w->mWaitingCount == w->mNumSteps - 1);
+    }
+    SECTION("work waiting - shutdown")
+    {
+        auto w = wm.scheduleWork<TestWaitingWork>("waiting-test-work");
+        // Start work
+        while (w->getState() != TestBasicWork::State::WORK_WAITING)
+        {
+            clock.crank();
+        }
+
+        // Work started waiting, no wake up callback fired
+        REQUIRE(w->mWaitingCount == 1);
+        REQUIRE(w->mWakeUpCount == 0);
+        wm.shutdown();
+        while (wm.getState() != TestBasicWork::State::WORK_ABORTED)
+        {
+            clock.crank();
+        }
+
+        // Ensure aborted work did not fire wake up callback
+        REQUIRE(w->mWaitingCount == 1);
+        REQUIRE(w->mWakeUpCount == 0);
     }
     SECTION("new work added midway")
     {

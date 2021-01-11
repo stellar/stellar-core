@@ -29,7 +29,6 @@ TxSimGenerateBucketsWork::TxSimGenerateBucketsWork(
     , mMultiplier(multiplier)
     , mLevel(0)
     , mIsCurr(true)
-    , mTimer(std::make_unique<VirtualTimer>(app.getClock()))
 {
 }
 
@@ -121,8 +120,7 @@ TxSimGenerateBucketsWork::onRun()
     // to finish
     if (!checkOrStartMerges())
     {
-        mTimer->expires_from_now(std::chrono::milliseconds(100));
-        mTimer->async_wait(wakeSelfUpCallback(), &VirtualTimer::onFailureNoop);
+        setupWaitingCallback(std::chrono::milliseconds(100));
         return BasicWork::State::WORK_WAITING;
     }
 

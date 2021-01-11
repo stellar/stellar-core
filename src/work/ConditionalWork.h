@@ -59,7 +59,6 @@ class ConditionalWork : public BasicWork
     ConditionFn mCondition;
     std::shared_ptr<BasicWork> mConditionedWork;
     std::chrono::milliseconds const mSleepDelay;
-    std::unique_ptr<VirtualTimer> mSleepTimer;
     bool mWorkStarted{false};
 
   public:
