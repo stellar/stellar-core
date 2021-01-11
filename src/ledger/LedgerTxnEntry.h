@@ -32,6 +32,8 @@ class LedgerTxnEntry
     std::shared_ptr<Impl> getImpl();
     std::shared_ptr<Impl const> getImpl() const;
 
+    bool mIsInitialized;
+
   public:
     // LedgerTxnEntry constructors do not throw
     LedgerTxnEntry();
@@ -75,6 +77,8 @@ class ConstLedgerTxnEntry
 
     std::shared_ptr<Impl> getImpl();
     std::shared_ptr<Impl const> getImpl() const;
+
+    bool mIsInitialized;
 
   public:
     // ConstLedgerTxnEntry constructors do not throw
