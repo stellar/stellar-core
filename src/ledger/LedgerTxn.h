@@ -592,6 +592,11 @@ class AbstractLedgerTxn : public AbstractLedgerTxnParent
     // which can only be done after getDeadEntries and getLiveEntries have been
     // called.
     virtual void unsealHeader(std::function<void(LedgerHeader&)> f) = 0;
+
+    // returns true if mEntry has any record of a SPONSORSHIP or
+    // SPONSORSHIP_COUNTER entry type. Throws if the AbstractLedgerTxn has a
+    // child.
+    virtual bool hasSponsorshipEntry() const = 0;
 };
 
 class LedgerTxn final : public AbstractLedgerTxn
@@ -692,6 +697,8 @@ class LedgerTxn final : public AbstractLedgerTxn
     void dropClaimableBalances() override;
     double getPrefetchHitRate() const override;
     uint32_t prefetch(UnorderedSet<LedgerKey> const& keys) override;
+
+    bool hasSponsorshipEntry() const override;
 
 #ifdef BUILD_TESTS
     UnorderedMap<

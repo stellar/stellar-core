@@ -584,6 +584,9 @@ class LedgerTxn::Impl
 
     double getPrefetchHitRate() const;
 
+    // hasSponsorshipEntry has the strong exception safety guarantee
+    bool hasSponsorshipEntry() const;
+
 #ifdef BUILD_TESTS
     MultiOrderBook const& getOrderBook();
 #endif
