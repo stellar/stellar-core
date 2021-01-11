@@ -49,7 +49,6 @@ namespace stellar
 constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
 constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
-constexpr size_t const OPERATION_BROADCAST_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
@@ -150,6 +149,7 @@ HerderImpl::shutdown()
                    "Shutdown interrupting quorum transitive closure analysis.");
         mLastQuorumMapIntersectionState.mInterruptFlag = true;
     }
+    mTransactionQueue.shutdown();
 }
 
 void
@@ -1693,6 +1693,9 @@ HerderImpl::restoreState()
 {
     restoreSCPState();
     restoreUpgrades();
+    // make sure that the transaction queue is setup against
+    // the lcl that we have right now
+    mTransactionQueue.maybeVersionUpgraded();
 }
 
 void
@@ -1721,15 +1724,7 @@ HerderImpl::updateTransactionQueue(
     mTransactionQueue.removeApplied(applied);
     mTransactionQueue.shift();
 
-    // Transactions in the queue need to be updated after the protocol 13
-    // upgrade
-    auto replacedTxs = mTransactionQueue.maybeVersionUpgraded();
-    for (auto const& replacedTx : replacedTxs)
-    {
-        mApp.getOverlayManager().updateFloodRecord(
-            replacedTx.mOld->toStellarMessage(),
-            replacedTx.mNew->toStellarMessage());
-    }
+    mTransactionQueue.maybeVersionUpgraded();
 
     // Generate a transaction set from a random hash and drop invalid
     auto lhhe = mLedgerManager.getLastClosedLedgerHeader();
@@ -1741,23 +1736,7 @@ HerderImpl::updateTransactionQueue(
         getUpperBoundCloseTimeOffset(mApp, lhhe.header.scpValue.closeTime));
     mTransactionQueue.ban(removed);
 
-    // Rebroadcast transactions, sorted in apply-order to maximize chances of
-    // propagation. Do not broadcast more operations than
-    // OPERATION_BROADCAST_MULTIPLIER times the maximum number of operations
-    // that can be included in the next ledger.
-    size_t maxOps = mLedgerManager.getLastMaxTxSetSizeOps();
-    size_t opsToFlood = OPERATION_BROADCAST_MULTIPLIER * maxOps;
-    for (auto tx : txSet->sortForApply())
-    {
-        if (opsToFlood < tx->getNumOperations())
-        {
-            break;
-        }
-        opsToFlood -= tx->getNumOperations();
-
-        auto msg = tx->toStellarMessage();
-        mApp.getOverlayManager().broadcastMessage(msg);
-    }
+    mTransactionQueue.rebroadcast();
 }
 
 void
@@ -1791,6 +1770,8 @@ HerderImpl::getMoreSCPState()
     int const NB_PEERS_TO_ASK = 2;
 
     auto low = getMinLedgerSeqToAskPeers();
+
+    CLOG_INFO(Herder, "Asking peers for SCP messages more recent than {}", low);
 
     // ask a few random peers their SCP messages
     auto r = mApp.getOverlayManager().getRandomAuthenticatedPeers();

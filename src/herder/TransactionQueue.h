@@ -80,6 +80,7 @@ class TransactionQueue
         SequenceNumber mMaxSeq{0};
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
+        size_t mBroadcastQueueOps{0};
         int32_t mAge{0};
 
         friend bool operator==(AccountTxQueueInfo const& x,
@@ -101,6 +102,7 @@ class TransactionQueue
     struct TimestampedTx
     {
         TransactionFrameBasePtr mTx;
+        bool mBroadcasted;
         VirtualClock::time_point mInsertionTime;
     };
     using TimestampedTransactions = std::vector<TimestampedTx>;
@@ -109,6 +111,7 @@ class TransactionQueue
     {
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
+        size_t mBroadcastQueueOps{0};
         int32_t mAge{0};
         TimestampedTransactions mTransactions;
     };
@@ -141,7 +144,12 @@ class TransactionQueue
         TransactionFrameBasePtr mOld;
         TransactionFrameBasePtr mNew;
     };
-    std::vector<ReplacedTransaction> maybeVersionUpgraded();
+
+    void maybeVersionUpgraded();
+
+    void rebroadcast();
+
+    void shutdown();
 
   private:
     /**
@@ -173,15 +181,28 @@ class TransactionQueue
 
     UnorderedSet<OperationType> mFilteredTypes;
 
+    bool mShutdown{false};
+    bool mWaiting{false};
+    size_t mBroadcastOpCarryover{0};
+    VirtualTimer mBroadcastTimer;
+
+    size_t getMaxOpsToFloodThisPeriod() const;
+    bool broadcastSome();
+    void broadcast(bool fromCallback);
+    bool broadcastTx(AccountState& state, TimestampedTx& tx);
+
     AddResult canAdd(TransactionFrameBasePtr tx,
                      AccountStates::iterator& stateIter,
                      TimestampedTransactions::iterator& oldTxIter);
 
     void releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx);
 
+    void prepareDropTransaction(AccountState& as, TimestampedTx& tstx);
     void dropTransactions(AccountStates::iterator stateIter,
                           TimestampedTransactions::iterator begin,
                           TimestampedTransactions::iterator end);
+
+    void clearAll();
 
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};

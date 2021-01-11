@@ -2327,6 +2327,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 
     auto tx1a = acc.tx({payment(acc, 1)});
     auto tx1r = root.tx({bumpSequence(INT64_MAX)});
+    // this will be invalid after tx1r gets applied
     auto tx2r = root.tx({payment(root, 1)});
 
     herder.recvTransaction(tx1a);
@@ -2346,36 +2347,62 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     REQUIRE(txSet->checkValid(*app, 0, 0));
 }
 
-TEST_CASE("do not flood too many transactions", "[herder]")
+TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 {
-    VirtualClock clock;
-    auto cfg = getTestConfig();
-    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 500;
-    auto app = createTestApplication(clock, cfg);
-    app->start();
+    auto test = [](bool delayed, uint32_t numOps) {
 
-    auto& om = app->getOverlayManager();
-    auto& lm = app->getLedgerManager();
-    auto& herder = static_cast<HerderImpl&>(app->getHerder());
-    auto& tq = herder.getTransactionQueue();
+        auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+        auto simulation = std::make_shared<Simulation>(
+            Simulation::OVER_LOOPBACK, networkID, [&](int i) {
+                auto cfg = getTestConfig(i);
+                cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 500;
+                cfg.NODE_IS_VALIDATOR = false;
+                cfg.FORCE_SCP = false;
+                if (delayed)
+                {
+                    cfg.FLOOD_TX_PERIOD_MS = 100;
+                }
+                return cfg;
+            });
 
-    auto root = TestAccount::createRoot(*app);
-    auto acc = root.create("A", lm.getLastMinBalance(2));
+        auto mainKey = SecretKey::fromSeed(sha256("main"));
+        auto otherKey = SecretKey::fromSeed(sha256("other"));
 
-    auto genTx = [&](TestAccount& source, uint32_t numOps) {
-        std::vector<Operation> ops;
-        for (int64_t i = 1; i <= numOps; ++i)
-        {
-            ops.emplace_back(payment(source, i));
-        }
-        auto tx = source.tx(ops);
-        REQUIRE(herder.recvTransaction(tx) ==
-                TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        return tx;
-    };
+        SCPQuorumSet qset;
+        qset.threshold = 1;
+        qset.validators.push_back(mainKey.getPublicKey());
 
-    auto test = [&](uint32_t numOps) {
-        size_t maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
+        simulation->addNode(mainKey, qset);
+        simulation->addNode(otherKey, qset);
+
+        simulation->addPendingConnection(mainKey.getPublicKey(),
+                                         otherKey.getPublicKey());
+        simulation->startAllNodes();
+        simulation->crankForAtLeast(std::chrono::seconds(1), false);
+
+        auto app = simulation->getNode(mainKey.getPublicKey());
+        auto const& cfg = app->getConfig();
+        auto& om = app->getOverlayManager();
+        auto& lm = app->getLedgerManager();
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& tq = herder.getTransactionQueue();
+
+        auto root = TestAccount::createRoot(*app);
+        auto acc = root.create("A", lm.getLastMinBalance(2));
+
+        auto genTx = [&](TestAccount& source, uint32_t numOps) {
+            std::vector<Operation> ops;
+            for (int64_t i = 1; i <= numOps; ++i)
+            {
+                ops.emplace_back(payment(source, i));
+            }
+            auto tx = source.tx(ops);
+            REQUIRE(herder.recvTransaction(tx) ==
+                    TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            return tx;
+        };
+
+        size_t const maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
 
         auto tx1a = genTx(acc, numOps);
         auto tx1r = genTx(root, numOps);
@@ -2391,23 +2418,81 @@ TEST_CASE("do not flood too many transactions", "[herder]")
 
         auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
         externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r});
-        REQUIRE(numBroadcast + (numTx - 2) ==
-                om.getOverlayMetrics().mMessagesBroadcast.count());
 
-        REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+        if (delayed)
+        {
+            // no broadcast right away
+            REQUIRE(numBroadcast ==
+                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            // wait for a bit more than a broadcast period
+            // rate per period is
+            // 2*(maxOps=500)*(FLOOD_TX_PERIOD_MS=100)/((ledger time=5)*1000)
+            // 1000*100/5000=20
+            auto constexpr opsRatePerPeriod = 20;
+            auto broadcastPeriod =
+                std::chrono::milliseconds(cfg.FLOOD_TX_PERIOD_MS);
+            auto const delta = std::chrono::milliseconds(1);
+            simulation->crankForAtLeast(broadcastPeriod + delta, false);
+
+            auto changeTx = om.getOverlayMetrics().mMessagesBroadcast.count() -
+                            numBroadcast;
+            if (numOps <= opsRatePerPeriod)
+            {
+                auto opsBroadcasted = changeTx * numOps;
+                // goal reached
+                REQUIRE(opsBroadcasted <= opsRatePerPeriod);
+                // an extra tx would have exceeded the limit
+                REQUIRE(opsBroadcasted + numOps > opsRatePerPeriod);
+            }
+            else
+            {
+                // can only flood up to 1 transaction per cycle
+                REQUIRE(changeTx <= 1);
+            }
+            // as we're waiting for a ledger worth of capacity
+            // and we have a multiplier of 2
+            // it should take about half a ledger period to broadcast everything
+            simulation->crankForAtLeast(std::chrono::milliseconds(2500), false);
+            REQUIRE(numBroadcast + (numTx - 2) ==
+                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+        }
+        else
+        {
+            REQUIRE(numBroadcast + (numTx - 2) ==
+                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+            // check that there is no broadcast after that
+            simulation->crankForAtLeast(std::chrono::seconds(1), false);
+            REQUIRE(numBroadcast + (numTx - 2) ==
+                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+        }
+        simulation->stopAllNodes();
     };
 
-    SECTION("one operation per transaction")
+    auto testOps = [&](bool delayed) {
+
+        SECTION("one operation per transaction")
+        {
+            test(delayed, 1);
+        }
+        SECTION("a few operations per transaction")
+        {
+            test(delayed, 7);
+        }
+        SECTION("full transactions")
+        {
+            test(delayed, 100);
+        }
+    };
+    SECTION("no delay")
     {
-        test(1);
+        testOps(false);
     }
-    SECTION("a few operations per transaction")
+    SECTION("delayed")
     {
-        test(7);
-    }
-    SECTION("full transactions")
-    {
-        test(100);
+        testOps(true);
     }
 }
 

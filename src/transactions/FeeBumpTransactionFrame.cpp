@@ -426,8 +426,7 @@ FeeBumpTransactionFrame::resetResults(LedgerHeader const& header,
 StellarMessage
 FeeBumpTransactionFrame::toStellarMessage() const
 {
-    StellarMessage msg;
-    msg.type(TRANSACTION);
+    StellarMessage msg(TRANSACTION);
     msg.transaction() = mEnvelope;
     return msg;
 }

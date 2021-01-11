@@ -7,6 +7,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "overlay/OverlayManager.h"
 #include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
@@ -37,6 +38,7 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
           app.getMetrics().NewCounter({"herder", "pending-txs", "banned"}))
     , mTransactionsDelay(
           app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
+    , mBroadcastTimer(app)
     , mPoolLedgerMultiplier(poolLedgerMultiplier)
 {
     for (auto i = 0; i < pendingDepth; i++)
@@ -253,6 +255,19 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
     }
 }
 
+void
+TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
+{
+    auto ops = tstx.mTx->getNumOperations();
+    as.mQueueSizeOps -= ops;
+    mQueueSizeOps -= ops;
+    if (!tstx.mBroadcasted)
+    {
+        as.mBroadcastQueueOps -= ops;
+    }
+    releaseFeeMaybeEraseAccountState(tstx.mTx);
+}
+
 TransactionQueue::AddResult
 TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 {
@@ -274,19 +289,32 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
 
     if (oldTxIter != stateIter->second.mTransactions.end())
     {
-        releaseFeeMaybeEraseAccountState(oldTxIter->mTx);
-        stateIter->second.mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
-        mQueueSizeOps -= oldTxIter->mTx->getNumOperations();
-        *oldTxIter = {tx, mApp.getClock().now()};
+        prepareDropTransaction(stateIter->second, *oldTxIter);
+        *oldTxIter = {tx, false, mApp.getClock().now()};
     }
     else
     {
-        stateIter->second.mTransactions.push_back({tx, mApp.getClock().now()});
+        stateIter->second.mTransactions.push_back(
+            {tx, false, mApp.getClock().now()});
+        oldTxIter = --stateIter->second.mTransactions.end();
         mSizeByAge[stateIter->second.mAge]->inc();
     }
-    stateIter->second.mQueueSizeOps += tx->getNumOperations();
-    mQueueSizeOps += tx->getNumOperations();
-    mAccountStates[tx->getFeeSourceID()].mTotalFees += tx->getFeeBid();
+    auto ops = tx->getNumOperations();
+    stateIter->second.mQueueSizeOps += ops;
+    stateIter->second.mBroadcastQueueOps += ops;
+    mQueueSizeOps += ops;
+
+    auto& thisAccountState = mAccountStates[tx->getFeeSourceID()];
+    thisAccountState.mTotalFees += tx->getFeeBid();
+
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
+    {
+        broadcast(false);
+    }
+    else
+    {
+        broadcastTx(thisAccountState, *oldTxIter);
+    }
 
     return res;
 }
@@ -298,15 +326,12 @@ TransactionQueue::dropTransactions(AccountStates::iterator stateIter,
 {
     ZoneScoped;
     // Remove fees and update queue size for each transaction to be dropped.
-    // Note releaseFeeMaybeEraseSourceAccount may erase other iterators from
+    // Note prepareDropTransaction may erase other iterators from
     // mAccountStates, but it will not erase stateIter because it has at least
     // one transaction (otherwise we couldn't reach that line).
     for (auto iter = begin; iter != end; ++iter)
     {
-        auto ops = iter->mTx->getNumOperations();
-        stateIter->second.mQueueSizeOps -= ops;
-        mQueueSizeOps -= ops;
-        releaseFeeMaybeEraseAccountState(iter->mTx);
+        prepareDropTransaction(stateIter->second, *iter);
     }
 
     // Actually erase the transactions to be dropped.
@@ -502,13 +527,14 @@ TransactionQueue::getAccountTransactionQueueInfo(
     auto i = mAccountStates.find(accountID);
     if (i == std::end(mAccountStates))
     {
-        return {0, 0, 0, 0};
+        return {0, 0, 0, 0, 0};
     }
 
-    auto const& txs = i->second.mTransactions;
+    auto& as = i->second;
+    auto const& txs = as.mTransactions;
     auto seqNum = txs.empty() ? 0 : txs.back().mTx->getSeqNum();
-    return {seqNum, i->second.mTotalFees, i->second.mQueueSizeOps,
-            i->second.mAge};
+    return {seqNum, as.mTotalFees, as.mQueueSizeOps, as.mBroadcastQueueOps,
+            as.mAge};
 }
 
 void
@@ -536,19 +562,16 @@ TransactionQueue::shift()
 
         if (mPendingDepth == it->second.mAge)
         {
-            for (auto const& toBan : it->second.mTransactions)
+            for (auto& toBan : it->second.mTransactions)
             {
                 // This never invalidates it because
                 //     !it->second.mTransactions.empty()
                 // otherwise we couldn't have reached this line.
-                releaseFeeMaybeEraseAccountState(toBan.mTx);
+                prepareDropTransaction(it->second, toBan);
                 bannedFront.insert(toBan.mTx->getFullHash());
             }
             mBannedTransactionsCounter.inc(
                 static_cast<int64_t>(it->second.mTransactions.size()));
-            mQueueSizeOps -= it->second.mQueueSizeOps;
-            it->second.mQueueSizeOps = 0;
-
             it->second.mTransactions.clear();
             if (it->second.mTotalFees == 0)
             {
@@ -637,7 +660,18 @@ TransactionQueue::toTxSet(LedgerHeaderHistoryEntry const& lcl) const
     return result;
 }
 
-std::vector<TransactionQueue::ReplacedTransaction>
+void
+TransactionQueue::clearAll()
+{
+    mAccountStates.clear();
+    for (auto& b : mBannedTransactions)
+    {
+        b.clear();
+    }
+    mQueueSizeOps = 0;
+}
+
+void
 TransactionQueue::maybeVersionUpgraded()
 {
     std::vector<ReplacedTransaction> res;
@@ -645,28 +679,202 @@ TransactionQueue::maybeVersionUpgraded()
     auto const& lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
     if (mLedgerVersion < 13 && lcl.header.ledgerVersion >= 13)
     {
-        for (auto& banned : mBannedTransactions)
-        {
-            banned.clear();
-        }
-
-        for (auto& kv : mAccountStates)
-        {
-            for (auto& txFrame : kv.second.mTransactions)
-            {
-                auto oldTxFrame = txFrame;
-                auto envV1 =
-                    txbridge::convertForV13(txFrame.mTx->getEnvelope());
-                txFrame.mTx = TransactionFrame::makeTransactionFromWire(
-                    mApp.getNetworkID(), envV1);
-                res.emplace_back(
-                    ReplacedTransaction{oldTxFrame.mTx, txFrame.mTx});
-            }
-        }
+        clearAll();
     }
     mLedgerVersion = lcl.header.ledgerVersion;
+}
 
-    return res;
+size_t
+TransactionQueue::getMaxOpsToFloodThisPeriod() const
+{
+    size_t opsToFloodLedger;
+    auto& cfg = mApp.getConfig();
+    auto const opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
+    if (opRatePerLedger < 0)
+    {
+        size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+        opsToFloodLedger = maxOps * -opRatePerLedger;
+    }
+    else
+    {
+        opsToFloodLedger = opRatePerLedger;
+    }
+
+    size_t opsToFlood;
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
+    {
+        opsToFlood = mBroadcastOpCarryover +
+                     bigDivide(opsToFloodLedger, cfg.FLOOD_TX_PERIOD_MS,
+                               cfg.getExpectedLedgerCloseTime().count() * 1000,
+                               Rounding::ROUND_UP);
+    }
+    else
+    {
+        // else, flood the target at once
+        opsToFlood = opsToFloodLedger;
+    }
+    return opsToFlood;
+}
+
+bool
+TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
+{
+    if (tx.mBroadcasted)
+    {
+        return false;
+    }
+    tx.mBroadcasted = true;
+    state.mBroadcastQueueOps -= tx.mTx->getNumOperations();
+    return mApp.getOverlayManager().broadcastMessage(
+        tx.mTx->toStellarMessage());
+}
+
+bool
+TransactionQueue::broadcastSome()
+{
+    // broadcast transactions, sorted in apply-order per account to
+    // maximize chances of propagation.
+    size_t opsToFlood = getMaxOpsToFloodThisPeriod();
+
+    struct TxTracker
+    {
+        TimestampedTransactions::iterator mCur;
+        AccountState* mAccountState;
+        TxTracker(TxTracker&&) = default;
+
+        // NB: this overload seems to be necessary with most versions of
+        // libstdc++ that assert when std::move is called on self for iterators
+        // std::swap ends up calling this operator
+        // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85828
+        TxTracker&
+        operator=(TxTracker&& other)
+        {
+            if (this != &other)
+            {
+                mCur = other.mCur;
+                mAccountState = other.mAccountState;
+            }
+            return *this;
+        }
+    };
+    // populate the list of per account queues of transactions to broadcast
+    std::deque<TxTracker> iters;
+    size_t totalOpsToFlood = 0;
+    for (auto& m : mAccountStates)
+    {
+        auto asOps = m.second.mBroadcastQueueOps;
+        if (asOps != 0)
+        {
+            iters.emplace_back(
+                TxTracker{m.second.mTransactions.begin(), &m.second});
+            totalOpsToFlood += asOps;
+        }
+    }
+    std::shuffle(iters.begin(), iters.end(), gRandomEngine);
+
+    auto it = iters.begin();
+    while (opsToFlood != 0 && !iters.empty())
+    {
+        if (it == iters.end())
+        {
+            // round robin over accounts
+            it = iters.begin();
+        }
+        if (it->mCur == it->mAccountState->mTransactions.end())
+        {
+            // no more transactions for that account, stop tracking it
+            it = iters.erase(it);
+        }
+        else
+        {
+            // look at the next candidate transaction for that account
+            auto& cur = it->mCur;
+            auto& tx = cur->mTx;
+            bool broadcasted = cur->mBroadcasted;
+
+            if (broadcasted)
+            {
+                // already done, skip this transaction
+                cur++;
+            }
+            else if (opsToFlood < tx->getNumOperations())
+            {
+                // as we can't flood this transaction we have to wait to
+                // accumulate more flooding credit
+                break;
+            }
+            else
+            {
+                if (broadcastTx(*it->mAccountState, *cur))
+                {
+                    auto ops = tx->getNumOperations();
+                    opsToFlood -= ops;
+                    totalOpsToFlood -= ops;
+                }
+                cur++;
+            }
+            // move to the next AccountState
+            ++it;
+        }
+    }
+    // carry over remainder, up to MAX_OPS_PER_TX ops
+    // reason is that if we add 1 next round, we can flood a "worst case fee
+    // bump" tx
+    mBroadcastOpCarryover = std::min<size_t>(opsToFlood, MAX_OPS_PER_TX + 1);
+    return totalOpsToFlood != 0;
+}
+
+void
+TransactionQueue::broadcast(bool fromCallback)
+{
+    if (mShutdown || (!fromCallback && mWaiting))
+    {
+        return;
+    }
+    mWaiting = false;
+
+    bool needsMore = false;
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && !fromCallback)
+    {
+        // don't do anything right away, wait for the timer
+        needsMore = true;
+    }
+    else
+    {
+        needsMore = broadcastSome();
+    }
+
+    if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0 && needsMore)
+    {
+        mWaiting = true;
+        mBroadcastTimer.expires_from_now(
+            std::chrono::milliseconds(mApp.getConfig().FLOOD_TX_PERIOD_MS));
+        mBroadcastTimer.async_wait([&]() { broadcast(true); },
+                                   &VirtualTimer::onFailureNoop);
+    }
+}
+
+void
+TransactionQueue::rebroadcast()
+{
+    // force to rebroadcast everything
+    for (auto& m : mAccountStates)
+    {
+        auto& as = m.second;
+        as.mBroadcastQueueOps = as.mQueueSizeOps;
+        for (auto& tx : as.mTransactions)
+        {
+            tx.mBroadcasted = false;
+        }
+    }
+    broadcast(false);
+}
+
+void
+TransactionQueue::shutdown()
+{
+    mShutdown = true;
+    mBroadcastTimer.cancel();
 }
 
 bool
@@ -674,7 +882,8 @@ operator==(TransactionQueue::AccountTxQueueInfo const& x,
            TransactionQueue::AccountTxQueueInfo const& y)
 {
     return x.mMaxSeq == y.mMaxSeq && x.mTotalFees == y.mTotalFees &&
-           x.mQueueSizeOps == y.mQueueSizeOps;
+           x.mQueueSizeOps == y.mQueueSizeOps &&
+           x.mBroadcastQueueOps == y.mBroadcastQueueOps;
 }
 
 size_t

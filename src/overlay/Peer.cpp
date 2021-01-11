@@ -840,21 +840,20 @@ Peer::recvTransaction(StellarMessage const& msg)
         mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {
+        // record that this peer sent us this transaction
+        // add it to the floodmap so that this peer gets credit for it
+        Hash msgID;
+        mApp.getOverlayManager().recvFloodedMsgID(msg, shared_from_this(),
+                                                  msgID);
+
         // add it to our current set
         // and make sure it is valid
         auto recvRes = mApp.getHerder().recvTransaction(transaction);
 
-        if (recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
-            recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE)
+        if (!(recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING ||
+              recvRes == TransactionQueue::AddResult::ADD_STATUS_DUPLICATE))
         {
-            // record that this peer sent us this transaction
-            mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
-
-            if (recvRes == TransactionQueue::AddResult::ADD_STATUS_PENDING)
-            {
-                // if it's a new transaction, broadcast it
-                mApp.getOverlayManager().broadcastMessage(msg);
-            }
+            mApp.getOverlayManager().forgetFloodedMsg(msgID);
         }
     }
 }

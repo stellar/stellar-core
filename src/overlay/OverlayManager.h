@@ -64,9 +64,9 @@ class OverlayManager
     // This is called by Herder when ledger `lclSeq` closes.
     virtual void clearLedgersBelow(uint32_t ledgerSeq, uint32_t lclSeq) = 0;
 
-    // Send a given message to all peers, via the FloodGate. This is called by
-    // Herder.
-    virtual void broadcastMessage(StellarMessage const& msg,
+    // Send a given message to all peers, via the FloodGate.
+    // returns true if message was sent to at least one peer
+    virtual bool broadcastMessage(StellarMessage const& msg,
                                   bool force = false) = 0;
 
     // Make a note in the FloodGate that a given peer has provided us with a

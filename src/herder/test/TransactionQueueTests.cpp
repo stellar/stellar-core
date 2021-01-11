@@ -176,6 +176,8 @@ class TransactionQueueTest
                     expectedFees[accountState.mAccountID]);
             REQUIRE(accountTransactionQueueInfo.mMaxSeq == seqNum);
             REQUIRE(accountTransactionQueueInfo.mAge == accountState.mAge);
+            REQUIRE(accountTransactionQueueInfo.mBroadcastQueueOps ==
+                    accountTransactionQueueInfo.mQueueSizeOps);
             totOps += accountTransactionQueueInfo.mQueueSizeOps;
 
             for (auto& tx : accountState.mAccountTransactions)
@@ -207,11 +209,12 @@ class TransactionQueueTest
 };
 }
 
-TEST_CASE("TransactionQueue", "[herder][TransactionQueue]")
+TEST_CASE("TransactionQueue", "[herder][transactionqueue]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
     cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
+    cfg.FLOOD_TX_PERIOD_MS = 100;
     auto app = createTestApplication(clock, cfg);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
@@ -763,7 +766,9 @@ TEST_CASE("transaction queue starting sequence boundary",
 TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto cfg = getTestConfig();
+    cfg.FLOOD_TX_PERIOD_MS = 100;
+    auto app = createTestApplication(clock, cfg);
     auto const minBalance0 = app->getLedgerManager().getLastMinBalance(0);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
@@ -1025,7 +1030,9 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
 TEST_CASE("replace by fee", "[herder][transactionqueue]")
 {
     VirtualClock clock;
-    auto app = createTestApplication(clock, getTestConfig());
+    auto cfg = getTestConfig();
+    cfg.FLOOD_TX_PERIOD_MS = 100;
+    auto app = createTestApplication(clock, cfg);
     auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
 
     auto root = TestAccount::createRoot(*app);

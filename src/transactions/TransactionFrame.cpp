@@ -924,8 +924,7 @@ TransactionFrame::apply(Application& app, AbstractLedgerTxn& ltx,
 StellarMessage
 TransactionFrame::toStellarMessage() const
 {
-    StellarMessage msg;
-    msg.type(TRANSACTION);
+    StellarMessage msg(TRANSACTION);
     msg.transaction() = mEnvelope;
     return msg;
 }
