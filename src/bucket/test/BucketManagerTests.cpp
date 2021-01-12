@@ -27,6 +27,7 @@
 #include "test/test.h"
 #include "util/Math.h"
 #include "util/Timer.h"
+#include "util/GlobalChecks.h"
 
 #include <cstdio>
 
@@ -990,7 +991,7 @@ class StopAndRestartBucketMergesTest
                     }
                     else
                     {
-                        assert(e.type() == DEADENTRY);
+                        releaseAssert(e.type() == DEADENTRY);
                         entries.erase(e.deadEntry());
                     }
                 }
@@ -1094,7 +1095,7 @@ class StopAndRestartBucketMergesTest
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
         cfg.LEDGER_PROTOCOL_VERSION = mProtocol;
-        assert(!mDesignatedLedgers.empty());
+        releaseAssert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         CLOG_INFO(Bucket,
                   "Collecting control surveys in ledger range 2..{} = {:#x}",
@@ -1126,9 +1127,9 @@ class StopAndRestartBucketMergesTest
                     changedEntries.insert(existingKey);
                     auto liveIter = currLive.find(existingKey);
                     auto deadIter = currDead.find(existingKey);
-                    assert(liveIter == currLive.end() ||
+                    releaseAssert(liveIter == currLive.end() ||
                            deadIter == currDead.end());
-                    assert(liveIter != currLive.end() ||
+                    releaseAssert(liveIter != currLive.end() ||
                            deadIter != currDead.end());
                     auto& existingEntry =
                         (liveIter == currLive.end() ? deadIter->second
@@ -1186,7 +1187,7 @@ class StopAndRestartBucketMergesTest
                 mInitEntryBatches.back(), mLiveEntryBatches.back(),
                 mDeadEntryBatches.back());
             closeLedger(*app);
-            assert(i == lm.getLastClosedLedgerHeader().header.ledgerSeq);
+            releaseAssert(i == lm.getLastClosedLedgerHeader().header.ledgerSeq);
             if (shouldSurveyLedger(i))
             {
                 CLOG_INFO(Bucket, "Taking survey at {} = {:#x}", i, i);
@@ -1206,7 +1207,7 @@ class StopAndRestartBucketMergesTest
         cfg.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
         cfg.ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING = true;
         cfg.LEDGER_PROTOCOL_VERSION = firstProtocol;
-        assert(!mDesignatedLedgers.empty());
+        releaseAssert(!mDesignatedLedgers.empty());
         uint32_t finalLedger = (*mDesignatedLedgers.rbegin()) + 1;
         uint32_t currProtocol = firstProtocol;
 
@@ -1237,7 +1238,7 @@ class StopAndRestartBucketMergesTest
                 app->getBucketManager().readMergeCounters();
             closeLedger(*app);
 
-            assert(i == app->getLedgerManager()
+            releaseAssert(i == app->getLedgerManager()
                             .getLastClosedLedgerHeader()
                             .header.ledgerSeq);
             auto j = mControlSurveys.find(i);
@@ -1317,7 +1318,7 @@ class StopAndRestartBucketMergesTest
     {
         calculateDesignatedLedgers();
         collectControlSurveys();
-        assert(!mControlSurveys.empty());
+        releaseAssert(!mControlSurveys.empty());
         if (mProtocol >=
             Bucket::FIRST_PROTOCOL_SUPPORTING_INITENTRY_AND_METAENTRY)
         {
@@ -1381,7 +1382,6 @@ TEST_CASE("bucket persistence over app restart",
     cfg0.MANUAL_CLOSE = false;
 
     for_versions_with_differing_bucket_logic(cfg0, [&](Config const& cfg0) {
-
         Config cfg1(getTestConfig(1, Config::TESTDB_ON_DISK_SQLITE));
         cfg1.LEDGER_PROTOCOL_VERSION = cfg0.LEDGER_PROTOCOL_VERSION;
         cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
