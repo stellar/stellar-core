@@ -259,6 +259,7 @@ TEST_CASE("bucket list shadowing pre/post proto 12", "[bucket][bucketlist]")
                 }
             }
         }
+
     });
 }
 

@@ -14,8 +14,7 @@
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
-//#include <cassert>
-#include "util/GlobalChecks.h"
+#include <cassert>
 #include <fmt/format.h>
 
 namespace stellar
@@ -113,7 +112,7 @@ BucketLevel::commit()
     {
         setCurr(mNextCurr.resolve());
     }
-    releaseAssert(!mNextCurr.isMerging());
+    assert(!mNextCurr.isMerging());
 }
 
 // prepare builds a FutureBucket for the _next state_ of the current level,
@@ -159,7 +158,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     ZoneScoped;
     // If more than one absorb is pending at the same time, we have a logic
     // error in our caller (and all hell will break loose).
-    releaseAssert(!mNextCurr.isMerging());
+    assert(!mNextCurr.isMerging());
     auto curr = BucketList::shouldMergeWithEmptyCurr(currLedger, mLevel)
                     ? std::make_shared<Bucket>()
                     : mCurr;
@@ -170,7 +169,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
             : shadows;
     mNextCurr = FutureBucket(app, curr, snap, shadowsBasedOnProtocol,
                              currLedgerProtocol, countMergeEvents, mLevel);
-    releaseAssert(mNextCurr.isMerging());
+    assert(mNextCurr.isMerging());
 }
 
 std::shared_ptr<Bucket>
@@ -215,7 +214,7 @@ BucketListDepth::operator uint32_t() const
 uint32_t
 BucketList::levelSize(uint32_t level)
 {
-    releaseAssert(level < kNumLevels);
+    assert(level < kNumLevels);
     return 1UL << (2 * (level + 1));
 }
 
@@ -249,8 +248,8 @@ BucketList::mask(uint32_t v, uint32_t m)
 uint32_t
 BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 {
-    releaseAssert(ledger != 0);
-    releaseAssert(level < kNumLevels);
+    assert(ledger != 0);
+    assert(level < kNumLevels);
     if (level == 0)
     {
         return (ledger == 1) ? 1 : (1 + ledger % 2);
@@ -296,8 +295,8 @@ BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 uint32_t
 BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
 {
-    releaseAssert(ledger != 0);
-    releaseAssert(level < kNumLevels);
+    assert(ledger != 0);
+    assert(level < kNumLevels);
     if (level == BucketList::kNumLevels - 1)
     {
         return 0;
@@ -322,8 +321,8 @@ BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
 uint32_t
 BucketList::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 {
-    releaseAssert(ledger != 0);
-    releaseAssert(level < kNumLevels);
+    assert(ledger != 0);
+    assert(level < kNumLevels);
     if (sizeOfCurr(ledger, level) == 0)
     {
         return std::numeric_limits<uint32_t>::max();
@@ -342,8 +341,8 @@ BucketList::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 uint32_t
 BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 {
-    releaseAssert(ledger != 0);
-    releaseAssert(level < kNumLevels);
+    assert(ledger != 0);
+    assert(level < kNumLevels);
     if (sizeOfSnap(ledger, level) == 0)
     {
         return std::numeric_limits<uint32_t>::max();
@@ -437,7 +436,7 @@ bool
 BucketList::futuresAllResolved(uint32_t maxLevel) const
 {
     ZoneScoped;
-    releaseAssert(maxLevel < mLevels.size());
+    assert(maxLevel < mLevels.size());
 
     for (uint32_t i = 0; i <= maxLevel; i++)
     {
@@ -471,7 +470,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
                      std::vector<LedgerKey> const& deadEntries)
 {
     ZoneScoped;
-    releaseAssert(currLedger > 0);
+    assert(currLedger > 0);
 
     std::vector<std::shared_ptr<Bucket>> shadows;
     for (auto& level : mLevels)
@@ -506,13 +505,13 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     // elements of 'shadows', and then inside the loop we pop two more for each
     // iteration.
 
-    releaseAssert(shadows.size() >= 2);
+    assert(shadows.size() >= 2);
     shadows.pop_back();
     shadows.pop_back();
 
     for (uint32_t i = static_cast<uint32>(mLevels.size()) - 1; i != 0; --i)
     {
-        releaseAssert(shadows.size() >= 2);
+        assert(shadows.size() >= 2);
         shadows.pop_back();
         shadows.pop_back();
 
@@ -562,7 +561,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     bool countMergeEvents =
         !app.getConfig().ARTIFICIALLY_REDUCE_MERGE_COUNTS_FOR_TESTING;
     bool doFsync = !app.getConfig().DISABLE_XDR_FSYNC;
-    releaseAssert(shadows.size() == 0);
+    assert(shadows.size() == 0);
     mLevels[0].prepare(app, currLedger, currLedgerProtocol,
                        Bucket::fresh(app.getBucketManager(), currLedgerProtocol,
                                      initEntries, liveEntries, deadEntries,

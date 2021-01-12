@@ -10,7 +10,6 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -177,7 +176,7 @@ class FutureBucket
             ar(cereal::make_nvp("state", FB_CLEAR));
             break;
         default:
-            releaseAssert(false);
+            assert(false);
             break;
         }
     }

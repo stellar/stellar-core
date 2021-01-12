@@ -27,7 +27,6 @@
 #include "util/Math.h"
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
-#include "util/GlobalChecks.h"
 
 using namespace stellar;
 
@@ -37,7 +36,7 @@ namespace BucketTests
 static std::ifstream::pos_type
 fileSize(std::string const& name)
 {
-    releaseAssert(fs::exists(name));
+    assert(fs::exists(name));
     std::ifstream in(name, std::ifstream::ate | std::ifstream::binary);
     REQUIRE(!!in);
     in.exceptions(std::ios::badbit);
@@ -310,11 +309,11 @@ generateAccount()
 static LedgerEntry
 generateSameAccountDifferentState(std::vector<LedgerEntry> const& others)
 {
-    releaseAssert(
+    assert(
         std::all_of(others.begin(), others.end(), [](LedgerEntry const& other) {
             return other.data.type() == ACCOUNT;
         }));
-    releaseAssert(!others.empty());
+    assert(!others.empty());
     while (true)
     {
         auto e = generateAccount();
@@ -330,7 +329,7 @@ generateSameAccountDifferentState(std::vector<LedgerEntry> const& others)
 static LedgerEntry
 generateDifferentAccount(std::vector<LedgerEntry> const& others)
 {
-    releaseAssert(
+    assert(
         std::all_of(others.begin(), others.end(), [](LedgerEntry const& other) {
             return other.data.type() == ACCOUNT;
         }));

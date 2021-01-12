@@ -7,7 +7,6 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Random.h"
 #include <Tracy.hpp>
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -89,7 +88,7 @@ BucketOutputIterator::put(BucketEntry const& e)
     {
         // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
         // it would mean that we're getting entries out of order.
-        releaseAssert(!mCmp(e, *mBuf));
+        assert(!mCmp(e, *mBuf));
 
         // Check to see if the new entry should flush (greater identity), or
         // merely replace (same identity), the buffered entry.
@@ -125,8 +124,8 @@ BucketOutputIterator::getBucket(BucketManager& bucketManager,
     mOut.close();
     if (mObjectsPut == 0 || mBytesPut == 0)
     {
-        releaseAssert(mObjectsPut == 0);
-        releaseAssert(mBytesPut == 0);
+        assert(mObjectsPut == 0);
+        assert(mBytesPut == 0);
         CLOG_DEBUG(Bucket, "Deleting empty bucket file {}", mFilename);
         std::remove(mFilename.c_str());
         if (mergeKey)
