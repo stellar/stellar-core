@@ -7,6 +7,7 @@
 #include "catchup/CatchupConfiguration.h"
 #include "ledger/LedgerRange.h"
 #include <stdexcept>
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -96,7 +97,7 @@ class CatchupRange
         {
             // If we're not doing any ledger replay, we should at least be
             // applying buckets.
-            assert(mApplyBuckets);
+            releaseAssert(mApplyBuckets);
             return mApplyBucketsAtLedger;
         }
     }

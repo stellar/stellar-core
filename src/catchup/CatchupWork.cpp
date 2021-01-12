@@ -102,8 +102,8 @@ CatchupWork::doReset()
 bool
 CatchupWork::hasAnyLedgersToCatchupTo() const
 {
-    assert(mGetHistoryArchiveStateWork);
-    assert(mGetHistoryArchiveStateWork->getState() == State::WORK_SUCCESS);
+    releaseAssert(mGetHistoryArchiveStateWork);
+    releaseAssert(mGetHistoryArchiveStateWork->getState() == State::WORK_SUCCESS);
 
     return mLastClosedLedgerHashPair.first <=
            mGetHistoryArchiveStateWork->getHistoryArchiveState().currentLedger;
@@ -115,7 +115,7 @@ CatchupWork::downloadVerifyLedgerChain(CatchupRange const& catchupRange,
 {
     ZoneScoped;
     auto verifyRange = catchupRange.getFullRangeIncludingBucketApply();
-    assert(verifyRange.mCount != 0);
+    releaseAssert(verifyRange.mCount != 0);
     auto checkpointRange =
         CheckpointRange{verifyRange, mApp.getHistoryManager()};
     auto getLedgers = std::make_shared<BatchDownloadWork>(
@@ -181,8 +181,8 @@ CatchupWork::assertBucketState()
                    has.currentLedger,
                    mVerifiedLedgerRangeStart.header.ledgerSeq);
     }
-    assert(has.currentLedger == mVerifiedLedgerRangeStart.header.ledgerSeq);
-    assert(has.getBucketListHash() ==
+    releaseAssert(has.currentLedger == mVerifiedLedgerRangeStart.header.ledgerSeq);
+    releaseAssert(has.getBucketListHash() ==
            mVerifiedLedgerRangeStart.header.bucketListHash);
 
     // Consistency check: LCL should be in the _past_ from
@@ -315,8 +315,8 @@ CatchupWork::runCatchupStep()
     // Bucket and transaction processing has started
     if (mCatchupSeq)
     {
-        assert(mDownloadVerifyLedgersSeq);
-        assert(mTransactionsVerifyApplySeq || !catchupRange.replayLedgers());
+        releaseAssert(mDownloadVerifyLedgersSeq);
+        releaseAssert(mTransactionsVerifyApplySeq || !catchupRange.replayLedgers());
 
         if (mCatchupSeq->getState() == State::WORK_SUCCESS)
         {
@@ -371,8 +371,8 @@ CatchupWork::runCatchupStep()
                 // be the one provided as well.
                 auto& lastClosed =
                     mApp.getLedgerManager().getLastClosedLedgerHeader();
-                assert(mLastApplied.hash == lastClosed.hash);
-                assert(mLastApplied.header == lastClosed.header);
+                releaseAssert(mLastApplied.hash == lastClosed.hash);
+                releaseAssert(mLastApplied.header == lastClosed.header);
             }
         }
         return mCatchupSeq->getState();
@@ -436,7 +436,7 @@ CatchupWork::doWork()
 
     if (nextState == BasicWork::State::WORK_SUCCESS)
     {
-        assert(!cm.hasBufferedLedger());
+        releaseAssert(!cm.hasBufferedLedger());
     }
 
     cm.logAndUpdateCatchupStatus(true);

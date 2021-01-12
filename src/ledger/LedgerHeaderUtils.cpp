@@ -11,6 +11,7 @@
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <util/basen.h>
@@ -174,7 +175,7 @@ copyToStream(Database& db, soci::session& sess, uint32_t ledgerSeq,
 {
     ZoneScoped;
     uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
-    assert(begin <= end);
+    releaseAssert(begin <= end);
 
     std::string headerEncoded;
 

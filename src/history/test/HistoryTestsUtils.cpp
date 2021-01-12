@@ -619,7 +619,7 @@ std::vector<LedgerNumHashPair>
 CatchupSimulation::getAllPublishedCheckpoints() const
 {
     std::vector<LedgerNumHashPair> res;
-    assert(mLedgerHashes.size() == mLedgerSeqs.size());
+    releaseAssert(mLedgerHashes.size() == mLedgerSeqs.size());
     auto hi = mLedgerHashes.begin();
     auto si = mLedgerSeqs.begin();
     auto const& hm = mApp.getHistoryManager();
@@ -642,7 +642,7 @@ LedgerNumHashPair
 CatchupSimulation::getLastPublishedCheckpoint() const
 {
     LedgerNumHashPair pair;
-    assert(mLedgerHashes.size() == mLedgerSeqs.size());
+    releaseAssert(mLedgerHashes.size() == mLedgerSeqs.size());
     auto hi = mLedgerHashes.rbegin();
     auto si = mLedgerSeqs.rbegin();
     auto const& hm = mApp.getHistoryManager();

@@ -11,6 +11,7 @@
 #include <set>
 #include <string>
 #include <utility>
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -51,12 +52,12 @@ class BallotProtocol
         explicit SCPBallotWrapper(uint32 c, ValueWrapperPtr vw)
             : mWvalue(vw), mBallot(c, vw->getValue())
         {
-            assert(vw);
+            releaseAssert(vw);
         }
         explicit SCPBallotWrapper(SCPBallotWrapper const& o)
             : mWvalue(o.mWvalue), mBallot(o.mBallot)
         {
-            assert(o.mWvalue);
+            releaseAssert(o.mWvalue);
         }
 
         SCPBallot const&

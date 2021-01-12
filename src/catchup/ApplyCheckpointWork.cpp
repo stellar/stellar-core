@@ -120,7 +120,7 @@ ApplyCheckpointWork::getCurrentTxSet()
         }
         else
         {
-            assert(mTxHistoryEntry.ledgerSeq == seq);
+            releaseAssert(mTxHistoryEntry.ledgerSeq == seq);
             CLOG_DEBUG(History, "Loaded txset for ledger {}", seq);
             return std::make_shared<TxSetFrame>(mApp.getNetworkID(),
                                                 mTxHistoryEntry.txSet);

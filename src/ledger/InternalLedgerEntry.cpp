@@ -5,6 +5,7 @@
 #include "ledger/InternalLedgerEntry.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
+#include "util/GlobalChecks.h"
 
 #include <fmt/format.h>
 
@@ -133,7 +134,7 @@ InternalLedgerKey::~InternalLedgerKey()
 void
 InternalLedgerKey::assign(InternalLedgerKey const& glk)
 {
-    assert(glk.type() == mType);
+    releaseAssert(glk.type() == mType);
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -153,7 +154,7 @@ InternalLedgerKey::assign(InternalLedgerKey const& glk)
 void
 InternalLedgerKey::assign(InternalLedgerKey&& glk)
 {
-    assert(glk.type() == mType);
+    releaseAssert(glk.type() == mType);
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -391,7 +392,7 @@ InternalLedgerEntry::~InternalLedgerEntry()
 void
 InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
 {
-    assert(gle.type() == mType);
+    releaseAssert(gle.type() == mType);
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:
@@ -411,7 +412,7 @@ InternalLedgerEntry::assign(InternalLedgerEntry const& gle)
 void
 InternalLedgerEntry::assign(InternalLedgerEntry&& gle)
 {
-    assert(gle.type() == mType);
+    releaseAssert(gle.type() == mType);
     switch (mType)
     {
     case InternalLedgerEntryType::LEDGER_ENTRY:

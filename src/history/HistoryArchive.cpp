@@ -20,6 +20,7 @@
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
+#include "util/GlobalChecks.h"
 
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
@@ -224,7 +225,7 @@ std::vector<std::string>
 HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
 {
     ZoneScoped;
-    assert(futuresAllResolved());
+    releaseAssert(futuresAllResolved());
     std::set<std::string> inhibit;
     uint256 zero;
     inhibit.insert(binToHex(zero));
@@ -285,7 +286,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     ZoneScoped;
     // This function assumes presence of required buckets to verify state
     // Level 0 future buckets are always clear
-    assert(currentBuckets[0].next.isClear());
+    releaseAssert(currentBuckets[0].next.isClear());
 
     for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
     {
@@ -295,7 +296,7 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
 
         auto snap =
             app.getBucketManager().getBucketByHash(hexToBin256(prev.snap));
-        assert(snap);
+        releaseAssert(snap);
         if (snap->getHash() == emptyHash)
         {
             continue;
@@ -324,7 +325,7 @@ HistoryArchiveState::prepareForPublish(Application& app)
 {
     ZoneScoped;
     // Level 0 future buckets are always clear
-    assert(currentBuckets[0].next.isClear());
+    releaseAssert(currentBuckets[0].next.isClear());
 
     for (uint32_t i = 1; i < BucketList::kNumLevels; i++)
     {

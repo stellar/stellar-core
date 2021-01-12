@@ -5,6 +5,7 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
 #include "util/types.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -48,7 +49,7 @@ LedgerTxnRoot::Impl::loadClaimableBalance(LedgerKey const& key) const
     }
 
     fromOpaqueBase64(le, claimableBalanceEntryStr);
-    assert(le.data.type() == CLAIMABLE_BALANCE);
+    releaseAssert(le.data.type() == CLAIMABLE_BALANCE);
 
     return std::make_shared<LedgerEntry const>(std::move(le));
 }
@@ -79,7 +80,7 @@ class BulkLoadClaimableBalanceOperation
             auto& le = res.back();
 
             fromOpaqueBase64(le, claimableBalanceEntryStr);
-            assert(le.data.type() == CLAIMABLE_BALANCE);
+            releaseAssert(le.data.type() == CLAIMABLE_BALANCE);
 
             st.fetch();
         }
@@ -94,7 +95,7 @@ class BulkLoadClaimableBalanceOperation
         mBalanceIDs.reserve(keys.size());
         for (auto const& k : keys)
         {
-            assert(k.type() == CLAIMABLE_BALANCE);
+            releaseAssert(k.type() == CLAIMABLE_BALANCE);
             mBalanceIDs.emplace_back(
                 toOpaqueBase64(k.claimableBalance().balanceID));
         }
@@ -183,8 +184,8 @@ class BulkDeleteClaimableBalanceOperation
         mBalanceIDs.reserve(entries.size());
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
-            assert(e.key().ledgerKey().type() == CLAIMABLE_BALANCE);
+            releaseAssert(!e.entryExists());
+            releaseAssert(e.key().ledgerKey().type() == CLAIMABLE_BALANCE);
             mBalanceIDs.emplace_back(toOpaqueBase64(
                 e.key().ledgerKey().claimableBalance().balanceID));
         }
@@ -262,7 +263,7 @@ class BulkUpsertClaimableBalanceOperation
     void
     accumulateEntry(LedgerEntry const& entry)
     {
-        assert(entry.data.type() == CLAIMABLE_BALANCE);
+        releaseAssert(entry.data.type() == CLAIMABLE_BALANCE);
         mBalanceIDs.emplace_back(
             toOpaqueBase64(entry.data.claimableBalance().balanceID));
         mClaimableBalanceEntrys.emplace_back(toOpaqueBase64(entry));
@@ -277,7 +278,7 @@ class BulkUpsertClaimableBalanceOperation
     {
         for (auto const& e : entryIter)
         {
-            assert(e.entryExists());
+            releaseAssert(e.entryExists());
             accumulateEntry(e.entry().ledgerEntry());
         }
     }

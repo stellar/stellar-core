@@ -6,6 +6,7 @@
 
 #include "util/optional.h"
 #include "xdr/Stellar-types.h"
+#include "util/GlobalChecks.h"
 #include <cstdint>
 #include <stdexcept>
 
@@ -29,7 +30,8 @@ struct LedgerRange final
     {
         // LedgerRange is half-open: in exchange for being able to represent
         // empty ranges, it can't represent ranges that include UINT32_MAX.
-        assert(last < std::numeric_limits<uint32_t>::max());
+
+        releaseAssert(last < std::numeric_limits<uint32_t>::max());
         return LedgerRange(first, last - first + 1);
     }
     std::string toString() const;

@@ -12,6 +12,7 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -140,10 +141,10 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
 
         for (auto const& e : entries)
         {
-            assert(e.entryExists());
-            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entryExists());
+            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             auto const& le = e.entry().ledgerEntry();
-            assert(le.data.type() == TRUSTLINE);
+            releaseAssert(le.data.type() == TRUSTLINE);
             auto const& tl = le.data.trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
@@ -315,9 +316,9 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         mAssetCodes.reserve(entries.size());
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
-            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            assert(e.key().ledgerKey().type() == TRUSTLINE);
+            releaseAssert(!e.entryExists());
+            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().ledgerKey().type() == TRUSTLINE);
             auto const& tl = e.key().ledgerKey().trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;
             getTrustLineStrings(tl.accountID, tl.asset, accountIDStr, issuerStr,
@@ -495,7 +496,7 @@ class BulkLoadTrustLinesOperation
 
             tl.accountID = KeyUtils::fromStrKey<PublicKey>(accountID);
 
-            assert(assetType != ASSET_TYPE_NATIVE);
+            releaseAssert(assetType != ASSET_TYPE_NATIVE);
             tl.asset.type(static_cast<AssetType>(assetType));
             if (assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
             {
@@ -534,12 +535,12 @@ class BulkLoadTrustLinesOperation
         mAssetCodes.reserve(keys.size());
         for (auto const& k : keys)
         {
-            assert(k.type() == TRUSTLINE);
+            releaseAssert(k.type() == TRUSTLINE);
             mAccountIDs.emplace_back(
                 KeyUtils::toStrKey(k.trustLine().accountID));
 
             auto const& asset = k.trustLine().asset;
-            assert(asset.type() != ASSET_TYPE_NATIVE);
+            releaseAssert(asset.type() != ASSET_TYPE_NATIVE);
             mAssetCodes.emplace_back();
             if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
             {
@@ -560,8 +561,8 @@ class BulkLoadTrustLinesOperation
     virtual std::vector<LedgerEntry>
     doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
-        assert(mAccountIDs.size() == mIssuers.size());
-        assert(mAccountIDs.size() == mAssetCodes.size());
+        releaseAssert(mAccountIDs.size() == mIssuers.size());
+        releaseAssert(mAccountIDs.size() == mAssetCodes.size());
 
         std::vector<char const*> cstrAccountIDs;
         std::vector<char const*> cstrIssuers;
@@ -617,8 +618,8 @@ class BulkLoadTrustLinesOperation
     virtual std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        assert(mAccountIDs.size() == mIssuers.size());
-        assert(mAccountIDs.size() == mAssetCodes.size());
+        releaseAssert(mAccountIDs.size() == mIssuers.size());
+        releaseAssert(mAccountIDs.size() == mAssetCodes.size());
 
         std::string strAccountIDs;
         std::string strIssuers;

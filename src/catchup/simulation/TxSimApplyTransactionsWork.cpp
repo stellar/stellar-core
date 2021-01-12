@@ -19,6 +19,7 @@
 #include "transactions/TransactionUtils.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -61,7 +62,7 @@ static void
 checkOperationResults(xdr::xvector<OperationResult> const& expected,
                       xdr::xvector<OperationResult> const& actual)
 {
-    assert(expected.size() == actual.size());
+    releaseAssert(expected.size() == actual.size());
     for (size_t i = 0; i < expected.size(); i++)
     {
         if (expected[i].code() != actual[i].code())
@@ -80,7 +81,7 @@ checkOperationResults(xdr::xvector<OperationResult> const& expected,
         auto const& expectedOpRes = expected[i].tr();
         auto const& actualOpRes = actual[i].tr();
 
-        assert(expectedOpRes.type() == actualOpRes.type());
+        releaseAssert(expectedOpRes.type() == actualOpRes.type());
 
         auto check = [&](int expectedCode, int actualCode) {
             auto success = expectedCode >= 0 && actualCode >= 0;
@@ -168,10 +169,10 @@ checkResults(Application& app, uint32_t ledger,
 {
     auto resSet = getTransactionHistoryResults(app.getDatabase(), ledger);
 
-    assert(resSet.results.size() == results.size());
+    releaseAssert(resSet.results.size() == results.size());
     for (size_t i = 0; i < results.size(); i++)
     {
-        assert(results[i].transactionHash == resSet.results[i].transactionHash);
+        releaseAssert(results[i].transactionHash == resSet.results[i].transactionHash);
 
         auto const& dbRes = resSet.results[i].result.result;
         auto const& archiveRes = results[i].result.result;
@@ -296,7 +297,7 @@ TxSimApplyTransactionsWork::mutateTxSourceAccounts(TransactionEnvelope& env,
     case ENVELOPE_TYPE_TX_FEE_BUMP:
         // Note: handle inner transaction only, outer signatures will be handled
         // separately
-        assert(env.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX);
+        releaseAssert(env.feeBump().tx.innerTx.type() == ENVELOPE_TYPE_TX);
         addSignerAndReplaceID(env.feeBump().tx.innerTx.v1().tx.sourceAccount);
         break;
     default:
@@ -330,8 +331,8 @@ TxSimApplyTransactionsWork::scaleLedger(
     std::vector<TransactionResultPair>& results,
     std::vector<UpgradeType>& upgrades, uint32_t partition)
 {
-    assert(mTransactionIter != mTransactionHistory.txSet.txs.cend());
-    assert(mResultIter != mResultHistory.txResultSet.results.cend());
+    releaseAssert(mTransactionIter != mTransactionHistory.txSet.txs.cend());
+    releaseAssert(mResultIter != mResultHistory.txResultSet.results.cend());
 
     auto const& env = mUpgradeProtocol
                           ? txbridge::convertForV13(*mTransactionIter)
@@ -411,7 +412,7 @@ TxSimApplyTransactionsWork::getNextLedgerFromHistoryArchive()
         for (auto const& result : mResultHistory.txResultSet.results)
         {
             auto it = transactions.find(result.transactionHash);
-            assert(it != transactions.end());
+            releaseAssert(it != transactions.end());
             mTransactionHistory.txSet.txs.emplace_back(it->second);
         }
         mTransactionIter = mTransactionHistory.txSet.txs.cbegin();

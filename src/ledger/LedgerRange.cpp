@@ -13,7 +13,7 @@ namespace stellar
 LedgerRange::LedgerRange(uint32_t first, uint32_t count)
     : mFirst{first}, mCount{count}
 {
-    assert(count == 0 || mFirst > 0);
+    releaseAssert(count == 0 || mFirst > 0);
 }
 
 std::string

@@ -5,6 +5,7 @@
 #include "ledger/CheckpointRange.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerRange.h"
+#include "util/GlobalChecks.h"
 
 #include <cassert>
 #include <fmt/format.h>
@@ -16,8 +17,8 @@ CheckpointRange::CheckpointRange(uint32_t first, uint32_t count,
                                  uint32_t frequency)
     : mFirst{first}, mCount{count}, mFrequency{frequency}
 {
-    assert(mFirst > 0);
-    assert((mFirst + 1) % mFrequency == 0);
+    releaseAssert(mFirst > 0);
+    releaseAssert((mFirst + 1) % mFrequency == 0);
 }
 
 namespace
@@ -42,14 +43,14 @@ CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
     , mCount{checkpointCount(mFirst, ledgerRange, historyManager)}
     , mFrequency{historyManager.getCheckpointFrequency()}
 {
-    assert(mFirst > 0);
-    assert((mFirst + 1) % mFrequency == 0);
-    assert(limit() >= mFirst);
-    assert((limit() + 1) % mFrequency == 0);
+    releaseAssert(mFirst > 0);
+    releaseAssert((mFirst + 1) % mFrequency == 0);
+    releaseAssert(limit() >= mFirst);
+    releaseAssert((limit() + 1) % mFrequency == 0);
     if (mCount != 0)
     {
-        assert(last() >= mFirst);
-        assert((last() + 1) % mFrequency == 0);
+        releaseAssert(last() >= mFirst);
+        releaseAssert((last() + 1) % mFrequency == 0);
     }
 }
 

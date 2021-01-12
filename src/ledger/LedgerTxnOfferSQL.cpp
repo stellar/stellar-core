@@ -8,6 +8,7 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -194,8 +195,8 @@ isBetterOffer(LedgerEntry const& lhsEntry, LedgerEntry const& rhsEntry)
     auto const& lhs = lhsEntry.data.offer();
     auto const& rhs = rhsEntry.data.offer();
 
-    assert(lhs.buying == rhs.buying);
-    assert(lhs.selling == rhs.selling);
+    releaseAssert(lhs.buying == rhs.buying);
+    releaseAssert(lhs.selling == rhs.selling);
 
     return isBetterOffer({lhs.price, lhs.offerID}, {rhs.price, rhs.offerID});
 }
@@ -365,7 +366,7 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
     void
     accumulateEntry(LedgerEntry const& entry)
     {
-        assert(entry.data.type() == OFFER);
+        releaseAssert(entry.data.type() == OFFER);
         auto const& offer = entry.data.offer();
 
         mSellerIDs.emplace_back(KeyUtils::toStrKey(offer.sellerID));
@@ -434,8 +435,8 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
 
         for (auto const& e : entries)
         {
-            assert(e.entryExists());
-            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entryExists());
+            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             accumulateEntry(e.entry().ledgerEntry());
         }
     }
@@ -590,9 +591,9 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
     {
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
-            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            assert(e.key().ledgerKey().type() == OFFER);
+            releaseAssert(!e.entryExists());
+            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().ledgerKey().type() == OFFER);
             auto const& offer = e.key().ledgerKey().offer();
             mOfferIDs.emplace_back(offer.offerID);
         }
@@ -784,7 +785,7 @@ class BulkLoadOffersOperation
         mOfferIDs.reserve(keys.size());
         for (auto const& k : keys)
         {
-            assert(k.type() == OFFER);
+            releaseAssert(k.type() == OFFER);
             if (k.offer().offerID >= 0)
             {
                 mOfferIDs.emplace_back(k.offer().offerID);

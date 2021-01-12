@@ -13,6 +13,7 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -81,7 +82,7 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
         std::vector<uint8_t> signersOpaque;
         decoder::decode_b64(signers, signersOpaque);
         xdr::xdr_from_opaque(signersOpaque, account.signers);
-        assert(std::adjacent_find(account.signers.begin(),
+        releaseAssert(std::adjacent_find(account.signers.begin(),
                                   account.signers.end(),
                                   [](Signer const& lhs, Signer const& rhs) {
                                       return !(lhs.key < rhs.key);
@@ -170,10 +171,10 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
 
         for (auto const& e : entries)
         {
-            assert(e.entryExists());
-            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entryExists());
+            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             auto const& le = e.entry().ledgerEntry();
-            assert(le.data.type() == ACCOUNT);
+            releaseAssert(le.data.type() == ACCOUNT);
             auto const& account = le.data.account();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
             mBalances.emplace_back(account.balance);
@@ -374,9 +375,9 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
     {
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
-            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            assert(e.key().ledgerKey().type() == ACCOUNT);
+            releaseAssert(!e.entryExists());
+            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().ledgerKey().type() == ACCOUNT);
             auto const& account = e.key().ledgerKey().account();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
         }
@@ -567,7 +568,7 @@ class BulkLoadAccountsOperation
                 std::vector<uint8_t> signersOpaque;
                 decoder::decode_b64(signers, signersOpaque);
                 xdr::xdr_from_opaque(signersOpaque, ae.signers);
-                assert(std::adjacent_find(
+                releaseAssert(std::adjacent_find(
                            ae.signers.begin(), ae.signers.end(),
                            [](Signer const& lhs, Signer const& rhs) {
                                return !(lhs.key < rhs.key);
@@ -588,7 +589,7 @@ class BulkLoadAccountsOperation
         mAccountIDs.reserve(keys.size());
         for (auto const& k : keys)
         {
-            assert(k.type() == ACCOUNT);
+            releaseAssert(k.type() == ACCOUNT);
             mAccountIDs.emplace_back(KeyUtils::toStrKey(k.account().accountID));
         }
     }

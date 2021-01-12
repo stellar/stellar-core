@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
+#include "util/GlobalChecks.h"
 #include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -81,7 +82,7 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
     void
     accumulateEntry(LedgerEntry const& entry)
     {
-        assert(entry.data.type() == DATA);
+        releaseAssert(entry.data.type() == DATA);
         DataEntry const& data = entry.data.data();
         mAccountIDs.emplace_back(KeyUtils::toStrKey(data.accountID));
         mDataNames.emplace_back(decoder::encode_b64(data.dataName));
@@ -111,8 +112,8 @@ class BulkUpsertDataOperation : public DatabaseTypeSpecificOperation<void>
     {
         for (auto const& e : entryIter)
         {
-            assert(e.entryExists());
-            assert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entryExists());
+            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
             accumulateEntry(e.entry().ledgerEntry());
         }
     }
@@ -222,9 +223,9 @@ class BulkDeleteDataOperation : public DatabaseTypeSpecificOperation<void>
     {
         for (auto const& e : entries)
         {
-            assert(!e.entryExists());
-            assert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
-            assert(e.key().ledgerKey().type() == DATA);
+            releaseAssert(!e.entryExists());
+            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().ledgerKey().type() == DATA);
             auto const& data = e.key().ledgerKey().data();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(data.accountID));
             mDataNames.emplace_back(decoder::encode_b64(data.dataName));
@@ -401,7 +402,7 @@ class BulkLoadDataOperation
         mDataNames.reserve(keys.size());
         for (auto const& k : keys)
         {
-            assert(k.type() == DATA);
+            releaseAssert(k.type() == DATA);
             mAccountIDs.emplace_back(KeyUtils::toStrKey(k.data().accountID));
             mDataNames.emplace_back(decoder::encode_b64(k.data().dataName));
         }
@@ -410,7 +411,7 @@ class BulkLoadDataOperation
     virtual std::vector<LedgerEntry>
     doSqliteSpecificOperation(soci::sqlite3_session_backend* sq) override
     {
-        assert(mAccountIDs.size() == mDataNames.size());
+        releaseAssert(mAccountIDs.size() == mDataNames.size());
 
         std::vector<char const*> cstrAccountIDs;
         std::vector<char const*> cstrDataNames;
@@ -456,7 +457,7 @@ class BulkLoadDataOperation
     std::vector<LedgerEntry>
     doPostgresSpecificOperation(soci::postgresql_session_backend* pg) override
     {
-        assert(mAccountIDs.size() == mDataNames.size());
+        releaseAssert(mAccountIDs.size() == mDataNames.size());
 
         std::string strAccountIDs;
         std::string strDataNames;
