@@ -17,10 +17,10 @@
 #include "main/StellarCoreVersion.h"
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include "util/GlobalChecks.h"
 
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>

@@ -4,8 +4,8 @@
 
 #include "historywork/MakeRemoteDirWork.h"
 #include "history/HistoryArchive.h"
-#include "util/GlobalChecks.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {

@@ -12,12 +12,12 @@
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "work/WorkScheduler.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {

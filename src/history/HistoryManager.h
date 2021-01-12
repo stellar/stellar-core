@@ -6,8 +6,8 @@
 
 #include "history/HistoryArchive.h"
 #include "history/InferredQuorum.h"
-#include "util/GlobalChecks.h"
 #include "overlay/StellarXDR.h"
+#include "util/GlobalChecks.h"
 #include <functional>
 #include <memory>
 
@@ -296,7 +296,8 @@ class HistoryManager
     uint32_t
     ledgerToTriggerCatchup(uint32_t firstLedgerOfBufferedCheckpoint)
     {
-        releaseAssert(isFirstLedgerInCheckpoint(firstLedgerOfBufferedCheckpoint));
+        releaseAssert(
+            isFirstLedgerInCheckpoint(firstLedgerOfBufferedCheckpoint));
         return firstLedgerOfBufferedCheckpoint + 1;
     }
 

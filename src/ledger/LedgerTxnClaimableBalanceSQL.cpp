@@ -4,8 +4,8 @@
 
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
-#include "util/types.h"
 #include "util/GlobalChecks.h"
+#include "util/types.h"
 
 namespace stellar
 {

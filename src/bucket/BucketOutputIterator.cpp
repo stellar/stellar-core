@@ -6,8 +6,8 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Random.h"
-#include <Tracy.hpp>
 #include "util/GlobalChecks.h"
+#include <Tracy.hpp>
 
 namespace stellar
 {

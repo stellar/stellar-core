@@ -6,8 +6,8 @@
 
 #include "catchup/CatchupConfiguration.h"
 #include "ledger/LedgerRange.h"
-#include <stdexcept>
 #include "util/GlobalChecks.h"
+#include <stdexcept>
 
 namespace stellar
 {

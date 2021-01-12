@@ -9,10 +9,10 @@
 #include "main/Application.h"
 #include "main/ErrorMessages.h"
 #include "util/Fs.h"
-#include "util/Logging.h"
-#include <fmt/format.h>
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include <Tracy.hpp>
+#include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 

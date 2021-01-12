@@ -17,9 +17,9 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionSQL.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include <fmt/format.h>
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -172,7 +172,8 @@ checkResults(Application& app, uint32_t ledger,
     releaseAssert(resSet.results.size() == results.size());
     for (size_t i = 0; i < results.size(); i++)
     {
-        releaseAssert(results[i].transactionHash == resSet.results[i].transactionHash);
+        releaseAssert(results[i].transactionHash ==
+                      resSet.results[i].transactionHash);
 
         auto const& dbRes = resSet.results[i].result.result;
         auto const& archiveRes = results[i].result.result;

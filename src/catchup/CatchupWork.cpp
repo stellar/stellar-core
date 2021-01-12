@@ -103,7 +103,8 @@ bool
 CatchupWork::hasAnyLedgersToCatchupTo() const
 {
     releaseAssert(mGetHistoryArchiveStateWork);
-    releaseAssert(mGetHistoryArchiveStateWork->getState() == State::WORK_SUCCESS);
+    releaseAssert(mGetHistoryArchiveStateWork->getState() ==
+                  State::WORK_SUCCESS);
 
     return mLastClosedLedgerHashPair.first <=
            mGetHistoryArchiveStateWork->getHistoryArchiveState().currentLedger;
@@ -181,9 +182,10 @@ CatchupWork::assertBucketState()
                    has.currentLedger,
                    mVerifiedLedgerRangeStart.header.ledgerSeq);
     }
-    releaseAssert(has.currentLedger == mVerifiedLedgerRangeStart.header.ledgerSeq);
+    releaseAssert(has.currentLedger ==
+                  mVerifiedLedgerRangeStart.header.ledgerSeq);
     releaseAssert(has.getBucketListHash() ==
-           mVerifiedLedgerRangeStart.header.bucketListHash);
+                  mVerifiedLedgerRangeStart.header.bucketListHash);
 
     // Consistency check: LCL should be in the _past_ from
     // firstVerified, since we're about to clobber a bunch of DB
@@ -316,7 +318,8 @@ CatchupWork::runCatchupStep()
     if (mCatchupSeq)
     {
         releaseAssert(mDownloadVerifyLedgersSeq);
-        releaseAssert(mTransactionsVerifyApplySeq || !catchupRange.replayLedgers());
+        releaseAssert(mTransactionsVerifyApplySeq ||
+                      !catchupRange.replayLedgers());
 
         if (mCatchupSeq->getState() == State::WORK_SUCCESS)
         {

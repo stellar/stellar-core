@@ -8,8 +8,8 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "transactions/TransactionUtils.h"
-#include "util/GlobalChecks.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -436,7 +436,8 @@ class BulkUpsertOffersOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             releaseAssert(e.entryExists());
-            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entry().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             accumulateEntry(e.entry().ledgerEntry());
         }
     }
@@ -592,7 +593,8 @@ class BulkDeleteOffersOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             releaseAssert(!e.entryExists());
-            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             releaseAssert(e.key().ledgerKey().type() == OFFER);
             auto const& offer = e.key().ledgerKey().offer();
             mOfferIDs.emplace_back(offer.offerID);

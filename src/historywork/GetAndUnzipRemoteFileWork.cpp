@@ -6,8 +6,8 @@
 #include "history/HistoryArchive.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "historywork/GunzipFileWork.h"
-#include "util/Logging.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 

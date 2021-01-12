@@ -16,9 +16,9 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionSQL.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
-#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar

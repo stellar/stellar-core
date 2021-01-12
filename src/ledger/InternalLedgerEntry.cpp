@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/InternalLedgerEntry.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRCereal.h"
 #include "util/types.h"
-#include "util/GlobalChecks.h"
 
 #include <fmt/format.h>
 

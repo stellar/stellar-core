@@ -241,7 +241,7 @@ TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
 {
     auto iter = mAccountStates.find(tx->getFeeSourceID());
     releaseAssert(iter != mAccountStates.end() &&
-           iter->second.mTotalFees >= tx->getFeeBid());
+                  iter->second.mTotalFees >= tx->getFeeBid());
 
     iter->second.mTotalFees -= tx->getFeeBid();
     if (iter->second.mTransactions.empty())

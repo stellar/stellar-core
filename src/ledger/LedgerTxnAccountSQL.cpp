@@ -9,11 +9,11 @@
 #include "database/DatabaseTypeSpecificOperation.h"
 #include "ledger/LedgerTxnImpl.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
-#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -82,11 +82,11 @@ LedgerTxnRoot::Impl::loadAccount(LedgerKey const& key) const
         std::vector<uint8_t> signersOpaque;
         decoder::decode_b64(signers, signersOpaque);
         xdr::xdr_from_opaque(signersOpaque, account.signers);
-        releaseAssert(std::adjacent_find(account.signers.begin(),
-                                  account.signers.end(),
-                                  [](Signer const& lhs, Signer const& rhs) {
-                                      return !(lhs.key < rhs.key);
-                                  }) == account.signers.end());
+        releaseAssert(
+            std::adjacent_find(account.signers.begin(), account.signers.end(),
+                               [](Signer const& lhs, Signer const& rhs) {
+                                   return !(lhs.key < rhs.key);
+                               }) == account.signers.end());
     }
 
     decodeOpaqueXDR(extensionStr, extensionInd, account.ext);
@@ -172,7 +172,8 @@ class BulkUpsertAccountsOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             releaseAssert(e.entryExists());
-            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entry().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             auto const& le = e.entry().ledgerEntry();
             releaseAssert(le.data.type() == ACCOUNT);
             auto const& account = le.data.account();
@@ -376,7 +377,8 @@ class BulkDeleteAccountsOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             releaseAssert(!e.entryExists());
-            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             releaseAssert(e.key().ledgerKey().type() == ACCOUNT);
             auto const& account = e.key().ledgerKey().account();
             mAccountIDs.emplace_back(KeyUtils::toStrKey(account.accountID));
@@ -569,10 +571,10 @@ class BulkLoadAccountsOperation
                 decoder::decode_b64(signers, signersOpaque);
                 xdr::xdr_from_opaque(signersOpaque, ae.signers);
                 releaseAssert(std::adjacent_find(
-                           ae.signers.begin(), ae.signers.end(),
-                           [](Signer const& lhs, Signer const& rhs) {
-                               return !(lhs.key < rhs.key);
-                           }) == ae.signers.end());
+                                  ae.signers.begin(), ae.signers.end(),
+                                  [](Signer const& lhs, Signer const& rhs) {
+                                      return !(lhs.key < rhs.key);
+                                  }) == ae.signers.end());
             }
 
             decodeOpaqueXDR(ledgerExtension, ledgerExtInd, le.ext);

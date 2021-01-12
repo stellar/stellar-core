@@ -8,10 +8,10 @@
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
-#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <util/basen.h>

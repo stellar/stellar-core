@@ -4,9 +4,9 @@
 
 #include "bucket/BucketMergeMap.h"
 #include "crypto/Hex.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
-#include "util/GlobalChecks.h"
 
 namespace
 {

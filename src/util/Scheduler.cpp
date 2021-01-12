@@ -4,8 +4,8 @@
 
 #include "util/Scheduler.h"
 #include "lib/util/finally.h"
-#include "util/Timer.h"
 #include "util/GlobalChecks.h"
+#include "util/Timer.h"
 #include <Tracy.hpp>
 #include <cassert>
 

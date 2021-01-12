@@ -85,7 +85,8 @@ FutureBucket::checkHashesMatch() const
     ZoneScoped;
     if (!mInputShadowBuckets.empty())
     {
-        releaseAssert(mInputShadowBuckets.size() == mInputShadowBucketHashes.size());
+        releaseAssert(mInputShadowBuckets.size() ==
+                      mInputShadowBucketHashes.size());
         for (size_t i = 0; i < mInputShadowBuckets.size(); ++i)
         {
             checkHashEq(mInputShadowBuckets.at(i),

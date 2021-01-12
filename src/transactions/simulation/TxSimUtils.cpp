@@ -5,10 +5,10 @@
 #include "TxSimUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "util/GlobalChecks.h"
 #include "crypto/SignerKey.h"
 #include "invariant/test/InvariantTestUtils.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {

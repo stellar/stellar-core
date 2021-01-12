@@ -183,8 +183,8 @@ BasicWork::waitForRetry()
             return;
         }
         releaseAssert(self->mState == InternalState::WAITING ||
-               self->mState == InternalState::ABORTED ||
-               self->mState == InternalState::ABORTING);
+                      self->mState == InternalState::ABORTED ||
+                      self->mState == InternalState::ABORTING);
         if (self->mState == InternalState::WAITING)
         {
             self->mRetries++;

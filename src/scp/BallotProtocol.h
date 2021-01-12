@@ -6,12 +6,12 @@
 
 #include "lib/json/json-forwards.h"
 #include "scp/SCP.h"
+#include "util/GlobalChecks.h"
 #include <functional>
 #include <memory>
 #include <set>
 #include <string>
 #include <utility>
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {

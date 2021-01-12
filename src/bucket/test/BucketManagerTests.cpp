@@ -25,9 +25,9 @@
 #include "main/ExternalQueue.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/GlobalChecks.h"
 #include "util/Math.h"
 #include "util/Timer.h"
-#include "util/GlobalChecks.h"
 
 #include <cstdio>
 
@@ -1128,9 +1128,9 @@ class StopAndRestartBucketMergesTest
                     auto liveIter = currLive.find(existingKey);
                     auto deadIter = currDead.find(existingKey);
                     releaseAssert(liveIter == currLive.end() ||
-                           deadIter == currDead.end());
+                                  deadIter == currDead.end());
                     releaseAssert(liveIter != currLive.end() ||
-                           deadIter != currDead.end());
+                                  deadIter != currDead.end());
                     auto& existingEntry =
                         (liveIter == currLive.end() ? deadIter->second
                                                     : liveIter->second);
@@ -1239,8 +1239,8 @@ class StopAndRestartBucketMergesTest
             closeLedger(*app);
 
             releaseAssert(i == app->getLedgerManager()
-                            .getLastClosedLedgerHeader()
-                            .header.ledgerSeq);
+                                   .getLastClosedLedgerHeader()
+                                   .header.ledgerSeq);
             auto j = mControlSurveys.find(i);
             if (j != mControlSurveys.end())
             {

@@ -5,8 +5,8 @@
 #include "util/Fs.h"
 #include "crypto/Hex.h"
 #include "util/FileSystemException.h"
-#include "util/Logging.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 

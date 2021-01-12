@@ -11,10 +11,10 @@
 #include "crypto/StrKey.h"
 #include "main/Config.h"
 #include "transactions/SignatureUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
 #include "util/Math.h"
 #include "util/RandomEvictionCache.h"
-#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <memory>
 #include <mutex>

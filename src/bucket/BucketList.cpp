@@ -10,11 +10,11 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
-#include "util/GlobalChecks.h"
 #include <fmt/format.h>
 
 namespace stellar

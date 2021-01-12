@@ -9,10 +9,10 @@
 #include "ledger/LedgerTxnImpl.h"
 #include "ledger/NonSociRelatedException.h"
 #include "util/Decoder.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
-#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -142,7 +142,8 @@ class BulkUpsertTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             releaseAssert(e.entryExists());
-            releaseAssert(e.entry().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.entry().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             auto const& le = e.entry().ledgerEntry();
             releaseAssert(le.data.type() == TRUSTLINE);
             auto const& tl = le.data.trustLine();
@@ -317,7 +318,8 @@ class BulkDeleteTrustLinesOperation : public DatabaseTypeSpecificOperation<void>
         for (auto const& e : entries)
         {
             releaseAssert(!e.entryExists());
-            releaseAssert(e.key().type() == InternalLedgerEntryType::LEDGER_ENTRY);
+            releaseAssert(e.key().type() ==
+                          InternalLedgerEntryType::LEDGER_ENTRY);
             releaseAssert(e.key().ledgerKey().type() == TRUSTLINE);
             auto const& tl = e.key().ledgerKey().trustLine();
             std::string accountIDStr, issuerStr, assetCodeStr;

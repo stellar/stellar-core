@@ -15,11 +15,11 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
-#include "util/GlobalChecks.h"
 
 namespace stellar
 {

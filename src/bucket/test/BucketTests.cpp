@@ -23,11 +23,11 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
-#include "util/GlobalChecks.h"
 
 using namespace stellar;
 

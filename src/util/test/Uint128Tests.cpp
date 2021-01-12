@@ -71,7 +71,7 @@ TEST_CASE("uint128_t", "[uint128]")
             BINOP(-);
             BINOP(*);
             BINOP(/);
-            BINOP (^);
+            BINOP(^);
             BINOP(&);
             BINOP(|);
             BINOP(%);

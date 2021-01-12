@@ -53,7 +53,6 @@ TEST_CASE("standalone", "[herder][acceptance]")
     cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
     for_all_versions(cfg, [&](Config const& cfg1) {
-
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg1);
 

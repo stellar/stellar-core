@@ -133,7 +133,7 @@ getDeltaSponsoringAndSponsored(std::shared_ptr<InternalLedgerEntry const> le,
     if (le)
     {
         releaseAssert(le->type() == InternalLedgerEntryType::LEDGER_ENTRY &&
-               le->ledgerEntry().data.type() == ACCOUNT);
+                      le->ledgerEntry().data.type() == ACCOUNT);
         auto const& ae = le->ledgerEntry().data.account();
         if (hasAccountEntryExtV2(ae))
         {

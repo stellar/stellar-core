@@ -9,10 +9,10 @@
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/numeric.h"
-#include "util/GlobalChecks.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 #include <algorithm>

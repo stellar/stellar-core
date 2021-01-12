@@ -24,8 +24,8 @@ namespace std
 {
 
 size_t
-hash<stellar::PeerSharedKeyId>::
-operator()(stellar::PeerSharedKeyId const& x) const noexcept
+hash<stellar::PeerSharedKeyId>::operator()(
+    stellar::PeerSharedKeyId const& x) const noexcept
 {
     return std::hash<stellar::Curve25519Public>{}(x.mECDHPublicKey) ^
            std::hash<int>{}(static_cast<int>(x.mRole));

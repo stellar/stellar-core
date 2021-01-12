@@ -9,8 +9,8 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
-#include "xdrpp/marshal.h"
 #include "util/GlobalChecks.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {

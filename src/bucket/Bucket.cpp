@@ -20,12 +20,12 @@
 #include "main/Application.h"
 #include "medida/timer.h"
 #include "util/Fs.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
-#include "util/GlobalChecks.h"
 #include <fmt/format.h>
 #include <future>
 
@@ -128,10 +128,10 @@ Bucket::convertToBucketEntry(bool useInit,
     BucketEntryIdCmp cmp;
     std::sort(bucket.begin(), bucket.end(), cmp);
     releaseAssert(std::adjacent_find(
-               bucket.begin(), bucket.end(),
-               [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
-                   return !cmp(lhs, rhs);
-               }) == bucket.end());
+                      bucket.begin(), bucket.end(),
+                      [&cmp](BucketEntry const& lhs, BucketEntry const& rhs) {
+                          return !cmp(lhs, rhs);
+                      }) == bucket.end());
     return bucket;
 }
 

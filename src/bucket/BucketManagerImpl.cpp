@@ -10,6 +10,10 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
@@ -17,17 +21,12 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <fstream>
 #include <map>
 #include <regex>
 #include <set>
-#include "util/GlobalChecks.h"
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-#include <Tracy.hpp>
 
 namespace stellar
 {

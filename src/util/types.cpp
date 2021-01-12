@@ -4,8 +4,8 @@
 
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
-#include "util/XDROperators.h"
 #include "util/GlobalChecks.h"
+#include "util/XDROperators.h"
 #include <fmt/format.h>
 
 #include <algorithm>

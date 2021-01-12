@@ -8,8 +8,8 @@
 #include "crypto/SHA.h"
 #include "util/FileSystemException.h"
 #include "util/Fs.h"
-#include "util/Logging.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 #include "xdrpp/marshal.h"
 #include <Tracy.hpp>
 
