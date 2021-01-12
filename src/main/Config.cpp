@@ -256,7 +256,7 @@ readXdrEnumArray(ConfigItem const& item)
     {
         auto enumNameCharPtr =
             xdr::xdr_traits<T>::enum_name(static_cast<T>(enumVal));
-        assert(enumNameCharPtr);
+        releaseAssert(enumNameCharPtr);
         enumNames.emplace(enumNameCharPtr, static_cast<T>(enumVal));
     }
 

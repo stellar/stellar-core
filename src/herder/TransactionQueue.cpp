@@ -93,9 +93,9 @@ findBySeq(int64_t seq, TransactionQueue::TimestampedTransactions& transactions,
         return false;
     }
 
-    assert(seq - firstSeq <= static_cast<int64_t>(transactions.size()));
+    releaseAssert(seq - firstSeq <= static_cast<int64_t>(transactions.size()));
     iter = transactions.begin() + (seq - firstSeq);
-    assert(iter == transactions.end() || iter->mTx->getSeqNum() == seq);
+    releaseAssert(iter == transactions.end() || iter->mTx->getSeqNum() == seq);
     return true;
 }
 
@@ -240,7 +240,7 @@ void
 TransactionQueue::releaseFeeMaybeEraseAccountState(TransactionFrameBasePtr tx)
 {
     auto iter = mAccountStates.find(tx->getFeeSourceID());
-    assert(iter != mAccountStates.end() &&
+    releaseAssert(iter != mAccountStates.end() &&
            iter->second.mTotalFees >= tx->getFeeBid());
 
     iter->second.mTotalFees -= tx->getFeeBid();

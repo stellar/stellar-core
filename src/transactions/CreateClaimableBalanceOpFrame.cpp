@@ -158,7 +158,7 @@ CreateClaimableBalanceOpFrame::doApply(AbstractLedgerTxn& ltx)
         }
 
         auto amountOk = addBalance(header, sourceAccount, -amount);
-        assert(amountOk);
+        releaseAssert(amountOk);
     }
     else
     {

@@ -340,7 +340,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
             wheatReceived, RoundingType::NORMAL,
             [this, passive, &maxWheatPrice](LedgerTxnEntry const& entry) {
                 auto const& o = entry.current().data.offer();
-                assert(o.offerID != mOfferID);
+                releaseAssert(o.offerID != mOfferID);
                 if ((passive && (o.price >= maxWheatPrice)) ||
                     (o.price > maxWheatPrice))
                 {
@@ -355,7 +355,7 @@ ManageOfferOpFrameBase::doApply(AbstractLedgerTxn& ltxOuter)
                 return OfferFilterResult::eKeep;
             },
             offerTrail, maxOffersToCross);
-        assert(sheepSent >= 0);
+        releaseAssert(sheepSent >= 0);
 
         bool sheepStays;
         switch (r)

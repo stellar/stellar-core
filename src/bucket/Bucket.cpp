@@ -25,7 +25,6 @@
 #include "util/XDRStream.h"
 #include "xdrpp/message.h"
 #include <Tracy.hpp>
-//#include <cassert>
 #include "util/GlobalChecks.h"
 #include <fmt/format.h>
 #include <future>

@@ -7,6 +7,7 @@
 #include "historywork/GetRemoteFileWork.h"
 #include "historywork/GunzipFileWork.h"
 #include "util/Logging.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
 
@@ -81,8 +82,8 @@ GetAndUnzipRemoteFileWork::doWork()
     if (mGunzipFileWork)
     {
         // Download completed, unzipping started
-        assert(mGetRemoteFileWork);
-        assert(mGetRemoteFileWork->getState() == State::WORK_SUCCESS);
+        releaseAssert(mGetRemoteFileWork);
+        releaseAssert(mGetRemoteFileWork->getState() == State::WORK_SUCCESS);
         auto state = mGunzipFileWork->getState();
         if (state == State::WORK_SUCCESS && !fs::exists(mFt.localPath_nogz()))
         {

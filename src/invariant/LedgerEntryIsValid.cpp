@@ -312,7 +312,7 @@ LedgerEntryIsValid::checkIsValid(LedgerEntry const& le,
 
     if (previous)
     {
-        assert(previous->data.type() == CLAIMABLE_BALANCE);
+        releaseAssert(previous->data.type() == CLAIMABLE_BALANCE);
         auto const& previousCbe = previous->data.claimableBalance();
 
         if (!(cbe == previousCbe))

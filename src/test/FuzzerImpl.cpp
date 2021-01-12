@@ -103,7 +103,7 @@ struct xdr_fuzzer_compactor
         , mCur(reinterpret_cast<std::uint8_t*>(start))
         , mEnd(reinterpret_cast<std::uint8_t*>(end))
     {
-        assert(mStart <= mEnd);
+        releaseAssert(mStart <= mEnd);
     }
     xdr_fuzzer_compactor(msg_ptr& m) : xdr_fuzzer_compactor(m->data(), m->end())
     {
@@ -230,7 +230,7 @@ struct xdr_fuzzer_unpacker
         : mCur(reinterpret_cast<std::uint8_t const*>(start))
         , mEnd(reinterpret_cast<std::uint8_t const*>(end))
     {
-        assert(mCur <= mEnd);
+        releaseAssert(mCur <= mEnd);
     }
     xdr_fuzzer_unpacker(msg_ptr const& m)
         : xdr_fuzzer_unpacker(m->data(), m->end())

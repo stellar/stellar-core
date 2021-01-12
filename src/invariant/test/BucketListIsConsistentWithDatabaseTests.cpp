@@ -76,11 +76,11 @@ struct BucketListGenerator
         auto vers = ltx.loadHeader().current().ledgerVersion;
 
         auto dead = generateDeadEntries(ltx);
-        assert(dead.size() <= mLiveKeys.size());
+        releaseAssert(dead.size() <= mLiveKeys.size());
         for (auto const& key : dead)
         {
             auto iter = mLiveKeys.find(key);
-            assert(iter != mLiveKeys.end());
+            releaseAssert(iter != mLiveKeys.end());
             ltx.erase(key);
             mLiveKeys.erase(iter);
         }

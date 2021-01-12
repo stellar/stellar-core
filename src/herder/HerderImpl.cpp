@@ -127,8 +127,8 @@ void
 HerderImpl::bootstrap()
 {
     CLOG_INFO(Herder, "Force joining SCP with local state");
-    assert(getSCP().isValidator());
-    assert(mApp.getConfig().FORCE_SCP);
+    releaseAssert(getSCP().isValidator());
+    releaseAssert(mApp.getConfig().FORCE_SCP);
 
     mLedgerManager.moveToSynced();
     mHerderSCPDriver.bootstrap();
@@ -1705,7 +1705,7 @@ HerderImpl::trackingHeartBeat()
 
     mOutOfSyncTimer.cancel();
 
-    assert(mHerderSCPDriver.trackingSCP());
+    releaseAssert(mHerderSCPDriver.trackingSCP());
     mTrackingTimer.expires_from_now(
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
     mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),

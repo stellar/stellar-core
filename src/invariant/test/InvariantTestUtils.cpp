@@ -118,7 +118,7 @@ UpdateList
 makeUpdateList(std::vector<LedgerEntry> const& current,
                std::vector<LedgerEntry> const& previous)
 {
-    assert(current.size() == previous.size());
+    releaseAssert(current.size() == previous.size());
     UpdateList updates;
     std::transform(current.begin(), current.end(), previous.begin(),
                    std::back_inserter(updates),

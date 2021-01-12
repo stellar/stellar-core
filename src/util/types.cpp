@@ -5,6 +5,7 @@
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
 #include "util/XDROperators.h"
+#include "util/GlobalChecks.h"
 #include <fmt/format.h>
 
 #include <algorithm>
@@ -228,8 +229,8 @@ formatSize(size_t size)
 bool
 addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
 {
-    assert(balance >= 0);
-    assert(maxBalance >= 0);
+    releaseAssert(balance >= 0);
+    releaseAssert(maxBalance >= 0);
 
     if (delta == 0)
     {

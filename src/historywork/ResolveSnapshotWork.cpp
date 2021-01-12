@@ -38,7 +38,7 @@ ResolveSnapshotWork::onRun()
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
-        assert(mSnapshot->mLocalState.containsValidBuckets(mApp));
+        releaseAssert(mSnapshot->mLocalState.containsValidBuckets(mApp));
         return State::WORK_SUCCESS;
     }
     else

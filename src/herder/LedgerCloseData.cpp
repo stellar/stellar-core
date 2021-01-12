@@ -5,6 +5,7 @@
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
+#include "util/GlobalChecks.h"
 #include <overlay/OverlayManager.h>
 #include <xdrpp/marshal.h>
 
@@ -21,7 +22,7 @@ LedgerCloseData::LedgerCloseData(
     Value x;
     Value y(x.begin(), x.end());
 
-    assert(txSet->getContentsHash() == mValue.txSetHash);
+    releaseAssert(txSet->getContentsHash() == mValue.txSetHash);
 }
 
 std::string

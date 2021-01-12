@@ -4,6 +4,7 @@
 
 #include "historywork/MakeRemoteDirWork.h"
 #include "history/HistoryArchive.h"
+#include "util/GlobalChecks.h"
 #include "main/Application.h"
 
 namespace stellar
@@ -16,7 +17,7 @@ MakeRemoteDirWork::MakeRemoteDirWork(Application& app, std::string const& dir,
     , mDir(dir)
     , mArchive(archive)
 {
-    assert(mArchive);
+    releaseAssert(mArchive);
 }
 
 CommandInfo

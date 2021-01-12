@@ -185,7 +185,7 @@ copyTransactionsToStream(Hash const& networkID, Database& db,
     TransactionEnvelope tx;
     uint32_t curLedgerSeq;
 
-    assert(begin <= end);
+    releaseAssert(begin <= end);
     soci::statement st =
         (sess.prepare << "SELECT ledgerseq, txbody, txresult FROM txhistory "
                          "WHERE ledgerseq >= :begin AND ledgerseq < :end ORDER "

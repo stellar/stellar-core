@@ -5,6 +5,7 @@
 #include "TxSimUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "util/GlobalChecks.h"
 #include "crypto/SignerKey.h"
 #include "invariant/test/InvariantTestUtils.h"
 #include "transactions/TransactionUtils.h"
@@ -152,7 +153,7 @@ generateScaledClaimableBalanceID(Hash const& balanceID, uint32_t partition)
 SignerKey
 generateScaledEd25519Signer(Signer const& signer, uint32_t partition)
 {
-    assert(signer.key.type() == SIGNER_KEY_TYPE_ED25519);
+    releaseAssert(signer.key.type() == SIGNER_KEY_TYPE_ED25519);
     auto pubKey = KeyUtils::convertKey<PublicKey>(signer.key);
     auto newPubKey = generateScaledSecret(pubKey, partition).getPublicKey();
     return KeyUtils::convertKey<SignerKey>(newPubKey);

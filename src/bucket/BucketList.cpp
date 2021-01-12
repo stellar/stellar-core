@@ -14,7 +14,6 @@
 #include "util/XDRStream.h"
 #include "util/types.h"
 #include <Tracy.hpp>
-//#include <cassert>
 #include "util/GlobalChecks.h"
 #include <fmt/format.h>
 

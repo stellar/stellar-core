@@ -34,7 +34,7 @@ updateChangedSubEntriesCount(
     LedgerEntry const* current, LedgerEntry const* previous)
 {
     auto valid = current ? current : previous;
-    assert(valid);
+    releaseAssert(valid);
 
     switch (valid->data.type())
     {
@@ -148,7 +148,7 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
         {
             continue;
         }
-        assert(entryDelta.second.previous);
+        releaseAssert(entryDelta.second.previous);
 
         auto const& genPrevious = *entryDelta.second.previous;
         if (genPrevious.type() != InternalLedgerEntryType::LEDGER_ENTRY)

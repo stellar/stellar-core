@@ -161,7 +161,7 @@ Simulation::dropAllConnections(NodeID const& id)
 {
     if (mMode == OVER_LOOPBACK)
     {
-        assert(mPendingConnections.empty());
+        releaseAssert(mPendingConnections.empty());
         mLoopbackConnections.erase(
             std::remove_if(mLoopbackConnections.begin(),
                            mLoopbackConnections.end(),

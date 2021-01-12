@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/BasicWork.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include <Tracy.hpp>
@@ -43,7 +44,7 @@ BasicWork::BasicWork(Application& app, std::string name, size_t maxRetries)
 BasicWork::~BasicWork()
 {
     // Work completed or has not started yet
-    assert(isDone() || mState == InternalState::PENDING);
+    releaseAssert(isDone() || mState == InternalState::PENDING);
 }
 
 void
@@ -154,7 +155,7 @@ BasicWork::startWork(std::function<void()> notificationCallback)
 
     mNotifyCallback = notificationCallback;
     setState(InternalState::RUNNING);
-    assert(mRetries == 0);
+    releaseAssert(mRetries == 0);
 }
 
 void
@@ -181,7 +182,7 @@ BasicWork::waitForRetry()
         {
             return;
         }
-        assert(self->mState == InternalState::WAITING ||
+        releaseAssert(self->mState == InternalState::WAITING ||
                self->mState == InternalState::ABORTED ||
                self->mState == InternalState::ABORTING);
         if (self->mState == InternalState::WAITING)
@@ -331,7 +332,7 @@ void
 BasicWork::crankWork()
 {
     ZoneScoped;
-    assert(!isDone() && mState != InternalState::WAITING);
+    releaseAssert(!isDone() && mState != InternalState::WAITING);
 
     InternalState nextState;
     if (mState == InternalState::ABORTING)

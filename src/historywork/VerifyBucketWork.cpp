@@ -11,7 +11,7 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include <fmt/format.h>
-
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -61,8 +61,8 @@ void
 VerifyBucketWork::adoptBucket()
 {
     ZoneScoped;
-    assert(mDone);
-    assert(!mEc);
+    releaseAssert(mDone);
+    releaseAssert(!mEc);
 
     auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash,
                                                        /*objectsPut=*/0,

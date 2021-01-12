@@ -90,7 +90,7 @@ void
 TxSimGenerateBucketsWork::processGeneratedBucket()
 {
     // Current bucket has been generated, we're left with the final bucket
-    assert(mIntermediateBuckets.size() == 1 && mMergesInProgress.empty());
+    releaseAssert(mIntermediateBuckets.size() == 1 && mMergesInProgress.empty());
 
     auto newBucket = mIntermediateBuckets.front();
     mIntermediateBuckets.pop_front();
@@ -206,7 +206,7 @@ HistoryArchiveState const&
 TxSimGenerateBucketsWork::getGeneratedHAS()
 {
     mGeneratedApplyState.resolveAllFutures();
-    assert(mGeneratedApplyState.containsValidBuckets(mApp));
+    releaseAssert(mGeneratedApplyState.containsValidBuckets(mApp));
     return mGeneratedApplyState;
 }
 

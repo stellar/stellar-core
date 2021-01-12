@@ -25,7 +25,7 @@ void dbgAbort();
 #define releaseAssert(e) \
     (static_cast<bool>(e) \
          ? void(0) \
-         : printAssertFailureAndAbort(#e, __FILE__, __LINE__))
+         : stellar::printAssertFailureAndAbort(#e, __FILE__, __LINE__))
 
 // Same as above, but throwing rather than aborting.
 #define releaseAssertOrThrow(e) \
