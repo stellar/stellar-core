@@ -80,8 +80,10 @@ DownloadApplyTxsWork::yieldMoreWork()
     {
         auto prev = mLastYieldedWork;
         bool pqFellBehind = false;
-        auto predicate = [prev, pqFellBehind, waitForPublish = mWaitForPublish,
-                          &hm]() mutable {
+        auto predicate = [
+            prev, pqFellBehind, waitForPublish = mWaitForPublish, &hm
+        ]() mutable
+        {
             if (!prev)
             {
                 throw std::runtime_error("Download and apply txs: related Work "

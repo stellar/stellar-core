@@ -12,8 +12,7 @@
 #include <ostream>
 #include <set>
 
-extern "C"
-{
+extern "C" {
 #include "util/cbitset.h"
 };
 
@@ -245,8 +244,7 @@ class BitSet
         bitset_inplace_intersection(mPtr, other.mPtr);
         mCountDirty = true;
     }
-    BitSet
-    operator&(BitSet const& other) const
+    BitSet operator&(BitSet const& other) const
     {
         BitSet tmp(*this);
         tmp.inplaceIntersection(other);

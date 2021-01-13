@@ -103,25 +103,24 @@ const std::vector<std::pair<std::string, bool>>
 class ParserWithValidation
 {
   public:
-    ParserWithValidation(
-        clara::Parser parser,
-        std::function<std::string()> isValid = [] { return std::string{}; })
+    ParserWithValidation(clara::Parser parser,
+                         std::function<std::string()> isValid = [] {
+                             return std::string{};
+                         })
     {
         mParser = parser;
         mIsValid = isValid;
     }
 
-    ParserWithValidation(
-        clara::Arg arg,
-        std::function<std::string()> isValid = [] { return std::string{}; })
+    ParserWithValidation(clara::Arg arg, std::function<std::string()> isValid =
+                                             [] { return std::string{}; })
     {
         mParser = clara::Parser{} | arg;
         mIsValid = isValid;
     }
 
-    ParserWithValidation(
-        clara::Opt opt,
-        std::function<std::string()> isValid = [] { return std::string{}; })
+    ParserWithValidation(clara::Opt opt, std::function<std::string()> isValid =
+                                             [] { return std::string{}; })
     {
         mParser = clara::Parser{} | opt;
         mIsValid = isValid;

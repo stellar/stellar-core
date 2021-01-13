@@ -2124,12 +2124,12 @@ BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary, bool fullKeys)
         delayed = n_delayed;
     }
 
-    auto f = LocalNode::findClosestVBlocking(
-        *qSet, mLatestEnvelopes,
-        [&](SCPStatement const& st) {
-            return areBallotsCompatible(getWorkingBallot(st), b);
-        },
-        &id);
+    auto f = LocalNode::findClosestVBlocking(*qSet, mLatestEnvelopes,
+                                             [&](SCPStatement const& st) {
+                                                 return areBallotsCompatible(
+                                                     getWorkingBallot(st), b);
+                                             },
+                                             &id);
     ret["fail_at"] = static_cast<int>(f.size());
 
     if (!summary)

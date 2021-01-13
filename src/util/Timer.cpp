@@ -353,9 +353,9 @@ VirtualClock::crank(bool block)
         {
             ZoneNamedN(ioPollZone, "ASIO polling", true);
             ZoneText(overloadStr.c_str(), overloadStr.size());
-            progressCount += crankStep(
-                *this, [this] { return this->mIOContext.poll_one(); },
-                ioDivisor);
+            progressCount +=
+                crankStep(*this, [this] { return this->mIOContext.poll_one(); },
+                          ioDivisor);
         }
 
         // Dispatch some scheduled actions.
