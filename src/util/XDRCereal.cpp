@@ -37,8 +37,19 @@ cereal_override(cereal::JSONOutputArchive& ar,
 }
 
 void
-cereal_override(cereal::JSONOutputArchive& ar, const stellar::Asset& s,
-                const char* field)
+cereal_override(cereal::JSONOutputArchive& ar, stellar::Asset const& asset,
+                char const* field)
 {
-    xdr::archive(ar, stellar::assetToString(s), field);
+    if (asset.type() == stellar::ASSET_TYPE_NATIVE)
+    {
+        xdr::archive(ar, std::string("NATIVE"), field);
+    }
+    else
+    {
+        ar.setNextName(field);
+        ar.startNode();
+        xdr::archive(ar, stellar::assetToString(asset), "assetCode");
+        xdr::archive(ar, stellar::getIssuer(asset), "issuer");
+        ar.finishNode();
+    }
 }
