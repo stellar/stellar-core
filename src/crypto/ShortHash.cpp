@@ -3,31 +3,66 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ShortHash.h"
+#include "fmt/format.h"
+#include <mutex>
 #include <sodium.h>
 
 namespace stellar
 {
 namespace shortHash
 {
-static unsigned char sKey[crypto_shorthash_KEYBYTES];
+static unsigned char gKey[crypto_shorthash_KEYBYTES];
+static std::mutex gKeyMutex;
+static bool gHaveHashed{false};
+static unsigned int gExplicitSeed{0};
+
 void
 initialize()
 {
-    crypto_shorthash_keygen(sKey);
+    std::lock_guard<std::mutex> guard(gKeyMutex);
+    crypto_shorthash_keygen(gKey);
 }
+#ifdef BUILD_TESTS
+void
+seed(unsigned int s)
+{
+    std::lock_guard<std::mutex> guard(gKeyMutex);
+    if (gHaveHashed)
+    {
+        if (gExplicitSeed != s)
+        {
+            throw std::runtime_error(
+                fmt::format("re-seeding shortHash with {} after having already "
+                            "hashed with seed {}",
+                            s, gExplicitSeed));
+        }
+    }
+    gExplicitSeed = s;
+    for (size_t i = 0; i < crypto_shorthash_KEYBYTES; ++i)
+    {
+        size_t shift = i % sizeof(unsigned int);
+        gKey[i] = static_cast<unsigned char>(s >> shift);
+    }
+}
+#endif
 uint64_t
 computeHash(stellar::ByteSlice const& b)
 {
+    std::lock_guard<std::mutex> guard(gKeyMutex);
+    gHaveHashed = true;
     uint64_t res;
     static_assert(sizeof(res) == crypto_shorthash_BYTES, "unexpected size");
     crypto_shorthash(reinterpret_cast<unsigned char*>(&res),
                      reinterpret_cast<const unsigned char*>(b.data()), b.size(),
-                     sKey);
+                     gKey);
     return res;
 }
 
-XDRShortHasher::XDRShortHasher() : state(sKey)
+XDRShortHasher::XDRShortHasher() : state(gKey)
 {
+    std::lock_guard<std::mutex> guard(gKeyMutex);
+    gHaveHashed = true;
+    state = SipHash24(gKey);
 }
 
 void

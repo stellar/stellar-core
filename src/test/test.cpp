@@ -56,6 +56,7 @@ struct ReseedPRNGListener : Catch::TestEventListenerBase
     {
         srand(sCommandLineSeed);
         gRandomEngine.seed(sCommandLineSeed);
+        shortHash::seed(sCommandLineSeed);
         Catch::rng().seed(sCommandLineSeed);
         autocheck::rng().seed(sCommandLineSeed);
     }
