@@ -779,6 +779,7 @@ TransactionFuzzer::xdrSizeLimit()
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
+    gRandomEngine.seed(std::random_device()());
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
