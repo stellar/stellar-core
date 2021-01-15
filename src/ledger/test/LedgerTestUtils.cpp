@@ -109,7 +109,7 @@ makeValid(AccountEntry& a)
 
     if (a.inflationDest)
     {
-        *a.inflationDest = PubKeyUtils::random();
+        *a.inflationDest = PubKeyUtils::pseudoRandomForTesting();
     }
 
     std::sort(
@@ -262,7 +262,8 @@ makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
                 lh.header.ledgerVersion += 1;
                 break;
             case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
-                lh.header.previousLedgerHash = HashUtils::random();
+                lh.header.previousLedgerHash =
+                    HashUtils::pseudoRandomForTesting();
                 break;
             case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
                 lh.header.ledgerSeq -= 1;
@@ -278,7 +279,7 @@ makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
         if (i == randomIndex &&
             state == HistoryManager::VERIFY_STATUS_ERR_BAD_HASH && rand_flip())
         {
-            lh.hash = HashUtils::random();
+            lh.hash = HashUtils::pseudoRandomForTesting();
         }
         else
         {

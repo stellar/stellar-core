@@ -154,15 +154,21 @@ SecretKey::random()
 }
 
 #ifdef BUILD_TESTS
-static SecretKey
-pseudoRandomForTestingFromPRNG(stellar_default_random_engine& engine)
+static std::vector<uint8_t>
+getPRNGBytes(size_t n, stellar_default_random_engine& engine)
 {
     std::vector<uint8_t> bytes;
-    for (size_t i = 0; i < crypto_sign_SEEDBYTES; ++i)
+    for (size_t i = 0; i < n; ++i)
     {
         bytes.push_back(static_cast<uint8_t>(engine()));
     }
-    return SecretKey::fromSeed(bytes);
+    return bytes;
+}
+
+static SecretKey
+pseudoRandomForTestingFromPRNG(stellar_default_random_engine& engine)
+{
+    return SecretKey::fromSeed(getPRNGBytes(crypto_sign_SEEDBYTES, engine));
 }
 
 SecretKey
@@ -355,6 +361,14 @@ PubKeyUtils::random()
     return pk;
 }
 
+#ifdef BUILD_TESTS
+PublicKey
+PubKeyUtils::pseudoRandomForTesting()
+{
+    return SecretKey::pseudoRandomForTesting().getPublicKey();
+}
+#endif
+
 static void
 logPublicKey(std::ostream& s, PublicKey const& pk)
 {
@@ -422,6 +436,20 @@ HashUtils::random()
     randombytes_buf(res.data(), res.size());
     return res;
 }
+
+#ifdef BUILD_TESTS
+Hash
+HashUtils::pseudoRandomForTesting()
+{
+    Hash res;
+    auto bytes = getPRNGBytes(res.size(), gRandomEngine);
+    for (size_t i = 0; i < bytes.size(); ++i)
+    {
+        res[i] = bytes[i];
+    }
+    return res;
+}
+#endif
 }
 
 namespace std
