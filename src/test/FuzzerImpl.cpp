@@ -780,33 +780,26 @@ TransactionFuzzer::inject(std::string const& filename)
     {
         xdr::xdr_from_fuzzer_opaque(bins, ops);
     }
-    catch (...)
+    catch (std::exception const& e)
     {
         // in case of fuzzer creating an ill-formed xdr, generate an
         // xdr that will trigger a non-execution path so that the fuzzer
         // realizes it has hit an uninteresting case
+        LOG_TRACE(DEFAULT_LOG,
+                  "xdr::xdr_from_fuzzer_opaque() threw exception {}", e.what());
         return;
     }
     // limit operations per transaction to limit size of fuzzed input
     if (ops.size() < 1 || ops.size() > FuzzUtils::FUZZER_MAX_OPERATIONS)
     {
+        LOG_TRACE(DEFAULT_LOG, "invalid ops.size() {}", ops.size());
         return;
     }
 
-    // construct transaction
-    auto txFramePtr =
-        createFuzzTransactionFrame(mSourceAccountID, ops, mApp->getNetworkID());
-
-    if (Logging::logDebug("Ledger"))
-    {
-        LOG(DEBUG) << xdr_to_string(txFramePtr->getEnvelope());
-    }
-
     resetTxInternalState(*mApp);
+    LOG_TRACE(DEFAULT_LOG, "Fuzz ops ({}): {}", ops.size(), xdr_to_string(ops));
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
-
-    // attempt to apply transaction
-    txFramePtr->attemptApplication(*mApp, ltx);
+    attemptToApplyOps(ltx, mSourceAccountID, ops, *mApp, false);
 }
 
 int
