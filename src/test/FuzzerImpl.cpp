@@ -482,7 +482,9 @@ class FuzzTransactionFrame : public TransactionFrame
 
 std::shared_ptr<FuzzTransactionFrame>
 createFuzzTransactionFrame(PublicKey sourceAccountID,
-                           std::vector<Operation> ops, Hash const& networkID)
+                           std::vector<Operation>::const_iterator begin,
+                           std::vector<Operation>::const_iterator end,
+                           Hash const& networkID)
 {
     // construct a transaction envelope, which, for each transaction
     // application in the fuzzer, is the exact same, except for the inner
@@ -493,8 +495,7 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
     tx1.tx.sourceAccount = toMuxedAccount(sourceAccountID);
     tx1.tx.fee = 0;
     tx1.tx.seqNum = 1;
-    std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(tx1.tx.operations));
+    std::copy(begin, end, std::back_inserter(tx1.tx.operations));
 
     std::shared_ptr<FuzzTransactionFrame> res =
         std::make_shared<FuzzTransactionFrame>(networkID, txEnv);
@@ -519,19 +520,21 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
 // ignores failures and might apply further transactions after failures.
 static void
 attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
-                  xdr::xvector<Operation>& ops, Application& app,
+                  xdr::xvector<Operation>::const_iterator begin,
+                  xdr::xvector<Operation>::const_iterator end, Application& app,
                   bool const throwIfTxFails = true)
 {
-    while (!ops.empty())
+    for (auto beginOpsInThisTx = begin; beginOpsInThisTx != end;)
     {
-        auto endOpsInThisTx = ops.size() <= MAX_OPS_PER_TX
-                                  ? ops.end()
-                                  : ops.begin() + MAX_OPS_PER_TX;
-        auto txFramePtr = createFuzzTransactionFrame(
-            sourceAccount, xdr::xvector<Operation>(ops.begin(), endOpsInThisTx),
-            app.getNetworkID());
-        ops.erase(ops.begin(), endOpsInThisTx);
+        auto endOpsInThisTx =
+            std::distance(beginOpsInThisTx, end) <= MAX_OPS_PER_TX
+                ? end
+                : begin + MAX_OPS_PER_TX;
+        auto txFramePtr =
+            createFuzzTransactionFrame(sourceAccount, beginOpsInThisTx,
+                                       endOpsInThisTx, app.getNetworkID());
         txFramePtr->attemptApplication(app, ltx);
+        beginOpsInThisTx = endOpsInThisTx;
 
         if (throwIfTxFails)
         {
@@ -607,7 +610,8 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, root.getPublicKey(), ops, *mApp);
+        attemptToApplyOps(ltx, root.getPublicKey(), ops.begin(), ops.end(),
+                          *mApp);
 
         ltx.commit();
     }
@@ -654,7 +658,7 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops, *mApp);
+        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
         ltx.commit();
     }
@@ -729,7 +733,7 @@ TransactionFuzzer::initialize()
         genOffersForPair(ASSET_B, ASSET_C, {13, 2, 14, 3, 15}, ltx);
         genOffersForPair(ASSET_C, ASSET_D, {6, 3, 7, 4, 8}, ltx);
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops, *mApp);
+        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
         ltx.commit();
     }
@@ -796,7 +800,7 @@ TransactionFuzzer::initialize()
             }
         }
 
-        attemptToApplyOps(ltx, mSourceAccountID, ops, *mApp);
+        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
         ltx.commit();
     }
@@ -857,7 +861,8 @@ TransactionFuzzer::inject(std::string const& filename)
     resetTxInternalState(*mApp);
     LOG_TRACE(DEFAULT_LOG, "Fuzz ops ({}): {}", ops.size(), xdr_to_string(ops));
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
-    attemptToApplyOps(ltx, mSourceAccountID, ops, *mApp, false);
+    attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp,
+                      false);
 }
 
 int
