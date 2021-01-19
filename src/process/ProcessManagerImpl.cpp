@@ -193,6 +193,16 @@ ProcessManagerImpl::shutdown()
     }
 }
 
+void
+ProcessManagerImpl::tryProcessShutdownAll()
+{
+    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    for (auto const& pe : mProcesses)
+    {
+        tryProcessShutdown(pe.second);
+    }
+}
+
 bool
 ProcessManagerImpl::tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe)
 {

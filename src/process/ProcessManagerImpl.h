@@ -43,6 +43,7 @@ class ProcessManagerImpl : public ProcessManager
     asio::error_code handleProcessTermination(int pid, int status);
     bool cleanShutdown(ProcessExitEvent& pe);
     bool forceShutdown(ProcessExitEvent& pe);
+    void tryProcessShutdownAll();
 
     friend class ProcessExitEvent::Impl;
 
