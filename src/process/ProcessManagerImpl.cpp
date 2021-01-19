@@ -269,13 +269,13 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
 }
 
 void
-ProcessManagerImpl::startSignalWait()
+ProcessManagerImpl::startWaitingForSignalChild()
 {
     // No-op on windows, uses waitable object handles
 }
 
 void
-ProcessManagerImpl::handleSignalWait()
+ProcessManagerImpl::handleSignalChild()
 {
     // No-op on windows, uses waitable object handles
 }
@@ -529,24 +529,25 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
           std::make_unique<TmpDir>(app.getTmpDirManager().tmpDir("process")))
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
-    startSignalWait();
+    startWaitingForSignalChild();
 }
 
 void
-ProcessManagerImpl::startSignalWait()
+ProcessManagerImpl::startWaitingForSignalChild()
 {
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     mSigChild.async_wait(
-        std::bind(&ProcessManagerImpl::handleSignalWait, this));
+        std::bind(&ProcessManagerImpl::handleSignalChild, this));
 }
 
 void
-ProcessManagerImpl::handleSignalWait()
+ProcessManagerImpl::handleSignalChild()
 {
     if (isShutdown())
     {
         return;
     }
+    startWaitingForSignalChild();
     // Store tuples (pid, status)
     std::vector<std::tuple<int, int>> signaledChildren;
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
@@ -574,7 +575,6 @@ ProcessManagerImpl::handleSignalWait()
             handleProcessTermination(pid, status);
         }
     }
-    startSignalWait();
 }
 
 asio::error_code

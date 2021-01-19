@@ -37,8 +37,8 @@ class ProcessManagerImpl : public ProcessManager
     std::deque<std::shared_ptr<ProcessExitEvent>> mKillable;
     void maybeRunPendingProcesses();
 
-    void startSignalWait();
-    void handleSignalWait();
+    void startWaitingForSignalChild();
+    void handleSignalChild();
     asio::error_code handleProcessTermination(int pid, int status);
     bool cleanShutdown(ProcessExitEvent& pe);
     bool forceShutdown(ProcessExitEvent& pe);
