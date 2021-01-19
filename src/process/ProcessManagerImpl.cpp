@@ -136,21 +136,38 @@ ProcessManagerImpl::getNumRunningOrShuttingDownProcesses()
 
 ProcessManagerImpl::~ProcessManagerImpl()
 {
-    const auto killProcess = [&](ProcessExitEvent& pe) {
-        pe.mImpl->cancel(ABORT_ERROR_CODE);
-        forceShutdown(pe);
-    };
-    // Use SIGKILL on any processes we already used SIGINT on
-    while (!mKillable.empty())
+// First unregister our SIGCHLD handler; it has a raw pointer to us and
+// anyways we won't be able to bounce off ASIO for the work we're about
+// to do below.
+#ifndef _WIN32
+    auto ec = ABORT_ERROR_CODE;
+    mSigChild.cancel(ec);
+#endif
+
+    // Then trigger shutdown, if we haven't yet (it's idempotent). This will ask
+    // every running process to shut down politely and cancel all events,
+    // pending and running.
+    shutdown();
+
+    for (int i = 0; i < 3 && !mProcesses.empty(); i++)
     {
-        auto impl = std::move(mKillable.front());
-        mKillable.pop_front();
-        killProcess(*impl);
-    }
-    // Use SIGKILL on any processes we haven't politely asked to exit yet
-    for (auto& pair : mProcesses)
-    {
-        killProcess(*pair.second);
+        // At this point we're purely racing against process exits; we don't
+        // want to block or spin in a dtor by trying to trap SIGCHLD (and we
+        // might have dropped a SIGCHLD after cancelling the handler above
+        // anyways) but we can at least try to lose the race by sleeping briefly
+        // before calling waitpid below with WNOHANG in the reapChildren() call.
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        // Reap anything that politely shut down in response to last iteration.
+        reapChildren();
+
+        // Stop early if we're done.
+        if (mProcesses.empty())
+            break;
+
+        // Re-trigger progressively-more-forcible shutdown of everything
+        // surviving.
+        tryProcessShutdownAll();
     }
 }
 
@@ -163,33 +180,19 @@ ProcessManagerImpl::isShutdown() const
 void
 ProcessManagerImpl::shutdown()
 {
+    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
     if (!mIsShutdown)
     {
         mIsShutdown = true;
-        auto ec = ABORT_ERROR_CODE;
 
         // Cancel all pending.
-        std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
         for (auto& pending : mPending)
         {
-            pending->mImpl->cancel(ec);
+            pending->mImpl->cancel(ABORT_ERROR_CODE);
         }
         mPending.clear();
 
-        // Cancel all running.
-        for (auto& pair : mProcesses)
-        {
-            // Mark it as "ready to be killed"
-            mKillable.push_back(pair.second);
-            // Cancel any pending events and shut down the process cleanly
-            pair.second->mImpl->cancel(ec);
-            cleanShutdown(*pair.second);
-        }
-        mProcesses.clear();
-        gNumProcessesActive = 0;
-#ifndef _WIN32
-        mSigChild.cancel(ec);
-#endif
+        tryProcessShutdownAll();
     }
 }
 
