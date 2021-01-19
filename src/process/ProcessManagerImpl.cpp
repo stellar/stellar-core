@@ -279,6 +279,13 @@ ProcessManagerImpl::handleSignalChild()
 {
     // No-op on windows, uses waitable object handles
 }
+
+void
+ProcessManagerImpl::reapChildren()
+{
+    // No-op on windows, uses waitable object handles
+}
+
 namespace
 {
 struct InfoHelper
@@ -548,6 +555,12 @@ ProcessManagerImpl::handleSignalChild()
         return;
     }
     startWaitingForSignalChild();
+    reapChildren();
+}
+
+void
+ProcessManagerImpl::reapChildren()
+{
     // Store tuples (pid, status)
     std::vector<std::tuple<int, int>> signaledChildren;
     std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);

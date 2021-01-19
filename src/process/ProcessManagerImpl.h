@@ -39,6 +39,7 @@ class ProcessManagerImpl : public ProcessManager
 
     void startWaitingForSignalChild();
     void handleSignalChild();
+    void reapChildren();
     asio::error_code handleProcessTermination(int pid, int status);
     bool cleanShutdown(ProcessExitEvent& pe);
     bool forceShutdown(ProcessExitEvent& pe);
