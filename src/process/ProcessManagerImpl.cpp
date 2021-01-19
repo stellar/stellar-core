@@ -440,7 +440,11 @@ ProcessExitEvent::Impl::run()
 
         if (ec)
         {
-            *(sf->mOuterEc) = ec;
+            // We can only transmit one ec to the callback, so if we
+            // already have a nonzero (failure) ec from the waitable
+            // process handle, don't overwrite it with a new one from
+            // handleProcessTermination.
+            manager->handleProcessTermination(sf->mProcessId, 1);
         }
         else
         {
@@ -451,9 +455,9 @@ ProcessExitEvent::Impl::run()
             {
                 exitCode = 1;
             }
-            ec = asio::error_code(exitCode, asio::system_category());
+            ec = manager->handleProcessTermination(sf->mProcessId,
+                                                   static_cast<int>(exitCode));
         }
-        ec = manager->handleProcessTermination(sf->mProcessId, ec.value());
         sf->cancel(ec);
     });
     mRunning = true;
