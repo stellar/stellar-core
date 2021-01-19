@@ -127,6 +127,11 @@ size_t
 ProcessManagerImpl::getNumRunningProcesses()
 {
     return gNumProcessesActive;
+size_t
+ProcessManagerImpl::getNumRunningOrShuttingDownProcesses()
+{
+    std::lock_guard<std::recursive_mutex> guard(mProcessesMutex);
+    return mProcesses.size();
 }
 
 ProcessManagerImpl::~ProcessManagerImpl()

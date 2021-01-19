@@ -50,6 +50,7 @@ class ProcessManagerImpl : public ProcessManager
     std::weak_ptr<ProcessExitEvent> runProcess(std::string const& cmdLine,
                                                std::string outFile) override;
     size_t getNumRunningProcesses() override;
+    size_t getNumRunningOrShuttingDownProcesses() override;
 
     bool isShutdown() const override;
     void shutdown() override;
