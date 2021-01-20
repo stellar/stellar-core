@@ -133,6 +133,9 @@ void clearVerifySigCache();
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();
+#ifdef BUILD_TESTS
+PublicKey pseudoRandomForTesting();
+#endif
 }
 
 namespace StrKeyUtils
@@ -145,6 +148,9 @@ void logKey(std::ostream& s, std::string const& key);
 namespace HashUtils
 {
 Hash random();
+#ifdef BUILD_TESTS
+Hash pseudoRandomForTesting();
+#endif
 }
 }
 

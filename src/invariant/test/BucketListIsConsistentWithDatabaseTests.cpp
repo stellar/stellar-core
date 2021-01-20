@@ -674,6 +674,12 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
             }
             return entries;
         }
+
+        virtual std::vector<LedgerKey>
+        generateDeadEntries(AbstractLedgerTxn& ltx)
+        {
+            return {};
+        }
     };
 
     for (uint32_t level = 0; level < BucketList::kNumLevels; ++level)

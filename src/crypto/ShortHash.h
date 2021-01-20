@@ -17,6 +17,9 @@ namespace stellar
 namespace shortHash
 {
 void initialize();
+#ifdef BUILD_TESTS
+void seed(unsigned int);
+#endif
 uint64_t computeHash(stellar::ByteSlice const& b);
 
 struct XDRShortHasher : XDRHasher<XDRShortHasher>
