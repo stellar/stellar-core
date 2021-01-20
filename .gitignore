@@ -80,7 +80,8 @@ compile_commands.json
 # test output
 stellar-core-test-*
 test-partitions.*
-/fuzz-findings/
+fuzz-findings/
+min-testcases/
 /my-history/
 
 # Windows specific

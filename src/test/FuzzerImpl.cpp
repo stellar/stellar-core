@@ -4,6 +4,7 @@
 
 #include "test/FuzzerImpl.h"
 #include "ledger/LedgerTxn.h"
+#include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -16,9 +17,14 @@
 #include "transactions/OperationFrame.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Logging.h"
 #include "util/Math.h"
 #include "util/XDRCereal.h"
+#include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 
+#include <exception>
 #include <fmt/format.h>
 #include <xdrpp/autocheck.h>
 
@@ -27,11 +33,17 @@ namespace stellar
 namespace FuzzUtils
 {
 auto constexpr FUZZER_MAX_OPERATIONS = 5;
-auto constexpr INITIAL_LUMEN_AND_ASSET_BALANCE = 100000LL;
-auto constexpr NUMBER_OF_ASSETS_TO_ISSUE = 4;
+auto constexpr INITIAL_ACCOUNT_BALANCE = 1'000'000LL;    // reduced after setup
+auto constexpr INITIAL_ASSET_DISTRIBUTION = 1'000'000LL; // reduced after setup
+auto constexpr NUMBER_OF_ASSETS_TO_ISSUE = 4U;
+auto constexpr FUZZING_FEE = 1;
+auto constexpr FUZZING_RESERVE = 4;
+auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
+auto constexpr DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR = 10;
+auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
 
 // must be strictly less than 255
-uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16;
+uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16U;
 
 void
 setShortKey(uint256& ed25519, int i)
@@ -400,6 +412,8 @@ getFuzzConfig(int instanceNumber)
     cfg.QUORUM_INTERSECTION_CHECKER = false;
     cfg.PREFERRED_PEERS_ONLY = false;
     cfg.RUN_STANDALONE = true;
+    cfg.TESTING_UPGRADE_DESIRED_FEE = FuzzUtils::FUZZING_FEE;
+    cfg.TESTING_UPGRADE_RESERVE = FuzzUtils::FUZZING_RESERVE;
 
     return cfg;
 }
@@ -468,7 +482,9 @@ class FuzzTransactionFrame : public TransactionFrame
 
 std::shared_ptr<FuzzTransactionFrame>
 createFuzzTransactionFrame(PublicKey sourceAccountID,
-                           std::vector<Operation> ops, Hash const& networkID)
+                           std::vector<Operation>::const_iterator begin,
+                           std::vector<Operation>::const_iterator end,
+                           Hash const& networkID)
 {
     // construct a transaction envelope, which, for each transaction
     // application in the fuzzer, is the exact same, except for the inner
@@ -479,8 +495,7 @@ createFuzzTransactionFrame(PublicKey sourceAccountID,
     tx1.tx.sourceAccount = toMuxedAccount(sourceAccountID);
     tx1.tx.fee = 0;
     tx1.tx.seqNum = 1;
-    std::copy(std::begin(ops), std::end(ops),
-              std::back_inserter(tx1.tx.operations));
+    std::copy(begin, end, std::back_inserter(tx1.tx.operations));
 
     std::shared_ptr<FuzzTransactionFrame> res =
         std::make_shared<FuzzTransactionFrame>(networkID, txEnv);
@@ -501,19 +516,61 @@ isBadOverlayFuzzerInput(StellarMessage const& m)
     return m.type() == AUTH || m.type() == ERROR_MSG || m.type() == HELLO;
 }
 
+// Empties "ops" as operations are applied.  If `throwIfTxFails` is `false`,
+// ignores failures and might apply further transactions after failures.
 static void
 attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
-                  xdr::xvector<Operation> const& ops, Application& app)
+                  xdr::xvector<Operation>::const_iterator begin,
+                  xdr::xvector<Operation>::const_iterator end, Application& app,
+                  bool const throwIfTxFails = true)
 {
-    auto txFramePtr =
-        createFuzzTransactionFrame(sourceAccount, ops, app.getNetworkID());
-    txFramePtr->attemptApplication(app, ltx);
-
-    if (txFramePtr->getResultCode() != txSUCCESS)
+    for (auto beginOpsInThisTx = begin; beginOpsInThisTx != end;)
     {
-        throw std::runtime_error(fmt::format(
-            FMT_STRING("Error {} while applying operations while fuzzing"),
-            txFramePtr->getResultCode()));
+        auto endOpsInThisTx =
+            std::distance(beginOpsInThisTx, end) <= MAX_OPS_PER_TX
+                ? end
+                : begin + MAX_OPS_PER_TX;
+        auto txFramePtr =
+            createFuzzTransactionFrame(sourceAccount, beginOpsInThisTx,
+                                       endOpsInThisTx, app.getNetworkID());
+        txFramePtr->attemptApplication(app, ltx);
+        beginOpsInThisTx = endOpsInThisTx;
+
+        if (throwIfTxFails)
+        {
+            if (txFramePtr->getResultCode() != txSUCCESS)
+            {
+                auto const msg = fmt::format(
+                    FMT_STRING("Error {} while applying operations "
+                               "while fuzzing: transaction result {}"),
+                    txFramePtr->getResultCode(),
+                    xdr_to_string(txFramePtr->getResult()));
+                LOG_FATAL(DEFAULT_LOG, "{}", msg);
+                throw std::runtime_error(msg);
+            }
+
+            for (auto const& opFrame : txFramePtr->getOperations())
+            {
+                auto const& op = opFrame->getOperation();
+                auto const& tr = opFrame->getResult().tr();
+                auto const opType = op.body.type();
+
+                if ((opType == MANAGE_BUY_OFFER &&
+                     tr.manageBuyOfferResult().success().offer.effect() ==
+                         MANAGE_OFFER_DELETED) ||
+                    (opType == MANAGE_SELL_OFFER &&
+                     tr.manageSellOfferResult().success().offer.effect() ==
+                         MANAGE_OFFER_DELETED))
+                {
+                    auto const msg = fmt::format(
+                        FMT_STRING("MANAGE_OFFER_DELETED while setting "
+                                   "up fuzzing -- operation is {}"),
+                        xdr_to_string(op));
+                    LOG_FATAL(DEFAULT_LOG, "{}", msg);
+                    throw std::runtime_error(msg);
+                }
+            }
+        }
     }
 }
 
@@ -522,6 +579,7 @@ TransactionFuzzer::initialize()
 {
     resetRandomSeed();
     mApp = createTestApplication(mClock, getFuzzConfig(0));
+    auto root = TestAccount::createRoot(*mApp);
 
     resetTxInternalState(*mApp);
     LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
@@ -533,7 +591,6 @@ TransactionFuzzer::initialize()
         // or enough to fill the first few bits such that we have a pregenerated
         // account for the last few bits of the 32nd byte of a public key, thus
         // account creation is over a deterministic range of public keys
-        auto root = TestAccount::createRoot(*mApp);
         xdr::xvector<Operation> ops;
         for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
@@ -541,16 +598,9 @@ TransactionFuzzer::initialize()
             FuzzUtils::setShortKey(publicKey, i);
 
             auto createOp = txtest::createAccount(
-                publicKey,
-                FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE * 10000000);
+                publicKey, FuzzUtils::INITIAL_ACCOUNT_BALANCE);
 
             ops.emplace_back(createOp);
-
-            if (ops.size() == MAX_OPS_PER_TX)
-            {
-                attemptToApplyOps(ltx, root.getPublicKey(), ops, *mApp);
-                ops.clear();
-            }
 
             // select the first pregenerated account to be the hard coded source
             // account for all transactions
@@ -560,10 +610,8 @@ TransactionFuzzer::initialize()
             }
         }
 
-        if (!ops.empty())
-        {
-            attemptToApplyOps(ltx, root.getPublicKey(), ops, *mApp);
-        }
+        attemptToApplyOps(ltx, root.getPublicKey(), ops.begin(), ops.end(),
+                          *mApp);
 
         ltx.commit();
     }
@@ -592,16 +640,17 @@ TransactionFuzzer::initialize()
                 if (i != j)
                 {
                     // trust asset issuer
-                    auto trustOp = txtest::changeTrust(asset, INT64_MAX);
+                    auto trustOp = txtest::changeTrust(
+                        asset, FuzzUtils::INITIAL_TRUST_LINE_LIMIT);
                     trustOp.sourceAccount.activate() = toMuxedAccount(account);
                     ops.emplace_back(trustOp);
 
-                    // distribute asset
-                    auto distributeOp = txtest::payment(
-                        account, asset,
-                        FuzzUtils::INITIAL_LUMEN_AND_ASSET_BALANCE);
                     PublicKey issuer;
                     FuzzUtils::setShortKey(issuer, j);
+
+                    // distribute asset
+                    auto distributeOp = txtest::payment(
+                        account, asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION);
                     distributeOp.sourceAccount.activate() =
                         toMuxedAccount(issuer);
                     ops.emplace_back(distributeOp);
@@ -609,11 +658,7 @@ TransactionFuzzer::initialize()
             }
         }
 
-        // construct transaction
-        auto txFramePtr = createFuzzTransactionFrame(mSourceAccountID, ops,
-                                                     mApp->getNetworkID());
-
-        txFramePtr->attemptApplication(*mApp, ltx);
+        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
         ltx.commit();
     }
@@ -632,12 +677,12 @@ TransactionFuzzer::initialize()
         // +------------+-----+------+--------+------------------------------+
         // |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
         // +------------+-----+------+--------+------------------------------+
-        // | 0          | A   | B    |  1,000 | 3/2                          |
-        // | 1 (issuer) | A   | B    |  5,000 | 3/2                          |
-        // | 2          | A   | B    | 10,000 | 1/1                          |
-        // | 3 (issuer) | B   | A    |  1,000 | 10/9                         |
-        // | 4          | B   | A    |  5,000 | 10/9                         |
-        // | 0          | B   | A    | 10,000 | 22/7                         |
+        // | 0          | A   | B    |     10 | 3/2                          |
+        // | 1 (issuer) | A   | B    |     50 | 3/2                          |
+        // | 2          | A   | B    |    100 | 1/1                          |
+        // | 3 (issuer) | B   | A    |     10 | 10/9                         |
+        // | 4          | B   | A    |     50 | 10/9                         |
+        // | 0          | B   | A    |    100 | 22/7                         |
         // +------------+-----+------+--------+------------------------------+
         //
         // This gives us a good mixture of buy and sell, issuers with offers,
@@ -658,23 +703,23 @@ TransactionFuzzer::initialize()
                 ops.emplace_back(op);
             };
 
-            // A -> B acc0         : 1000A (3B/2A)
-            addOffer(A, B, pks[0], Price{3, 2}, 1000);
+            // A -> B acc0         : 1A (3B/2A)
+            addOffer(A, B, pks[0], Price{3, 2}, 10);
 
-            // A -> B acc1 (ISSUER): 5000A (3B/2A)
-            addOffer(A, B, pks[1], Price{3, 2}, 5000);
+            // A -> B acc1 (ISSUER): 5A (3B/2A)
+            addOffer(A, B, pks[1], Price{3, 2}, 50);
 
-            // A -> B acc2         : 10000A (1B/1A)
-            addOffer(A, B, pks[2], Price{1, 1}, 10000);
+            // A -> B acc2         : 10A (1B/1A)
+            addOffer(A, B, pks[2], Price{1, 1}, 100);
 
-            // B -> A acc3 (ISSUER): 1000B (10A/9B)
-            addOffer(B, A, pks[3], Price{10, 9}, 1000);
+            // B -> A acc3 (ISSUER): 1B (10A/9B)
+            addOffer(B, A, pks[3], Price{10, 9}, 10);
 
-            // B -> A acc4         : 5000B (10A/9B)
-            addOffer(B, A, pks[4], Price{10, 9}, 5000);
+            // B -> A acc4         : 5B (10A/9B)
+            addOffer(B, A, pks[4], Price{10, 9}, 50);
 
-            // B -> A acc0         : 10000B (22A/7B)
-            addOffer(B, A, pks[0], Price{22, 7}, 10000);
+            // B -> A acc0         : 10B (22A/7B)
+            addOffer(B, A, pks[0], Price{22, 7}, 100);
         };
 
         auto const XLM = txtest::makeNativeAsset();
@@ -688,16 +733,74 @@ TransactionFuzzer::initialize()
         genOffersForPair(ASSET_B, ASSET_C, {13, 2, 14, 3, 15}, ltx);
         genOffersForPair(ASSET_C, ASSET_D, {6, 3, 7, 4, 8}, ltx);
 
-        // construct transaction
-        auto tx = createFuzzTransactionFrame(mSourceAccountID, ops,
-                                             mApp->getNetworkID());
+        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
-        tx->attemptApplication(*mApp, ltx);
+        ltx.commit();
+    }
 
-        if (tx->getResultCode() != txSUCCESS)
+    {
+        LedgerTxn ltx(ltxOuter);
+
+        xdr::xvector<Operation> ops;
+
+        // Reduce account balances so that fuzzing has a better chance
+        // of exercising limits.
+        for (uint8_t i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
-            throw std::runtime_error("Error while initializing ledger state");
+            PublicKey account;
+            FuzzUtils::setShortKey(account, i);
+
+            // Reduce "account"'s native balance by paying the root.
+            auto ae = stellar::loadAccount(ltx, account);
+            auto const availableBalance =
+                getAvailableBalance(ltx.loadHeader(), ae);
+            auto const targetAvailableBalance =
+                FuzzUtils::DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY +
+                FuzzUtils::FUZZING_FEE *
+                    FuzzUtils::DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR;
+
+            if (availableBalance > targetAvailableBalance)
+            {
+                auto reduceNativeBalanceOp = txtest::payment(
+                    root, availableBalance - targetAvailableBalance);
+                reduceNativeBalanceOp.sourceAccount.activate() =
+                    toMuxedAccount(account);
+                ops.emplace_back(reduceNativeBalanceOp);
+            }
+
+            for (uint8_t j = 1; j <= FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE; ++j)
+            {
+                auto const asset = FuzzUtils::makeAsset(j);
+                if (i != j)
+                {
+                    PublicKey issuer;
+                    FuzzUtils::setShortKey(issuer, j);
+
+                    // Reduce "account"'s balance of asset "j" by paying the
+                    // issuer.
+                    auto tle = stellar::loadTrustLine(ltx, account, asset);
+                    auto const availableBalance =
+                        tle.getAvailableBalance(ltx.loadHeader());
+                    auto const targetAvailableBalance =
+                        FuzzUtils::DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY;
+
+                    if (availableBalance > targetAvailableBalance)
+                    {
+                        auto reduceNonNativeBalanceOp = txtest::payment(
+                            issuer, asset,
+                            availableBalance - targetAvailableBalance);
+                        reduceNonNativeBalanceOp.sourceAccount.activate() =
+                            toMuxedAccount(account);
+                        ops.emplace_back(reduceNonNativeBalanceOp);
+                    }
+                    // Here we could also reduce account "i"'s trust line limit
+                    // for asset "j" (testing the buying liabilities to
+                    // determine by how much).
+                }
+            }
         }
+
+        attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
         ltx.commit();
     }
@@ -739,33 +842,27 @@ TransactionFuzzer::inject(std::string const& filename)
     {
         xdr::xdr_from_fuzzer_opaque(bins, ops);
     }
-    catch (...)
+    catch (std::exception const& e)
     {
         // in case of fuzzer creating an ill-formed xdr, generate an
         // xdr that will trigger a non-execution path so that the fuzzer
         // realizes it has hit an uninteresting case
+        LOG_TRACE(DEFAULT_LOG,
+                  "xdr::xdr_from_fuzzer_opaque() threw exception {}", e.what());
         return;
     }
     // limit operations per transaction to limit size of fuzzed input
     if (ops.size() < 1 || ops.size() > FuzzUtils::FUZZER_MAX_OPERATIONS)
     {
+        LOG_TRACE(DEFAULT_LOG, "invalid ops.size() {}", ops.size());
         return;
     }
 
-    // construct transaction
-    auto txFramePtr =
-        createFuzzTransactionFrame(mSourceAccountID, ops, mApp->getNetworkID());
-
-    if (Logging::logDebug("Ledger"))
-    {
-        LOG(DEBUG) << xdr_to_string(txFramePtr->getEnvelope());
-    }
-
     resetTxInternalState(*mApp);
+    LOG_TRACE(DEFAULT_LOG, "Fuzz ops ({}): {}", ops.size(), xdr_to_string(ops));
     LedgerTxn ltx(mApp->getLedgerTxnRoot());
-
-    // attempt to apply transaction
-    txFramePtr->attemptApplication(*mApp, ltx);
+    attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp,
+                      false);
 }
 
 int
@@ -779,6 +876,7 @@ TransactionFuzzer::xdrSizeLimit()
 void
 TransactionFuzzer::genFuzz(std::string const& filename)
 {
+    gRandomEngine.seed(std::random_device()());
     std::ofstream out;
     out.exceptions(std::ios::failbit | std::ios::badbit);
     out.open(filename, std::ofstream::binary | std::ofstream::trunc);
