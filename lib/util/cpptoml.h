@@ -99,16 +99,16 @@ class option
 
 struct local_date
 {
-    int year = 0;
-    int month = 0;
-    int day = 0;
+    uint32_t year = 0;
+    uint8_t month = 0;
+    uint8_t day = 0;
 };
 
 struct local_time
 {
-    int hour = 0;
-    int minute = 0;
-    int second = 0;
+    uint8_t hour = 0;
+    uint8_t minute = 0;
+    uint8_t second = 0;
     int microsecond = 0;
 };
 
@@ -207,7 +207,7 @@ inline std::ostream& operator<<(std::ostream& os, const local_time& ltime)
     if (ltime.microsecond > 0)
     {
         os << ".";
-        int power = 100000;
+        uint32_t power = 100000;
         for (int curr_us = ltime.microsecond; curr_us; power /= 10)
         {
             auto num = curr_us / power;
@@ -852,7 +852,7 @@ class array : public base
     }
 
     /**
-     * Obtains a option<vector<T>>. The option will be empty if the array
+     * Obtains an option<vector<T>>. The option will be empty if the array
      * contains values that are not of type T.
      */
     template <class T>
@@ -874,7 +874,7 @@ class array : public base
 
     /**
      * Obtains an array of arrays. Note that elements may be nullptr
-     * if they cannot be converted to a array.
+     * if they cannot be converted to an array.
      */
     std::vector<std::shared_ptr<array>> nested_array() const
     {
@@ -917,7 +917,7 @@ class array : public base
         }
         else
         {
-            throw array_exception{"Arrays must be homogenous."};
+            throw array_exception{"Arrays must be homogeneous."};
         }
     }
 
@@ -943,7 +943,7 @@ class array : public base
         }
         else
         {
-            throw array_exception{"Arrays must be homogenous."};
+            throw array_exception{"Arrays must be homogeneous."};
         }
     }
 
@@ -958,7 +958,7 @@ class array : public base
         }
         else
         {
-            throw array_exception{"Arrays must be homogenous."};
+            throw array_exception{"Arrays must be homogeneous."};
         }
     }
 
@@ -1041,7 +1041,7 @@ inline std::shared_ptr<array> make_element<array>()
 } // namespace detail
 
 /**
- * Obtains a option<vector<T>>. The option will be empty if the array
+ * Obtains an option<vector<T>>. The option will be empty if the array
  * contains values that are not of type T.
  */
 template <>
@@ -1578,8 +1578,7 @@ class table : public base
                                    char separator) const
     {
         std::vector<std::string> result;
-        std::string::size_type p = 0;
-        std::string::size_type q;
+        std::string::size_type p = 0,q;
         while ((q = value.find(separator, p)) != std::string::npos)
         {
             result.emplace_back(value, p, q - p);
@@ -2964,8 +2963,7 @@ class parser
         offset_datetime dt;
         static_cast<local_datetime&>(dt) = ldt;
 
-        int hoff = 0;
-        int moff = 0;
+        int hoff = 0,moff=0;
         if (*it == '+' || *it == '-')
         {
             auto plus = *it == '+';
