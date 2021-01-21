@@ -561,7 +561,7 @@ Config::parseDomainsQuality(std::shared_ptr<cpptoml::base> domainsQuality)
             throw std::invalid_argument(
                 fmt::format("Malformed HOME_DOMAINS {}", domain));
         }
-        auto p = res.emplace(std::make_pair(domain, quality));
+        auto p = res.insert({domain,quality}); 
         if (!p.second)
         {
             throw std::invalid_argument(
