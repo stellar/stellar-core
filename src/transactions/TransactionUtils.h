@@ -172,9 +172,6 @@ void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 AccountID toAccountID(MuxedAccount const& m);
 MuxedAccount toMuxedAccount(AccountID const& a);
 
-void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                   uint32_t authorized);
-
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
 

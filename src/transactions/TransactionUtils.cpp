@@ -853,30 +853,6 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
     acquireOrReleaseLiabilities(ltx, header, offer, false);
 }
 
-void
-setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-              uint32_t authorized)
-{
-    if (!trustLineFlagIsValid(authorized, header))
-    {
-        throw std::runtime_error("trying to set invalid trust line flag");
-    }
-
-    const uint32_t authFlags =
-        AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
-
-    if ((authorized & ~authFlags) != 0)
-    {
-        throw std::runtime_error(
-            "setAuthorized can only modify authorization flags");
-    }
-
-    auto& tl = entry.current().data.trustLine();
-
-    tl.flags &= ~authFlags;
-    tl.flags |= authorized;
-}
-
 bool
 trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
 {
