@@ -91,6 +91,9 @@ LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
+bool addBalanceSkipAuthorization(LedgerTxnHeader const& header,
+                                 LedgerTxnEntry& entry, int64_t amount);
+
 bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                 int64_t delta);
 

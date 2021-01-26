@@ -332,6 +332,32 @@ acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 }
 
 bool
+addBalanceSkipAuthorization(LedgerTxnHeader const& header,
+                            LedgerTxnEntry& entry, int64_t amount)
+{
+    auto& tl = entry.current().data.trustLine();
+    auto newBalance = tl.balance;
+    if (!stellar::addBalance(newBalance, amount, tl.limit))
+    {
+        return false;
+    }
+    if (header.current().ledgerVersion >= 10)
+    {
+        if (newBalance < getSellingLiabilities(header, entry))
+        {
+            return false;
+        }
+        if (newBalance > tl.limit - getBuyingLiabilities(header, entry))
+        {
+            return false;
+        }
+    }
+
+    tl.balance = newBalance;
+    return true;
+}
+
+bool
 addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
 {
     if (entry.current().data.type() == ACCOUNT)
@@ -376,26 +402,7 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
             return false;
         }
 
-        auto& tl = entry.current().data.trustLine();
-        auto newBalance = tl.balance;
-        if (!stellar::addBalance(newBalance, delta, tl.limit))
-        {
-            return false;
-        }
-        if (header.current().ledgerVersion >= 10)
-        {
-            if (newBalance < getSellingLiabilities(header, entry))
-            {
-                return false;
-            }
-            if (newBalance > tl.limit - getBuyingLiabilities(header, entry))
-            {
-                return false;
-            }
-        }
-
-        tl.balance = newBalance;
-        return true;
+        return addBalanceSkipAuthorization(header, entry, delta);
     }
     else
     {
