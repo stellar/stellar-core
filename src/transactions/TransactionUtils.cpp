@@ -998,6 +998,10 @@ getAsset(AccountID const& issuer, AssetCode const& assetCode)
         asset.alphaNum12().assetCode = assetCode.assetCode12();
         asset.alphaNum12().issuer = issuer;
     }
+    else
+    {
+        throw std::runtime_error("Unexpected assetCode type");
+    }
 
     return asset;
 }
