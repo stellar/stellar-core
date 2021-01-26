@@ -876,14 +876,20 @@ ProcessManagerImpl::maybeRunPendingProcesses()
         {
             CLOG_DEBUG(Process, "Running: {}", i->mImpl->mCmdLine);
 
-            if (fs::exists(i->mImpl->mOutFile))
+            if (!i->mImpl->mOutFile.empty() && fs::exists(i->mImpl->mOutFile))
             {
                 throw std::runtime_error(fmt::format(
                     "output file {} already exists", i->mImpl->mOutFile));
             }
 
             i->mImpl->run();
-            mProcesses[i->mImpl->getProcessId()] = i;
+            auto pid = i->mImpl->getProcessId();
+            if (mProcesses.find(pid) != mProcesses.end())
+            {
+                throw std::runtime_error(
+                    fmt::format("process {} already exists", pid));
+            }
+            mProcesses[pid] = i;
         }
         catch (std::runtime_error& e)
         {
