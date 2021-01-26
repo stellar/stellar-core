@@ -372,8 +372,7 @@ case REVOKE_SPONSORSHIP_SIGNER:
     {
         AccountID accountID;
         SignerKey signerKey;
-    }
-    signer;
+    } signer;
 };
 
 /* An operation is the lowest unit of work that a transaction does */
@@ -1071,7 +1070,8 @@ enum BeginSponsoringFutureReservesResultCode
     BEGIN_SPONSORING_FUTURE_RESERVES_RECURSIVE = -3
 };
 
-union BeginSponsoringFutureReservesResult switch (BeginSponsoringFutureReservesResultCode code)
+union BeginSponsoringFutureReservesResult switch (
+    BeginSponsoringFutureReservesResultCode code)
 {
 case BEGIN_SPONSORING_FUTURE_RESERVES_SUCCESS:
     void;
@@ -1090,7 +1090,8 @@ enum EndSponsoringFutureReservesResultCode
     END_SPONSORING_FUTURE_RESERVES_NOT_SPONSORED = -1
 };
 
-union EndSponsoringFutureReservesResult switch (EndSponsoringFutureReservesResultCode code)
+union EndSponsoringFutureReservesResult switch (
+    EndSponsoringFutureReservesResultCode code)
 {
 case END_SPONSORING_FUTURE_RESERVES_SUCCESS:
     void;
