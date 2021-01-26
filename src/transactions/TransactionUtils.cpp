@@ -861,8 +861,20 @@ setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
     {
         throw std::runtime_error("trying to set invalid trust line flag");
     }
+
+    const uint32_t authFlags =
+        AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
+
+    if ((authorized & ~authFlags) != 0)
+    {
+        throw std::runtime_error(
+            "setAuthorized can only modify authorization flags");
+    }
+
     auto& tl = entry.current().data.trustLine();
-    tl.flags = authorized;
+
+    tl.flags &= ~authFlags;
+    tl.flags |= authorized;
 }
 
 bool
