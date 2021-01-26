@@ -30,7 +30,7 @@ TEST_CASE("Trigger validity check for each entry type",
     {
         le.data.type(ACCOUNT);
         le.data.account() = LedgerTestUtils::generateValidAccountEntry(5);
-        le.data.account().flags = MASK_ACCOUNT_FLAGS + 1;
+        le.data.account().flags = MASK_ACCOUNT_FLAGS_V16 + 1;
         REQUIRE(!store(*app, makeUpdateList({le}, nullptr)));
     }
     SECTION("trustline")

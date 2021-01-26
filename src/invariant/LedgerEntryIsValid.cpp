@@ -129,10 +129,12 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae, uint32 version) const
         return fmt::format("Account numSubEntries ({}) exceeds limit ({})",
                            ae.numSubEntries, INT32_MAX);
     }
-    if ((ae.flags & ~MASK_ACCOUNT_FLAGS) != 0)
+
+    if (!accountFlagIsValid(ae.flags, version))
     {
         return "Account flags are invalid";
     }
+
     if (!isString32Valid(ae.homeDomain))
     {
         return "Account homeDomain is invalid";
