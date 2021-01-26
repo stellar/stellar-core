@@ -602,6 +602,20 @@ TransactionFuzzer::initialize()
 
             ops.emplace_back(createOp);
 
+            // Make some issuing accounts require authorization.
+            auto const accountFlags =
+                (i == 1)
+                    ? AUTH_REQUIRED_FLAG
+                    : (i == 2) ? AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG : 0;
+
+            if (accountFlags != 0)
+            {
+                auto optionsOp =
+                    txtest::setOptions(txtest::setFlags(accountFlags));
+                optionsOp.sourceAccount.activate() = toMuxedAccount(publicKey);
+                ops.emplace_back(optionsOp);
+            }
+
             // select the first pregenerated account to be the hard coded source
             // account for all transactions
             if (i == 0)
@@ -647,6 +661,18 @@ TransactionFuzzer::initialize()
 
                     PublicKey issuer;
                     FuzzUtils::setShortKey(issuer, j);
+
+                    // We created a couple of issuing accounts that require
+                    // authorization, so we also make them authorize the
+                    // accounts with trustlines for their assets.
+                    if (j == 1 || j == 2)
+                    {
+                        auto allowTrustOp =
+                            txtest::allowTrust(account, asset, AUTHORIZED_FLAG);
+                        allowTrustOp.sourceAccount.activate() =
+                            toMuxedAccount(issuer);
+                        ops.emplace_back(allowTrustOp);
+                    }
 
                     // distribute asset
                     auto distributeOp = txtest::payment(
