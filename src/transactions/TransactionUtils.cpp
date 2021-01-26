@@ -820,6 +820,20 @@ isAuthRequired(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
+{
+    return (entry.current().data.trustLine().flags &
+            TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
+isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
+{
+    return (entry.current().data.account().flags &
+            AUTH_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
 isImmutableAuth(LedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
@@ -855,8 +869,19 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
     {
         uint32_t invalidAuthCombo =
             AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
-        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0 &&
-               (flag & invalidAuthCombo) != invalidAuthCombo;
+        if ((flag & invalidAuthCombo) == invalidAuthCombo)
+        {
+            return false;
+        }
+
+        if (ledgerVersion < 16)
+        {
+            return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
+        }
+        else
+        {
+            return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
+        }
     }
 }
 

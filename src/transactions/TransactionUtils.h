@@ -158,6 +158,9 @@ bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
+bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
+bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
+
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
