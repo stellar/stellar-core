@@ -28,6 +28,17 @@ enum AssetType
     ASSET_TYPE_CREDIT_ALPHANUM12 = 2
 };
 
+union AssetCode switch (AssetType type)
+{
+case ASSET_TYPE_CREDIT_ALPHANUM4:
+    AssetCode4 assetCode4;
+
+case ASSET_TYPE_CREDIT_ALPHANUM12:
+    AssetCode12 assetCode12;
+
+    // add other asset types here in the future
+};
+
 union Asset switch (AssetType type)
 {
 case ASSET_TYPE_NATIVE: // Not credit
@@ -99,11 +110,16 @@ enum AccountFlags
     // otherwise, authorization cannot be revoked
     AUTH_REVOCABLE_FLAG = 0x2,
     // Once set, causes all AUTH_* flags to be read-only
-    AUTH_IMMUTABLE_FLAG = 0x4
+    AUTH_IMMUTABLE_FLAG = 0x4,
+    // Trustlines are created with clawback enabled set to "true",
+    // and claimable balances created from those trustlines are created
+    // with clawback enabled set to "true"
+    AUTH_CLAWBACK_ENABLED_FLAG = 0x8
 };
 
 // mask for all valid flags
 const MASK_ACCOUNT_FLAGS = 0x7;
+const MASK_ACCOUNT_FLAGS_V16 = 0xF;
 
 // maximum number of signers
 const MAX_SIGNERS = 20;
@@ -187,12 +203,16 @@ enum TrustLineFlags
     AUTHORIZED_FLAG = 1,
     // issuer has authorized account to maintain and reduce liabilities for its
     // credit
-    AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG = 2
+    AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG = 2,
+    // issuer has specified that it may clawback its credit, and that claimable
+    // balances created with its credit may also be clawed back
+    TRUSTLINE_CLAWBACK_ENABLED_FLAG = 4
 };
 
 // mask for all trustline flags
 const MASK_TRUSTLINE_FLAGS = 1;
 const MASK_TRUSTLINE_FLAGS_V13 = 3;
+const MASK_TRUSTLINE_FLAGS_V16 = 7;
 
 struct TrustLineEntry
 {

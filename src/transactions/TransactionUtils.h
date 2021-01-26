@@ -91,6 +91,9 @@ LedgerTxnEntry loadSponsorshipCounter(AbstractLedgerTxn& ltx,
 void acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                         LedgerTxnEntry const& offer);
 
+bool addBalanceSkipAuthorization(LedgerTxnHeader const& header,
+                                 LedgerTxnEntry& entry, int64_t amount);
+
 bool addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
                 int64_t delta);
 
@@ -158,6 +161,9 @@ bool isAuthorizedToMaintainLiabilities(ConstLedgerTxnEntry const& entry);
 
 bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
+bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
+bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
+
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 
 void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
@@ -166,15 +172,18 @@ void releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 AccountID toAccountID(MuxedAccount const& m);
 MuxedAccount toMuxedAccount(AccountID const& a);
 
-void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-                   uint32_t authorized);
-
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
+
+bool accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
 
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
+
+Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
 }

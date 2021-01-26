@@ -93,6 +93,8 @@ class TestAccount
                           int64_t destMin, std::vector<Asset> const& path,
                           Asset* noIssuer = nullptr);
 
+    void clawback(PublicKey const& from, Asset const& asset, int64_t amount);
+
     operator SecretKey() const
     {
         return getSecretKey();
@@ -140,6 +142,7 @@ class TestAccount
         return mAccountID;
     }
 
+    int64_t getTrustlineBalance(Asset const& asset) const;
     int64_t getBalance() const;
     int64_t getAvailableBalance() const;
 

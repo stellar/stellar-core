@@ -332,6 +332,32 @@ acquireLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
 }
 
 bool
+addBalanceSkipAuthorization(LedgerTxnHeader const& header,
+                            LedgerTxnEntry& entry, int64_t amount)
+{
+    auto& tl = entry.current().data.trustLine();
+    auto newBalance = tl.balance;
+    if (!stellar::addBalance(newBalance, amount, tl.limit))
+    {
+        return false;
+    }
+    if (header.current().ledgerVersion >= 10)
+    {
+        if (newBalance < getSellingLiabilities(header, entry))
+        {
+            return false;
+        }
+        if (newBalance > tl.limit - getBuyingLiabilities(header, entry))
+        {
+            return false;
+        }
+    }
+
+    tl.balance = newBalance;
+    return true;
+}
+
+bool
 addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
 {
     if (entry.current().data.type() == ACCOUNT)
@@ -376,26 +402,7 @@ addBalance(LedgerTxnHeader const& header, LedgerTxnEntry& entry, int64_t delta)
             return false;
         }
 
-        auto& tl = entry.current().data.trustLine();
-        auto newBalance = tl.balance;
-        if (!stellar::addBalance(newBalance, delta, tl.limit))
-        {
-            return false;
-        }
-        if (header.current().ledgerVersion >= 10)
-        {
-            if (newBalance < getSellingLiabilities(header, entry))
-            {
-                return false;
-            }
-            if (newBalance > tl.limit - getBuyingLiabilities(header, entry))
-            {
-                return false;
-            }
-        }
-
-        tl.balance = newBalance;
-        return true;
+        return addBalanceSkipAuthorization(header, entry, delta);
     }
     else
     {
@@ -820,6 +827,20 @@ isAuthRequired(ConstLedgerTxnEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
+{
+    return (entry.current().data.trustLine().flags &
+            TRUSTLINE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
+isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
+{
+    return (entry.current().data.account().flags &
+            AUTH_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
 isImmutableAuth(LedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags & AUTH_IMMUTABLE_FLAG) != 0;
@@ -830,18 +851,6 @@ releaseLiabilities(AbstractLedgerTxn& ltx, LedgerTxnHeader const& header,
                    LedgerTxnEntry const& offer)
 {
     acquireOrReleaseLiabilities(ltx, header, offer, false);
-}
-
-void
-setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
-              uint32_t authorized)
-{
-    if (!trustLineFlagIsValid(authorized, header))
-    {
-        throw std::runtime_error("trying to set invalid trust line flag");
-    }
-    auto& tl = entry.current().data.trustLine();
-    tl.flags = authorized;
 }
 
 bool
@@ -855,9 +864,50 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
     {
         uint32_t invalidAuthCombo =
             AUTHORIZED_FLAG | AUTHORIZED_TO_MAINTAIN_LIABILITIES_FLAG;
-        return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0 &&
-               (flag & invalidAuthCombo) != invalidAuthCombo;
+        if ((flag & invalidAuthCombo) == invalidAuthCombo)
+        {
+            return false;
+        }
+
+        if (ledgerVersion < 16)
+        {
+            return (flag & ~MASK_TRUSTLINE_FLAGS_V13) == 0;
+        }
+        else
+        {
+            return (flag & ~MASK_TRUSTLINE_FLAGS_V16) == 0;
+        }
     }
+}
+
+bool
+accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    return accountFlagMaskCheckIsValid(flag, ledgerVersion) &&
+           accountFlagClawbackIsValid(flag, ledgerVersion);
+}
+
+bool
+accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (ledgerVersion >= 16 && (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
+        ((flag & AUTH_REVOCABLE_FLAG) == 0))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (ledgerVersion < 16)
+    {
+        return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
+    }
+
+    return (flag & ~MASK_ACCOUNT_FLAGS_V16) == 0;
 }
 
 AccountID
@@ -919,6 +969,29 @@ bool
 hasAccountEntryExtV2(AccountEntry const& ae)
 {
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
+}
+
+Asset
+getAsset(AccountID const& issuer, AssetCode const& assetCode)
+{
+    Asset asset;
+    asset.type(assetCode.type());
+    if (assetCode.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        asset.alphaNum4().assetCode = assetCode.assetCode4();
+        asset.alphaNum4().issuer = issuer;
+    }
+    else if (assetCode.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        asset.alphaNum12().assetCode = assetCode.assetCode12();
+        asset.alphaNum12().issuer = issuer;
+    }
+    else
+    {
+        throw std::runtime_error("Unexpected assetCode type");
+    }
+
+    return asset;
 }
 
 namespace detail

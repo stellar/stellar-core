@@ -122,6 +122,10 @@ ChangeTrustOpFrame::doApply(AbstractLedgerTxn& ltx)
             {
                 tl.flags = AUTHORIZED_FLAG;
             }
+            if (isClawbackEnabledOnAccount(issuer))
+            {
+                tl.flags |= TRUSTLINE_CLAWBACK_ENABLED_FLAG;
+            }
         }
 
         auto sourceAccount = loadSourceAccount(ltx, header);

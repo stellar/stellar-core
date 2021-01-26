@@ -196,6 +196,9 @@ Operation endSponsoringFutureReserves();
 Operation revokeSponsorship(LedgerKey const& key);
 Operation revokeSponsorship(AccountID const& accID, SignerKey const& key);
 
+Operation clawback(AccountID const& from, AssetCode const& assetCode,
+                   int64_t amount);
+
 Asset makeNativeAsset();
 Asset makeInvalidAsset();
 Asset makeAsset(SecretKey const& issuer, std::string const& code);

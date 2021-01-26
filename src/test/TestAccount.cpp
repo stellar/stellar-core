@@ -8,6 +8,7 @@
 #include "ledger/LedgerTxn.h"
 #include "ledger/LedgerTxnEntry.h"
 #include "ledger/LedgerTxnHeader.h"
+#include "ledger/TrustLineWrapper.h"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
@@ -39,6 +40,14 @@ TestAccount::updateSequenceNumber()
             mSn = entry.current().data.account().seqNum;
         }
     }
+}
+int64_t
+TestAccount::getTrustlineBalance(Asset const& asset) const
+{
+    LedgerTxn ltx(mApp.getLedgerTxnRoot());
+    auto trustLine = stellar::loadTrustLine(ltx, getPublicKey(), asset);
+    REQUIRE(trustLine);
+    return trustLine.getBalance();
 }
 
 int64_t
@@ -442,5 +451,25 @@ TestAccount::pathPaymentStrictSend(PublicKey const& destination,
     REQUIRE(!noIssuer);
 
     return getFirstResult(*transaction).tr().pathPaymentStrictSendResult();
+}
+
+void
+TestAccount::clawback(PublicKey const& from, Asset const& asset, int64_t amount)
+{
+    REQUIRE(asset.type() != ASSET_TYPE_NATIVE);
+
+    AssetCode assetCode;
+    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCode.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+        assetCode.assetCode4() = asset.alphaNum4().assetCode;
+    }
+    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCode.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+        assetCode.assetCode12() = asset.alphaNum12().assetCode;
+    }
+
+    applyTx(tx({txtest::clawback(from, assetCode, amount)}), mApp);
 }
 };
