@@ -187,4 +187,6 @@ bool hasMuxedAccount(TransactionEnvelope const& e);
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
 
 bool hasAccountEntryExtV2(AccountEntry const& ae);
+
+Asset getAsset(AccountID const& issuer, AssetCode const& assetCode);
 }

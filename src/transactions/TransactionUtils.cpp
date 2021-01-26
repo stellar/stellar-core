@@ -983,6 +983,25 @@ hasAccountEntryExtV2(AccountEntry const& ae)
     return ae.ext.v() == 1 && ae.ext.v1().ext.v() == 2;
 }
 
+Asset
+getAsset(AccountID const& issuer, AssetCode const& assetCode)
+{
+    Asset asset;
+    asset.type(assetCode.type());
+    if (assetCode.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        asset.alphaNum4().assetCode = assetCode.assetCode4();
+        asset.alphaNum4().issuer = issuer;
+    }
+    else if (assetCode.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        asset.alphaNum12().assetCode = assetCode.assetCode12();
+        asset.alphaNum12().issuer = issuer;
+    }
+
+    return asset;
+}
+
 namespace detail
 {
 struct MuxChecker

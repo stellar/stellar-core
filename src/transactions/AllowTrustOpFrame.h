@@ -18,6 +18,7 @@ class AllowTrustOpFrame : public OperationFrame
     }
 
     AllowTrustOp const& mAllowTrust;
+    Asset const mAsset;
 
   public:
     AllowTrustOpFrame(Operation const& op, OperationResult& res,
