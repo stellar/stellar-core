@@ -860,6 +860,36 @@ trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
     }
 }
 
+bool
+accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    return accountFlagMaskCheckIsValid(flag, ledgerVersion) &&
+           accountFlagClawbackIsValid(flag, ledgerVersion);
+}
+
+bool
+accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (ledgerVersion >= 16 && (flag & AUTH_CLAWBACK_ENABLED_FLAG) &&
+        ((flag & AUTH_REVOCABLE_FLAG) == 0))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+bool
+accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion)
+{
+    if (ledgerVersion < 16)
+    {
+        return (flag & ~MASK_ACCOUNT_FLAGS) == 0;
+    }
+
+    return (flag & ~MASK_ACCOUNT_FLAGS_V16) == 0;
+}
+
 AccountID
 toAccountID(MuxedAccount const& m)
 {

@@ -172,6 +172,10 @@ void setAuthorized(LedgerTxnHeader const& header, LedgerTxnEntry& entry,
 bool trustLineFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
 bool trustLineFlagIsValid(uint32_t flag, LedgerTxnHeader const& header);
 
+bool accountFlagIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool accountFlagClawbackIsValid(uint32_t flag, uint32_t ledgerVersion);
+bool accountFlagMaskCheckIsValid(uint32_t flag, uint32_t ledgerVersion);
+
 bool hasMuxedAccount(TransactionEnvelope const& e);
 
 uint64_t getUpperBoundCloseTimeOffset(Application& app, uint64_t lastCloseTime);
