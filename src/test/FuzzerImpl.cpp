@@ -560,7 +560,11 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
                          MANAGE_OFFER_DELETED) ||
                     (opType == MANAGE_SELL_OFFER &&
                      tr.manageSellOfferResult().success().offer.effect() ==
-                         MANAGE_OFFER_DELETED))
+                         MANAGE_OFFER_DELETED) ||
+                    (opType == CREATE_PASSIVE_SELL_OFFER &&
+                     tr.createPassiveSellOfferResult()
+                             .success()
+                             .offer.effect() == MANAGE_OFFER_DELETED))
                 {
                     auto const msg = fmt::format(
                         FMT_STRING("MANAGE_OFFER_DELETED while setting "
@@ -679,7 +683,8 @@ TransactionFuzzer::initialize()
         // +------------+-----+------+--------+------------------------------+
         // | 0          | A   | B    |     10 | 3/2                          |
         // | 1 (issuer) | A   | B    |     50 | 3/2                          |
-        // | 2          | A   | B    |    100 | 1/1                          |
+        // | 2          | A   | B    |    100 | 1/1 (passive)                |
+        // | 2          | B   | A    |    100 | 1/1 (passive)                |
         // | 3 (issuer) | B   | A    |     10 | 10/9                         |
         // | 4          | B   | A    |     50 | 10/9                         |
         // | 0          | B   | A    |    100 | 22/7                         |
@@ -695,8 +700,11 @@ TransactionFuzzer::initialize()
         auto genOffersForPair = [&ops](Asset A, Asset B, std::vector<int> pks,
                                        LedgerTxn& ltx) {
             auto addOffer = [&ops](Asset bid, Asset sell, int pk, Price price,
-                                   int64 amount) {
-                auto op = txtest::manageOffer(0, bid, sell, price, amount);
+                                   int64 amount, bool passive) {
+                auto op =
+                    passive
+                        ? txtest::createPassiveOffer(bid, sell, price, amount)
+                        : txtest::manageOffer(0, bid, sell, price, amount);
                 PublicKey pkA;
                 FuzzUtils::setShortKey(pkA, pk);
                 op.sourceAccount.activate() = toMuxedAccount(pkA);
@@ -704,22 +712,24 @@ TransactionFuzzer::initialize()
             };
 
             // A -> B acc0         : 1A (3B/2A)
-            addOffer(A, B, pks[0], Price{3, 2}, 10);
+            addOffer(A, B, pks[0], Price{3, 2}, 10, false);
 
             // A -> B acc1 (ISSUER): 5A (3B/2A)
-            addOffer(A, B, pks[1], Price{3, 2}, 50);
+            addOffer(A, B, pks[1], Price{3, 2}, 50, false);
 
-            // A -> B acc2         : 10A (1B/1A)
-            addOffer(A, B, pks[2], Price{1, 1}, 100);
+            // A -> B acc2         : 10A (1B/1A) (passive)
+            // B -> A acc2         : 10A (1A/1B) (passive)
+            addOffer(A, B, pks[2], Price{1, 1}, 100, true);
+            addOffer(B, A, pks[2], Price{1, 1}, 100, true);
 
             // B -> A acc3 (ISSUER): 1B (10A/9B)
-            addOffer(B, A, pks[3], Price{10, 9}, 10);
+            addOffer(B, A, pks[3], Price{10, 9}, 10, false);
 
             // B -> A acc4         : 5B (10A/9B)
-            addOffer(B, A, pks[4], Price{10, 9}, 50);
+            addOffer(B, A, pks[4], Price{10, 9}, 50, false);
 
             // B -> A acc0         : 10B (22A/7B)
-            addOffer(B, A, pks[0], Price{22, 7}, 100);
+            addOffer(B, A, pks[0], Price{22, 7}, 100, false);
         };
 
         auto const XLM = txtest::makeNativeAsset();
