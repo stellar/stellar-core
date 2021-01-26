@@ -1092,6 +1092,9 @@
     <ClCompile Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ClawbackOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
@@ -1102,6 +1105,9 @@
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\ClaimableBalanceTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\test\ClawbackTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\test\EndSponsoringFutureReservesTests.cpp">
@@ -1944,6 +1950,9 @@
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\CreateClaimableBalanceOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ClawbackOpFrame.h">
       <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\BeginSponsoringFutureReservesOpFrame.h">
