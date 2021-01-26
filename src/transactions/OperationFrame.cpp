@@ -8,6 +8,7 @@
 #include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/ClaimClaimableBalanceOpFrame.h"
+#include "transactions/ClawbackOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreateClaimableBalanceOpFrame.h"
 #include "transactions/CreatePassiveSellOfferOpFrame.h"
@@ -97,6 +98,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
                                                                     tx);
     case REVOKE_SPONSORSHIP:
         return std::make_shared<RevokeSponsorshipOpFrame>(op, res, tx);
+    case CLAWBACK:
+        return std::make_shared<ClawbackOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
