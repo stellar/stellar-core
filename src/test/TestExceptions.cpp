@@ -227,6 +227,8 @@ throwIf(SetOptionsResult const& result)
         throw ex_SET_OPTIONS_BAD_SIGNER{};
     case SET_OPTIONS_INVALID_HOME_DOMAIN:
         throw ex_SET_OPTIONS_INVALID_HOME_DOMAIN{};
+    case SET_OPTIONS_AUTH_REVOCABLE_REQUIRED:
+        throw ex_SET_OPTIONS_AUTH_REVOCABLE_REQUIRED{};
     case SET_OPTIONS_SUCCESS:
         break;
     default:
@@ -397,6 +399,26 @@ throwIf(ClaimClaimableBalanceResult const& result)
 }
 
 void
+throwIf(ClawbackResult const& result)
+{
+    switch (result.code())
+    {
+    case CLAWBACK_MALFORMED:
+        throw ex_CLAWBACK_MALFORMED{};
+    case CLAWBACK_NO_TRUST:
+        throw ex_CLAWBACK_NO_TRUST{};
+    case CLAWBACK_NOT_CLAWBACK_ENABLED:
+        throw ex_CLAWBACK_NOT_CLAWBACK_ENABLED{};
+    case CLAWBACK_UNDERFUNDED:
+        throw ex_CLAWBACK_UNDERFUNDED{};
+    case CLAWBACK_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -485,6 +507,9 @@ throwIf(TransactionResult const& result)
         break;
     case CLAIM_CLAIMABLE_BALANCE:
         throwIf(opResult.tr().claimClaimableBalanceResult());
+        break;
+    case CLAWBACK:
+        throwIf(opResult.tr().clawbackResult());
         break;
     }
 }

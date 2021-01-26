@@ -131,7 +131,7 @@ makeValid(AccountEntry& a)
     {
         a.seqNum = -a.seqNum;
     }
-    a.flags = a.flags & MASK_ACCOUNT_FLAGS;
+    a.flags = a.flags & MASK_ACCOUNT_FLAGS_V16;
 
     if (a.ext.v() == 1)
     {
@@ -182,7 +182,7 @@ makeValid(TrustLineEntry& tl)
     tl.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(tl.asset.alphaNum4().assetCode, "USD");
     clampHigh<int64_t>(tl.limit, tl.balance);
-    tl.flags = tl.flags & MASK_TRUSTLINE_FLAGS;
+    tl.flags = tl.flags & MASK_TRUSTLINE_FLAGS_V16;
 
     if (tl.ext.v() == 1)
     {
