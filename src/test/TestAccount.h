@@ -94,6 +94,7 @@ class TestAccount
                           Asset* noIssuer = nullptr);
 
     void clawback(PublicKey const& from, Asset const& asset, int64_t amount);
+    void clawbackClaimableBalance(ClaimableBalanceID const& balanceID);
 
     operator SecretKey() const
     {

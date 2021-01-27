@@ -648,6 +648,16 @@ makeAsset(SecretKey const& issuer, std::string const& code)
     return asset;
 }
 
+Asset
+makeAssetAlphanum12(SecretKey const& issuer, std::string const& code)
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_CREDIT_ALPHANUM12);
+    asset.alphaNum12().issuer = issuer.getPublicKey();
+    strToAssetCode(asset.alphaNum12().assetCode, code);
+    return asset;
+}
+
 Operation
 pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
             Asset const& destCur, int64_t destAmount,
@@ -1199,6 +1209,15 @@ clawback(AccountID const& from, Asset const& asset, int64_t amount)
     op.body.clawbackOp().amount = amount;
     op.body.clawbackOp().asset = asset;
 
+    return op;
+}
+
+Operation
+clawbackClaimableBalance(ClaimableBalanceID const& balanceID)
+{
+    Operation op;
+    op.body.type(CLAWBACK_CLAIMABLE_BALANCE);
+    op.body.clawbackClaimableBalanceOp().balanceID = balanceID;
     return op;
 }
 
