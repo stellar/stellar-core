@@ -12,6 +12,7 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/TmpDir.h"
 #include "xdrpp/autocheck.h"
 #include <chrono>
 #include <fmt/format.h>
@@ -74,13 +75,14 @@ TEST_CASE("subprocess fails", "[process]")
     REQUIRE(failed);
 }
 
-TEST_CASE("subprocess redirect to file", "[process]")
+TEST_CASE("subprocess redirect to new file", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
-    std::string filename("hostname.txt");
+    TmpDir tmpDir = app.getTmpDirManager().tmpDir("subprocess-redirect");
+    std::string filename(fmt::format("{}/hostname.txt", tmpDir.getName()));
     bool exited = false;
     auto evt = app.getProcessManager().runProcess("hostname", filename).lock();
     REQUIRE(evt);
@@ -105,7 +107,35 @@ TEST_CASE("subprocess redirect to file", "[process]")
     in >> s;
     CLOG_DEBUG(Process, "opened redirect file, read: {}", s);
     CHECK(!s.empty());
-    std::remove(filename.c_str());
+}
+
+TEST_CASE("subprocess redirect to existing file", "[process]")
+{
+    // This test should have the process fail, because there's already
+    // an existing file.
+
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    Application& app = *appPtr;
+    TmpDir tmpDir = app.getTmpDirManager().tmpDir("subprocess-redirect");
+    std::string filename(fmt::format("{}/hostname.txt", tmpDir.getName()));
+    std::string data = "12345hello54321";
+    {
+        std::ofstream tout(filename);
+        tout << data;
+    }
+    bool exited = false;
+    bool failed = false;
+    auto evt = app.getProcessManager().runProcess("hostname", filename).lock();
+    REQUIRE(!evt);
+    std::ifstream in(filename);
+    CHECK(in);
+    in.exceptions(std::ios::badbit);
+    std::string s;
+    in >> s;
+    CLOG_DEBUG(Process, "opened redirect file, read: {}", s);
+    CHECK(s == data);
 }
 
 TEST_CASE("subprocess storm", "[process]")
@@ -114,12 +144,12 @@ TEST_CASE("subprocess storm", "[process]")
     Config const& cfg = getTestConfig();
     Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
+    TmpDir tmpDir = app.getTmpDirManager().tmpDir("process-storm");
 
     size_t n = 100;
     size_t completed = 0;
 
-    std::string dir(cfg.BUCKET_DIR_PATH + "/tmp/process-storm");
-    fs::mkdir(dir);
+    std::string dir = tmpDir.getName();
     fs::mkpath(dir + "/src");
     fs::mkpath(dir + "/dst");
 

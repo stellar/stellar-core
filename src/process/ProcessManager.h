@@ -51,12 +51,34 @@ class ProcessManager : public std::enable_shared_from_this<ProcessManager>,
     static std::shared_ptr<ProcessManager> create(Application& app);
     virtual std::weak_ptr<ProcessExitEvent>
     runProcess(std::string const& cmdLine, std::string outputFile) = 0;
+
+    // Return the number or processes we started and have not yet seen exits
+    // for, _excluding_ those we're attempting to shut down / are shortly
+    // expecting to see an exit for (which are likely already dead, just not yet
+    // reaped). This number will decrement as soon as the associated
+    // ProcessExitEvent is fired.
     virtual size_t getNumRunningProcesses() = 0;
+
+    // Return the number of processes we started and have not yet seen exits
+    // for, _including_ those we're in the process of shutting down. This number
+    // may remain higher than expected for a while after a ProcessExitEvent is
+    // fired.
+    virtual size_t getNumRunningOrShuttingDownProcesses() = 0;
+
     virtual bool isShutdown() const = 0;
     virtual void shutdown() = 0;
 
-    // Depending on the state of the process, either kill the process nicely
-    // or force shutdown it
+    // Synchronously cancels the provided ProcessExitEvent (firing its event
+    // handler with ABORT_ERROR_CODE) and attempts to terminate the associated
+    // process if it is running. Returns true if the attempt was successful --
+    // in the sense of succesfully sending a SIGTERM for example -- though this
+    // does not guarantee that the process _has exited_ yet.
+    //
+    // Since the event is cancelled, there is no further way for clients to be
+    // certain the process has exited using this interface. If a process that
+    // has been sent a termination signal does _not_ exit, however, it will
+    // remain tracked by the ProcessManager, and be forcibly killed when
+    // the ProcessManager is destructed.
     virtual bool tryProcessShutdown(std::shared_ptr<ProcessExitEvent> pe) = 0;
     virtual ~ProcessManager()
     {
