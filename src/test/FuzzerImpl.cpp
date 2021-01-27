@@ -580,6 +580,7 @@ TransactionFuzzer::initialize()
     resetRandomSeed();
     mApp = createTestApplication(mClock, getFuzzConfig(0));
     auto root = TestAccount::createRoot(*mApp);
+    mSourceAccountID = root.getPublicKey();
 
     resetTxInternalState(*mApp);
     LedgerTxn ltxOuter(mApp->getLedgerTxnRoot());
@@ -601,13 +602,6 @@ TransactionFuzzer::initialize()
                 publicKey, FuzzUtils::INITIAL_ACCOUNT_BALANCE);
 
             ops.emplace_back(createOp);
-
-            // select the first pregenerated account to be the hard coded source
-            // account for all transactions
-            if (i == 0)
-            {
-                mSourceAccountID = publicKey;
-            }
         }
 
         attemptToApplyOps(ltx, root.getPublicKey(), ops.begin(), ops.end(),
@@ -621,19 +615,15 @@ TransactionFuzzer::initialize()
 
         xdr::xvector<Operation> ops;
 
-        // for now we have every pregenerated account except the source account
-        // trust everything for some assets issued by account indexed 1...
-        // NUMBER_OF_ASSETS_TO_ISSUE. We also distribute some of these assets to
-        // everyone so that they can make trades, payments, etc. We start with 1
-        // since we use 0 as source account for transactions and don't want that
-        // account to trust any issuer or receive non-native assets
-        for (uint8_t i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
+        // For now we have every pregenerated account trust everything for some
+        // assets issued by account indexed 1..NUMBER_OF_ASSETS_TO_ISSUE. We
+        // also distribute some of these assets to everyone so that they can
+        // make trades, payments, etc.
+        for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey account;
             FuzzUtils::setShortKey(account, i);
 
-            // start with 1 since we use 0 as source account for transactions
-            // and don't want that account to be an issuer
             for (int j = 1; j <= FuzzUtils::NUMBER_OF_ASSETS_TO_ISSUE; ++j)
             {
                 auto const asset = FuzzUtils::makeAsset(j);
@@ -745,7 +735,7 @@ TransactionFuzzer::initialize()
 
         // Reduce account balances so that fuzzing has a better chance
         // of exercising limits.
-        for (uint8_t i = 1; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
+        for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey account;
             FuzzUtils::setShortKey(account, i);
@@ -761,8 +751,9 @@ TransactionFuzzer::initialize()
 
             if (availableBalance > targetAvailableBalance)
             {
-                auto reduceNativeBalanceOp = txtest::payment(
-                    root, availableBalance - targetAvailableBalance);
+                auto reduceNativeBalanceOp =
+                    txtest::payment(mSourceAccountID,
+                                    availableBalance - targetAvailableBalance);
                 reduceNativeBalanceOp.sourceAccount.activate() =
                     toMuxedAccount(account);
                 ops.emplace_back(reduceNativeBalanceOp);
@@ -887,8 +878,8 @@ TransactionFuzzer::genFuzz(std::string const& filename)
     for (int i = 0; i < numops; ++i)
     {
         Operation op = gen(FUZZER_INITIAL_CORPUS_OPERATION_GEN_UPPERBOUND);
-        // include a placeholder account for the base cases as it's more likely
-        // to be useful right away
+        // Use account 0 for the base cases as it's more likely to be useful
+        // right away.
         if (!op.sourceAccount)
         {
             PublicKey a0;
