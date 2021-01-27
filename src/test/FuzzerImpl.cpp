@@ -41,6 +41,7 @@ auto constexpr FUZZING_RESERVE = 4;
 auto constexpr INITIAL_TRUST_LINE_LIMIT = 5 * INITIAL_ASSET_DISTRIBUTION;
 auto constexpr DEFAULT_NUM_TRANSACTIONS_TO_RESERVE_FEES_FOR = 10;
 auto constexpr DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY = 256;
+auto constexpr DEFAULT_SPARE_TRUST_LINE_LIMIT = 256;
 
 // must be strictly less than 255
 uint8_t constexpr NUMBER_OF_PREGENERATED_ACCOUNTS = 16U;
@@ -793,9 +794,20 @@ TransactionFuzzer::initialize()
                             toMuxedAccount(account);
                         ops.emplace_back(reduceNonNativeBalanceOp);
                     }
-                    // Here we could also reduce account "i"'s trust line limit
-                    // for asset "j" (testing the buying liabilities to
-                    // determine by how much).
+
+                    // Reduce "account"'s trustline limit for asset "j".
+                    auto const trustLineBalance = tle.getBalance();
+                    auto const buyingLiabilities =
+                        tle.getBuyingLiabilities(ltx.loadHeader());
+                    auto const targetTrustLineLimit =
+                        trustLineBalance + buyingLiabilities +
+                        FuzzUtils::DEFAULT_SPARE_TRUST_LINE_LIMIT;
+
+                    auto changeTrustLineLimitOp =
+                        txtest::changeTrust(asset, targetTrustLineLimit);
+                    changeTrustLineLimitOp.sourceAccount.activate() =
+                        toMuxedAccount(account);
+                    ops.emplace_back(changeTrustLineLimitOp);
                 }
             }
         }
