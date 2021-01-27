@@ -1013,6 +1013,17 @@ getAsset(AccountID const& issuer, AssetCode const& assetCode)
     return asset;
 }
 
+bool
+claimableBalanceFlagIsValid(ClaimableBalanceEntry const& cb)
+{
+    if (cb.ext.v() == 1)
+    {
+        return cb.ext.v1().flags == MASK_CLAIMABLE_BALANCE_FLAGS;
+    }
+
+    return true;
+}
+
 namespace detail
 {
 struct MuxChecker
