@@ -164,6 +164,7 @@ bool isAuthRequired(ConstLedgerTxnEntry const& entry);
 
 bool isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry);
 bool isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry);
+bool isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry);
 
 bool isImmutableAuth(LedgerTxnEntry const& entry);
 

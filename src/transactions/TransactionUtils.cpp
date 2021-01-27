@@ -834,6 +834,14 @@ isClawbackEnabledOnTrustline(LedgerTxnEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
+{
+    return entry.data.claimableBalance().ext.v() == 1 &&
+           (entry.data.claimableBalance().ext.v1().flags &
+            CLAIMABLE_BALANCE_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
 isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
 {
     return (entry.current().data.account().flags &
