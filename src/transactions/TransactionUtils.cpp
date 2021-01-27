@@ -842,10 +842,21 @@ isClawbackEnabledOnClaimableBalance(LedgerEntry const& entry)
 }
 
 bool
+isClawbackEnabledOnAccount(LedgerEntry const& entry)
+{
+    return (entry.data.account().flags & AUTH_CLAWBACK_ENABLED_FLAG) != 0;
+}
+
+bool
+isClawbackEnabledOnAccount(LedgerTxnEntry const& entry)
+{
+    return isClawbackEnabledOnAccount(entry.current());
+}
+
+bool
 isClawbackEnabledOnAccount(ConstLedgerTxnEntry const& entry)
 {
-    return (entry.current().data.account().flags &
-            AUTH_CLAWBACK_ENABLED_FLAG) != 0;
+    return isClawbackEnabledOnAccount(entry.current());
 }
 
 bool
