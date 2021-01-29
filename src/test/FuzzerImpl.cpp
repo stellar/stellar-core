@@ -574,6 +574,102 @@ attemptToApplyOps(LedgerTxn& ltx, PublicKey const& sourceAccount,
     }
 }
 
+// Unlike Asset, this can be a constexpr.
+struct AssetID
+{
+    constexpr AssetID() : mIsNative(true), mId(0)
+    {
+    }
+
+    constexpr AssetID(int id) : mIsNative(false), mId(id)
+    {
+    }
+
+    Asset
+    toAsset() const
+    {
+        return mIsNative ? txtest::makeNativeAsset()
+                         : FuzzUtils::makeAsset(mId);
+    }
+
+    bool const mIsNative;
+    int const mId; // meaningful only if !isNative
+};
+
+struct OfferParameters
+{
+    constexpr OfferParameters(int publicKey, AssetID const bid,
+                              AssetID const sell, int64_t amount,
+                              int32_t priceNumerator, int32_t priceDenominator)
+        : mPublicKey(publicKey)
+        , mBid(bid)
+        , mSell(sell)
+        , mAmount(amount)
+        , mNumerator(priceNumerator)
+        , mDenominator(priceDenominator)
+    {
+    }
+
+    int const mPublicKey;
+    AssetID const mBid;
+    AssetID const mSell;
+    int64_t const mAmount;
+    int32_t const mNumerator;
+    int32_t const mDenominator;
+};
+
+// The current order book setup generates identical configurations for the
+// following asset pairs:
+//      XLM - A
+//      A   - B
+//      B   - C
+//      C   - D
+//
+// For any asset A and asset B, the generic order book setup will be as
+// follows:
+//
+// +------------+-----+------+--------+------------------------------+
+// |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
+// +------------+-----+------+--------+------------------------------+
+// | 0          | A   | B    |     10 | 3/2                          |
+// | 1 (issuer) | A   | B    |     50 | 3/2                          |
+// | 2          | A   | B    |    100 | 1/1                          |
+// | 3 (issuer) | B   | A    |     10 | 10/9                         |
+// | 4          | B   | A    |     50 | 10/9                         |
+// | 0          | B   | A    |    100 | 22/7                         |
+// +------------+-----+------+--------+------------------------------+
+//
+// (This is far more symmetric than it needs to be; we will introduce more
+// variety.  In the long run, we plan to fuzz the setup itself.)
+std::array<OfferParameters, 24> constexpr orderBookParameters{
+    {{13, AssetID(), AssetID(1), 10, 3, 2}, // asset pair 0
+     {14, AssetID(), AssetID(1), 50, 3, 2},
+     {15, AssetID(), AssetID(1), 100, 1, 1},
+     {1, AssetID(1), AssetID(), 10, 10, 9},
+     {12, AssetID(1), AssetID(), 50, 10, 9},
+     {13, AssetID(1), AssetID(), 100, 22, 7},
+
+     {11, AssetID(1), AssetID(2), 10, 3, 2}, // asset pair 1
+     {1, AssetID(1), AssetID(2), 50, 3, 2},
+     {12, AssetID(1), AssetID(2), 100, 1, 1},
+     {2, AssetID(2), AssetID(1), 10, 10, 9},
+     {10, AssetID(2), AssetID(1), 50, 10, 9},
+     {11, AssetID(2), AssetID(1), 100, 22, 7},
+
+     {13, AssetID(2), AssetID(3), 10, 3, 2}, // asset pair 2
+     {2, AssetID(2), AssetID(3), 50, 3, 2},
+     {14, AssetID(2), AssetID(3), 100, 1, 1},
+     {3, AssetID(3), AssetID(2), 10, 10, 9},
+     {15, AssetID(3), AssetID(2), 50, 10, 9},
+     {13, AssetID(3), AssetID(2), 100, 22, 7},
+
+     {6, AssetID(3), AssetID(4), 10, 3, 2}, // asset pair 3
+     {3, AssetID(3), AssetID(4), 50, 3, 2},
+     {7, AssetID(3), AssetID(4), 100, 1, 1},
+     {4, AssetID(4), AssetID(3), 10, 10, 9},
+     {8, AssetID(4), AssetID(3), 50, 10, 9},
+     {6, AssetID(4), AssetID(3), 100, 22, 7}}};
+
 void
 TransactionFuzzer::initialize()
 {
@@ -654,74 +750,20 @@ TransactionFuzzer::initialize()
     }
 
     {
-        // In order for certain operation combinations to be valid, we need an
-        // initial order book with various offers. The order book will consist
-        // of identical setups for the asset pairs:
-        //      XLM - A
-        //      A   - B
-        //      B   - C
-        //      C   - D
-        // For any asset A and asset B, the generic order book setup will be as
-        // follows:
-        //
-        // +------------+-----+------+--------+------------------------------+
-        // |  Account   | Bid | Sell | Amount | Price (in terms of Sell/Bid) |
-        // +------------+-----+------+--------+------------------------------+
-        // | 0          | A   | B    |     10 | 3/2                          |
-        // | 1 (issuer) | A   | B    |     50 | 3/2                          |
-        // | 2          | A   | B    |    100 | 1/1                          |
-        // | 3 (issuer) | B   | A    |     10 | 10/9                         |
-        // | 4          | B   | A    |     50 | 10/9                         |
-        // | 0          | B   | A    |    100 | 22/7                         |
-        // +------------+-----+------+--------+------------------------------+
-        //
-        // This gives us a good mixture of buy and sell, issuers with offers,
-        // and an account with a bid and a sell. It also gives us an initial
-        // order book that is in a legal state.
         LedgerTxn ltx(ltxOuter);
 
         xdr::xvector<Operation> ops;
 
-        auto genOffersForPair = [&ops](Asset A, Asset B, std::vector<int> pks,
-                                       LedgerTxn& ltx) {
-            auto addOffer = [&ops](Asset bid, Asset sell, int pk, Price price,
-                                   int64 amount) {
-                auto op = txtest::manageOffer(0, bid, sell, price, amount);
-                PublicKey pkA;
-                FuzzUtils::setShortKey(pkA, pk);
-                op.sourceAccount.activate() = toMuxedAccount(pkA);
-                ops.emplace_back(op);
-            };
-
-            // A -> B acc0         : 1A (3B/2A)
-            addOffer(A, B, pks[0], Price{3, 2}, 10);
-
-            // A -> B acc1 (ISSUER): 5A (3B/2A)
-            addOffer(A, B, pks[1], Price{3, 2}, 50);
-
-            // A -> B acc2         : 10A (1B/1A)
-            addOffer(A, B, pks[2], Price{1, 1}, 100);
-
-            // B -> A acc3 (ISSUER): 1B (10A/9B)
-            addOffer(B, A, pks[3], Price{10, 9}, 10);
-
-            // B -> A acc4         : 5B (10A/9B)
-            addOffer(B, A, pks[4], Price{10, 9}, 50);
-
-            // B -> A acc0         : 10B (22A/7B)
-            addOffer(B, A, pks[0], Price{22, 7}, 100);
-        };
-
-        auto const XLM = txtest::makeNativeAsset();
-        auto const ASSET_A = FuzzUtils::makeAsset(1);
-        auto const ASSET_B = FuzzUtils::makeAsset(2);
-        auto const ASSET_C = FuzzUtils::makeAsset(3);
-        auto const ASSET_D = FuzzUtils::makeAsset(4);
-
-        genOffersForPair(XLM, ASSET_A, {13, 14, 15, 1, 12}, ltx);
-        genOffersForPair(ASSET_A, ASSET_B, {11, 1, 12, 2, 10}, ltx);
-        genOffersForPair(ASSET_B, ASSET_C, {13, 2, 14, 3, 15}, ltx);
-        genOffersForPair(ASSET_C, ASSET_D, {6, 3, 7, 4, 8}, ltx);
+        for (auto const& param : orderBookParameters)
+        {
+            auto op = txtest::manageOffer(
+                0, param.mBid.toAsset(), param.mSell.toAsset(),
+                Price{param.mNumerator, param.mDenominator}, param.mAmount);
+            PublicKey pkA;
+            FuzzUtils::setShortKey(pkA, param.mPublicKey);
+            op.sourceAccount.activate() = toMuxedAccount(pkA);
+            ops.emplace_back(op);
+        }
 
         attemptToApplyOps(ltx, mSourceAccountID, ops.begin(), ops.end(), *mApp);
 
