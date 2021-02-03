@@ -456,20 +456,6 @@ TestAccount::pathPaymentStrictSend(PublicKey const& destination,
 void
 TestAccount::clawback(PublicKey const& from, Asset const& asset, int64_t amount)
 {
-    REQUIRE(asset.type() != ASSET_TYPE_NATIVE);
-
-    AssetCode assetCode;
-    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        assetCode.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-        assetCode.assetCode4() = asset.alphaNum4().assetCode;
-    }
-    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        assetCode.type(ASSET_TYPE_CREDIT_ALPHANUM12);
-        assetCode.assetCode12() = asset.alphaNum12().assetCode;
-    }
-
-    applyTx(tx({txtest::clawback(from, assetCode, amount)}), mApp);
+    applyTx(tx({txtest::clawback(from, asset, amount)}), mApp);
 }
 };
