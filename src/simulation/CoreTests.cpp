@@ -489,7 +489,7 @@ class ScaleReporter
     void
     write(std::vector<double> const& vals)
     {
-        assert(vals.size() == mColumns.size());
+        releaseAssert(vals.size() == mColumns.size());
         std::ostringstream oss;
         for (size_t i = 0; i < vals.size(); ++i)
         {
@@ -568,7 +568,7 @@ netTopologyTest(std::string const& name,
         REQUIRE(sim->haveAllExternalized(5, 4));
 
         auto nodes = sim->getNodes();
-        assert(!nodes.empty());
+        releaseAssert(!nodes.empty());
         auto& app = *nodes[0];
 
         auto& loadGen = app.getLoadGenerator();

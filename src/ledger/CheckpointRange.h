@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerRange.h"
+#include "util/GlobalChecks.h"
 #include <cstdint>
 #include <stdexcept>
 #include <string>
@@ -28,15 +29,15 @@ struct CheckpointRange final
     {
         // CheckpointRange is half-open: in exchange for being able to represent
         // empty ranges, it can't represent ranges that include UINT32_MAX.
-        assert(last < std::numeric_limits<uint32_t>::max());
+        releaseAssert(last < std::numeric_limits<uint32_t>::max());
 
         // First and last must both be ledgers identifying checkpoints (i.e. one
         // less than multiples of frequency), and last must be >= first. The
         // resulting count will always be 1 or more since this is an inclusive
         // range.
-        assert(last >= first);
-        assert((first + 1) % frequency == 0);
-        assert((last + 1) % frequency == 0);
+        releaseAssert(last >= first);
+        releaseAssert((first + 1) % frequency == 0);
+        releaseAssert((last + 1) % frequency == 0);
         uint32_t count = 1 + ((last - first) / frequency);
         return CheckpointRange(first, count, frequency);
     }

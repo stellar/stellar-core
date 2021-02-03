@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/Work.h"
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <Tracy.hpp>
 #include <fmt/format.h>
@@ -18,7 +19,7 @@ Work::Work(Application& app, std::string name, size_t maxRetries)
 Work::~Work()
 {
     // Work is destroyed only if in terminal state, and is properly reset
-    assert(!hasChildren());
+    releaseAssert(!hasChildren());
 }
 
 std::string
@@ -64,7 +65,7 @@ Work::onRun()
         auto state = doWork();
         if (state == State::WORK_SUCCESS)
         {
-            assert(allChildrenSuccessful());
+            releaseAssert(allChildrenSuccessful());
             clearChildren();
         }
         else if (state == State::WORK_FAILURE && !allChildrenDone())
@@ -88,7 +89,7 @@ Work::onAbort()
     auto child = yieldNextRunningChild();
     if (child)
     {
-        assert(child->isAborting());
+        releaseAssert(child->isAborting());
         child->crankWork();
         return false;
     }
@@ -140,7 +141,7 @@ void
 Work::clearChildren()
 {
     ZoneScoped;
-    assert(allChildrenDone());
+    releaseAssert(allChildrenDone());
     mDoneChildren += mChildren.size();
     mChildren.clear();
     mNextChild = mChildren.begin();
@@ -203,7 +204,7 @@ Work::yieldNextRunningChild()
     {
         auto next = mNextChild;
         mNextChild++;
-        assert(*next);
+        releaseAssert(*next);
         auto state = (*next)->getState();
         if (state == State::WORK_RUNNING)
         {

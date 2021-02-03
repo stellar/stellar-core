@@ -269,7 +269,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     // pristine state as returned by the database.
     for (auto const& bucket : has.currentBuckets)
     {
-        assert(!bucket.next.isLive());
+        releaseAssert(!bucket.next.isLive());
     }
     auto allBucketsFromHAS = has.allBuckets();
     auto ledgerSeq = has.currentLedger;

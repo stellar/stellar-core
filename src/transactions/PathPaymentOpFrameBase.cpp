@@ -68,8 +68,8 @@ PathPaymentOpFrameBase::convert(AbstractLedgerTxn& ltx,
                                 RoundingType round,
                                 std::vector<ClaimOfferAtom>& offerTrail)
 {
-    assert(offerTrail.empty());
-    assert(!(sendAsset == recvAsset));
+    releaseAssert(offerTrail.empty());
+    releaseAssert(!(sendAsset == recvAsset));
 
     // sendAsset -> recvAsset
     ConvertResult r = convertWithOffers(ltx, sendAsset, maxSend, amountSend,
@@ -164,7 +164,7 @@ PathPaymentOpFrameBase::updateSourceBalance(AbstractLedgerTxn& ltx,
         }
 
         auto ok = addBalance(header, sourceAccount, -amount);
-        assert(ok);
+        releaseAssert(ok);
     }
     else
     {

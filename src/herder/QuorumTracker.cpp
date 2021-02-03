@@ -68,7 +68,6 @@ QuorumTracker::expand(NodeID const& id, SCPQuorumSetPtr qSet)
     int newDist = nodeInfo.mDistance + 1;
 
     return LocalNode::forAllNodes(*qSet, [&](NodeID const& qNode) {
-
         auto qPair = mQuorum.emplace(qNode, NodeInfo{nullptr, newDist});
 
         bool exists = !qPair.second;

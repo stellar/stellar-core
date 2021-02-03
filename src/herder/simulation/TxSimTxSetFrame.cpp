@@ -111,7 +111,7 @@ TxSimTxSetFrame::sortForApply()
         }
     }
 
-    assert(resultIter == mResults.end());
+    releaseAssert(resultIter == mResults.end());
     return res;
 }
 

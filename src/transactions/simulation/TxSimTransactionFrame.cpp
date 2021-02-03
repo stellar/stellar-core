@@ -32,7 +32,7 @@ TxSimTransactionFrame::makeOperation(Operation const& op, OperationResult& res,
                                      size_t index)
 {
     auto& ops = txbridge::getOperations(mEnvelope);
-    assert(index < ops.size());
+    releaseAssert(index < ops.size());
     OperationResult resultFromArchive;
     if (mSimulationResult.result.code() == txSUCCESS ||
         mSimulationResult.result.code() == txFAILED)

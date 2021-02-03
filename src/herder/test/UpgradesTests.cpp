@@ -2132,7 +2132,6 @@ TEST_CASE("upgrade base reserve", "[upgrades]")
             };
 
             for_versions_from(14, *app, [&] {
-
                 // Swap the seeds to test that the ordering of accounts doesn't
                 // matter when upgrading
                 SECTION("account A is sponsored")

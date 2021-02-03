@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "WorkSequence.h"
+#include "util/GlobalChecks.h"
 #include <Tracy.hpp>
 
 namespace stellar
@@ -28,7 +29,7 @@ WorkSequence::onRun()
     }
 
     auto w = *mNextInSequence;
-    assert(w);
+    releaseAssert(w);
     if (!mCurrentExecuting)
     {
         w->startWork(wakeSelfUpCallback());
@@ -69,7 +70,7 @@ void
 WorkSequence::onReset()
 {
     ZoneScoped;
-    assert(std::all_of(
+    releaseAssert(std::all_of(
         mSequenceOfWork.cbegin(), mNextInSequence,
         [](std::shared_ptr<BasicWork> const& w) { return w->isDone(); }));
     mNextInSequence = mSequenceOfWork.begin();

@@ -5,6 +5,7 @@
 #include "QuorumIntersectionCheckerImpl.h"
 #include "QuorumIntersectionChecker.h"
 
+#include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 
@@ -137,7 +138,7 @@ MinQuorumEnumerator::pickSplitNode() const
 {
     std::vector<size_t>& inDegrees = mQic.mInDegrees;
     inDegrees.assign(mQic.mGraph.size(), 0);
-    assert(!mRemaining.empty());
+    releaseAssert(!mRemaining.empty());
     size_t maxNode = mRemaining.max();
     size_t maxCount = 1;
     size_t maxDegree = 0;
@@ -528,7 +529,7 @@ QuorumIntersectionCheckerImpl::isMinimalQuorum(BitSet const& nodes) const
 #ifndef NDEBUG
     // We should only be called with a quorum, such that contracting to its
     // maximum doesn't do anything. This is a slightly expensive check.
-    assert(contractToMaximalQuorum(nodes) == nodes);
+    releaseAssert(contractToMaximalQuorum(nodes) == nodes);
 #endif
 
     BitSet minQ = nodes;
@@ -679,9 +680,9 @@ QuorumIntersectionCheckerImpl::buildGraph(QuorumTracker::QuorumMap const& qmap)
         if (pair.second.mQuorumSet)
         {
             auto i = mPubKeyBitNums.find(pair.first);
-            assert(i != mPubKeyBitNums.end());
+            releaseAssert(i != mPubKeyBitNums.end());
             auto nodeNum = i->second;
-            assert(nodeNum == mGraph.size());
+            releaseAssert(nodeNum == mGraph.size());
             auto qb = convertSCPQuorumSet(*(pair.second.mQuorumSet));
             qb.log();
             mGraph.emplace_back(qb);

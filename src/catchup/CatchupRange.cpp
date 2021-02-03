@@ -56,7 +56,7 @@ calculateCatchupRange(uint32_t lcl, CatchupConfiguration const& cfg,
     }
 
     // All remaining cases have LCL == genesis.
-    assert(lcl == init);
+    releaseAssert(lcl == init);
     LedgerRange fullReplay(init + 1, fullReplayCount);
 
     // Case 2: full replay because count >= target - init.
@@ -129,28 +129,28 @@ void
 CatchupRange::checkInvariants()
 {
     // Must be applying buckets and/or replaying.
-    assert(applyBuckets() || replayLedgers());
+    releaseAssert(applyBuckets() || replayLedgers());
 
     if (!applyBuckets() && replayLedgers())
     {
         // Cases 1, 2 and 4: no buckets, only replay.
-        assert(mApplyBucketsAtLedger == 0);
-        assert(mReplayRange.mFirst != 0);
+        releaseAssert(mApplyBucketsAtLedger == 0);
+        releaseAssert(mReplayRange.mFirst != 0);
     }
 
     else if (applyBuckets() && replayLedgers())
     {
         // Case 5: buckets and replay.
-        assert(mApplyBucketsAtLedger != 0);
-        assert(mReplayRange.mFirst != 0);
-        assert(mApplyBucketsAtLedger + 1 == mReplayRange.mFirst);
+        releaseAssert(mApplyBucketsAtLedger != 0);
+        releaseAssert(mReplayRange.mFirst != 0);
+        releaseAssert(mApplyBucketsAtLedger + 1 == mReplayRange.mFirst);
     }
 
     else
     {
         // Case 3: buckets only, no replay.
-        assert(applyBuckets() && !replayLedgers());
-        assert(mReplayRange.mFirst == 0);
+        releaseAssert(applyBuckets() && !replayLedgers());
+        releaseAssert(mReplayRange.mFirst == 0);
     }
 }
 }

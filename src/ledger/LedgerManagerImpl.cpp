@@ -420,7 +420,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         st != LedgerManager::LM_CATCHING_UP_STATE &&
         st != LedgerManager::LM_SYNCED_STATE)
     {
-        assert(false);
+        releaseAssert(false);
     }
 
     closeLedgerIf(ledgerData);
@@ -994,7 +994,7 @@ LedgerManagerImpl::storeCurrentLedger(LedgerHeader const& header)
     }
 
     Hash hash = xdrSha256(header);
-    assert(!isZero(hash));
+    releaseAssert(!isZero(hash));
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
                                        binToHex(hash));
 

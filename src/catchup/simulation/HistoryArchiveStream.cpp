@@ -6,6 +6,7 @@
 #include "herder/TxSetFrame.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -61,7 +62,7 @@ HistoryArchiveStream::readHeaderHistory(uint32_t ledgerSeq)
         throw std::runtime_error(
             "Header stream should not be exhausted before end of checkpoint");
     }
-    assert(lhhe.header.ledgerSeq == ledgerSeq);
+    releaseAssert(lhhe.header.ledgerSeq == ledgerSeq);
 
     mHeaderHistory = lhhe;
     return lhhe;

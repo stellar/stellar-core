@@ -44,7 +44,7 @@ BasicWork::BasicWork(Application& app, std::string name, size_t maxRetries)
 BasicWork::~BasicWork()
 {
     // Work completed or has not started yet
-    assert(isDone() || mState == InternalState::PENDING);
+    releaseAssert(isDone() || mState == InternalState::PENDING);
 }
 
 void
@@ -168,7 +168,7 @@ BasicWork::startWork(std::function<void()> notificationCallback)
 
     mNotifyCallback = notificationCallback;
     setState(InternalState::RUNNING);
-    assert(mRetries == 0);
+    releaseAssert(mRetries == 0);
 }
 
 void
@@ -195,9 +195,9 @@ BasicWork::waitForRetry()
         {
             return;
         }
-        assert(self->mState == InternalState::WAITING ||
-               self->mState == InternalState::ABORTED ||
-               self->mState == InternalState::ABORTING);
+        releaseAssert(self->mState == InternalState::WAITING ||
+                      self->mState == InternalState::ABORTED ||
+                      self->mState == InternalState::ABORTING);
         if (self->mState == InternalState::WAITING)
         {
             self->mRetries++;
@@ -370,7 +370,7 @@ void
 BasicWork::crankWork()
 {
     ZoneScoped;
-    assert(!isDone() && mState != InternalState::WAITING);
+    releaseAssert(!isDone() && mState != InternalState::WAITING);
 
     InternalState nextState;
     if (mState == InternalState::ABORTING)

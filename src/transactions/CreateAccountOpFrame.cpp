@@ -61,7 +61,7 @@ CreateAccountOpFrame::doApplyBeforeV14(AbstractLedgerTxn& ltx)
 
     auto ok =
         addBalance(header, sourceAccount, -mCreateAccount.startingBalance);
-    assert(ok);
+    releaseAssert(ok);
 
     LedgerEntry newAccountEntry;
     newAccountEntry.data.type(ACCOUNT);
@@ -123,7 +123,7 @@ CreateAccountOpFrame::doApplyFromV14(AbstractLedgerTxn& ltxOuter)
 
     auto ok =
         addBalance(header, sourceAccount, -mCreateAccount.startingBalance);
-    assert(ok);
+    releaseAssert(ok);
 
     ltx.create(newAccountEntry);
     innerResult().code(CREATE_ACCOUNT_SUCCESS);

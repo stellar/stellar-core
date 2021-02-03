@@ -69,7 +69,7 @@ class HerderSCPDriver : public SCPDriver
     uint32
     lastConsensusLedgerIndex() const
     {
-        assert(mTrackingSCP->mConsensusIndex <= UINT32_MAX);
+        releaseAssert(mTrackingSCP->mConsensusIndex <= UINT32_MAX);
         return static_cast<uint32>(mTrackingSCP->mConsensusIndex);
     }
 

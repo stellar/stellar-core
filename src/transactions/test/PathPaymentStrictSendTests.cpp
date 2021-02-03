@@ -30,10 +30,10 @@ Price operator*(const Price& x, const Price& y)
 {
     int64_t n = int64_t(x.n) * int64_t(y.n);
     int64_t d = int64_t(x.d) * int64_t(y.d);
-    assert(n <= std::numeric_limits<int32_t>::max());
-    assert(n >= 0);
-    assert(d <= std::numeric_limits<int32_t>::max());
-    assert(d >= 1);
+    releaseAssert(n <= std::numeric_limits<int32_t>::max());
+    releaseAssert(n >= 0);
+    releaseAssert(d <= std::numeric_limits<int32_t>::max());
+    releaseAssert(d >= 1);
     return Price{(int32_t)n, (int32_t)d};
 }
 

@@ -10,6 +10,10 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/GlobalChecks.h"
@@ -17,17 +21,12 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
+#include <Tracy.hpp>
 #include <fmt/format.h>
 #include <fstream>
 #include <map>
 #include <regex>
 #include <set>
-
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-#include <Tracy.hpp>
 
 namespace stellar
 {
@@ -219,7 +218,7 @@ BucketManagerImpl::deleteTmpDirAndUnlockBucketDir()
     {
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
         std::string lock = d + "/" + kLockFilename;
-        assert(fs::exists(lock));
+        releaseAssert(fs::exists(lock));
         fs::unlockFile(lock);
         mLockedBucketDir.reset();
     }
@@ -412,7 +411,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
             mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
     }
-    assert(b);
+    releaseAssert(b);
     if (mergeKey)
     {
         // Second half of the mergeKey record-keeping, above: if we successfully

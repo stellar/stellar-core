@@ -95,7 +95,7 @@ PendingEnvelopes::putQSet(Hash const& qSetHash, SCPQuorumSet const& qSet)
     CLOG_TRACE(Herder, "Add SCPQSet {}", hexAbbrev(qSetHash));
     SCPQuorumSetPtr res;
     const char* errString = nullptr;
-    assert(isQuorumSetSane(qSet, false, errString));
+    releaseAssert(isQuorumSetSane(qSet, false, errString));
     res = getKnownQSet(qSetHash, true);
     if (!res)
     {
@@ -195,7 +195,7 @@ TxSetFramePtr
 PendingEnvelopes::getKnownTxSet(Hash const& hash, uint64 slot, bool touch)
 {
     // slot is only used when `touch` is set
-    assert(touch || (slot == 0));
+    releaseAssert(touch || (slot == 0));
     TxSetFramePtr res;
     auto it = mKnownTxSets.find(hash);
     if (it != mKnownTxSets.end())

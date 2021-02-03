@@ -87,7 +87,7 @@ dumpXdrStream(std::string const& filename, bool compact)
         }
         else
         {
-            assert(sm[1] == "scp");
+            releaseAssert(sm[1] == "scp");
             dumpstream<SCPHistoryEntry>(in, compact);
         }
     }

@@ -4,6 +4,7 @@
 
 #include "simulation/Topologies.h"
 #include "crypto/SHA.h"
+#include "util/GlobalChecks.h"
 
 namespace stellar
 {
@@ -101,7 +102,7 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
     }
 
     SCPQuorumSet qSet;
-    assert(quorumThresoldFraction >= 0.5);
+    releaseAssert(quorumThresoldFraction >= 0.5);
     qSet.threshold =
         min(nNodes, static_cast<int>(ceil(nNodes * quorumThresoldFraction)));
     for (auto const& k : keys)
@@ -126,7 +127,7 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
                                            networkID, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
-    assert(static_cast<int>(nodes.size()) == nNodes);
+    releaseAssert(static_cast<int>(nodes.size()) == nNodes);
 
     for (int from = 0; from < nNodes - 1; from++)
     {
@@ -149,7 +150,7 @@ Topologies::cycle(int nNodes, double quorumThresoldFraction,
                                            networkID, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
-    assert(static_cast<int>(nodes.size()) == nNodes);
+    releaseAssert(static_cast<int>(nodes.size()) == nNodes);
 
     for (int from = 0; from < nNodes; from++)
     {
@@ -170,7 +171,7 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
                                            networkID, confGen, qSetAdjust);
 
     auto nodes = simulation->getNodeIDs();
-    assert(static_cast<int>(nodes.size()) == nNodes);
+    releaseAssert(static_cast<int>(nodes.size()) == nNodes);
 
     for (int from = 0; from < nNodes; from++)
     {
