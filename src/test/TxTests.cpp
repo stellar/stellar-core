@@ -1191,13 +1191,13 @@ revokeSponsorship(AccountID const& accID, SignerKey const& key)
 }
 
 Operation
-clawback(AccountID const& from, AssetCode const& assetCode, int64_t amount)
+clawback(AccountID const& from, Asset const& asset, int64_t amount)
 {
     Operation op;
     op.body.type(CLAWBACK);
     op.body.clawbackOp().from = toMuxedAccount(from);
     op.body.clawbackOp().amount = amount;
-    op.body.clawbackOp().asset = assetCode;
+    op.body.clawbackOp().asset = asset;
 
     return op;
 }

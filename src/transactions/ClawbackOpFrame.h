@@ -20,7 +20,6 @@ class ClawbackOpFrame : public OperationFrame
     }
 
     ClawbackOp const& mClawback;
-    Asset const mAsset;
 
   public:
     ClawbackOpFrame(Operation const& op, OperationResult& res,

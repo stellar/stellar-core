@@ -12,9 +12,7 @@ namespace stellar
 
 ClawbackOpFrame::ClawbackOpFrame(Operation const& op, OperationResult& res,
                                  TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mClawback(mOperation.body.clawbackOp())
-    , mAsset(getAsset(getSourceID(), mClawback.asset))
+    : OperationFrame(op, res, parentTx), mClawback(mOperation.body.clawbackOp())
 {
 }
 
@@ -29,7 +27,8 @@ ClawbackOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "ClawbackOp apply", true);
 
-    auto trust = ltx.load(trustlineKey(toAccountID(mClawback.from), mAsset));
+    auto trust =
+        ltx.load(trustlineKey(toAccountID(mClawback.from), mClawback.asset));
     if (!trust)
     {
         innerResult().code(CLAWBACK_NO_TRUST);
@@ -68,7 +67,19 @@ ClawbackOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
-    if (!isAssetValid(mAsset))
+    if (mClawback.asset.type() == ASSET_TYPE_NATIVE)
+    {
+        innerResult().code(CLAWBACK_MALFORMED);
+        return false;
+    }
+
+    if (!isAssetValid(mClawback.asset))
+    {
+        innerResult().code(CLAWBACK_MALFORMED);
+        return false;
+    }
+
+    if (!(getSourceID() == getIssuer(mClawback.asset)))
     {
         innerResult().code(CLAWBACK_MALFORMED);
         return false;
@@ -80,6 +91,10 @@ ClawbackOpFrame::doCheckValid(uint32_t ledgerVersion)
 void
 ClawbackOpFrame::insertLedgerKeysToPrefetch(UnorderedSet<LedgerKey>& keys) const
 {
-    keys.emplace(trustlineKey(toAccountID(mClawback.from), mAsset));
+    if (mClawback.asset.type() != ASSET_TYPE_NATIVE)
+    {
+        keys.emplace(
+            trustlineKey(toAccountID(mClawback.from), mClawback.asset));
+    }
 }
 }

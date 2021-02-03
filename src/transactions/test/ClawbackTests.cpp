@@ -165,6 +165,14 @@ TEST_CASE("clawback", "[tx][clawback]")
                         REQUIRE_THROWS_AS(gateway.clawback(a1, asset, 75),
                                           ex_CLAWBACK_MALFORMED);
                     }
+
+                    // native asset
+                    REQUIRE_THROWS_AS(gateway.clawback(a1, native, 75),
+                                      ex_CLAWBACK_MALFORMED);
+
+                    // source account is not the issuer
+                    REQUIRE_THROWS_AS(a1.clawback(gateway, idr, 75),
+                                      ex_CLAWBACK_MALFORMED);
                 }
                 SECTION("apply")
                 {

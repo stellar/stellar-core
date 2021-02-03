@@ -373,7 +373,7 @@ case REVOKE_SPONSORSHIP_SIGNER:
 */
 struct ClawbackOp
 {
-    AssetCode asset;
+    Asset asset;
     MuxedAccount from;
     int64 amount;
 };
