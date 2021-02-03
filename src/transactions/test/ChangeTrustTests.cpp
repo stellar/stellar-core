@@ -111,6 +111,16 @@ TEST_CASE("change trust", "[tx][changetrust]")
             return le.data.account();
         };
 
+        auto validatePayingSelf = [&]() {
+            auto gatewayAccountBefore = loadAccount(gateway);
+            gateway.pay(gateway, idr, 50);
+            validateTrustLineIsConst();
+            auto gatewayAccountAfter = loadAccount(gateway);
+            REQUIRE(gatewayAccountAfter.balance ==
+                    (gatewayAccountBefore.balance -
+                     app->getLedgerManager().getLastTxFee()));
+        };
+
         validateTrustLineIsConst();
 
         for_versions_to(2, *app, [&] {
@@ -123,13 +133,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             gateway.changeTrust(idr, INT64_MAX);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway);
-            gateway.pay(gateway, idr, 50);
-            validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway);
-            REQUIRE(gatewayAccountAfter.balance ==
-                    (gatewayAccountBefore.balance -
-                     app->getLedgerManager().getLastTxFee()));
+            validatePayingSelf();
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
@@ -142,7 +146,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             validateTrustLineIsConst();
         });
 
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 15, *app, [&] {
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX - 1),
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
@@ -151,13 +155,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway);
-            gateway.pay(gateway, idr, 50);
-            validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway);
-            REQUIRE(gatewayAccountAfter.balance ==
-                    (gatewayAccountBefore.balance -
-                     app->getLedgerManager().getLastTxFee()));
+            validatePayingSelf();
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
@@ -168,6 +166,14 @@ TEST_CASE("change trust", "[tx][changetrust]")
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 0),
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
+        });
+
+        for_versions_from(16, *app, [&] {
+            REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
+                              ex_CHANGE_TRUST_MALFORMED);
+            validateTrustLineIsConst();
+
+            validatePayingSelf();
         });
     }
 

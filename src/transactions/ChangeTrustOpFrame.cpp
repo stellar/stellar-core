@@ -178,6 +178,12 @@ ChangeTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
             return false;
         }
     }
+
+    if (ledgerVersion > 15 && getSourceID() == getIssuer(mChangeTrust.line))
+    {
+        innerResult().code(CHANGE_TRUST_MALFORMED);
+        return false;
+    }
     return true;
 }
 }
