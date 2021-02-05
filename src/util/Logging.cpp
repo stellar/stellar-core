@@ -58,7 +58,7 @@ convert_loglevel(LogLevel level)
     case LogLevel::FATAL:
         slev = spdlog::level::critical;
         break;
-    case LogLevel::ERR:
+    case LogLevel::ERROR:
         slev = spdlog::level::err;
         break;
     case LogLevel::WARNING:
@@ -261,7 +261,7 @@ Logging::getLLfromString(std::string const& levelName)
 
     if (iequals(levelName, "error"))
     {
-        return LogLevel::ERR;
+        return LogLevel::ERROR;
     }
 
     if (iequals(levelName, "warning"))
@@ -301,7 +301,7 @@ Logging::getStringFromLL(LogLevel level)
     {
     case LogLevel::FATAL:
         return "Fatal";
-    case LogLevel::ERR:
+    case LogLevel::ERROR:
         return "Error";
     case LogLevel::WARNING:
         return "Warning";

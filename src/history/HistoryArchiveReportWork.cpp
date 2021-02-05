@@ -30,13 +30,13 @@ HistoryArchiveReportWork::onSuccess()
 {
     for (auto const& work : mGetHistoryArchiveStateWorks)
     {
-        CLOG(INFO, "History")
-            << fmt::format("Archive information: [name: {}, server: {}, "
-                           "currentLedger: "
-                           "{}]",
-                           work->getArchive()->getName(),
-                           work->getHistoryArchiveState().server,
-                           work->getHistoryArchiveState().currentLedger);
+        CLOG_INFO(History,
+                  "Archive information: [name: {}, server: {}, "
+                  "currentLedger: "
+                  "{}]",
+                  work->getArchive()->getName(),
+                  work->getHistoryArchiveState().server,
+                  work->getHistoryArchiveState().currentLedger);
     }
 }
 
@@ -47,9 +47,8 @@ HistoryArchiveReportWork::onFailureRaise()
     {
         if (work->getState() != State::WORK_SUCCESS)
         {
-            CLOG(ERR, "History")
-                << fmt::format("Failed to obtain archive information: {}",
-                               work->getArchive()->getName());
+            CLOG_ERROR(History, "Failed to obtain archive information: {}",
+                       work->getArchive()->getName());
             return;
         }
     }

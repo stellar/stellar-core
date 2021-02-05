@@ -6,6 +6,7 @@
 
 #include <array>
 #include <iostream>
+#include <map>
 
 // Provide support for fmt-strings formatting objects that have
 // an overloaded operator<< defined on them.
@@ -16,7 +17,6 @@
 // Must include this _before_ spdlog.h
 #include "util/SpdlogTweaks.h"
 
-#include <map>
 #include <memory>
 #include <spdlog/spdlog.h>
 
@@ -118,7 +118,7 @@ typedef void* LogPtr;
 
 #endif
 
-#define CLOG(LEVEL, ...) stellar::CoutLogger(LogLevel::LEVEL)
+#define CLOG(LEVEL, ...) stellar::CoutLogger(stellar::LogLevel::LEVEL)
 #define LOG(LEVEL) CLOG(LEVEL)
 
 namespace stellar
@@ -127,7 +127,7 @@ namespace stellar
 enum class LogLevel
 {
     FATAL = 0,
-    ERR = 1,
+    ERROR = 1,
     WARNING = 2,
     INFO = 3,
     DEBUG = 4,
