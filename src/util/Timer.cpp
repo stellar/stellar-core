@@ -17,7 +17,6 @@ namespace stellar
 
 using namespace std;
 
-static const uint32_t RECENT_CRANK_WINDOW = 1024;
 static const std::chrono::milliseconds CRANK_TIME_SLICE(500);
 static const size_t CRANK_EVENT_SLICE = 100;
 const std::chrono::seconds SCHEDULER_LATENCY_WINDOW(5);
