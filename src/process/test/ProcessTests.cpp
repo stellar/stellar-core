@@ -125,8 +125,7 @@ TEST_CASE("subprocess redirect to existing file", "[process]")
         std::ofstream tout(filename);
         tout << data;
     }
-    bool exited = false;
-    bool failed = false;
+
     auto evt = app.getProcessManager().runProcess("hostname", filename).lock();
     REQUIRE(!evt);
     std::ifstream in(filename);
