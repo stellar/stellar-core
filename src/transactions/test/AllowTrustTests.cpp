@@ -420,11 +420,18 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                                   ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
             });
 
-            for_versions_from(3, *app, [&] {
+            for_versions(3, 15, *app, [&] {
                 REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                   ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
                 REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
                                   ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
+            });
+
+            for_versions_from(16, *app, [&] {
+                REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
+                                  ex_ALLOW_TRUST_MALFORMED);
+                REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
+                                  ex_ALLOW_TRUST_MALFORMED);
             });
         }
 
@@ -441,11 +448,18 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                                       ex_ALLOW_TRUST_CANT_REVOKE);
                 });
 
-                for_versions_from(3, *app, [&] {
+                for_versions(3, 15, *app, [&] {
                     REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                       ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
                                       ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
+                });
+
+                for_versions_from(16, *app, [&] {
+                    REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
+                                      ex_ALLOW_TRUST_MALFORMED);
+                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
+                                      ex_ALLOW_TRUST_MALFORMED);
                 });
             }
             SECTION("set revocable flag")
@@ -457,11 +471,18 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                     gateway.denyTrust(idr, gateway);
                 });
 
-                for_versions_from(3, *app, [&] {
+                for_versions(3, 15, *app, [&] {
                     REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                       ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
                                       ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
+                });
+
+                for_versions_from(16, *app, [&] {
+                    REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
+                                      ex_ALLOW_TRUST_MALFORMED);
+                    REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
+                                      ex_ALLOW_TRUST_MALFORMED);
                 });
             }
         }

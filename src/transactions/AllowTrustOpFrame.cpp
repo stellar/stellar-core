@@ -191,6 +191,12 @@ AllowTrustOpFrame::doCheckValid(uint32_t ledgerVersion)
         return false;
     }
 
+    if (ledgerVersion > 15 && mAllowTrust.trustor == getSourceID())
+    {
+        innerResult().code(ALLOW_TRUST_MALFORMED);
+        return false;
+    }
+
     return true;
 }
 }
