@@ -286,7 +286,6 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
     ZoneScoped;
     // This function assumes presence of required buckets to verify state
     uint32_t minBucketVersion = 0;
-    uint32_t oldestBucketVersion = 0;
     bool nonEmptySeen = false;
     Hash const emptyHash;
 
@@ -315,7 +314,6 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
             if (!nonEmptySeen)
             {
                 nonEmptySeen = true;
-                oldestBucketVersion = version;
             }
         }
         return version;
@@ -370,18 +368,6 @@ HistoryArchiveState::containsValidBuckets(Application& app) const
                        "Invalid HAS: future must have resolved output");
             return false;
         }
-    }
-
-    // By protocol "Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED + 1", all buckets
-    // must be at least of version "Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED"
-    if (minBucketVersion >= Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED + 1 &&
-        oldestBucketVersion < Bucket::FIRST_PROTOCOL_SHADOWS_REMOVED)
-    {
-        CLOG_ERROR(History,
-                   "Invalid HAS: bucketlist contains bucket version {} that is "
-                   "too old",
-                   oldestBucketVersion);
-        return false;
     }
 
     return true;
