@@ -2314,6 +2314,7 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
+    cfg.FLOOD_TX_PERIOD_MS = 0;
     auto app = createTestApplication(clock, cfg);
     app->start();
 
@@ -2357,10 +2358,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 500;
                 cfg.NODE_IS_VALIDATOR = false;
                 cfg.FORCE_SCP = false;
-                if (delayed)
-                {
-                    cfg.FLOOD_TX_PERIOD_MS = 100;
-                }
+                cfg.FLOOD_TX_PERIOD_MS = delayed ? 100 : 0;
                 cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
                 return cfg;
             });

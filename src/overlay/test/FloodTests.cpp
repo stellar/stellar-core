@@ -171,11 +171,8 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
         auto txFloodingTests = [&](bool delayed) {
             auto cfgGen2 = [&](int n) {
                 auto cfg = cfgGen(n);
-                if (delayed)
-                {
-                    // but enable delayed tx flooding
-                    cfg.FLOOD_TX_PERIOD_MS = 10;
-                }
+                // adjust delayed tx flooding
+                cfg.FLOOD_TX_PERIOD_MS = delayed ? 10 : 0;
                 return cfg;
             };
             SECTION("core")
