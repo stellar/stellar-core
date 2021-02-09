@@ -22,15 +22,7 @@ struct QueueLimiterTxComparator
     operator()(TransactionFrameBasePtr const& l,
                TransactionFrameBasePtr const& r) const
     {
-        auto cmp3 = feeRate3WayCompare(l, r);
-        if (cmp3 != 0)
-        {
-            return cmp3 < 0;
-        }
-        // break tie with pointer arithmetic
-        auto lx = reinterpret_cast<size_t>(l.get()) ^ mSeed;
-        auto rx = reinterpret_cast<size_t>(r.get()) ^ mSeed;
-        return lx < rx;
+        return lessThanXored(l, r, mSeed);
     }
 };
 
@@ -201,5 +193,20 @@ void
 TxQueueLimiter::resetMinFeeNeeded()
 {
     mMinFeeNeeded = {0ll, 0};
+}
+
+bool
+lessThanXored(TransactionFrameBasePtr const& l,
+              TransactionFrameBasePtr const& r, size_t seed)
+{
+    auto cmp3 = feeRate3WayCompare(l, r);
+    if (cmp3 != 0)
+    {
+        return cmp3 < 0;
+    }
+    // break tie with pointer arithmetic
+    auto lx = reinterpret_cast<size_t>(l.get()) ^ seed;
+    auto rx = reinterpret_cast<size_t>(r.get()) ^ seed;
+    return lx < rx;
 }
 }

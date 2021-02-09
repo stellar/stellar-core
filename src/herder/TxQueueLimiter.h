@@ -61,4 +61,7 @@ class TxQueueLimiter
 
     void resetMinFeeNeeded();
 };
+
+bool lessThanXored(TransactionFrameBasePtr const& l,
+                   TransactionFrameBasePtr const& r, size_t seed);
 }
