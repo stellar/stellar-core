@@ -24,11 +24,16 @@ namespace
 {
 TransactionFrameBasePtr
 transaction(Application& app, TestAccount& account, int64_t sequenceDelta,
-            int64_t amount, uint32_t fee)
+            int64_t amount, uint32_t fee, int nbOps = 1)
 {
+    std::vector<Operation> ops;
+    for (int i = 0; i < nbOps; ++i)
+    {
+        ops.emplace_back(payment(account.getPublicKey(), amount));
+    }
     return transactionFromOperations(
-        app, account, account.getLastSequenceNumber() + sequenceDelta,
-        {payment(account.getPublicKey(), amount)}, fee);
+        app, account, account.getLastSequenceNumber() + sequenceDelta, ops,
+        fee);
 }
 
 TransactionFrameBasePtr
@@ -223,76 +228,53 @@ TEST_CASE("TransactionQueue", "[herder][transactionqueue]")
     auto account2 = root.create("a2", minBalance2);
     auto account3 = root.create("a3", minBalance2);
 
-    auto txSeqA1T0 = transaction(*app, account1, 0, 1, 100);
+    auto txSeqA1T0 = transaction(*app, account1, 0, 1, 200);
     auto txSeqA1T1 = transaction(*app, account1, 1, 1, 200);
-    auto txSeqA1T2 = transaction(*app, account1, 2, 1, 300);
-    auto txSeqA1T1V2 = transaction(*app, account1, 1, 2, 400);
-    auto txSeqA1T2V2 = transaction(*app, account1, 2, 2, 500);
-    auto txSeqA1T3 = transaction(*app, account1, 3, 1, 600);
-    auto txSeqA1T4 = transaction(*app, account1, 4, 1, 700);
-    auto txSeqA2T1 = transaction(*app, account2, 1, 1, 800);
-    auto txSeqA2T2 = transaction(*app, account2, 2, 1, 900);
+    auto txSeqA1T2 = transaction(*app, account1, 2, 1, 400, 2);
+    auto txSeqA1T1V2 = transaction(*app, account1, 1, 2, 200);
+    auto txSeqA1T2V2 = transaction(*app, account1, 2, 2, 200);
+    auto txSeqA1T3 = transaction(*app, account1, 3, 1, 200);
+    auto txSeqA1T4 = transaction(*app, account1, 4, 1, 200);
+    auto txSeqA2T1 = transaction(*app, account2, 1, 1, 200);
+    auto txSeqA2T2 = transaction(*app, account2, 2, 1, 200);
     auto txSeqA3T1 = transaction(*app, account3, 1, 1, 100);
 
-    SECTION("small sequence number")
+    SECTION("simple sequence")
     {
         TransactionQueueTest test{*app};
+
+        // adding first tx
+        // too small seqnum
         test.add(txSeqA1T0, TransactionQueue::AddResult::ADD_STATUS_ERROR);
         test.check({{{account1}, {account2}}, {}});
-    }
-
-    SECTION("big sequence number")
-    {
-        TransactionQueueTest test{*app};
+        // too big seqnum
         test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_ERROR);
         test.check({{{account1}, {account2}}, {}});
-    }
 
-    SECTION("good sequence number")
-    {
-        TransactionQueueTest test{*app};
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
-    }
 
-    SECTION("good sequence number, same twice")
-    {
-        TransactionQueueTest test{*app};
-        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
+        // adding second tx
         test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
+
+        // adding third tx
+        // duplicates
         test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
         test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
         test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_DUPLICATE);
         test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
-    }
-
-    SECTION("good then small sequence number")
-    {
-        TransactionQueueTest test{*app};
-        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
-        test.add(txSeqA1T3, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
-    }
-
-    SECTION("good then big sequence number")
-    {
-        TransactionQueueTest test{*app};
-        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
-        test.add(txSeqA1T3, TransactionQueue::AddResult::ADD_STATUS_ERROR);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
-    }
-
-    SECTION("good then good sequence number")
-    {
-        TransactionQueueTest test{*app};
-        test.add(txSeqA1T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        test.check({{{account1, 0, {txSeqA1T1}}, {account2}}, {}});
-        test.add(txSeqA1T2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        // too low
+        test.add(txSeqA1T0, TransactionQueue::AddResult::ADD_STATUS_ERROR);
         test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
+        // too high
+        test.add(txSeqA1T4, TransactionQueue::AddResult::ADD_STATUS_ERROR);
+        test.check({{{account1, 0, {txSeqA1T1, txSeqA1T2}}, {account2}}, {}});
+        // just right
+        test.add(txSeqA1T3, TransactionQueue::AddResult::ADD_STATUS_PENDING);
+        test.check(
+            {{{account1, 0, {txSeqA1T1, txSeqA1T2, txSeqA1T3}}, {account2}},
+             {}});
     }
 
     SECTION("good sequence number, same twice with shift")
@@ -1144,25 +1126,23 @@ TEST_CASE("replace by fee", "[herder][transactionqueue]")
             std::vector<std::string> position{"first", "middle", "last"};
             for (uint32_t i = 1; i <= 3; ++i)
             {
-                SECTION(position[i - 1] +
-                        " transaction from same source account")
-                {
+                auto checkPos = [&](TestAccount& source) {
                     auto tx = transaction(*app, account1, i, 1, 100);
-                    auto fb = feeBump(*app, account1, tx, 4000);
+                    auto fb = feeBump(*app, source, tx, 4000);
                     txs[i - 1] = fb;
                     test.add(fb,
                              TransactionQueue::AddResult::ADD_STATUS_PENDING);
                     test.check({{{account1, 0, txs}, {account2}}, {}});
+                };
+                SECTION(position[i - 1] +
+                        " transaction from same source account")
+                {
+                    checkPos(account1);
                 }
                 SECTION(position[i - 1] +
                         " transaction from different source account")
                 {
-                    auto tx = transaction(*app, account1, i, 1, 100);
-                    auto fb = feeBump(*app, account2, tx, 4000);
-                    txs[i - 1] = fb;
-                    test.add(fb,
-                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
-                    test.check({{{account1, 0, txs}, {account2}}, {}});
+                    checkPos(account2);
                 }
             }
         }
