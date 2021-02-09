@@ -6,6 +6,7 @@
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "herder/TransactionQueue.h"
+#include "herder/TxQueueLimiter.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
@@ -214,7 +215,7 @@ class TransactionQueueTest
 };
 }
 
-TEST_CASE("TransactionQueue", "[herder][transactionqueue]")
+TEST_CASE("TransactionQueue base", "[herder][transactionqueue]")
 {
     VirtualClock clock;
     auto cfg = getTestConfig();
@@ -649,30 +650,167 @@ TEST_CASE("TransactionQueue", "[herder][transactionqueue]")
                      {account2, 3, {txSeqA2T1}},
                      {account3, 0, {txSeqA3T1}}}});
     }
-    SECTION("many transactions hit the pool limit")
-    {
-        TransactionQueueTest test{*app};
-        test.add(txSeqA3T1, TransactionQueue::AddResult::ADD_STATUS_PENDING);
-        std::vector<TransactionFrameBasePtr> a3Txs({txSeqA3T1});
-        std::vector<TransactionFrameBasePtr> banned;
+}
 
-        for (int i = 2; i <= 10; i++)
+TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig();
+    cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE = 4;
+    cfg.FLOOD_TX_PERIOD_MS = 100;
+    auto app = createTestApplication(clock, cfg);
+    auto const minBalance2 = app->getLedgerManager().getLastMinBalance(2);
+
+    auto root = TestAccount::createRoot(*app);
+    auto account1 = root.create("a1", minBalance2);
+    auto account2 = root.create("a2", minBalance2);
+    auto account3 = root.create("a3", minBalance2);
+    auto account4 = root.create("a4", minBalance2);
+    auto account5 = root.create("a5", minBalance2);
+    auto account6 = root.create("a6", minBalance2);
+
+    SECTION("simple limit")
+    {
+        auto txSeqA3T1 = transaction(*app, account3, 1, 1, 100);
+        auto simpleLimitTest = [&](std::function<uint32(int)> fee) {
+            TransactionQueueTest test{*app};
+            test.add(txSeqA3T1,
+                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
+            std::vector<TransactionFrameBasePtr> a3Txs({txSeqA3T1});
+            std::vector<TransactionFrameBasePtr> banned;
+
+            for (int i = 2; i <= 10; i++)
+            {
+                auto txSeqA3Ti = transaction(*app, account3, i, 1, fee(i));
+                if (i <= 8)
+                {
+                    test.add(txSeqA3Ti,
+                             TransactionQueue::AddResult::ADD_STATUS_PENDING);
+                    a3Txs.emplace_back(txSeqA3Ti);
+                }
+                else
+                {
+                    test.add(txSeqA3Ti, TransactionQueue::AddResult::
+                                            ADD_STATUS_TRY_AGAIN_LATER);
+                    banned.emplace_back(txSeqA3Ti);
+                    test.check({{{account3, 0, a3Txs}}, {banned}});
+                }
+            }
+        };
+        SECTION("constant fee")
         {
-            auto txSeqA3Ti = transaction(*app, account3, i, 1, 100);
-            if (i <= 8)
+            simpleLimitTest([](int) { return 100; });
+        }
+        SECTION("fee increasing")
+        {
+            simpleLimitTest([](int i) { return 100 * i; });
+        }
+        SECTION("fee decreasing")
+        {
+            simpleLimitTest([](int i) { return 100 * (100 - i); });
+        }
+    }
+    SECTION("multi accounts limits")
+    {
+        TxQueueLimiter limiter(3, app->getLedgerManager());
+
+        REQUIRE(limiter.maxQueueSizeOps() == 12);
+
+        struct SetupElement
+        {
+            TestAccount& account;
+            SequenceNumber startSeq;
+            std::vector<std::pair<int, int>> opsFeeVec;
+        };
+        std::vector<TransactionFrameBasePtr> txs;
+
+        TransactionFrameBasePtr noTx;
+
+        auto setup = [&](std::vector<SetupElement> elems) {
+            for (auto& e : elems)
             {
-                test.add(txSeqA3Ti,
-                         TransactionQueue::AddResult::ADD_STATUS_PENDING);
-                a3Txs.emplace_back(txSeqA3Ti);
+                SequenceNumber seq = e.startSeq;
+                for (auto opsFee : e.opsFeeVec)
+                {
+                    auto tx = transaction(*app, e.account, seq++, 1,
+                                          opsFee.second, opsFee.first);
+                    bool can = limiter.canAddTx(tx, noTx);
+                    REQUIRE(can);
+                    limiter.addTransaction(tx);
+                    txs.emplace_back(tx);
+                }
             }
-            else
+            REQUIRE(limiter.size() == 11);
+        };
+        // act \ base fee   400 300 200  100
+        //  1                2   1    0   0
+        //  2                1   1    2   0
+        //  3                0   1    1   0
+        //  4                0   0    1   0
+        //  5                0   0    0   1
+        // total             3   3    4   1 --> 11 (free = 1)
+        setup({{account1, 1, {{1, 400}, {1, 300}, {1, 400}}},
+               {account2, 1, {{1, 400}, {1, 300}, {2, 400}}},
+               {account3, 1, {{1, 300}, {1, 200}}},
+               {account4, 1, {{1, 200}}},
+               {account5, 1, {{1, 100}}}});
+        auto checkAndAddTx = [&](bool expected, TestAccount& account, int ops,
+                                 int fee) {
+            auto tx = transaction(*app, account, 1000, 1, fee, ops);
+            bool can = limiter.canAddTx(tx, noTx);
+            REQUIRE(expected == can);
+            if (can)
             {
-                test.add(
-                    txSeqA3Ti,
-                    TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER);
-                banned.emplace_back(txSeqA3Ti);
-                test.check({{{account3, 0, a3Txs}}, {banned}});
+                bool evicted = limiter.evictTransactions(
+                    tx->getNumOperations(),
+                    [&](TransactionFrameBasePtr const& evict) {
+                        // can't evict cheaper transactions
+                        auto cmp3 = feeRate3WayCompare(evict, tx);
+                        REQUIRE(cmp3 < 0);
+                        // can't evict self
+                        bool same = evict->getSourceID() == tx->getSourceID();
+                        REQUIRE(!same);
+                        limiter.removeTransaction(evict);
+                    });
+                REQUIRE(evicted);
+                limiter.addTransaction(tx);
+                limiter.removeTransaction(tx);
             }
+        };
+        // check that `account`
+        // can add ops operations,
+        // but not add ops+1 at the same basefee
+        auto checkTxBoundary = [&](TestAccount& account, int ops, int bfee) {
+            checkAndAddTx(false, account, (ops + 1), bfee * (ops + 1));
+            checkAndAddTx(true, account, ops, bfee * ops);
+        };
+
+        SECTION("evict nothing")
+        {
+            checkTxBoundary(account1, 1, 100);
+            REQUIRE(limiter.size() == 11);
+            // can't evict transaction with the same base fee
+            checkAndAddTx(false, account1, 2, 100 * 2);
+            REQUIRE(limiter.size() == 11);
+        }
+        SECTION("evict 100s")
+        {
+            checkTxBoundary(account1, 2, 200);
+            REQUIRE(limiter.size() == 10);
+        }
+        SECTION("evict 100s and 200s")
+        {
+            checkTxBoundary(account6, 6, 300);
+            REQUIRE(limiter.size() == 6);
+        }
+        SECTION("evict 100s and 200s, can't evict self")
+        {
+            checkAndAddTx(false, account2, 6, 6 * 300);
+        }
+        SECTION("evict all")
+        {
+            checkAndAddTx(true, account6, 12, 12 * 500);
+            REQUIRE(limiter.size() == 0);
         }
     }
 }

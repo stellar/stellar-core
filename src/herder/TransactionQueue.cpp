@@ -4,6 +4,7 @@
 
 #include "herder/TransactionQueue.h"
 #include "crypto/SecretKey.h"
+#include "herder/TxQueueLimiter.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTxn.h"
 #include "main/Application.h"
@@ -13,8 +14,8 @@
 #include "transactions/TransactionUtils.h"
 #include "util/HashOfHash.h"
 #include "util/XDROperators.h"
-#include <Tracy.hpp>
 
+#include <Tracy.hpp>
 #include <algorithm>
 #include <fmt/format.h>
 #include <medida/meter.h>
@@ -39,8 +40,9 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     , mTransactionsDelay(
           app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
     , mBroadcastTimer(app)
-    , mLimiter(poolLedgerMultiplier, app.getLedgerManager())
 {
+    mTxQueueLimiter = std::make_unique<TxQueueLimiter>(poolLedgerMultiplier,
+                                                       app.getLedgerManager());
     for (auto i = 0; i < pendingDepth; i++)
     {
         mSizeByAge.emplace_back(&app.getMetrics().NewCounter(
@@ -50,6 +52,11 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     auto const& filteredTypes =
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
     mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
+}
+
+TransactionQueue::~TransactionQueue()
+{
+    // empty destructor needed here due to the dependency on TxQueueLimiter
 }
 
 // returns true, if a transaction can be replaced by another
@@ -204,7 +211,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         }
     }
 
-    if (!mLimiter.canAddTx(tx, oldTx))
+    if (!mTxQueueLimiter->canAddTx(tx, oldTx))
     {
         ban({tx});
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
@@ -258,7 +265,7 @@ TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
 {
     auto ops = tstx.mTx->getNumOperations();
     as.mQueueSizeOps -= ops;
-    mLimiter.removedTransaction(tstx.mTx);
+    mTxQueueLimiter->removeTransaction(tstx.mTx);
     if (!tstx.mBroadcasted)
     {
         as.mBroadcastQueueOps -= ops;
@@ -300,10 +307,20 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     auto ops = tx->getNumOperations();
     stateIter->second.mQueueSizeOps += ops;
     stateIter->second.mBroadcastQueueOps += ops;
-    mLimiter.addedTransaction(tx);
-
     auto& thisAccountState = mAccountStates[tx->getFeeSourceID()];
     thisAccountState.mTotalFees += tx->getFeeBid();
+
+    // make space so that we can add this transaction
+    // this will succeed as `canAdd` ensures that this is the case
+    if (!mTxQueueLimiter->evictTransactions(
+            ops, [&](TransactionFrameBasePtr const& txToEvict) {
+                ban({txToEvict});
+            }))
+    {
+        throw std::logic_error(
+            "Invalid queue state, could not evict transactions");
+    }
+    mTxQueueLimiter->addTransaction(tx);
 
     if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
     {
@@ -666,7 +683,7 @@ TransactionQueue::clearAll()
     {
         b.clear();
     }
-    mLimiter.reset();
+    mTxQueueLimiter->reset();
 }
 
 void
@@ -921,48 +938,12 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
     }
 }
 
-TransactionQueue::Limiter::Limiter(int multiplier, LedgerManager& lm)
-    : mPoolLedgerMultiplier(multiplier), mLedgerManager(lm)
-{
-}
-
+#ifdef BUILD_TESTS
 size_t
-TransactionQueue::Limiter::maxQueueSizeOps() const
+TransactionQueue::getQueueSizeOps() const
 {
-    size_t maxOpsLedger = mLedgerManager.getLastMaxTxSetSizeOps();
-    maxOpsLedger *= mPoolLedgerMultiplier;
-    return maxOpsLedger;
+    return mTxQueueLimiter->size();
 }
 
-void
-TransactionQueue::Limiter::addedTransaction(TransactionFrameBasePtr const& tx)
-{
-    mQueueSizeOps += tx->getNumOperations();
-}
-
-void
-TransactionQueue::Limiter::removedTransaction(TransactionFrameBasePtr const& tx)
-{
-    mQueueSizeOps -= tx->getNumOperations();
-}
-
-bool
-TransactionQueue::Limiter::canAddTx(TransactionFrameBasePtr const& tx,
-                                    TransactionFrameBasePtr const& oldTx)
-{
-    auto netOps = tx->getNumOperations();
-    if (oldTx)
-    {
-        // as oldTx is already tracked by the limiter, this must hold
-        releaseAssert(netOps >= oldTx->getNumOperations());
-        netOps -= oldTx->getNumOperations();
-    }
-    return (mQueueSizeOps + netOps) <= maxQueueSizeOps();
-}
-
-void
-TransactionQueue::Limiter::reset()
-{
-    mQueueSizeOps = 0;
-}
+#endif
 }

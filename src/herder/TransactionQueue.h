@@ -29,6 +29,7 @@ namespace stellar
 {
 
 class Application;
+class TxQueueLimiter;
 
 /**
  * TransactionQueue keeps received transactions that are valid and have not yet
@@ -118,6 +119,7 @@ class TransactionQueue
 
     explicit TransactionQueue(Application& app, int pendingDepth, int banDepth,
                               int poolLedgerMultiplier);
+    ~TransactionQueue();
 
     AddResult tryAdd(TransactionFrameBasePtr tx);
     void removeApplied(Transactions const& txs);
@@ -206,44 +208,11 @@ class TransactionQueue
 
     bool isFiltered(TransactionFrameBasePtr tx) const;
 
-    // helper class that helps manage the queue size
-    class Limiter
-    {
-        // size of the transaction queue, in operations
-        size_t mQueueSizeOps{0};
-        // number of ledgers we can pool in memory
-        int const mPoolLedgerMultiplier;
-        LedgerManager& mLedgerManager;
-
-      public:
-        Limiter(int multiplier, LedgerManager& lm);
-
-        size_t
-        getQueueSizeOps() const
-        {
-            return mQueueSizeOps;
-        }
-        size_t maxQueueSizeOps() const;
-
-        void addedTransaction(TransactionFrameBasePtr const& tx);
-        void removedTransaction(TransactionFrameBasePtr const& tx);
-
-        // oldTx is set when performing a replace by fee
-        bool canAddTx(TransactionFrameBasePtr const& tx,
-                      TransactionFrameBasePtr const& oldTx);
-
-        void reset();
-    };
-
-    Limiter mLimiter;
+    std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
 
 #ifdef BUILD_TESTS
   public:
-    size_t
-    getQueueSizeOps() const
-    {
-        return mLimiter.getQueueSizeOps();
-    }
+    size_t getQueueSizeOps() const;
 #endif
 };
 

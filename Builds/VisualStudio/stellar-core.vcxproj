@@ -314,6 +314,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\test\TransactionQueueTests.cpp" />
     <ClCompile Include="..\..\src\herder\test\QuorumTrackerTests.cpp" />
     <ClCompile Include="..\..\src\herder\test\UpgradesTests.cpp" />
+    <ClCompile Include="..\..\src\herder\TxQueueLimiter.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
@@ -676,6 +677,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\TransactionQueue.h" />
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
+    <ClInclude Include="..\..\src\herder\TxQueueLimiter.h" />
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
