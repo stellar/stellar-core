@@ -123,7 +123,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
             std::weak_ptr<Peer> weak(
                 std::static_pointer_cast<Peer>(peer.second));
             mApp.postOnMainThread(
-                [ smsg, weak, log = !broadcasted ]() {
+                [smsg, weak, log = !broadcasted]() {
                     auto strong = weak.lock();
                     if (strong)
                     {

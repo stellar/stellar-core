@@ -165,7 +165,7 @@ struct BucketListGenerator
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
                                          mergeCounters, mClock.getIOContext(),
                                          /*doFsync=*/true);
-                for (BucketInputIterator in (level.getCurr()); in; ++in)
+                for (BucketInputIterator in(level.getCurr()); in; ++in)
                 {
                     out.put(*in);
                 }
@@ -175,7 +175,7 @@ struct BucketListGenerator
                 BucketOutputIterator out(bmApply.getTmpDir(), keepDead, meta,
                                          mergeCounters, mClock.getIOContext(),
                                          /*doFsync=*/true);
-                for (BucketInputIterator in (level.getSnap()); in; ++in)
+                for (BucketInputIterator in(level.getSnap()); in; ++in)
                 {
                     out.put(*in);
                 }

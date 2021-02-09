@@ -627,10 +627,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     std::weak_ptr<Peer> weak(static_pointer_cast<Peer>(shared_from_this()));
     mApp.postOnMainThread(
-        [
-            weak, sm = StellarMessage(stellarMsg), mtype = stellarMsg.type(),
-            cat, port = mApp.getConfig().PEER_PORT
-        ]() {
+        [weak, sm = StellarMessage(stellarMsg), mtype = stellarMsg.type(), cat,
+         port = mApp.getConfig().PEER_PORT]() {
             auto self = weak.lock();
             if (self)
             {

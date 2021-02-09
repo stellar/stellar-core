@@ -53,7 +53,6 @@ TEST_CASE("standalone", "[herder][acceptance]")
     cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
     for_all_versions(cfg, [&](Config const& cfg1) {
-
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg1);
 
@@ -2350,7 +2349,6 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
 TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 {
     auto test = [](bool delayed, uint32_t numOps) {
-
         auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
         auto simulation = std::make_shared<Simulation>(
             Simulation::OVER_LOOPBACK, networkID, [&](int i) {
@@ -2472,7 +2470,6 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
     };
 
     auto testOps = [&](bool delayed) {
-
         SECTION("one operation per transaction")
         {
             test(delayed, 1);
