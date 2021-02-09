@@ -118,4 +118,9 @@ class TxSetFrame : public AbstractTxSetFrameForApply
     int64_t getTotalFees(LedgerHeader const& lh) const;
     void toXDR(TransactionSet& set) override;
 };
+
+// 3-way fee rate compare
+int feeRate3WayCompare(TransactionFrameBasePtr const& l,
+                       TransactionFrameBasePtr const& r);
+
 } // namespace stellar

@@ -30,6 +30,38 @@ namespace stellar
 
 using namespace std;
 
+int
+feeRate3WayCompare(TransactionFrameBasePtr const& l,
+                   TransactionFrameBasePtr const& r)
+{
+    // compare fee/numOps between l and r
+    // getNumOperations >= 1 because SurgeCompare can only be used on
+    // valid transactions
+    //
+    // Let f1, f2 be the two fee bids, and let n1, n2 be the two
+    // operation counts. We want to calculate the boolean comparison
+    // "f1 / n1 < f2 / n2" but, since these are uint128s, we want to
+    // avoid the truncating division or use of floating point.
+    //
+    // Therefore we multiply both sides by n1 * n2, and cancel:
+    //
+    //               f1 / n1 < f2 / n2
+    //  == f1 * n1 * n2 / n1 < f2 * n1 * n2 / n2
+    //  == f1 *      n2      < f2 * n1
+
+    auto v1 = bigMultiply(l->getFeeBid(), r->getNumOperations());
+    auto v2 = bigMultiply(r->getFeeBid(), l->getNumOperations());
+    if (v1 < v2)
+    {
+        return -1;
+    }
+    else if (v1 > v2)
+    {
+        return 1;
+    }
+    return 0;
+}
+
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
     : mHash(nullptr), mValid(nullptr), mPreviousLedgerHash(previousLedgerHash)
 {
@@ -175,30 +207,11 @@ struct SurgeCompare
         auto& top1 = tx1->front();
         auto& top2 = tx2->front();
 
-        // compare fee/numOps between top1 and top2
-        // getNumOperations >= 1 because SurgeCompare can only be used on
-        // valid transactions
-        //
-        // Let f1, f2 be the two fee bids, and let n1, n2 be the two
-        // operation counts. We want to calculate the boolean comparison
-        // "f1 / n1 < f2 / n2" but, since these are uint128s, we want to
-        // avoid the truncating division or use of floating point.
-        //
-        // Therefore we multiply both sides by n1 * n2, and cancel:
-        //
-        //               f1 / n1 < f2 / n2
-        //  == f1 * n1 * n2 / n1 < f2 * n1 * n2 / n2
-        //  == f1 *      n2      < f2 * n1
+        auto cmp3 = feeRate3WayCompare(top1, top2);
 
-        auto v1 = bigMultiply(top1->getFeeBid(), top2->getNumOperations());
-        auto v2 = bigMultiply(top2->getFeeBid(), top1->getNumOperations());
-        if (v1 < v2)
+        if (cmp3 != 0)
         {
-            return true;
-        }
-        else if (v1 > v2)
-        {
-            return false;
+            return cmp3 < 0;
         }
         // use hash of transaction as a tie breaker
         return lessThanXored(top1->getFullHash(), top2->getFullHash(), mSeed);
@@ -558,4 +571,5 @@ TxSetFrame::toXDR(TransactionSet& txSet)
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
 }
+
 } // namespace stellar
