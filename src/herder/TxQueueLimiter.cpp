@@ -6,6 +6,7 @@
 #include "herder/SurgePricingUtils.h"
 #include "herder/TxSetFrame.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
@@ -167,6 +168,16 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
     // we reach this point if the queue doesn't have capacity for that
     // transaction even when empty. Combination of multiplier and max ledger
     // size is too small for whatever reason
+    static size_t lastMax = std::numeric_limits<size_t>::max();
+    if (lastMax != maxQueueSizeOps())
+    {
+        lastMax = maxQueueSizeOps();
+        CLOG_WARNING(Herder,
+                     "Transaction Queue limiter configured with {} operations: "
+                     "node won't be able to accept all transactions",
+                     lastMax);
+    }
+
     return std::make_pair(false, 0ll);
 }
 
