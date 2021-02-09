@@ -48,7 +48,7 @@ namespace stellar
 
 constexpr auto const TRANSACTION_QUEUE_SIZE = 4;
 constexpr auto const TRANSACTION_QUEUE_BAN_SIZE = 10;
-constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 4;
+constexpr auto const TRANSACTION_QUEUE_MULTIPLIER = 2;
 
 std::unique_ptr<Herder>
 Herder::create(Application& app)
