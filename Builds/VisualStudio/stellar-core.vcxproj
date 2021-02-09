@@ -307,6 +307,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\simulation\TxSimTxSetFrame.cpp" />
+    <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp" />
     <ClCompile Include="..\..\src\herder\TransactionQueue.cpp" />
     <ClCompile Include="..\..\src\herder\QuorumTracker.cpp" />
     <ClCompile Include="..\..\src\herder\test\HerderTests.cpp" />
@@ -675,6 +676,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\LedgerCloseData.h" />
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h" />
     <ClInclude Include="..\..\src\herder\simulation\TxSimTxSetFrame.h" />
+    <ClInclude Include="..\..\src\herder\SurgePricingUtils.h" />
     <ClInclude Include="..\..\src\herder\TransactionQueue.h" />
     <ClInclude Include="..\..\src\herder\QuorumTracker.h" />
     <ClInclude Include="..\..\src\herder\TxQueueLimiter.h" />

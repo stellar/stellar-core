@@ -5,6 +5,7 @@
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
+#include "herder/SurgePricingUtils.h"
 #include "herder/TransactionQueue.h"
 #include "herder/TxQueueLimiter.h"
 #include "test/TestAccount.h"
