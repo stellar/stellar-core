@@ -204,21 +204,45 @@ class TransactionQueue
 
     void clearAll();
 
-    // size of the transaction queue, in operations
-    size_t mQueueSizeOps{0};
-    // number of ledgers we can pool in memory
-    int const mPoolLedgerMultiplier;
-
-    size_t maxQueueSizeOps() const;
-
     bool isFiltered(TransactionFrameBasePtr tx) const;
+
+    // helper class that helps manage the queue size
+    class Limiter
+    {
+        // size of the transaction queue, in operations
+        size_t mQueueSizeOps{0};
+        // number of ledgers we can pool in memory
+        int const mPoolLedgerMultiplier;
+        LedgerManager& mLedgerManager;
+
+      public:
+        Limiter(int multiplier, LedgerManager& lm);
+
+        size_t
+        getQueueSizeOps() const
+        {
+            return mQueueSizeOps;
+        }
+        size_t maxQueueSizeOps() const;
+
+        void addedTransaction(TransactionFrameBasePtr const& tx);
+        void removedTransaction(TransactionFrameBasePtr const& tx);
+
+        // oldTx is set when performing a replace by fee
+        bool canAddTx(TransactionFrameBasePtr const& tx,
+                      TransactionFrameBasePtr const& oldTx);
+
+        void reset();
+    };
+
+    Limiter mLimiter;
 
 #ifdef BUILD_TESTS
   public:
     size_t
     getQueueSizeOps() const
     {
-        return mQueueSizeOps;
+        return mLimiter.getQueueSizeOps();
     }
 #endif
 };

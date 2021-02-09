@@ -39,7 +39,7 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     , mTransactionsDelay(
           app.getMetrics().NewTimer({"herder", "pending-txs", "delay"}))
     , mBroadcastTimer(app)
-    , mPoolLedgerMultiplier(poolLedgerMultiplier)
+    , mLimiter(poolLedgerMultiplier, app.getLedgerManager())
 {
     for (auto i = 0; i < pendingDepth; i++)
     {
@@ -144,8 +144,8 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
     }
 
     int64_t netFee = tx->getFeeBid();
-    int64_t netOps = tx->getNumOperations();
     int64_t seqNum = 0;
+    TransactionFrameBasePtr oldTx;
 
     stateIter = mAccountStates.find(tx->getSourceID());
     if (stateIter != mAccountStates.end())
@@ -191,11 +191,9 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
                         return TransactionQueue::AddResult::ADD_STATUS_ERROR;
                     }
 
-                    netOps -= oldTxIter->mTx->getNumOperations();
-
-                    int64_t oldFee = oldTxIter->mTx->getFeeBid();
-                    if (oldTxIter->mTx->getFeeSourceID() ==
-                        tx->getFeeSourceID())
+                    oldTx = oldTxIter->mTx;
+                    int64_t oldFee = oldTx->getFeeBid();
+                    if (oldTx->getFeeSourceID() == tx->getFeeSourceID())
                     {
                         netFee -= oldFee;
                     }
@@ -206,7 +204,7 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         }
     }
 
-    if (netOps + mQueueSizeOps > maxQueueSizeOps())
+    if (!mLimiter.canAddTx(tx, oldTx))
     {
         ban({tx});
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
@@ -260,7 +258,7 @@ TransactionQueue::prepareDropTransaction(AccountState& as, TimestampedTx& tstx)
 {
     auto ops = tstx.mTx->getNumOperations();
     as.mQueueSizeOps -= ops;
-    mQueueSizeOps -= ops;
+    mLimiter.removedTransaction(tstx.mTx);
     if (!tstx.mBroadcasted)
     {
         as.mBroadcastQueueOps -= ops;
@@ -302,7 +300,7 @@ TransactionQueue::tryAdd(TransactionFrameBasePtr tx)
     auto ops = tx->getNumOperations();
     stateIter->second.mQueueSizeOps += ops;
     stateIter->second.mBroadcastQueueOps += ops;
-    mQueueSizeOps += ops;
+    mLimiter.addedTransaction(tx);
 
     auto& thisAccountState = mAccountStates[tx->getFeeSourceID()];
     thisAccountState.mTotalFees += tx->getFeeBid();
@@ -668,7 +666,7 @@ TransactionQueue::clearAll()
     {
         b.clear();
     }
-    mQueueSizeOps = 0;
+    mLimiter.reset();
 }
 
 void
@@ -886,14 +884,6 @@ operator==(TransactionQueue::AccountTxQueueInfo const& x,
            x.mBroadcastQueueOps == y.mBroadcastQueueOps;
 }
 
-size_t
-TransactionQueue::maxQueueSizeOps() const
-{
-    size_t maxOpsLedger = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-    maxOpsLedger *= mPoolLedgerMultiplier;
-    return maxOpsLedger;
-}
-
 static bool
 containsFilteredOperation(std::vector<Operation> const& ops,
                           UnorderedSet<OperationType> const& filteredTypes)
@@ -929,5 +919,50 @@ TransactionQueue::isFiltered(TransactionFrameBasePtr tx) const
     default:
         abort();
     }
+}
+
+TransactionQueue::Limiter::Limiter(int multiplier, LedgerManager& lm)
+    : mPoolLedgerMultiplier(multiplier), mLedgerManager(lm)
+{
+}
+
+size_t
+TransactionQueue::Limiter::maxQueueSizeOps() const
+{
+    size_t maxOpsLedger = mLedgerManager.getLastMaxTxSetSizeOps();
+    maxOpsLedger *= mPoolLedgerMultiplier;
+    return maxOpsLedger;
+}
+
+void
+TransactionQueue::Limiter::addedTransaction(TransactionFrameBasePtr const& tx)
+{
+    mQueueSizeOps += tx->getNumOperations();
+}
+
+void
+TransactionQueue::Limiter::removedTransaction(TransactionFrameBasePtr const& tx)
+{
+    mQueueSizeOps -= tx->getNumOperations();
+}
+
+bool
+TransactionQueue::Limiter::canAddTx(TransactionFrameBasePtr const& tx,
+                                    TransactionFrameBasePtr const& oldTx)
+{
+    auto netOps = tx->getNumOperations();
+    if (oldTx)
+    {
+        // as oldTx is already tracked by the limiter, this must hold
+        releaseAssert(netOps >= oldTx->getNumOperations());
+        netOps -= oldTx->getNumOperations();
+    }
+    return (mQueueSizeOps + netOps) <= maxQueueSizeOps();
+}
+
+void
+TransactionQueue::Limiter::reset()
+{
+    mQueueSizeOps = 0;
 }
 }
