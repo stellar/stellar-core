@@ -2361,6 +2361,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
                 {
                     cfg.FLOOD_TX_PERIOD_MS = 100;
                 }
+                cfg.FLOOD_OP_RATE_PER_LEDGER = 2.0;
                 return cfg;
             });
 

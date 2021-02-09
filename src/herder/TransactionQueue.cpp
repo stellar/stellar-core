@@ -713,15 +713,8 @@ TransactionQueue::getMaxOpsToFloodThisPeriod() const
     size_t opsToFloodLedger;
     auto& cfg = mApp.getConfig();
     auto const opRatePerLedger = cfg.FLOOD_OP_RATE_PER_LEDGER;
-    if (opRatePerLedger < 0)
-    {
-        size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
-        opsToFloodLedger = maxOps * -opRatePerLedger;
-    }
-    else
-    {
-        opsToFloodLedger = opRatePerLedger;
-    }
+    size_t maxOps = mApp.getLedgerManager().getLastMaxTxSetSizeOps();
+    opsToFloodLedger = static_cast<size_t>(opRatePerLedger * maxOps);
 
     size_t opsToFlood;
     if (mApp.getConfig().FLOOD_TX_PERIOD_MS != 0)
