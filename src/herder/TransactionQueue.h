@@ -191,6 +191,7 @@ class TransactionQueue
     size_t getMaxOpsToFloodThisPeriod() const;
     bool broadcastSome();
     void broadcast(bool fromCallback);
+    // broadcasts a single transaction
     bool broadcastTx(AccountState& state, TimestampedTx& tx);
 
     AddResult canAdd(TransactionFrameBasePtr tx,
@@ -210,9 +211,14 @@ class TransactionQueue
 
     std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
 
+    size_t mBroadcastSeed;
+
+    friend struct TxQueueTracker;
+
 #ifdef BUILD_TESTS
   public:
     size_t getQueueSizeOps() const;
+    std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
 #endif
 };
 

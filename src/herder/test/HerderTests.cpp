@@ -29,6 +29,7 @@
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionFrame.h"
 #include "transactions/TransactionUtils.h"
+#include "util/Math.h"
 
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/marshal.h"
@@ -2386,33 +2387,93 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         auto& tq = herder.getTransactionQueue();
 
         auto root = TestAccount::createRoot(*app);
-        auto acc = root.create("A", lm.getLastMinBalance(2));
+        std::vector<TestAccount> accs;
 
-        auto genTx = [&](TestAccount& source, uint32_t numOps) {
+        // number of accounts to use
+        int const nbAccounts = 40;
+        // number of transactions to generate per fee
+        // groups are
+        int const feeGroupMaxSize = 7;
+        // used to track fee
+        int feeGroupSize = 0;
+        uint32 curFeeOffset = 10000;
+
+        accs.reserve(nbAccounts);
+        for (int i = 0; i < nbAccounts; ++i)
+        {
+            accs.emplace_back(
+                root.create(fmt::format("A{}", i), lm.getLastMinBalance(2)));
+        }
+        std::deque<uint32> fees;
+
+        auto genTx = [&](TestAccount& source, uint32_t numOps, bool highFee) {
             std::vector<Operation> ops;
             for (int64_t i = 1; i <= numOps; ++i)
             {
                 ops.emplace_back(payment(source, i));
             }
             auto tx = source.tx(ops);
+            auto txFee = static_cast<uint32_t>(tx->getFeeBid());
+            if (highFee)
+            {
+                txFee += 100000;
+                fees.emplace_front(txFee);
+            }
+            else
+            {
+                txFee += curFeeOffset;
+                fees.emplace_back(txFee);
+            }
+            setFee(tx, txFee);
+            getSignatures(tx).clear();
+            tx->addSignature(source.getSecretKey());
+            if (++feeGroupSize == feeGroupMaxSize)
+            {
+                feeGroupSize = 0;
+                curFeeOffset--;
+            }
+
             REQUIRE(herder.recvTransaction(tx) ==
                     TransactionQueue::AddResult::ADD_STATUS_PENDING);
             return tx;
         };
 
+        auto genTxRandAccount = [&](uint32_t numOps) {
+            genTx(rand_element(accs), numOps, false);
+        };
+
         size_t const maxOps = cfg.TESTING_UPGRADE_MAX_TX_SET_SIZE;
 
-        auto tx1a = genTx(acc, numOps);
-        auto tx1r = genTx(root, numOps);
+        auto tx1a = genTx(accs[0], numOps, false);
+        auto tx1r = genTx(root, numOps, false);
         size_t numTx = 2;
-        while ((numTx + 2) * numOps <= maxOps)
+        for (; (numTx + 2) * numOps <= maxOps; ++numTx)
         {
-            genTx(acc, numOps);
-            genTx(root, numOps);
-            numTx += 2;
+            genTxRandAccount(numOps);
         }
 
+        std::map<AccountID, SequenceNumber> bcastTracker;
+        TransactionFrameBasePtr lastTx;
+        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr& tx) {
+            // ensure that sequence numbers are correct per account
+            auto expected = tx->getSeqNum();
+            std::swap(bcastTracker[tx->getSourceID()], expected);
+            if (expected != 0)
+            {
+                expected++;
+                REQUIRE(expected == tx->getSeqNum());
+            }
+            // check if we have the expected fee
+            REQUIRE(tx->getFeeBid() == fees.front());
+            fees.pop_front();
+        };
+
         REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx);
+
+        // remove the first two transactions that won't be
+        // re-broadcasted during externalize
+        fees.pop_front();
+        fees.pop_front();
 
         auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
         externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r});
@@ -2450,10 +2511,17 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             // as we're waiting for a ledger worth of capacity
             // and we have a multiplier of 2
             // it should take about half a ledger period to broadcast everything
-            simulation->crankForAtLeast(std::chrono::milliseconds(2500), false);
-            REQUIRE(numBroadcast + (numTx - 2) ==
+
+            // we wait a bit more, and inject an extra high fee transaction
+            // from an account with no pending transactions
+            // this transactions should be the next one to be broadcasted
+            simulation->crankForAtLeast(std::chrono::milliseconds(500), false);
+            genTx(root, numOps, true);
+
+            simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
+            REQUIRE(numBroadcast + (numTx - 1) ==
                     om.getOverlayMetrics().mMessagesBroadcast.count());
-            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
+            REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 1);
         }
         else
         {

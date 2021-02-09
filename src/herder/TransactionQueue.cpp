@@ -12,12 +12,14 @@
 #include "transactions/FeeBumpTransactionFrame.h"
 #include "transactions/TransactionBridge.h"
 #include "transactions/TransactionUtils.h"
+#include "util/GlobalChecks.h"
 #include "util/HashOfHash.h"
 #include "util/XDROperators.h"
 
 #include <Tracy.hpp>
 #include <algorithm>
 #include <fmt/format.h>
+#include <functional>
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
 #include <medida/timer.h>
@@ -52,6 +54,8 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
     auto const& filteredTypes =
         app.getConfig().EXCLUDE_TRANSACTIONS_CONTAINING_OPERATION_TYPE;
     mFilteredTypes.insert(filteredTypes.begin(), filteredTypes.end());
+    mBroadcastSeed =
+        rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
 }
 
 TransactionQueue::~TransactionQueue()
@@ -610,6 +614,9 @@ TransactionQueue::shift()
         mSizeByAge[i]->set_count(sizes[i]);
     }
     mTxQueueLimiter->resetMinFeeNeeded();
+    // pick a new randomizing seed for tie breaking
+    mBroadcastSeed =
+        rand_uniform<uint64>(0, std::numeric_limits<uint64>::max());
 }
 
 int
@@ -739,98 +746,120 @@ TransactionQueue::broadcastTx(AccountState& state, TimestampedTx& tx)
     {
         return false;
     }
+#ifdef BUILD_TESTS
+    if (mTxBroadcastedEvent)
+    {
+        mTxBroadcastedEvent(tx.mTx);
+    }
+#endif
     tx.mBroadcasted = true;
     state.mBroadcastQueueOps -= tx.mTx->getNumOperations();
     return mApp.getOverlayManager().broadcastMessage(
         tx.mTx->toStellarMessage());
 }
 
+struct TxQueueTracker
+{
+    TransactionQueue::TimestampedTransactions::iterator mCur;
+    TransactionQueue::AccountState* mAccountState;
+
+    // skips to first transaction not broadcasted yet
+    bool
+    skipToFirstNotBroadcasted()
+    {
+        while (mCur != mAccountState->mTransactions.end() && mCur->mBroadcasted)
+        {
+            ++mCur;
+        }
+        return mCur != mAccountState->mTransactions.end();
+    }
+
+    struct Comparator
+    {
+        size_t mSeed;
+        Comparator(size_t seed) : mSeed(seed)
+        {
+        }
+
+        // return true if l < r
+        // compares tx `cur` for each TxTracker as to implement surge
+        // pricing comparison
+        bool
+        operator()(TxQueueTracker const& l, TxQueueTracker const& r) const
+        {
+            if (l.mCur == l.mAccountState->mTransactions.end())
+            {
+                return r.mCur != r.mAccountState->mTransactions.end();
+            }
+            if (r.mCur == r.mAccountState->mTransactions.end())
+            {
+                return false;
+            }
+            return lessThanXored(l.mCur->mTx, r.mCur->mTx, mSeed);
+        }
+    };
+};
+
 bool
 TransactionQueue::broadcastSome()
 {
-    // broadcast transactions, sorted in apply-order per account to
-    // maximize chances of propagation.
+    // broadcast transactions in surge pricing order:
+    // loop over transactions by picking from the account queue with the
+    // highest base fee not broadcasted so far.
+    // This broadcasts from account queues in order as to maximize chances of
+    // propagation.
     size_t opsToFlood = getMaxOpsToFloodThisPeriod();
 
-    struct TxTracker
-    {
-        TimestampedTransactions::iterator mCur;
-        AccountState* mAccountState;
-        TxTracker(TxTracker&&) = default;
-
-        // NB: this overload seems to be necessary with most versions of
-        // libstdc++ that assert when std::move is called on self for iterators
-        // std::swap ends up calling this operator
-        // See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=85828
-        TxTracker&
-        operator=(TxTracker&& other)
-        {
-            if (this != &other)
-            {
-                mCur = other.mCur;
-                mAccountState = other.mAccountState;
-            }
-            return *this;
-        }
-    };
-    // populate the list of per account queues of transactions to broadcast
-    std::deque<TxTracker> iters;
+    // uses a priority queue of trackers, using a custom comparator as to
+    // prioritize higher fee queues
+    TxQueueTracker::Comparator comp(mBroadcastSeed);
+    std::priority_queue<TxQueueTracker, std::vector<TxQueueTracker>,
+                        TxQueueTracker::Comparator>
+        iters(comp);
     size_t totalOpsToFlood = 0;
     for (auto& m : mAccountStates)
     {
         auto asOps = m.second.mBroadcastQueueOps;
         if (asOps != 0)
         {
-            iters.emplace_back(
-                TxTracker{m.second.mTransactions.begin(), &m.second});
+            TxQueueTracker tracker{m.second.mTransactions.begin(), &m.second};
+            auto r = tracker.skipToFirstNotBroadcasted();
+            // there should be at least one tx to broadcast in this queue
+            releaseAssert(r);
+            iters.emplace(tracker);
             totalOpsToFlood += asOps;
         }
     }
-    std::shuffle(iters.begin(), iters.end(), gRandomEngine);
 
-    auto it = iters.begin();
     while (opsToFlood != 0 && !iters.empty())
     {
-        if (it == iters.end())
+        auto curTracker = iters.top();
+        iters.pop();
+        // look at the next candidate transaction for that account
+        auto& cur = curTracker.mCur;
+        auto& tx = cur->mTx;
+        // by construction, cur points to non broadcasted transactions
+        releaseAssert(!cur->mBroadcasted);
+        if (opsToFlood < tx->getNumOperations())
         {
-            // round robin over accounts
-            it = iters.begin();
-        }
-        if (it->mCur == it->mAccountState->mTransactions.end())
-        {
-            // no more transactions for that account, stop tracking it
-            it = iters.erase(it);
+            // as we can't flood this transaction we have to wait to
+            // accumulate more flooding credit
+            break;
         }
         else
         {
-            // look at the next candidate transaction for that account
-            auto& cur = it->mCur;
-            auto& tx = cur->mTx;
-            bool broadcasted = cur->mBroadcasted;
-
-            if (broadcasted)
+            if (broadcastTx(*curTracker.mAccountState, *cur))
             {
-                // already done, skip this transaction
-                cur++;
+                auto ops = tx->getNumOperations();
+                opsToFlood -= ops;
+                totalOpsToFlood -= ops;
             }
-            else if (opsToFlood < tx->getNumOperations())
-            {
-                // as we can't flood this transaction we have to wait to
-                // accumulate more flooding credit
-                break;
-            }
-            else
-            {
-                if (broadcastTx(*it->mAccountState, *cur))
-                {
-                    auto ops = tx->getNumOperations();
-                    opsToFlood -= ops;
-                    totalOpsToFlood -= ops;
-                }
-                cur++;
-            }
-            // move to the next AccountState
-            ++it;
+            cur++;
+        }
+        // if we're not done with this account, add the tracker back
+        if (curTracker.skipToFirstNotBroadcasted())
+        {
+            iters.push(curTracker);
         }
     }
     // carry over remainder, up to MAX_OPS_PER_TX ops
@@ -945,6 +974,5 @@ TransactionQueue::getQueueSizeOps() const
 {
     return mTxQueueLimiter->size();
 }
-
 #endif
 }
