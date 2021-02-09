@@ -71,7 +71,7 @@ class TransactionQueueTest
         struct AccountState
         {
             AccountID mAccountID;
-            int mAge;
+            uint32 mAge;
             std::vector<TransactionFrameBasePtr> mAccountTransactions;
         };
 
@@ -940,7 +940,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         auto fb = feeBump(*app, account1, tx, 200);
         test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        for (int i = 0; i <= 3; ++i)
+        for (uint32 i = 0; i <= 3; ++i)
         {
             test.check({{{account1, i, {fb}}, {account2}, {account3}}, {}});
             test.shift();
@@ -956,7 +956,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         test.add(fb, TransactionQueue::AddResult::ADD_STATUS_PENDING);
         test.check({{{account1, 0, {fb}}, {account2, 0}}, {}});
 
-        for (int i = 1; i <= 3; ++i)
+        for (uint32 i = 1; i <= 3; ++i)
         {
             test.shift();
             test.check({{{account1, i, {fb}}, {account2, 0}, {account3}}, {}});
@@ -981,7 +981,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         auto fb2 = feeBump(*app, account3, tx2, 200);
         test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        for (int i = 1; i <= 3; ++i)
+        for (uint32 i = 1; i <= 3; ++i)
         {
             test.check({{{account1, i, {fb1}},
                          {account2, i - 1, {fb2}},
@@ -1010,7 +1010,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         auto tx2 = transaction(*app, account3, 1, 1, 100);
         test.add(tx2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        for (int i = 1; i <= 3; ++i)
+        for (uint32 i = 1; i <= 3; ++i)
         {
             test.check(
                 {{{account1, i, {fb1}}, {account2}, {account3, i - 1, {tx2}}},
@@ -1037,7 +1037,7 @@ TEST_CASE("transaction queue with fee-bump", "[herder][transactionqueue]")
         auto fb2 = feeBump(*app, account3, tx2, 200);
         test.add(fb2, TransactionQueue::AddResult::ADD_STATUS_PENDING);
 
-        for (int i = 1; i <= 3; ++i)
+        for (uint32 i = 1; i <= 3; ++i)
         {
             test.check(
                 {{{account1, i - 1, {fb2}}, {account2}, {account3, i, {tx1}}},

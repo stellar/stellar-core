@@ -17,7 +17,7 @@ class TxQueueLimiter
     // size of the transaction queue, in operations
     size_t mQueueSizeOps{0};
     // number of ledgers we can pool in memory
-    int const mPoolLedgerMultiplier;
+    uint32 const mPoolLedgerMultiplier;
     LedgerManager& mLedgerManager;
     // minimum fee needed for a transaction
     // stored as a pair (fee bid, nb operations)
@@ -28,7 +28,7 @@ class TxQueueLimiter
     TransactionFrameBasePtr getWorstTransaction();
 
   public:
-    TxQueueLimiter(int multiplier, LedgerManager& lm);
+    TxQueueLimiter(uint32 multiplier, LedgerManager& lm);
     ~TxQueueLimiter();
 
     size_t

@@ -39,7 +39,7 @@ class QueueLimiterTxMap
     }
 };
 
-TxQueueLimiter::TxQueueLimiter(int multiplier, LedgerManager& lm)
+TxQueueLimiter::TxQueueLimiter(uint32 multiplier, LedgerManager& lm)
     : mPoolLedgerMultiplier(multiplier), mLedgerManager(lm)
 {
     mTxs = std::make_unique<QueueLimiterTxMap>();

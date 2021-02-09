@@ -29,8 +29,8 @@ namespace stellar
 {
 const int64_t TransactionQueue::FEE_MULTIPLIER = 10;
 
-TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
-                                   int banDepth, int poolLedgerMultiplier)
+TransactionQueue::TransactionQueue(Application& app, uint32 pendingDepth,
+                                   uint32 banDepth, uint32 poolLedgerMultiplier)
     : mApp(app)
     , mPendingDepth(pendingDepth)
     , mBannedTransactions(banDepth)
@@ -45,7 +45,7 @@ TransactionQueue::TransactionQueue(Application& app, int pendingDepth,
 {
     mTxQueueLimiter = std::make_unique<TxQueueLimiter>(poolLedgerMultiplier,
                                                        app.getLedgerManager());
-    for (auto i = 0; i < pendingDepth; i++)
+    for (uint32 i = 0; i < pendingDepth; i++)
     {
         mSizeByAge.emplace_back(&app.getMetrics().NewCounter(
             {"herder", "pending-txs", fmt::format("age{}", i)}));
