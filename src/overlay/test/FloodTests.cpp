@@ -31,10 +31,11 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation;
 
-    // do not close ledgers
     auto cfgGen = [](int cfgNum) {
         Config cfg = getTestConfig(cfgNum);
+        // do not close ledgers
         cfg.MANUAL_CLOSE = true;
+        cfg.FORCE_SCP = false;
         return cfg;
     };
 
