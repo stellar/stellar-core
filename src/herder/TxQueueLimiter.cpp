@@ -115,15 +115,7 @@ std::pair<bool, int64>
 TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                          TransactionFrameBasePtr const& oldTx) const
 {
-    auto newOps = mQueueSizeOps;
-    if (oldTx)
-    {
-        // oldTx is currently tracked by the queue,
-        // so this should always hold
-        releaseAssert(oldTx->getNumOperations() <= newOps);
-        newOps -= oldTx->getNumOperations();
-    }
-    newOps += newTx->getNumOperations();
+    // enforce min fee if needed
     if (mMinFeeNeeded.second != 0)
     {
         auto cmp3Min =
@@ -136,10 +128,23 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
             return std::make_pair(false, minFee);
         }
     }
+
+    auto newOps = mQueueSizeOps;
+    if (oldTx)
+    {
+        // oldTx is currently tracked by the queue,
+        // so this should always hold
+        releaseAssert(oldTx->getNumOperations() <= newOps);
+        newOps -= oldTx->getNumOperations();
+    }
+    newOps += newTx->getNumOperations();
+
+    // if there is enough space, return
     if (newOps <= maxQueueSizeOps())
     {
         return std::make_pair(true, 0ll);
     }
+
     // need to see if we could be added by kicking out cheaper transactions
     // starting with the cheapest one
     auto neededOps = newOps - maxQueueSizeOps();
@@ -165,6 +170,7 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
         }
         neededOps -= curOps;
     }
+
     // we reach this point if the queue doesn't have capacity for that
     // transaction even when empty. Combination of multiplier and max ledger
     // size is too small for whatever reason
