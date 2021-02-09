@@ -84,31 +84,34 @@ typedef std::shared_ptr<spdlog::logger> LogPtr;
 // No spdlog either: delegate back to old logging interface, which will
 // in turn use stellar::CoutLogger.
 
+#define CLOG(LEVEL, ...) stellar::CoutLogger(stellar::LogLevel::LEVEL)
+#define LOG(LEVEL) CLOG(LEVEL)
+
 #define CLOG_TRACE(partition, f, ...) \
-    CLOG(TRACE, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
+    CLOG(LVL_TRACE, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
 #define CLOG_DEBUG(partition, f, ...) \
-    CLOG(DEBUG, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
+    CLOG(LVL_DEBUG, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
 #define CLOG_INFO(partition, f, ...) \
-    CLOG(INFO, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
+    CLOG(LVL_INFO, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
 #define CLOG_WARNING(partition, f, ...) \
-    CLOG(WARNING, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
+    CLOG(LVL_WARNING, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
 #define CLOG_ERROR(partition, f, ...) \
-    CLOG(ERROR, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
+    CLOG(LVL_ERROR, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
 #define CLOG_FATAL(partition, f, ...) \
-    CLOG(FATAL, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
+    CLOG(LVL_FATAL, #partition) << fmt::format(FMT_STRING(f), ##__VA_ARGS__)
 
 #define LOG_TRACE(logger, f, ...) \
-    CLOG(TRACE, logger) << fmt::format(f, ##__VA_ARGS__)
+    CLOG(LVL_TRACE, logger) << fmt::format(f, ##__VA_ARGS__)
 #define LOG_DEBUG(logger, f, ...) \
-    CLOG(DEBUG, logger) << fmt::format(f, ##__VA_ARGS__)
+    CLOG(LVL_DEBUG, logger) << fmt::format(f, ##__VA_ARGS__)
 #define LOG_INFO(logger, f, ...) \
-    CLOG(INFO, logger) << fmt::format(f, ##__VA_ARGS__)
+    CLOG(LVL_INFO, logger) << fmt::format(f, ##__VA_ARGS__)
 #define LOG_WARNING(logger, f, ...) \
-    CLOG(WARNING, logger) << fmt::format(f, ##__VA_ARGS__)
+    CLOG(LVL_WARNING, logger) << fmt::format(f, ##__VA_ARGS__)
 #define LOG_ERROR(logger, f, ...) \
-    CLOG(ERROR, logger) << fmt::format(f, ##__VA_ARGS__)
+    CLOG(LVL_ERROR, logger) << fmt::format(f, ##__VA_ARGS__)
 #define LOG_FATAL(logger, f, ...) \
-    CLOG(FATAL, logger) << fmt::format(f, ##__VA_ARGS__)
+    CLOG(LVL_FATAL, logger) << fmt::format(f, ##__VA_ARGS__)
 #define GET_LOG(name) name
 #define DEFAULT_LOG nullptr
 namespace stellar
@@ -118,23 +121,17 @@ typedef void* LogPtr;
 
 #endif
 
-#define CLOG(LEVEL, ...) stellar::CoutLogger(stellar::LogLevel::LEVEL)
-#define LOG(LEVEL) CLOG(LEVEL)
-
 namespace stellar
 {
 
 enum class LogLevel
 {
-    FATAL = 0,
-    ERROR = 1,
-    WARNING = 2,
-    INFO = 3,
-    DEBUG = 4,
-    TRACE = 5,
-
-    // Needed for some existing code
-    Info = 3
+    LVL_FATAL = 0,
+    LVL_ERROR = 1,
+    LVL_WARNING = 2,
+    LVL_INFO = 3,
+    LVL_DEBUG = 4,
+    LVL_TRACE = 5
 };
 
 class CoutLogger

@@ -25,7 +25,7 @@ std::array<std::string const, 14> const Logging::kPartitionNames = {
 #undef LOG_PARTITION
 };
 
-LogLevel Logging::mGlobalLogLevel = LogLevel::INFO;
+LogLevel Logging::mGlobalLogLevel = LogLevel::LVL_INFO;
 std::map<std::string, LogLevel> Logging::mPartitionLogLevels;
 
 #if defined(USE_SPDLOG)
@@ -55,22 +55,22 @@ convert_loglevel(LogLevel level)
     auto slev = spdlog::level::info;
     switch (level)
     {
-    case LogLevel::FATAL:
+    case LogLevel::LVL_FATAL:
         slev = spdlog::level::critical;
         break;
-    case LogLevel::ERROR:
+    case LogLevel::LVL_ERROR:
         slev = spdlog::level::err;
         break;
-    case LogLevel::WARNING:
+    case LogLevel::LVL_WARNING:
         slev = spdlog::level::warn;
         break;
-    case LogLevel::INFO:
+    case LogLevel::LVL_INFO:
         slev = spdlog::level::info;
         break;
-    case LogLevel::DEBUG:
+    case LogLevel::LVL_DEBUG:
         slev = spdlog::level::debug;
         break;
-    case LogLevel::TRACE:
+    case LogLevel::LVL_TRACE:
         slev = spdlog::level::trace;
         break;
     default:
@@ -256,30 +256,30 @@ Logging::getLLfromString(std::string const& levelName)
 {
     if (iequals(levelName, "fatal"))
     {
-        return LogLevel::FATAL;
+        return LogLevel::LVL_FATAL;
     }
 
     if (iequals(levelName, "error"))
     {
-        return LogLevel::ERROR;
+        return LogLevel::LVL_ERROR;
     }
 
     if (iequals(levelName, "warning"))
     {
-        return LogLevel::WARNING;
+        return LogLevel::LVL_WARNING;
     }
 
     if (iequals(levelName, "debug"))
     {
-        return LogLevel::DEBUG;
+        return LogLevel::LVL_DEBUG;
     }
 
     if (iequals(levelName, "trace"))
     {
-        return LogLevel::TRACE;
+        return LogLevel::LVL_TRACE;
     }
 
-    return LogLevel::INFO;
+    return LogLevel::LVL_INFO;
 }
 
 LogLevel
@@ -299,17 +299,17 @@ Logging::getStringFromLL(LogLevel level)
 {
     switch (level)
     {
-    case LogLevel::FATAL:
+    case LogLevel::LVL_FATAL:
         return "Fatal";
-    case LogLevel::ERROR:
+    case LogLevel::LVL_ERROR:
         return "Error";
-    case LogLevel::WARNING:
+    case LogLevel::LVL_WARNING:
         return "Warning";
-    case LogLevel::INFO:
+    case LogLevel::LVL_INFO:
         return "Info";
-    case LogLevel::DEBUG:
+    case LogLevel::LVL_DEBUG:
         return "Debug";
-    case LogLevel::TRACE:
+    case LogLevel::LVL_TRACE:
         return "Trace";
     }
     return "????";
@@ -319,14 +319,14 @@ bool
 Logging::logDebug(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    return mGlobalLogLevel <= LogLevel::DEBUG;
+    return mGlobalLogLevel <= LogLevel::LVL_DEBUG;
 }
 
 bool
 Logging::logTrace(std::string const& partition)
 {
     std::lock_guard<std::recursive_mutex> guard(mLogMutex);
-    return mGlobalLogLevel <= LogLevel::TRACE;
+    return mGlobalLogLevel <= LogLevel::LVL_TRACE;
 }
 
 void

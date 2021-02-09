@@ -198,7 +198,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 int
 runTest(CommandLineArgs const& args)
 {
-    LogLevel logLevel{LogLevel::Info};
+    LogLevel logLevel{LogLevel::LVL_INFO};
 
     Catch::Session session{};
 
