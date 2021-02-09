@@ -73,10 +73,10 @@ if test $CXX = 'clang++'; then
     llvm-symbolizer --version || true
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
-    which gcc-6
-    ln -s `which gcc-6` bin/gcc
-    which g++-6
-    ln -s `which g++-6` bin/g++
+    which gcc-7
+    ln -s `which gcc-7` bin/gcc
+    which g++-7
+    ln -s `which g++-7` bin/g++
     which g++
     g++ -v
 fi

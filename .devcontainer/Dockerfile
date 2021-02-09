@@ -48,9 +48,9 @@ RUN apt-get update \
 RUN apt-get -y install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev
 
 # Update compiler tools
-RUN apt-get -y install gcc-6 g++-6 cpp-6 libstdc++6
-ENV CC=gcc-6
-ENV CXX=g++-6
+RUN apt-get -y install gcc-7 g++-7 cpp-7 libstdc++-7-dev
+ENV CC=gcc-7
+ENV CXX=g++-7
 
 # Install postgresql to enable tests under make check
 RUN apt-get -y install postgresql

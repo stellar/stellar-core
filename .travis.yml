@@ -16,13 +16,13 @@ addons:
     - automake
     - bison
     - clang-8
-    - cpp-6
+    - cpp-7
     - flex
-    - gcc-6
-    - g++-6
+    - gcc-7
+    - g++-7
     - libpq-dev
     - libpq5
-    - libstdc++6
+    - libstdc++-7-dev
     - libtool
     - llvm-8
     - pkg-config

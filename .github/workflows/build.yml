@@ -51,9 +51,9 @@ jobs:
           sudo apt-get update
       - name: install tool chain
         run: |
-          sudo apt-get -y install libstdc++6 clang-format-8 ccache
+          sudo apt-get -y install libstdc++-7-dev clang-format-8 ccache
           if test "${{ matrix.toolchain }}" = "gcc" ; then
-            sudo apt-get -y install cpp-6 gcc-6 g++-6 
+            sudo apt-get -y install cpp-7 gcc-7 g++-7
           else
             sudo apt-get -y install clang-8 llvm-8
           fi
