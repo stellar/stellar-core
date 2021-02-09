@@ -770,16 +770,16 @@ TransactionFuzzer::initialize()
                     // Reduce "account"'s balance of asset "j" by paying the
                     // issuer.
                     auto tle = stellar::loadTrustLine(ltx, account, asset);
-                    auto const availableBalance =
+                    auto const availableTLBalance =
                         tle.getAvailableBalance(ltx.loadHeader());
-                    auto const targetAvailableBalance =
+                    auto const targetAvailableTLBalance =
                         FuzzUtils::DEFAULT_ASSET_AVAILABLE_FOR_TEST_ACTIVITY;
 
-                    if (availableBalance > targetAvailableBalance)
+                    if (availableTLBalance > targetAvailableTLBalance)
                     {
                         auto reduceNonNativeBalanceOp = txtest::payment(
                             issuer, asset,
-                            availableBalance - targetAvailableBalance);
+                            availableTLBalance - targetAvailableTLBalance);
                         reduceNonNativeBalanceOp.sourceAccount.activate() =
                             toMuxedAccount(account);
                         ops.emplace_back(reduceNonNativeBalanceOp);

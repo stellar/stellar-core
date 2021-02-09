@@ -311,7 +311,7 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_STRAGGLER_TIMEOUT;
     int MAX_BATCH_WRITE_COUNT;
     int MAX_BATCH_WRITE_BYTES;
-    int FLOOD_OP_RATE_PER_LEDGER;
+    double FLOOD_OP_RATE_PER_LEDGER;
     int FLOOD_TX_PERIOD_MS;
     static constexpr auto const POSSIBLY_PREFERRED_EXTRA = 2;
     static constexpr auto const REALLY_DEAD_NUM_FAILURES_CUTOFF = 120;

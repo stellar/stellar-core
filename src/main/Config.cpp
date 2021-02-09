@@ -153,8 +153,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_TIMEOUT = 30;
     PEER_STRAGGLER_TIMEOUT = 120;
 
-    FLOOD_OP_RATE_PER_LEDGER = -2;
-    FLOOD_TX_PERIOD_MS = 0;
+    FLOOD_OP_RATE_PER_LEDGER = 1.0;
+    FLOOD_TX_PERIOD_MS = 200;
 
     MAX_BATCH_WRITE_COUNT = 1024;
     MAX_BATCH_WRITE_BYTES = 1 * 1024 * 1024;
@@ -200,6 +200,16 @@ readBool(ConfigItem const& item)
         throw std::invalid_argument(fmt::format("invalid {}", item.first));
     }
     return item.second->as<bool>()->get();
+}
+
+double
+readDouble(ConfigItem const& item)
+{
+    if (!item.second->as<double>())
+    {
+        throw std::invalid_argument(fmt::format("invalid {}", item.first));
+    }
+    return item.second->as<double>()->get();
 }
 
 std::string
@@ -893,7 +903,12 @@ Config::processConfig(std::shared_ptr<cpptoml::table> t)
             }
             else if (item.first == "FLOOD_OP_RATE_PER_LEDGER")
             {
-                FLOOD_OP_RATE_PER_LEDGER = readInt<int>(item);
+                FLOOD_OP_RATE_PER_LEDGER = readDouble(item);
+                if (FLOOD_OP_RATE_PER_LEDGER <= 0.0)
+                {
+                    throw std::invalid_argument(
+                        "bad value for FLOOD_OP_RATE_PER_LEDGER");
+                }
             }
             else if (item.first == "FLOOD_TX_PERIOD_MS")
             {

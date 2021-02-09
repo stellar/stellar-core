@@ -29,6 +29,7 @@ namespace stellar
 {
 
 class Application;
+class TxQueueLimiter;
 
 /**
  * TransactionQueue keeps received transactions that are valid and have not yet
@@ -81,7 +82,7 @@ class TransactionQueue
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
         size_t mBroadcastQueueOps{0};
-        int32_t mAge{0};
+        uint32_t mAge{0};
 
         friend bool operator==(AccountTxQueueInfo const& x,
                                AccountTxQueueInfo const& y);
@@ -112,12 +113,13 @@ class TransactionQueue
         int64_t mTotalFees{0};
         size_t mQueueSizeOps{0};
         size_t mBroadcastQueueOps{0};
-        int32_t mAge{0};
+        uint32_t mAge{0};
         TimestampedTransactions mTransactions;
     };
 
-    explicit TransactionQueue(Application& app, int pendingDepth, int banDepth,
-                              int poolLedgerMultiplier);
+    explicit TransactionQueue(Application& app, uint32 pendingDepth,
+                              uint32 banDepth, uint32 poolLedgerMultiplier);
+    ~TransactionQueue();
 
     AddResult tryAdd(TransactionFrameBasePtr tx);
     void removeApplied(Transactions const& txs);
@@ -168,7 +170,7 @@ class TransactionQueue
     using BannedTransactions = std::deque<UnorderedSet<Hash>>;
 
     Application& mApp;
-    int const mPendingDepth;
+    uint32 const mPendingDepth;
 
     AccountStates mAccountStates;
     BannedTransactions mBannedTransactions;
@@ -189,6 +191,7 @@ class TransactionQueue
     size_t getMaxOpsToFloodThisPeriod() const;
     bool broadcastSome();
     void broadcast(bool fromCallback);
+    // broadcasts a single transaction
     bool broadcastTx(AccountState& state, TimestampedTx& tx);
 
     AddResult canAdd(TransactionFrameBasePtr tx,
@@ -204,22 +207,18 @@ class TransactionQueue
 
     void clearAll();
 
-    // size of the transaction queue, in operations
-    size_t mQueueSizeOps{0};
-    // number of ledgers we can pool in memory
-    int const mPoolLedgerMultiplier;
-
-    size_t maxQueueSizeOps() const;
-
     bool isFiltered(TransactionFrameBasePtr tx) const;
+
+    std::unique_ptr<TxQueueLimiter> mTxQueueLimiter;
+
+    size_t mBroadcastSeed;
+
+    friend struct TxQueueTracker;
 
 #ifdef BUILD_TESTS
   public:
-    size_t
-    getQueueSizeOps() const
-    {
-        return mQueueSizeOps;
-    }
+    size_t getQueueSizeOps() const;
+    std::function<void(TransactionFrameBasePtr&)> mTxBroadcastedEvent;
 #endif
 };
 

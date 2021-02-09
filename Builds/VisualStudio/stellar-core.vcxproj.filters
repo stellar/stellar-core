@@ -1152,6 +1152,12 @@
     <ClCompile Include="..\..\lib\spdlog.cpp">
       <Filter>lib</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\TxQueueLimiter.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\SurgePricingUtils.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\lib\util\cpptoml.h">
@@ -2014,6 +2020,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\SpdlogTweaks.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\TxQueueLimiter.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\SurgePricingUtils.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
