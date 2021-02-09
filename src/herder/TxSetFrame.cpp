@@ -31,8 +31,7 @@ namespace stellar
 using namespace std;
 
 int
-feeRate3WayCompare(TransactionFrameBasePtr const& l,
-                   TransactionFrameBasePtr const& r)
+feeRate3WayCompare(int64 lFeeBid, uint32 lNbOps, int64 rFeeBid, uint32 rNbOps)
 {
     // compare fee/numOps between l and r
     // getNumOperations >= 1 because SurgeCompare can only be used on
@@ -49,8 +48,8 @@ feeRate3WayCompare(TransactionFrameBasePtr const& l,
     //  == f1 * n1 * n2 / n1 < f2 * n1 * n2 / n2
     //  == f1 *      n2      < f2 * n1
 
-    auto v1 = bigMultiply(l->getFeeBid(), r->getNumOperations());
-    auto v2 = bigMultiply(r->getFeeBid(), l->getNumOperations());
+    auto v1 = bigMultiply(lFeeBid, rNbOps);
+    auto v2 = bigMultiply(rFeeBid, lNbOps);
     if (v1 < v2)
     {
         return -1;
@@ -60,6 +59,14 @@ feeRate3WayCompare(TransactionFrameBasePtr const& l,
         return 1;
     }
     return 0;
+}
+
+int
+feeRate3WayCompare(TransactionFrameBasePtr const& l,
+                   TransactionFrameBasePtr const& r)
+{
+    return feeRate3WayCompare(l->getFeeBid(), l->getNumOperations(),
+                              r->getFeeBid(), r->getNumOperations());
 }
 
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)

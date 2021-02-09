@@ -784,14 +784,22 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
             checkAndAddTx(false, account, (ops + 1), bfee * (ops + 1));
             checkAndAddTx(true, account, ops, bfee * ops);
         };
+        auto getBaseFeeRate = [](TxQueueLimiter const& limiter) {
+            auto fr = limiter.getMinFeeNeeded();
+            return fr.second == 0
+                       ? 0ll
+                       : bigDivide(fr.first, 1, fr.second, Rounding::ROUND_UP);
+        };
 
         SECTION("evict nothing")
         {
             checkTxBoundary(account1, 1, 100);
             REQUIRE(limiter.size() == 11);
+            REQUIRE(getBaseFeeRate(limiter) == 0);
             // can't evict transaction with the same base fee
             checkAndAddTx(false, account1, 2, 100 * 2);
             REQUIRE(limiter.size() == 11);
+            REQUIRE(getBaseFeeRate(limiter) == 0);
         }
         SECTION("evict 100s")
         {
@@ -802,6 +810,7 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         {
             checkTxBoundary(account6, 6, 300);
             REQUIRE(limiter.size() == 6);
+            REQUIRE(getBaseFeeRate(limiter) == 200);
         }
         SECTION("evict 100s and 200s, can't evict self")
         {
@@ -811,6 +820,33 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         {
             checkAndAddTx(true, account6, 12, 12 * 500);
             REQUIRE(limiter.size() == 0);
+            REQUIRE(getBaseFeeRate(limiter) == 400);
+            limiter.resetMinFeeNeeded();
+            REQUIRE(getBaseFeeRate(limiter) == 0);
+        }
+        SECTION("enforce limit")
+        {
+            REQUIRE(getBaseFeeRate(limiter) == 0);
+            checkAndAddTx(true, account1, 2, 2 * 200);
+            REQUIRE(limiter.size() == 10);
+            // at this point as a transaction of base fee 100 was evicted
+            // no transactions of base fee 100 can be accepted
+            REQUIRE(getBaseFeeRate(limiter) == 100);
+            checkAndAddTx(false, account1, 1, 100);
+            // but higher fee can
+            checkAndAddTx(true, account1, 1, 200);
+            REQUIRE(limiter.size() == 10);
+            REQUIRE(getBaseFeeRate(limiter) == 100);
+            // evict some more (300s)
+            checkAndAddTx(true, account6, 8, 300 * 8 + 1);
+            REQUIRE(limiter.size() == 4);
+            REQUIRE(getBaseFeeRate(limiter) == 300);
+            checkAndAddTx(false, account1, 1, 300);
+
+            // now, reset the min fee requirement
+            limiter.resetMinFeeNeeded();
+            REQUIRE(getBaseFeeRate(limiter) == 0);
+            checkAndAddTx(true, account1, 1, 100);
         }
     }
 }

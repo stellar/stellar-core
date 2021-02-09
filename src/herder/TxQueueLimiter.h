@@ -19,6 +19,9 @@ class TxQueueLimiter
     // number of ledgers we can pool in memory
     int const mPoolLedgerMultiplier;
     LedgerManager& mLedgerManager;
+    // minimum fee needed for a transaction
+    // stored as a pair (fee bid, nb operations)
+    std::pair<int64, uint32> mMinFeeNeeded;
 
     // all known transactions
     std::unique_ptr<QueueLimiterTxMap> mTxs;
@@ -44,13 +47,18 @@ class TxQueueLimiter
     // as to make space
     // returns false if it ran out of transactions before
     // reaching its goal
-    bool evictTransactions(size_t ops,
-                           std::function<void(TransactionFrameBasePtr const&)> evict);
+    bool evictTransactions(
+        size_t ops, std::function<void(TransactionFrameBasePtr const&)> evict);
 
     // oldTx is set when performing a replace by fee
     bool canAddTx(TransactionFrameBasePtr const& tx,
                   TransactionFrameBasePtr const& oldTx) const;
 
     void reset();
+
+    // txs must have strictly more base fee bid than this
+    std::pair<int64, uint32> getMinFeeNeeded() const;
+
+    void resetMinFeeNeeded();
 };
 }

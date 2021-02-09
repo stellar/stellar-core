@@ -609,6 +609,7 @@ TransactionQueue::shift()
     {
         mSizeByAge[i]->set_count(sizes[i]);
     }
+    mTxQueueLimiter->resetMinFeeNeeded();
 }
 
 int

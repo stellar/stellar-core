@@ -51,6 +51,7 @@ TxQueueLimiter::TxQueueLimiter(int multiplier, LedgerManager& lm)
     : mPoolLedgerMultiplier(multiplier), mLedgerManager(lm)
 {
     mTxs = std::make_unique<QueueLimiterTxMap>();
+    mMinFeeNeeded = {0, 0};
 }
 
 TxQueueLimiter::~TxQueueLimiter()
@@ -110,6 +111,16 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
         newOps -= oldTx->getNumOperations();
     }
     newOps += newTx->getNumOperations();
+    if (mMinFeeNeeded.second != 0)
+    {
+        auto cmp3Min =
+            feeRate3WayCompare(newTx->getFeeBid(), newTx->getNumOperations(),
+                               mMinFeeNeeded.first, mMinFeeNeeded.second);
+        if (cmp3Min <= 0)
+        {
+            return false;
+        }
+    }
     if (newOps <= maxQueueSizeOps())
     {
         return true;
@@ -166,6 +177,7 @@ TxQueueLimiter::evictTransactions(
             return false;
         }
         auto evictTx = getWorstTransaction();
+        mMinFeeNeeded = {evictTx->getFeeBid(), evictTx->getNumOperations()};
         evict(evictTx);
     }
     return true;
@@ -176,5 +188,18 @@ TxQueueLimiter::reset()
 {
     mTxs = std::make_unique<QueueLimiterTxMap>();
     mQueueSizeOps = 0;
+    resetMinFeeNeeded();
+}
+
+std::pair<int64, uint32>
+TxQueueLimiter::getMinFeeNeeded() const
+{
+    return mMinFeeNeeded;
+}
+
+void
+TxQueueLimiter::resetMinFeeNeeded()
+{
+    mMinFeeNeeded = {0ll, 0};
 }
 }
