@@ -63,20 +63,20 @@ hash -r
 
 if test $CXX = 'clang++'; then
     RUN_PARTITIONS=$(seq 0 $((NPROCS-1)))
-    which clang-5.0
-    ln -s `which clang-5.0` bin/clang
-    which clang++-5.0
-    ln -s `which clang++-5.0` bin/clang++
-    which llvm-symbolizer-5.0
-    ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
+    which clang-8
+    ln -s `which clang-8` bin/clang
+    which clang++-8
+    ln -s `which clang++-8` bin/clang++
+    which llvm-symbolizer-8
+    ln -s `which llvm-symbolizer-8` bin/llvm-symbolizer
     clang -v
     llvm-symbolizer --version || true
 elif test $CXX = 'g++'; then
     RUN_PARTITIONS=$(seq $NPROCS $((2*NPROCS-1)))
-    which gcc-6
-    ln -s `which gcc-6` bin/gcc
-    which g++-6
-    ln -s `which g++-6` bin/g++
+    which gcc-7
+    ln -s `which gcc-7` bin/gcc
+    which g++-7
+    ln -s `which g++-7` bin/g++
     which g++
     g++ -v
 fi

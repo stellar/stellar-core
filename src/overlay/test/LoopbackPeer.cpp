@@ -111,7 +111,7 @@ LoopbackPeer::drop(std::string const& reason, DropDirection direction, DropMode)
     if (remote)
     {
         remote->getApp().postOnMainThread(
-            [ remW = mRemote, reason, direction ]() {
+            [remW = mRemote, reason, direction]() {
                 auto remS = remW.lock();
                 if (remS)
                 {

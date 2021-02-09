@@ -35,23 +35,20 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 ## Build Dependencies
 
 - c++ toolchain and headers that supports c++14
-    - `clang` >= 5.0
-    - `g++` >= 6.0
+    - `clang` >= 8.0
+    - `g++` >= 7.0
 - `pkg-config`
 - `bison` and `flex`
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
-- `clang-format-5.0` (for `make format` to work)
+- `clang-format-8` (for `make format` to work)
 - `perl`
 - `libunwind-dev`
 
 ### Ubuntu
 
-#### Ubuntu 14.04
-You will have to install the [test toolchain](#adding-the-test-toolchain) in order to both build and run stellar-core.
-
 #### Ubuntu 16.04
-Just like 14.04, you can install the test toolchain to build and run stellar-core.
+You can install the [test toolchain](#adding-the-test-toolchain) to build and run stellar-core.
 
 Alternatively, if you want to just depend on stock 16.04, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
 
@@ -75,17 +72,17 @@ After installing packages, head to [building with clang and libc++](#building-wi
     # common packages
     sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
     # if using clang
-    sudo apt-get install clang-5.0
+    sudo apt-get install clang-8
     # clang with libstdc++
-    sudo apt-get install gcc-6
+    sudo apt-get install gcc-7
     # if using g++ or building with libstdc++
-    # sudo apt-get install gcc-6 g++-6 cpp-6
+    # sudo apt-get install gcc-7 g++-7 cpp-7
 
 In order to make changes, you'll need to install the proper version of clang-format.
 
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
 
-    sudo apt-get install clang-format-5.0
+    sudo apt-get install clang-format-8
 
 
 ### OS X
@@ -109,7 +106,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-6 ./configure` or similar, depending on your compiler.)*
+- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-8 ./configure` or `CXX=g++-7 ./configure` or similar, depending on your compiler.)*
 - Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
 - Type `make check` to run tests.
 - Type `make install` to install.

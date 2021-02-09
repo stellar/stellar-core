@@ -12,7 +12,8 @@
 #include <ostream>
 #include <set>
 
-extern "C" {
+extern "C"
+{
 #include "util/cbitset.h"
 };
 
