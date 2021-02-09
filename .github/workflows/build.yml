@@ -55,7 +55,7 @@ jobs:
           if test "${{ matrix.toolchain }}" = "gcc" ; then
             sudo apt-get -y install cpp-6 gcc-6 g++-6 
           else
-            sudo apt-get -y install clang-5.0 llvm-5.0
+            sudo apt-get -y install clang-8 llvm-8
           fi
       - name: install dependencies
         run: sudo apt-get -y install postgresql git build-essential pkg-config autoconf automake libtool bison flex libpq-dev parallel libunwind-dev

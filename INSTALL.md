@@ -35,7 +35,7 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 ## Build Dependencies
 
 - c++ toolchain and headers that supports c++14
-    - `clang` >= 5.0
+    - `clang` >= 8.0
     - `g++` >= 6.0
 - `pkg-config`
 - `bison` and `flex`
@@ -47,11 +47,8 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 
 ### Ubuntu
 
-#### Ubuntu 14.04
-You will have to install the [test toolchain](#adding-the-test-toolchain) in order to both build and run stellar-core.
-
 #### Ubuntu 16.04
-Just like 14.04, you can install the test toolchain to build and run stellar-core.
+You can install the [test toolchain](#adding-the-test-toolchain) to build and run stellar-core.
 
 Alternatively, if you want to just depend on stock 16.04, you will have to build with clang *and* have use `libc++` instead of `libstdc++` when compiling.
 
@@ -75,7 +72,7 @@ After installing packages, head to [building with clang and libc++](#building-wi
     # common packages
     sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev libunwind-dev parallel
     # if using clang
-    sudo apt-get install clang-5.0
+    sudo apt-get install clang-8
     # clang with libstdc++
     sudo apt-get install gcc-6
     # if using g++ or building with libstdc++
@@ -109,7 +106,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-6 ./configure` or similar, depending on your compiler.)*
+- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-8 ./configure` or `CXX=g++-6 ./configure` or similar, depending on your compiler.)*
 - Type `make` or `make -j<N>` (where `<N>` is the number of parallel builds, a number less than the number of CPU cores available, e.g. `make -j3`)
 - Type `make check` to run tests.
 - Type `make install` to install.

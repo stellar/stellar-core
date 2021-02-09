@@ -15,7 +15,7 @@ addons:
     - autoconf
     - automake
     - bison
-    - clang-5.0
+    - clang-8
     - cpp-6
     - flex
     - gcc-6
@@ -24,7 +24,7 @@ addons:
     - libpq5
     - libstdc++6
     - libtool
-    - llvm-5.0
+    - llvm-8
     - pkg-config
     - clang-format-8
     - perl
