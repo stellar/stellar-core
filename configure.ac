@@ -212,8 +212,8 @@ AS_IF([test "x$enable_afl" = "xyes"], [
 ])
 AM_CONDITIONAL([USE_AFL_FUZZ], [test "x$enable_afl" == "xyes"])
 
-# prefer 5.0 as it's the one we use
-AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-5.0 clang-format])
+# prefer 8 as it's the one we use
+AC_CHECK_PROGS(CLANG_FORMAT, [clang-format-8 clang-format])
 AM_CONDITIONAL([USE_CLANG_FORMAT], [test "x$CLANG_FORMAT" != "x"])
 
 AX_VALGRIND_CHECK

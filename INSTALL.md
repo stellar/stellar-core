@@ -41,7 +41,7 @@ See the [dev container's README](.devcontainer/README.md) for more detail.
 - `bison` and `flex`
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
-- `clang-format-5.0` (for `make format` to work)
+- `clang-format-8` (for `make format` to work)
 - `perl`
 - `libunwind-dev`
 
@@ -85,7 +85,7 @@ In order to make changes, you'll need to install the proper version of clang-for
 
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
 
-    sudo apt-get install clang-format-5.0
+    sudo apt-get install clang-format-8
 
 
 ### OS X

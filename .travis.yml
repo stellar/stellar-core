@@ -26,7 +26,7 @@ addons:
     - libtool
     - llvm-5.0
     - pkg-config
-    - clang-format-5.0
+    - clang-format-8
     - perl
     - parallel
     - gdb
