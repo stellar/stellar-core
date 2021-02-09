@@ -168,36 +168,57 @@ TEST_CASE("Flooding", "[flood][overlay][acceptance]")
             return res;
         };
 
-        SECTION("core")
-        {
-            SECTION("loopback")
+        auto txFloodingTests = [&](bool delayed) {
+            auto cfgGen2 = [&](int n) {
+                auto cfg = cfgGen(n);
+                if (delayed)
+                {
+                    // but enable delayed tx flooding
+                    cfg.FLOOD_TX_PERIOD_MS = 10;
+                }
+                return cfg;
+            };
+            SECTION("core")
             {
-                simulation = Topologies::core(
-                    4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen);
-                test(injectTransaction, ackedTransactions);
+                SECTION("loopback")
+                {
+                    simulation =
+                        Topologies::core(4, .666f, Simulation::OVER_LOOPBACK,
+                                         networkID, cfgGen2);
+                    test(injectTransaction, ackedTransactions);
+                }
+                SECTION("tcp")
+                {
+                    simulation = Topologies::core(
+                        4, .666f, Simulation::OVER_TCP, networkID, cfgGen2);
+                    test(injectTransaction, ackedTransactions);
+                }
             }
-            SECTION("tcp")
-            {
-                simulation = Topologies::core(4, .666f, Simulation::OVER_TCP,
-                                              networkID, cfgGen);
-                test(injectTransaction, ackedTransactions);
-            }
-        }
 
-        SECTION("outer nodes")
+            SECTION("outer nodes")
+            {
+                SECTION("loopback")
+                {
+                    simulation = Topologies::hierarchicalQuorumSimplified(
+                        5, 10, Simulation::OVER_LOOPBACK, networkID, cfgGen2);
+                    test(injectTransaction, ackedTransactions);
+                }
+                SECTION("tcp")
+                {
+                    simulation = Topologies::hierarchicalQuorumSimplified(
+                        5, 10, Simulation::OVER_TCP, networkID, cfgGen2);
+                    test(injectTransaction, ackedTransactions);
+                }
+            }
+        };
+
+        SECTION("direct tx broadcast")
         {
-            SECTION("loopback")
-            {
-                simulation = Topologies::hierarchicalQuorumSimplified(
-                    5, 10, Simulation::OVER_LOOPBACK, networkID, cfgGen);
-                test(injectTransaction, ackedTransactions);
-            }
-            SECTION("tcp")
-            {
-                simulation = Topologies::hierarchicalQuorumSimplified(
-                    5, 10, Simulation::OVER_TCP, networkID, cfgGen);
-                test(injectTransaction, ackedTransactions);
-            }
+            txFloodingTests(false);
+        }
+        SECTION("delayed tx broadcast")
+        {
+            txFloodingTests(true);
         }
     }
 
