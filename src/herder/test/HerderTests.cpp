@@ -2318,7 +2318,6 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     auto app = createTestApplication(clock, cfg);
     app->start();
 
-    auto& om = app->getOverlayManager();
     auto& lm = app->getLedgerManager();
     auto& herder = static_cast<HerderImpl&>(app->getHerder());
     auto& tq = herder.getTransactionQueue();
@@ -2335,10 +2334,11 @@ TEST_CASE("do not flood invalid transactions", "[herder]")
     herder.recvTransaction(tx1r);
     herder.recvTransaction(tx2r);
 
-    auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
+    size_t numBroadcast = 0;
+    tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) { ++numBroadcast; };
+
     externalize(cfg.NODE_SEED, lm, herder, {tx1r});
-    REQUIRE(numBroadcast + 1 ==
-            om.getOverlayMetrics().mMessagesBroadcast.count());
+    REQUIRE(numBroadcast == 1);
 
     auto const& lhhe = lm.getLastClosedLedgerHeader();
     auto txSet = tq.toTxSet(lhhe);
@@ -2380,7 +2380,6 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
 
         auto app = simulation->getNode(mainKey.getPublicKey());
         auto const& cfg = app->getConfig();
-        auto& om = app->getOverlayManager();
         auto& lm = app->getLedgerManager();
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
         auto& tq = herder.getTransactionQueue();
@@ -2474,14 +2473,17 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
         fees.pop_front();
         fees.pop_front();
 
-        auto numBroadcast = om.getOverlayMetrics().mMessagesBroadcast.count();
+        size_t numBroadcast = 0;
+        tq.mTxBroadcastedEvent = [&](TransactionFrameBasePtr&) {
+            ++numBroadcast;
+        };
+
         externalize(cfg.NODE_SEED, lm, herder, {tx1a, tx1r});
 
         if (delayed)
         {
             // no broadcast right away
-            REQUIRE(numBroadcast ==
-                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(numBroadcast == 0);
             // wait for a bit more than a broadcast period
             // rate per period is
             // 2*(maxOps=500)*(FLOOD_TX_PERIOD_MS=100)/((ledger time=5)*1000)
@@ -2492,11 +2494,9 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             auto const delta = std::chrono::milliseconds(1);
             simulation->crankForAtLeast(broadcastPeriod + delta, false);
 
-            auto changeTx = om.getOverlayMetrics().mMessagesBroadcast.count() -
-                            numBroadcast;
             if (numOps <= opsRatePerPeriod)
             {
-                auto opsBroadcasted = changeTx * numOps;
+                auto opsBroadcasted = numBroadcast * numOps;
                 // goal reached
                 REQUIRE(opsBroadcasted <= opsRatePerPeriod);
                 // an extra tx would have exceeded the limit
@@ -2505,7 +2505,7 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             else
             {
                 // can only flood up to 1 transaction per cycle
-                REQUIRE(changeTx <= 1);
+                REQUIRE(numBroadcast <= 1);
             }
             // as we're waiting for a ledger worth of capacity
             // and we have a multiplier of 2
@@ -2518,19 +2518,16 @@ TEST_CASE("do not flood too many transactions", "[herder][transactionqueue]")
             genTx(root, numOps, true);
 
             simulation->crankForAtLeast(std::chrono::milliseconds(2000), false);
-            REQUIRE(numBroadcast + (numTx - 1) ==
-                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(numBroadcast == (numTx - 1));
             REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 1);
         }
         else
         {
-            REQUIRE(numBroadcast + (numTx - 2) ==
-                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(numBroadcast == (numTx - 2));
             REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
             // check that there is no broadcast after that
             simulation->crankForAtLeast(std::chrono::seconds(1), false);
-            REQUIRE(numBroadcast + (numTx - 2) ==
-                    om.getOverlayMetrics().mMessagesBroadcast.count());
+            REQUIRE(numBroadcast == (numTx - 2));
             REQUIRE(tq.toTxSet({})->mTransactions.size() == numTx - 2);
         }
         simulation->stopAllNodes();

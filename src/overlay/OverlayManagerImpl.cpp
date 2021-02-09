@@ -904,8 +904,12 @@ bool
 OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 {
     ZoneScoped;
-    mOverlayMetrics.mMessagesBroadcast.Mark();
-    return mFloodGate.broadcast(msg, force);
+    auto res = mFloodGate.broadcast(msg, force);
+    if (res)
+    {
+        mOverlayMetrics.mMessagesBroadcast.Mark();
+    }
+    return res;
 }
 
 void
