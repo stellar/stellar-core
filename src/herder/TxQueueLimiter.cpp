@@ -90,7 +90,26 @@ TxQueueLimiter::removeTransaction(TransactionFrameBasePtr const& tx)
     mQueueSizeOps -= txOps;
 }
 
-bool
+// compute the fee bid that `tx` should have in order to beat
+// a transaction `ref` with fee bid `refFeeBid` and `refNbOps` operations
+int64
+computeBetterFee(TransactionFrameBasePtr const& tx, int64 refFeeBid,
+                 uint32 refNbOps)
+{
+    constexpr auto m = std::numeric_limits<int64>::max();
+
+    int64 minFee = m;
+    int64 v;
+    if (bigDivide(v, refFeeBid, tx->getNumOperations(), refNbOps,
+                  Rounding::ROUND_DOWN) &&
+        v < m)
+    {
+        minFee = v + 1;
+    }
+    return minFee;
+}
+
+std::pair<bool, int64>
 TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                          TransactionFrameBasePtr const& oldTx) const
 {
@@ -110,12 +129,14 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
                                mMinFeeNeeded.first, mMinFeeNeeded.second);
         if (cmp3Min <= 0)
         {
-            return false;
+            auto minFee = computeBetterFee(newTx, mMinFeeNeeded.first,
+                                           mMinFeeNeeded.second);
+            return std::make_pair(false, minFee);
         }
     }
     if (newOps <= maxQueueSizeOps())
     {
-        return true;
+        return std::make_pair(true, 0ll);
     }
     // need to see if we could be added by kicking out cheaper transactions
     // starting with the cheapest one
@@ -125,25 +146,27 @@ TxQueueLimiter::canAddTx(TransactionFrameBasePtr const& newTx,
     {
         if (feeRate3WayCompare(*it, newTx) >= 0)
         {
-            return false;
+            auto minFee = computeBetterFee(newTx, (*it)->getFeeBid(),
+                                           (*it)->getNumOperations());
+            return std::make_pair(false, minFee);
         }
         // ensure that this transaction is not from the same account
         auto& tx = *it;
         if (tx->getSourceID() == id)
         {
-            return false;
+            return std::make_pair(false, 0ll);
         }
         auto curOps = tx->getNumOperations();
         if (neededOps <= curOps)
         {
-            return true;
+            return std::make_pair(true, 0ll);
         }
         neededOps -= curOps;
     }
     // we reach this point if the queue doesn't have capacity for that
     // transaction even when empty. Combination of multiplier and max ledger
     // size is too small for whatever reason
-    return false;
+    return std::make_pair(false, 0ll);
 }
 
 TransactionFrameBasePtr

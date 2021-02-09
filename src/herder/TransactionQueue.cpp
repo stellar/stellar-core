@@ -215,9 +215,16 @@ TransactionQueue::canAdd(TransactionFrameBasePtr tx,
         }
     }
 
-    if (!mTxQueueLimiter->canAddTx(tx, oldTx))
+    auto canAddRes = mTxQueueLimiter->canAddTx(tx, oldTx);
+    if (!canAddRes.first)
     {
         ban({tx});
+        if (canAddRes.second != 0)
+        {
+            tx->getResult().result.code(txINSUFFICIENT_FEE);
+            tx->getResult().feeCharged = canAddRes.second;
+            return TransactionQueue::AddResult::ADD_STATUS_ERROR;
+        }
         return TransactionQueue::AddResult::ADD_STATUS_TRY_AGAIN_LATER;
     }
 

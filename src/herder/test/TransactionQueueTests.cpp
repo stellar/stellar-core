@@ -671,9 +671,12 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
 
     SECTION("simple limit")
     {
-        auto txSeqA3T1 = transaction(*app, account3, 1, 1, 100);
-        auto simpleLimitTest = [&](std::function<uint32(int)> fee) {
+        auto simpleLimitTest = [&](std::function<uint32(int)> fee,
+                                   bool belowFee) {
             TransactionQueueTest test{*app};
+            auto minFee = fee(1);
+            auto txSeqA3T1 = transaction(*app, account3, 1, minFee, 100);
+
             test.add(txSeqA3T1,
                      TransactionQueue::AddResult::ADD_STATUS_PENDING);
             std::vector<TransactionFrameBasePtr> a3Txs({txSeqA3T1});
@@ -681,17 +684,35 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
 
             for (int i = 2; i <= 10; i++)
             {
-                auto txSeqA3Ti = transaction(*app, account3, i, 1, fee(i));
+                auto txFee = fee(i);
+                if (i == 10)
+                {
+                    txFee *= 100;
+                }
+                auto txSeqA3Ti = transaction(*app, account3, i, 1, txFee);
                 if (i <= 8)
                 {
                     test.add(txSeqA3Ti,
                              TransactionQueue::AddResult::ADD_STATUS_PENDING);
                     a3Txs.emplace_back(txSeqA3Ti);
+                    minFee = std::min(minFee, txFee);
                 }
                 else
                 {
-                    test.add(txSeqA3Ti, TransactionQueue::AddResult::
-                                            ADD_STATUS_TRY_AGAIN_LATER);
+                    if (i == 9 && belowFee)
+                    {
+                        // below fee requirement
+                        test.add(txSeqA3Ti,
+                                 TransactionQueue::AddResult::ADD_STATUS_ERROR);
+                        REQUIRE(txSeqA3Ti->getResult().feeCharged ==
+                                (minFee + 1));
+                    }
+                    else // if (i == 10)
+                    {
+                        // would need to kick out own transaction
+                        test.add(txSeqA3Ti, TransactionQueue::AddResult::
+                                                ADD_STATUS_TRY_AGAIN_LATER);
+                    }
                     banned.emplace_back(txSeqA3Ti);
                     test.check({{{account3, 0, a3Txs}}, {banned}});
                 }
@@ -699,15 +720,15 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         };
         SECTION("constant fee")
         {
-            simpleLimitTest([](int) { return 100; });
+            simpleLimitTest([](int) { return 100; }, true);
         }
         SECTION("fee increasing")
         {
-            simpleLimitTest([](int i) { return 100 * i; });
+            simpleLimitTest([](int i) { return 100 * i; }, false);
         }
         SECTION("fee decreasing")
         {
-            simpleLimitTest([](int i) { return 100 * (100 - i); });
+            simpleLimitTest([](int i) { return 100 * (100 - i); }, false);
         }
     }
     SECTION("multi accounts limits")
@@ -734,7 +755,7 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
                 {
                     auto tx = transaction(*app, e.account, seq++, 1,
                                           opsFee.second, opsFee.first);
-                    bool can = limiter.canAddTx(tx, noTx);
+                    bool can = limiter.canAddTx(tx, noTx).first;
                     REQUIRE(can);
                     limiter.addTransaction(tx);
                     txs.emplace_back(tx);
@@ -755,11 +776,11 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
                {account4, 1, {{1, 200}}},
                {account5, 1, {{1, 100}}}});
         auto checkAndAddTx = [&](bool expected, TestAccount& account, int ops,
-                                 int fee) {
+                                 int fee, int64 expFeeOnFailed) {
             auto tx = transaction(*app, account, 1000, 1, fee, ops);
-            bool can = limiter.canAddTx(tx, noTx);
-            REQUIRE(expected == can);
-            if (can)
+            auto can = limiter.canAddTx(tx, noTx);
+            REQUIRE(expected == can.first);
+            if (can.first)
             {
                 bool evicted = limiter.evictTransactions(
                     tx->getNumOperations(),
@@ -776,13 +797,19 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
                 limiter.addTransaction(tx);
                 limiter.removeTransaction(tx);
             }
+            else
+            {
+                REQUIRE(can.second == expFeeOnFailed);
+            }
         };
         // check that `account`
         // can add ops operations,
         // but not add ops+1 at the same basefee
+        // that would require evicting a transaction with basefee
         auto checkTxBoundary = [&](TestAccount& account, int ops, int bfee) {
-            checkAndAddTx(false, account, (ops + 1), bfee * (ops + 1));
-            checkAndAddTx(true, account, ops, bfee * ops);
+            auto txFee1 = bfee * (ops + 1);
+            checkAndAddTx(false, account, ops + 1, txFee1, txFee1 + 1);
+            checkAndAddTx(true, account, ops, bfee * ops, 0);
         };
         auto getBaseFeeRate = [](TxQueueLimiter const& limiter) {
             auto fr = limiter.getMinFeeNeeded();
@@ -797,7 +824,7 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
             REQUIRE(limiter.size() == 11);
             REQUIRE(getBaseFeeRate(limiter) == 0);
             // can't evict transaction with the same base fee
-            checkAndAddTx(false, account1, 2, 100 * 2);
+            checkAndAddTx(false, account1, 2, 100 * 2, 2 * 100 + 1);
             REQUIRE(limiter.size() == 11);
             REQUIRE(getBaseFeeRate(limiter) == 0);
         }
@@ -814,11 +841,11 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         }
         SECTION("evict 100s and 200s, can't evict self")
         {
-            checkAndAddTx(false, account2, 6, 6 * 300);
+            checkAndAddTx(false, account2, 6, 6 * 300, 0);
         }
         SECTION("evict all")
         {
-            checkAndAddTx(true, account6, 12, 12 * 500);
+            checkAndAddTx(true, account6, 12, 12 * 500, 0);
             REQUIRE(limiter.size() == 0);
             REQUIRE(getBaseFeeRate(limiter) == 400);
             limiter.resetMinFeeNeeded();
@@ -827,26 +854,26 @@ TEST_CASE("TransactionQueue limits", "[herder][transactionqueue]")
         SECTION("enforce limit")
         {
             REQUIRE(getBaseFeeRate(limiter) == 0);
-            checkAndAddTx(true, account1, 2, 2 * 200);
+            checkAndAddTx(true, account1, 2, 2 * 200, 0);
             REQUIRE(limiter.size() == 10);
             // at this point as a transaction of base fee 100 was evicted
             // no transactions of base fee 100 can be accepted
             REQUIRE(getBaseFeeRate(limiter) == 100);
-            checkAndAddTx(false, account1, 1, 100);
+            checkAndAddTx(false, account1, 1, 100, 101);
             // but higher fee can
-            checkAndAddTx(true, account1, 1, 200);
+            checkAndAddTx(true, account1, 1, 200, 0);
             REQUIRE(limiter.size() == 10);
             REQUIRE(getBaseFeeRate(limiter) == 100);
             // evict some more (300s)
-            checkAndAddTx(true, account6, 8, 300 * 8 + 1);
+            checkAndAddTx(true, account6, 8, 300 * 8 + 1, 0);
             REQUIRE(limiter.size() == 4);
             REQUIRE(getBaseFeeRate(limiter) == 300);
-            checkAndAddTx(false, account1, 1, 300);
+            checkAndAddTx(false, account1, 1, 300, 301);
 
             // now, reset the min fee requirement
             limiter.resetMinFeeNeeded();
             REQUIRE(getBaseFeeRate(limiter) == 0);
-            checkAndAddTx(true, account1, 1, 100);
+            checkAndAddTx(true, account1, 1, 100, 0);
         }
     }
 }

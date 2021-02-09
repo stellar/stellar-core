@@ -51,8 +51,14 @@ class TxQueueLimiter
         size_t ops, std::function<void(TransactionFrameBasePtr const&)> evict);
 
     // oldTx is set when performing a replace by fee
-    bool canAddTx(TransactionFrameBasePtr const& tx,
-                  TransactionFrameBasePtr const& oldTx) const;
+    // return
+    // first=true if transaction can be added
+    // otherwise:
+    //    second=0 if caller needs to wait
+    //    second=minimum fee needed for tx to pass the next round of
+    //    validation
+    std::pair<bool, int64> canAddTx(TransactionFrameBasePtr const& tx,
+                                    TransactionFrameBasePtr const& oldTx) const;
 
     void reset();
 
