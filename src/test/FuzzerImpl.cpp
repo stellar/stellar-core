@@ -741,6 +741,10 @@ TransactionFuzzer::initialize()
         // account for the last few bits of the 32nd byte of a public key, thus
         // account creation is over a deterministic range of public keys
         xdr::xvector<Operation> ops;
+        uint8_t const SPONSOR_ACCOUNT = 1, SPONSORED_ACCOUNT = 2;
+        PublicKey sponsorPublicKey;
+        FuzzUtils::setShortKey(sponsorPublicKey, SPONSOR_ACCOUNT);
+
         for (uint8_t i = 0; i < FuzzUtils::NUMBER_OF_PREGENERATED_ACCOUNTS; ++i)
         {
             PublicKey publicKey;
@@ -749,7 +753,27 @@ TransactionFuzzer::initialize()
             auto createOp = txtest::createAccount(
                 publicKey, FuzzUtils::INITIAL_ACCOUNT_BALANCE);
 
+            // Test sponsorships, for the moment creating just one, of account 2
+            // by account 1.
+            bool const createSponsorship = (i == SPONSORED_ACCOUNT);
+
+            if (createSponsorship)
+            {
+                auto sponsorshipOp =
+                    txtest::beginSponsoringFutureReserves(publicKey);
+                sponsorshipOp.sourceAccount.activate() =
+                    toMuxedAccount(sponsorPublicKey);
+                ops.emplace_back(sponsorshipOp);
+            }
             ops.emplace_back(createOp);
+
+            if (createSponsorship)
+            {
+                auto sponsorshipOp = txtest::endSponsoringFutureReserves();
+                sponsorshipOp.sourceAccount.activate() =
+                    toMuxedAccount(publicKey);
+                ops.emplace_back(sponsorshipOp);
+            }
         }
 
         attemptToApplyOps(ltx, root.getPublicKey(), ops.begin(), ops.end(),
