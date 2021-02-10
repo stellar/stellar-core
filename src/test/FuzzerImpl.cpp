@@ -793,6 +793,20 @@ TransactionFuzzer::initialize()
                     distributeOp.sourceAccount.activate() =
                         toMuxedAccount(issuer);
                     ops.emplace_back(distributeOp);
+
+                    // Create a claimable balance representing the "send" part
+                    // of a payment like the above distribution.
+                    ClaimPredicate predicate;
+                    predicate.type(CLAIM_PREDICATE_UNCONDITIONAL);
+                    Claimant claimant;
+                    claimant.v0().predicate = predicate;
+                    claimant.v0().destination = account;
+                    auto claimableBalanceOp = txtest::createClaimableBalance(
+                        asset, FuzzUtils::INITIAL_ASSET_DISTRIBUTION,
+                        {claimant});
+                    claimableBalanceOp.sourceAccount.activate() =
+                        toMuxedAccount(issuer);
+                    ops.emplace_back(claimableBalanceOp);
                 }
             }
         }
