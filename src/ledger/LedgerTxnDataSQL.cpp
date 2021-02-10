@@ -317,7 +317,7 @@ LedgerTxnRoot::Impl::dropData()
 {
     throwIfChild();
     mEntryCache.clear();
-    mBestOffersCache.clear();
+    mBestOffers.clear();
 
     std::string coll = mDatabase.getSimpleCollationClause();
 

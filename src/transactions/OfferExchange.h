@@ -198,8 +198,6 @@
 namespace stellar
 {
 
-size_t const MAX_OFFERS_TO_CROSS = 1000;
-
 class AbstractLedgerTxn;
 class ConstLedgerTxnEntry;
 class LedgerTxnEntry;

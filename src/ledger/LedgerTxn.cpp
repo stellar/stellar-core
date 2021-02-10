@@ -1980,20 +1980,19 @@ LedgerTxn::Impl::WorstBestOfferIteratorImpl::clone() const
 size_t const LedgerTxnRoot::Impl::MIN_BEST_OFFERS_BATCH_SIZE = 5;
 
 LedgerTxnRoot::LedgerTxnRoot(Database& db, size_t entryCacheSize,
-                             size_t bestOfferCacheSize,
                              size_t prefetchBatchSize)
-    : mImpl(std::make_unique<Impl>(db, entryCacheSize, bestOfferCacheSize,
-                                   prefetchBatchSize))
+    : mImpl(std::make_unique<Impl>(db, entryCacheSize, prefetchBatchSize))
 {
 }
 
 LedgerTxnRoot::Impl::Impl(Database& db, size_t entryCacheSize,
-                          size_t bestOfferCacheSize, size_t prefetchBatchSize)
-    : mDatabase(db)
+                          size_t prefetchBatchSize)
+    : mMaxBestOffersBatchSize(
+          std::min(std::max(prefetchBatchSize, MIN_BEST_OFFERS_BATCH_SIZE),
+                   MAX_OFFERS_TO_CROSS))
+    , mDatabase(db)
     , mHeader(std::make_unique<LedgerHeader>())
     , mEntryCache(entryCacheSize)
-    , mBestOffersCache(bestOfferCacheSize)
-    , mMaxCacheSize(entryCacheSize)
     , mBulkLoadBatchSize(prefetchBatchSize)
     , mChild(nullptr)
 {
@@ -2015,7 +2014,7 @@ LedgerTxnRoot::Impl::~Impl()
 void
 LedgerTxnRoot::Impl::resetForFuzzer()
 {
-    mBestOffersCache.clear();
+    mBestOffers.clear();
     mEntryCache.clear();
 }
 
@@ -2211,7 +2210,7 @@ LedgerTxnRoot::Impl::commitChild(EntryIterator iter, LedgerTxnConsistency cons)
     }
 
     // Clearing the cache does not throw
-    mBestOffersCache.clear();
+    mBestOffers.clear();
     mEntryCache.clear();
 
     // std::unique_ptr<...>::reset does not throw
@@ -2300,7 +2299,7 @@ LedgerTxnRoot::Impl::deleteObjectsModifiedOnOrAfterLedger(uint32_t ledger) const
     using namespace soci;
     throwIfChild();
     mEntryCache.clear();
-    mBestOffersCache.clear();
+    mBestOffers.clear();
 
     for (auto let : {ACCOUNT, DATA, TRUSTLINE, OFFER, CLAIMABLE_BALANCE})
     {
@@ -2378,12 +2377,6 @@ LedgerTxnRoot::Impl::prefetch(UnorderedSet<LedgerKey> const& keys)
 
     for (auto const& key : keys)
     {
-        if ((static_cast<double>(mEntryCache.size()) / mMaxCacheSize) >=
-            ENTRY_CACHE_FILL_RATIO)
-        {
-            return total;
-        }
-
         switch (key.type())
         {
         case ACCOUNT:
@@ -2520,7 +2513,7 @@ findIncludedOffer(std::deque<LedgerEntry>::const_iterator iter,
 }
 
 std::deque<LedgerEntry>::const_iterator
-LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
+LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersEntryPtr cached,
                                                  Asset const& buying,
                                                  Asset const& selling)
 {
@@ -2530,11 +2523,8 @@ LedgerTxnRoot::Impl::loadNextBestOffersIntoCache(BestOffersCacheEntryPtr cached,
         return offers.cend();
     }
 
-    size_t const MAX_BEST_OFFERS_BATCH_SIZE =
-        std::max(mBulkLoadBatchSize, MIN_BEST_OFFERS_BATCH_SIZE);
-
     size_t const BATCH_SIZE =
-        std::min(MAX_BEST_OFFERS_BATCH_SIZE,
+        std::min(mMaxBestOffersBatchSize,
                  std::max(MIN_BEST_OFFERS_BATCH_SIZE, offers.size()));
 
     std::deque<LedgerEntry>::const_iterator iter;
@@ -2590,18 +2580,43 @@ LedgerTxnRoot::Impl::populateEntryCacheFromBestOffers(
     prefetch(toPrefetch);
 }
 
+bool
+LedgerTxnRoot::Impl::areEntriesMissingInCacheForOffer(OfferEntry const& oe)
+{
+    if (!mEntryCache.exists(accountKey(oe.sellerID)))
+    {
+        return true;
+    }
+    if (oe.buying.type() != ASSET_TYPE_NATIVE)
+    {
+        if (!mEntryCache.exists(trustlineKey(oe.sellerID, oe.buying)))
+        {
+            return true;
+        }
+    }
+    if (oe.selling.type() != ASSET_TYPE_NATIVE)
+    {
+        if (!mEntryCache.exists(trustlineKey(oe.sellerID, oe.selling)))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 std::shared_ptr<LedgerEntry const>
 LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
                                   OfferDescriptor const* worseThan)
 {
     ZoneScoped;
 
-    // Note: Elements of mBestOffersCache are properly sorted lists of the best
+    // Note: Elements of mBestOffers are properly sorted lists of the best
     // offers for a certain asset pair. This function maintaints the invariant
     // that the lists of best offers remain properly sorted. The sort order is
     // that determined by loadBestOffers and isBetterOffer (both induce the same
     // order).
-    auto cached = getFromBestOffersCache(buying, selling);
+    auto cached = getFromBestOffers(buying, selling);
     auto& offers = cached->bestOffers;
 
     // Batch-load best offers until an offer worse than *worseThan is found
@@ -2614,9 +2629,10 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
         iter = findIncludedOffer(iter, offers.cend(), worseThan);
     }
 
+    bool newOffersLoaded = offers.size() != initialBestOffersSize;
     // Populate entry cache with upcoming best offers and prefetch associated
     // accounts and trust lines
-    if (offers.size() != initialBestOffersSize)
+    if (newOffersLoaded)
     {
         // At this point, we know that new offers were loaded. But new offers
         // will only be loaded if there were no offers worse than *worseThan
@@ -2630,9 +2646,24 @@ LedgerTxnRoot::Impl::getBestOffer(Asset const& buying, Asset const& selling,
     if (iter != offers.cend())
     {
         assert(!worseThan || isBetterOffer(*worseThan, *iter));
+
+        // Check if we didn't prefetch and that we're missing
+        // accounts/trustlines for this offer in the cache. If we are, batch
+        // load for this offer and the next 999
+        if (!newOffersLoaded &&
+            areEntriesMissingInCacheForOffer(iter->data.offer()))
+        {
+            auto lastOfferIter =
+                std::distance(iter, offers.cend()) > mMaxBestOffersBatchSize
+                    ? iter + mMaxBestOffersBatchSize
+                    : offers.cend();
+            populateEntryCacheFromBestOffers(iter, lastOfferIter);
+        }
+
         putInEntryCache(LedgerEntryKey(*iter),
                         std::make_shared<LedgerEntry const>(*iter),
                         LoadType::IMMEDIATE);
+
         return std::make_shared<LedgerEntry const>(*iter);
     }
     return nullptr;
@@ -2874,26 +2905,28 @@ LedgerTxnRoot::Impl::putInEntryCache(
     }
 }
 
-LedgerTxnRoot::Impl::BestOffersCacheEntryPtr
-LedgerTxnRoot::Impl::getFromBestOffersCache(Asset const& buying,
-                                            Asset const& selling) const
+LedgerTxnRoot::Impl::BestOffersEntryPtr
+LedgerTxnRoot::Impl::getFromBestOffers(Asset const& buying,
+                                       Asset const& selling) const
 {
     try
     {
-        BestOffersCacheKey cacheKey{buying, selling};
-        if (mBestOffersCache.exists(cacheKey))
+        BestOffersKey offersKey{buying, selling};
+        auto it = mBestOffers.find(offersKey);
+
+        if (it != mBestOffers.end())
         {
-            return mBestOffersCache.get(cacheKey);
+            return it->second;
         }
 
-        auto emptyPtr = std::make_shared<BestOffersCacheEntry>(
-            BestOffersCacheEntry{{}, false});
-        mBestOffersCache.put(cacheKey, emptyPtr);
+        auto emptyPtr =
+            std::make_shared<BestOffersEntry>(BestOffersEntry{{}, false});
+        mBestOffers.emplace(offersKey, emptyPtr);
         return emptyPtr;
     }
     catch (...)
     {
-        mBestOffersCache.clear();
+        mBestOffers.clear();
         throw;
     }
 }

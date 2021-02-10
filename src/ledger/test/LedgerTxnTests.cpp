@@ -432,7 +432,6 @@ TEST_CASE("LedgerTxn round trip", "[ledgertxn]")
                 VirtualClock clock;
                 auto cfg = getTestConfig(0, mode);
                 cfg.ENTRY_CACHE_SIZE = 0;
-                cfg.BEST_OFFERS_CACHE_SIZE = 0;
                 auto app = createTestApplication(clock, cfg);
                 app->start();
 
@@ -912,7 +911,6 @@ testInflationWinners(
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -1582,7 +1580,6 @@ testAllOffers(
         VirtualClock clock;
         auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -1863,7 +1860,6 @@ testBestOffer(
         VirtualClock clock;
         auto cfg = getTestConfig(0, mode);
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -2066,6 +2062,99 @@ TEST_CASE("LedgerTxn loadBestOffer", "[ledgertxn]")
                               mode);
             }
         }
+
+        SECTION("load previously loaded offer and prefetch accounts/trustlines")
+        {
+            VirtualClock clock;
+            auto cfg = getTestConfig(0, mode);
+
+            // Enough space to store an offer, 1002 accounts (to keep a missing
+            // account from evicting a prefetched account), and 2000 trustlines
+            cfg.ENTRY_CACHE_SIZE = 3003;
+            auto app = createTestApplication(clock, cfg);
+            app->start();
+            auto& root = app->getLedgerTxnRoot();
+
+            LedgerEntry offer;
+            offer.data.type(OFFER);
+
+            auto& oe = offer.data.offer();
+            oe = LedgerTestUtils::generateValidOfferEntry();
+            oe.offerID = 1;
+
+            // The comments below are written assuming MAX_OFFERS_TO_CROSS is
+            // 1000
+            int64_t numOffers = MAX_OFFERS_TO_CROSS + 2;
+            auto accounts =
+                LedgerTestUtils::generateValidAccountEntries(numOffers);
+            // First create 1002 offers that have different accounts and
+            // trustlines
+            LedgerTxn ltx1(root);
+            for (int i = 0; i < numOffers; ++i)
+            {
+                oe.sellerID = accounts[i].accountID;
+                ltx1.create(offer);
+                ++oe.offerID;
+            }
+
+            // Commit into the database since this is a child of root
+            ltx1.commit();
+
+            // Derive from this LedgerTxn from here on out so the offers loaded
+            // in root don't get cleared
+            LedgerTxn ltx2(root);
+            {
+                LedgerTxn ltx3(ltx2);
+                // Load all offers into best offers by requesting an offerID
+                // that is greater than any we created above. Since an offer
+                // will not be found, all offers will be loaded into bestOffers,
+                // but mEntryCache will remain empty.
+                ltx3.getBestOffer(oe.buying, oe.selling, {oe.price, numOffers});
+            }
+
+            auto preLoadPrefetchHitRate = root.getPrefetchHitRate();
+            REQUIRE(preLoadPrefetchHitRate == 0);
+
+            // This should lead to prefetching even though the offers were
+            // already loaded. The offersIDs are in the range [1, 1002]. Verify
+            // that the prefetching worked by checking the prefetch hit rate
+            // after loading the accounts. mEntryCache should be empty prior to
+            // this getBestOffer call, so no evictions should happen.
+
+            auto loadOfferAndPrefetch = [&](int64_t offerID) {
+                ltx2.getBestOffer(oe.buying, oe.selling, {oe.price, offerID});
+
+                for (auto const& account : accounts)
+                {
+                    loadAccount(ltx2, account.accountID);
+                }
+
+                // Note that we can't prefetch for more than 1000 offers
+                double expectedPrefetchHitRate =
+                    std::min(numOffers - offerID,
+                             static_cast<int64_t>(MAX_OFFERS_TO_CROSS)) /
+                    static_cast<double>(accounts.size());
+                REQUIRE(fabs(expectedPrefetchHitRate -
+                             ltx2.getPrefetchHitRate()) < .000001);
+                REQUIRE(preLoadPrefetchHitRate < ltx2.getPrefetchHitRate());
+            };
+
+            SECTION("prefetch for all worse remaining offers")
+            {
+                // There are 1000 better offers than offerID 2
+                loadOfferAndPrefetch(numOffers - MAX_OFFERS_TO_CROSS);
+            }
+            SECTION("prefetch for the next MAX_OFFERS_TO_CROSS offers")
+            {
+                // There are 1001 better offers than offerID 1. Should still
+                // only prefetch for 1000
+                loadOfferAndPrefetch(numOffers - MAX_OFFERS_TO_CROSS - 1);
+            }
+            SECTION("prefetch less than MAX_OFFERS_TO_CROSS offers")
+            {
+                loadOfferAndPrefetch(numOffers / 2);
+            }
+        }
     };
 
     SECTION("default")
@@ -2156,7 +2245,6 @@ testOffersByAccountAndAsset(
         VirtualClock clock;
         auto cfg = getTestConfig();
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         auto app = createTestApplication(clock, cfg);
         app->start();
         testAtRoot(*app);
@@ -2431,7 +2519,8 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
         app->start();
         auto& root = app->getLedgerTxnRoot();
 
-        auto entries = LedgerTestUtils::generateValidLedgerEntries(1000);
+        auto entries = LedgerTestUtils::generateValidLedgerEntries(
+            cfg.ENTRY_CACHE_SIZE + 1);
         LedgerTxn ltx(root);
         for (auto e : entries)
         {
@@ -2456,12 +2545,10 @@ TEST_CASE("LedgerTxnRoot prefetch", "[ledgertxn]")
             REQUIRE(root.prefetch(smallSet) == smallSet.size());
             ltx2.commit();
         }
-        SECTION("stop prefetching as cache fills up")
+        SECTION("prefetch more than ENTRY_CACHE_SIZE entries")
         {
             LedgerTxn ltx2(root);
-            REQUIRE(root.prefetch(keysToPrefetch) ==
-                    (cfg.ENTRY_CACHE_SIZE / 2));
-            REQUIRE(root.prefetch(keysToPrefetch) == 0);
+            REQUIRE(root.prefetch(keysToPrefetch) == keysToPrefetch.size());
             ltx2.commit();
         }
     };
@@ -2774,7 +2861,6 @@ TEST_CASE("Signers performance benchmark", "[!hide][signersbench]")
         VirtualClock clock;
         Config cfg(getTestConfig(0, mode));
         cfg.ENTRY_CACHE_SIZE = 0;
-        cfg.BEST_OFFERS_CACHE_SIZE = 0;
         Application::pointer app = createTestApplication(clock, cfg);
         app->start();
 
@@ -2937,7 +3023,6 @@ TEST_CASE("Load best offers benchmark", "[!hide][bestoffersbench]")
         VirtualClock clock;
         Config cfg(getTestConfig(0, mode));
         cfg.ENTRY_CACHE_SIZE = 100000;
-        cfg.BEST_OFFERS_CACHE_SIZE = 1000;
         Application::pointer app = createTestApplication(clock, cfg);
 
         CLOG_WARNING(
