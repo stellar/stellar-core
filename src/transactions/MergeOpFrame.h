@@ -19,6 +19,9 @@ class MergeOpFrame : public OperationFrame
         return mResult.tr().accountMergeResult();
     }
 
+    bool doApplyBeforeV16(AbstractLedgerTxn& ltx);
+    bool doApplyFromV16(AbstractLedgerTxn& ltx);
+
     ThresholdLevel getThresholdLevel() const override;
 
     virtual bool isSeqnumTooFar(LedgerTxnHeader const& header,

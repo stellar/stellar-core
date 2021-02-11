@@ -50,6 +50,20 @@ bool
 MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
 {
     ZoneNamedN(applyZone, "MergeOp apply", true);
+
+    if (ltx.loadHeader().current().ledgerVersion < 16)
+    {
+        return doApplyBeforeV16(ltx);
+    }
+    else
+    {
+        return doApplyFromV16(ltx);
+    }
+}
+
+bool
+MergeOpFrame::doApplyBeforeV16(AbstractLedgerTxn& ltx)
+{
     auto header = ltx.loadHeader();
 
     auto otherAccount =
@@ -137,6 +151,81 @@ MergeOpFrame::doApply(AbstractLedgerTxn& ltx)
     {
         innerResult().code(ACCOUNT_MERGE_DEST_FULL);
         return false;
+    }
+
+    removeEntryWithPossibleSponsorship(
+        ltx, header, sourceAccountEntry.current(), sourceAccountEntry);
+    sourceAccountEntry.erase();
+
+    innerResult().code(ACCOUNT_MERGE_SUCCESS);
+    innerResult().sourceAccountBalance() = sourceBalance;
+    return true;
+}
+
+bool
+MergeOpFrame::doApplyFromV16(AbstractLedgerTxn& ltx)
+{
+    auto header = ltx.loadHeader();
+
+    if (!stellar::loadAccount(ltx, toAccountID(mOperation.body.destination())))
+    {
+        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+        return false;
+    }
+
+    auto sourceAccountEntry = loadSourceAccount(ltx, header);
+
+    if (isImmutableAuth(sourceAccountEntry))
+    {
+        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
+        return false;
+    }
+
+    // use a lambda so we don't hold a reference to the AccountEntry
+    auto sourceAccount = [&]() -> AccountEntry const& {
+        return sourceAccountEntry.current().data.account();
+    };
+
+    if (sourceAccount().numSubEntries != sourceAccount().signers.size())
+    {
+        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        return false;
+    }
+
+    if (isSeqnumTooFar(header, sourceAccount()))
+    {
+        innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+        return false;
+    }
+
+    if (loadSponsorshipCounter(ltx, getSourceID()))
+    {
+        innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+        return false;
+    }
+
+    if (getNumSponsoring(sourceAccountEntry.current()) > 0)
+    {
+        innerResult().code(ACCOUNT_MERGE_IS_SPONSOR);
+        return false;
+    }
+
+    while (!sourceAccount().signers.empty())
+    {
+        removeSignerWithPossibleSponsorship(
+            ltx, header, sourceAccount().signers.end() - 1, sourceAccountEntry);
+    }
+
+    // "success" path starts
+    auto sourceBalance = sourceAccount().balance;
+    {
+        auto otherAccount = stellar::loadAccount(
+            ltx, toAccountID(mOperation.body.destination()));
+        if (!addBalance(header, otherAccount, sourceBalance))
+        {
+            innerResult().code(ACCOUNT_MERGE_DEST_FULL);
+            return false;
+        }
     }
 
     removeEntryWithPossibleSponsorship(
