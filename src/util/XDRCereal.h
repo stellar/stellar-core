@@ -132,7 +132,7 @@ xdr_to_string(const T& t, std::string const& name, bool compact = false)
         cereal::JSONOutputArchive ar(
             os, compact ? cereal::JSONOutputArchive::Options::NoIndent()
                         : cereal::JSONOutputArchive::Options::Default());
-        ar(cereal::make_nvp(name, t));
+        xdr::archive(ar, t, name.c_str());
     }
     return os.str();
 }
