@@ -121,9 +121,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         }
     });
 
-    auto t = mConfig.WORKER_THREADS;
+    size_t t = static_cast<size_t>(mConfig.WORKER_THREADS);
     LOG_DEBUG(DEFAULT_LOG, "Application constructing (worker threads: {})", t);
-    while (t--)
+    if (t == 0)
+    {
+        throw std::runtime_error("WORKER_THREADS must be nonzero");
+    }
+    for (size_t i = 0; i < t; ++i)
     {
         auto thread = std::thread{[this]() {
             runCurrentThreadWithLowPriority();

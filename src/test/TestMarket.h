@@ -109,6 +109,8 @@ class TestMarket
 
     void checkCurrentOffers();
 
+    std::map<OfferKey, OfferState> const& getCurrentOffers() const;
+
   private:
     Application& mApp;
     std::map<OfferKey, OfferState> mOffers;

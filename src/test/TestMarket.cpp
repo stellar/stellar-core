@@ -245,6 +245,12 @@ TestMarket::checkCurrentOffers()
     checkState(mOffers, {});
 }
 
+std::map<OfferKey, OfferState> const&
+TestMarket::getCurrentOffers() const
+{
+    return mOffers;
+}
+
 void
 TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
                        std::vector<OfferKey> const& deletedOffers)

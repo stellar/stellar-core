@@ -16,11 +16,19 @@ void throwIf(TransactionResult const& result);
 
 class ex_txException
 {
+  public:
+    virtual std::string getName() const = 0;
 };
 
 #define TEST_EXCEPTION(M) \
     class M : public ex_txException \
     { \
+      public: \
+        virtual std::string \
+        getName() const \
+        { \
+            return #M; \
+        } \
     };
 
 TEST_EXCEPTION(ex_UNKNOWN)

@@ -14,10 +14,16 @@
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
 #include "transactions/test/SponsorshipTestUtils.h"
+#include "util/Math.h"
 #include "util/Timer.h"
+
+#include <cstdint>
+#include <photesthesis/photesthesis.h>
 
 #include <deque>
 #include <limits>
+#include <optional>
+#include <photesthesis/value.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -64,6 +70,610 @@ assetPathToString(const std::deque<Asset>& assets)
     }
     return r;
 };
+
+namespace ph = photesthesis;
+using ph::Corpus;
+using ph::Grammar;
+using ph::Symbol;
+
+// Parameters
+const ph::ParamName SRC("src");
+const ph::ParamName DST("dst");
+const ph::ParamName AMT("amt");
+const ph::RuleName PATH("path");
+
+// Observed Variables
+const ph::VarName SRC_TOTAL("src_total");
+const ph::VarName DST_TOTAL("dst_total");
+const ph::VarName EXCEPTION("exception");
+
+// Nonterminals
+const ph::RuleName BALANCE("balance");
+const ph::RuleName MINBALANCE("minbalance");
+const ph::RuleName TXFEES("txfees");
+const ph::RuleName AMOUNT("amount");
+const ph::RuleName PRICE("price");
+const ph::RuleName OFFER("offer");
+const ph::RuleName OFFERS("offers");
+
+const ph::RuleName STEP0("S0");
+const ph::RuleName STEP1("S1");
+const ph::RuleName STEP2("S2");
+const ph::RuleName STEP3("S3");
+
+// The identity offer (1:1)
+const ph::RuleName ID("id");
+
+// Path-end symbol
+const Symbol END("END");
+
+// Asset codes
+const Symbol IDR("IDR");
+const Symbol USD("USD");
+const Symbol CUR1("CUR1");
+const Symbol CUR2("CUR2");
+const Symbol CUR3("CUR3");
+const Symbol CUR4("CUR4");
+const Symbol XLM("XLM");
+
+// Offer types
+const Symbol ACTIVE("ACTIVE");
+const Symbol PASSIVE("PASSIVE");
+
+class PathPaymentTest : public ph::Test
+{
+
+    std::shared_ptr<TestAccount> mRoot;
+    std::map<AccountID, std::shared_ptr<TestAccount>> mAnchors;
+    std::map<ph::Symbol, std::shared_ptr<TestAccount>> mMarketMakers;
+    std::map<PublicKey, ph::Symbol> mAccountNames;
+    std::map<ph::Symbol, Asset> mAssets;
+
+    uint64_t mTxFee{0};
+    uint64_t mMinBalance{0};
+    uint64_t mMinBalance1{0};
+    uint64_t mMinBalance2{0};
+    uint64_t mMinBalance3{0};
+
+    void
+    setup(Application& app)
+    {
+        mRoot.reset();
+        mRoot = std::make_shared<TestAccount>(TestAccount::createRoot(app));
+        mAnchors.clear();
+        mMarketMakers.clear();
+        mAccountNames.clear();
+        mAccountNames[mRoot->getPublicKey()] = ph::Symbol("root");
+
+        mAssets.clear();
+
+        auto& lm = app.getLedgerManager();
+        mTxFee = lm.getLastTxFee();
+        mMinBalance = lm.getLastMinBalance(0) + 10 * mTxFee;
+        mMinBalance1 = lm.getLastMinBalance(1) + 10 * mTxFee;
+        mMinBalance2 = lm.getLastMinBalance(2) + 10 * mTxFee;
+        mMinBalance3 = lm.getLastMinBalance(3) + 10 * mTxFee;
+
+        uint64_t paymentAmount = mMinBalance3;
+        uint64_t morePayment = paymentAmount / 2;
+        uint64_t anchorPayment = mMinBalance2 + morePayment;
+
+        auto anchor1 = std::make_shared<TestAccount>(
+            mRoot->create("anchor1", anchorPayment));
+        auto anchor2 = std::make_shared<TestAccount>(
+            mRoot->create("anchor2", anchorPayment));
+        mAnchors[anchor1->getPublicKey()] = anchor1;
+        mAnchors[anchor2->getPublicKey()] = anchor2;
+        mAccountNames[anchor1->getPublicKey()] = ph::Symbol("anchor1");
+        mAccountNames[anchor2->getPublicKey()] = ph::Symbol("anchor2");
+
+        mAssets[IDR] = anchor1->asset(IDR.getString());
+        mAssets[CUR1] = anchor1->asset(CUR1.getString());
+        mAssets[CUR2] = anchor1->asset(CUR2.getString());
+
+        mAssets[USD] = anchor2->asset(USD.getString());
+        mAssets[CUR3] = anchor2->asset(CUR3.getString());
+        mAssets[CUR4] = anchor2->asset(CUR4.getString());
+    }
+
+  public:
+    std::shared_ptr<TestAccount>
+    getAnchorForAsset(Asset const& asset)
+    {
+        switch (asset.type())
+        {
+        case ASSET_TYPE_CREDIT_ALPHANUM4:
+        {
+            auto i = mAnchors.find(asset.alphaNum4().issuer);
+            REQUIRE(i != mAnchors.end());
+            return i->second;
+        }
+        case ASSET_TYPE_CREDIT_ALPHANUM12:
+        {
+            auto i = mAnchors.find(asset.alphaNum12().issuer);
+            REQUIRE(i != mAnchors.end());
+            return i->second;
+        }
+        default:
+            return nullptr;
+        }
+    }
+
+    std::shared_ptr<TestAccount>
+    getAnchorForAsset(ph::Symbol asset)
+    {
+        auto i = mAssets.find(asset);
+        REQUIRE(i != mAssets.end());
+        return getAnchorForAsset(i->second);
+    }
+
+    static Grammar
+    makeGrammar()
+    {
+        Grammar g;
+
+        g.addRule(BALANCE, {{g.Ref(MINBALANCE), g.Ref(TXFEES)}});
+        g.addRule(MINBALANCE, {{g.Int64(0)},
+                               {g.Int64(1)},
+                               {g.Int64(2)},
+                               {g.Int64(3)},
+                               {g.Int64(4)},
+                               {g.Int64(5)}});
+        g.addRule(TXFEES, {{g.Int64(10)}});
+
+        g.addRule(AMOUNT, {{g.Int64(10)}, {g.Int64(1000)}, {g.Int64(100000)}});
+
+        g.addRule(PRICE, {
+                             {g.Int64(1), g.Int64(1)},
+                             {g.Int64(1), g.Int64(5)},
+                             {g.Int64(5), g.Int64(1)},
+                             {g.Int64(99), g.Int64(100)},
+                             {g.Int64(100), g.Int64(99)},
+                         });
+
+        g.addRule(STEP0, {
+                             {g.Sym(END)},
+                             {g.Sym(XLM), addContext(XLM, g.Ref(STEP1))},
+                             {g.Sym(USD), addContext(USD, g.Ref(STEP1))},
+                             {g.Sym(IDR), addContext(IDR, g.Ref(STEP1))},
+                         });
+
+        g.addRule(STEP1, {
+                             {g.Sym(END)},
+                             notInContext(XLM, {g.Ref(OFFERS), g.Sym(XLM),
+                                                addContext(XLM, g.Ref(STEP2))}),
+                             notInContext(USD, {g.Ref(OFFERS), g.Sym(USD),
+                                                addContext(USD, g.Ref(STEP2))}),
+                             notInContext(IDR, {g.Ref(OFFERS), g.Sym(IDR),
+                                                addContext(IDR, g.Ref(STEP2))}),
+                         });
+
+        g.addRule(
+            STEP2,
+            {{g.Sym(END)},
+             notInContext(XLM, {g.Ref(OFFERS), g.Sym(XLM), g.Ref(STEP3)}),
+             notInContext(USD, {g.Ref(OFFERS), g.Sym(USD), g.Ref(STEP3)}),
+             notInContext(IDR, {g.Ref(OFFERS), g.Sym(IDR), g.Ref(STEP3)})});
+
+        g.addRule(STEP3, {{g.Sym(END)}});
+
+        g.addRule(OFFER, {{g.Sym(ID)}, {g.Ref(PRICE), g.Ref(AMOUNT)}});
+        g.addRule(OFFERS, {{g.Bool(false)},
+                           {g.Ref(OFFER)},
+                           {g.Ref(OFFER), g.Ref(OFFER)},
+                           {g.Ref(OFFER), g.Ref(OFFER), g.Ref(OFFER)}});
+
+        return g;
+    }
+
+    struct AssetSymbolMatcher final : public ph::Matcher<Asset>
+    {
+        std::map<ph::Symbol, Asset> mAssets;
+        AssetSymbolMatcher(std::map<ph::Symbol, Asset> const& assets)
+            : mAssets(assets)
+        {
+        }
+        ph::Symbol mSym;
+
+        void
+        match(ph::Value val) override
+        {
+            if (val.match(XLM))
+            {
+                mSym = XLM;
+                emplace(makeNativeAsset());
+            }
+            else if (val.match(mSym))
+            {
+                auto i = mAssets.find(mSym);
+                if (i != mAssets.end())
+                {
+                    emplace(i->second);
+                }
+            }
+        }
+    };
+
+    struct PriceMatcher : public ph::Matcher<Price>
+    {
+        void
+        match(ph::Value val) override
+        {
+            int64_t n, d;
+            if (val.match(PRICE, n, d))
+            {
+                emplace(static_cast<int32>(n), static_cast<int32>(d));
+            }
+        }
+    };
+
+    struct AmountMatcher final : public ph::Matcher<int64_t>
+    {
+        void
+        match(ph::Value val) override
+        {
+            int64_t amount;
+            if (val.match(AMOUNT, amount))
+            {
+                emplace(amount);
+            }
+        }
+    };
+
+    struct OfferMatcher final : public ph::Matcher<std::pair<Price, int64>>
+    {
+        void
+        match(ph::Value val) override
+        {
+            PriceMatcher price;
+            AmountMatcher amount;
+            if (val.match(OFFER, ID))
+            {
+                emplace(Price{1, 1}, 1000000);
+            }
+            else if (val.match(OFFER, price, amount))
+            {
+                emplace(*price, *amount);
+            }
+        }
+    };
+
+    struct OffersMatcher final
+        : public ph::Matcher<std::vector<std::pair<Price, int64>>>
+    {
+        void
+        match(ph::Value val) override
+        {
+            OfferMatcher o1, o2, o3;
+            if (val.match(OFFERS, o1, o2, o3))
+            {
+                emplace({*o1, *o2, *o3});
+            }
+            else if (val.match(OFFERS, o1, o2))
+            {
+                emplace({*o1, *o2});
+            }
+            else if (val.match(OFFERS, o1))
+            {
+                emplace({*o1});
+            }
+            else if (val.match(OFFERS, false))
+            {
+                emplace();
+            }
+        }
+    };
+
+    bool
+    matchStepN(ph::Value val, Asset const& currentAsset, size_t stepNum,
+               std::vector<OfferState>& offers,
+               std::vector<AssetSymbolMatcher>& path,
+               std::vector<ph::Value>& pathsum)
+    {
+        Symbol const stepSym(fmt::format("S{}", stepNum));
+        if (val.match(stepSym, END))
+        {
+            return true;
+        }
+        ph::Value nextStep;
+        OffersMatcher stepOffers;
+        AssetSymbolMatcher nextAsset(mAssets);
+        if (val.match(stepSym, stepOffers, nextAsset, nextStep))
+        {
+            pathsum.emplace_back(ph::Value::Int64((*stepOffers).size()));
+            path.emplace_back(nextAsset);
+            for (auto const& pair : *stepOffers)
+            {
+                offers.emplace_back(*nextAsset, currentAsset, pair.first,
+                                    pair.second);
+            }
+            return matchStepN(nextStep, *nextAsset, stepNum + 1, offers, path, pathsum);
+        }
+        return false;
+    }
+
+    bool
+    matchStep0(ph::Value val, std::vector<OfferState>& offers,
+               std::vector<AssetSymbolMatcher>& path,
+               std::vector<ph::Value>& pathsum)
+    {
+        if (val.match(STEP0, END))
+        {
+            return true;
+        }
+        AssetSymbolMatcher am{mAssets};
+        ph::Value tail;
+        if (val.match(STEP0, am, tail))
+        {
+            path.emplace_back(am);
+            return matchStepN(tail, *am, 1, offers, path, pathsum);
+        }
+        return false;
+    }
+
+    struct BalanceMatcher final : public ph::Matcher<int64_t>
+    {
+        Application& mApp;
+        BalanceMatcher(Application& app) : mApp(app)
+        {
+        }
+
+        void
+        match(ph::Value val) override
+        {
+            int64_t numSubEntries = 0;
+            int64_t txFees = 0;
+            ph::Value mb, tf;
+            if (val.match(BALANCE, mb, tf) &&
+                mb.match(MINBALANCE, numSubEntries) && tf.match(TXFEES, txFees))
+            {
+                auto& lm = mApp.getLedgerManager();
+                int64_t balance = lm.getLastMinBalance(numSubEntries);
+                balance += lm.getLastTxFee() * txFees;
+                emplace(balance);
+            }
+        }
+    };
+
+    ph::Value
+    observeBalances(TestAccount const& acc,
+                    std::map<ph::Symbol, Asset> const& usedAssets)
+    {
+        std::map<ph::Value, ph::Value> balances;
+        balances[XLM] = ph::Value::Int64(acc.getBalance());
+        for (auto const& pair : usedAssets)
+        {
+            if (pair.second.type() != AssetType::ASSET_TYPE_NATIVE &&
+                acc.hasTrustLine(pair.second))
+            {
+                balances[pair.first] =
+                    ph::Value::Int64(acc.getTrustlineBalance(pair.second));
+            }
+        }
+        return ph::Value(balances);
+    }
+
+
+    ph::Value
+    observeOfferState(OfferState const& offer)
+    {
+        ph::Symbol selling(assetToString(offer.selling));
+        ph::Symbol buying(assetToString(offer.buying));
+        ph::Value priceN = ph::Value::Int64(offer.price.n);
+        ph::Value priceD = ph::Value::Int64(offer.price.d);
+        ph::Value amount = ph::Value::Int64(offer.amount);
+        ph::Symbol type = offer.type == OfferType::ACTIVE ? ACTIVE : PASSIVE;
+
+        std::vector<ph::Value> ret;
+        ret.push_back(OFFER);
+        ret.push_back(selling);
+        ret.push_back(buying);
+        ret.push_back(std::vector<ph::Value>{PRICE, priceN, priceD});
+        ret.push_back(amount);
+        ret.push_back(type);
+        return ret;
+    }
+
+    void
+    observeMarket(Application &app, TestMarket const& market)
+    {
+        LedgerTxn ltx(app.getLedgerTxnRoot());
+        std::map<ph::Symbol,ph::Value> mapped;
+        for (auto const& pair : market.getCurrentOffers())
+        {
+            std::string key =
+                fmt::format("{}_offer_{}",
+                        mAccountNames[pair.first.sellerID].getString(),
+                        pair.first.offerID);
+            auto offer = stellar::loadOffer(ltx, pair.first.sellerID, pair.first.offerID);
+            if (offer)
+            {
+                OfferState os(offer.current().data.offer());
+                mapped.emplace(key, observeOfferState(os));
+            }
+            else
+            {
+                mapped.emplace(key, "deleted");
+            }
+        }
+        for (auto const& pair : mapped)
+        {
+            check(pair.first.getString(), pair.second);
+        }
+    }
+
+    PathPaymentTest(ph::Grammar const& gram, ph::Corpus& corp)
+        : ph::Test(
+              gram, corp, Symbol("PathPaymentTest"),
+              {{{SRC, BALANCE}, {DST, BALANCE}, {AMT, AMOUNT}, {PATH, STEP0}}})
+    {
+    }
+
+    void
+    run() override
+    {
+        srand(0);
+        gRandomEngine.seed(0);
+        auto cfg = getTestConfig();
+        cfg.MODE_ENABLES_BUCKETLIST = false;
+        cfg.WORKER_THREADS = 1;
+        VirtualClock clock;
+        auto app = createTestApplication(clock, cfg);
+        app->start();
+
+        setup(*app);
+
+        closeLedgerOn(*app, 2, 1, 1, 2016);
+
+        BalanceMatcher srcBalance(*app), dstBalance(*app);
+        REQUIRE(getParam(SRC).match(srcBalance));
+        REQUIRE(getParam(DST).match(dstBalance));
+
+        AmountMatcher recvAmt;
+        REQUIRE(getParam(AMT).match(recvAmt));
+
+        auto market = TestMarket{*app};
+        auto source = mRoot->create("source", *srcBalance);
+        mAccountNames[source.getPublicKey()] = ph::Symbol("source");
+        auto destination = mRoot->create("destination", *dstBalance);
+        mAccountNames[destination.getPublicKey()] = ph::Symbol("destination");
+
+        std::vector<OfferState> offers;
+        std::vector<AssetSymbolMatcher> path;
+        std::vector<ph::Value> pathsum;
+        REQUIRE(matchStep0(getParam(PATH), offers, path, pathsum));
+        if (path.size() == 0)
+        {
+            return;
+        }
+
+        AssetSymbolMatcher sendCur = path.front();
+        AssetSymbolMatcher recvCur = path.back();
+
+        std::map<ph::Symbol, Asset> usedAssets;
+        usedAssets.emplace(sendCur.mSym, *sendCur);
+        usedAssets.emplace(recvCur.mSym, *recvCur);
+
+        // Restart the trajectory-recording here: if there's nondeterminism
+        // before this point, we don't care.
+        initTrajectory();
+
+        ph::Value exception = ph::Value();
+
+        // FIXME: should max send-amount be limited? This
+        // test family isn't testing "insufficient funds".
+        uint64_t sendMax = 100000000;
+        try
+        {
+            // First set up and fund the TL for the sender.
+            if ((*sendCur).type() != stellar::ASSET_TYPE_NATIVE)
+            {
+                auto issuer = getAnchorForAsset(*sendCur);
+                REQUIRE(issuer);
+                source.changeTrust(*sendCur, sendMax);
+                issuer->pay(source, *sendCur, sendMax);
+            }
+
+            // Then set up the TL for the receiver.
+            if ((*recvCur).type() != stellar::ASSET_TYPE_NATIVE)
+            {
+                auto issuer = getAnchorForAsset(*recvCur);
+                REQUIRE(issuer);
+                destination.changeTrust(*recvCur, 10 * (*recvAmt));
+            }
+
+            // Then set up any market makers.
+            std::vector<TestMarketOffer> offerChanges;
+            size_t mm_i = 0;
+            for (OfferState const& offer : offers)
+            {
+                ++mm_i;
+                Symbol mm(fmt::format("mm{}", mm_i));
+                Asset buy = offer.buying;
+                Asset sell = offer.selling;
+                auto mmAcct = std::make_shared<TestAccount>(
+                    mRoot->create(mm.getString(), mMinBalance3));
+                auto pk = mmAcct->getPublicKey();
+                mMarketMakers[mm] = mmAcct;
+                mAccountNames[pk] = mm;
+                if (sell.type() == ASSET_TYPE_NATIVE)
+                {
+                    mRoot->pay(pk, offer.amount);
+                }
+                {
+                    mmAcct->changeTrust(sell, 10 * offer.amount);
+                    getAnchorForAsset(sell)->pay(pk, sell, offer.amount);
+                }
+                if (buy.type() != ASSET_TYPE_NATIVE)
+                {
+                    auto price = offer.price;
+                    uint64_t buyAmount = bigDivide(offer.amount, price.n,
+                                                   price.d, Rounding::ROUND_UP);
+                    mmAcct->changeTrust(buy, 10 * buyAmount);
+                    // FIXME: maybe also fund the buying trustline?
+                }
+                offerChanges.emplace_back(market.addOffer(*mmAcct, offer));
+            }
+
+            track(ph::Symbol("path_sum"), ph::Value(pathsum));
+            // Install the offers in the test market.
+            assert(offerChanges.size() == offers.size());
+            market.requireChanges(offerChanges, [](){});
+            assert(market.getCurrentOffers().size() == offers.size());
+            // Then do a path payment.
+            std::vector<Asset> assetPath;
+            for (auto const& a : path)
+            {
+                usedAssets.emplace(a.mSym, *a);
+                assetPath.emplace_back(*a);
+            }
+            source.pay(destination, *sendCur, sendMax, *recvCur, *recvAmt,
+                       assetPath);
+        }
+        catch (ex_txException const& e)
+        {
+            exception = e.getName();
+        }
+        catch (std::exception const& e)
+        {
+            exception = std::string(e.what());
+        }
+        catch (Catch::TestFailureException const& e)
+        {
+            exception = std::string("TestFailureException");
+        }
+        catch (ph::RejectPlan const& e)
+        {
+            // Pass RejectPlan through to caller.
+            throw;
+        }
+        catch (...)
+        {
+            exception = ph::Value::Bool(true);
+        }
+
+        // Finally observe the state of everyone.
+        check(SRC_TOTAL, observeBalances(source, usedAssets));
+        check(DST_TOTAL, observeBalances(destination, usedAssets));
+        for (auto const& pair : mMarketMakers)
+        {
+            check(pair.first.getString() + "_total",
+                  observeBalances(*(pair.second), usedAssets));
+        }
+        observeMarket(*app, market);
+        track(EXCEPTION, exception);
+    }
+};
+
+}
+
+TEST_CASE("parametric path payment", "[tx][ppp]")
+{
+    photesthesis::Grammar gram = PathPaymentTest::makeGrammar();
+    photesthesis::Corpus corp("test.corpus");
+    PathPaymentTest test(gram, corp);
+    test.seedFromRandomDevice();
+    REQUIRE(test.administer() == std::vector<photesthesis::PlanHash>{});
 }
 
 TEST_CASE("pathpayment", "[tx][pathpayment]")
@@ -229,7 +839,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // clang-format on
         });
     }
-
+/*
     SECTION("path payment send max 0")
     {
         auto market = TestMarket{*app};
@@ -4982,4 +5592,5 @@ TEST_CASE("path payment uses all offers in a loop", "[tx][pathpayment]")
     {
         useAllOffersInLoop(&gateway2);
     }
+    */
 }
