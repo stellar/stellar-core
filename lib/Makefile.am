@@ -22,7 +22,7 @@ if USE_POSTGRES
 libsoci_a_SOURCES += $(SOCI_PG_FILES)
 endif # USE_POSTGRES
 
-lib3rdparty_a_SOURCES = $(UTIL_FILES) $(ASIO_CXX_FILES) $(JSON_FILES) $(SQLITE3_FILES)
+lib3rdparty_a_SOURCES = $(UTIL_FILES) $(ASIO_CXX_FILES) $(JSON_FILES) $(SQLITE3_FILES) 
 if USE_SPDLOG
 lib3rdparty_a_SOURCES += $(SPDLOG_FILES)
 endif # !USE_SPDLOG
@@ -31,6 +31,11 @@ if USE_TRACY
 lib3rdparty_a_SOURCES += $(TRACY_CXX_FILES)
 endif # USE_TRACY
 noinst_HEADERS = $(MISC_H_FILES) $(ASIO_H_FILES)
+
+if BUILD_TESTS
+lib3rdparty_a_SOURCES += $(PHOTESTHESIS_CXX_FILES)
+noinst_HEADERS += $(PHOTESTHESIS_H_FILES)
+endif # !BUILD_TESTS
 
 # Suppress any installation of SUBDIRS, which may be distributed separately
 install-data:

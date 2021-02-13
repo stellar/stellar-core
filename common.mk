@@ -10,7 +10,8 @@ AM_CPPFLAGS += -isystem "$(top_srcdir)/lib"             \
 	-isystem "$(top_srcdir)/lib/fmt/include"            \
 	-isystem "$(top_srcdir)/lib/soci/src/core"          \
 	-isystem "$(top_srcdir)/lib/tracy"                  \
-	-isystem "$(top_srcdir)/lib/spdlog/include"
+	-isystem "$(top_srcdir)/lib/spdlog/include"         \
+	-isystem "$(top_srcdir)/lib/photesthesis/include"
 
 if USE_POSTGRES
 AM_CPPFLAGS += -DUSE_POSTGRES=1 $(libpq_CFLAGS)
